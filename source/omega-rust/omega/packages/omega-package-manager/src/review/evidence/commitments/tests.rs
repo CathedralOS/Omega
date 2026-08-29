@@ -1,4 +1,4 @@
-//! Regression tests for canonical build-observation commitments.
+//! Regression tests for canonical build-observation identities consumed by review.
 
 use super::build_observation_commitment;
 use omega_build_evaluation::{
@@ -269,6 +269,12 @@ fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
     let first = compiled_observation("stage/artifact.bin", 438, "payload-a", None);
     let relocated = compiled_observation("stage/artifact.bin", 438, "payload-a", None);
     assert_eq!(first, relocated);
+    assert_eq!(
+        build_observation_commitment(&first),
+        first.identity().digest(),
+        "package review delegates build-observation identity to its owner"
+    );
+    assert_eq!(first.identity().as_bytes(), &first.identity().digest());
     assert_eq!(
         build_observation_commitment(&first),
         build_observation_commitment(&relocated)

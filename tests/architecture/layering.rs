@@ -649,6 +649,45 @@ fn standalone_source_profile_analysis_stays_retired() {
         !retired_compiler.exists() && !retired_tool.exists() && !retired_command.exists(),
         "standalone source inspection, census schemas, and their command must not return beside the production compiler path"
     );
+
+    fn scan(directory: &std::path::Path, forbidden: &[&str], violations: &mut Vec<String>) {
+        for entry in std::fs::read_dir(directory).expect("scan Rust workspace source") {
+            let path = entry.expect("read Rust workspace entry").path();
+            if path.is_dir() {
+                scan(&path, forbidden, violations);
+                continue;
+            }
+            if path.extension().is_none_or(|extension| extension != "rs")
+                && path.file_name().is_none_or(|name| name != "Cargo.toml")
+            {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("read scanned workspace source");
+            for retired in forbidden {
+                if source.contains(retired) {
+                    violations.push(format!("{} contains `{retired}`", path.display()));
+                }
+            }
+        }
+    }
+    let mut violations = Vec::new();
+    scan(
+        &root.join("source/omega-rust"),
+        &[
+            "omega-source-profile",
+            "omega_source_profile",
+            "omega-source-inspection-v1",
+            "inspect_source_closure",
+            "SourceClosureSnapshot",
+            "SourceFeatureCensus",
+        ],
+        &mut violations,
+    );
+    assert!(
+        violations.is_empty(),
+        "retired source-profile authority returned under another path:\n{}",
+        violations.join("\n")
+    );
 }
 
 #[test]

@@ -13,3 +13,4 @@ omega-target = { path = "../../../representations/omega-target" }
 omega-image-emission = { path = "../../images/omega-image-emission" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
+sha2 = "0.10.9"

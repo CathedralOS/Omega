@@ -18,7 +18,9 @@ pub use optimization_rollback::{OptimizationRollback, OptimizationRollbackInputE
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
 pub use report::{
     CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, OptimizationRollbackReceipt, RetainedNativeArtifact,
+    ExecutablePublicationReceipt, OptimizationRollbackReceipt, ProductionArtifactIdentity,
+    ProductionCompilationManifest, ProductionCompilationManifestIdentity,
+    ProductionCompilationSubject, RetainedNativeArtifact,
 };
 pub use request::{CompileRequest, RequestedCompileProduct};
 

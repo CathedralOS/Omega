@@ -88,6 +88,10 @@ be structural and compositional, never a file or AST allowlist.
   model.
 - Target-specific product dependencies remain symbolic until Omega target
   realization. They do not leak into Delta compilation.
+- Repo-owned bootstrap machinery that does not implement an edge, enforce one
+  of these invariants, or provide explicitly consumed execution scaffolding is
+  negative value: adapt it into this structure or delete it. Historical,
+  neutral, and merely potentially useful are not retention categories.
 
 ## What scripts may do
 

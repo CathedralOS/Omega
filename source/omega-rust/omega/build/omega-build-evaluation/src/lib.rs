@@ -33,7 +33,10 @@
 //!   declaration harvested from the same authoritative build machine. It
 //!   selects the exact source entry and performs no name-based discovery.
 
+mod observation_identity;
 mod replay_record;
+
+pub use observation_identity::BuildObservationIdentity;
 
 pub use replay_record::{
     BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,

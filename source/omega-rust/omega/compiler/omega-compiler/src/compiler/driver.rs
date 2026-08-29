@@ -50,6 +50,7 @@ fn terminal_report(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.into_inner();
     reject_unconsumed_callback_placements("terminal-artifact", &checked)?;
+    let production_subject = production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
     let entry_machine = checked
         .selected_program_entry_machine()
@@ -66,8 +67,13 @@ fn terminal_report(
                     "terminal-artifact production failed: {error}"
                 ))]
             })?;
-    CompileReport::from_artifact(request.options.root_path, source_file_count, artifact)
-        .map_err(|message| vec![Diagnostic::error(message)])
+    CompileReport::from_artifact(
+        request.options.root_path,
+        source_file_count,
+        artifact,
+        production_subject,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
 }
 
 fn native_report(
@@ -76,6 +82,7 @@ fn native_report(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.into_inner();
     reject_unconsumed_callback_placements("native-artifact", &checked)?;
+    let production_subject = production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
     let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -134,7 +141,51 @@ fn native_report(
         source_file_count,
         native_artifact,
         optimization_rollback,
+        production_subject,
     )
+    .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn production_subject(
+    checked: &crate::pipeline::CheckedCompilation,
+) -> Result<Option<omega_compilation_report::ProductionCompilationSubject>, Vec<Diagnostic>> {
+    let Some(package) = checked.package_compilation_subject() else {
+        return Ok(None);
+    };
+    let build_machine = checked.selected_build_machine_identity().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package production requires one exact selected build-machine identity",
+        )]
+    })?;
+    let usage = checked.build_evaluation_usage().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package production requires exact build-evaluation accounting",
+        )]
+    })?;
+    let observation = checked.build_observation_summary().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package production requires exact build-observation custody",
+        )]
+    })?;
+    let profile = checked.selected_target_profile().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package production requires one selected target profile",
+        )]
+    })?;
+    let native = checked.selected_native_target().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package production requires one selected native target",
+        )]
+    })?;
+    omega_compilation_report::ProductionCompilationSubject::from_checked(
+        package.clone(),
+        build_machine.to_owned(),
+        usage,
+        observation,
+        profile,
+        native,
+    )
+    .map(Some)
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 

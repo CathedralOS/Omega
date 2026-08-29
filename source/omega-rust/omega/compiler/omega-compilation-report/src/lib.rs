@@ -2,7 +2,12 @@ use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 mod optimization_rollback;
+mod production_manifest;
 pub use optimization_rollback::OptimizationRollbackReceipt;
+pub use production_manifest::{
+    ProductionArtifactIdentity, ProductionCompilationManifest,
+    ProductionCompilationManifestIdentity, ProductionCompilationSubject,
+};
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output
 /// publication. The compatibility name remains while callers migrate from the
@@ -128,6 +133,7 @@ pub fn executable_publication_pair_matches(
         && flat.compiler_function_validation_report_fingerprint
             == bundle.compiler_function_validation_report_fingerprint
         && flat.publication_evidence_digest == bundle.publication_evidence_digest
+        && flat.native_artifact_identity == bundle.native_artifact_identity
         && flat.container_byte_count == bundle.container_byte_count
         && flat.container_digest == bundle.container_digest
         && flat.installation_evidence_digest != bundle.installation_evidence_digest
@@ -160,6 +166,7 @@ fn native_publication_certificate_digest(
 ) -> NativePublicationCertificateDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.native-publication-certificate.sha256.v1\0");
+    digest.update(artifact.identity().as_bytes());
     digest.update((artifact.semantic_bytes().len() as u64).to_le_bytes());
     digest.update(artifact.semantic_bytes());
     digest.update((artifact.proof_bytes().len() as u64).to_le_bytes());
@@ -192,6 +199,7 @@ fn native_publication_certificate_digest(
 }
 
 fn native_publication_evidence_digest(
+    native_artifact_identity: &[u8; 32],
     certificate_digest: NativePublicationCertificateDigest,
     callback_placement_identity_report_fingerprint: u64,
     inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
@@ -204,6 +212,7 @@ fn native_publication_evidence_digest(
 ) -> NativePublicationEvidenceDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.native-publication-evidence.sha256.v1\0");
+    digest.update(native_artifact_identity);
     digest.update(certificate_digest.as_bytes());
     digest.update(function_validation_digest.as_bytes());
     digest.update(inventory_digest.as_bytes());
@@ -285,6 +294,7 @@ fn make_executable(_path: &std::path::Path) -> Result<(), String> {
 pub struct ExecutablePublicationReceipt {
     destination: ExecutablePublicationDestination,
     output_path: PathBuf,
+    native_artifact_identity: [u8; 32],
     certificate_digest: NativePublicationCertificateDigest,
     /// Compact report coordinate. Exact callback placements are structurally
     /// replayed before this publication receipt can be produced.
@@ -312,6 +322,7 @@ impl ExecutablePublicationReceipt {
     pub fn new(
         destination: ExecutablePublicationDestination,
         output_path: PathBuf,
+        native_artifact_identity: [u8; 32],
         certificate_digest: NativePublicationCertificateDigest,
         callback_placement_identity_report_fingerprint: u64,
         boundary_contract_report_fingerprint: Option<u64>,
@@ -328,6 +339,7 @@ impl ExecutablePublicationReceipt {
         Self {
             destination,
             output_path,
+            native_artifact_identity,
             certificate_digest,
             callback_placement_identity_report_fingerprint,
             boundary_contract_report_fingerprint,
@@ -353,6 +365,10 @@ impl ExecutablePublicationReceipt {
 
     pub const fn certificate_digest(&self) -> NativePublicationCertificateDigest {
         self.certificate_digest
+    }
+
+    pub const fn native_artifact_identity(&self) -> &[u8; 32] {
+        &self.native_artifact_identity
     }
 
     pub const fn callback_placement_identity_report_fingerprint(&self) -> u64 {
@@ -406,6 +422,7 @@ impl ExecutablePublicationReceipt {
     pub fn has_consistent_installation_identity(&self) -> bool {
         self.publication_evidence_digest
             == native_publication_evidence_digest(
+                &self.native_artifact_identity,
                 self.certificate_digest,
                 self.callback_placement_identity_report_fingerprint,
                 self.inventory_digest,
@@ -453,6 +470,9 @@ pub struct CompileReport {
     /// Exact subtractive release overlay applied after build selection and
     /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
+    /// Canonical package-source/build/target/artifact authority for a
+    /// package-aware production. Standalone probes carry no such manifest.
+    production_manifest: Option<ProductionCompilationManifest>,
     /// Filesystem-free comparison between the request's explicit admissions
     /// and every trust obligation reconstructed by compilation.
     trust_admission_settlement: omega_trust_model::TrustAdmissionSettlement,
@@ -477,6 +497,7 @@ impl CompileReport {
             executable_publication,
             app_bundle_publication,
             optimization_rollback: None,
+            production_manifest: None,
             trust_admission_settlement: Default::default(),
         };
         if report.has_consistent_executable_publication_custody() {
@@ -491,10 +512,14 @@ impl CompileReport {
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
         optimization_rollback: Option<OptimizationRollbackReceipt>,
+        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
             .map_err(|_| "compiler report received an invalid native artifact")?;
+        let production_manifest = production_subject
+            .map(|subject| ProductionCompilationManifest::for_native(subject, &artifact))
+            .transpose()?;
         let report = Self {
             root_path,
             source_file_count,
@@ -505,6 +530,7 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             optimization_rollback,
+            production_manifest,
             trust_admission_settlement: Default::default(),
         };
         if !report.has_consistent_executable_publication_custody() {
@@ -539,6 +565,14 @@ impl CompileReport {
         artifact
             .validate()
             .map_err(|error| format!("refusing to publish an invalid native artifact: {error}"))?;
+        if self
+            .production_manifest
+            .as_ref()
+            .is_some_and(|manifest| !manifest.matches_native_artifact(artifact))
+        {
+            return Err("native publication manifest disagrees with retained artifact".to_owned());
+        }
+        let native_artifact_identity = *artifact.identity().as_bytes();
 
         let output = artifact.image().output();
         if std::path::Path::new(&output.file_name).components().count() != 1 {
@@ -582,6 +616,7 @@ impl CompileReport {
             output.executable_regions.inventory_report_fingerprint,
         );
         let publication_evidence_digest = native_publication_evidence_digest(
+            &native_artifact_identity,
             certificate_digest,
             output.callback_placement_identity_report_fingerprint,
             output.executable_regions.inventory_digest,
@@ -603,6 +638,7 @@ impl CompileReport {
         let receipt = ExecutablePublicationReceipt::new(
             ExecutablePublicationDestination::FlatOutput,
             output_path,
+            native_artifact_identity,
             certificate_digest,
             output.callback_placement_identity_report_fingerprint,
             boundary_contract_report_fingerprint,
@@ -630,6 +666,7 @@ impl CompileReport {
             executable_publication: Some(receipt),
             app_bundle_publication: None,
             optimization_rollback: self.optimization_rollback,
+            production_manifest: self.production_manifest,
             trust_admission_settlement: self.trust_admission_settlement,
         };
         if !report.has_consistent_executable_publication_custody() {
@@ -658,6 +695,10 @@ impl CompileReport {
         self.optimization_rollback.as_ref()
     }
 
+    pub const fn production_manifest(&self) -> Option<&ProductionCompilationManifest> {
+        self.production_manifest.as_ref()
+    }
+
     pub fn with_trust_admission_settlement(
         mut self,
         settlement: omega_trust_model::TrustAdmissionSettlement,
@@ -674,10 +715,14 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
             .map_err(|_| "compiler report received an invalid canonical Terminal artifact")?;
+        let production_manifest = production_subject
+            .map(|subject| ProductionCompilationManifest::for_terminal(subject, &artifact))
+            .transpose()?;
         let report = Self {
             root_path,
             source_file_count,
@@ -688,6 +733,7 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             optimization_rollback: None,
+            production_manifest,
             trust_admission_settlement: Default::default(),
         };
         report
@@ -749,6 +795,13 @@ impl CompileReport {
         if !rollback_matches_kind {
             return false;
         }
+        if self
+            .production_manifest
+            .as_ref()
+            .is_some_and(|manifest| !manifest.validate())
+        {
+            return false;
+        }
         let cardinality_matches_kind = match self.output_kind {
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
@@ -766,6 +819,11 @@ impl CompileReport {
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
+                    && self.production_manifest.as_ref().is_none_or(|manifest| {
+                        self.artifact
+                            .as_ref()
+                            .is_some_and(|artifact| manifest.matches_terminal_artifact(artifact))
+                    })
             }
             CompileOutputKind::RetainedNativeArtifact => {
                 !self.wrote_output
@@ -776,6 +834,11 @@ impl CompileReport {
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
+                    && self.production_manifest.as_ref().is_none_or(|manifest| {
+                        self.retained_native_artifact
+                            .as_ref()
+                            .is_some_and(|artifact| manifest.matches_native_artifact(artifact))
+                    })
             }
             CompileOutputKind::NativeExecutable => {
                 self.wrote_output
@@ -784,6 +847,10 @@ impl CompileReport {
                     && self.executable_publication.as_ref().is_some_and(|receipt| {
                         receipt.destination == ExecutablePublicationDestination::FlatOutput
                             && receipt.has_consistent_installation_identity()
+                    })
+                    && self.production_manifest.as_ref().is_none_or(|manifest| {
+                        matches!(manifest.artifact(), ProductionArtifactIdentity::Native(identity)
+                            if self.executable_publication.as_ref().is_some_and(|receipt| receipt.native_artifact_identity() == identity.as_bytes()))
                     })
             }
             CompileOutputKind::ObjectContainer => {
@@ -859,7 +926,9 @@ mod tests {
         let function_validation = function_validation_digest(7);
         let inventory = omega_image::PlacedExecutableRegionInventoryDigest::from_digest([5; 32]);
         let container = super::ExecutableContainerDigest::from_digest([7; 32]);
+        let native_artifact_identity = [9; 32];
         let publication = super::native_publication_evidence_digest(
+            &native_artifact_identity,
             certificate,
             8,
             inventory,
@@ -881,6 +950,7 @@ mod tests {
         ExecutablePublicationReceipt::new(
             destination,
             path,
+            native_artifact_identity,
             certificate,
             8,
             Some(2),
@@ -912,6 +982,7 @@ mod tests {
             executable_publication: flat,
             app_bundle_publication: bundle,
             optimization_rollback: None,
+            production_manifest: None,
             trust_admission_settlement: Default::default(),
         }
     }

@@ -47,6 +47,38 @@ fn package_command_words_do_not_reserve_ordinary_source_filenames() {
     let _ = std::fs::remove_dir_all(project);
 }
 
+#[cfg(unix)]
+#[test]
+fn dependency_free_build_project_still_enters_reconciled_source_custody() {
+    use std::os::unix::fs::symlink;
+
+    let project = temp_path("zero-dependency-project");
+    let outside = temp_path("zero-dependency-outside.omg");
+    std::fs::create_dir(&project).expect("create dependency-free project");
+    std::fs::write(
+        project.join("build.omg"),
+        b"machine build(builder: &mut Build) { builder.application(\"zero-dependency\"); }\n",
+    )
+    .expect("write project build root");
+    std::fs::write(project.join("main.omg"), b"machine main() {}\n").expect("write project entry");
+    std::fs::write(&outside, b"machine escaped() {}\n").expect("write outside source");
+    symlink(&outside, project.join("escaped.omg")).expect("create escaping source link");
+
+    let output = omega_in(&project, &["main.omg", "--check"]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success(),
+        "escaping source link was accepted"
+    );
+    assert!(
+        stderr.contains("source symlink") && stderr.contains("outside package root"),
+        "dependency-free build did not report reconciled source custody: {stderr}"
+    );
+    let _ = std::fs::remove_dir_all(project);
+    let _ = std::fs::remove_file(outside);
+}
+
 #[test]
 fn production_usage_does_not_advertise_manifest_or_receipt_inputs() {
     let output = omega(&[]);
