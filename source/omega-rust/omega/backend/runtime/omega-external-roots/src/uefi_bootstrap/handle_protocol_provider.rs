@@ -151,9 +151,9 @@ pub fn join_lifecycle_scoped_uefi_handle_protocol_provider<'system_table, 'boot_
     LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
     Box<UefiHandleProtocolProviderJoinError<'system_table, 'boot_services>>,
 > {
-    if !ledger.matches_image_handle(&projection.arrival.image_handle)
-        || !ledger.matches_provenance(&projection.arrival.system_table.provenance)
-        || !ledger.matches_lease(&projection.arrival.system_table.phase_lease)
+    if !ledger.matches_image_handle(&projection.readiness.arrival.image_handle)
+        || !ledger.matches_provenance(&projection.readiness.arrival.system_table.provenance)
+        || !ledger.matches_lease(&projection.readiness.arrival.system_table.phase_lease)
     {
         return reject_join(
             projection,
@@ -570,9 +570,23 @@ impl<'system_table> UefiApplicationFirmwareLedger<'system_table> {
         ReleasedUefiSystemTableScope,
         Box<UefiHandleProtocolProviderReleaseError<'system_table, 'boot_services>>,
     > {
-        if !self.matches_image_handle(&provider.projection.arrival.image_handle)
-            || !self.matches_provenance(&provider.projection.arrival.system_table.provenance)
-            || !self.matches_lease(&provider.projection.arrival.system_table.phase_lease)
+        if !self.matches_image_handle(&provider.projection.readiness.arrival.image_handle)
+            || !self.matches_provenance(
+                &provider
+                    .projection
+                    .readiness
+                    .arrival
+                    .system_table
+                    .provenance,
+            )
+            || !self.matches_lease(
+                &provider
+                    .projection
+                    .readiness
+                    .arrival
+                    .system_table
+                    .phase_lease,
+            )
         {
             return Err(Box::new(UefiHandleProtocolProviderReleaseError {
                 provider,
@@ -613,7 +627,9 @@ mod tests {
     use crate::{
         UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
         UefiSystemTableOccurrenceId, join_lifecycle_scoped_uefi_system_table,
-        join_uefi_application_physical_arrival, project_uefi_application_boot_services,
+        join_uefi_application_physical_arrival,
+        prepare_uefi_application_bootstrap_adapter_invocation,
+        project_uefi_application_boot_services,
     };
     use omega_program_entry_plan::{
         ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
@@ -706,7 +722,9 @@ mod tests {
         let arrival =
             join_uefi_application_physical_arrival(ledger, image, scoped, physical_contract())
                 .unwrap();
-        project_uefi_application_boot_services(ledger, arrival).unwrap()
+        let readiness =
+            prepare_uefi_application_bootstrap_adapter_invocation(ledger, arrival).unwrap();
+        project_uefi_application_boot_services(ledger, readiness).unwrap()
     }
     fn ledger<'a>(base: u64) -> UefiApplicationFirmwareLedger<'a> {
         UefiApplicationFirmwareLedger::new(
