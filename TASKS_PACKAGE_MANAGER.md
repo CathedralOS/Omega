@@ -34,8 +34,8 @@ closed. Compiler-issued package review remains non-admitting.
     out of `omega-package-source`; source custody should expose only neutral
     source lineages, immutable resolutions, object identities, commitments, and
     validated relative paths;
-  - replace misleading evidence/projection modules without changing canonical
-    rows or encodings;
+  - replace the remaining misleading exact-identity and contract-metadata
+    groupings without changing canonical rows or encodings;
   - split macOS confinement policy construction from native realization;
   - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,
     then refresh each crate map and enforce the intended dependency direction.

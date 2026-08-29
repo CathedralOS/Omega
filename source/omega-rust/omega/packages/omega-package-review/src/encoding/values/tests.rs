@@ -2,7 +2,7 @@ use crate::encoding::canonical::PackageReviewEncodingLimits;
 use crate::encoding::canonical::encoder::Encoder;
 use crate::encoding::canonical::review::{encode, encode_with_limits};
 use crate::encoding::canonical::rows::{encode_rows, encode_rows_with_limits};
-use crate::evidence::projection::PackageReviewCanonicalRowSources;
+use crate::evidence::review::PackageReviewCanonicalRowSources;
 use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCompilerIntrinsicExecution, PackageReviewNominalIdentity,

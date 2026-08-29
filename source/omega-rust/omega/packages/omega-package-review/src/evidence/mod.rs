@@ -1,10 +1,15 @@
 mod authority;
 mod contracts;
 mod identity;
-pub(crate) mod projection;
 mod public_api;
+pub(crate) mod review;
 mod rows;
 mod signatures;
+
+// The projection pipeline is concurrently being reorganized. Preserve its
+// crate-private import path while the evidence model's canonical home becomes
+// `evidence::review`.
+pub(crate) use review as projection;
 
 pub use authority::{
     PackageReviewCapabilityFlow, PackageReviewCrash, PackageReviewCrashCall,
@@ -37,13 +42,6 @@ pub use identity::{
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewToolchainSourceIdentity,
 };
-pub use projection::{
-    CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
-    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
-    CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
-    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
-};
 pub use public_api::{
     PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
@@ -51,6 +49,13 @@ pub use public_api::{
     PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewRepresentationTcb,
+};
+pub use review::{
+    CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
+    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
+    CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
 };
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
