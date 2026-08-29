@@ -18,6 +18,9 @@ mod hard_links;
 #[cfg(test)]
 mod lock_tests;
 mod locks;
+#[cfg(test)]
+mod read_link_tests;
+mod read_links;
 mod symlinks;
 
 use directories::validate_output_directory_shape;
@@ -26,6 +29,7 @@ use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
 };
 use locks::validate_output_lock_shapes;
+use read_links::{rehydrate_source_read_link_shape, validate_source_read_link_shape};
 use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
@@ -191,6 +195,15 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let mut events = Vec::new();
     let mut cursor = 0;
     while cursor < output_start {
+        if shapes[cursor].operation == 21 {
+            events.push(
+                psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadLink(
+                    rehydrate_source_read_link_shape(&shapes[cursor])?,
+                ),
+            );
+            cursor += 1;
+            continue;
+        }
         if matches!(shapes[cursor].operation, 38 | 40) {
             events.push(
                 psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::PathMetadata(
@@ -988,6 +1001,14 @@ struct ShapeRootedPath<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShapeReturnedPath<'a> {
+    ordinal: u8,
+    kind: u8,
+    completeness: u8,
+    bytes: &'a [u8],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ShapeObservedRegion {
     ordinal: u8,
     kind: u8,
@@ -1040,6 +1061,7 @@ struct AttemptShape<'a> {
     byte_operands: Vec<(u8, &'a [u8])>,
     path_like_operands: Vec<(u8, &'a [u8])>,
     rooted_paths: Vec<ShapeRootedPath<'a>>,
+    returned_paths: Vec<ShapeReturnedPath<'a>>,
     returned_path_count: usize,
     observed_regions: Vec<ShapeObservedRegion>,
     metadata: Vec<ShapeMetadata>,
@@ -1110,11 +1132,19 @@ fn decode_attempt<'a>(
     }
 
     let returned_path_count = decoder.count()?;
+    let mut returned_paths = Vec::new();
+    returned_paths
+        .try_reserve_exact(returned_path_count)
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new("replay returned-path allocation failed")
+        })?;
     for _ in 0..returned_path_count {
-        let _ = decoder.byte()?;
-        let _ = decoder.tag(2, "invalid returned-path kind tag")?;
-        let _ = decoder.tag(1, "invalid returned-path completeness tag")?;
-        let _ = decoder.bytes()?;
+        returned_paths.push(ShapeReturnedPath {
+            ordinal: decoder.byte()?,
+            kind: decoder.tag(2, "invalid returned-path kind tag")?,
+            completeness: decoder.tag(1, "invalid returned-path completeness tag")?,
+            bytes: decoder.bytes()?,
+        });
     }
     let mut observed_regions = Vec::new();
     let count = decoder.count()?;
@@ -1259,6 +1289,7 @@ fn decode_attempt<'a>(
         byte_operands,
         path_like_operands,
         rooted_paths,
+        returned_paths,
         returned_path_count,
         observed_regions,
         metadata,
@@ -1297,6 +1328,12 @@ fn validate_first_rung(
     while cursor < shapes.len() {
         if matches!(shapes[cursor].operation, 1 | 11 | 20) {
             break;
+        }
+        if shapes[cursor].operation == 21 {
+            validate_source_read_link_shape(&shapes[cursor])?;
+            cursor += 1;
+            event_count += 1;
+            continue;
         }
         if matches!(shapes[cursor].operation, 38 | 40) {
             validate_path_metadata_shape(&shapes[cursor])?;
@@ -2592,6 +2629,7 @@ mod first_rung_validation_tests {
             byte_operands: Vec::new(),
             path_like_operands: Vec::new(),
             rooted_paths: Vec::new(),
+            returned_paths: Vec::new(),
             returned_path_count: 0,
             observed_regions: Vec::new(),
             metadata: Vec::new(),
