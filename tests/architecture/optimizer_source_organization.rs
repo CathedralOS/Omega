@@ -11,10 +11,63 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const MAX_PRODUCTION_RUST_FILE_LINES: usize = 1_300;
+const MAX_PRODUCTION_RUST_FILE_LINES: usize = 1_000;
+const MAX_LEGACY_PRODUCTION_RUST_FILE_LINES: usize = 1_300;
 const MAX_TEST_RUST_FILE_LINES: usize = 1_500;
 const PREFERRED_ENTRANCE_LINES: usize = 100;
 const MAX_ENTRANCE_LINES: usize = 200;
+
+/// Exact production leaves that still exceed the default ceiling.
+///
+/// Each ceiling is pinned to the current file size. An exception cannot grow,
+/// and becomes stale as soon as the file is split below the default. New files
+/// never enter this table.
+const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[
+    (
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation.rs",
+        1_276,
+    ),
+    (
+        "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/candidate.rs",
+        1_253,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/straight_line.rs",
+        1_238,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_scalar.rs",
+        1_111,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/compute.rs",
+        1_071,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine.rs",
+        1_058,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/unit.rs",
+        1_034,
+    ),
+    (
+        "source/omega-rust/omega/representations/omega-optimization-unit/src/model.rs",
+        1_023,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/fixed_view_copy/compute.rs",
+        1_022,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaves.rs",
+        1_022,
+    ),
+    (
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/validate.rs",
+        1_021,
+    ),
+];
 
 /// The optimizer surfaces whose source organization is architecture-governed.
 /// Keep these roots explicit: silently losing a moved or renamed tree must
@@ -80,6 +133,10 @@ struct RequiredCoordinationEntrance {
 /// keeping these paths small is insufficient: deleting the coordination seam
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate.rs",
+        coordination_marker: "pub fn validate_live_ranges",
+    },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/artifact/mod.rs",
         coordination_marker: "pub fn lower_artifact_sections",
@@ -531,6 +588,22 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         }
     }
 
+    let mut legacy_file_ceilings = BTreeMap::<&str, usize>::new();
+    for (path, ceiling) in LEGACY_PRODUCTION_FILE_CEILINGS {
+        if legacy_file_ceilings.insert(path, *ceiling).is_some() {
+            violations.insert(format!(
+                "duplicate legacy production-file exception: {path}"
+            ));
+        }
+        if !(MAX_PRODUCTION_RUST_FILE_LINES + 1..=MAX_LEGACY_PRODUCTION_RUST_FILE_LINES)
+            .contains(ceiling)
+        {
+            violations.insert(format!(
+                "invalid legacy production-file ceiling {ceiling} for {path}"
+            ));
+        }
+    }
+
     let mut exceptions = BTreeMap::<&str, &EntranceException>::new();
     for exception in ENTRANCE_EXCEPTIONS {
         if exceptions.insert(exception.path, exception).is_some() {
@@ -553,12 +626,19 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         }
     }
 
+    let mut observed_legacy_files = BTreeSet::new();
     let mut observed_exceptions = BTreeSet::new();
     for (path, lines) in &source_lines {
         let ceiling = if is_test_source(path) {
             MAX_TEST_RUST_FILE_LINES
         } else {
-            MAX_PRODUCTION_RUST_FILE_LINES
+            match legacy_file_ceilings.get(path.as_str()) {
+                Some(ceiling) => {
+                    observed_legacy_files.insert(path.as_str());
+                    *ceiling
+                }
+                None => MAX_PRODUCTION_RUST_FILE_LINES,
+            }
         };
         if *lines > ceiling {
             violations.insert(format!(
@@ -602,6 +682,22 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
                     "entrance exceeds the hard {MAX_ENTRANCE_LINES}-line limit: {path} ({lines})"
                 ));
             }
+        }
+    }
+
+    for (path, _) in LEGACY_PRODUCTION_FILE_CEILINGS {
+        let path = *path;
+        if !observed_legacy_files.contains(path) {
+            violations.insert(format!(
+                "stale legacy production-file exception (missing, ungoverned, test-only, or now below {MAX_PRODUCTION_RUST_FILE_LINES} lines): {path}"
+            ));
+            continue;
+        }
+        if source_lines[path] <= MAX_PRODUCTION_RUST_FILE_LINES {
+            violations.insert(format!(
+                "stale legacy production-file exception: {path} is now {} lines",
+                source_lines[path]
+            ));
         }
     }
 

@@ -133,9 +133,16 @@ selection identity.
   against `Optimization::ALL`; no hidden second registry.
 - [x] Keep preferred entrance files below 100 lines. Any entrance above 200
   lines needs a documented semantic reason. No optimizer production file may
-  exceed 1,300 lines; dedicated test fixtures retain a 1,500-line ceiling.
-  Files may not mix catalog, unrelated rule mechanics, validator, codec, and
-  broad fixtures.
+  exceed the 1,000-line default ceiling unless it is an exact pinned migration
+  debt that cannot grow; no pinned debt may exceed 1,300 lines. Dedicated test
+  fixtures retain a 1,500-line ceiling. Files may not mix catalog, unrelated
+  rule mechanics, validator, codec, and broad fixtures.
+- [>] Eliminate the pinned pre-ratchet production leaves by semantic split.
+  Live-range validation is complete: its 34-line entrance owns liveness-custody
+  replay followed by independent range replay, with receipt projection and
+  focused tests below it; the former 1,294-line catch-all is gone. Continue
+  through the exact exception table in the architecture guard, removing each
+  exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
   line shuffling. Pipeline `whole_function_exit_contract`,
   `resolved_selected_form_layout`, `x86_branch_relaxation`, and
