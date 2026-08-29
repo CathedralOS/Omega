@@ -246,6 +246,11 @@ owns the initial-revision policy and preserves complete-unit, immutable-context,
 seed/fact, and surviving-frontier validation order. Proof-question projection,
 ownership-frontier projection, immutable signature/roster custody, and seed
 reconstruction descend into named leaves.
+Complete-unit core validation exposes canonical identity/fact indexes,
+active/pruned machine plus structural/service catalogs, retained affine
+authority, and final frontier/entry/root-service checks as its ordered entrance.
+Edge-cleanup and hidden-establishment transition mechanics descend into the
+affine-authority leaf.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
