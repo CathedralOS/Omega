@@ -8,7 +8,8 @@ use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
     CompletionClaimSource, DirectPortReadU8Realization, LinuxExitGroupI32Realization,
-    MachineRegister, ProviderExecutionBinding, TargetStructuralParameter, TerminalPsiProvenance,
+    MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
+    TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -39,6 +40,7 @@ pub struct AssignedFunction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedOperation {
+    RankedU32Countdown(AssignedRankedU32Countdown),
     UnitBody(AssignedUnitBody),
     ReturnStructuralScalarCall {
         psi_edge: EdgeId,
@@ -208,6 +210,18 @@ pub enum AssignedOperation {
         when_true: AssignedConditionalBooleanArm,
         when_false: AssignedConditionalBooleanArm,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedRankedU32Countdown {
+    pub custody: RankedU32CountdownCustody,
+    pub call_plan: CallPlan,
+    /// Stable mutable home of the loop-carried rank. The first exact slice
+    /// requires this to be the canonical incoming target-native register.
+    pub rank_home: MachineRegister,
+    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_parameters: Vec<TargetStructuralParameter>,
+    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

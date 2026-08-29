@@ -292,6 +292,8 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-terminal",
+ "psi-terminal-fixed-fuel",
+ "psi-terminal-verifier",
 ]
 
 [[package]]
@@ -301,10 +303,19 @@ dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
  "omega-installation-evidence",
+ "omega-psi-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
+ "psi-checked-trees-to-terminal",
  "psi-core",
+ "psi-proof-admission",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
+ "psi-terminal-codec",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1208,13 +1219,20 @@ dependencies = [
  "omega-abstract-operations",
  "omega-installation-evidence",
  "omega-optimization-unit",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-admission",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-fixed-fuel",
  "psi-terminal-fuel",
  "psi-terminal-interpreter",
  "psi-terminal-verifier",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1333,12 +1351,22 @@ dependencies = [
 name = "omega-target-operations-to-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations-to-target-operations",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
+ "omega-psi-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
+ "psi-checked-trees-to-terminal",
  "psi-core",
+ "psi-proof-admission",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
+ "psi-terminal-codec",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

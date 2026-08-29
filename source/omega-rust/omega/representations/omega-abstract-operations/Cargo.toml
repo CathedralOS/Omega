@@ -11,3 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-fixed-fuel = { path = "../../../psi/semantics/psi-terminal-fixed-fuel" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

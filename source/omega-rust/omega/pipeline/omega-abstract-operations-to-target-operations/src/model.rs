@@ -15,6 +15,7 @@ pub struct AdmittedBoundarySettlement<'execution> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    InvalidRankedCountdown(MachineId),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,
     DuplicateInstalledProviderCall {

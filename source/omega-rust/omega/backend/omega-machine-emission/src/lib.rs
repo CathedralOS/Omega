@@ -150,6 +150,11 @@ fn emit_function(
     let mut scalar_stack_eligible = false;
     let mut scalar_control_flow = ScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
+        AssignedOperation::RankedU32Countdown(_) => {
+            return Err(EmissionError::RankedCountdownNotYetEmittable(
+                function.machine,
+            ));
+        }
         AssignedOperation::ScalarReturnWithCleanup { .. } => {
             unreachable!("scalar cleanup returns are emitted by the early carrier path")
         }
@@ -982,6 +987,7 @@ fn append_aarch64_instructions(bytes: &mut Vec<u8>, instructions: Vec<u32>) {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmissionError {
+    RankedCountdownNotYetEmittable(MachineId),
     UnitOperationAfterReturn,
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,

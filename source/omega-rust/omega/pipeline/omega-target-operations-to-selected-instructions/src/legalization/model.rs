@@ -71,6 +71,9 @@ impl LegalizationValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
+    RankedCountdownNotYetSelectable {
+        machine: psi_core::MachineId,
+    },
     SourceCustodyMismatch,
     UnsupportedSourceShape {
         function: usize,

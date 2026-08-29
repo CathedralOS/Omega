@@ -16,8 +16,15 @@ psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+psi-terminal-fixed-fuel = { path = "../../../psi/semantics/psi-terminal-fixed-fuel" }
 psi-terminal-interpreter = { path = "../../../psi/semantics/psi-terminal-interpreter" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
 
 [dev-dependencies]
+psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }

@@ -1,8 +1,11 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
-use psi_proof_admission::AdmissionProfile;
+use psi_proof_admission::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+};
 use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
@@ -12,9 +15,11 @@ use psi_terminal::{
     VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    ModuleError, ProofBundle, VerificationError, reconstruct_interpretable_operation_obligations,
-    validate_module, validate_module_for_interpretation, validate_module_representation,
-    verify_module, verify_module_for_fixed_fuel, verify_module_for_interpretation,
+    ModuleError, ObligationEvidence, ProofBundle, VerificationError,
+    reconstruct_interpretable_operation_obligations, validate_module,
+    validate_module_for_interpretation, validate_module_representation, verify_module,
+    verify_module_for_fixed_fuel, verify_module_for_interpretation,
+    verify_module_for_native_ranked_countdown,
 };
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -22,6 +27,10 @@ fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
 }
 
 fn ranked_countdown() -> TerminalModule {
+    ranked_countdown_with_width(32)
+}
+
+fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
     let machine = id(1, MachineId::new);
     let preheader = id(1, BlockId::new);
     let header = id(2, BlockId::new);
@@ -33,7 +42,7 @@ fn ranked_countdown() -> TerminalModule {
     let condition = id(4, ValueId::new);
     let one = id(5, ValueId::new);
     let next = id(6, ValueId::new);
-    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let integer = IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
     let scalar = ScalarType::Integer(integer);
     let preheader_edge = id(1, EdgeId::new);
     let guard_edge = id(2, EdgeId::new);
@@ -72,7 +81,7 @@ fn ranked_countdown() -> TerminalModule {
                 rank_parameter: rank,
                 rank_type: integer,
                 lower_bound: IntegerValue::Unsigned(0),
-                upper_bound: IntegerValue::Unsigned(u128::from(u32::MAX)),
+                upper_bound: integer.maximum_value(),
                 covered_cyclic_edges: vec![TerminalRankedSccEdge {
                     edge: backedge,
                     source: decrement,
@@ -212,12 +221,46 @@ fn ranked_countdown() -> TerminalModule {
     }
 }
 
+fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
+    let interpretable = validate_module_for_interpretation(module)
+        .expect("ranked countdown fixture is interpreter-valid");
+    let obligations = reconstruct_interpretable_operation_obligations(interpretable)
+        .expect("ranked countdown proof question reconstructs");
+    let [reconstructed] = obligations.as_slice() else {
+        panic!("ranked countdown has exactly one proof obligation")
+    };
+    let semantic_axiom = reconstructed
+        .semantic_axioms
+        .iter()
+        .position(|axiom| *axiom == reconstructed.obligation.proposition)
+        .expect("ranked countdown obligation is reconstructed as a semantic axiom");
+    ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: reconstructed.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: id(1, EvidenceIdentity::new),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: reconstructed.obligation.proposition.clone(),
+                    rule: ProofRule::SemanticAxiom {
+                        index: semantic_axiom,
+                    },
+                },
+            }),
+        }],
+        evidence_producers: Vec::new(),
+    }
+}
+
 fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
-    let structural_type = id(1, StructuralTypeId::new);
-    let place = id(1, PlaceId::new);
+    let position = u32::try_from(module.machines[0].structural_parameters.len())
+        .expect("fixture structural position fits u32");
+    let raw = u64::from(position) + 1;
+    let structural_type = id(raw, StructuralTypeId::new);
+    let place = id(raw, PlaceId::new);
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type,
-        identity: "LoopCustody".into(),
+        identity: format!("LoopCustody{raw}"),
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
     let machine = &mut module.machines[0];
@@ -225,7 +268,7 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
         .structural_parameters
         .push(StructuralParameterDeclaration {
             place,
-            position: 0,
+            position,
             is_self: false,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -235,7 +278,7 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::Parameter {
-            position: 0,
+            position,
             is_self: false,
         },
     });
@@ -246,7 +289,7 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
     else {
         panic!("countdown exit must return Unit")
     };
-    trivial_affine_discards.push(place);
+    trivial_affine_discards.insert(0, place);
     place
 }
 
@@ -295,6 +338,106 @@ fn ranked_countdown_has_distinct_interpreter_only_authority() {
         ),
         Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
             if machine == module.entry
+    ));
+}
+
+#[test]
+fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
+    let mut module = ranked_countdown();
+    let place = add_loop_preserved_affine_parameter(&mut module);
+    assert!(matches!(
+        verify_module_for_native_ranked_countdown(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::MissingEvidence(obligation))
+            if obligation == id(1, ObligationId::new)
+    ));
+    let proof = ranked_countdown_proof(&module);
+
+    let native =
+        verify_module_for_native_ranked_countdown(&module, &proof, &AdmissionProfile::default())
+            .expect("exact structural Unit u32 countdown has native authority");
+    assert_eq!(native.module(), &module);
+    assert_eq!(native.proof_bundle(), &proof);
+    assert_eq!(native.reconstructed_obligations().obligations().len(), 1);
+    assert_eq!(native.accepted_facts().len(), 1);
+    let header = module.machines[0].ranked_scc.as_ref().unwrap().header;
+    let header_frontier = native
+        .structural_frontiers()
+        .machine(module.entry)
+        .and_then(|frontiers| frontiers.block_entry(header))
+        .expect("native authority retains the ranked header frontier");
+    assert!(
+        header_frontier
+            .owned_places()
+            .iter()
+            .any(|owned| owned.place == place)
+    );
+
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("interpreter authority remains independently constructible");
+    verify_module_for_fixed_fuel(&module, &proof, &AdmissionProfile::default())
+        .expect("fixed-fuel authority remains independently constructible");
+    assert!(matches!(
+        verify_module(&module, &proof, &AdmissionProfile::default()),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
+            if machine == module.entry
+    ));
+}
+
+#[test]
+fn native_ranked_countdown_authority_rejects_wider_rank_carriers() {
+    let mut module = ranked_countdown_with_width(64);
+    add_loop_preserved_affine_parameter(&mut module);
+    let proof = ranked_countdown_proof(&module);
+
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("the reference interpreter retains its wider countdown slice");
+    verify_module_for_fixed_fuel(&module, &proof, &AdmissionProfile::default())
+        .expect("fixed-fuel verification remains separate from representable ceiling derivation");
+    assert!(matches!(
+        verify_module_for_native_ranked_countdown(
+            &module,
+            &proof,
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
+            if machine == module.entry
+    ));
+}
+
+#[test]
+fn native_ranked_countdown_authority_requires_exactly_one_structural_token() {
+    let module = ranked_countdown();
+    let proof = ranked_countdown_proof(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("the interpreter permits an empty structural frontier");
+    assert!(matches!(
+        verify_module_for_native_ranked_countdown(
+            &module,
+            &proof,
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
+            if machine == module.entry
+    ));
+
+    let mut extra = ranked_countdown();
+    add_loop_preserved_affine_parameter(&mut extra);
+    add_loop_preserved_affine_parameter(&mut extra);
+    let proof = ranked_countdown_proof(&extra);
+    verify_module_for_interpretation(&extra, &proof, &AdmissionProfile::default())
+        .expect("the interpreter keeps its broader preserved-frontier policy");
+    assert!(matches!(
+        verify_module_for_native_ranked_countdown(
+            &extra,
+            &proof,
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
+            if machine == extra.entry
     ));
 }
 

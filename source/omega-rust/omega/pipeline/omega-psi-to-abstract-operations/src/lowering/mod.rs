@@ -11,6 +11,8 @@ pub use error::LoweringError;
 
 use crate::shared::*;
 use machine::lower_machine;
+use psi_terminal::TerminalModule;
+use psi_terminal_verifier::VerifiedNativeRankedTerminalModule;
 
 /// Consume the complete verified module after the artifact entry has decoded
 /// and verified it. The initial terminal vocabulary has one unconditional
@@ -20,7 +22,19 @@ pub(crate) fn lower_decoded_verified_module(
     verified: &VerifiedTerminalModule<'_>,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    let module = verified.module();
+    lower_decoded_module(verified.module(), retain_payloadless_for_optimization)
+}
+
+pub(crate) fn lower_decoded_native_ranked_module(
+    verified: &VerifiedNativeRankedTerminalModule<'_>,
+) -> Result<AbstractOperationPlan, LoweringError> {
+    lower_decoded_module(verified.module(), false)
+}
+
+fn lower_decoded_module(
+    module: &TerminalModule,
+    retain_payloadless_for_optimization: bool,
+) -> Result<AbstractOperationPlan, LoweringError> {
     if !module
         .machines
         .iter()

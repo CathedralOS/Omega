@@ -5,6 +5,8 @@ use psi_core::{MachineId, OperationId, ValueId};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentError {
     EntryFunctionMissing(MachineId),
+    RankedCountdownAbiMismatch(ValueId),
+    RankedCountdownRequiresRegister(ValueId),
     UnsupportedScalarCleanup(MachineId),
     InstalledProviderCallRequiresOptimizedLane {
         machine: MachineId,

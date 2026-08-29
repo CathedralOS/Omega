@@ -25,6 +25,7 @@ use conditional_scalar::{
     lower_wrapping_shift,
 };
 use expressions::*;
+pub(in crate::lowering) use expressions::{scalar_parameter_location, scalar_shape};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_scalar_function(

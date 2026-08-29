@@ -9,7 +9,8 @@ mod lowering;
 mod model;
 
 pub use lowering::{
-    lower_to_target_operations, lower_to_target_operations_with_provider_executions,
+    lower_ranked_to_target_operations, lower_to_target_operations,
+    lower_to_target_operations_with_provider_executions,
     lower_to_target_operations_with_provider_executions_and_installation,
 };
 pub use model::{AdmittedBoundarySettlement, LoweringError};
