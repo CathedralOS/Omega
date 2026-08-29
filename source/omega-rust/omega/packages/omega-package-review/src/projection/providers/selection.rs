@@ -1,6 +1,4 @@
-use super::super::source_custody::locations::{
-    canonical_source_location, canonical_source_span_location,
-};
+use super::super::source::locations::{canonical_source_location, canonical_source_span_location};
 use crate::evidence::{
     CheckedPackageProviderReview, PackageReviewCanonicalRowSource, PackageReviewNominalIdentity,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,

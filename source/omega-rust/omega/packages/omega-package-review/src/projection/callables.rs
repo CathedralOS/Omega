@@ -1,15 +1,15 @@
-use super::checked_semantics::conformances::project_conformance_bounds;
-use super::checked_semantics::facts::exactly_one;
-use super::checked_semantics::signatures::parameters::project_type_parameters;
-use super::checked_semantics::types::review_signature_type_identity_with_binders;
-use super::contracts::checked::facts::project_callable_contracts;
-use super::contracts::checked::operations::canonical_checked_invocation_targets;
-use super::operational::{
+use super::behavior::{
     project_capability_flow, project_crash, project_installation_reaches, project_mutation,
     project_service_row, project_synchronous_invocations, project_termination,
 };
+use super::contracts::checked::facts::project_callable_contracts;
+use super::contracts::checked::operations::canonical_checked_invocation_targets;
 use super::providers::callable_conformances::project_callable_conformances;
-use crate::evidence::projection::ProjectedReviewRow;
+use super::semantics::conformances::project_conformance_bounds;
+use super::semantics::facts::exactly_one;
+use super::semantics::signatures::parameters::project_type_parameters;
+use super::semantics::types::review_signature_type_identity_with_binders;
+use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewCallableParameter, PackageReviewCallableRole,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach,

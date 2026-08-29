@@ -6,11 +6,9 @@ use crate::evidence::{
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewNominalIdentity,
     PackageReviewTypeIdentity,
 };
-use crate::projection::checked_semantics::declarations::{
-    nominal_identity, trait_requirement_identity,
-};
-use crate::projection::checked_semantics::types::lifetimes::lifetime_binder_ordinal;
-use crate::projection::checked_semantics::types::{
+use crate::projection::semantics::declarations::{nominal_identity, trait_requirement_identity};
+use crate::projection::semantics::types::lifetimes::lifetime_binder_ordinal;
+use crate::projection::semantics::types::{
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
     review_type_identity_with_binders_and_substitutions,
 };

@@ -1,6 +1,6 @@
 use crate::evidence::PackageReviewContractExpression;
-use crate::projection::checked_semantics::declarations::nominal_identity;
 use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::semantics::declarations::nominal_identity;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

@@ -1,6 +1,6 @@
 use crate::evidence::PackageReviewSourceLocationRole;
-use crate::evidence::projection::ProjectedNestedSourceLocation;
-use crate::projection::checked_semantics::facts::exactly_one;
+use crate::evidence::package::ProjectedNestedSourceLocation;
+use crate::projection::semantics::facts::exactly_one;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

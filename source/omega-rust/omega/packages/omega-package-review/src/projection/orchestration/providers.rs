@@ -1,9 +1,7 @@
-use super::super::checked_semantics::declarations::{
-    nominal_identity, provider_requirement_identity,
-};
 use super::super::providers::families::project_selected_provider_families;
 use super::super::providers::intrinsics::project_compiler_intrinsic_execution;
 use super::super::providers::selection::validate_selected_provider_declaration_owner;
+use super::super::semantics::declarations::{nominal_identity, provider_requirement_identity};
 use crate::evidence::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     CheckedPackageProviderRowIdentity,

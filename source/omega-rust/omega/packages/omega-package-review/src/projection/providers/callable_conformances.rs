@@ -1,6 +1,6 @@
-use super::super::checked_semantics::declarations::{nominal_identity, trait_requirement_identity};
-use super::super::checked_semantics::types::review_signature_type_identity_with_binders;
-use super::super::public_api::operators::project_operator_coordinate;
+use super::super::api::operators::project_operator_coordinate;
+use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
+use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::boundary_operator_selection::{
     validate_selected_boundary_operator_checked_adapter,
     validate_selected_boundary_operator_external_supply,
@@ -9,7 +9,7 @@ use super::external_supply::{
     project_external_binding, project_external_executable_supply_with_source,
     validate_external_binding_payload,
 };
-use crate::evidence::projection::ProjectedReviewRow;
+use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewCallableConformance, PackageReviewExternalBinding,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,

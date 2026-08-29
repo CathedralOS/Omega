@@ -8,8 +8,8 @@ use crate::evidence::{
     PackageReviewPropositionBinderKind, PackageReviewPropositionEvidence,
     PackageReviewTypeIdentity,
 };
-use crate::projection::checked_semantics::declarations::nominal_identity;
-use crate::projection::checked_semantics::types::review_type_identity_with_binders;
+use crate::projection::semantics::declarations::nominal_identity;
+use crate::projection::semantics::types::review_type_identity_with_binders;
 
 use super::evidence::project_evidence_interface;
 

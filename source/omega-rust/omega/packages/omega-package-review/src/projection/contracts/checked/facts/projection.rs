@@ -6,9 +6,9 @@ use crate::evidence::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewResultCaseIdentity,
 };
-use crate::projection::checked_semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::contracts::expressions::projection::project_contract_expression;
 use crate::projection::contracts::propositions::application::project_contract_proposition;
+use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
