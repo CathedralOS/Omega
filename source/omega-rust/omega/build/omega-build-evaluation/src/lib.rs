@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 27;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 28;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -1048,6 +1048,7 @@ pub struct BuildObservationSummary {
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
     source_inputs_replay_verified: bool,
     operation_replay_verified: bool,
+    included_source_paths: Vec<Vec<u8>>,
     staged_output_tree: Option<BuildStagedOutputTree>,
 }
 
@@ -1078,6 +1079,12 @@ impl BuildObservationSummary {
         self.staged_output_tree.as_ref()
     }
 
+    /// Exact Output-relative paths explicitly handed to the compiler as
+    /// generated Omega source. Ordinary retained output files are absent.
+    pub fn included_source_paths(&self) -> &[Vec<u8>] {
+        &self.included_source_paths
+    }
+
     /// Whether the compiler reran this build with no host filesystem provider
     /// and consumed the complete Source-input prefix. This is independently
     /// useful partial replay evidence; only `operation_replay_verified` can
@@ -1088,8 +1095,9 @@ impl BuildObservationSummary {
 
     /// Whether the compiler replayed the complete successful operation record,
     /// reconstructed its complete Output tree from the admitted operation
-    /// grammar rather than a supplied digest, matched exact generated-source
-    /// handoff, and, for direct physical issuance, matched sponsored custody.
+    /// grammar rather than a supplied digest, matched the exact absent or
+    /// present generated-source handoff, and, for direct physical issuance,
+    /// matched sponsored custody.
     /// Only this complete fact can support a `Receipted` realized observation
     /// class.
     pub const fn operation_replay_verified(&self) -> bool {
@@ -3216,6 +3224,7 @@ pub fn compute_build_config(
                 .canonical_source_metadata_identity(),
             source_inputs_replay_verified,
             operation_replay_verified,
+            included_source_paths,
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),

@@ -314,7 +314,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 27);
+    assert_eq!(checked_observations.schema_version(), 28);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2041,6 +2041,131 @@ fn source_only_replay_requires_exact_empty_sponsored_output_custody() {
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "empty-output-receipt"));
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "unexpected-output-reject"));
+}
+
+#[test]
+fn ordinary_output_file_replays_without_generated_source_handoff() {
+    let (project, profile) = rooted_build_probe_project(
+        "ordinary-output-file-receipt",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let artifact: &[u8] in Path = builder.output.resolve("artifact.bin");
+    self.descriptor = self.filesystem.create(artifact, 438);
+    self.result = self.filesystem.write(self.descriptor, "ordinary artifact");
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "ordinary-output-review")
+            .expect("ordinary output with exact sponsored custody should compile");
+    let summary = checked
+        .build_observation_summary()
+        .expect("ordinary output receipt retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert!(summary.included_source_paths().is_empty());
+    let staged = summary
+        .staged_output_tree()
+        .expect("ordinary output retains exact staged-tree custody");
+    assert_eq!(staged.entry_count(), 1);
+    assert_eq!(staged.file_bytes(), b"ordinary artifact".len() as u64);
+    let staged_digest = staged.digest();
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("ordinary output receipt should encode")
+        .expect("ordinary output receipt should retain replay custody");
+    let mut changed_handoff_bytes = record.canonical_bytes().to_vec();
+    let handoff_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len()
+        + 2
+        + 4
+        + 4
+        + 1
+        + if summary.canonical_source_metadata_identity().is_some() {
+            4 + 32
+        } else {
+            0
+        };
+    assert_eq!(changed_handoff_bytes[handoff_offset], 0);
+    changed_handoff_bytes[handoff_offset] = 1;
+    let changed_handoff =
+        recover_review_only_build_filesystem_replay_record(&changed_handoff_bytes, limits)
+            .expect("changed handoff disposition remains canonically framed");
+
+    let package = PackageKeyIdentity::from_digest([98; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "ordinary-output", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture ordinary-output canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package ordinary-output input");
+    let changed_diagnostics = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs.clone(),
+        changed_handoff,
+    )
+    .expect_err("an invented generated-source handoff must reject replay");
+    assert!(changed_diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("handoff") && diagnostic.message.contains("changed")
+    }));
+
+    std::fs::write(
+        rooted_build_session(&project, "ordinary-output-review").join("output/artifact.bin"),
+        "host drift",
+    )
+    .expect("change physical Output after receipt capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("ordinary output should reopen without consulting drifted host Output");
+    set_canonical_source_tree_permissions(&project, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened ordinary output retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert!(replayed_summary.included_source_paths().is_empty());
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("replay reconstructs ordinary output tree")
+            .digest(),
+        staged_digest
+    );
+    assert!(
+        replayed
+            .typed
+            .symbols
+            .source_files()
+            .all(|source| !source.path.ends_with("artifact.bin")),
+        "ordinary output must not become generated Omega source"
+    );
+
+    let mismatch = compile_rooted_probe_with_sponsored_output_seed(
+        &project,
+        profile,
+        "ordinary-output-mismatch",
+        Some((Path::new("unexpected.bin"), b"unexplained output")),
+    )
+    .expect_err("an unexplained physical Output entry must reject receipt issuance");
+    assert!(mismatch.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("Output tree that differs from sponsored staged-output custody")
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "ordinary-output-review"));
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "ordinary-output-mismatch"));
 }
 
 #[test]

@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 8;
+const VERSION: u16 = 9;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -131,6 +131,15 @@ pub fn capture_verified_build_filesystem_replay_record(
             encoder.fixed(&identity.source_content_commitment());
         }
     }
+    match summary.included_source_paths() {
+        [] => encoder.byte(0),
+        [_] => encoder.byte(1),
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "bounded filesystem replay permits at most one included-source handoff",
+            ));
+        }
+    }
     encoder.count(summary.filesystem_operation_attempts().len())?;
     for attempt in summary.filesystem_operation_attempts() {
         encode_attempt(&mut encoder, attempt)?;
@@ -159,6 +168,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
     let decoded = decode_shapes(record.canonical_bytes(), limits)?;
+    let output_has_included_source = decoded.output_has_included_source;
     let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
@@ -272,16 +282,20 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             "filesystem replay output chain could not be rehydrated",
         )
     })?;
-    let expected_included_source = psi_checked_interpreter::BuildIncludedSource::from_coordinate(
-        crate::BUILD_OUTPUT_ROOT_IDENTITY,
-        clone_bytes(rooted.bytes)?,
-        shapes.len(),
-    )
-    .map_err(|_| {
-        BuildFilesystemReplayRecordError::new(
-            "filesystem replay generated-source handoff could not be rehydrated",
-        )
-    })?;
+    let expected_included_source = output_has_included_source
+        .then(|| {
+            psi_checked_interpreter::BuildIncludedSource::from_coordinate(
+                crate::BUILD_OUTPUT_ROOT_IDENTITY,
+                clone_bytes(rooted.bytes)?,
+                shapes.len(),
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay generated-source handoff could not be rehydrated",
+                )
+            })
+        })
+        .transpose()?;
     let typed_record = psi_checked_interpreter::FilesystemInputOutputReplayRecord::new(
         typed_record,
         output_record,
@@ -464,6 +478,7 @@ fn rehydrate_read_shape(
 
 struct DecodedReplay<'a> {
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    output_has_included_source: bool,
     shapes: Vec<AttemptShape<'a>>,
 }
 
@@ -492,6 +507,15 @@ fn decode_shapes(
     }
     let canonical_source_metadata_identity =
         decode_canonical_source_metadata_identity(&mut decoder)?;
+    let output_has_included_source = match decoder.byte()? {
+        0 => false,
+        1 => true,
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "invalid filesystem replay included-source disposition",
+            ));
+        }
+    };
     let attempt_count = decoder.count()?;
     if attempt_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -507,8 +531,14 @@ fn decode_shapes(
     }
     decoder.finish()?;
     validate_first_rung(&shapes)?;
+    if output_has_included_source && !shapes.iter().any(|shape| shape.operation == 1) {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "source-only filesystem replay cannot retain an included-source handoff",
+        ));
+    }
     Ok(DecodedReplay {
         canonical_source_metadata_identity,
+        output_has_included_source,
         shapes,
     })
 }
