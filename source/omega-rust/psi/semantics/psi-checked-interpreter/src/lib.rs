@@ -1609,8 +1609,9 @@ pub struct EvaluationObservations {
 /// Opaque, compiler-produced operation record for the bounded filesystem replay
 /// rung. Source-only records retain their existing event grammar. The extended
 /// grammar permits one or more Source input events followed by repeated exact
-/// Output files, each with create, zero or more writes, and close, plus an
-/// ordered generated-source subset.
+/// Output files, each with create, exact rooted-descriptor operations, bounded
+/// immediately retired duplicates, and close, plus an ordered generated-source
+/// subset.
 /// This remains replay evidence, not a receipt and not a reconstructed
 /// filesystem tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1624,6 +1625,7 @@ pub struct FilesystemReplay {
 pub const FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE: i32 = 438;
 pub const MAX_INCLUDED_BUILD_SOURCES: usize = 256;
 pub const MAX_FILESYSTEM_REPLAY_RETAINED_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES: usize = 1_024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemReplayReadKind {
@@ -1983,15 +1985,39 @@ pub enum FilesystemOutputFileOperationReplayRecord {
     },
     Sync,
     SyncData,
+    DuplicateAndClose(FilesystemOutputDuplicateReplayRecord),
+}
+
+/// One successful descriptor duplication immediately followed by successful
+/// retirement of the duplicate. This first bounded duplication lane retains
+/// the fresh logical identity without allowing it to escape or widening the
+/// existing Output operation grammar to arbitrary descriptor graphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemOutputDuplicateReplayRecord {
+    logical_handle_identity: FilesystemLogicalHandleIdentity,
+}
+
+impl FilesystemOutputDuplicateReplayRecord {
+    pub fn new(logical_handle_identity: u64) -> Result<Self, String> {
+        let logical_handle_identity = FilesystemLogicalHandleIdentity::new(logical_handle_identity)
+            .ok_or_else(|| "filesystem replay duplicate identity must be nonzero".to_owned())?;
+        Ok(Self {
+            logical_handle_identity,
+        })
+    }
+
+    pub const fn logical_handle_identity(self) -> FilesystemLogicalHandleIdentity {
+        self.logical_handle_identity
+    }
 }
 
 /// One freshly created and closed Output file, optionally containing complete
 /// sequential or positioned writes.
 ///
 /// The file grammar is deliberately narrow: canonical `create` (tag 1), zero
-/// or more canonical `write` (tag 5) or `write_at` (tag 7) calls, then
-/// canonical `close` (tag 8), all through the scoped real provider and one
-/// fresh descriptor identity. A compiler may reconstruct the
+/// or more admitted operations through that descriptor, successful
+/// `duplicate`/immediate-`close` pairs, then canonical `close` (tag 8) of the
+/// original. A compiler may reconstruct the
 /// exact attempts from this record, but the record does not claim publication,
 /// receipt strength, or custody of a staged tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2219,7 +2245,25 @@ impl FilesystemOutputFileReplayRecord {
         let mut cursor = 0usize;
         let mut extent = 0usize;
         let mut peak_extent = 0usize;
+        let mut duplicate_identities = Vec::new();
         for operation in &self.operations {
+            if let FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(duplicate) =
+                operation
+            {
+                let identity = duplicate.logical_handle_identity();
+                if identity == self.logical_handle_identity
+                    || duplicate_identities.contains(&identity)
+                {
+                    return Err("filesystem replay Output duplicate identity is reused".to_owned());
+                }
+                duplicate_identities.push(identity);
+                if duplicate_identities.len() > MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES {
+                    return Err(format!(
+                        "filesystem replay Output duplicates exceed the {MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES}-descriptor ceiling"
+                    ));
+                }
+                continue;
+            }
             let FilesystemOutputFileOperationReplayRecord::Write(write) = operation else {
                 if let FilesystemOutputFileOperationReplayRecord::SetFileTimes { times } = operation
                     && times.len() < 32
@@ -2292,6 +2336,24 @@ impl FilesystemOutputFileReplayRecord {
     }
 }
 
+fn output_file_operation_attempt_count(
+    operation: &FilesystemOutputFileOperationReplayRecord,
+) -> usize {
+    match operation {
+        FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => 2,
+        _ => 1,
+    }
+}
+
+fn output_file_attempt_count(output: &FilesystemOutputFileReplayRecord) -> Option<usize> {
+    output
+        .operations
+        .iter()
+        .try_fold(2usize, |count, operation| {
+            count.checked_add(output_file_operation_attempt_count(operation))
+        })
+}
+
 /// Typed record for the bounded Source-input/Output-file replay grammar.
 /// Source events are replayed first in their authored order, followed by the
 /// output files. Generated-source handoffs retain exact call order and the
@@ -2313,6 +2375,7 @@ impl FilesystemInputOutputReplayRecord {
         if output_files.is_empty() {
             return Err("filesystem replay requires at least one Output file".to_owned());
         }
+        validate_output_duplicate_replay(&output_files)?;
         let source_attempt_count = source_input
             .events
             .iter()
@@ -2326,6 +2389,19 @@ impl FilesystemInputOutputReplayRecord {
                 })
             })
             .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
+        let mut descriptor_identities = source_input
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                    Some(chain.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                    Some(metadata.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::PathMetadata(_) => None,
+            })
+            .collect::<Vec<_>>();
         for (ordinal, output) in output_files.iter().enumerate() {
             if output_files[..ordinal].iter().any(|prior| {
                 (prior.output_root == output.output_root
@@ -2354,6 +2430,15 @@ impl FilesystemInputOutputReplayRecord {
                     "filesystem replay Source and Output roots and descriptors must be distinct"
                         .to_owned(),
                 );
+            }
+            for identity in output_logical_handle_identities(output) {
+                if descriptor_identities.contains(&identity) {
+                    return Err(
+                        "filesystem replay Source and Output descriptors must be globally distinct"
+                            .to_owned(),
+                    );
+                }
+                descriptor_identities.push(identity);
             }
         }
         validate_expected_included_sources(
@@ -2443,8 +2528,9 @@ impl FilesystemReplay {
     }
 
     /// Validate one observed Source-input prefix followed by one or more exact
-    /// Output files, each with create, zero or more writes, and close, plus an
-    /// exact ordered subset of explicit generated-source handoffs.
+    /// Output files, each with create, exact rooted-descriptor operations,
+    /// bounded immediately retired duplicates, and close, plus an exact ordered
+    /// subset of explicit generated-source handoffs.
     pub fn from_input_output_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
@@ -2468,13 +2554,16 @@ impl FilesystemReplay {
         }
         validate_source_input_attempts(&attempts[..output_start])?;
         let outputs = output_file_records_from_attempts(&attempts[output_start..])?;
+        validate_output_duplicate_replay(&outputs)?;
         validate_output_replay_extents(&outputs)?;
         for output in &outputs {
-            if source_attempts_overlap_output(
-                &attempts[..output_start],
-                output.output_root,
-                output.logical_handle_identity,
-            ) {
+            if output_logical_handle_identities(output).any(|identity| {
+                source_attempts_overlap_output(
+                    &attempts[..output_start],
+                    output.output_root,
+                    identity,
+                )
+            }) {
                 return Err(
                     "filesystem replay Source and Output roots and descriptors must be distinct"
                         .to_owned(),
@@ -2496,6 +2585,7 @@ impl FilesystemReplay {
     pub fn from_input_output_record(
         record: FilesystemInputOutputReplayRecord,
     ) -> Result<Self, String> {
+        validate_output_duplicate_replay(&record.output_files)?;
         validate_output_time_replay_retention(&record.output_files)?;
         validate_output_replay_extents(&record.output_files)?;
         let mut attempts = source_input_record_attempts(record.source_input);
@@ -2508,6 +2598,40 @@ impl FilesystemReplay {
             expected_included_sources: record.expected_included_sources.into(),
         })
     }
+}
+
+fn output_logical_handle_identities(
+    output: &FilesystemOutputFileReplayRecord,
+) -> impl Iterator<Item = FilesystemLogicalHandleIdentity> + '_ {
+    std::iter::once(output.logical_handle_identity).chain(output.operations.iter().filter_map(
+        |operation| match operation {
+            FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(duplicate) => {
+                Some(duplicate.logical_handle_identity())
+            }
+            _ => None,
+        },
+    ))
+}
+
+fn validate_output_duplicate_replay(
+    outputs: &[FilesystemOutputFileReplayRecord],
+) -> Result<(), String> {
+    let duplicate_count = outputs
+        .iter()
+        .flat_map(|output| output.operations.iter())
+        .filter(|operation| {
+            matches!(
+                operation,
+                FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_)
+            )
+        })
+        .count();
+    if duplicate_count > MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES {
+        return Err(format!(
+            "filesystem replay Output duplicates exceed the {MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES}-descriptor ceiling"
+        ));
+    }
+    Ok(())
 }
 
 fn validate_output_time_replay_retention(
@@ -2563,7 +2687,7 @@ fn validate_expected_included_sources(
     let total_attempt_count = outputs
         .iter()
         .try_fold(source_attempt_count, |count, output| {
-            count.checked_add(output.operations.len().checked_add(2)?)
+            count.checked_add(output_file_attempt_count(output)?)
         })
         .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
     let mut previous_ordinal = source_attempt_count;
@@ -2594,7 +2718,7 @@ fn validate_expected_included_sources(
         let earliest_ordinal = outputs[..=output_index]
             .iter()
             .try_fold(source_attempt_count, |count, output| {
-                count.checked_add(output.operations.len().checked_add(2)?)
+                count.checked_add(output_file_attempt_count(output)?)
             })
             .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
         if included.filesystem_attempt_ordinal() < earliest_ordinal
@@ -2893,7 +3017,25 @@ fn output_file_record_from_attempts(
     operation_records
         .try_reserve_exact(operations.len())
         .map_err(|_| "filesystem replay Output operation allocation failed".to_owned())?;
-    for operation in operations {
+    let mut operation_cursor = 0;
+    while operation_cursor < operations.len() {
+        let operation = &operations[operation_cursor];
+        if operation.operation_tag == 45 {
+            let close_duplicate = operations.get(operation_cursor + 1).ok_or_else(|| {
+                "filesystem replay Output duplicate is not immediately retired".to_owned()
+            })?;
+            operation_records.push(
+                FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
+                    output_duplicate_record_from_attempts(
+                        operation,
+                        close_duplicate,
+                        create_result,
+                    )?,
+                ),
+            );
+            operation_cursor += 2;
+            continue;
+        }
         operation_records.push(match operation.operation_tag {
             5 | 7 => FilesystemOutputFileOperationReplayRecord::Write(
                 output_write_record_from_attempt(operation, create_result)?,
@@ -2905,6 +3047,7 @@ fn output_file_record_from_attempts(
             43 | 44 => output_sync_record_from_attempt(operation, create_result)?,
             _ => return Err("filesystem replay Output operation is unsupported".to_owned()),
         });
+        operation_cursor += 1;
     }
 
     let [close_input] = close.logical_handle_inputs.as_slice() else {
@@ -3186,6 +3329,97 @@ fn output_sync_record_from_attempt(
     })
 }
 
+fn output_duplicate_record_from_attempts(
+    duplicate: &FilesystemOperationAttempt,
+    close: &FilesystemOperationAttempt,
+    source_identity: FilesystemLogicalHandleIdentity,
+) -> Result<FilesystemOutputDuplicateReplayRecord, String> {
+    let [input] = duplicate.logical_handle_inputs.as_slice() else {
+        return Err("filesystem replay Output duplicate has no unique source".to_owned());
+    };
+    let Some(output) = duplicate.logical_handle_output else {
+        return Err("filesystem replay Output duplicate has no fresh identity".to_owned());
+    };
+    let Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::LogicalHandle(result),
+        post_error: 0,
+    }) = duplicate.outcome
+    else {
+        return Err("filesystem replay Output duplicate must succeed".to_owned());
+    };
+    if duplicate.operation_tag != 45
+        || duplicate.provider != FilesystemObservationProvider::RealScoped
+        || input.operand_ordinal != 0
+        || input.kind != FilesystemLogicalHandleKind::Descriptor
+        || input.resolution != FilesystemLogicalHandleInputResolution::Resolved(source_identity)
+        || output.kind != FilesystemLogicalHandleKind::Descriptor
+        || output.identity != result
+        || output.source != FilesystemLogicalHandleOutputSource::Duplicated(source_identity)
+        || result == source_identity
+        || !operation_has_only_handle_lanes(duplicate)
+    {
+        return Err("filesystem replay Output duplicate lanes are inconsistent".to_owned());
+    }
+    validate_exact_output_close(close, result, 0)?;
+    FilesystemOutputDuplicateReplayRecord::new(result.get())
+}
+
+fn operation_has_only_handle_lanes(operation: &FilesystemOperationAttempt) -> bool {
+    operation.scalar_operands.is_empty()
+        && operation.byte_operands.is_empty()
+        && operation.path_like_operands.is_empty()
+        && operation.rooted_path_operand_resolutions.is_empty()
+        && operation.returned_paths.is_empty()
+        && operation.observed_byte_regions.is_empty()
+        && operation.metadata_observations.is_empty()
+        && operation.mutable_byte_operand_resolutions.is_empty()
+        && operation.mutable_i64_operand_resolutions.is_empty()
+        && operation.mutable_byte_operands.is_empty()
+        && operation.mutable_i64_operands.is_empty()
+        && operation.authorized_paths.is_empty()
+        && operation.retired_logical_handles.is_empty()
+        && operation.grant_refusals.is_empty()
+}
+
+fn validate_exact_output_close(
+    close: &FilesystemOperationAttempt,
+    identity: FilesystemLogicalHandleIdentity,
+    expected_post_error: i32,
+) -> Result<(), String> {
+    let [input] = close.logical_handle_inputs.as_slice() else {
+        return Err("filesystem replay Output close has no unique descriptor".to_owned());
+    };
+    let [retired] = close.retired_logical_handles.as_slice() else {
+        return Err("filesystem replay Output close has no unique retirement".to_owned());
+    };
+    if close.operation_tag != 8
+        || close.provider != FilesystemObservationProvider::RealScoped
+        || close.result() != Some(FilesystemOperationResult::Scalar(0))
+        || close.post_error() != Some(expected_post_error)
+        || input.operand_ordinal != 0
+        || input.kind != FilesystemLogicalHandleKind::Descriptor
+        || input.resolution != FilesystemLogicalHandleInputResolution::Resolved(identity)
+        || *retired != identity
+        || !close.scalar_operands.is_empty()
+        || !close.byte_operands.is_empty()
+        || !close.path_like_operands.is_empty()
+        || !close.rooted_path_operand_resolutions.is_empty()
+        || !close.returned_paths.is_empty()
+        || !close.observed_byte_regions.is_empty()
+        || !close.metadata_observations.is_empty()
+        || !close.mutable_byte_operand_resolutions.is_empty()
+        || !close.mutable_i64_operand_resolutions.is_empty()
+        || !close.mutable_byte_operands.is_empty()
+        || !close.mutable_i64_operands.is_empty()
+        || !close.authorized_paths.is_empty()
+        || close.logical_handle_output.is_some()
+        || !close.grant_refusals.is_empty()
+    {
+        return Err("filesystem replay Output close lanes are inconsistent".to_owned());
+    }
+    Ok(())
+}
+
 fn output_write_record_from_attempt(
     write: &FilesystemOperationAttempt,
     identity: FilesystemLogicalHandleIdentity,
@@ -3268,7 +3502,7 @@ fn output_file_records_from_attempts(
 ) -> Result<Vec<FilesystemOutputFileReplayRecord>, String> {
     if attempts.is_empty() {
         return Err(
-            "bounded filesystem replay requires complete create/write*/close Output files"
+            "bounded filesystem replay requires complete create-operation*-close Output files"
                 .to_owned(),
         );
     }
@@ -3279,18 +3513,49 @@ fn output_file_records_from_attempts(
         if attempts[cursor].operation_tag() != 1 {
             return Err("filesystem replay Output file must begin with create".to_owned());
         }
+        let Some(root_identity) = attempts[cursor]
+            .logical_handle_output
+            .map(|output| output.identity)
+        else {
+            return Err("filesystem replay Output create has no descriptor identity".to_owned());
+        };
         cursor += 1;
-        while cursor < attempts.len()
-            && matches!(
+        loop {
+            if cursor == attempts.len() {
+                return Err(
+                    "bounded filesystem replay requires complete create-operation*-close Output files"
+                        .to_owned(),
+                );
+            }
+            if matches!(
                 attempts[cursor].operation_tag(),
                 5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
-            )
-        {
-            cursor += 1;
-        }
-        if cursor == attempts.len() || attempts[cursor].operation_tag() != 8 {
+            ) {
+                cursor += 1;
+                continue;
+            }
+            if attempts[cursor].operation_tag() == 45 {
+                if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 8 {
+                    return Err(
+                        "filesystem replay Output duplicate must be immediately retired".to_owned(),
+                    );
+                }
+                cursor += 2;
+                continue;
+            }
+            let closes_root = attempts[cursor].operation_tag() == 8
+                && matches!(
+                    attempts[cursor].logical_handle_inputs.as_slice(),
+                    [FilesystemLogicalHandleInput {
+                        resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+                        ..
+                    }] if *identity == root_identity
+                );
+            if closes_root {
+                break;
+            }
             return Err(
-                "bounded filesystem replay requires complete create/write*/close Output files"
+                "bounded filesystem replay requires complete create-operation*-close Output files"
                     .to_owned(),
             );
         }
@@ -3357,11 +3622,20 @@ fn output_file_attempts(
         retired_logical_handles: Vec::new(),
         grant_refusals: Vec::new(),
     };
-    let operations = record
+    let operation_capacity = record
         .operations
-        .into_iter()
-        .map(|operation| output_file_operation_attempt(operation, identity))
-        .collect::<Vec<_>>();
+        .iter()
+        .map(output_file_operation_attempt_count)
+        .sum();
+    let mut operations = Vec::with_capacity(operation_capacity);
+    for operation in record.operations {
+        match operation {
+            FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(duplicate) => {
+                operations.extend(output_duplicate_attempts(identity, duplicate));
+            }
+            operation => operations.push(output_file_operation_attempt(operation, identity)),
+        }
+    }
     let close = FilesystemOperationAttempt {
         operation_tag: 8,
         provider: FilesystemObservationProvider::RealScoped,
@@ -3599,7 +3873,8 @@ fn output_file_operation_attempt(
                 | FilesystemOutputFileOperationReplayRecord::Seek { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetLength { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetFilePermissions { .. }
-                | FilesystemOutputFileOperationReplayRecord::SetFileTimes { .. } => {
+                | FilesystemOutputFileOperationReplayRecord::SetFileTimes { .. }
+                | FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => {
                     unreachable!()
                 }
             },
@@ -3629,7 +3904,78 @@ fn output_file_operation_attempt(
             retired_logical_handles: Vec::new(),
             grant_refusals: Vec::new(),
         },
+        FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => {
+            unreachable!("duplicate pairs are expanded by output_file_attempts")
+        }
     }
+}
+
+fn output_duplicate_attempts(
+    source_identity: FilesystemLogicalHandleIdentity,
+    duplicate: FilesystemOutputDuplicateReplayRecord,
+) -> [FilesystemOperationAttempt; 2] {
+    let duplicate_identity = duplicate.logical_handle_identity();
+    let duplicate_attempt = FilesystemOperationAttempt {
+        operation_tag: 45,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::LogicalHandle(duplicate_identity),
+            post_error: 0,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(source_identity),
+        }],
+        logical_handle_output: Some(FilesystemLogicalHandleOutput {
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            identity: duplicate_identity,
+            source: FilesystemLogicalHandleOutputSource::Duplicated(source_identity),
+        }),
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    };
+    let close_attempt = FilesystemOperationAttempt {
+        operation_tag: 8,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: 0,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(duplicate_identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: vec![duplicate_identity],
+        grant_refusals: Vec::new(),
+    };
+    [duplicate_attempt, close_attempt]
 }
 
 #[cfg(test)]
@@ -4104,6 +4450,125 @@ mod filesystem_replay_record_tests {
         let observations =
             EvaluationObservations::from_filesystem_operation_attempts(malformed, Vec::new());
         assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
+
+    #[test]
+    fn typed_output_file_replays_exact_duplicate_and_immediate_retirement() {
+        let output = FilesystemOutputFileReplayRecord::with_operations(
+            root(2),
+            b"duplicated.bin".to_vec(),
+            2,
+            0,
+            vec![
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"before".to_vec(), 6, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
+                    FilesystemOutputDuplicateReplayRecord::new(3).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"after".to_vec(), 5, 0).unwrap(),
+                ),
+            ],
+            0,
+        )
+        .unwrap();
+        assert_eq!(output.replayed_bytes().unwrap(), b"beforeafter");
+        let record =
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Vec::new())
+                .unwrap();
+        let replay = FilesystemReplay::from_input_output_record(record).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 5, 45, 8, 5, 8]
+        );
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(&observations)
+            .expect("successful duplicate and immediate close are exact Output operations");
+        assert!(matches!(
+            decoded.output_files()[0].operations()[1],
+            FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(duplicate)
+                if duplicate.logical_handle_identity().get() == 3
+        ));
+
+        let mut wrong_lineage = replay.attempts().to_vec();
+        wrong_lineage[5]
+            .logical_handle_output
+            .as_mut()
+            .unwrap()
+            .source = FilesystemLogicalHandleOutputSource::Created;
+        let observations =
+            EvaluationObservations::from_filesystem_operation_attempts(wrong_lineage, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+
+        let mut failed_duplicate = replay.attempts().to_vec();
+        failed_duplicate[5].outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(-1),
+            post_error: 9,
+        });
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            failed_duplicate,
+            Vec::new(),
+        );
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+
+        let mut wrong_close = replay.attempts().to_vec();
+        wrong_close[6].logical_handle_inputs[0].resolution =
+            FilesystemLogicalHandleInputResolution::Resolved(
+                FilesystemLogicalHandleIdentity::new(2).unwrap(),
+            );
+        let observations =
+            EvaluationObservations::from_filesystem_operation_attempts(wrong_close, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+
+        let source_colliding_output = FilesystemOutputFileReplayRecord::with_operations(
+            root(2),
+            b"source-collision.bin".to_vec(),
+            2,
+            0,
+            vec![
+                FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
+                    FilesystemOutputDuplicateReplayRecord::new(1).unwrap(),
+                ),
+            ],
+            0,
+        )
+        .unwrap();
+        assert!(
+            FilesystemInputOutputReplayRecord::new(
+                source_input(1),
+                vec![source_colliding_output],
+                Vec::new(),
+            )
+            .is_err()
+        );
+
+        let over_quota = (0..=MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES)
+            .map(|index| {
+                FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
+                    FilesystemOutputDuplicateReplayRecord::new(u64::try_from(index).unwrap() + 3)
+                        .unwrap(),
+                )
+            })
+            .collect();
+        assert!(
+            FilesystemOutputFileReplayRecord::with_operations(
+                root(2),
+                b"too-many-duplicates.bin".to_vec(),
+                2,
+                0,
+                over_quota,
+                0,
+            )
+            .is_err()
+        );
     }
 
     #[test]

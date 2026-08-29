@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 19;
+const VERSION: u16 = 20;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -276,7 +276,28 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                     "filesystem replay output-operation allocation failed",
                 )
             })?;
-        for operation in operations {
+        let mut operation_cursor = 0;
+        while operation_cursor < operations.len() {
+            let operation = &operations[operation_cursor];
+            if operation.operation == 45 {
+                let Some(duplicate) = operation.output else {
+                    unreachable!("validated Output duplicate has one fresh identity")
+                };
+                operation_records.push(
+                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
+                        psi_checked_interpreter::FilesystemOutputDuplicateReplayRecord::new(
+                            duplicate.identity,
+                        )
+                        .map_err(|_| {
+                            BuildFilesystemReplayRecordError::new(
+                                "filesystem replay Output duplicate could not be rehydrated",
+                            )
+                        })?,
+                    ),
+                );
+                operation_cursor += 2;
+                continue;
+            }
             if operation.operation == 10 {
                 let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
                     operation.scalars.as_slice()
@@ -293,6 +314,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         result,
                     },
                 );
+                operation_cursor += 1;
                 continue;
             }
             if operation.operation == 41 {
@@ -304,6 +326,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         length: *length,
                     },
                 );
+                operation_cursor += 1;
                 continue;
             }
             if operation.operation == 17 {
@@ -315,6 +338,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         mode: *mode,
                     },
                 );
+                operation_cursor += 1;
                 continue;
             }
             if operation.operation == 42 {
@@ -326,6 +350,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         times: clone_bytes(times)?,
                     },
                 );
+                operation_cursor += 1;
                 continue;
             }
             if matches!(operation.operation, 43 | 44) {
@@ -334,6 +359,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 } else {
                     psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SyncData
                 });
+                operation_cursor += 1;
                 continue;
             }
             let write = operation;
@@ -371,6 +397,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                     })?,
                 ),
             );
+            operation_cursor += 1;
         }
         output_records.push(
             psi_checked_interpreter::FilesystemOutputFileReplayRecord::with_operations(
@@ -879,6 +906,7 @@ struct ShapeLogicalOutput {
     kind: u8,
     identity: u64,
     source: u8,
+    source_identity: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1127,13 +1155,12 @@ fn decode_attempt<'a>(
             let kind = decoder.tag(2, "invalid logical-handle kind tag")?;
             let identity = decoder.nonzero_u64()?;
             let source = decoder.tag(2, "invalid logical-handle source tag")?;
-            if source != 0 {
-                let _ = decoder.nonzero_u64()?;
-            }
+            let source_identity = (source != 0).then(|| decoder.nonzero_u64()).transpose()?;
             Some(ShapeLogicalOutput {
                 kind,
                 identity,
                 source,
+                source_identity,
             })
         }
         _ => unreachable!(),
@@ -1256,6 +1283,7 @@ fn validate_first_rung(
                 )
             })?;
         let mut aggregate_output_extent = 0usize;
+        let mut aggregate_output_duplicates = 0usize;
         for (start, end) in output_ranges {
             let chain = &shapes[start..end];
             let create = &chain[0];
@@ -1278,12 +1306,34 @@ fn validate_first_rung(
                 .rooted_paths
                 .first()
                 .expect("validated output create has a rooted path");
-            if identities.contains(&output.identity) {
-                return Err(BuildFilesystemReplayRecordError::new(
-                    "filesystem replay Output descriptor overlaps another descriptor",
-                ));
+            for identity in std::iter::once(output.identity).chain(
+                chain[1..chain.len() - 1]
+                    .iter()
+                    .filter(|operation| operation.operation == 45)
+                    .filter_map(|operation| operation.output.map(|output| output.identity)),
+            ) {
+                if identities.contains(&identity) {
+                    return Err(BuildFilesystemReplayRecordError::new(
+                        "filesystem replay Output descriptor overlaps another descriptor",
+                    ));
+                }
+                identities.push(identity);
             }
-            identities.push(output.identity);
+            aggregate_output_duplicates = aggregate_output_duplicates
+                .checked_add(
+                    chain[1..chain.len() - 1]
+                        .iter()
+                        .filter(|operation| operation.operation == 45)
+                        .count(),
+                )
+                .filter(|count| {
+                    *count <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES
+                })
+                .ok_or_else(|| {
+                    BuildFilesystemReplayRecordError::new(
+                        "receipted build outputs exceed the duplicate-descriptor ceiling",
+                    )
+                })?;
             if output_paths.contains(&rooted.bytes) {
                 return Err(BuildFilesystemReplayRecordError::new(
                     "filesystem replay Output path appears more than once",
@@ -1308,18 +1358,47 @@ fn output_file_ranges(
                 "filesystem replay Output file must begin with create",
             ));
         }
+        let Some(root_identity) = shapes[cursor].output.map(|output| output.identity) else {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output create has no descriptor identity",
+            ));
+        };
         cursor += 1;
-        while cursor < shapes.len()
-            && matches!(
+        loop {
+            if cursor == shapes.len() {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output must contain complete create-operation*-close files",
+                ));
+            }
+            if matches!(
                 shapes[cursor].operation,
                 5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
-            )
-        {
-            cursor += 1;
-        }
-        if cursor == shapes.len() || shapes[cursor].operation != 8 {
+            ) {
+                cursor += 1;
+                continue;
+            }
+            if shapes[cursor].operation == 45 {
+                if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 8 {
+                    return Err(BuildFilesystemReplayRecordError::new(
+                        "receipted build output duplicate must be immediately retired",
+                    ));
+                }
+                cursor += 2;
+                continue;
+            }
+            let closes_root = shapes[cursor].operation == 8
+                && matches!(
+                    shapes[cursor].inputs.as_slice(),
+                    [ShapeLogicalInput {
+                        resolution: Some(identity),
+                        ..
+                    }] if *identity == root_identity
+                );
+            if closes_root {
+                break;
+            }
             return Err(BuildFilesystemReplayRecordError::new(
-                "receipted build output must contain complete create-write*-close files",
+                "receipted build output must contain complete create-operation*-close files",
             ));
         }
         cursor += 1;
@@ -1442,6 +1521,7 @@ fn validate_output_file(
         || authorized.bytes != rooted.bytes
         || output.kind != 0
         || output.source != 0
+        || output.source_identity.is_some()
         || !only_output_create_lanes(create)
     {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -1452,26 +1532,60 @@ fn validate_output_file(
     let mut cursor = 0usize;
     let mut extent = 0usize;
     let mut peak_extent = 0usize;
-    for operation in operations {
+    let mut duplicate_identities = Vec::new();
+    let mut operation_cursor = 0;
+    while operation_cursor < operations.len() {
+        let operation = &operations[operation_cursor];
+        if operation.operation == 45 {
+            let close_duplicate = operations.get(operation_cursor + 1).ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "receipted build output duplicate is not immediately retired",
+                )
+            })?;
+            let duplicate_identity =
+                validate_output_duplicate_shapes(operation, close_duplicate, output.identity)?;
+            if duplicate_identity == output.identity
+                || duplicate_identities.contains(&duplicate_identity)
+            {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output duplicate identity is reused",
+                ));
+            }
+            duplicate_identities.push(duplicate_identity);
+            if duplicate_identities.len()
+                > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES
+            {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output exceeds its duplicate-descriptor ceiling",
+                ));
+            }
+            operation_cursor += 2;
+            continue;
+        }
         if operation.operation == 10 {
             cursor = validate_output_seek_shape(operation, output.identity, cursor, extent)?;
+            operation_cursor += 1;
             continue;
         }
         if operation.operation == 41 {
             extent = validate_output_set_length_shape(operation, output.identity)?;
             peak_extent = peak_extent.max(extent);
+            operation_cursor += 1;
             continue;
         }
         if operation.operation == 17 {
             validate_output_set_file_permissions_shape(operation, output.identity)?;
+            operation_cursor += 1;
             continue;
         }
         if operation.operation == 42 {
             validate_output_set_file_times_shape(operation, output.identity)?;
+            operation_cursor += 1;
             continue;
         }
         if matches!(operation.operation, 43 | 44) {
             validate_output_sync_shape(operation, output.identity)?;
+            operation_cursor += 1;
             continue;
         }
         let write = operation;
@@ -1536,6 +1650,7 @@ fn validate_output_file(
                 "receipted build output write is internally inconsistent",
             ));
         }
+        operation_cursor += 1;
     }
     if peak_extent > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -1746,6 +1861,49 @@ fn validate_output_sync_shape(
     Ok(())
 }
 
+fn validate_output_duplicate_shapes(
+    duplicate: &AttemptShape<'_>,
+    close: &AttemptShape<'_>,
+    source_identity: u64,
+) -> Result<u64, BuildFilesystemReplayRecordError> {
+    let [input] = duplicate.inputs.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output duplicate has no unique source",
+        ));
+    };
+    let Some(output) = duplicate.output else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output duplicate has no fresh identity",
+        ));
+    };
+    if duplicate.operation != 45
+        || duplicate.provider != 2
+        || duplicate.result != ShapeResult::Handle(output.identity)
+        || duplicate.post_error != 0
+        || *input
+            != (ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(source_identity),
+            })
+        || output.kind != 0
+        || output.source != 1
+        || output.source_identity != Some(source_identity)
+        || !only_output_duplicate_lanes(duplicate)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output duplicate is internally inconsistent",
+        ));
+    }
+    validate_close_shape(close, output.identity)?;
+    if close.post_error != 0 {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output duplicate close changed the post-operation error state",
+        ));
+    }
+    Ok(output.identity)
+}
+
 fn validate_path_metadata_shape(
     metadata_attempt: &AttemptShape<'_>,
 ) -> Result<(), BuildFilesystemReplayRecordError> {
@@ -1839,6 +1997,7 @@ fn validate_open_shape(open: &AttemptShape<'_>) -> Result<u64, BuildFilesystemRe
     };
     if output.kind != 0
         || output.source != 0
+        || output.source_identity.is_some()
         || open.result != ShapeResult::Handle(identity)
         || open_rooted.ordinal != 0
         || open_rooted.root != 0
@@ -2115,6 +2274,23 @@ fn only_output_sync_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.refusal_count == 0
 }
 
+fn only_output_duplicate_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.scalars.is_empty()
+        && attempt.byte_operands.is_empty()
+        && attempt.path_like_operand_count == 0
+        && attempt.rooted_paths.is_empty()
+        && attempt.returned_path_count == 0
+        && attempt.observed_regions.is_empty()
+        && attempt.metadata.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_bytes.is_empty()
+        && attempt.mutable_i64_count == 0
+        && attempt.authorized_paths.is_empty()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
+}
+
 fn only_output_set_length_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
         && attempt.path_like_operand_count == 0
@@ -2253,6 +2429,7 @@ mod first_rung_validation_tests {
             kind: 0,
             identity: 1,
             source: 0,
+            source_identity: None,
         });
 
         let mut read = empty_shape(4, ShapeResult::Scalar(0));
@@ -2299,6 +2476,7 @@ mod first_rung_validation_tests {
             kind: 0,
             identity: 2,
             source: 0,
+            source_identity: None,
         });
 
         let mut write = empty_shape(5, ShapeResult::Scalar(7));
@@ -2443,6 +2621,58 @@ mod first_rung_validation_tests {
         let mut spoofed_lane = shapes;
         spoofed_lane[4].scalars = vec![(1, ShapeScalar::I32(0))];
         assert!(validate_first_rung(&spoofed_lane).is_err());
+    }
+
+    #[test]
+    fn output_duplicate_requires_exact_lineage_and_immediate_retirement() {
+        let mut shapes = exact_input_output_shapes();
+        let mut duplicate = empty_shape(45, ShapeResult::Handle(3));
+        duplicate.inputs = shapes[4].inputs.clone();
+        duplicate.output = Some(ShapeLogicalOutput {
+            kind: 0,
+            identity: 3,
+            source: 1,
+            source_identity: Some(2),
+        });
+        let mut duplicate_close = empty_shape(8, ShapeResult::Scalar(0));
+        duplicate_close.inputs = vec![ShapeLogicalInput {
+            ordinal: 0,
+            kind: 0,
+            resolution: Some(3),
+        }];
+        duplicate_close.retired = vec![3];
+        shapes.insert(4, duplicate);
+        shapes.insert(5, duplicate_close);
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        let mut wrong_source = shapes.clone();
+        wrong_source[4].output.as_mut().unwrap().source = 0;
+        assert!(validate_first_rung(&wrong_source).is_err());
+
+        let mut wrong_source_identity = shapes.clone();
+        wrong_source_identity[4]
+            .output
+            .as_mut()
+            .unwrap()
+            .source_identity = Some(9);
+        assert!(validate_first_rung(&wrong_source_identity).is_err());
+
+        let mut wrong_result = shapes.clone();
+        wrong_result[4].result = ShapeResult::Handle(4);
+        assert!(validate_first_rung(&wrong_result).is_err());
+
+        let mut failed = shapes.clone();
+        failed[4].result = ShapeResult::Scalar(-1);
+        failed[4].post_error = 9;
+        assert!(validate_first_rung(&failed).is_err());
+
+        let mut wrong_close_lineage = shapes.clone();
+        wrong_close_lineage[5].inputs[0].resolution = Some(2);
+        assert!(validate_first_rung(&wrong_close_lineage).is_err());
+
+        let mut missing_close = shapes;
+        missing_close.remove(5);
+        assert!(validate_first_rung(&missing_close).is_err());
     }
 
     #[test]
