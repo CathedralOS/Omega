@@ -205,9 +205,14 @@ families remain separate leaves. Straight-line scalar lowering now owns its
 operation lifecycle in a 50-line entrance, then descends into exhaustive
 operation routing, integer arithmetic, integer conversion, and terminal-edge
 construction; its former 1,238-line match is gone and no replacement exceeds
-600 lines. The stage's remaining pre-ratchet leaves are pinned and cannot grow,
-and the stage, function, scalar, straight-line, and structural joins are
-mandatory coordination entrances rather than re-export walls.
+600 lines. Conditional-scalar lowering has its own 37-line entrance that tries
+direct call/boolean/comparison work before exhaustive integer operation
+routing; binary-kind folding and exact/wrapping shift semantics are separate
+shared leaves, and its former 1,111-line file is gone with no replacement over
+562 lines. The stage's remaining pre-ratchet leaves are pinned and cannot grow,
+and the stage, function, scalar, straight-line, conditional-scalar, and
+structural joins are mandatory coordination entrances rather than re-export
+walls.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function
