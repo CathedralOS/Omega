@@ -7,6 +7,9 @@ pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
+#[cfg(test)]
+pub(crate) mod tests;
+
 pub use identity::pressure_rematerialization_identity;
 pub use model::*;
 pub use validate::validate_pressure_rematerialization;

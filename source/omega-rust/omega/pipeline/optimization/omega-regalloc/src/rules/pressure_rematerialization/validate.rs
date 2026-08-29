@@ -569,7 +569,7 @@ mod tests {
     #[test]
     fn independent_replay_matches_proposal_and_rejects_recipe_corruption() {
         let (selected, ranges, recovery, row) =
-            crate::rules::pressure_rematerialization::compute::tests::fixture();
+            crate::rules::pressure_rematerialization::tests::fixture();
         let candidate = recovery.functions[0].classification.as_ref().unwrap();
         let (functions, proposed) = crate::rules::pressure_rematerialization::compute::build_functions(
             &selected,
@@ -613,7 +613,7 @@ mod tests {
     #[test]
     fn independent_replay_reconstructs_multiple_use_suffix_and_rejects_rewrite_corruption() {
         let (selected, ranges, recovery, row) =
-            crate::rules::pressure_rematerialization::compute::tests::multiple_future_fixture();
+            crate::rules::pressure_rematerialization::tests::multiple_future_fixture();
         let candidate = recovery.functions[0].classification.as_ref().unwrap();
         let policy = PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1;
         let (functions, proposed) =
