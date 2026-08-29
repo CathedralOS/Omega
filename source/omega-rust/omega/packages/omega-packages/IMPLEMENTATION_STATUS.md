@@ -739,8 +739,9 @@ The 22 exact compiler-installed builtin types and 71 compiler-installed builtin
 functions use closed compiler atoms selected by root slot and symbol kind rather
 than spelling. Same-named package declarations and source-free generated
 symbols do not classify as those atoms. Compiler carry aliases use
-closed `CarryPermission` atoms in a distinct non-nominal lane; other compiler-
-semantic atoms remain unresolved until they gain closed carriers. Arithmetic
+closed `CarryPermission` atoms in a distinct non-nominal lane; unclassified
+compiler-semantic atoms remain unresolved until they gain specific closed
+carriers. Arithmetic
 domains and aggregate carry policy are already closed enums. Typed domain
 constraints now distinguish declared, carry, value-domain, and `OmegaLayout`
 subjects; layout retains a closed grammar and exact structural schema argument.
@@ -1001,7 +1002,7 @@ Review v78 and canonical row v36 retain that same closed builtin identity for
 builtin-backed boundary-operator provider execution. The compiler-owned sidecar
 is row-aligned and separate from the authored realization machine; projection
 rederives and cross-checks it from checked overload identity. Missing,
-mismatched, spoofed, and still-unclosed primitive-expression children reject.
+mismatched, spoofed, and then-unclosed primitive-expression children reject.
 Review v79 and canonical row v37 extend the sidecar with exact named-float
 negation atoms for `f32` and `f64`. Compiler dispatch selects the atom from the
 checked overload and external realization join rather than from the authored
@@ -1013,6 +1014,16 @@ the exact checked numeric source type, numeric target type, and arithmetic
 domain together, so width, signedness, and integer overflow policy cannot drift
 independently. Projection rederives every coordinate from the exact checked
 overload and rejects missing, mismatched, or spoofed state.
+Review v81 and canonical row v39 close the remaining known primitive float
+binary execution family as ten operation atoms crossed with permanent `f32`
+and `f64` formats. Derivation requires the exact fixed operator token, two
+same-format operands, and the operation-implied result type; tokenless,
+mismatched-token, mixed-format, wrong-result, and non-float lookalikes reject.
+Arithmetic policy adapters remain independently selected evidence and are not
+duplicated in the base execution atom. The authored requirement and realization
+nominals likewise remain separate row identities. No concrete admitted
+source-free compiler subject is now known to rely on unresolved nominal
+ownership; unclassified future forms continue to fail closed.
 Authored unary `!` and `~` operators retain their exact operator-token spans,
 including when nested in a public proposition or contract. Checked lowering
 must finalize that exact occurrence as the closed builtin-operator meaning,

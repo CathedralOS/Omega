@@ -58,6 +58,8 @@ pub(crate) fn normalized_import_review_encoding_retains_exact_atomic_locator() {
 
 #[test]
 fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
+    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+
     fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
         let mut encoder = Encoder::bounded(16);
         encode_compiler_intrinsic_execution(&mut encoder, &execution)
@@ -74,6 +76,24 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     let negate_f64 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
         psi_numerics::literals::FloatFormat::F64,
     ));
+    let primitive_add_f32 = encoded(
+        PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+            operation: CompilerPrimitiveFloatBinaryOperation::Add,
+            format: psi_numerics::literals::FloatFormat::F32,
+        },
+    );
+    let primitive_subtract_f32 = encoded(
+        PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+            operation: CompilerPrimitiveFloatBinaryOperation::Subtract,
+            format: psi_numerics::literals::FloatFormat::F32,
+        },
+    );
+    let primitive_add_f64 = encoded(
+        PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+            operation: CompilerPrimitiveFloatBinaryOperation::Add,
+            format: psi_numerics::literals::FloatFormat::F64,
+        },
+    );
     let conversion = encoded(
         PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
             source: omega_provider_planning::plans::CompilerNumericType::F64,
@@ -83,9 +103,47 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     );
     assert_ne!(builtin, negate_f32);
     assert_ne!(negate_f32, negate_f64);
+    assert_ne!(primitive_add_f32, primitive_subtract_f32);
+    assert_ne!(primitive_add_f32, primitive_add_f64);
     assert_eq!(negate_f32, [1, 0]);
     assert_eq!(negate_f64, [1, 1]);
     assert_eq!(conversion, [2, 9, 8, 0]);
+    assert_eq!(primitive_add_f32, [3, 0, 0]);
+    assert_eq!(primitive_subtract_f32, [3, 1, 0]);
+    assert_eq!(primitive_add_f64, [3, 0, 1]);
+}
+
+#[test]
+fn primitive_float_binary_encoding_has_explicit_operation_tags() {
+    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+
+    let operations = [
+        CompilerPrimitiveFloatBinaryOperation::Add,
+        CompilerPrimitiveFloatBinaryOperation::Subtract,
+        CompilerPrimitiveFloatBinaryOperation::Multiply,
+        CompilerPrimitiveFloatBinaryOperation::Divide,
+        CompilerPrimitiveFloatBinaryOperation::Equal,
+        CompilerPrimitiveFloatBinaryOperation::NotEqual,
+        CompilerPrimitiveFloatBinaryOperation::Less,
+        CompilerPrimitiveFloatBinaryOperation::LessOrEqual,
+        CompilerPrimitiveFloatBinaryOperation::Greater,
+        CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual,
+    ];
+    for (tag, operation) in operations.into_iter().enumerate() {
+        let mut encoder = Encoder::bounded(16);
+        encode_compiler_intrinsic_execution(
+            &mut encoder,
+            &PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+                operation,
+                format: psi_numerics::literals::FloatFormat::F32,
+            },
+        )
+        .expect("encode primitive float binary execution");
+        assert_eq!(
+            encoder.finish().expect("bounded encoding"),
+            [3, tag as u8, 0],
+        );
+    }
 }
 
 #[test]

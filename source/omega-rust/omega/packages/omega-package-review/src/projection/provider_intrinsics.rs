@@ -40,6 +40,9 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)
         }
+        CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
+            PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { operation, format }
+        }
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format)
         }
@@ -59,6 +62,13 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
     match identity {
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             format!("builtin function `{}`", function.name())
+        }
+        CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
+            format!(
+                "primitive float binary `{}.{}`",
+                operation.name(),
+                format.name(),
+            )
         }
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             format!("named-float negation `{}`", format.name())
@@ -120,7 +130,7 @@ mod tests {
     #[test]
     fn execution_reconciliation_rejects_missing_mismatched_and_spoofed_state() {
         use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
-            BuiltinFunction, NamedFloatConversion, NamedFloatNegation,
+            BuiltinFunction, NamedFloatConversion, NamedFloatNegation, PrimitiveFloatBinary,
         };
         use omega_provider_planning::plans::CompilerNumericType;
         use psi_numerics::arithmetic::ArithmeticDomain;
@@ -143,6 +153,10 @@ mod tests {
             source: CompilerNumericType::F64,
             target: CompilerNumericType::F32,
             domain: ArithmeticDomain::Exact,
+        };
+        let primitive_add_f32 = PrimitiveFloatBinary {
+            operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
+            format: FloatFormat::F32,
         };
         assert_eq!(
             reconcile_compiler_intrinsic_execution(
@@ -177,6 +191,26 @@ mod tests {
                 )),
                 Some(NamedFloatNegation(FloatFormat::F64)),
                 "retains compiler execution identity named-float negation `f64`, but exact selected execution rederives named-float negation `f32`",
+            ),
+            (
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    primitive_add_f32,
+                )),
+                Some(PrimitiveFloatBinary {
+                    operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Subtract,
+                    format: FloatFormat::F32,
+                }),
+                "retains compiler execution identity primitive float binary `subtract.f32`, but exact selected execution rederives primitive float binary `add.f32`",
+            ),
+            (
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    primitive_add_f32,
+                )),
+                Some(PrimitiveFloatBinary {
+                    operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation::Add,
+                    format: FloatFormat::F64,
+                }),
+                "retains compiler execution identity primitive float binary `add.f64`, but exact selected execution rederives primitive float binary `add.f32`",
             ),
             (
                 Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
@@ -237,5 +271,17 @@ mod tests {
         assert!(spoofed_conversion.contains(
             "spoofed compiler execution identity named-float conversion `f64 -> f32` in `Exact` arithmetic"
         ));
+
+        let spoofed_primitive = reconcile_compiler_intrinsic_execution(
+            "ordinary",
+            false,
+            None,
+            Some(primitive_add_f32),
+        )
+        .expect_err("a non-intrinsic row cannot claim primitive float execution identity");
+        assert!(
+            spoofed_primitive
+                .contains("spoofed compiler execution identity primitive float binary `add.f32`")
+        );
     }
 }

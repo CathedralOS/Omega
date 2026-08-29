@@ -44,12 +44,14 @@ pub(super) fn encode_compiler_intrinsic_execution(
                 )
             })?);
         }
+        PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { operation, format } => {
+            encoder.byte(3);
+            encode_primitive_float_binary_operation(encoder, *operation);
+            encode_float_format(encoder, *format);
+        }
         PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format) => {
             encoder.byte(1);
-            encoder.byte(match format {
-                psi_numerics::literals::FloatFormat::F32 => 0,
-                psi_numerics::literals::FloatFormat::F64 => 1,
-            });
+            encode_float_format(encoder, *format);
         }
         PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
             source,
@@ -63,6 +65,33 @@ pub(super) fn encode_compiler_intrinsic_execution(
         }
     }
     Ok(())
+}
+
+fn encode_primitive_float_binary_operation(
+    encoder: &mut Encoder,
+    operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
+) {
+    use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
+
+    encoder.byte(match operation {
+        CompilerPrimitiveFloatBinaryOperation::Add => 0,
+        CompilerPrimitiveFloatBinaryOperation::Subtract => 1,
+        CompilerPrimitiveFloatBinaryOperation::Multiply => 2,
+        CompilerPrimitiveFloatBinaryOperation::Divide => 3,
+        CompilerPrimitiveFloatBinaryOperation::Equal => 4,
+        CompilerPrimitiveFloatBinaryOperation::NotEqual => 5,
+        CompilerPrimitiveFloatBinaryOperation::Less => 6,
+        CompilerPrimitiveFloatBinaryOperation::LessOrEqual => 7,
+        CompilerPrimitiveFloatBinaryOperation::Greater => 8,
+        CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => 9,
+    });
+}
+
+fn encode_float_format(encoder: &mut Encoder, format: psi_numerics::literals::FloatFormat) {
+    encoder.byte(match format {
+        psi_numerics::literals::FloatFormat::F32 => 0,
+        psi_numerics::literals::FloatFormat::F64 => 1,
+    });
 }
 
 fn encode_compiler_numeric_type(
