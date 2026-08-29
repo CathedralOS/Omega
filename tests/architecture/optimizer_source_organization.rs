@@ -136,6 +136,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/active_resident_resolved_selected_form_layout/mod.rs",
+        coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_resolved_selected_form_layout",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/mod.rs",
         coordination_marker: "stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization",
     },
