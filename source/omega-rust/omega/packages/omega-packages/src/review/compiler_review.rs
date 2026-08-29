@@ -687,7 +687,8 @@ impl Drop for ReviewBuildSession {
 }
 
 fn create_private_directory(path: &Path) -> io::Result<()> {
-    let builder = fs::DirBuilder::new();
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
