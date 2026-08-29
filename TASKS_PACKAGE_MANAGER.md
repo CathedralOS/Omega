@@ -291,10 +291,9 @@ explicitly.
 
   Remaining work:
 
-  - enforce alias uniqueness over `common + by_profile[P]` while allowing reuse
-    between mutually exclusive columns;
   - make closure resolution select one explicit profile without flattening the
-    complete per-package projection;
+    complete per-package projection, and invoke the landed active-set alias
+    validator after package-authored names are known;
   - bind the condition schema, referenced profile identities, and complete
     projected map into source-closure and package-review identity;
   - add independently populated per-profile accepted-lock/review sections,
