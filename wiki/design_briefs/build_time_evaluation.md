@@ -156,11 +156,20 @@ spaces, data layouts, or execution modes does not invent one global answer:
 ```omega
 TargetSemantics::address_bound<addr>()
 TargetSemantics::endianness<NativeDataLayout>()
+TargetSemantics::guaranteed_entry_stack<UefiX86_64>()
 ```
 
 If target closure has not fixed the named subject, evaluation rejects. Values
 and interpretation selectors use the same heterogeneous typed projection
 mechanism; endianness need not be forced into a numeric encoding.
+
+An entry-profile guarantee is a canonical observation about the selected
+target contract, not proof that the executing firmware satisfies it. For
+example, `guaranteed_entry_stack<UefiX86_64>()` supplies the symbolic byte bound
+used by entry WCSU composition and private-stack sizing. The physical-arrival
+provider separately admits that the actual invocation conforms to that selected
+profile. Changing the profile or guarantee changes target closure; accepting a
+profile never turns its real-world conformance into a derived fact.
 
 Target observations are canonical compile-time values. They may participate
 wherever an equivalent ordinary constant may participate, including array

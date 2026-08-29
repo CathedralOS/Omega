@@ -3022,19 +3022,24 @@ identity substitution still rejects before composition. This is not a
 language-design question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
-the UEFI surface is explicitly planned and non-invoked, and no target/runtime
-contract maps `(EfiImageHandle, &EfiSystemTable)` into those two semantic
-extents or maps Unit completion and failure into `EfiStatus`. Hosted targets
-publish no physical entry contract yet. `OWNER_QUESTIONS.md` Q17 owns this
-genuine design decision;
-the semantic-wrapper slice may proceed while physical bridge, image,
-installation, and publication authority remain closed.
+the UEFI surface is explicitly planned and non-invoked. The missing target-
+runtime implementation is now design-settled. A generated ABI shell invokes
+one checked UEFI bootstrap adapter. Exact physical-arrival and firmware-service
+postconditions supply its opaque premises; the adapter obtains Loaded Image
+correspondence and independent initial storage, proves stack/resource
+composition, crosses `ProgramStorageEntry::enter`, calls the semantic
+continuation, reclaims returning-profile resources, and applies the closed
+recoverable-status map. Normal Unit return maps to success; crash, trap, and
+abort remain non-returning routes. Hosted targets publish no physical entry
+contract yet. The semantic-wrapper slice may proceed while physical bridge,
+image, installation, and publication authority remain closed.
 
 The build vocabulary still does not grant native publication authority:
 explicit selection currently fails closed without installing output. The
-compiler gate can be removed only after the Unit semantic wrapper, the Q17
-physical contract, native-image adaptation, independent final-image validation,
-and selected-build publication tests all join the same custody chain.
+compiler gate can be removed only after the Unit semantic wrapper, the settled
+physical adapter contract, native-image adaptation, independent final-image
+validation, and selected-build publication tests all join the same custody
+chain.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and

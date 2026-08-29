@@ -624,10 +624,13 @@ Remaining:
   target profile must fix a physical UEFI requirement receiving `ImageHandle`
   and `SystemTable` and returning `EfiStatus`, then join its generated ABI shell
   to an exact target-authored bootstrap adapter. That adapter installs scoped
-  firmware providers, obtains root geometry/correspondence evidence, performs
-  the bounded linear map/exit protocol, and crosses the separate
+  firmware providers, obtains image geometry/correspondence evidence, acquires
+  independent initial storage, proves the selected stack/resource plan, and
+  crosses the separate
   `ProgramStorageEntry::enter` semantic installation edge before invoking the
-  build-bound continuation. Until that producer exists, no compiler carrier may
+  build-bound continuation. The first profile is a returning UEFI application;
+  the fallible linear map/exit protocol belongs to the distinct OS-handoff
+  lifecycle below. Until that producer exists, no compiler carrier may
   claim that installed Image/InitialStorage authority occupied RCX/RDX at this
   semantic-wrapper invocation. Native-invocation evidence belongs after that
   adapter;
@@ -795,32 +798,62 @@ Remaining:
   evidence to occurrence provenance and firmware phase before projecting
   services.
 
-  **Design-blocked at the next composition edge:** the target declaration does
-  not yet fix the exact source-level bootstrap-adapter callable/signature and
-  selection form or the physical-result map that converts adapter/application
-  outcomes to `EfiStatus`. Do not emit a shell by hardcoding either relation;
-  once those two owner-level shapes are settled, argument/result marshalling,
-  shell emission, and relocation are engineering work.
-
-  Remaining: keep `EfiSystemTable` private beneath lifecycle-scoped providers
-  and `EfiImageHandle` as an opaque provenance-bearing input; neither is an
-  `Extent`. Join the validated table-header integrity carrier to exact
+  The next composition edge is design-settled. Implement one exact
+  target-runtime bootstrap adapter satisfying `UefiPhysicalEntry::enter`; the
+  generated shell invokes it, while `build.omg` binds only the semantic
+  continuation. Keep `EfiSystemTable` private beneath lifecycle-scoped
+  providers and `EfiImageHandle` as an opaque provenance-bearing input; neither
+  is an `Extent`. Join the validated table-header integrity carrier to exact
   occurrence provenance and firmware phase before exposing provider
-  projections. Emit the physical ABI shell, call the exact target-authored
-  bootstrap adapter, and join physical invocation, provider evidence, semantic
-  root positions, continuation, and one installation receipt. Implement a
-  target-bounded `GetMemoryMap`/`ExitBootServices` state cycle whose decreasing
-  attempt count and every non-copy capability, allocation, snapshot, and key
-  are explicit arrival terms. Stale-key rejection returns live custody for
-  retry; exhaustion returns the authored EFI error; success consumes
-  boot-scoped services, transfers existing allocation lineage, and permits
-  separately policy-qualified final-map introductions. Establish or prove a
-  cross-exit handoff stack, conserve it as a target-owned partition, and pass
-  only a disjoint contiguous initial-storage residual to source. Add canaries
-  for physical/semantic ABI conflation, hidden firmware parameters, handle-to-
-  extent fabrication, unmeasured retry, lost linear capability, incorrect
-  success/failure status mapping, provider use after exit, duplicated storage
-  lineage, and a `Granted` residual containing the active stack.
+  projections.
+
+  Land the returning `UefiApplication` profile first. Its checked adapter uses
+  exact admitted provider postconditions: physical arrival supplies a valid
+  system-table occurrence, selected initial regime, and conforming entry stack;
+  `HandleProtocol` yields Loaded Image correspondence for the supplied handle;
+  allocation/free operations transfer and return exact page custody. Derive
+  interval geometry and separation above those claims. Obtain InitialStorage
+  from a separately owned reserved region in the final image plan that is
+  proved disjoint from the installed image root, or from an explicit
+  allocation, never from the active provider-selected entry stack.
+
+  Add the symbolic target observation
+  `TargetSemantics::guaranteed_entry_stack<UefiX86_64>()`. Retain its
+  application and selected profile in compatibility identity. Check generated
+  shell WCSU, live adapter frames, maximum nested continuation/provider WCSU,
+  and one explicit reserve against it, or emit and verify a private-stack
+  switch that preserves the physical return state. When stack and source
+  storage share a parent allocation, conserve exact active-stack, retained-
+  bootstrap, and disjoint contiguous InitialStorage partitions.
+
+  Cross `ProgramStorageEntry::enter` once, invoke the build-bound continuation,
+  reclaim adapter-owned resources, map normal Unit return to the fixed success
+  status, and map each recoverable bootstrap rejection through the closed
+  target status table. Crash, trap, and abort remain non-returning routes and
+  never synthesize `EfiStatus`. Join physical invocation, exact provider
+  postconditions and arrival admissions, stack plan, semantic root positions,
+  continuation, and one installation receipt. Until that producer exists, no
+  carrier may claim a physical shell, bootstrap invocation, installed roots at
+  the semantic wrapper, native execution, or publication.
+
+  Add canaries for physical/semantic ABI conflation, hidden firmware
+  parameters, handle-to-extent fabrication, broad firmware admission, treating
+  entry stack as InitialStorage, omitted WCSU contributors, early target-value
+  folding, overlapping partitions, incorrect recoverable status mapping, and a
+  fabricated status on a non-returning route.
+
+- **UEFI-OS-HANDOFF — implement the separate custody-transferring lifecycle.**
+  Do not extend the returning Unit profile implicitly. Define the successful
+  OS-loader contract over a private surviving stack and a target-bounded
+  `GetMemoryMap`/`ExitBootServices` state cycle whose decreasing attempt count
+  and every non-copy capability, allocation, snapshot, and key are explicit
+  arrival terms. Stale-key rejection returns all live custody before map
+  reacquisition and retry; exhaustion returns the authored EFI error while Boot
+  Services remain live; success consumes boot-scoped services, transfers
+  existing allocation lineage, permits only policy-qualified final-map
+  introductions, and does not return to firmware. Add canaries for unmeasured
+  retry, lost custody, provider use after exit, duplicated storage lineage, and
+  a successful handoff that retains the firmware stack.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless

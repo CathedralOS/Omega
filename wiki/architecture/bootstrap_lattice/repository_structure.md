@@ -24,7 +24,7 @@ source/
     reference/           optional differential implementation
   delta/                 Delta language
     compiler/
-      main.alp           one canonical Delta compiler source
+      main.delta         one canonical Delta compiler source (migration queued)
       artifacts/         admitted delta binary, when publication closes
       validation/        exact delta producer-edge verification and custody
     meaning/             canonical Delta-to-Gamma elaboration
@@ -49,6 +49,21 @@ The `-rust` suffix exists precisely because
 Likewise, `bootstrap`, `assurance`, `refinement`, and `canaries` are not semantic
 owners and do not get generic repository buckets. Evidence stays beside the
 artifact it admits; product-language cases stay under `tests/omega/`.
+
+## File naming
+
+File names expose both format and role. `.alpha` is Alpha assembly source,
+`.proof` is proof-source input to untrusted elaboration, `.beta`, `.gamma`,
+`.delta`, `.omg`, and `.psi` name their respective source languages, and
+`.tape` is canonical Alpha VM bytecode. Canonical artifacts use descriptive
+base names such as `beta_compiler_bytecode.tape`; target realizations
+additionally name their target and use the native container convention.
+
+The tree above shows the ratified destination. The worktree still contains the
+historical Delta `.alp`, proof `.elab`, `bc.tape`, and `check.tape` names until
+the atomic naming task updates every script, locator, and test. Audit documents
+that describe current committed bytes continue to use those physical names
+until that migration lands.
 
 ## Ownership rules
 

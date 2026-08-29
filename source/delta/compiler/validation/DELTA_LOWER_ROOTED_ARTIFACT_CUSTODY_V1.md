@@ -245,16 +245,16 @@ status: open
 reason: authoritative_delta_v1_semantics_subject_not_published
 ```
 
-The repository currently has an executable Delta-to-Gamma meaning
-implementation, but no authoritative Delta v1 language/operational-semantics
-subject from which an artifact-aware verifier can reconstruct the proposition
-that `source/delta/compiler/main.alp` and this Mach-O executable must satisfy. Treating the
-translator implementation as both the semantics and its own refinement witness
-would be circular.
+D10 fixes the shape of the authoritative Delta v1 subject, but its
+self-contained `LANGUAGE.md`, complete input/resource and observation profiles,
+and independently reconstructible elaboration rules are not yet published.
+Consequently an artifact-aware verifier still cannot reconstruct the exact
+proposition that the current `source/delta/compiler/main.alp` bytes and this
+Mach-O executable must satisfy. Treating the translator implementation as both
+the semantics and its own refinement witness would be circular.
 
-Settling that semantic subject is a language-design decision. Once it exists,
-building the target-semantics reconstruction, observation profile, exact
-obligation ledger, certificates, negative controls, and Alpha-checker join is
-engineering work. Until that separate direct refinement passes, this receipt
-cannot replace the provisional compiler artifact or authorize it to build
-`omega₀`.
+Authoring that contract and building the target-semantics reconstruction,
+obligation ledger, certificates, negative controls, and Alpha-checker join are
+now engineering work rather than an open language-design choice. Until that
+separate direct refinement passes, this receipt cannot replace the provisional
+compiler artifact or authorize it to build `omega₀`.

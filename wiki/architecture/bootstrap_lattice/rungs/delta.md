@@ -15,7 +15,9 @@ Alpha → Beta → Gamma → Delta
 ```
 
 It is an independently specified deterministic compiler-host language, not an
-Omega subset and not an extra product compiler. Delta v1 is selected from the
+Omega subset and not an extra product compiler. It may share familiar spelling
+with Omega, but no Delta rule is defined by an Omega rule or by acceptance in
+the current translator. Delta v1 is selected from the
 complete source needed for its canonical compiler and the direct Omega-source
 compilation edge, together with compiler-host safety and maintainability needs.
 The old sample corpus or a temporary producer cannot define the language by
@@ -43,8 +45,9 @@ accepted Omega programs retain their exact Omega meaning.
 
 ## Implementation owners
 
-- `source/delta/compiler/main.alp` is the Delta-written compiler
-  experiment.
+- `source/delta/compiler/main.alp` is the current physical path of the
+  Delta-written compiler experiment. D10 selects `main.delta`; the queued
+  path-only migration preserves its source and closure identities.
 - `source/delta/meaning/delta2gamma.beta` and its encoding tools provide the
   Rust-free lower-rung meaning route used to publish Delta artifacts.
 - `source/delta/compiler/artifacts/` is reserved for exact artifacts admitted
@@ -64,6 +67,11 @@ diagnostic bytes out; explicit target/configuration input; deterministic exit.
 Filesystem, environment, time, network, spawning, MMIO, and arbitrary foreign
 calls are absent unless a complete source closure demonstrates an unavoidable
 need and the admission is recorded explicitly.
+
+The canonical observation profile also fixes the sealed input-byte domain and
+admissible input profile. Source-visible exhaustion is specified by Delta;
+exhausting a private translator, evaluator, or checker budget yields
+`Incomplete` and no publishable semantic result.
 
 ## Closure criteria
 

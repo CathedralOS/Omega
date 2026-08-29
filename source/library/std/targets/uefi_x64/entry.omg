@@ -2,7 +2,11 @@ use omega::language::core::extent;
 use omega::language::std::calling;
 
 // Target-owned UEFI physical contract. It remains a planned, non-invoked
-// surface until the separate bootstrap-adapter callable is settled and built.
+// surface until the settled target-runtime bootstrap adapter is built. That
+// adapter validates physical arrival, obtains image correspondence and
+// independent initial storage through scoped firmware providers, accounts for
+// its stack, and crosses ProgramStorageEntry::enter; this ABI alone establishes
+// no root or firmware-service authority.
 repr native
 data EfiImageHandle {
     raw: addr;

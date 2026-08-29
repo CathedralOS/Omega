@@ -1,7 +1,12 @@
 # Persisted Beta compiler artifact
 
 `bc.tape` is the platform-independent Alpha tape for the fixed-point Beta
-compiler. Its only construction lineage is:
+compiler. D10 selects the descriptive destination name
+`beta_compiler_bytecode.tape`. `bc.tape` remains the current committed path
+until the atomic naming migration updates every consumer; the tape bytes and
+content hash do not change merely because its path does.
+
+Its only construction lineage is:
 
 ```text
 Alpha seed + Alpha-written assembler

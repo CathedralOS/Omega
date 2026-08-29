@@ -43,7 +43,9 @@ implementation under `source/omega-rust/` may help compare behavior while the
 Omega-written path is completed; agreement with it grants no authority.
 
 `source/delta/meaning/` owns the Rust-free Delta-to-Gamma elaboration used by
-Delta publication.
+Delta publication. D10 requires the checker to reconstruct that relation from
+Delta's self-contained contract; the current translator and any source file
+that also parses as Omega cannot select the relation or grant Omega meaning.
 
 ## Required joins
 

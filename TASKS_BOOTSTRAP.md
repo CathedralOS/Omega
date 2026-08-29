@@ -60,6 +60,25 @@ The artifact being checked owns its validation. Do not recreate generic
 Product compiler implementation belongs to **OMEGA-PRODUCT-COMPILER-SOURCE**
 in [`TASKS.md`](TASKS.md), not in this queue.
 
+- [ ] **NORMALIZE-BOOTSTRAP-FILE-NAMES.** Apply D10's format-and-role naming
+  convention atomically across sources, scripts, locators, manifests, tests,
+  and documentation:
+
+  - rename the 76 Delta `*.alp` files to `*.delta`;
+  - rename the 248 proof-source `*.elab` files to `*.proof` without changing
+    the raw certificate format or trusting their elaborator;
+  - retain `.alpha` for Alpha assembly and `.tape` for Alpha VM bytecode; and
+  - replace opaque canonical artifact basenames with descriptive names such as
+    `beta_compiler_bytecode.tape`, `proof_checker_bytecode.tape`,
+    `gamma_interpreter_bytecode.tape`, and
+    `delta_to_gamma_bytecode.tape`.
+
+  Verify byte identity before and after every path-only move. Delta's
+  path-independent content-set and closure digests must remain unchanged; only
+  its locations companion changes. Do not rewrite historical receipts. Any
+  in-flight attempt that pinned a changed locator, verifier, or artifact path
+  is obsolete and must be prepared again under the new names.
+
 ## Evidence minimality
 
 - [ ] **SEPARATE-EDGE-CORRECTNESS-FROM-REPRODUCIBILITY.** Audit every required
@@ -297,18 +316,23 @@ Delta.
 
 ## 3. Gamma meaning route → `delta`
 
-The canonical source is `source/delta/compiler/main.alp`; the independently
-declared lower-rung route is `source/delta/meaning/delta2gamma.beta` followed by
-the canonical Gamma evaluator. Publication binds the exact closure and tools,
-reconstructs the packed Gamma program, compares repeated assembly observations,
-and validates the bounded Darwin ARM64 target dialect.
+The canonical source remains physically located at
+`source/delta/compiler/main.alp` until **NORMALIZE-BOOTSTRAP-FILE-NAMES** moves
+it to `main.delta`; the source bytes and path-independent closure identity do
+not change. The independently declared lower-rung route is
+`source/delta/meaning/delta2gamma.beta` followed by the canonical Gamma
+evaluator. Publication binds the exact closure and tools, reconstructs the
+packed Gamma program, compares repeated assembly observations, and validates
+the bounded Darwin ARM64 target dialect.
 
-- [ ] Complete exact attempt
-  `cfcaaee8786d3f12b8102140546b7520a3dd661170d50b2187a0858557cd2322`.
-  Until both executions finish, do not change any retained source, translator,
-  evaluator, compiler, publication tool, or closure-manifest input named by the
-  attempt. A bounded smoke execution is not a substitute.
-- [ ] When both executions agree, finalize the assembly-publication receipt,
+- [ ] Retire exact attempt
+  `cfcaaee8786d3f12b8102140546b7520a3dd661170d50b2187a0858557cd2322`
+  from the publication path before applying D10's naming migration. It may
+  finish only as diagnostic evidence under its frozen inputs; it cannot admit
+  or install the renamed closure. Prepare a fresh exact attempt after the
+  locator, verifier, source naming, and Delta contract inputs are final.
+- [ ] When both replacement executions agree, finalize the
+  assembly-publication receipt,
   replay exact realization with the pinned compiler/linker/SDK inputs, verify
   executable identity, and generate the terminal artifact-custody receipt.
 - [ ] Install only the admitted result under
@@ -320,7 +344,8 @@ and validates the bounded Darwin ARM64 target dialect.
   commands under adjacent `validation/`; create no generic evidence archive.
   The atomic six-file installer, reconstruction verifier, and fail-closed
   artifact loader are implemented and tested; the canonical installation stays
-  absent until the active exact attempt finishes and its custody receipt passes.
+  absent until the replacement exact attempt finishes and its custody receipt
+  passes.
   The initial realization is now an explicit-input, no-discovery command that
   binds stable assembly/toolchain snapshots, exact command order, empty process
   streams, and the existing observation verifier before exclusively publishing
@@ -335,11 +360,33 @@ and validates the bounded Darwin ARM64 target dialect.
 - [x] Realization replay, strict target validation, source closure custody, and
   reconstruction-bearing receipt machinery are implemented under
   `source/delta/compiler/validation/`.
-- [ ] **BLOCKED — OWNER Q16:** ratify the independent Delta v1 language,
-  resource, exhaustion, and observation semantics, then bind that subject into
-  lower-rooted source-to-artifact refinement. The translator and corpus cannot
-  select their own contract. Execution, realization, frontend, and performance
-  work remain unblocked.
+- [ ] **DELTA-V1-CONTRACT.** Author `source/delta/LANGUAGE.md` as the
+  self-contained semantic subject ratified by D10. Freeze the sealed input-byte
+  alphabet and admissible input profile first, together with artifact and
+  diagnostic bytes and terminal exit, rejection, trap, and semantic-exhaustion
+  observations. Shared Omega spelling is permitted; citing Omega to define a
+  Delta rule is not.
+
+  Write the resource section while auditing every fixed bound in
+  `delta2gamma.beta`: classify each as source-visible semantics, an explicit
+  resource-profile parameter, or a private implementation budget whose
+  exhaustion yields `Incomplete`. A syntactically invalid Delta program
+  rejects; a valid program exceeding a private translator/checker budget does
+  not acquire a semantic result.
+
+  Remove the canonical elaborator's implicit role as an Omega meaning route.
+  A file in the intersection of the two grammars may be tested through either
+  route, but Delta acceptance proves only Delta meaning. Any compatibility
+  harness remains explicitly non-authoritative and outside the publication
+  edge.
+
+- [ ] **DELTA-ELABORATION-VALIDATION.** Reconstruct the declared
+  Delta-to-Gamma relation independently of `delta2gamma.beta`; add complete
+  grammar/elaboration coverage and negative mutations first. Then bind the
+  exact source, elaborated Gamma subject, selected input/resource and
+  observation profiles, and produced artifact into the checked refinement
+  route required by D5 and D9. Coverage may land before that authority;
+  translator agreement alone grants none.
 
 ## 4. `delta + C` → `omega₀`
 

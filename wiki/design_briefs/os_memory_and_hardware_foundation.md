@@ -77,8 +77,10 @@ pub boundary trait ExtentRootProvider {
 }
 ```
 
-Program image and initial stack/storage roots use a second core-owned route on
-the same `Extent::Granted` domain. The live
+Program image and initial-storage roots use a second core-owned route on the
+same `Extent::Granted` domain. The provider-selected physical entry stack is a
+separate execution resource and is never established as source-visible storage.
+The live
 `ProgramStorageEntry::enter(image: Extent in Granted, initial_storage: Extent in
 Granted)` semantic arrival requirement names the exact qualified positions
 inside the target entry bridge. A separate target-fixed physical requirement
@@ -138,8 +140,16 @@ The live source declaration is in `omega::language::core::extent` together
 with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
 `Arena` returns and reclaims qualified Extents. Cathedral's UEFI target package
 supplies the selected checked bootstrap providers and physical entry adapter.
-Its bounded map/exit state machine threads boot-services capability, allocation
-custody, final-map snapshot, and a decreasing attempt measure explicitly.
+The first returning application profile leaves Boot Services live and reclaims
+adapter-owned allocations. Its composed shell, adapter, continuation, and
+provider WCSU must fit the symbolic selected-target entry-stack guarantee unless
+it switches to a separately allocated checked stack. Normal Unit return maps to
+success; recoverable adapter failures map to exact statuses; non-returning
+failures synthesize no status.
+
+The distinct OS-handoff profile's bounded map/exit state machine threads boot-
+services capability, allocation custody, final-map snapshot, and a decreasing
+attempt measure explicitly.
 Successful `ExitBootServices` consumes boot-scoped services while preserving
 allocation occurrence identity through transfer to program custody; stale-key
 rejection returns the live capability and allocations for another measured

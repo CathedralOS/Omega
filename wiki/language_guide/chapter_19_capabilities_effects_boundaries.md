@@ -1020,14 +1020,27 @@ For program storage, the semantic requirement is
 target-owned physical requirement receiving `ImageHandle` and `SystemTable`
 under `Calling<UefiX86_64>` and returning `EfiStatus`. The target-authored
 bootstrap interprets those inputs through admitted, lifecycle-scoped providers;
-neither physical input is an `Extent`. A generated ABI shell invokes the
-bootstrap, which obtains exact geometry and correspondence evidence, crosses
-the semantic installation edge once, and calls the source machine with only the
-declared semantic values. The installation receipt joins both requirements,
-provider and input provenance, generated captures, and selected continuation.
+neither physical input is an `Extent`. The handle identifies an image, while a
+Loaded Image provider supplies admitted base/size correspondence. Initial
+storage is separately owned and proved disjoint from the installed image root,
+or allocated; the live provider-selected entry stack is not transferable
+storage. A generated ABI shell invokes the bootstrap,
+which obtains exact geometry and correspondence evidence, proves the stack and
+storage partitions, crosses the semantic installation edge once, and calls the
+source machine with only the declared semantic values. The installation receipt
+joins both requirements, provider and input provenance, generated captures,
+stack plan, and selected continuation.
 The composed crash, reach, write, work, stack/state, provisioning,
 introduction, result-map, and provenance contract enters the bound program
 closure just like authored code.
+
+Foreign trust is retained as exact service postconditions plus the physical
+arrival premises that have no service call: valid system-table occurrence,
+selected initial machine regime, and conformance to the selected entry-stack
+profile. Geometry and separation are derived after those premises. A blanket
+firmware admission is not substituted for the individual provider contracts.
+The entry-stack minimum is a symbolic target-semantics observation until target
+closure; actual firmware conformance remains an admitted physical fact.
 
 Hosted schemas normally expose neither image nor initial-storage extents. A
 freestanding schema may forward them because the selected program must perform
@@ -1037,16 +1050,20 @@ storage remain explicit conserved partitions in the target execution frontier;
 source receives only disjoint residual storage, never a qualified extent with a
 hidden inaccessible hole.
 
-The physical result is target-authored. For UEFI, bootstrap rejection maps to a
-declared `EfiStatus`, normal return from the current Unit semantic continuation
-maps to success, and a declared crash remains a crash rather than becoming an
-implicit status. The UEFI memory-map/exit adapter is a bounded state graph, not
-an unmeasured retry loop: its decreasing attempt term and every non-copy
-boot-services capability, allocation, snapshot, and key are threaded through
-state arrival contracts. A stale-key outcome returns live custody for retry;
-success ends boot-scoped providers while transferring already allocated storage
-under the same occurrence lineage. Runtime services and newly claimable final-
-map regions follow their own post-exit contracts.
+The physical result is target-authored. For UEFI, recoverable bootstrap
+rejection maps to a declared `EfiStatus` and normal return from the current Unit
+semantic continuation maps to success. A crash, trap, or abort does not return
+through the result register and remains a non-returning route.
+
+The returning `UefiApplication` profile lands first and keeps Boot Services
+live. A successful OS-loader handoff is a separate lifecycle: its
+memory-map/exit adapter is a bounded state graph, not an unmeasured retry loop.
+Its decreasing attempt term and every non-copy boot-services capability,
+allocation, snapshot, and key are threaded through state arrival contracts. A
+stale-key outcome returns live custody for retry; success ends boot-scoped
+providers while transferring already allocated storage under the same
+occurrence lineage. Runtime services and newly claimable final-map regions
+follow their own post-exit contracts.
 
 `C` satisfies the ordinary core `CallingPolicy` relationship; its compile-time
 machine evaluates the normalized signature to an accepted or structured-

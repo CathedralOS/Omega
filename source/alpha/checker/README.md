@@ -33,6 +33,11 @@ Only checker implementations decide derivation validity. `tools/`, `corpus/`, an
 `gates/` may construct, translate, perturb, or replay evidence, but have no authority
 to make a certificate valid.
 
+D10 selects `.proof` for proof-source files. The current corpus remains
+physically named `*.elab` until the queued atomic migration updates all 248
+sources, generators, gates, and references. This is a source-file convention;
+it does not change the raw certificate format or make the elaborator trusted.
+
 Two complementary checkers — the two faces a real proof kernel needs. `check.beta` decides
 "does this certificate *prove* this proposition?"; `eq.beta` decides "do these two
 terms *compute* to the same value?" (`(p (s (s z)) (s (s z)))` = `(s (s (s (s z))))`,

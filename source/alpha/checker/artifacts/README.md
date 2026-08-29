@@ -1,8 +1,12 @@
 # Persisted proof-checker artifact
 
 `check.tape` is the platform-independent Alpha tape for the authoritative Beta
-certificate checker. Its construction lineage is deliberately below the
-accepted Beta compiler:
+certificate checker. D10 selects the descriptive destination name
+`proof_checker_bytecode.tape`. `check.tape` remains the current committed path
+until the atomic naming migration updates every consumer; the bytecode and its
+content hash remain unchanged.
+
+Its construction lineage is deliberately below the accepted Beta compiler:
 
 ```text
 audited Alpha seed + Alpha-written assembler

@@ -67,7 +67,7 @@ No implementation gains authority by occupying more than one of these roles.
 | [Alpha](rungs/alpha.md) | minimal deterministic tape execution | written small-step semantics; audited native realizations |
 | [Beta](rungs/beta.md) | small structured systems language | Alpha-rooted compiler and maximal-observation reconstruction; checker derivation open |
 | [Gamma](rungs/gamma.md) | safe definitional computation and typing | Beta-written reference interpreter/type checker |
-| [Delta](rungs/delta.md) | deterministic compiler-host language | Delta→Gamma elaboration and Gamma execution; publication open |
+| [Delta](rungs/delta.md) | deterministic compiler-host language | self-contained contract and Delta→Gamma validation queued; publication open |
 | [Omega](omega_toolchain.md) | product compiler: target-neutral Psi phases then target realization | Omega-written source; direct Delta and self-build edges open |
 
 The Alpha-owned [proof kernel](proof_kernel.md) is universal checker
