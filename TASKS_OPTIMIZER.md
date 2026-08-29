@@ -137,7 +137,7 @@ selection identity.
   debt that cannot grow; no pinned debt may exceed 1,300 lines. Dedicated test
   fixtures retain a 1,500-line ceiling. Files may not mix catalog, unrelated
   rule mechanics, validator, codec, and broad fixtures.
-- [>] Eliminate the pinned pre-ratchet production leaves by semantic split.
+- [x] Eliminate the pinned pre-ratchet production leaves by semantic split.
   Live-range validation is complete: its 34-line entrance owns liveness-custody
   replay followed by independent range replay, with receipt projection and
   focused tests below it; the former 1,294-line catch-all is gone. SCCP constant
@@ -181,8 +181,12 @@ selection identity.
   custody, recipe dispatch, return sealing, and edge-fuel replay, then descends
   into exhaustive recipe, exact-arithmetic, immediate, and fuel families; the
   former 1,022-line catch-all is gone and no replacement exceeds 464 lines.
-  Continue through the exact exception table in the architecture guard,
-  removing each exception as its file falls below the 1,000-line default.
+  Liveness validation completes the migration: its 48-line entrance owns root
+  custody, scalar replay/comparison, structural roster replay, and receipt
+  admission above named constraint, replay, comparison, structural, receipt,
+  shared-canonicalization, and test leaves. The former 1,021-line catch-all is
+  gone, no replacement exceeds 225 lines, and the exact exception table is
+  empty.
 - [x] Clear the current production-file size violations by semantic split, not
   line shuffling. Pipeline `whole_function_exit_contract`,
   `resolved_selected_form_layout`, `x86_branch_relaxation`, and
