@@ -1261,8 +1261,19 @@ prove every enabled rule phase is actually scheduled.
   compute/independent-replay join. Existing public API names and all semantic
   identities are unchanged.
 
-  Remaining work: split `omega-psi-optimizer/src/rules.rs` by named pass and
-  exact rule family; split candidate replay out of
+  The Psi rule catalog is now the second reference slice. Its former 20,355-line
+  `rules.rs` is a navigable tree: an 11-line `rules/mod.rs` leads separately to
+  the ordered `catalog.rs` and a 38-line pass entrance. That entrance names
+  control-flow cleanup, copy propagation, dead-scalar elimination, GVN,
+  proof-check elision, and SCCP. Control-flow cleanup descends by graph rewrite;
+  GVN descends through expression keys, same-block, dominating, phi-translated,
+  and accounting modules; proof and range families descend to their exact
+  identities. The 148 rule tests mirror those pass families, keep typed fixtures
+  in a named fixture catalog, and contain no broad monolithic test file. No
+  public rule name, contract identity, built-in ordinal, or registry schedule
+  changed.
+
+  Remaining work: split candidate replay out of
   `omega-optimization-validation/src/lib.rs` under the matching independent
   validator taxonomy; organize register allocation into `analyses`,
   `allocation`, and exact `rules`; make optimization-pipeline stage catalogs
