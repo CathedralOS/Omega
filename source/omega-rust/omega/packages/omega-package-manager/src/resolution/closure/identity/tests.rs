@@ -75,6 +75,51 @@ fn exact_git_request_spelling_changes_subject_without_changing_selection() {
 }
 
 #[test]
+fn root_git_package_selection_and_navigation_change_the_subject() {
+    let selected = git_source("matrix", "workspace", 1);
+    let subject = |selection, navigation| {
+        CanonicalSourceClosureSubject::finish(
+            CanonicalRootSourceSelection {
+                request: CanonicalRootSourceRequest::Git {
+                    requested_locator: "https://github.com/CathedralOS/workspace.git".to_owned(),
+                    requested_revision: "main".to_owned(),
+                    selection,
+                },
+                selected: selected.clone(),
+            },
+            vec![selected.clone()],
+            vec![navigation],
+            Vec::new(),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .expect("canonical root selection")
+    };
+    let repository_root = subject(
+        crate::manifest::PackageSelection::Root,
+        PackageSourceNavigation::Root,
+    );
+    let named_member = subject(
+        crate::manifest::PackageSelection::Named(PackageName::parse("matrix").unwrap()),
+        PackageSourceNavigation::Member(WorkspaceMemberPath::parse("packages/matrix").unwrap()),
+    );
+
+    assert_eq!(repository_root.packages(), named_member.packages());
+    assert_ne!(
+        repository_root.canonical_bytes(),
+        named_member.canonical_bytes()
+    );
+    assert_ne!(repository_root.fingerprint(), named_member.fingerprint());
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover(
+            named_member.canonical_bytes(),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .unwrap(),
+        named_member
+    );
+}
+
+#[test]
 fn git_package_selection_is_canonical_request_custody_not_package_identity() {
     let root = git_source("root", "workspace", 1);
     let child = git_source("child", "workspace", 1);

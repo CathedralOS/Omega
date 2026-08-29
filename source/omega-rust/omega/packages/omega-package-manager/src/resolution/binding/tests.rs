@@ -1,5 +1,6 @@
 use super::{
-    ResolvePackageSourceError, resolve_external_local_package_source, resolve_git_package_source,
+    GitPackageSourceRequest, ResolvePackageSourceError, resolve_external_local_package_source,
+    resolve_git_package_source, resolve_selected_git_package_source_with_storage,
     resolve_workspace_member_package_source,
 };
 use crate::manifest::dependencies::read::{DependencyProjectionError, DependencySourceRequest};
@@ -35,6 +36,19 @@ fn write_package(root: &Path, name: &str) {
     .expect("write package declaration");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n")
         .expect("write package source");
+}
+
+fn write_workspace(root: &Path, members: &[&str]) {
+    std::fs::create_dir_all(root).expect("create workspace root");
+    let declarations = members
+        .iter()
+        .map(|member| format!("    builder.member(\"{member}\");\n"))
+        .collect::<String>();
+    std::fs::write(
+        root.join("build.omg"),
+        format!("machine build(builder: &mut Build) {{\n{declarations}}}\n"),
+    )
+    .expect("write workspace declaration");
 }
 
 #[test]
@@ -466,6 +480,123 @@ fn git_binding_normalizes_known_transport_without_using_repository_name() {
     assert_eq!(https.key().name().as_str(), "declared-package");
     assert_eq!(https.resolution(), ssh.resolution());
 
+    let _ = std::fs::remove_dir_all(&repository);
+    make_tree_owner_writable(&cache);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
+    let repository = temp_root("git-named-errors-repository");
+    let cache = temp_root("git-named-errors-cache");
+    write_workspace(&repository, &["packages/first", "packages/second"]);
+    write_package(&repository.join("packages/first"), "same-name");
+    write_package(&repository.join("packages/second"), "same-name");
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
+    let acquisition = GitSourceRequest::for_local_test_repository_with_lineage(
+        &repository,
+        None,
+        "https://github.com/CathedralOS/named-errors.git",
+    )
+    .expect("local Git request");
+    let storage = omega_package_source::SourceResolverStorage::for_hardened_base(&cache)
+        .expect("retained storage");
+
+    let missing = resolve_selected_git_package_source_with_storage(
+        &GitPackageSourceRequest::new(
+            acquisition.clone(),
+            crate::manifest::PackageSelection::Named(
+                omega_package_source::PackageName::parse("missing").unwrap(),
+            ),
+        ),
+        &storage,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("missing declared package rejects");
+    assert!(matches!(
+        missing,
+        ResolvePackageSourceError::NamedGitPackageMissing { package }
+            if package.as_str() == "missing"
+    ));
+
+    let duplicate = resolve_selected_git_package_source_with_storage(
+        &GitPackageSourceRequest::new(
+            acquisition,
+            crate::manifest::PackageSelection::Named(
+                omega_package_source::PackageName::parse("same-name").unwrap(),
+            ),
+        ),
+        &storage,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("duplicate declared package name rejects");
+    assert!(matches!(
+        duplicate,
+        ResolvePackageSourceError::NamedGitPackageDuplicate {
+            package,
+            member_paths,
+        } if package.as_str() == "same-name" && member_paths.len() == 2
+    ));
+
+    drop(storage);
+    let _ = std::fs::remove_dir_all(&repository);
+    make_tree_owner_writable(&cache);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[cfg(unix)]
+#[test]
+fn named_git_binding_rejects_symlink_member_navigation() {
+    use std::os::unix::fs::symlink;
+
+    let repository = temp_root("git-named-symlink-repository");
+    let cache = temp_root("git-named-symlink-cache");
+    write_workspace(&repository, &["packages/linked"]);
+    write_package(&repository.join("actual"), "linked-package");
+    std::fs::create_dir_all(repository.join("packages")).expect("create packages directory");
+    symlink("../actual", repository.join("packages/linked")).expect("create member symlink");
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
+    let acquisition = GitSourceRequest::for_local_test_repository_with_lineage(
+        &repository,
+        None,
+        "https://github.com/CathedralOS/named-symlink.git",
+    )
+    .expect("local Git request");
+    let storage = omega_package_source::SourceResolverStorage::for_hardened_base(&cache)
+        .expect("retained storage");
+
+    let error = resolve_selected_git_package_source_with_storage(
+        &GitPackageSourceRequest::new(
+            acquisition,
+            crate::manifest::PackageSelection::Named(
+                omega_package_source::PackageName::parse("linked-package").unwrap(),
+            ),
+        ),
+        &storage,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("symlink member navigation rejects");
+    assert!(matches!(
+        error,
+        ResolvePackageSourceError::GitWorkspaceMemberNavigation { member_path, .. }
+            if member_path.as_str() == "packages/linked"
+    ));
+
+    drop(storage);
     let _ = std::fs::remove_dir_all(&repository);
     make_tree_owner_writable(&cache);
     let _ = std::fs::remove_dir_all(&cache);

@@ -48,6 +48,11 @@ impl GitAcquisitionCache {
             request.selection(),
         )
     }
+
+    #[cfg(test)]
+    pub(super) fn acquisition_count(&self) -> usize {
+        self.resolved.len()
+    }
 }
 
 pub(super) fn resolve_external_local_package_from_cache(

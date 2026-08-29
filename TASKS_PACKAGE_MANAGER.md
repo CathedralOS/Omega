@@ -227,8 +227,7 @@ closed. Compiler-issued package review remains non-admitting.
   authority flow, provider/trust/proof state, dangerous slack, build
   observations, review state, and the first failed provenance edge.
 
-- [ ] **OMEGA-FETCH-MEMBER.** After **MULTI-PACKAGE-GIT-SELECTION**, add
-  selective authenticated Git
+- [ ] **OMEGA-FETCH-MEMBER.** Add selective authenticated Git
   acquisition for one declared workspace package without using checkout or
   lazy object fetching. Parent-authenticated materialization must prove the
   selected member subtree and every root declaration needed to authenticate
@@ -289,26 +288,6 @@ items are still owner-blocked.
   carriers, compiler-owned pointers, reference-only `EfiSystemTable`, proof-only
   `Real`, wrong opaque subject, lookalike representation traits, provider drift,
   descriptor replay drift, and illegal carrier cleanup/multiplicity changes.
-
-- [ ] **MULTI-PACKAGE-GIT-SELECTION.** Separate one Git acquisition
-  `(repository, revision)` from normalized package selection
-  `Root | Named(PackageName)`. Omitted source spelling normalizes to `Root`;
-  selection never enters `SourceIdentity`. Authenticate the repository root,
-  statically project its authorized member paths, and require exactly one
-  selected member's own `builder.package("name")` declaration to match.
-
-  Retain the resolved member path as navigation/replay custody and as the base
-  for relative dependencies, never as `PackageKey` identity. Git `PackageKey`
-  lineage is declared name plus canonical repository namespace and excludes the
-  requested or resolved revision. Requests with the same key and immutable
-  resolution deduplicate; different resolutions reject with every dependency
-  path. Multiple simultaneous instances per key remain unsupported.
-
-  Add pass/fail coverage for root selection, two members sharing one fetch/tree,
-  member relocation preserving the key, member-relative dependencies, missing
-  and duplicate names, undeclared/escaping paths, selector/alias separation,
-  different selector spellings resolving identically, and same-key resolution
-  conflict.
 
 - [ ] **BLOCKED — OWNER Q20: STATIC-TARGET-CONDITIONED-DEPENDENCIES.** Extend dependency projection
   only through a closed condition vocabulary over request-time inputs such as
