@@ -639,15 +639,29 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
                 continue;
             }
             let source = std::fs::read_to_string(&path).expect("read package Rust source");
-            let lines = source.lines().count();
-            let line_ceiling = if path
+            for retired_facade_marker in [
+                "Preserve the former",
+                "Compatibility exports from the former",
+                "compatibility facade",
+            ] {
+                assert!(
+                    !source.contains(retired_facade_marker),
+                    "package implementation must name current owners instead of preserving iterative facades: {}",
+                    path.display()
+                );
+            }
+            let is_test_support = path
                 .components()
-                .any(|component| component.as_os_str() == "tests")
-            {
-                1_000
-            } else {
-                800
-            };
+                .any(|component| component.as_os_str() == "tests");
+            if !is_test_support {
+                assert!(
+                    !source.contains("#[allow(unused_imports)]"),
+                    "production package modules must not hide forwarding-only imports: {}",
+                    path.display()
+                );
+            }
+            let lines = source.lines().count();
+            let line_ceiling = if is_test_support { 1_000 } else { 800 };
             assert!(
                 lines <= line_ceiling,
                 "package Rust module exceeds its {line_ceiling}-line discovery ceiling: {} ({lines} lines)",
