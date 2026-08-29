@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 32;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 33;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2297,7 +2297,7 @@ struct ReceiptedOutputFile {
 fn receipted_output_files(
     replay: &psi_checked_interpreter::FilesystemReplay,
 ) -> Option<Vec<ReceiptedOutputFile>> {
-    let outputs = replay.output_write_chains();
+    let outputs = replay.output_files();
     if outputs.is_empty() {
         return None;
     }

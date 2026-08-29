@@ -224,7 +224,7 @@ impl<'program> Evaluator<'program> {
                 replay.attempts().len()
             ));
         }
-        let outputs = replay.output_write_chains();
+        let outputs = replay.output_files();
         if outputs.is_empty() {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");

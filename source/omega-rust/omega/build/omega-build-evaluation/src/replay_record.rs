@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 13;
+const VERSION: u16 = 14;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -249,7 +249,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             });
     }
     let mut output_records = Vec::new();
-    let output_ranges = output_shape_chain_ranges(&shapes, output_start)?;
+    let output_ranges = output_file_ranges(&shapes, output_start)?;
     output_records
         .try_reserve_exact(output_ranges.len())
         .map_err(|_| {
@@ -260,7 +260,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     for (start, end) in output_ranges {
         let chain = &shapes[start..end];
         let create = &chain[0];
-        let close = chain.last().expect("validated output chain has a close");
+        let close = chain.last().expect("validated Output file has a close");
         let writes = &chain[1..chain.len() - 1];
         let Some(output) = create.output else {
             unreachable!("validated receipted output create has a descriptor")
@@ -307,7 +307,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             })?);
         }
         output_records.push(
-            psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::with_writes(
+            psi_checked_interpreter::FilesystemOutputFileReplayRecord::with_writes(
                 crate::BUILD_OUTPUT_ROOT_IDENTITY,
                 clone_bytes(rooted.bytes)?,
                 output.identity,
@@ -317,7 +317,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
-                    "filesystem replay output chain could not be rehydrated",
+                    "filesystem replay Output file could not be rehydrated",
                 )
             })?,
         );
@@ -1180,7 +1180,7 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
-        let output_ranges = output_shape_chain_ranges(shapes, cursor)?;
+        let output_ranges = output_file_ranges(shapes, cursor)?;
         let mut output_paths = Vec::new();
         output_paths
             .try_reserve_exact(output_ranges.len())
@@ -1193,8 +1193,8 @@ fn validate_first_rung(
         for (start, end) in output_ranges {
             let chain = &shapes[start..end];
             let create = &chain[0];
-            let close = chain.last().expect("validated output chain has a close");
-            let extent = validate_output_write_chain(create, &chain[1..chain.len() - 1], close)?;
+            let close = chain.last().expect("validated Output file has a close");
+            let extent = validate_output_file(create, &chain[1..chain.len() - 1], close)?;
             aggregate_output_extent = aggregate_output_extent
                 .checked_add(extent)
                 .filter(|total| {
@@ -1229,7 +1229,7 @@ fn validate_first_rung(
     Ok(())
 }
 
-fn output_shape_chain_ranges(
+fn output_file_ranges(
     shapes: &[AttemptShape<'_>],
     output_start: usize,
 ) -> Result<Vec<(usize, usize)>, BuildFilesystemReplayRecordError> {
@@ -1239,17 +1239,16 @@ fn output_shape_chain_ranges(
         let start = cursor;
         if shapes[cursor].operation != 1 {
             return Err(BuildFilesystemReplayRecordError::new(
-                "filesystem replay Output chain must begin with create",
+                "filesystem replay Output file must begin with create",
             ));
         }
         cursor += 1;
-        let writes_start = cursor;
         while cursor < shapes.len() && matches!(shapes[cursor].operation, 5 | 7) {
             cursor += 1;
         }
-        if cursor == writes_start || cursor == shapes.len() || shapes[cursor].operation != 8 {
+        if cursor == shapes.len() || shapes[cursor].operation != 8 {
             return Err(BuildFilesystemReplayRecordError::new(
-                "receipted build output must contain complete create-write+-close chains",
+                "receipted build output must contain complete create-write*-close files",
             ));
         }
         cursor += 1;
@@ -1278,7 +1277,7 @@ fn validate_included_source_shapes(
                 "source-only filesystem replay cannot retain included-source handoffs",
             )
         })?;
-    let output_ranges = output_shape_chain_ranges(shapes, output_start)?;
+    let output_ranges = output_file_ranges(shapes, output_start)?;
     let total_attempt_count = u64::try_from(shapes.len()).map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay attempt count exceeds canonical u64",
@@ -1333,7 +1332,7 @@ fn validate_included_source_shapes(
     Ok(())
 }
 
-fn validate_output_write_chain(
+fn validate_output_file(
     create: &AttemptShape<'_>,
     writes: &[AttemptShape<'_>],
     close: &AttemptShape<'_>,
@@ -1379,11 +1378,6 @@ fn validate_output_write_chain(
         ));
     }
 
-    if writes.is_empty() {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "receipted build output has no writes",
-        ));
-    }
     let mut cursor = 0usize;
     let mut extent = 0usize;
     for write in writes {
@@ -2038,6 +2032,21 @@ mod first_rung_validation_tests {
             ),
         )];
         assert!(validate_first_rung(&sparse_over_ceiling).is_err());
+    }
+
+    #[test]
+    fn empty_output_file_requires_exact_create_close_pair() {
+        let mut shapes = exact_input_output_shapes();
+        shapes.remove(4);
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        let mut missing_close = shapes.clone();
+        missing_close.pop();
+        assert!(validate_first_rung(&missing_close).is_err());
+
+        let mut extra_operation = shapes;
+        extra_operation.insert(4, empty_shape(12, ShapeResult::Scalar(0)));
+        assert!(validate_first_rung(&extra_operation).is_err());
     }
 
     #[test]
