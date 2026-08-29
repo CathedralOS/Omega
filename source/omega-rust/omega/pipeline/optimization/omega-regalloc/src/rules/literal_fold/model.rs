@@ -15,7 +15,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 2;
+const LITERAL_FOLD_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -33,10 +33,53 @@ impl LiteralFoldIdentity {
 /// Narrow proof-preserving physical-form fold. This is not a generic constant
 /// fold, instruction scheduler, rematerializer, spill policy, or opt level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LiteralFoldPolicy {
-    SelectedIncomingU12ExactAddImmediateV1,
-    SelectedIncomingU12ExactSubtractImmediateV1,
-    SelectedIncomingU12ExactAddAndSubtractImmediateV1,
+pub struct LiteralFoldPolicy {
+    enabled_rules: u8,
+}
+
+impl LiteralFoldPolicy {
+    const EXACT_ADD_BIT: u8 = 1 << 0;
+    const EXACT_SUBTRACT_BIT: u8 = 1 << 1;
+    const KNOWN_BITS: u8 = Self::EXACT_ADD_BIT | Self::EXACT_SUBTRACT_BIT;
+
+    pub const EXACT_ADD_V1: Self = Self {
+        enabled_rules: Self::EXACT_ADD_BIT,
+    };
+    pub const EXACT_SUBTRACT_V1: Self = Self {
+        enabled_rules: Self::EXACT_SUBTRACT_BIT,
+    };
+
+    pub(crate) const fn empty() -> Self {
+        Self { enabled_rules: 0 }
+    }
+
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            enabled_rules: self.enabled_rules | other.enabled_rules,
+        }
+    }
+
+    pub const fn enables_exact_add(self) -> bool {
+        self.enabled_rules & Self::EXACT_ADD_BIT != 0
+    }
+
+    pub const fn enables_exact_subtract(self) -> bool {
+        self.enabled_rules & Self::EXACT_SUBTRACT_BIT != 0
+    }
+
+    pub const fn canonical_bits(self) -> u8 {
+        self.enabled_rules
+    }
+
+    pub const fn from_canonical_bits(bits: u8) -> Option<Self> {
+        if bits == 0 || bits & !Self::KNOWN_BITS != 0 {
+            None
+        } else {
+            Some(Self {
+                enabled_rules: bits,
+            })
+        }
+    }
 }
 
 /// Canonical recipe and output commitment. The transformed selected CFG stays
@@ -92,12 +135,9 @@ impl LiteralFoldPlan {
         let raw_fuel = u32::from_le_bytes(cursor.array()?);
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel)
             .ok_or(LiteralFoldDecodeError::InvalidFuelSchedule(raw_fuel))?;
-        let policy = match cursor.byte()? {
-            0 => LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
-            1 => LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1,
-            2 => LiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1,
-            tag => return Err(LiteralFoldDecodeError::UnknownPolicy(tag)),
-        };
+        let policy_bits = cursor.byte()?;
+        let policy = LiteralFoldPolicy::from_canonical_bits(policy_bits)
+            .ok_or(LiteralFoldDecodeError::UnknownPolicy(policy_bits))?;
         let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
             .map_err(|_| LiteralFoldDecodeError::InvalidBudget)?;
         let usage = OptimizationWorkUsage::decode(cursor.take(40)?)

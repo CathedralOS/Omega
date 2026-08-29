@@ -23,18 +23,14 @@ pub(super) fn reconstruct_immediate_rows(
             .find(|row| row.key == key)
             .ok_or(LiteralFoldError::ImmediateConstraintMismatch)
     };
-    let (add, subtract) = match policy {
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => {
-            (Some(find(keys.add_i64_immediate)?), None)
-        }
-        LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => {
-            (None, Some(find(keys.subtract_i64_immediate)?))
-        }
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => (
-            Some(find(keys.add_i64_immediate)?),
-            Some(find(keys.subtract_i64_immediate)?),
-        ),
-    };
+    let add = policy
+        .enables_exact_add()
+        .then(|| find(keys.add_i64_immediate))
+        .transpose()?;
+    let subtract = policy
+        .enables_exact_subtract()
+        .then(|| find(keys.subtract_i64_immediate))
+        .transpose()?;
     for row in [add, subtract].into_iter().flatten() {
         validate_immediate_row(row)?;
     }

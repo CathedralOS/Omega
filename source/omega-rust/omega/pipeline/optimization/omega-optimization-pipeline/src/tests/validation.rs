@@ -31,7 +31,7 @@ fn literal_fold_staging_rejects_an_explicit_no_action_request() {
                 legality,
                 SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
                 RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-                LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+                LiteralFoldPolicy::EXACT_ADD_V1,
                 budget(),
             ),
             Err(OptimizedLiteralFoldCustodyError::NoAppliedFold)

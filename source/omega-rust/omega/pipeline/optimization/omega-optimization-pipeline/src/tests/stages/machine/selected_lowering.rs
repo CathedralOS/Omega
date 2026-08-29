@@ -248,7 +248,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.constraints(),
             environment.reservations(),
             environment.allocation_constraint_keys(),
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            LiteralFoldPolicy::EXACT_ADD_V1,
             budget(),
         )
         .unwrap();
@@ -366,7 +366,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.constraints(),
             environment.reservations(),
             environment.allocation_constraint_keys(),
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            LiteralFoldPolicy::EXACT_ADD_V1,
             budget(),
         )
         .unwrap();
@@ -422,7 +422,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             legality,
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            LiteralFoldPolicy::EXACT_ADD_V1,
             budget(),
         )
         .unwrap();
@@ -449,7 +449,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             staged_folds,
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            LiteralFoldPolicy::EXACT_ADD_V1,
             budget(),
         )
         .unwrap();
@@ -472,7 +472,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
         );
         assert_eq!(
             second_iteration.fold_policy(),
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1
+            LiteralFoldPolicy::EXACT_ADD_V1
         );
         assert_eq!(
             validate_optimized_literal_fold_custody(&staged_folds).unwrap(),
@@ -769,10 +769,6 @@ fn named_exact_subtract_immediate_suite_closes_pressure_and_rejects_policy_subst
             run.selected_lowering_selections().as_slice(),
             &[Optimization::SelectedIncomingU12ExactSubtractImmediate]
         );
-        assert_eq!(
-            run.custody().schedule(),
-            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactSubtractImmediateToNoChangeV1
-        );
         assert_eq!(run.steps().len(), 2);
         assert_eq!(run.custody().action_count(), 2);
         assert_eq!(run.attempt().fold().receipt().applied_count(), 0);
@@ -811,7 +807,7 @@ fn named_exact_subtract_immediate_suite_closes_pressure_and_rejects_policy_subst
         let environment = selected.register_environment();
         let first = &run.steps()[0];
         let mut substituted_policy = first.fold().plan().clone();
-        substituted_policy.policy = LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1;
+        substituted_policy.policy = LiteralFoldPolicy::EXACT_ADD_V1;
         assert!(
             validate_literal_fold(
                 selected.selected(),
@@ -884,10 +880,9 @@ fn combined_exact_immediate_selection_executes_each_named_shape() {
         )
         .unwrap();
 
-        assert_eq!(
-            run.custody().schedule(),
-            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1
-        );
+        let resolved_policy = run.attempt().fold().receipt().policy();
+        assert!(resolved_policy.enables_exact_add());
+        assert!(resolved_policy.enables_exact_subtract());
         assert_eq!(run.custody().action_count(), 2);
         let final_plan = run.attempt().fold().transformed();
         let matching_immediate_count = final_plan.functions[0]

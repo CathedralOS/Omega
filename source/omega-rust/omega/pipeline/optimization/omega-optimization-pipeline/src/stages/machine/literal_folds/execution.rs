@@ -65,7 +65,6 @@ pub(super) fn execute_selected_lowering_optimizations(
     source: StagedOptimizedAllocationLegality,
     selections: OptimizationSelections,
     selected_lowering_selections: OptimizationSelections,
-    schedule: SelectedLoweringOptimizationSchedule,
     fold_policy: LiteralFoldPolicy,
 ) -> Result<StagedSelectedLoweringOptimizationRun, OptimizedLiteralFoldCustodyError> {
     let upstream = validate_source(&source)?;
@@ -154,7 +153,6 @@ pub(super) fn execute_selected_lowering_optimizations(
         usage,
         iteration_bound,
         action_count,
-        schedule,
     );
     Ok(StagedSelectedLoweringOptimizationRun {
         source,
@@ -178,12 +176,10 @@ pub fn validate_selected_lowering_optimization_custody(
         .optimized_target()
         .optimized();
     let expected_budget = optimized.budget_per_pass();
-    let (projected, fold_policy) = selected_lowering_rule_policy(&run.selections)?;
-    let expected_schedule = selected_lowering_schedule(fold_policy);
+    let (projected, fold_policy) = resolve_selected_lowering_rules(&run.selections)?;
     if run.selections != *optimized.selections()
         || run.custody.selections != optimized.selections().identity()
         || run.custody.budget != expected_budget
-        || run.custody.schedule != expected_schedule
     {
         return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
     }
@@ -191,7 +187,7 @@ pub fn validate_selected_lowering_optimization_custody(
         return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
     }
     for step in &run.steps {
-        validate_selected_lowering_schedule(
+        validate_selected_lowering_policies(
             step.choices(),
             step.recovery(),
             step.fold(),
@@ -199,7 +195,7 @@ pub fn validate_selected_lowering_optimization_custody(
             fold_policy,
         )?;
     }
-    validate_selected_lowering_schedule(
+    validate_selected_lowering_policies(
         run.attempt.choices(),
         run.attempt.recovery(),
         run.attempt.fold(),
@@ -295,7 +291,6 @@ pub fn validate_selected_lowering_optimization_custody(
         usage,
         run.source.legality().receipt().virtual_register_count(),
         action_count,
-        expected_schedule,
     );
     if replayed != run.steps || terminal != run.attempt || receipt != run.custody {
         return Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: 0 });

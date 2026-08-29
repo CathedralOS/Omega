@@ -98,13 +98,6 @@ pub struct StagedSelectedLoweringOptimizationRun {
     pub(super) custody: StagedSelectedLoweringOptimizationCustodyReceipt,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedLoweringOptimizationSchedule {
-    SelectedIncomingU12ExactAddImmediateToNoChangeV1,
-    SelectedIncomingU12ExactSubtractImmediateToNoChangeV1,
-    SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1,
-}
-
 impl StagedSelectedLoweringOptimizationRun {
     pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
         &self.source
@@ -132,7 +125,6 @@ pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
     pub(super) source: StagedOptimizedAllocationLegalityCustodyReceipt,
     pub(super) selections: OptimizationSelectionIdentity,
     pub(super) selected_lowering_selections: OptimizationSelectionIdentity,
-    pub(super) schedule: SelectedLoweringOptimizationSchedule,
     pub(super) budget: OptimizationWorkBudget,
     pub(super) usage: OptimizationWorkUsage,
     pub(super) iteration_bound: usize,
@@ -159,9 +151,6 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
     }
     pub const fn selected_lowering_selections(&self) -> OptimizationSelectionIdentity {
         self.selected_lowering_selections
-    }
-    pub const fn schedule(&self) -> SelectedLoweringOptimizationSchedule {
-        self.schedule
     }
     pub const fn budget(&self) -> OptimizationWorkBudget {
         self.budget
