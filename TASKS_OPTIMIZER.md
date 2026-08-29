@@ -157,6 +157,10 @@ selection identity.
   orders direct scalar handling before exhaustive integer routing, with binary
   semantics and shift semantics in separate shared leaves; the former
   1,111-line file is gone and the largest replacement is below 600 lines.
+  Live-range computation is complete as well: its 62-line plan coordinator
+  descends through function construction, constraints, fragments,
+  architectural units, and focused tests; the former 1,071-line mixed file is
+  gone and the largest replacement is below 450 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not

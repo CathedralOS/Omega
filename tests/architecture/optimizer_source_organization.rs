@@ -24,10 +24,6 @@ const MAX_ENTRANCE_LINES: usize = 200;
 /// never enter this table.
 const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[
     (
-        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/compute.rs",
-        1_071,
-    ),
-    (
         "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine.rs",
         1_058,
     ),
@@ -128,6 +124,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate.rs",
         coordination_marker: "pub fn validate_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/compute.rs",
+        coordination_marker: "pub(crate) fn compute_terminal_live_ranges",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/artifact/mod.rs",
