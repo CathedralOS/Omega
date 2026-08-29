@@ -497,7 +497,6 @@ dependencies = [
  "omega-program-entry-plan",
  "omega-provider-planning",
  "omega-selected-dispatch",
- "omega-source-profile",
  "omega-target",
  "omega-task-plans",
  "omega-terminal-psi-to-native-artifact",
@@ -1328,16 +1327,6 @@ dependencies = [
  "omega-target-operations",
  "psi-core",
  "psi-terminal",
- "sha2",
-]
-
-[[package]]
-name = "omega-source-profile"
-version = "0.1.0"
-dependencies = [
- "psi-syntax-trees",
- "serde",
- "serde_json",
  "sha2",
 ]
 

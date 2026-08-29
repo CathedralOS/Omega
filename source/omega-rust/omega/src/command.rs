@@ -3,7 +3,6 @@ mod inspect_terminal;
 mod output;
 mod probe;
 mod samples;
-mod source_snapshot;
 
 use std::path::PathBuf;
 
@@ -52,13 +51,6 @@ pub(crate) fn run() {
         .is_some_and(|first| first == "audit")
     {
         audit::run(raw_arguments);
-        return;
-    }
-    if first_argument
-        .as_deref()
-        .is_some_and(|first| first == "source-snapshot")
-    {
-        source_snapshot::run(raw_arguments);
         return;
     }
     let arguments = parse_arguments().unwrap_or_else(|error| {
@@ -236,7 +228,7 @@ struct CliArguments {
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--accept-admissions] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
+    "usage: omega [--check] [--accept-admissions] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega refresh-samples [samples-dir]"
 }
 
 fn parse_arguments() -> Result<CliArguments, String> {

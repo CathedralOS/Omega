@@ -92,7 +92,6 @@ members = [
     "source/omega-rust/omega/tooling/omega-artifacts",
     "source/omega-rust/omega/build/omega-build-declarations",
     "source/omega-rust/omega/build/omega-build-evaluation",
-    "source/omega-rust/omega/tooling/omega-source-profile",
     "source/omega-rust/omega/build/omega-build-output",
     "source/omega-rust/omega/build/omega-build-provenance",
     "source/omega-rust/omega/compiler/omega-compilation-report",

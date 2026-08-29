@@ -642,18 +642,17 @@ fn compiler_crate_owns_no_product_binaries() {
 }
 
 #[test]
-fn source_profile_analysis_is_not_owned_by_the_compiler() {
+fn standalone_source_profile_analysis_stays_retired() {
     let root = workspace_root();
-    let retired =
-        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_profile");
+    let retired_compiler =
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_inspection.rs");
+    let retired_tool =
+        root.join("source/omega-rust/omega/tooling/omega-source-profile/Cargo.toml");
+    let retired_command =
+        root.join("source/omega-rust/omega/src/command/source_snapshot.rs");
     assert!(
-        !retired.join("census.rs").exists() && !retired.join("catalog.rs").exists(),
-        "source profile schema and census must not return to omega-compiler"
-    );
-    let owner = root.join("source/omega-rust/omega/tooling/omega-source-profile/src/lib.rs");
-    assert!(
-        owner.is_file(),
-        "omega-source-profile must own the analysis"
+        !retired_compiler.exists() && !retired_tool.exists() && !retired_command.exists(),
+        "standalone source inspection, census schemas, and their command must not return beside the production compiler path"
     );
 }
 
