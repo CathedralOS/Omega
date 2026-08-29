@@ -172,7 +172,7 @@ impl PackageReviewMachineParameterValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTypeParameter {
     pub(crate) kind: PackageReviewTypeParameterKind,
-    pub(crate) bounds: psi_typed_trees::data::DataProperties,
+    pub(crate) bounds: PackageReviewDataProperties,
 }
 
 /// One generic conformance requirement in a public signature.
@@ -237,7 +237,7 @@ impl PackageReviewTypeParameter {
         &self.kind
     }
 
-    pub const fn bounds(&self) -> psi_typed_trees::data::DataProperties {
+    pub const fn bounds(&self) -> PackageReviewDataProperties {
         self.bounds
     }
 }

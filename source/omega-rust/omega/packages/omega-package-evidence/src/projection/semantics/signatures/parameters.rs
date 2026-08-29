@@ -6,7 +6,7 @@ use super::super::super::contracts::checked::facts::{
     ContractProjectionContext, project_contracts,
 };
 use super::super::declarations::{nominal_identity, trait_requirement_identity};
-use super::super::types::review_signature_type_identity_with_binders;
+use super::super::types::{project_data_properties, review_signature_type_identity_with_binders};
 use crate::evidence::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
@@ -116,7 +116,7 @@ pub(crate) fn project_type_parameters_after(
         };
         projected.push(PackageReviewTypeParameter {
             kind,
-            bounds: parameter.bounds,
+            bounds: project_data_properties(parameter.bounds),
         });
     }
     Ok((binders, projected))

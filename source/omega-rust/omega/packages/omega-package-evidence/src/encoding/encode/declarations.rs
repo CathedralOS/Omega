@@ -10,14 +10,15 @@ use crate::evidence::{
     PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
     PackageReviewDangerousAuthoritySlack, PackageReviewDataField, PackageReviewDataKind,
-    PackageReviewDataMember, PackageReviewDataShape, PackageReviewDomainAliasAtom,
-    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
-    PackageReviewDomainShape, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewRepresentationTcb,
-    PackageReviewSemanticDependency, PackageReviewSemanticDependencyExposure,
-    PackageReviewSemanticDependencyKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDataShape,
+    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainSemanticRole, PackageReviewDomainShape,
+    PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
+    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
     PackageReviewTraitShape, PackageReviewTypeIdentity, PackageReviewTypeParameter,
     PackageReviewTypeParameterKind,
 };
@@ -183,8 +184,8 @@ pub(crate) fn encode_trait_parent(
     parent: &PackageReviewTraitParent,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.byte(match parent.kind {
-        psi_typed_trees::trait_definition::TraitCompositionKind::Policy => 0,
-        psi_typed_trees::trait_definition::TraitCompositionKind::ServiceReach => 1,
+        PackageReviewTraitCompositionKind::Policy => 0,
+        PackageReviewTraitCompositionKind::ServiceReach => 1,
     });
     encode_nominal(encoder, &parent.identity)?;
     encoder.sequence(&parent.lifetime_arguments, |encoder, argument| {
@@ -425,7 +426,7 @@ pub(crate) fn encode_machine_parameter_signature(
 
 pub(crate) fn encode_data_properties(
     encoder: &mut Encoder,
-    properties: psi_typed_trees::data::DataProperties,
+    properties: PackageReviewDataProperties,
 ) {
     encoder.byte(match properties.multiplicity {
         psi_language_semantics::Multiplicity::Unrestricted => 0,

@@ -9,7 +9,9 @@ use crate::evidence::{
     PackageReviewTypeIdentity,
 };
 use crate::projection::semantics::declarations::nominal_identity;
-use crate::projection::semantics::types::review_type_identity_with_binders;
+use crate::projection::semantics::types::{
+    project_data_properties, review_type_identity_with_binders,
+};
 
 use super::evidence::project_evidence_interface;
 
@@ -80,7 +82,7 @@ pub(crate) fn project_proposition_signature(
                     }
                     PropositionBinderKind::Machine => PackageReviewPropositionBinderKind::Machine,
                 },
-                bounds: binder.bounds,
+                bounds: project_data_properties(binder.bounds),
             })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

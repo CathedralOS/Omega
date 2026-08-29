@@ -159,6 +159,25 @@ pub enum PackageReviewDataKind {
     },
 }
 
+/// Closed package-evidence carrier for declaration multiplicity and movement
+/// policy. The language semantics remain explicit without retaining a typed-
+/// tree declaration node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PackageReviewDataProperties {
+    pub(crate) multiplicity: psi_language_semantics::Multiplicity,
+    pub(crate) carry: Option<psi_language_semantics::CarryPolicy>,
+}
+
+impl PackageReviewDataProperties {
+    pub const fn multiplicity(&self) -> psi_language_semantics::Multiplicity {
+        self.multiplicity
+    }
+
+    pub const fn carry(&self) -> Option<psi_language_semantics::CarryPolicy> {
+        self.carry
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDataShape {
     pub(crate) identity: PackageReviewNominalIdentity,
@@ -166,7 +185,7 @@ pub struct PackageReviewDataShape {
     pub(crate) supply: psi_language_semantics::DataSupplyMode,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) properties: psi_typed_trees::data::DataProperties,
+    pub(crate) properties: PackageReviewDataProperties,
     pub(crate) zero_gated: bool,
     pub(crate) invariants: Vec<PackageReviewContractFact>,
     pub(crate) retired_identities: Vec<u64>,
@@ -234,7 +253,7 @@ impl PackageReviewDataShape {
         &self.type_parameters
     }
 
-    pub const fn properties(&self) -> psi_typed_trees::data::DataProperties {
+    pub const fn properties(&self) -> PackageReviewDataProperties {
         self.properties
     }
 

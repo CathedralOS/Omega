@@ -12,12 +12,12 @@ mod rows;
 mod signatures;
 
 pub use api::{
-    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole, PackageReviewDomainShape,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewRepresentationTcb,
+    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember,
+    PackageReviewDataProperties, PackageReviewDataShape, PackageReviewDomainAliasAtom,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
+    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
+    PackageReviewDomainShape, PackageReviewRepresentationAbiCommitment,
+    PackageReviewRepresentationMechanism, PackageReviewRepresentationTcb,
 };
 pub use authority::{
     PackageReviewCapabilityFlow, PackageReviewCrash, PackageReviewCrashCall,
@@ -39,11 +39,12 @@ pub use contracts::{
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewFloatLiteral,
     PackageReviewOperatorCoordinate, PackageReviewOperatorRealization, PackageReviewOperatorShape,
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
-    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
-    PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,
-    PackageReviewResultCaseIdentity, PackageReviewSynchronousInvocation,
+    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
+    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+    PackageReviewReferenceAccess, PackageReviewResultCaseIdentity,
+    PackageReviewSynchronousInvocation,
 };
 pub use identity::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSemanticDependency,
@@ -71,7 +72,7 @@ pub use signatures::{
     PackageReviewExternalRequirement, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
-    PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };

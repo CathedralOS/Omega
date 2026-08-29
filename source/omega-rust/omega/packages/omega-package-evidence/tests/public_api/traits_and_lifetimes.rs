@@ -1,4 +1,5 @@
 use crate::support::*;
+use omega_package_evidence::evidence::PackageReviewTraitCompositionKind;
 
 #[test]
 fn public_trait_shape_retains_boundary_parent_and_alpha_normalized_requirements() {
@@ -62,7 +63,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     };
     assert_eq!(
         parent.kind(),
-        psi_typed_trees::trait_definition::TraitCompositionKind::Policy
+        PackageReviewTraitCompositionKind::Policy
     );
     assert_eq!(parent.identity().path(), "Parent");
     assert_eq!(parent.arguments().len(), 1);

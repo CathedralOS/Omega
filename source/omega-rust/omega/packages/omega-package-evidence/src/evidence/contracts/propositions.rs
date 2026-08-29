@@ -10,7 +10,7 @@ pub enum PackageReviewPropositionBinderKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewPropositionBinder {
     pub(crate) kind: PackageReviewPropositionBinderKind,
-    pub(crate) bounds: psi_typed_trees::data::DataProperties,
+    pub(crate) bounds: PackageReviewDataProperties,
 }
 
 impl PartialOrd for PackageReviewPropositionBinder {
@@ -29,7 +29,7 @@ impl Ord for PackageReviewPropositionBinder {
 }
 
 fn package_review_data_properties_key(
-    properties: psi_typed_trees::data::DataProperties,
+    properties: PackageReviewDataProperties,
 ) -> (u8, Option<(u8, u8, u8, u8)>) {
     let multiplicity = match properties.multiplicity {
         psi_language_semantics::Multiplicity::Unrestricted => 0,
@@ -61,7 +61,7 @@ impl PackageReviewPropositionBinder {
         &self.kind
     }
 
-    pub const fn bounds(&self) -> psi_typed_trees::data::DataProperties {
+    pub const fn bounds(&self) -> PackageReviewDataProperties {
         self.bounds
     }
 }
@@ -81,14 +81,21 @@ pub enum PackageReviewPropositionBinderValue {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewPropositionBinderArgumentKind {
+    Type,
+    Const,
+    Machine,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewPropositionBinderArgument {
-    pub(crate) kind: psi_typed_trees::proposition::PropositionBinderArgumentKind,
+    pub(crate) kind: PackageReviewPropositionBinderArgumentKind,
     pub(crate) value: PackageReviewPropositionBinderValue,
 }
 
 impl PackageReviewPropositionBinderArgument {
-    pub const fn kind(&self) -> psi_typed_trees::proposition::PropositionBinderArgumentKind {
+    pub const fn kind(&self) -> PackageReviewPropositionBinderArgumentKind {
         self.kind
     }
 
