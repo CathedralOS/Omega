@@ -204,7 +204,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/mod.rs",
-        coordination_marker: "STRAIGHT_LINE_INTEGER_LESS_OR_EQUAL_PARAMETERS",
+        coordination_marker: "STRAIGHT_LINE_INTEGER_BITWISE_NOT_PARAMETER",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/mod.rs",
@@ -212,11 +212,19 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/mod.rs",
-        coordination_marker: "fn reconstruct_integer_less_or_equal",
+        coordination_marker: "pub(super) mod integer",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/mod.rs",
+        coordination_marker: "super::envelope::reconstruct",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/mod.rs",
+        coordination_marker: "fn parameter(",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/mod.rs",
-        coordination_marker: "fn reconstruct_boolean_not",
+        coordination_marker: "fn reconstruct_integer_bitwise_not",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/equality.rs",

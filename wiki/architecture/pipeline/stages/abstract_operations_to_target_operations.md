@@ -37,15 +37,19 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   `derived/equality.rs` for equality or `derived/ordering.rs` for strict and
   inclusive ordering expressions.
 - `validation/straight_line_parameter/source/mod.rs` maps source grammar,
-  descending into a common `envelope.rs` and direct-return, Boolean-not, or
-  ordered Boolean/integer-equality, integer-less-than, or
-  integer-less-or-equal grammar leaves.
-- `validation/straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than,integer_less_or_equal}.rs`
+  descending into a common `envelope.rs`, direct-return and Boolean grammar,
+  or `source/integer/mod.rs`. The integer coordinator owns common
+  result-envelope reconstruction for integer-derived grammars and
+  typed-parameter lookup before descending into equality, strict/inclusive
+  ordering, or bitwise-not grammar leaves.
+- `validation/straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than,integer_less_or_equal,integer_bitwise_not}.rs`
   retain distinct exact family identities and validate their corresponding
   target variants after independent register or stack reconstruction. Binary
   Boolean-result families open recursive `ReturnBooleanExpression` carriers
   and retain ordered or identical operands; integer equality, less-than, and
-  less-or-equal also bind their common exact integer type.
+  less-or-equal also bind their common exact integer type. Integer bitwise-not
+  opens `ReturnIntegerExpression::BitwiseNot`, retaining its exact type and
+  parameter operand.
 - `validation/model/{error,receipt}/mod.rs` are the small family maps above
   immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and

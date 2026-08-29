@@ -10,6 +10,7 @@ pub(crate) mod boolean_equal;
 pub(crate) mod boolean_not;
 mod derived;
 pub(crate) mod integer;
+pub(crate) mod integer_bitwise_not;
 pub(crate) mod integer_equal;
 pub(crate) mod integer_less_or_equal;
 pub(crate) mod integer_less_than;

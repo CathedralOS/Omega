@@ -28,7 +28,7 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_less_t
         function,
         expected_target,
         target,
-        source::reconstruct_integer_less_than,
+        source::integer::reconstruct_less_than,
         StraightLineIntegerLessThanParametersTranslationError::TargetProvenance,
     )
 }
@@ -45,7 +45,7 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_less_o
         function,
         expected_target,
         target,
-        source::reconstruct_integer_less_or_equal,
+        source::integer::reconstruct_less_or_equal,
         StraightLineIntegerLessOrEqualParametersTranslationError::TargetProvenance,
     )
 }

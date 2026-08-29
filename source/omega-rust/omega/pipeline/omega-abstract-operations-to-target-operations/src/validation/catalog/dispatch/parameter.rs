@@ -76,3 +76,13 @@ pub(super) fn straight_line_integer_less_or_equal_parameters(
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLessOrEqualParameters)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerLessOrEqualParameters)
 }
+
+pub(super) fn straight_line_integer_bitwise_not_parameter(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer_bitwise_not::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseNotParameter)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerBitwiseNotParameter)
+}

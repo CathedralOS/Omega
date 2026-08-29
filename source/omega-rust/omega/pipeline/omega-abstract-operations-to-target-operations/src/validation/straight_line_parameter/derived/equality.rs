@@ -49,7 +49,7 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_equal(
     ReconstructedIntegerBinaryBooleanParameters,
     StraightLineIntegerEqualParametersTranslationError,
 > {
-    let source = source::reconstruct_integer_equal(function)?;
+    let source = source::integer::reconstruct_equal(function)?;
     let locations = abi::replay(&function.parameters, ScalarType::Boolean, expected_target)?;
     if target.provenance.operations.as_slice() != [source.operation]
         || target.provenance.edges.as_slice() != [source.return_edge]

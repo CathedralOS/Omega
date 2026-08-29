@@ -110,6 +110,54 @@ pub(super) fn uniform_boolean_not_plan(parameter_count: usize) -> AbstractOperat
     )
 }
 
+pub(super) fn integer_bitwise_not_parameter_plan(
+    parameter_types: &[ScalarType],
+    operand_parameter: usize,
+) -> AbstractOperationPlan {
+    let mut plan = parameter_return_plan(parameter_types, operand_parameter);
+    let function = &mut plan.functions[0];
+    let ScalarType::Integer(scalar_type) = function.parameters[operand_parameter].scalar_type
+    else {
+        panic!("integer bitwise-not fixture requires an integer operand")
+    };
+    let bitwise_not_result = ValueId::new(4_201).unwrap();
+    let operand = function.parameters[operand_parameter].value;
+    function.operations.insert(
+        0,
+        AbstractOperation::IntegerBitwiseNot {
+            psi_operation: OperationId::new(4_200).unwrap(),
+            result: bitwise_not_result,
+            scalar_type,
+            operand,
+        },
+    );
+    let AbstractOperation::Return {
+        value,
+        scalar_type: return_type,
+        ..
+    } = &mut function.operations[1]
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = bitwise_not_result;
+    *return_type = ScalarType::Integer(scalar_type);
+    function.result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(3_003).unwrap(),
+        scalar_type: ScalarType::Integer(scalar_type),
+    });
+    plan
+}
+
+pub(super) fn uniform_integer_bitwise_not_plan(
+    integer: IntegerType,
+    parameter_count: usize,
+) -> AbstractOperationPlan {
+    integer_bitwise_not_parameter_plan(
+        &vec![ScalarType::Integer(integer); parameter_count],
+        parameter_count - 1,
+    )
+}
+
 pub(super) fn boolean_equal_parameters_plan(
     parameter_types: &[ScalarType],
     left_parameter: usize,

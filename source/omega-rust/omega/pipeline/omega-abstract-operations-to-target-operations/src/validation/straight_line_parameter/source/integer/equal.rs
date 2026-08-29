@@ -3,7 +3,7 @@
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
-use super::super::model::{
+use super::super::super::model::{
     IntegerBinaryBooleanParametersSource, ParameterResultKind, ReconstructedEnvelope,
 };
 use crate::validation::model::StraightLineIntegerEqualParametersTranslationError;
@@ -11,7 +11,7 @@ use crate::validation::model::StraightLineIntegerEqualParametersTranslationError
 pub(in crate::validation::straight_line_parameter) fn is_candidate(
     function: &AbstractFunction,
 ) -> bool {
-    super::has_candidate_envelope(function, ParameterResultKind::Boolean)
+    super::super::has_candidate_envelope(function, ParameterResultKind::Boolean)
         && matches!(
             function.operations.as_slice(),
             [
@@ -63,9 +63,9 @@ pub(super) fn reconstruct(
     {
         return Err(StraightLineIntegerEqualParametersTranslationError::SourceEqualResultRoster);
     }
-    let (left_parameter_index, left_type) = super::integer_parameter(envelope, *left)
+    let (left_parameter_index, left_type) = super::parameter(envelope, *left)
         .ok_or(StraightLineIntegerEqualParametersTranslationError::SourceLeftOperandLink)?;
-    let (right_parameter_index, right_type) = super::integer_parameter(envelope, *right)
+    let (right_parameter_index, right_type) = super::parameter(envelope, *right)
         .ok_or(StraightLineIntegerEqualParametersTranslationError::SourceRightOperandLink)?;
     if left_type != right_type {
         return Err(StraightLineIntegerEqualParametersTranslationError::SourceOperandTypeMismatch);

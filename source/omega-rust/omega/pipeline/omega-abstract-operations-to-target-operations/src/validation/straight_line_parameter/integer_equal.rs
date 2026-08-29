@@ -13,7 +13,7 @@ use super::super::{
 use super::source;
 
 pub(crate) fn is_candidate(function: &AbstractFunction) -> bool {
-    source::integer_equal::is_candidate(function)
+    source::integer::equal::is_candidate(function)
 }
 
 pub(crate) fn validate(

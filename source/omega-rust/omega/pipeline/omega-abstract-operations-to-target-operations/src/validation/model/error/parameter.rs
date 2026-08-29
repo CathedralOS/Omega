@@ -63,6 +63,29 @@ pub enum StraightLineBooleanNotParameterTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerBitwiseNotParameterTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceBitwiseNotResultRoster,
+    SourceOperandLink,
+    SourceOperandTypeMismatch,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineBooleanEqualParametersTranslationError {
     SourceParameters,
     SourceStructuralParameters,
@@ -229,6 +252,7 @@ macro_rules! map_parameter_reconstruction_error {
 map_parameter_reconstruction_error!(StraightLineIntegerParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanNotParameterTranslationError);
+map_parameter_reconstruction_error!(StraightLineIntegerBitwiseNotParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerLessThanParametersTranslationError);

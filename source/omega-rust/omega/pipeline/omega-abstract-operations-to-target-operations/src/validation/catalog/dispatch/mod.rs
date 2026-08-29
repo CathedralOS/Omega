@@ -80,3 +80,10 @@ pub(super) const STRAIGHT_LINE_INTEGER_LESS_OR_EQUAL_PARAMETERS: TranslationFami
         straight_line_parameter::integer_less_or_equal::is_candidate,
         parameter::straight_line_integer_less_or_equal_parameters,
     );
+
+pub(super) const STRAIGHT_LINE_INTEGER_BITWISE_NOT_PARAMETER: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotParameter,
+        straight_line_parameter::integer_bitwise_not::is_candidate,
+        parameter::straight_line_integer_bitwise_not_parameter,
+    );

@@ -57,6 +57,25 @@ pub(super) struct BooleanNotParameterSource {
     pub(super) parameter_index: usize,
 }
 
+pub(super) struct ReconstructedIntegerUnaryParameter {
+    pub(super) operation: OperationId,
+    pub(super) return_edge: EdgeId,
+    pub(super) source_value: ValueId,
+    pub(super) scalar_type: IntegerType,
+    pub(super) operand_value: ValueId,
+    pub(super) parameter_index: usize,
+    pub(super) location: ScalarParameterLocation,
+}
+
+pub(super) struct IntegerUnaryParameterSource {
+    pub(super) operation: OperationId,
+    pub(super) return_edge: EdgeId,
+    pub(super) source_value: ValueId,
+    pub(super) scalar_type: IntegerType,
+    pub(super) operand_value: ValueId,
+    pub(super) parameter_index: usize,
+}
+
 pub(super) struct ReconstructedBooleanEqualParameters {
     pub(super) equal_operation: OperationId,
     pub(super) return_edge: EdgeId,
