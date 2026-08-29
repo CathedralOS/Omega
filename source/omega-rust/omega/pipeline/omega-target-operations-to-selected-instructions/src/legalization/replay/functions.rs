@@ -1,4 +1,4 @@
-use super::leaves::{replay_edge_fuel, replay_leaf};
+use super::leaf::{replay_edge_fuel, replay_leaf};
 use super::shared::*;
 use super::validators::validator_accepts;
 use crate::legalization::catalog::scalar_form_for_recipe;

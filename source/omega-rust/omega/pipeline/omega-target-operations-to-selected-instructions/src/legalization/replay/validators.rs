@@ -6,7 +6,7 @@
 
 use crate::legalization::catalog::ScalarLegalizationValidatorKind;
 
-use super::leaves::replay_active_resident_chain_shape;
+use super::leaf::replay_active_resident_chain_shape;
 use super::shared::*;
 
 pub(super) fn validator_accepts(
