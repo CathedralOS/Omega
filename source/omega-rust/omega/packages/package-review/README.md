@@ -76,8 +76,9 @@ mismatched package lookalikes remain inadmissible. Unknown intrinsic forms
 remain fail-closed until they receive a specific closed identity.
 
 Public contract expressions retain width-landed float literals by checked
-`f32`/`f64` format and exact IEEE bits. Decimal source spelling is excluded;
-unlanded literals remain fail-closed.
+`f32`/`f64` format and exact IEEE bits. Typed named operands and the exact return
+type of an owning callable contract establish the landing. Decimal source
+spelling is excluded; unlanded literals remain fail-closed.
 
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration

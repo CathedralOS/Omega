@@ -1,7 +1,9 @@
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::statement::StatementNode;
-use psi_typed_trees::types::PrimitiveType;
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+type FloatLandingPair = (ExpressionHandle, TypeReferenceHandle);
 
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
@@ -21,15 +23,14 @@ use psi_typed_trees::types::PrimitiveType;
 /// was chosen at the spelling, and the suffix-vs-destination check owns any
 /// disagreement. Comparisons against a typed named value, including a
 /// proposition parameter, likewise land the opposite literal tree to that
-/// value's format. Runs on the still-mutable typed tree BEFORE validation, so
-/// every downstream consumer sees one stamped tree.
+/// value's format. A callable contract's `result` root uses the exact return
+/// type of its owning state, operator, or trait requirement. Runs on the
+/// still-mutable typed tree BEFORE validation, so every downstream consumer
+/// sees one stamped tree.
 pub fn land_float_literal_destinations(program: &mut TypedTrees) {
     use psi_numerics::literals::FloatFormat;
 
-    let mut pairs: Vec<(
-        ExpressionHandle,
-        psi_typed_trees::types::TypeReferenceHandle,
-    )> = Vec::new();
+    let mut pairs: Vec<FloatLandingPair> = Vec::new();
     let mut direct_formats: Vec<(ExpressionHandle, FloatFormat)> = Vec::new();
     let mut anonymous_comparisons: Vec<ExpressionHandle> = Vec::new();
 
@@ -123,7 +124,25 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
     }
 
     for machine in program.machines() {
+        if let Some(entry) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.name.as_str() == "entry")
+        {
+            collect_result_contract_float_pairs(
+                program,
+                program.machine_contracts(machine),
+                entry.return_type,
+                &mut pairs,
+            );
+        }
         for state in program.machine_states(machine) {
+            collect_result_contract_float_pairs(
+                program,
+                program.state_contracts(state),
+                state.return_type,
+                &mut pairs,
+            );
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
@@ -226,6 +245,31 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
         }
     }
 
+    for operator in program.operators().iter().chain(
+        program
+            .domain_definitions()
+            .iter()
+            .flat_map(|domain| program.domain_operators(domain)),
+    ) {
+        collect_result_contract_float_pairs(
+            program,
+            program.operator_contracts(operator),
+            operator.return_type,
+            &mut pairs,
+        );
+    }
+
+    for trait_definition in program.traits() {
+        for signature in program.trait_machine_signatures(trait_definition) {
+            collect_result_contract_float_pairs(
+                program,
+                program.state_signature_contracts(signature),
+                signature.return_type,
+                &mut pairs,
+            );
+        }
+    }
+
     for (value, format) in direct_formats {
         land_float_tree(program, value, format);
     }
@@ -241,10 +285,121 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
     }
 }
 
+fn collect_result_contract_float_pairs(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    return_type: TypeReferenceHandle,
+    pairs: &mut Vec<FloatLandingPair>,
+) {
+    if !return_type.is_valid() {
+        return;
+    }
+    for contract in contracts {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let psi_typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            collect_result_comparison_pairs(program, *expression, return_type, pairs, 0);
+        }
+    }
+}
+
+fn collect_result_comparison_pairs(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    return_type: TypeReferenceHandle,
+    pairs: &mut Vec<FloatLandingPair>,
+    depth: usize,
+) {
+    if !expression.is_valid() || depth >= 256 {
+        return;
+    }
+    let recurse = |child, pairs: &mut Vec<_>| {
+        collect_result_comparison_pairs(program, child, return_type, pairs, depth + 1)
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            recurse(atomic.value, pairs);
+            recurse(atomic.result, pairs);
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in program.expression_table.expression_handles(*elements) {
+                recurse(*element, pairs);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            if matches!(
+                binary.operator,
+                psi_typed_trees::expression::BinaryOperator::Equal
+                    | psi_typed_trees::expression::BinaryOperator::NotEqual
+                    | psi_typed_trees::expression::BinaryOperator::Less
+                    | psi_typed_trees::expression::BinaryOperator::LessOrEqual
+                    | psi_typed_trees::expression::BinaryOperator::Greater
+                    | psi_typed_trees::expression::BinaryOperator::GreaterOrEqual
+            ) {
+                if expression_is_result(program, binary.left) {
+                    pairs.push((binary.right, return_type));
+                }
+                if expression_is_result(program, binary.right) {
+                    pairs.push((binary.left, return_type));
+                }
+            }
+            recurse(binary.left, pairs);
+            recurse(binary.right, pairs);
+        }
+        ExpressionNode::Borrow(borrow) => recurse(borrow.target, pairs),
+        ExpressionNode::Cast(cast) => recurse(cast.value, pairs),
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                recurse(call.receiver, pairs);
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                recurse(*argument, pairs);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            recurse(indexed.collection, pairs);
+            recurse(indexed.index, pairs);
+        }
+        ExpressionNode::Member(member) => recurse(member.receiver, pairs),
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                recurse(range.start, pairs);
+            }
+            if range.end.is_valid() {
+                recurse(range.end, pairs);
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                recurse(field.value, pairs);
+            }
+        }
+        ExpressionNode::Unary(unary) => recurse(unary.operand, pairs),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+fn expression_is_result(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(path)
+            if matches!(
+                program.expression_table.name_path_members(path.members),
+                [name] if name.as_str() == "result"
+            )
+    )
+}
+
 fn land_float_value_for_type(
     program: &mut TypedTrees,
     value: ExpressionHandle,
-    declared: psi_typed_trees::types::TypeReferenceHandle,
+    declared: TypeReferenceHandle,
 ) {
     use psi_typed_trees::types::TypeReferenceNode;
 
