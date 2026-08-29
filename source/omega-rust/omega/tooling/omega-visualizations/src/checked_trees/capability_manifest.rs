@@ -5,40 +5,6 @@ use psi_symbols::SymbolHandle;
 
 /// Render capabilities for the exact Build-selected entry. `None` reports that
 /// no entry was selected; it never discovers one from a source name.
-pub fn capability_manifest_html(
-    program: &CheckedTrees,
-    selected_entry_machine: Option<&str>,
-) -> String {
-    capability_manifest_html_with_composition(program, selected_entry_machine, None, None)
-}
-
-pub fn capability_manifest_html_with_selection(
-    program: &CheckedTrees,
-    selected_entry_machine: Option<&str>,
-    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
-) -> String {
-    capability_manifest_html_with_composition(program, selected_entry_machine, selected, None)
-}
-
-pub fn capability_manifest_html_with_composition(
-    program: &CheckedTrees,
-    selected_entry_machine: Option<&str>,
-    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
-    component_progress: Option<&omega_effects::ComponentProgressManifest>,
-) -> String {
-    crate::phase_diagram::text_report_html(
-        "capability_manifest",
-        &capability_manifest_text_with_composition(
-            program,
-            selected_entry_machine,
-            selected,
-            component_progress,
-        ),
-    )
-}
-
-/// Render capabilities for the exact Build-selected entry. `None` reports that
-/// no entry was selected; it never discovers one from a source name.
 pub fn capability_manifest_json(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
@@ -202,138 +168,6 @@ pub fn capability_manifest_json_with_composition(
     }
     json.push_str("}\n}\n");
     json
-}
-
-#[cfg(test)]
-fn capability_manifest_text(
-    program: &CheckedTrees,
-    selected_entry_machine: Option<&str>,
-    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
-) -> String {
-    capability_manifest_text_with_composition(program, selected_entry_machine, selected, None)
-}
-
-fn capability_manifest_text_with_composition(
-    program: &CheckedTrees,
-    selected_entry_machine: Option<&str>,
-    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
-    component_progress: Option<&omega_effects::ComponentProgressManifest>,
-) -> String {
-    let manifest = entry_capability_manifest(
-        program,
-        selected_entry_machine,
-        selected,
-        component_progress,
-    );
-    let mut report = String::new();
-
-    report.push_str("Executable Capability Manifest\n");
-    report.push_str("==============================\n\n");
-    report.push_str("entry machine: ");
-    report.push_str(&manifest.entry_machine);
-    report.push('\n');
-    report.push_str("entry state:   ");
-    report.push_str(&manifest.entry_state);
-    report.push('\n');
-    report.push_str("service reach: ");
-    if manifest.service_reach.is_empty() {
-        report.push_str("<none>");
-    } else {
-        report.push_str(&manifest.service_reach.join(" + "));
-    }
-    report.push('\n');
-    report.push_str("installation-bound reach: ");
-    if manifest.installation_bound_reaches.is_empty() {
-        report.push_str("<none>\n");
-    } else {
-        report.push('\n');
-        for reach in &manifest.installation_bound_reaches {
-            report.push_str("  ");
-            report.push_str(&reach.requirement);
-            report.push_str(" <= ");
-            report.push_str(&reach.upper_bound.join(" + "));
-            if let Some(resolved) = &reach.resolved {
-                report.push_str(" => ");
-                if resolved.services.is_empty() {
-                    report.push_str("<empty>");
-                } else {
-                    report.push_str(&resolved.services.join(" + "));
-                }
-            }
-            report.push('\n');
-        }
-    }
-    report.push_str("may suspend:   ");
-    report.push_str(if manifest.may_suspend { "yes" } else { "no" });
-    report.push('\n');
-    report.push_str("may block:     ");
-    report.push_str(if manifest.may_block { "yes" } else { "no" });
-    report.push('\n');
-    report.push_str("component progress: ");
-    match manifest.component_progress_manifest_identity {
-        Some(identity) if manifest.build_bound_progress_demands.is_empty() => {
-            report.push_str(&format!("clear ({identity:#018x})\n"));
-        }
-        Some(identity) => report.push_str(&format!("pending ({identity:#018x})\n")),
-        None => report.push_str("unbound\n"),
-    }
-    report.push_str("build-bound progress: ");
-    if manifest.build_bound_progress_demands.is_empty() {
-        report.push_str("<none>\n");
-    } else {
-        report.push('\n');
-        for demand in &manifest.build_bound_progress_demands {
-            report.push_str("  ");
-            report.push_str(&demand.provider_service);
-            if let Some(package) = &demand.provider_service_package {
-                report.push('#');
-                report.push_str(package);
-            }
-            report.push_str("@");
-            report.push_str(&format!("{:#018x}", demand.provider_plan_identity));
-            report.push_str(" / ");
-            report.push_str(&demand.requirement);
-            if let Some(package) = &demand.requirement_owner_package {
-                report.push('#');
-                report.push_str(package);
-            }
-            report.push_str(" requires ");
-            report.push_str(&demand.profile);
-            if !demand.subject_projections.is_empty() {
-                report.push('.');
-                report.push_str(&demand.subject_projections.join("."));
-            }
-            report.push_str(" established by [");
-            for (index, route) in demand.establishment_routes.iter().enumerate() {
-                if index > 0 {
-                    report.push_str(", ");
-                }
-                report.push_str(route.kind.as_str());
-                report.push(':');
-                report.push_str(&route.requirement_identity);
-            }
-            report.push(']');
-            report.push_str(" at ");
-            report.push_str(&demand.origin_machine);
-            report.push_str("::");
-            report.push_str(&demand.origin_state);
-            report.push(':');
-            report.push_str(&demand.statement_ordinal.to_string());
-            report.push(':');
-            report.push_str(&demand.call_ordinal.to_string());
-            report.push('\n');
-        }
-    }
-    report.push_str("\nCapability Flow Counts\n");
-    report.push_str("----------------------\n");
-    for (kind, count) in manifest.capability_flow_counts {
-        report.push_str(kind.as_str());
-        report.push_str(": ");
-        report.push_str(&count.to_string());
-        report.push('\n');
-    }
-
-    report
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -621,7 +455,7 @@ fn entry_machine_named(
 mod tests {
     use super::{
         capability_manifest_json, capability_manifest_json_with_composition,
-        capability_manifest_json_with_selection, capability_manifest_text,
+        capability_manifest_json_with_selection,
     };
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceProgressPremise,
@@ -837,19 +671,12 @@ mod tests {
             });
 
         let json = capability_manifest_json(&program, Some("Application::launch"));
-        let text = capability_manifest_text(&program, Some("Application::launch"), None);
-
         assert!(json.contains("\"entry_machine\": \"Application::launch\""));
         assert!(json.contains("\"service_reach\": [\"MachineControl\", \"PortIo\"]"));
         assert!(json.contains("\"may_suspend\": true"));
         assert!(json.contains("\"may_block\": false"));
         assert!(!json.contains("\"effect_bits\""));
         assert!(!json.contains("\"effects\""));
-        assert!(text.contains("service reach: MachineControl + PortIo"));
-        assert!(text.contains("may suspend:   yes"));
-        assert!(text.contains("may block:     no"));
-        assert!(!text.contains("effects:"));
-
         let missing = capability_manifest_json(&program, None);
         assert!(missing.contains("\"entry_machine\": \"<missing>\""));
         assert!(missing.contains("\"entry_state\": \"<missing>\""));
@@ -1033,8 +860,6 @@ mod tests {
         );
 
         let json = capability_manifest_json(&program, Some("Application::launch"));
-        let text = capability_manifest_text(&program, Some("Application::launch"), None);
-
         assert!(
             json.contains("InterruptCompletion::complete"),
             "manifest omitted exact requirement identity:\n{json}"
@@ -1043,10 +868,6 @@ mod tests {
             json.contains("\"upper_bound\": [\"MachineControl\", \"PortIo\"]"),
             "manifest omitted installation-bound ceiling:\n{json}"
         );
-        assert!(text.contains("installation-bound reach:"));
-        assert!(text.contains("InterruptCompletion::complete"));
-        assert!(text.contains("<= MachineControl + PortIo"));
-
         let provider = ProviderPlan {
             name: "pic".into(),
             provider_type: "LegacyPic".into(),

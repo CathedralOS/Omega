@@ -99,7 +99,6 @@ fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
 
     for file_name in [
         "trust_report.md",
-        "05_checked_trees.html",
         "05_capability_manifest.json",
         "00_timings.html",
     ] {
@@ -459,14 +458,6 @@ fn boundary_trait_canary_reports_capability_use() {
     .expect("exact-root boundary trait canary should reach lowering reports");
     assert!(!lowered_compilation.wrote_output());
 
-    let state_graph = fs::read_to_string(lowered_dir.join("06_state_graph.html"))
-        .expect("state graph report should be written");
-    let control_flow = fs::read_to_string(lowered_dir.join("07_control_flow.html"))
-        .expect("control-flow report should be written");
-    let typed_trees = fs::read_to_string(lowered_dir.join("04_typed_trees.html"))
-        .expect("exact-root typed-tree report should be written");
-    let checked_trees = fs::read_to_string(lowered_dir.join("05_checked_trees.html"))
-        .expect("exact-root checked-tree report should be written");
     let entry_manifest = fs::read_to_string(lowered_dir.join("05_capability_manifest.json"))
         .expect("exact-root capability manifest should be written");
     assert!(
@@ -491,28 +482,6 @@ fn boundary_trait_canary_reports_capability_use() {
             !manifest.contains("\"effect_bits\"") && !manifest.contains("\"effects\""),
             "capability manifest must not expose the retired compatibility effect set\n{}",
             manifest
-        );
-    }
-    for (name, report) in [
-        ("typed trees", typed_trees.as_str()),
-        ("checked trees", checked_trees.as_str()),
-        ("state graph", state_graph.as_str()),
-        ("control flow", control_flow.as_str()),
-    ] {
-        assert!(
-            report.contains("reached service reach: Console")
-                && report.contains("suspension: direct no, reached no")
-                && report.contains("blocking: direct no, reached no")
-                && report.contains("const SERVICE_REACH_NAMES = [")
-                && report.contains("\"serviceReaches\":[\"Console\"]"),
-            "{name} report should retain canonical service reach and independent operational axes\n{report}"
-        );
-        assert!(
-            !report.contains("reached effects:")
-                && !report.contains("[0x")
-                && !report.contains("const EFFECT_NAMES")
-                && !report.contains("\"effects\":"),
-            "{name} report must not reconstruct legacy effect bits\n{report}"
         );
     }
     assert!(

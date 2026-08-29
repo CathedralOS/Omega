@@ -16,21 +16,6 @@ pub(super) fn write_checked_snapshots(
 ) -> Result<(), Vec<Diagnostic>> {
     write_text(
         writer,
-        "05_checked_trees.html",
-        &omega_visualizations::checked_trees_html(checked),
-    )?;
-    write_text(
-        writer,
-        "05_capability_manifest.html",
-        &omega_visualizations::capability_manifest_html_with_composition(
-            checked,
-            selected_entry_machine,
-            Some(selected_provider_plans),
-            component_progress,
-        ),
-    )?;
-    write_text(
-        writer,
         "05_capability_manifest.json",
         &omega_visualizations::capability_manifest_json_with_composition(
             checked,

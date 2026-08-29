@@ -1458,13 +1458,8 @@ dependencies = [
 name = "omega-visualizations"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-operations",
- "omega-assigned-target-operations",
- "omega-calling-conventions",
  "omega-effects",
- "omega-object-file",
  "omega-target",
- "omega-target-operations",
  "omega-task-plans",
  "psi-arena",
  "psi-checked-trees",
@@ -1473,9 +1468,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
- "psi-symbol-resolved-trees",
  "psi-symbols",
- "psi-syntax-trees",
  "psi-typed-trees",
 ]
 
