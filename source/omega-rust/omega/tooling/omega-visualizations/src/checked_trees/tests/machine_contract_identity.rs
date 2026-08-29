@@ -546,7 +546,9 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
             conformance_arguments: Vec::new(),
             inferred_conformance_arguments: Vec::new(),
             conformance_applications: Vec::new(),
-            template_contract_fingerprint: 0x1111,
+            template_contract_report_fingerprint: 0x1111,
+            template_contract_commitment:
+                psi_typed_trees::typed_trees::MachineTemplateCommitment::from_digest([0x11; 32]),
             accepted_template_commitment: Some("accepted_map".to_owned()),
             machine_argument_contract_report_fingerprints: vec![0x2222],
             conformance_argument_report_fingerprints: vec![0x4444, 0x5555],
@@ -569,6 +571,10 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
     assert!(json.contains("\"template\": \"accepted_map\""));
     assert!(json.contains("\"accepted_template_commitment\": \"accepted_map\""));
     assert!(json.contains("\"template_contract_report_fingerprint\": \"0x0000000000001111\""));
+    assert!(json.contains(&format!(
+        "\"template_contract_commitment\": \"{}\"",
+        "11".repeat(32)
+    )));
     assert!(json.contains("\"type_arguments\": [\"Card\"]"));
     assert!(json.contains("\"const_arguments\": [\"1\"]"));
     assert!(json.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));

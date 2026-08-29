@@ -177,6 +177,11 @@ carrying `ensures` is an axiom claim, not a proved theorem, as specified by
 chapter 10. There is no parallel `boundary fact` spelling. Decision 20's
 admission-bearing supply mode remains explicit in the semantic artifact.
 
+One persisted receipt binds the human policy commitment and a domain-separated
+digest of its exact subject: selected provider plan, canonical generic machine
+template, or checked nongeneric machine contract. Compact report fingerprints
+remain visible diagnostics but cannot settle owner admission.
+
 A deferral is different from accepted truth:
 
 - it waives one compiler-generated obligation;

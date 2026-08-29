@@ -109,16 +109,28 @@ pub fn bind_selected_provider_plan_facts(
     let checked = program.as_ref();
     let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let mut granted_plan_identities = Vec::new();
+    let mut granted_plans = Vec::new();
     for grant in &provider_grants {
-        if !granted_plan_identities.contains(&grant.selected_plan_identity) {
-            granted_plan_identities.push(grant.selected_plan_identity);
+        let exact_selected_matches = facts
+            .plans()
+            .iter()
+            .filter(|plan| grant.replays_selected_plan(plan))
+            .count();
+        if exact_selected_matches != 1 {
+            return Err(vec![psi_diagnostics::Diagnostic::error(format!(
+                "provider grant `{}` replays against {exact_selected_matches} exact selected provider plans",
+                grant.selector,
+            ))]);
+        }
+        if !granted_plans.iter().any(
+            |retained: &&omega_trust_model::ResolvedSelectedProviderGrant| {
+                retained.selected_plan == grant.selected_plan
+                    && retained.selected_plan_digest == grant.selected_plan_digest
+            },
+        ) {
+            granted_plans.push(grant);
         }
     }
-    let granted_plans = granted_plan_identities
-        .iter()
-        .filter_map(|identity| facts.plan_by_identity(*identity))
-        .collect::<Vec<_>>();
     let mut receipt_updates = Vec::new();
     let mut receipt_diagnostics = Vec::new();
     let traits = checked.typed.traits();
@@ -211,8 +223,10 @@ pub fn bind_selected_provider_plan_facts(
             .identity();
         let matches = granted_plans
             .iter()
-            .filter(|plan| {
-                plan.schema
+            .filter(|grant| {
+                grant
+                    .selected_plan
+                    .schema
                     .methods
                     .iter()
                     .any(|method| method.requirement_identity == requirement_identity)
@@ -220,7 +234,9 @@ pub fn bind_selected_provider_plan_facts(
             .collect::<Vec<_>>();
         match matches.as_slice() {
             [] => {}
-            [plan] => receipt_updates.push((handle, plan.identity_fingerprint())),
+            [grant] => {
+                receipt_updates.push((handle, grant.selected_plan_report_identity));
+            }
             _ => receipt_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "admitted qualification requirement `{requirement_identity}` matches {} granted selected provider plans",
                 matches.len()

@@ -104,12 +104,7 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     // already tracked by CLASSIFY-AND-HARDEN-AUTHORITATIVE-IDENTITIES. A rename
     // to explicit report/cache vocabulary removes it; no path may add another
     // occurrence or introduce a new unclassified exported field.
-    let legacy_maximums = BTreeMap::<&str, usize>::from([
-        (
-            "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:template_contract_fingerprint",
-            1,
-        ),
-    ]);
+    let legacy_maximums = BTreeMap::<&str, usize>::new();
     let mut observed = BTreeMap::<String, usize>::new();
     for path in sources {
         let relative = path.strip_prefix(&root).expect("source is below workspace");
@@ -211,6 +206,9 @@ fn machine_specialization_compact_coordinate_is_report_only_beside_strong_author
         typed.contains("pub report_fingerprint: u64")
             && typed.contains("pub commitment: MachineSpecializationCommitment")
             && typed.contains("pub struct MachineSpecializationCommitment([u8; 32])")
+            && typed.contains("pub template_contract_report_fingerprint: u64")
+            && typed.contains("pub template_contract_commitment: MachineTemplateCommitment")
+            && typed.contains("pub struct MachineTemplateCommitment([u8; 32])")
             && !typed.contains("pub fingerprint: u64"),
         "machine specializations must label their compact coordinate as a report and retain a strong commitment",
     );
@@ -224,6 +222,56 @@ fn machine_specialization_compact_coordinate_is_report_only_beside_strong_author
         lowering.contains("specialization.commitment.is_zero()")
             && lowering.contains("specialization.commitment.as_bytes()"),
         "Terminal evidence identity must replay the strong specialization commitment rather than the report coordinate",
+    );
+}
+
+#[test]
+fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority() {
+    let root = workspace_root();
+    let grants_path =
+        root.join("source/omega-rust/omega/build/omega-trust-model/src/provider_grants.rs");
+    let grants = fs::read_to_string(&grants_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", grants_path.display()));
+    for required in [
+        "pub selected_plan: ProviderPlan",
+        "pub selected_plan_digest: ProviderPlanDigest",
+        "pub selected_plan_report_identity: u64",
+        "self.selected_plan_digest == plan.identity_digest()",
+        "self.selected_plan == *plan",
+    ] {
+        assert!(
+            grants.contains(required),
+            "provider-grant custody is missing `{required}`"
+        );
+    }
+    assert!(!grants.contains("pub selected_plan_identity: u64"));
+
+    let admissions_path =
+        root.join("source/omega-rust/omega/build/omega-trust-model/src/admissions.rs");
+    let admissions = fs::read_to_string(&admissions_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", admissions_path.display()));
+    assert!(
+        admissions.contains("pub struct TrustAdmissionDigest([u8; 32])")
+            && admissions.contains("report_identity: Option<u64>")
+            && admissions.contains("omega.trust-admission.v1\\0")
+            && admissions.contains("Self::ProviderPlan => b\"provider-plan\"")
+            && admissions.contains("Self::MachineTemplate => b\"machine-template\"")
+            && admissions.contains("Self::MachineContract => b\"machine-contract\"")
+            && admissions.contains("(self.commitment.as_str(), self.digest)")
+            && !admissions.contains("\n    identity: u64,"),
+        "owner admission must compare human commitment plus strong subject digest and exclude compact reports from authority",
+    );
+
+    let ledger_path =
+        root.join("source/omega-rust/omega/build/omega-trust-ledger/src/custody.rs");
+    let ledger = fs::read_to_string(&ledger_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", ledger_path.display()));
+    assert!(
+        ledger.contains("digest_text.len() == 16")
+            && ledger.contains("legacy 16-hex compact admission row")
+            && ledger.contains("digest_text.len() != 64")
+            && ledger.contains("TrustAdmissionDigest::from_digest(digest)"),
+        "the persisted trust ledger must reject compact legacy authority and parse full strong digests",
     );
 }
 

@@ -89,7 +89,9 @@ nominal-identity checks; source roots only constrain where imports may load.
 `omega.lock` is machine-written accepted state: it records the reconciled
 closure, exact commits/trees/content, source-qualified package identities,
 compiler-derived capability/API baselines, representation-TCB rows, build
-observations, and admission evidence. Claim-free opaque boundary representation
+observations, and admission evidence. The current standalone trust-receipt
+subset stores full domain-separated admission digests; a legacy compact-only
+row cannot authorize a build and must be explicitly re-accepted. Claim-free opaque boundary representation
 remains visible and audit-recommended without being mislabeled as an accepted
 claim. A demanded by-value row retains the exact selected or target-derived
 representation application; `Unbound` is complete only when no by-value use

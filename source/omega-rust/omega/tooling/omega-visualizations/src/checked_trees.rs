@@ -4065,8 +4065,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         json.push_str("\",\n      \"template_contract_report_fingerprint\": \"0x");
         json.push_str(&format!(
             "{:016x}",
-            specialization.template_contract_fingerprint
+            specialization.template_contract_report_fingerprint
         ));
+        json.push_str("\",\n      \"template_contract_commitment\": \"");
+        for byte in specialization.template_contract_commitment.as_bytes() {
+            json.push_str(&format!("{byte:02x}"));
+        }
         json.push_str("\",\n      \"accepted_template_commitment\": ");
         if let Some(commitment) = specialization.accepted_template_commitment.as_deref() {
             push_json_string(&mut json, commitment);

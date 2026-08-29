@@ -15,8 +15,9 @@ Primary responsibility: validate semantic obligations and build checked facts.
 The current compiler orchestration wraps that checked program in one
 `CheckedProgramSurface`. At the ownership-moving boundary it retains the exact
 Accepted-only machine order and each machine's optional normalized generic-
-template fingerprint. The same phase surface captures exact machine, contract,
-fact, and closed-reason rows whenever checked-implementation contract
+template report fingerprint plus the domain-separated commitment to its
+canonical pre-substitution contract. The same phase surface captures exact
+machine, contract, fact, and closed-reason rows whenever checked-implementation contract
 entailment stands down on the pristine typed predecessor. Trust reporting and
 package review consume those retained phase facts; the driver does not keep a
 separate typed-tree snapshot or courier raw typed-derived rows around checking.
@@ -31,6 +32,11 @@ SHA-256 `MachineSpecializationCommitment`. Checked-to-Terminal lowering replays
 that commitment from retained typed custody and checked contract plans before
 using all 32 bytes as proof-producer identity. The adjacent aggregate FNV is a
 diagnostic and cache report coordinate only.
+
+Owner-policy admission uses the template commitment, not that compact report.
+The persisted trust digest separately frames the admission subject kind and
+human commitment, so a generic template, ordinary checked machine contract, or
+selected provider plan cannot settle against a compact-equal substitute.
 
 Target-dependent callback closure crosses this boundary as one explicit
 `TypedToCheckedSettlementInput`. Before checked Psi enters shared ownership,

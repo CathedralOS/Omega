@@ -1912,8 +1912,10 @@ fn apply_multiple_specializations(
     let source = program.clone();
     let canonical_template_contract_bytes =
         canonical_template_contract_bytes(&source, template.machine_index);
-    let template_contract_fingerprint =
+    let template_contract_report_fingerprint =
         fnv1a_report_fingerprint(&canonical_template_contract_bytes);
+    let template_contract_commitment =
+        machine_template_commitment(&canonical_template_contract_bytes);
     let normalized_template_identity =
         normalized_machine_identity(&source, &source.machines()[template.machine_index])
             .expect("generic template must retain a normalized callable identity");
@@ -1921,7 +1923,8 @@ fn apply_multiple_specializations(
         accepted_template_commitment(&source, template.machine_index);
     apply_specialization(program, &concrete_candidates[0]);
     if let Some(first) = program.machine_specializations.last_mut() {
-        first.template_contract_fingerprint = template_contract_fingerprint;
+        first.template_contract_report_fingerprint = template_contract_report_fingerprint;
+        first.template_contract_commitment = template_contract_commitment;
         first.canonical_template_contract_bytes = canonical_template_contract_bytes.clone();
         first.normalized_template_identity = normalized_template_identity.clone();
         first.accepted_template_commitment = accepted_template_commitment.clone();
@@ -1938,7 +1941,8 @@ fn apply_multiple_specializations(
             program,
             candidate,
             group_index,
-            template_contract_fingerprint,
+            template_contract_report_fingerprint,
+            template_contract_commitment,
             canonical_template_contract_bytes.clone(),
             normalized_template_identity.clone(),
             accepted_template_commitment.clone(),
@@ -2058,7 +2062,8 @@ fn clone_specialized_machine(
     program: &mut TypedTrees,
     candidate: &Candidate,
     ordinal: usize,
-    template_contract_fingerprint: u64,
+    template_contract_report_fingerprint: u64,
+    template_contract_commitment: psi_typed_trees::typed_trees::MachineTemplateCommitment,
     canonical_template_contract_bytes: Vec<u8>,
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
@@ -2426,7 +2431,8 @@ fn clone_specialized_machine(
                 })
                 .chain(candidate.selected_bound_applications.iter().cloned())
                 .collect(),
-            template_contract_fingerprint,
+            template_contract_report_fingerprint,
+            template_contract_commitment,
             canonical_template_contract_bytes,
             normalized_template_identity,
             accepted_template_commitment,
@@ -3627,8 +3633,10 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
 fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
     let canonical_template_contract_bytes =
         canonical_template_contract_bytes(program, candidate.machine_index);
-    let template_contract_fingerprint =
+    let template_contract_report_fingerprint =
         fnv1a_report_fingerprint(&canonical_template_contract_bytes);
+    let template_contract_commitment =
+        machine_template_commitment(&canonical_template_contract_bytes);
     let normalized_template_identity =
         normalized_machine_identity(program, &program.machines()[candidate.machine_index])
             .expect("generic template must retain a normalized callable identity");
@@ -3705,7 +3713,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .collect(),
             inferred_conformance_arguments: candidate.inferred_conformance_arguments.clone(),
             conformance_applications,
-            template_contract_fingerprint,
+            template_contract_report_fingerprint,
+            template_contract_commitment,
             canonical_template_contract_bytes,
             normalized_template_identity,
             accepted_template_commitment,
@@ -4351,15 +4360,24 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
     })
 }
 
-fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> u64 {
+fn template_contract_report_fingerprint(program: &TypedTrees, machine_index: usize) -> u64 {
     fnv1a_report_fingerprint(&canonical_template_contract_bytes(program, machine_index))
+}
+
+fn machine_template_commitment(
+    canonical_template_contract_bytes: &[u8],
+) -> psi_typed_trees::typed_trees::MachineTemplateCommitment {
+    let mut strong = Sha256::new();
+    strong.update(b"omega.machine-template.v1\0");
+    strong.update(canonical_template_contract_bytes);
+    psi_typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finalize().into())
 }
 
 /// Deterministic identity of an authored generic machine declaration before
 /// monomorphization consumes its binders. Trust receipts and separate-
 /// compilation caches use this same identity; callers cannot substitute the
 /// identity of one concrete instance for the universal template grant.
-pub fn generic_machine_template_fingerprint(
+pub fn generic_machine_template_report_fingerprint(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
 ) -> Option<u64> {
@@ -4370,7 +4388,25 @@ pub fn generic_machine_template_fingerprint(
     (!program
         .machine_type_parameters(&program.machines()[machine_index])
         .is_empty())
-    .then(|| template_contract_fingerprint(program, machine_index))
+    .then(|| template_contract_report_fingerprint(program, machine_index))
+}
+
+/// Domain-separated strong commitment to the exact canonical universal
+/// template captured before monomorphization consumes its binders.
+pub fn generic_machine_template_commitment(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> Option<psi_typed_trees::typed_trees::MachineTemplateCommitment> {
+    let machine_index = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == machine_symbol)?;
+    (!program
+        .machine_type_parameters(&program.machines()[machine_index])
+        .is_empty())
+    .then(|| {
+        machine_template_commitment(&canonical_template_contract_bytes(program, machine_index))
+    })
 }
 
 fn accepted_template_commitment(program: &TypedTrees, machine_index: usize) -> Option<String> {
@@ -4498,13 +4534,22 @@ fn replay_machine_specialization_identity(
         }
         _ => {}
     }
-    if specialization.template_contract_fingerprint == 0
+    if specialization.template_contract_report_fingerprint == 0
         || specialization.canonical_template_contract_bytes.is_empty()
         || fnv1a_report_fingerprint(&specialization.canonical_template_contract_bytes)
-            != specialization.template_contract_fingerprint
+            != specialization.template_contract_report_fingerprint
     {
         return Err(Diagnostic::error(
             "generic specialization is missing or mismatches its canonical pre-substitution template contract",
+        ));
+    }
+    let expected_template_commitment =
+        machine_template_commitment(&specialization.canonical_template_contract_bytes);
+    if specialization.template_contract_commitment.is_zero()
+        || specialization.template_contract_commitment != expected_template_commitment
+    {
+        return Err(Diagnostic::error(
+            "generic specialization is missing or mismatches its authoritative template commitment",
         ));
     }
     if specialization.normalized_template_identity.is_empty() {
@@ -4599,6 +4644,7 @@ fn replay_machine_specialization_identity(
         &specialization.canonical_template_contract_bytes,
         &mut bytes,
     );
+    bytes.extend(specialization.template_contract_commitment.as_bytes());
     encode_identity_text(&specialization.normalized_template_identity, &mut bytes);
     encode_identity_text(&instance_identity, &mut bytes);
     encode_identity_texts(&specialization.type_argument_identities, &mut bytes);

@@ -57,10 +57,10 @@ fn compile(
                 .find(|accepted| accepted.commitment() == required.commitment())
                 .map(|accepted| {
                     format!(
-                        "{} ({:016x} -> {:016x})",
+                        "{} ({} -> {})",
                         required.commitment(),
-                        accepted.identity(),
-                        required.identity()
+                        accepted.digest(),
+                        required.digest()
                     )
                 })
         })
@@ -591,10 +591,23 @@ machine Main::exercise(&mut self) {}
         "{:?}",
         compile(options()).expect_err("malformed lock must reject")
     );
-    assert!(error.contains("malformed v1 receipt row"));
+    assert!(error.contains("malformed strong admission row"));
     assert_eq!(
         std::fs::read_to_string(&lock_path).expect("read preserved malformed lock"),
         malformed
+    );
+
+    let legacy = "0000000000000001  accepted fact: Alpha\n";
+    std::fs::write(&lock_path, legacy).expect("write legacy compact lock");
+    let error = format!(
+        "{:?}",
+        compile(options()).expect_err("legacy compact lock must not authorize")
+    );
+    assert!(error.contains("legacy 16-hex compact admission row"));
+    assert!(error.contains("--accept-admissions"));
+    assert_eq!(
+        std::fs::read_to_string(&lock_path).expect("read preserved legacy lock"),
+        legacy
     );
 
     let duplicate = format!("{canonical}{canonical}");
@@ -817,6 +830,12 @@ machine Main::exercise(&mut self) {{
         .and_then(|line| line.split_once("  "))
         .map(|(identity, _)| identity)
         .expect("accepted template receipt identity");
+    assert_eq!(receipt_identity.len(), 64);
+    assert!(
+        receipt_identity
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    );
     let report =
         std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
     let admitted_rows = report
@@ -828,12 +847,15 @@ machine Main::exercise(&mut self) {{
         1,
         "one universal template grant should produce one trust row:\n{report}"
     );
+    let template_report_identity = admitted_rows[0]
+        .split_once("accepted template report fingerprint: ")
+        .and_then(|(_, suffix)| suffix.split_whitespace().next())
+        .expect("accepted template report coordinate");
+    assert_eq!(template_report_identity.len(), 16);
     assert!(
-        admitted_rows[0].contains(&format!(
-            "accepted template report fingerprint: {receipt_identity}"
-        )),
-        "the trust row must publish the exact receipt identity:\n{}",
-        admitted_rows[0]
+        template_report_identity
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
     );
     let instance_rows = report
         .lines()
@@ -844,11 +866,9 @@ machine Main::exercise(&mut self) {{
         2,
         "two selected machine contracts instantiate one universal grant:\n{report}"
     );
-    assert!(
-        instance_rows
-            .iter()
-            .all(|line| line.contains(&format!("template report fingerprint: {receipt_identity}")))
-    );
+    assert!(instance_rows.iter().all(|line| line.contains(&format!(
+        "template report fingerprint: {template_report_identity}"
+    ))));
     assert_ne!(
         instance_rows[0], instance_rows[1],
         "distinct selected contracts must retain distinct instance closure rows"
@@ -893,7 +913,7 @@ machine Main::exercise(&mut self) {{
         .collect::<Vec<_>>();
     for fingerprint in instance_contract_fingerprints {
         assert!(
-            manifest.contains(&format!("\"fingerprint\": \"0x{fingerprint}\"")),
+            manifest.contains(&format!("\"report_fingerprint\": \"0x{fingerprint}\"")),
             "the trust instance contract must be present verbatim in the machine-contract manifest:\n{manifest}"
         );
     }

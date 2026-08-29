@@ -14,9 +14,9 @@ mod grants;
 mod provider_grants;
 mod report;
 
-pub use accepted_templates::AcceptedTemplateClassifications;
+pub use accepted_templates::{AcceptedTemplateClassifications, AcceptedTemplateIdentity};
 pub use admissions::{
-    TrustAdmission, TrustAdmissionSettlement, reconstruct_trust_obligations,
+    TrustAdmission, TrustAdmissionDigest, TrustAdmissionSettlement, reconstruct_trust_obligations,
     settle_trust_admissions,
 };
 pub use grants::{

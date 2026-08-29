@@ -483,10 +483,29 @@ fn provider_grant_ledger_resolves_one_exact_selector_subject() {
     );
     assert_eq!(grants[1].commitment(), "provider slot: Pair");
     assert_eq!(grants[2], grants[1]);
+    assert!(grants.iter().all(|grant| {
+        grant.selected_plan_report_identity == first.identity_fingerprint()
+            && grant.selected_plan_digest == first.identity_digest()
+            && grant.selected_plan == first
+            && grant.replays_selected_plan(&first)
+    }));
+
+    let mut compact_equal_substitute = first.clone();
+    compact_equal_substitute.schema.methods[0].requirement_owner = "OtherPair".to_owned();
+    assert_eq!(
+        compact_equal_substitute.identity_fingerprint(),
+        first.identity_fingerprint(),
+        "the compact report identity omits the exact requirement-owner spelling"
+    );
+    assert_ne!(compact_equal_substitute, first);
+    assert_ne!(
+        compact_equal_substitute.identity_digest(),
+        first.identity_digest()
+    );
     assert!(
         grants
             .iter()
-            .all(|grant| grant.selected_plan_identity == first.identity_fingerprint())
+            .all(|grant| !grant.replays_selected_plan(&compact_equal_substitute))
     );
 
     let mut same_subject = first.clone();
@@ -503,6 +522,33 @@ fn provider_grant_ledger_resolves_one_exact_selector_subject() {
     )
     .expect("same subject is canonical");
     assert_eq!(grants[0].selector_kind, ProviderGrantSelectorKind::PlanName);
+}
+
+#[test]
+fn provider_grant_binding_rejects_compact_equal_selected_plan_substitution() {
+    let candidate = selection_plan("Provider", &["run"], &["run"]);
+    let mut substituted = candidate.clone();
+    substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
+    assert_eq!(
+        substituted.identity_fingerprint(),
+        candidate.identity_fingerprint()
+    );
+    assert_ne!(substituted.identity_digest(), candidate.identity_digest());
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
+        .expect("compact-equal selected provider closure");
+    let original = Arc::new(psi_checked_trees::CheckedTrees::default());
+    let original_contents = original.as_ref().clone();
+
+    let diagnostics = bind_selected_provider_plan_facts(
+        &original,
+        std::slice::from_ref(&candidate),
+        selected,
+        std::slice::from_ref(&candidate.name),
+    )
+    .expect_err("compact-equal selected plan must not satisfy an exact provider grant");
+
+    assert!(diagnostics[0].message.contains("0 exact candidate rows"));
+    assert_eq!(original.as_ref(), &original_contents);
 }
 
 #[test]
