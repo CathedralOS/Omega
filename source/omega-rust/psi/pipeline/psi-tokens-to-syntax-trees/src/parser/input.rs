@@ -252,8 +252,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     /// An integer literal at a STRUCTURAL position that needs a number at
-    /// parse time (array lengths, wire field numbers, case discriminants,
-    /// range-form bounds). These keep an explicit i64 ceiling with a loud
+    /// parse time (array lengths, wire field numbers, range-form bounds).
+    /// These keep an explicit i64 ceiling with a loud
     /// error -- they are not value-binding uses, so D14's fit-at-use does not
     /// apply.
     pub(super) fn take_integer(self) -> Result<(i64, Self), ParseError> {
@@ -274,9 +274,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     /// A nonnegative structural identity carried through the complete `u64`
-    /// range. Unlike array lengths and legacy discriminants, stable schema
-    /// identities are opaque unsigned keys rather than signed arithmetic
-    /// values.
+    /// range. Unlike signed structural integers, stable schema identities are
+    /// opaque unsigned keys rather than arithmetic values.
     pub(super) fn take_identity(self) -> Result<(u64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {

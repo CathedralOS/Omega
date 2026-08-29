@@ -9,8 +9,8 @@ for ordinary `use path::member;` roots and basic `[pub] data` declarations with
 an optional `[copy]` property, bare named field types, and payload-free
 `case Name;` members. Mixed declarations retain the exact authored field/case
 order in bounded owner-local syntax and type-reference tables. Unsupported
-roots, case payloads, explicit discriminants, and richer property/type forms
-reject instead of becoming a private bridge tree. Its source closure is
+roots, case payloads, retired inline discriminants, and richer property/type
+forms reject instead of becoming a private bridge tree. Its source closure is
 being authored against the ordinary-Omega surface that the Delta-produced
 compiler must eventually accept; that compiler is not yet published.
 

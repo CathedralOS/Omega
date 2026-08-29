@@ -107,33 +107,33 @@ data Command {
 }
 ```
 
-**Explicit discriminant values.** A payload-less case may
-pin its tag to a specific integer — required when the sum matches a *foreign
-ABI* whose tag values are fixed by a spec (firmware, hardware, a protocol):
+**Foreign integer codes.** A payload-less case is a nominal value, not an
+untyped integer constant. The retired `case Name = 7;` spelling neither adds a
+payload nor controls a layout and is rejected. A numbered member identity such
+as `case #7 Name;` is stable schema metadata; it also does not supply a runtime
+integer value or tag.
+
+A foreign enumeration crosses a boundary in its declared integer carrier (or
+in a `repr native` record containing that carrier). Ordinary checked machines
+map between that integer and an Omega sum. For example, the filesystem library
+maps native `errno` values to `ErrorKind` with an ordinary exhaustive `match`:
 
 ```omega
-data EfiMemoryType {           // UEFI EFI_MEMORY_TYPE — tags are the firmware's
-    case ReservedMemory = 0;
-    case LoaderCode     = 1;
-    case LoaderData     = 2;
-    case ConventionalMemory = 7;
-    // ...
-}
+let kind: ErrorKind = match code {
+    2  -> ErrorKind::NotFound,
+    13 -> ErrorKind::PermissionDenied,
+    17 -> ErrorKind::AlreadyExists,
+    _  -> ErrorKind::Other
+};
 ```
 
-Rules: unspecified cases number sequentially from the previous (0-based by
-default), as in C; a mix of specified and unspecified is allowed; duplicate
-discriminants are a compile error. The discriminant is the on-the-wire /
-in-memory tag under a layout policy, so a foreign enum reads back into the right
-case. For a purely internal sum, leave them off — tag identity is the compiler's
-to assign.
-
-The interaction between explicit discriminants and the zero-initialization
-rule below is not yet settled: an explicit first discriminant other than zero
-conflicts with the rule that zeroed storage denotes the first case. The current
-specification therefore does not determine that combination's meaning.
-Bootstrap slices exclude explicit discriminants rather than choosing one side
-locally.
+The reverse correspondence is another ordinary mapping machine over the sum's
+cases. The wildcard or rejection path states what unknown foreign integers
+mean; no raw integer silently becomes an established sum value. This mechanism
+is source-visible, checked, and already sufficient for firmware, hardware, and
+protocol constants. A future zero-copy optimization may skip such a mapping
+only after proving complete byte-representation equivalence; it is not a
+different language meaning for cases.
 
 A declaration's shape follows from its members: only fields is a RECORD, only
 cases is a SUM, fields AND cases together is MIXED -- common fields shared by
