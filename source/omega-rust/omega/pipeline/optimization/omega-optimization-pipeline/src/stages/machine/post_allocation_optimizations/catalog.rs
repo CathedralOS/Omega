@@ -58,5 +58,15 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(declared, ORDERED_RULES);
+        for optimization in ORDERED_RULES {
+            let selections = OptimizationSelections::new([optimization]).unwrap();
+            let (scheduled, phase) = selected_rule(&selections).unwrap();
+            assert_eq!(scheduled, optimization);
+            assert_eq!(phase, selections);
+        }
+        assert!(matches!(
+            selected_rule(&OptimizationSelections::new(ORDERED_RULES).unwrap()),
+            Err(PostAllocationMachineCatalogError::UnsupportedComposition(_))
+        ));
     }
 }

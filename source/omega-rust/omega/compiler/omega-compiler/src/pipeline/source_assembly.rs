@@ -967,6 +967,17 @@ mod tests {
 
     #[test]
     fn both_build_preludes_own_the_exact_optimization_vocabulary() {
+        let expected_cases = omega_optimization_core::Optimization::ALL
+            .iter()
+            .map(|optimization| optimization.build_case_name())
+            .collect::<Vec<_>>();
+        let expected_fields = std::iter::once("human_report")
+            .chain(
+                omega_optimization_core::Optimization::ALL
+                    .iter()
+                    .map(|optimization| optimization.build_counter_field()),
+            )
+            .collect::<Vec<_>>();
         for prelude in [BUILD_PRELUDE, FILESYSTEM_BUILD_PRELUDE] {
             let tokens = psi_source_files_to_tokens::Lexer::new(prelude)
                 .tokenize()
@@ -996,22 +1007,7 @@ mod tests {
                         _ => None,
                     })
                     .collect::<Vec<_>>(),
-                [
-                    "ControlFlowCleanup",
-                    "SparseConditionalConstantPropagation",
-                    "CopyPropagation",
-                    "GlobalValueNumbering",
-                    "DeadPureScalarElimination",
-                    "ProofCheckElision",
-                    "SelectedIncomingU12ExactAddImmediate",
-                    "X86RelaxConditionalBranchesToRel8V1",
-                    "SelectedIncomingU12ExactSubtractImmediate",
-                    "Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1",
-                    "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
-                    "ActiveResidentImmediateU64MultiUseRematerializationV1",
-                    "Aarch64SelectShortestMovnSeededI64MaterializationV1",
-                    "X86SelectXorZeroI64MaterializationV1",
-                ]
+                expected_cases
             );
             let optimizations = syntax_trees
                 .root_items()
@@ -1036,23 +1032,7 @@ mod tests {
                         _ => None,
                     })
                     .collect::<Vec<_>>(),
-                [
-                    "human_report",
-                    "control_flow_cleanup",
-                    "sparse_conditional_constant_propagation",
-                    "copy_propagation",
-                    "global_value_numbering",
-                    "dead_pure_scalar_elimination",
-                    "proof_check_elision",
-                    "selected_incoming_u12_exact_add_immediate",
-                    "x86_relax_conditional_branches_to_rel8_v1",
-                    "selected_incoming_u12_exact_subtract_immediate",
-                    "aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1",
-                    "shared_entry_fixed_view_copy_after_compare_before_branch_v1",
-                    "active_resident_immediate_u64_multi_use_rematerialization_v1",
-                    "aarch64_select_shortest_movn_seeded_i64_materialization_v1",
-                    "x86_select_xor_zero_i64_materialization_v1",
-                ]
+                expected_fields
             );
             let build = syntax_trees
                 .root_items()

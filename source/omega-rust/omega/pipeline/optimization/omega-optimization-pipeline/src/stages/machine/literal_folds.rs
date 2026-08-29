@@ -14,6 +14,7 @@ use omega_regalloc::{
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 
+use super::selected_lowering_catalog::selected_lowering_contract;
 use crate::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt,
@@ -607,37 +608,6 @@ pub fn run_selected_lowering_optimizations(
         attempt: attempt,
         custody,
     })
-}
-
-fn selected_lowering_contract(
-    selections: &OptimizationSelections,
-) -> Result<
-    (SelectedLoweringOptimizationSchedule, LiteralFoldPolicy),
-    OptimizedLiteralFoldCustodyError,
-> {
-    match selections.as_slice() {
-        [Optimization::SelectedIncomingU12ExactAddImmediate] => Ok((
-            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1,
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
-        )),
-        [Optimization::SelectedIncomingU12ExactSubtractImmediate] => Ok((
-            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactSubtractImmediateToNoChangeV1,
-            LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1,
-        )),
-        [
-            Optimization::SelectedIncomingU12ExactAddImmediate,
-            Optimization::SelectedIncomingU12ExactSubtractImmediate,
-        ] => Ok((
-            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1,
-            LiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1,
-        )),
-        [] => Err(OptimizedLiteralFoldCustodyError::MissingSelectedLoweringOptimization),
-        selections => Err(
-            OptimizedLiteralFoldCustodyError::UnsupportedSelectedLoweringOptimization(
-                selections[0],
-            ),
-        ),
-    }
 }
 
 pub fn validate_selected_lowering_optimization_custody(

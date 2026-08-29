@@ -29,10 +29,9 @@ realization uses manifest v9; fragment and text publication use v7 and retain
 the exact optimization name. The x86 rule has direct and selected-lowering
 coverage through fragment, object, and callable publication.
 
-[>] Next, close the remaining organization and rollout gates: exhaustively
-cross-check build/report mappings against `Optimization::ALL`, add no-selection
-golden canaries and broader target/ABI matrices, and continue the general
-allocator/frame work.
+[>] Next, close the remaining rollout gates: add no-selection golden canaries
+and broader target/ABI matrices, then continue the general allocator/frame
+work. The source-organization and closed-vocabulary gates are enforced.
 
 ## Completed foundation
 
@@ -77,19 +76,19 @@ allocator/frame work.
   validation. Its entrance must own the encode/validate join.
 - [x] Remove optimization-name-specific variants from complete physical route
   results once the typed post-allocation result can carry them.
-- [ ] Derive or exhaustively cross-check build vocabulary and report mappings
+- [x] Derive or exhaustively cross-check build vocabulary and report mappings
   against `Optimization::ALL`; no hidden second registry.
-- [ ] Keep preferred entrance files below 100 lines. Any entrance above 200
+- [x] Keep preferred entrance files below 100 lines. Any entrance above 200
   lines needs a documented semantic reason. No optimizer production file may
   exceed 1,500 lines or mix catalog, unrelated rule mechanics, validator, codec,
   and broad fixtures.
-- [>] Clear the current production-file size violations by semantic split, not
+- [x] Clear the current production-file size violations by semantic split, not
   line shuffling. Pipeline `whole_function_exit_contract`,
   `resolved_selected_form_layout`, `x86_branch_relaxation`, and
-  `function_fragment_emission` are split. Remaining work includes validator
-  GVN, SCCP, and proof-check-elision candidates and Psi semantic analyses.
-  Split matching >1,500-line test files by the same taxonomy. Add a repository
-  check so regressions are visible.
+  `function_fragment_emission` are split, as are validator GVN, SCCP, and
+  proof-check-elision candidates, Psi semantic analyses, optimization-unit
+  model/rewrite/identity ownership, and matching oversized test suites. A
+  repository architecture test enforces file and entrance ceilings.
 - [x] Split the architecture brief into a real entrance plus semantic, rule
   engine, physical pipeline, source organization, and rollout briefs.
 - [x] Compact this file to an executable checklist; detailed design is not a

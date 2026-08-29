@@ -4,12 +4,8 @@ use super::super::prelude::*;
 pub(in crate::stages::realization::function_relative_realization) fn rel8_selected(
     selections: &OptimizationSelections,
 ) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
-    let phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    match phase.as_slice() {
-        [] => Ok(false),
-        [Optimization::X86RelaxConditionalBranchesToRel8V1] => Ok(true),
-        _ => Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
-    }
+    crate::stages::layout::x86_branch_relaxation::x86_rel8_selected(selections)
+        .map_err(|_| FunctionRelativeOptimizationRealizationError::RootMismatch)
 }
 
 pub(in crate::stages::realization::function_relative_realization) fn stage_selected_relaxation<

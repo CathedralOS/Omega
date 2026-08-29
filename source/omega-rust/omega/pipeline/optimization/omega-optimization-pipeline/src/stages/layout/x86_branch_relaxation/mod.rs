@@ -1,5 +1,6 @@
 //! Explicit x86 conditional-branch relaxation and independent replay.
 
+mod catalog;
 mod compute;
 mod error;
 mod identity;
@@ -8,6 +9,8 @@ mod model;
 mod tests;
 mod validation;
 
+pub use catalog::ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES;
+pub(crate) use catalog::x86_rel8_selected;
 pub use error::*;
 pub use model::*;
 

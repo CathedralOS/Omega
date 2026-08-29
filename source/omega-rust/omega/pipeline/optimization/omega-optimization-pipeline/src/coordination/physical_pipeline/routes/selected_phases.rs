@@ -1,7 +1,8 @@
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase};
+use omega_optimization_core::OptimizationExecutionPhase;
 use omega_regalloc::FixedViewCopyPolicy;
 
 use crate::{
+    StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
     run_selected_lowering_optimizations, stage_function_relative_layout_optimization_realization,
     stage_optimized_allocation_legality, stage_optimized_allocation_legality_for_frameless_leaf,
     stage_optimized_fixed_view_copies, stage_optimized_instruction_selection,
@@ -15,8 +16,11 @@ use crate::{
     stage_optimized_register_homes_after_selected_lowering, stage_optimized_selected_reanalysis,
     stage_post_allocation_machine_function_relative_realization,
     stage_post_allocation_machine_function_relative_realization_after_selected_lowering,
-    stage_selected_lowering_function_relative_realization, StagedOptimizedVerifiedPhysicalPipeline,
-    ValidatedOptimizedTargetOperations,
+    stage_selected_lowering_function_relative_realization,
+    stages::allocation::recovery_catalog::{
+        AllocationRecoveryRoute, selected_allocation_recovery_route,
+    },
+    stages::machine::post_allocation_optimizations::selected_rule as selected_post_allocation_rule,
 };
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;
@@ -31,34 +35,18 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
     let ranges = stage_optimized_live_ranges(liveness)
         .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)?;
-    let selected_lowering = ranges
+    let selections = ranges
         .liveness_stage()
         .selected_stage()
         .optimized_target()
         .optimized()
-        .selections()
-        .for_phase(OptimizationExecutionPhase::SelectedLowering);
-    let function_relative_layout = ranges
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections()
-        .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let post_allocation_machine = ranges
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections()
-        .for_phase(OptimizationExecutionPhase::PostAllocationMachine);
-    let allocation_recovery = ranges
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections()
-        .for_phase(OptimizationExecutionPhase::AllocationRecovery);
+        .selections();
+    let selected_lowering = selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
+    let function_relative_layout =
+        selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    let post_allocation_machine =
+        selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
+    let allocation_recovery = selections.for_phase(OptimizationExecutionPhase::AllocationRecovery);
 
     if !allocation_recovery.is_empty() {
         if !selected_lowering.is_empty()
@@ -75,8 +63,10 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
             .optimized_target()
             .optimized()
             .budget_per_pass();
-        match allocation_recovery.as_slice() {
-            [Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1] => {
+        match selected_allocation_recovery_route(selections).map_err(|_| {
+            OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition
+        })? {
+            Some(AllocationRecoveryRoute::SharedEntryFixedViewCopy) => {
                 let legality = stage_optimized_allocation_legality(ranges)
                     .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
                 let copies = stage_optimized_fixed_view_copies(
@@ -96,7 +86,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                     StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine },
                 );
             }
-            _ => {
+            None | Some(AllocationRecoveryRoute::ActiveResidentImmediateRematerialization) => {
                 return Err(
                     OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
                 );
@@ -110,16 +100,9 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                 OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
             );
         }
-        match post_allocation_machine.as_slice() {
-            [Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
-            | [Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1]
-            | [Optimization::X86SelectXorZeroI64MaterializationV1] => {}
-            _ => {
-                return Err(
-                    OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
-                );
-            }
-        };
+        selected_post_allocation_rule(selections).map_err(|_| {
+            OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition
+        })?;
         if selected_lowering.is_empty() {
             let legality = stage_optimized_allocation_legality(ranges)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;

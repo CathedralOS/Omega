@@ -112,8 +112,8 @@ compositions and rejects all others.
 ```text
 source/omega-rust/omega/
   representations/
-    omega-optimization-core/       # names, phases, selections, identities
-    omega-optimization-unit/       # complete target-neutral optimizer input
+    omega-optimization-core/       # one exact-name descriptor, selections, identities
+    omega-optimization-unit/       # complete input model, reconstruction, rewrite custody
     omega-register-model/          # register views, units, aliases, ABI facts
   pipeline/optimization/
     omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
