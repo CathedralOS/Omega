@@ -1,3 +1,5 @@
+//! Proof-elision projection custody.
+
 use super::*;
 
 #[test]

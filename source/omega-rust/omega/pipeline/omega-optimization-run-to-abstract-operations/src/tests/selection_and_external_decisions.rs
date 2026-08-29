@@ -1,3 +1,5 @@
+//! Selection and external-decision projection custody.
+
 use super::*;
 
 #[test]

@@ -1,3 +1,5 @@
+//! Copy-propagation projection custody.
+
 use super::*;
 
 #[test]

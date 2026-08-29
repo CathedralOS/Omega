@@ -1,3 +1,5 @@
+//! Independent source-projection corruption coverage.
+
 use super::*;
 
 #[test]

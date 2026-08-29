@@ -1,3 +1,5 @@
+//! Sparse-constant projection custody.
+
 use super::*;
 
 #[test]

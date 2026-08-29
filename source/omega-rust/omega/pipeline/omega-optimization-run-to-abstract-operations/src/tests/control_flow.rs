@@ -1,3 +1,5 @@
+//! Control-flow projection custody.
+
 use super::*;
 
 #[test]

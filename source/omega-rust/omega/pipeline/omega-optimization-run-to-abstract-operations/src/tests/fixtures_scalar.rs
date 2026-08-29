@@ -1,3 +1,5 @@
+//! Scalar projection fixtures.
+
 use super::*;
 
 pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {

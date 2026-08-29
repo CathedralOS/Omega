@@ -2067,6 +2067,46 @@ fn optimization_projection_stops_before_target_realization() {
         );
     }
 
+    assert!(
+        !projection_root.join("src/projection.rs").exists(),
+        "the retired mixed projection catchall must not return",
+    );
+    assert!(
+        !projection_root.join("src/projection").exists(),
+        "projection mechanics and tests must remain in the named replay, source, and tests taxonomies",
+    );
+    let source_projection = recursive_rust_source(&projection_root.join("src/source"));
+    for forbidden in [
+        "built_in_psi_registries",
+        "OptimizationDecisionRecord",
+        "validate_psi_rewrite_candidate",
+        "PrePhysicalOptimizationManifest",
+    ] {
+        assert!(
+            !source_projection.contains(forbidden),
+            "source-shape projection must not consume optimizer replay custody; found {forbidden}",
+        );
+    }
+    let run_replay = recursive_rust_source(&projection_root.join("src/replay"));
+    for forbidden in ["AbstractOperationPlan", "AbstractFunction", "project_plan"] {
+        assert!(
+            !run_replay.contains(forbidden),
+            "optimizer replay must not construct source projection shape; found {forbidden}",
+        );
+    }
+    for required in [
+        "rule_set::rebuild",
+        "commits::replay",
+        "applied_decisions::validate",
+        "records::validate",
+        "validate_external_decision_recording",
+    ] {
+        assert!(
+            run_replay.contains(required),
+            "run replay must visibly own ordered custody step `{required}`",
+        );
+    }
+
     let realization_root = root.join(
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/optimized_target_operations",
     );

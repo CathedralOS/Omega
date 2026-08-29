@@ -1,3 +1,5 @@
+//! Proof-elision projection fixtures.
+
 use super::*;
 
 fn remainder_by_one_certificate(
