@@ -528,7 +528,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/packages/omega-package-review/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/compiler-review/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-review must own package review"
@@ -546,6 +546,61 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
             !public_api.contains(forbidden),
             "omega-compiler must not reexport package-review owner `{forbidden}`"
         );
+    }
+}
+
+#[test]
+fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
+    let packages = workspace_root().join("source/omega-rust/omega/packages");
+    for required in [
+        "README.md",
+        "manager/src/lib.rs",
+        "manager/src/manifest/mod.rs",
+        "manager/src/source/mod.rs",
+        "manager/src/graph/mod.rs",
+        "manager/src/review/mod.rs",
+        "manager/src/storage/mod.rs",
+        "compiler-review/src/lib.rs",
+        "resolver-execution/src/lib.rs",
+    ] {
+        assert!(
+            packages.join(required).is_file(),
+            "package responsibility entrance is missing: {required}"
+        );
+    }
+    for retired in [
+        "omega-package-manager",
+        "omega-package-review",
+        "omega-resolver-execution",
+        "manager/src/resolution",
+        "manager/src/records",
+    ] {
+        assert!(
+            !packages.join(retired).exists(),
+            "retired package junk-drawer path must not return: {retired}"
+        );
+    }
+
+    let mut pending = vec![packages];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory).expect("read package source directory") {
+            let entry = entry.expect("read package source entry");
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("read package Rust source");
+            let lines = source.lines().count();
+            assert!(
+                lines <= 1_000,
+                "package Rust module exceeds the 1,000-line discovery ceiling: {} ({lines} lines)",
+                path.display()
+            );
+        }
     }
 }
 
