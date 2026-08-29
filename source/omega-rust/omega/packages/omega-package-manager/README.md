@@ -5,9 +5,10 @@ same order the workflow runs:
 
 ```text
 src/
-├── lib.rs            public entrance naming the four workflow owners
+├── lib.rs            public entrance naming each workflow owner
 ├── commands/         command-facing operations; start here
 │   └── audit/source/ acquire and inspect one source without admission
+├── identity/         package names, aliases, and source-qualified keys
 ├── manifest/         read package roles and dependency rows from build.omg
 │   └── dependencies/ read exact rows or plan conservative edits
 ├── resolution/       turn declared sources into one validated closure
@@ -31,8 +32,9 @@ Immutable acquisition is delegated to
 [`omega-package-source`](../omega-package-source/README.md), which composes
 confined native execution from
 [`omega-resolver-execution`](../omega-resolver-execution/README.md).
-Source acquisition owns shared source-lineage and package-coordinate
-vocabulary, but cannot select a dependency closure or admit it.
+Source acquisition owns syntax-neutral source lineage and immutable custody.
+The manager's `identity/` owns package-authored names, requester aliases, and
+source-qualified package keys. Acquisition cannot select or admit a closure.
 `resolution/source/` performs the declaration join before
 `resolution/closure/` derives closure-owned identities.
 

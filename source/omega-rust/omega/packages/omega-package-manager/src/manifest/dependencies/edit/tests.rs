@@ -1,3 +1,4 @@
+use crate::identity::AliasName;
 use crate::manifest::dependencies::edit::BUILD_FILE_NAME;
 use crate::manifest::dependencies::edit::model::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualReason,
@@ -12,7 +13,6 @@ use crate::manifest::dependencies::edit::rendering::{
 use crate::manifest::dependencies::read::{
     DependencyProjectionError, DependencySourceRequest, PackageSelection, extract_from_source,
 };
-use omega_package_source::AliasName;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -184,7 +184,7 @@ fn generated_rows_escape_all_caller_controlled_strings() {
         repository: "https://example.test/\"repo\n// injected".to_owned(),
         revision: "main\rnext".to_owned(),
         selection: PackageSelection::Named(
-            omega_package_source::PackageName::parse("selected-package").unwrap(),
+            crate::identity::PackageName::parse("selected-package").unwrap(),
         ),
     };
     let statement = canonical_dependency_statement(&request);

@@ -1127,7 +1127,6 @@ dependencies = [
  "omega-build-declarations",
  "omega-platform-custody",
  "omega-resolver-execution",
- "psi-core",
  "sha1-checked",
  "sha2",
 ]

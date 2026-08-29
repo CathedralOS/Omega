@@ -8,8 +8,8 @@ Start at `src/lib.rs`, then follow the source lifecycle:
 
 ```text
 src/
-├── lib.rs          public identity and acquisition entrance
-├── identity/       names, lineages, locators, and immutable revisions
+├── lib.rs          public source identity and acquisition entrance
+├── identity/       lineages, locators, validated paths, and immutable revisions
 ├── local/          capture and publish local immutable snapshots
 ├── git/            validated Git request through immutable publication
 │   ├── request.rs      validate transport, locator, revision, and endpoint

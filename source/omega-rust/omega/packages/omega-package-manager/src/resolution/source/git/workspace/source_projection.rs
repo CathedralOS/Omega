@@ -4,9 +4,10 @@ use super::{
     GitWorkspaceMemberBuild, GitWorkspaceSelectionError, discover_git_workspace,
     plan_git_workspace_selection,
 };
+use crate::identity::PackageName;
 use crate::resolution::source::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
 use omega_package_source::{
-    GitWorkspaceDeclaration, GitWorkspaceProjectionPlanner, GitWorkspaceSelection, PackageName,
+    GitWorkspaceDeclaration, GitWorkspaceProjectionPlanner, GitWorkspaceSelection,
 };
 
 pub(in crate::resolution::source::git) struct ManagerGitWorkspacePlanner<'a> {

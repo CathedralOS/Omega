@@ -1,5 +1,6 @@
 //! Triage model and deterministic decision rules.
 
+use crate::identity::PackageKey;
 use crate::review::comparison::changed_review_risk;
 use crate::review::records::PackageReviewEvidence;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
@@ -7,7 +8,6 @@ use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass,
 };
-use omega_package_source::PackageKey;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::render::{self, TriageRenderError};

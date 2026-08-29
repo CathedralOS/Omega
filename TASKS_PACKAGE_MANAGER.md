@@ -30,10 +30,8 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining work:
 
-  - move package names, aliases, keys, and authored workspace-member semantics
-    out of `omega-package-source`; source custody should expose only neutral
-    source lineages, immutable resolutions, object identities, commitments, and
-    validated relative paths;
+  - replace source-owned `WorkspaceMemberPath` with a neutral validated
+    source-relative path; authored workspace-member semantics stay manager-owned;
   - replace the remaining misleading exact-identity and contract-metadata
     groupings without changing canonical rows or encodings;
   - split macOS confinement policy construction from native realization;

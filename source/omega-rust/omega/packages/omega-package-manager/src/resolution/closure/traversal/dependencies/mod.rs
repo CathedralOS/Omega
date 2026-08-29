@@ -9,16 +9,15 @@ pub(super) use context::WorkspaceContext;
 pub(super) use git::register_git_repository;
 
 use super::super::reconciliation::{
-    resolve_package_source_closure_with_limits, PackageRootSourceRequest,
-    PackageSourceClosureLimits, PackageSourceClosureResolutionError, ResolvedPackageSourceClosure,
+    PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
 use super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::errors::ResolveDependencySourceError;
+use crate::identity::PackageKey;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{
-    ExternalSourceContext, LocalSourceLimits, PackageKey, WorkspaceLineageIdentity,
-};
+use omega_package_source::{ExternalSourceContext, LocalSourceLimits, WorkspaceLineageIdentity};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

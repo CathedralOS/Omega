@@ -1,7 +1,8 @@
 //! Common package-review evidence interface and live compiler adaptation.
 
+use crate::identity::PackageKey;
 use crate::review::CompilerIssuedPackageReview;
-use omega_package_source::{ImmutableSourceResolution, PackageKey};
+use omega_package_source::ImmutableSourceResolution;
 
 use super::commitments::{build_observation_commitment, whole_review_commitment};
 use super::model::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};

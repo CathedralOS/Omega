@@ -1,8 +1,7 @@
 use super::super::super::ResolvedSourceIdentity;
+use crate::identity::{AliasName, PackageKey, PackageName};
 use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
-use omega_package_source::{
-    AliasName, ExternalSourceContext, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
-};
+use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
 
 /// Exact caller request for the root source, before normalized selection.
 #[derive(Debug, Clone, PartialEq, Eq)]

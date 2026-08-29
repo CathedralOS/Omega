@@ -8,6 +8,7 @@
 //! undifferentiated namespace.
 
 pub mod commands;
+pub mod identity;
 pub mod manifest;
 pub mod resolution;
 pub mod review;

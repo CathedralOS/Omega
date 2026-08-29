@@ -20,7 +20,6 @@ use crate::git::resolution::*;
 use crate::git::snapshot::{
     construction::*, materialization::*, metadata::*, permissions::*, publication::*,
 };
-use crate::identity::PackageName;
 #[allow(unused_imports)]
 use crate::limits::*;
 #[allow(unused_imports)]

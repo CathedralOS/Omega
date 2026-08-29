@@ -9,10 +9,11 @@ use super::model::{
     PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
+use crate::identity::{AliasName, PackageKey};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::closure::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{AliasName, PackageKey};
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Debug, Clone)]

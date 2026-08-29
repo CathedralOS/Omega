@@ -3,9 +3,10 @@ use super::super::{
     CanonicalSourceClosureSubjectError,
 };
 use super::source::{validate_git_selection, validate_request_bytes};
+use crate::identity::AliasName;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{AliasName, GitSourceRequest, ImmutableSourceResolution, SourceLineage};
+use omega_package_source::{GitSourceRequest, ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn validate_dependency_selection_kind(
     selection: &CanonicalDependencySourceSelection,

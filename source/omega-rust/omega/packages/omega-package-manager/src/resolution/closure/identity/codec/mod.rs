@@ -8,7 +8,7 @@ mod framing;
 mod selection;
 mod source;
 
-pub(super) use framing::{encode_hex, fingerprint, Decoder};
+pub(super) use framing::{Decoder, encode_hex, fingerprint};
 pub(super) use selection::{
     decode_dependency_selection, decode_package_navigation, decode_root_selection, encode_subject,
 };

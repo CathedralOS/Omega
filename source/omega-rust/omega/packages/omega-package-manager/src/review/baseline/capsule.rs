@@ -1,40 +1,41 @@
 //! In-memory baseline packages and restart-stable capsules.
 
 use super::encoding::{
-    capsule_checksum, clone_baseline_bytes, decode_package_key, decode_replay_record_option,
-    decode_resolution, encode_package_key, encode_replay_record_option, encode_resolution,
-    ensure_bounded_string, replay_parent_binding, validate_package_key_bounds,
-    validate_recovery_row, Decoder, Encoder,
+    Decoder, Encoder, capsule_checksum, clone_baseline_bytes, decode_package_key,
+    decode_replay_record_option, decode_resolution, encode_package_key,
+    encode_replay_record_option, encode_resolution, ensure_bounded_string, replay_parent_binding,
+    validate_package_key_bounds, validate_recovery_row,
 };
 use super::validation::{
-    canonical_graph, graph_depth, replay_record_limits, row_limits, validate_rows, PendingPackage,
+    PendingPackage, canonical_graph, graph_depth, replay_record_limits, row_limits, validate_rows,
 };
 use super::{
-    ReviewOnlyBaselineError, ReviewOnlyBaselineLimits, CHECKSUM_BYTES, MAGIC,
-    REVIEW_ONLY_ARTIFACT_CLASS, VERSION,
+    CHECKSUM_BYTES, MAGIC, REVIEW_ONLY_ARTIFACT_CLASS, ReviewOnlyBaselineError,
+    ReviewOnlyBaselineLimits, VERSION,
 };
+use crate::identity::{AliasName, PackageKey};
 use crate::resolution::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
     ResolvedSourceIdentity,
 };
+use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::records::validation::{
     validate_review_only_closure, validate_review_only_records,
 };
 use crate::review::records::{
-    build_observation_commitment, whole_review_commitment, PackageReviewEvidence,
-    ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
+    PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
+    build_observation_commitment, whole_review_commitment,
 };
-use crate::review::CompilerIssuedPackageReviewSet;
 use omega_build_evaluation::{
+    BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
-    recover_review_only_build_filesystem_replay_record, BuildFilesystemReplayRecordLimits,
-    ReviewOnlyBuildFilesystemReplayRecord,
+    recover_review_only_build_filesystem_replay_record,
 };
 use omega_package_review::{
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
 };
-use omega_package_source::{AliasName, ImmutableSourceResolution, PackageKey};
+use omega_package_source::ImmutableSourceResolution;
 use std::collections::BTreeMap;
 
 /// One package's exact comparison evidence recovered from a review-only

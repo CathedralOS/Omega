@@ -1,8 +1,9 @@
+use crate::identity::{AliasName, PackageKey, PackageName};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::PackageSourceCustody;
 use omega_package_source::{
-    AliasName, GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution,
-    LocalSourceLimits, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
+    GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution, LocalSourceLimits,
+    SourceLineage, WorkspaceMemberPath,
 };
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};

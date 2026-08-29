@@ -41,7 +41,7 @@ machine build(builder: &mut Build) {
         crate::resolution::GitPackageSourceRequest::new(
             acquisition.clone(),
             crate::manifest::PackageSelection::Named(
-                omega_package_source::PackageName::parse(name).expect("package name"),
+                crate::identity::PackageName::parse(name).expect("package name"),
             ),
         )
     };

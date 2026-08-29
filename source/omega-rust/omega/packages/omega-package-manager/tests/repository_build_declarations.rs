@@ -1,5 +1,6 @@
+use omega_package_manager::identity::PackageName;
 use omega_package_manager::manifest::{BuildDeclaration, extract_build_declaration};
-use omega_package_source::{PackageName, WorkspaceMemberPath};
+use omega_package_source::WorkspaceMemberPath;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::item::Item;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;

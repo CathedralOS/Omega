@@ -1,11 +1,11 @@
 //! Private rooted persistence for review-only baseline capsules.
 
 use super::{
-    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineError, ReviewOnlyBaselineLimits,
-    BASELINE_NAME_MAXIMUM_BYTES,
+    BASELINE_NAME_MAXIMUM_BYTES, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineError,
+    ReviewOnlyBaselineLimits,
 };
 use omega_platform_custody::record_file::{
-    is_portable_record_file_name, RecordFileError, RecordFileLimits, RecordFileRoot,
+    RecordFileError, RecordFileLimits, RecordFileRoot, is_portable_record_file_name,
 };
 use std::fmt;
 use std::path::{Path, PathBuf};

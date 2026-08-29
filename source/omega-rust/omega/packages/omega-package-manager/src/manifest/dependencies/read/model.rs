@@ -1,5 +1,5 @@
+use crate::identity::{AliasName, PackageName};
 use crate::manifest::roles::BuildDeclaration;
-use omega_package_source::{AliasName, PackageName};
 
 /// Package selection inside one acquired repository source.
 ///

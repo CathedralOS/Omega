@@ -1,17 +1,18 @@
 use super::super::cache::{
-    resolve_workspace_member_from_cache, GitAcquisitionCache, SourceCacheLane,
+    GitAcquisitionCache, SourceCacheLane, resolve_workspace_member_from_cache,
 };
 use super::super::errors::ResolveDependencySourceError;
 use super::context::{WorkspaceContext, WorkspaceContextKind};
 use super::external_local::{
     resolve_external_dependency, resolve_external_dependency_from_root, workspace_requester_root,
 };
+use crate::identity::PackageKey;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
     ResolvePackageSourceError,
 };
 use omega_package_source::{
-    ExternalSourceContext, LocalSourceLimits, PackageKey, SourceLineage, WorkspaceLineageIdentity,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, WorkspaceLineageIdentity,
     WorkspaceMemberPath,
 };
 use std::collections::BTreeMap;
@@ -59,7 +60,7 @@ pub(super) fn resolve_path_dependency(
                     });
                 }
                 let selection = super::git::workspace_member_selection(repository, &member_path);
-                let package_name = omega_package_source::PackageName::parse(
+                let package_name = crate::identity::PackageName::parse(
                     selection.plan().selected_member().package_name().as_str(),
                 )
                 .expect("source and build package names share one grammar");

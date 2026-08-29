@@ -5,7 +5,6 @@ fn package_fixtures_resolve_as_distinct_local_sources() {
     let fixtures_root = package_fixtures_root();
     let mut identities = BTreeSet::new();
     for package in PACKAGE_FIXTURES {
-        PackageName::parse(*package).expect("fixture package names must be kebab-case");
         let root = fixtures_root.join(package);
         assert!(root.join("build.omg").is_file());
         assert!(root.join("main.omg").is_file());

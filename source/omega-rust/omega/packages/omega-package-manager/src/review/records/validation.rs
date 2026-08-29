@@ -1,9 +1,10 @@
 //! Exact-key validation across compiler review and resolved source custody.
 
+use crate::identity::PackageKey;
 use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::records::PackageReviewEvidence;
-use omega_package_source::{ImmutableSourceResolution, PackageKey};
+use omega_package_source::ImmutableSourceResolution;
 
 /// A compiler review set validated independently of source custody.
 ///
@@ -201,7 +202,8 @@ fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_package_source::{GitCommitId, GitTreeId, PackageName, SourceLineage};
+    use crate::identity::PackageName;
+    use omega_package_source::{GitCommitId, GitTreeId, SourceLineage};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct TestSource {

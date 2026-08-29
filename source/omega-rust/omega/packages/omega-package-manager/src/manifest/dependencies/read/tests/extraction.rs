@@ -1,10 +1,10 @@
 use super::PackageFixture;
+use crate::identity::AliasName;
 use crate::manifest::dependencies::read::{
     DependencyProjectionError, DependencySourceRequest, PackageSelection,
     extract_build_dependency_projection,
 };
 use crate::manifest::roles::{BuildDeclaration, BuildDeclarationError};
-use omega_package_source::AliasName;
 use std::fs;
 
 #[test]
