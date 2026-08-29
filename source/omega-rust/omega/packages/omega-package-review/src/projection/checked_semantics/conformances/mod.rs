@@ -1,9 +1,9 @@
 use super::super::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,
 };
-use super::lifetime_identities::lifetime_binder_ordinal;
-use super::nominal_identities::nominal_identity;
-use super::type_identities::{
+use super::declarations::nominal_identity;
+use super::types::lifetimes::lifetime_binder_ordinal;
+use super::types::{
     review_signature_type_identity_with_binders,
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
 };

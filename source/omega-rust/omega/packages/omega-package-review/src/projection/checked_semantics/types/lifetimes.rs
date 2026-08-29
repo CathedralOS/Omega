@@ -1,5 +1,5 @@
-use super::canonical::{canonical_digest_label, framed_identity};
-use super::nominal_identities::nominal_identity;
+use super::super::declarations::nominal_identity;
+use super::super::encoding::{canonical_digest_label, framed_identity};
 use crate::evidence::PackageReviewNominalOwner;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

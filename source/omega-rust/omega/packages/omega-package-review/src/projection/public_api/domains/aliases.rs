@@ -2,7 +2,7 @@ use crate::evidence::{
     PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
     PackageReviewDomainEstablishmentRoute,
 };
-use crate::projection::exact_identity::nominal_identities::{
+use crate::projection::checked_semantics::declarations::{
     nominal_identity, trait_requirement_identity,
 };
 use omega_compiler::CheckedCompilation;

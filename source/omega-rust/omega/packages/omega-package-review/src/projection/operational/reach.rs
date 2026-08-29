@@ -1,4 +1,4 @@
-use super::super::exact_identity::nominal_identities::{
+use super::super::checked_semantics::declarations::{
     nominal_identity, nominal_owner, trait_requirement_identity,
 };
 use crate::evidence::{PackageReviewInstallationReach, PackageReviewNominalIdentity};

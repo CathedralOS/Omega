@@ -1,4 +1,4 @@
-use super::super::exact_identity::nominal_identities::{
+use super::super::checked_semantics::declarations::{
     nominal_identity, provider_requirement_identity,
 };
 use super::super::providers::families::project_selected_provider_families;

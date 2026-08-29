@@ -6,9 +6,9 @@ use crate::evidence::{
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionParameterApplication,
 };
+use crate::projection::contracts::checked::facts::ContractProjectionContext;
 use crate::projection::contracts::expressions::names::portable_parameter_position;
 use crate::projection::contracts::expressions::projection::project_contract_expression_with_substitutions;
-use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
 
 use super::binders::{project_proposition_binder_argument, proposition_binder_value_expression};
 use super::endpoint::project_proposition_endpoint;

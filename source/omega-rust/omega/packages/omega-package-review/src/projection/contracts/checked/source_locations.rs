@@ -3,7 +3,7 @@ use crate::evidence::projection::ProjectedNestedSourceLocation;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 
-pub(crate) fn proof_fact_handle(
+fn proof_fact_handle_at(
     facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
     offset: u32,
 ) -> psi_arena::Handle<psi_typed_trees::domain::ProofFact> {
@@ -25,7 +25,7 @@ pub(crate) fn project_required_proof_fact_source_locations(
     let mut locations = Vec::with_capacity(facts.len());
     for offset in 0..facts.count() {
         let source_span = compilation
-            .proof_fact_source_span(proof_fact_handle(facts, offset))
+            .proof_fact_source_span(proof_fact_handle_at(facts, offset))
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "{subject} fact has no exact authored source custody"
@@ -52,7 +52,7 @@ pub(crate) fn project_contract_source_locations(
             });
         }
         for offset in 0..contract.facts.count() {
-            let fact = proof_fact_handle(contract.facts, offset);
+            let fact = proof_fact_handle_at(contract.facts, offset);
             match compilation.proof_fact_source_span(fact) {
                 Some(source_span) => locations.push(ProjectedNestedSourceLocation {
                     source_span,

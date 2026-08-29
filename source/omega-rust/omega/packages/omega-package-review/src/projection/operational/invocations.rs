@@ -1,4 +1,4 @@
-use super::super::exact_identity::nominal_identities::nominal_identity;
+use super::super::checked_semantics::declarations::nominal_identity;
 use crate::evidence::PackageReviewSynchronousInvocation;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

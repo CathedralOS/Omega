@@ -1,7 +1,7 @@
 mod authority;
 mod callables;
+mod checked_semantics;
 mod contracts;
-mod exact_identity;
 mod operational;
 mod orchestration;
 mod providers;

@@ -1,6 +1,6 @@
 use crate::evidence::PackageReviewSourceLocationRole;
 use crate::evidence::projection::ProjectedNestedSourceLocation;
-use crate::projection::exact_identity::checked_facts::exactly_one;
+use crate::projection::checked_semantics::facts::exactly_one;
 use crate::projection::source_custody::locations::canonical_source_span_location;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
@@ -142,7 +142,7 @@ pub(crate) fn project_signature_service_reach_source_locations(
     Ok(authored_service_reach_locations(authored))
 }
 
-pub(crate) fn exact_authored_service_reach_row<'a>(
+fn exact_authored_service_reach_row<'a>(
     compilation: &'a CheckedCompilation,
     owner: SymbolHandle,
     owner_name: &str,
@@ -183,7 +183,7 @@ pub(crate) fn exact_authored_service_reach_row<'a>(
     Ok(authored)
 }
 
-pub(crate) fn derive_declared_service_reach(
+fn derive_declared_service_reach(
     compilation: &CheckedCompilation,
     authored: Option<&psi_typed_trees::signature::AuthoredServiceReachRow>,
     invocations: &[psi_effects::InvocationTarget],
@@ -243,7 +243,7 @@ pub(crate) fn derive_declared_service_reach(
     Ok(closure)
 }
 
-pub(crate) fn authored_service_reach_locations(
+fn authored_service_reach_locations(
     authored: Option<&psi_typed_trees::signature::AuthoredServiceReachRow>,
 ) -> Vec<ProjectedNestedSourceLocation> {
     let Some(authored) = authored else {

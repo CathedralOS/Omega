@@ -1,4 +1,4 @@
-use super::super::exact_identity::nominal_identities::{
+use super::super::checked_semantics::declarations::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };
 use crate::evidence::projection::{

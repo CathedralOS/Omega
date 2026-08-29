@@ -1,10 +1,8 @@
 use crate::evidence::{PackageReviewContractFact, PackageReviewNominalIdentity};
+use crate::projection::checked_semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::projection::contracts::checked::facts::ContractProjectionContext;
 use crate::projection::contracts::expressions::projection::project_contract_expression;
-use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
 use crate::projection::contracts::propositions::application::project_contract_proposition;
-use crate::projection::exact_identity::nominal_identities::{
-    nominal_identity, reviewed_package_owns,
-};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

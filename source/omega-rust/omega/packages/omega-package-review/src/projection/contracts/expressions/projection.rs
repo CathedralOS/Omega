@@ -23,13 +23,11 @@ use crate::evidence::{
     PackageReviewContractCallTarget, PackageReviewContractExpression,
     PackageReviewContractOperatorMeaning, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
-use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
-use crate::projection::exact_identity::nominal_identities::{
-    nominal_identity, reviewed_package_owns,
-};
-use crate::projection::exact_identity::type_identities::{
+use crate::projection::checked_semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::projection::checked_semantics::types::{
     review_signature_type_identity_with_binders, review_type_identity_with_binders,
 };
+use crate::projection::contracts::checked::facts::ContractProjectionContext;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

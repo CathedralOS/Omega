@@ -1,23 +1,23 @@
-use super::super::contracts::metadata::contracts::{
-    ContractProjectionContext, project_trait_requirement_contracts,
-};
-use super::super::contracts::metadata::operations::{
-    project_signature_invocation_source_locations, project_signature_operational_source_locations,
-};
-use super::super::contracts::metadata::parameters::{
-    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
-};
-use super::super::contracts::metadata::service_reach::project_signature_service_reach_source_locations;
-use super::super::contracts::metadata::source_locations::project_contract_source_locations;
-use super::super::exact_identity::conformances::project_conformance_bounds;
-use super::super::exact_identity::lifetime_identities::lifetime_binder_ordinal;
-use super::super::exact_identity::nominal_identities::{
+use super::super::checked_semantics::conformances::project_conformance_bounds;
+use super::super::checked_semantics::declarations::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,
 };
-use super::super::exact_identity::parameter_contracts::{
+use super::super::checked_semantics::signatures::parameters::{
     project_type_parameters, project_type_parameters_after,
 };
-use super::super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::super::checked_semantics::types::lifetimes::lifetime_binder_ordinal;
+use super::super::checked_semantics::types::review_signature_type_identity_with_binders;
+use super::super::contracts::checked::facts::{
+    ContractProjectionContext, project_trait_requirement_contracts,
+};
+use super::super::contracts::checked::operations::{
+    project_signature_invocation_source_locations, project_signature_operational_source_locations,
+};
+use super::super::contracts::checked::parameters::{
+    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
+};
+use super::super::contracts::checked::service_reach::project_signature_service_reach_source_locations;
+use super::super::contracts::checked::source_locations::project_contract_source_locations;
 use super::super::operational::{
     project_crash_routes, project_service_row, project_synchronous_invocations,
     project_trait_requirement_termination,
