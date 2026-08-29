@@ -492,14 +492,8 @@ Remaining:
   the verifier-owned semantic module, so coherent operation renumbering or an
   extra structural-type row cannot substitute a different self-consistent
   record. The complete ranked record survives on `ObjectFunction`, while
-  stripping that optional record still rejects. Ranked-
-  aware native-fuel rebasing is also complete for this carrier: both producer
-  and independent image replay
-  map each original branch instruction after its own hot charge, map the header
-  and exit to the first charge at those semantic sites, rewrite all three x86
-  or AArch64 immediates, and reject metered-byte mutation. The stripped-custody
-  shape cannot enter instrumentation. Final-image, installation, and native-
-  artifact custody are now complete for the unmetered carrier. Final-image
+  stripping that optional record still rejects. Final-image, installation, and
+  native-artifact custody are now complete for the unmetered carrier. Final-image
   emission and source-free native-artifact validation independently replay the
   ranked contract, target decoding, and all nine object fuel rows. Canonical
   installation format 43 retains an explicit disjoint ranked-body tag, rejects
@@ -508,8 +502,20 @@ Remaining:
   interpretable proof question for ranked modules rather than incorrectly
   requiring the ordinary acyclic execution carrier; native and fixed-fuel
   admission remain separate mandatory replays. The resulting native artifact
-  validates for both Linux ISAs. The next substep is native rank 0, 1, and 3
-  schedule comparison before retrying the product build.
+  validates for both Linux ISAs. Ranked-aware native-fuel
+  rebasing and metered-object replay are complete. The producer retains a typed
+  five-coordinate rebase record and patches only the three target-relative
+  semantic branches; header and false-exit targets enter the first hot charge
+  at their destination site rather than
+  skipping equal-offset fuel rows. Independent image replay decodes every
+  x86-64 and AArch64 hot charge, cold dispatch, and rebased ranked branch
+  without calling producer encoders, reconstructs the rebase record, and
+  retains both semantic and metered custody. Both native-fuel executable-image
+  routes have a named ranked fence while metered object-container emission
+  remains admitted. The next substep is native-fuel final-image, installation,
+  and native-artifact custody, including exact transfer-state preservation,
+  followed by native rank 0, 1, and 3 schedule comparison before retrying the
+  product build.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

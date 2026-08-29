@@ -36,6 +36,7 @@ psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 
 [dev-dependencies]
+omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }

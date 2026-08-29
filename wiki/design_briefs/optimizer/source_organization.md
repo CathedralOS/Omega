@@ -184,6 +184,16 @@ An architecture guard prevents this subtree from depending on machine emission
 or calling either target encoder, and the entrance keeps final-image authority
 explicitly fenced.
 
+Native-fuel instrumentation and replay now follow the same downward navigation
+on both sides of their trust boundary. Each `native_fuel/mod.rs` is a small real
+join: machine emission classifies ranked custody before general two-pass
+instrumentation, while image emission admits the semantic object before general
+meter replay and ranked branch replay. Their `general.rs` leaves retain the
+ordinary algorithm and focused fixtures; `ranked_u32_countdown.rs` owns only the
+charge-interleaved control distinction. The architecture gate governs both
+trees and prevents image replay from calling charge, cold-dispatch, or ranked-
+branch producer encoders.
+
 Psi SCCP constant evaluation now follows the same downward-navigation rule.
 Its 35-line entrance owns the shared SCCP rule contract and names boolean and
 integer families. The integer entrance descends into binary arithmetic/shifts,

@@ -1,22 +1,21 @@
 //! Independent object-boundary replay of native logical-fuel instrumentation.
 //!
 //! Source semantics are admitted through the ordinary object constructor. This
-//! owner then reconstructs every inserted hot charge, ranked internal-branch
-//! rebase, and appended cold dispatch from the immutable source plan and rejects
-//! any producer-owned offset or byte claim that differs. The result deliberately
-//! is not yet an executable object:
+//! owner then reconstructs every inserted hot charge and appended cold dispatch
+//! from the immutable source plan and rejects any producer-owned offset or byte
+//! claim that differs. The result deliberately is not yet an executable object:
 //! relocation and symbol translation remain a later, separately validated step.
 
 use omega_installation_evidence::{FuelAttributionSite, NativeFuelTargetPlanProjection};
 use omega_machine_code::{
     MachineCodeFunction, NativeFuelAttribution, NativeFuelChargeRecord, NativeFuelInstrumentedPlan,
-    NativeFuelSite,
+    NativeFuelRankedU32CountdownRebaseRecord, NativeFuelSite,
 };
 use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind};
 use omega_target::Architecture;
 use psi_core::MachineId;
 
-use super::{ObjectArtifact, ObjectError, build_object_artifact};
+use super::super::{ObjectArtifact, ObjectError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedNativeFuelArtifact {
@@ -61,6 +60,7 @@ pub struct ValidatedNativeFuelFunction {
     pub byte_count: usize,
     pub semantic_end_offset: usize,
     pub charges: Vec<NativeFuelChargeRecord>,
+    pub ranked_u32_countdown: Option<NativeFuelRankedU32CountdownRebaseRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,8 +72,9 @@ pub enum NativeFuelValidationError {
     NonCanonicalAttribution(MachineId),
     RecordMismatch(MachineId),
     ByteMismatch(MachineId),
+    InvalidRankedCountdownRebasing(MachineId),
     SizeOverflow,
-    Encoding(String),
+    TargetValidation(String),
     ObjectTranslation,
 }
 
@@ -87,16 +88,11 @@ impl std::error::Error for NativeFuelValidationError {}
 
 /// Validate source semantics first, then reconstruct the complete metered text
 /// without trusting producer-supplied charge offsets, sizes, or bytes.
-pub fn validate_native_fuel_plan(
+pub(super) fn validate_native_fuel_after_semantics(
     plan: &NativeFuelInstrumentedPlan,
+    semantic_artifact: ObjectArtifact,
+    ranked_machine: Option<MachineId>,
 ) -> Result<ValidatedNativeFuelArtifact, NativeFuelValidationError> {
-    if plan.source.target != plan.target_policy.target
-        || plan.target_policy.profile.native_target() != plan.source.target
-    {
-        return Err(NativeFuelValidationError::TargetMismatch);
-    }
-    let semantic_artifact =
-        build_object_artifact(&plan.source).map_err(NativeFuelValidationError::SemanticObject)?;
     if plan.source.functions.len() != plan.functions.len() {
         return Err(NativeFuelValidationError::FunctionCountMismatch);
     }
@@ -109,9 +105,27 @@ pub fn validate_native_fuel_plan(
             return Err(NativeFuelValidationError::FunctionMismatch(source.machine));
         }
         let text_offset = text_bytes.len();
-        let (expected_bytes, semantic_end_offset, charges) =
-            replay_function(architecture, &plan.target_policy, source, text_offset)?;
-        if supplied.semantic_end_offset != semantic_end_offset || supplied.charges != charges {
+        let (mut expected_bytes, semantic_end_offset, charges) = replay_function(
+            architecture,
+            &plan.target_policy,
+            source,
+            text_offset,
+            &supplied.bytes,
+        )?;
+        let ranked_u32_countdown = if ranked_machine == Some(source.machine) {
+            Some(super::ranked_u32_countdown::replay_rebased_branches(
+                plan.source.target,
+                source,
+                &mut expected_bytes,
+                &supplied.bytes,
+            )?)
+        } else {
+            None
+        };
+        if supplied.semantic_end_offset != semantic_end_offset
+            || supplied.charges != charges
+            || supplied.ranked_u32_countdown != ranked_u32_countdown
+        {
             return Err(NativeFuelValidationError::RecordMismatch(source.machine));
         }
         if supplied.bytes != expected_bytes {
@@ -125,6 +139,7 @@ pub fn validate_native_fuel_plan(
             byte_count,
             semantic_end_offset,
             charges,
+            ranked_u32_countdown,
         });
     }
 
@@ -238,6 +253,7 @@ fn replay_function(
     policy: &NativeFuelTargetPlanProjection,
     source: &MachineCodeFunction,
     function_text_offset: usize,
+    supplied: &[u8],
 ) -> Result<(Vec<u8>, usize, Vec<NativeFuelChargeRecord>), NativeFuelValidationError> {
     if source
         .fuel_attribution
@@ -296,16 +312,13 @@ fn replay_function(
                     .ok_or(NativeFuelValidationError::SizeOverflow)?,
             )
             .ok_or(NativeFuelValidationError::SizeOverflow)?;
-        let branch_origin = charge_code_offset
-            .checked_add(failure_branch_origin(architecture))
-            .ok_or(NativeFuelValidationError::SizeOverflow)?;
-        let branch_distance = signed_distance(cold_dispatch_code_offset, branch_origin)?;
-        bytes.extend_from_slice(&encode_hot_charge(
-            architecture,
-            policy,
-            attribution.units,
-            branch_distance,
-        )?);
+        bytes.resize(
+            bytes
+                .len()
+                .checked_add(hot_size)
+                .ok_or(NativeFuelValidationError::SizeOverflow)?,
+            0,
+        );
         let semantic_code_offset = bytes.len();
         charges.push(NativeFuelChargeRecord {
             attribution,
@@ -321,20 +334,46 @@ fn replay_function(
     if bytes.len() != semantic_end_offset {
         return Err(NativeFuelValidationError::RecordMismatch(source.machine));
     }
-    if source.ranked_u32_countdown.is_some() {
-        rebase_ranked_countdown_branches(architecture, &source.fuel_attribution, &mut bytes)?;
-    }
     for charge in &charges {
         let retry_text_offset = function_text_offset
             .checked_add(charge.charge_code_offset)
             .ok_or(NativeFuelValidationError::SizeOverflow)?;
-        bytes.extend_from_slice(&encode_cold_dispatch(
+        let hot = supplied
+            .get(
+                charge.charge_code_offset
+                    ..charge
+                        .charge_code_offset
+                        .checked_add(hot_size)
+                        .ok_or(NativeFuelValidationError::SizeOverflow)?,
+            )
+            .ok_or(NativeFuelValidationError::ByteMismatch(source.machine))?;
+        let cold = supplied
+            .get(
+                charge.cold_dispatch_code_offset
+                    ..charge
+                        .cold_dispatch_code_offset
+                        .checked_add(cold_size)
+                        .ok_or(NativeFuelValidationError::SizeOverflow)?,
+            )
+            .ok_or(NativeFuelValidationError::ByteMismatch(source.machine))?;
+        validate_charge(
+            architecture,
+            policy,
+            charge.attribution,
+            charge.charge_code_offset,
+            charge.cold_dispatch_code_offset,
+            hot,
+        )?;
+        validate_cold_dispatch(
             architecture,
             policy,
             charge.attribution,
             u64::try_from(retry_text_offset)
                 .map_err(|_| NativeFuelValidationError::SizeOverflow)?,
-        )?);
+            cold,
+        )?;
+        bytes[charge.charge_code_offset..charge.charge_code_offset + hot_size].copy_from_slice(hot);
+        bytes.extend_from_slice(cold);
     }
     if bytes.len() != final_size {
         return Err(NativeFuelValidationError::SizeOverflow);
@@ -342,48 +381,73 @@ fn replay_function(
     Ok((bytes, semantic_end_offset, charges))
 }
 
-fn encode_hot_charge(
+fn validate_charge(
     architecture: Architecture,
     policy: &NativeFuelTargetPlanProjection,
-    units: u64,
-    distance: isize,
-) -> Result<Vec<u8>, NativeFuelValidationError> {
-    match architecture {
-        Architecture::X86_64 => {
-            omega_isa_x86_64::encode_native_fuel_charge(policy, units, distance)
-        }
-        Architecture::Aarch64 => {
-            omega_isa_aarch64::encode_native_fuel_charge(policy, units, distance)
-        }
-    }
-    .map_err(|diagnostic| NativeFuelValidationError::Encoding(diagnostic.to_string()))
+    attribution: NativeFuelAttribution,
+    charge_code_offset: usize,
+    cold_dispatch_code_offset: usize,
+    bytes: &[u8],
+) -> Result<(), NativeFuelValidationError> {
+    let error = match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::validate_x86_native_fuel_charge(
+            bytes,
+            policy,
+            attribution.units,
+            charge_code_offset,
+            cold_dispatch_code_offset,
+        )
+        .err()
+        .map(|error| error.to_string()),
+        Architecture::Aarch64 => omega_isa_aarch64::validate_aarch64_native_fuel_charge(
+            bytes,
+            policy,
+            attribution.units,
+            charge_code_offset,
+            cold_dispatch_code_offset,
+        )
+        .err()
+        .map(|error| error.to_string()),
+    };
+    error.map_or(Ok(()), |error| {
+        Err(NativeFuelValidationError::TargetValidation(error))
+    })
 }
 
-fn encode_cold_dispatch(
+fn validate_cold_dispatch(
     architecture: Architecture,
     policy: &NativeFuelTargetPlanProjection,
     attribution: NativeFuelAttribution,
     retry_text_offset: u64,
-) -> Result<Vec<u8>, NativeFuelValidationError> {
+    bytes: &[u8],
+) -> Result<(), NativeFuelValidationError> {
     let site = match attribution.site {
         NativeFuelSite::Operation(operation) => FuelAttributionSite::Operation(operation),
         NativeFuelSite::Edge(edge) => FuelAttributionSite::Edge(edge),
     };
-    match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::encode_native_fuel_cold_dispatch(
+    let error = match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::validate_x86_native_fuel_cold_dispatch(
+            bytes,
             policy,
             site,
             attribution.units,
             retry_text_offset,
-        ),
-        Architecture::Aarch64 => omega_isa_aarch64::encode_native_fuel_cold_dispatch(
+        )
+        .err()
+        .map(|error| error.to_string()),
+        Architecture::Aarch64 => omega_isa_aarch64::validate_aarch64_native_fuel_cold_dispatch(
+            bytes,
             policy,
             site,
             attribution.units,
             retry_text_offset,
-        ),
-    }
-    .map_err(|diagnostic| NativeFuelValidationError::Encoding(diagnostic.to_string()))
+        )
+        .err()
+        .map(|error| error.to_string()),
+    };
+    error.map_or(Ok(()), |error| {
+        Err(NativeFuelValidationError::TargetValidation(error))
+    })
 }
 
 const fn hot_charge_byte_count(architecture: Architecture) -> usize {
@@ -400,92 +464,10 @@ const fn cold_dispatch_byte_count(architecture: Architecture) -> usize {
     }
 }
 
-const fn failure_branch_origin(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_FAILURE_BRANCH_END_OFFSET,
-        Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_FAILURE_BRANCH_OFFSET,
-    }
-}
-
-fn signed_distance(target: usize, origin: usize) -> Result<isize, NativeFuelValidationError> {
-    isize::try_from(target)
-        .map_err(|_| NativeFuelValidationError::SizeOverflow)?
-        .checked_sub(isize::try_from(origin).map_err(|_| NativeFuelValidationError::SizeOverflow)?)
-        .ok_or(NativeFuelValidationError::SizeOverflow)
-}
-
-fn rebase_ranked_countdown_branches(
-    architecture: Architecture,
-    attributions: &[NativeFuelAttribution],
-    bytes: &mut [u8],
-) -> Result<(), NativeFuelValidationError> {
-    let translated = |source_offset, include_charges_at_offset| {
-        translated_ranked_offset(
-            source_offset,
-            attributions,
-            include_charges_at_offset,
-            architecture,
-        )
-    };
-    match architecture {
-        Architecture::X86_64 => omega_isa_x86_64::rebase_ranked_u32_countdown_branches(
-            bytes,
-            translated(
-                omega_isa_x86_64::X86_64_RANKED_U32_PREHEADER_BRANCH_OFFSET,
-                true,
-            )?,
-            translated(omega_isa_x86_64::X86_64_RANKED_U32_HEADER_OFFSET, false)?,
-            translated(omega_isa_x86_64::X86_64_RANKED_U32_EXIT_BRANCH_OFFSET, true)?,
-            translated(omega_isa_x86_64::X86_64_RANKED_U32_EXIT_OFFSET, false)?,
-            translated(
-                omega_isa_x86_64::X86_64_RANKED_U32_BACKWARD_BRANCH_OFFSET,
-                true,
-            )?,
-        )
-        .map_err(|diagnostic| NativeFuelValidationError::Encoding(diagnostic.to_string())),
-        Architecture::Aarch64 => omega_isa_aarch64::rebase_ranked_u32_countdown_branches(
-            bytes,
-            translated(
-                omega_isa_aarch64::AARCH64_RANKED_U32_PREHEADER_BRANCH_OFFSET,
-                true,
-            )?,
-            translated(omega_isa_aarch64::AARCH64_RANKED_U32_HEADER_OFFSET, false)?,
-            translated(
-                omega_isa_aarch64::AARCH64_RANKED_U32_EXIT_BRANCH_OFFSET,
-                true,
-            )?,
-            translated(omega_isa_aarch64::AARCH64_RANKED_U32_EXIT_OFFSET, false)?,
-            translated(
-                omega_isa_aarch64::AARCH64_RANKED_U32_BACKWARD_BRANCH_OFFSET,
-                true,
-            )?,
-        )
-        .map_err(|diagnostic| NativeFuelValidationError::Encoding(diagnostic.to_string())),
-    }
-}
-
-fn translated_ranked_offset(
-    source_offset: usize,
-    attributions: &[NativeFuelAttribution],
-    include_charges_at_offset: bool,
-    architecture: Architecture,
-) -> Result<usize, NativeFuelValidationError> {
-    let charge_count = attributions.partition_point(|row| {
-        row.code_offset < source_offset
-            || (include_charges_at_offset && row.code_offset == source_offset)
-    });
-    source_offset
-        .checked_add(
-            hot_charge_byte_count(architecture)
-                .checked_mul(charge_count)
-                .ok_or(NativeFuelValidationError::SizeOverflow)?,
-        )
-        .ok_or(NativeFuelValidationError::SizeOverflow)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::validate_native_fuel_plan;
     use omega_calling_conventions::MachineRegister;
     use omega_installation_evidence::{NativeFuelContextLayout, SponsorContextTransport};
     use omega_machine_code::{MachineCodePlan, NativeFuelAttribution, NativeFuelSite};
@@ -634,8 +616,8 @@ mod tests {
         bytes_changed.functions[0].bytes[0] ^= 1;
         assert_eq!(
             validate_native_fuel_plan(&bytes_changed),
-            Err(NativeFuelValidationError::ByteMismatch(
-                MachineId::new(1).unwrap()
+            Err(NativeFuelValidationError::TargetValidation(
+                "invalid x86-64 native-fuel bytes: MalformedInstruction".into()
             ))
         );
 

@@ -7,6 +7,7 @@
 mod fma;
 mod machine_effects;
 mod native_fuel_runtime;
+mod native_fuel_validation;
 mod post_handoff_writer;
 mod ranked_u32_countdown;
 mod register_model;
@@ -21,6 +22,10 @@ pub use machine_effects::{
 };
 pub use native_fuel_runtime::{
     X86NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,
+};
+pub use native_fuel_validation::{
+    X86NativeFuelValidationError, validate_x86_native_fuel_charge,
+    validate_x86_native_fuel_cold_dispatch,
 };
 pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,

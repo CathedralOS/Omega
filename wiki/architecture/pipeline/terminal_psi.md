@@ -955,9 +955,16 @@ premise, and requires the exact-subtract evidence before constructing resumable
   module, rejecting coherent coordinate substitution rather than accepting a
   merely self-consistent record. Its object function retains the complete
   ranked record, and a stripped record remains a hard failure. Ranked-aware
-  native-fuel instrumentation and independent image replay rebase and validate
-  the three internal branches around charge sites; final-image emission has a
-  separate named rejection until ranked final-byte replay lands. This authority
+  native-fuel instrumentation retains an explicit coordinate record while
+  rebasing the preheader, false-exit, and backedge branches around inserted hot
+  charges. A branch enters the first charge at its destination site, so repeated
+  header visits and the terminal false exit cannot skip equal-offset logical
+  work.
+  Metered-object replay independently decodes both targets' charge, cold-
+  dispatch, and rebased-branch bytes and reconstructs that record without
+  producer encoders. Metered object containers are admitted, while both ranked
+  native-fuel executable-image routes retain a named rejection until final-byte,
+  transfer-state, installation, and native-artifact custody land. This authority
   is not a general cyclic-control exception and cannot be obtained by converting
   either the interpreter carrier or ordinary acyclic verification.
 Unconditional jumps and conditional arms may additionally pass

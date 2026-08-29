@@ -1,7 +1,5 @@
 //! Exact Linux System-V `u32` countdown in the canonical incoming `edi` home.
 
-use psi_diagnostics::Diagnostic;
-
 pub const X86_64_RANKED_U32_COUNTDOWN_BYTE_COUNT: usize = 21;
 pub const X86_64_RANKED_U32_PREHEADER_BRANCH_OFFSET: usize = 0;
 pub const X86_64_RANKED_U32_PREHEADER_BRANCH_BYTE_COUNT: usize = 5;
@@ -171,48 +169,153 @@ pub fn validate_x86_64_ranked_u32_countdown_in_edi(
     })
 }
 
-/// Rebase only the three canonical relative fields after a caller expands the
-/// semantic layout with independently owned instrumentation.
-pub fn rebase_ranked_u32_countdown_branches(
-    bytes: &mut [u8],
-    preheader_offset: usize,
-    header_offset: usize,
-    exit_branch_offset: usize,
-    exit_offset: usize,
-    backward_branch_offset: usize,
-) -> Result<(), Diagnostic> {
-    patch_rel32(bytes, preheader_offset, 5, 1, header_offset, &[0xe9])?;
-    patch_rel32(bytes, exit_branch_offset, 6, 2, exit_offset, &[0x0f, 0x84])?;
-    patch_rel32(bytes, backward_branch_offset, 5, 1, header_offset, &[0xe9])
+/// Function-local coordinates for the three ranked control instructions after
+/// native-fuel charges have been inserted. Branch targets name the first hot
+/// charge at the destination site, not the relocated semantic instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64RankedU32CountdownRebasedBranchLayout {
+    pub preheader_branch_offset: usize,
+    pub header_charge_offset: usize,
+    pub exit_branch_offset: usize,
+    pub exit_charge_offset: usize,
+    pub backward_branch_offset: usize,
 }
 
-fn patch_rel32(
-    bytes: &mut [u8],
-    instruction_offset: usize,
-    instruction_size: usize,
-    immediate_offset: usize,
-    target_offset: usize,
-    opcode: &[u8],
-) -> Result<(), Diagnostic> {
-    if bytes.get(instruction_offset..instruction_offset + opcode.len()) != Some(opcode) {
-        return Err(Diagnostic::error("ranked x86-64 branch opcode drifted"));
+/// Target-owned branch fragments for the charge-interleaved countdown body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64RankedU32CountdownRebasedBranches {
+    preheader: [u8; 5],
+    exit: [u8; 6],
+    backward: [u8; 5],
+}
+
+impl X86_64RankedU32CountdownRebasedBranches {
+    pub const fn preheader(self) -> [u8; 5] {
+        self.preheader
     }
-    let origin = instruction_offset
-        .checked_add(instruction_size)
-        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch origin overflowed"))?;
-    let distance = isize::try_from(target_offset)
-        .ok()
-        .and_then(|target| isize::try_from(origin).ok().map(|origin| target - origin))
-        .and_then(|distance| i32::try_from(distance).ok())
-        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch is out of rel32 range"))?;
-    let immediate = instruction_offset
-        .checked_add(immediate_offset)
-        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch field overflowed"))?;
-    bytes
-        .get_mut(immediate..immediate + 4)
-        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch field is outside code"))?
-        .copy_from_slice(&distance.to_le_bytes());
+
+    pub const fn exit(self) -> [u8; 6] {
+        self.exit
+    }
+
+    pub const fn backward(self) -> [u8; 5] {
+        self.backward
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64RankedU32CountdownBranchError {
+    CoordinateOverflow,
+    DistanceOutOfRange,
+    TruncatedInstruction,
+    MalformedInstruction,
+    TargetMismatch,
+}
+
+impl std::fmt::Display for X86_64RankedU32CountdownBranchError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid rebased x86-64 ranked u32 countdown branch: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for X86_64RankedU32CountdownBranchError {}
+
+/// Encode only the three control fragments whose rel32 fields move when hot
+/// charges are interleaved with the otherwise immutable semantic body.
+pub fn encode_x86_64_rebased_ranked_u32_countdown_branches(
+    layout: X86_64RankedU32CountdownRebasedBranchLayout,
+) -> Result<X86_64RankedU32CountdownRebasedBranches, X86_64RankedU32CountdownBranchError> {
+    let preheader_end = layout
+        .preheader_branch_offset
+        .checked_add(5)
+        .ok_or(X86_64RankedU32CountdownBranchError::CoordinateOverflow)?;
+    let exit_end = layout
+        .exit_branch_offset
+        .checked_add(6)
+        .ok_or(X86_64RankedU32CountdownBranchError::CoordinateOverflow)?;
+    let backward_end = layout
+        .backward_branch_offset
+        .checked_add(5)
+        .ok_or(X86_64RankedU32CountdownBranchError::CoordinateOverflow)?;
+    let mut preheader = [0_u8; 5];
+    preheader[0] = 0xe9;
+    preheader[1..].copy_from_slice(&x86_rel32(layout.header_charge_offset, preheader_end)?);
+    let mut exit = [0_u8; 6];
+    exit[..2].copy_from_slice(&[0x0f, 0x84]);
+    exit[2..].copy_from_slice(&x86_rel32(layout.exit_charge_offset, exit_end)?);
+    let mut backward = [0_u8; 5];
+    backward[0] = 0xe9;
+    backward[1..].copy_from_slice(&x86_rel32(layout.header_charge_offset, backward_end)?);
+    Ok(X86_64RankedU32CountdownRebasedBranches {
+        preheader,
+        exit,
+        backward,
+    })
+}
+
+/// Independently decode the three supplied metered branches and prove that
+/// they enter the required hot-charge groups. This does not call the fragment
+/// encoder above.
+pub fn validate_x86_64_rebased_ranked_u32_countdown_branches(
+    bytes: &[u8],
+    layout: X86_64RankedU32CountdownRebasedBranchLayout,
+) -> Result<(), X86_64RankedU32CountdownBranchError> {
+    let preheader = bytes
+        .get(layout.preheader_branch_offset..layout.preheader_branch_offset.saturating_add(5))
+        .ok_or(X86_64RankedU32CountdownBranchError::TruncatedInstruction)?;
+    let exit = bytes
+        .get(layout.exit_branch_offset..layout.exit_branch_offset.saturating_add(6))
+        .ok_or(X86_64RankedU32CountdownBranchError::TruncatedInstruction)?;
+    let backward = bytes
+        .get(layout.backward_branch_offset..layout.backward_branch_offset.saturating_add(5))
+        .ok_or(X86_64RankedU32CountdownBranchError::TruncatedInstruction)?;
+    if preheader[0] != 0xe9 || exit[..2] != [0x0f, 0x84] || backward[0] != 0xe9 {
+        return Err(X86_64RankedU32CountdownBranchError::MalformedInstruction);
+    }
+    let decoded_target = |instruction: &[u8], field_start: usize, instruction_end: usize| {
+        let displacement = i32::from_le_bytes(
+            instruction[field_start..field_start + 4]
+                .try_into()
+                .expect("validated x86-64 rel32 field has four bytes"),
+        );
+        i128::try_from(instruction_end)
+            .ok()
+            .and_then(|end| end.checked_add(i128::from(displacement)))
+            .and_then(|target| usize::try_from(target).ok())
+    };
+    if decoded_target(
+        preheader,
+        1,
+        layout.preheader_branch_offset.saturating_add(5),
+    ) != Some(layout.header_charge_offset)
+        || decoded_target(exit, 2, layout.exit_branch_offset.saturating_add(6))
+            != Some(layout.exit_charge_offset)
+        || decoded_target(backward, 1, layout.backward_branch_offset.saturating_add(5))
+            != Some(layout.header_charge_offset)
+    {
+        return Err(X86_64RankedU32CountdownBranchError::TargetMismatch);
+    }
     Ok(())
+}
+
+fn x86_rel32(
+    target: usize,
+    instruction_end: usize,
+) -> Result<[u8; 4], X86_64RankedU32CountdownBranchError> {
+    let distance = i128::try_from(target)
+        .ok()
+        .and_then(|target| {
+            i128::try_from(instruction_end)
+                .ok()
+                .and_then(|end| target.checked_sub(end))
+        })
+        .ok_or(X86_64RankedU32CountdownBranchError::CoordinateOverflow)?;
+    i32::try_from(distance)
+        .map(i32::to_le_bytes)
+        .map_err(|_| X86_64RankedU32CountdownBranchError::DistanceOutOfRange)
 }
 
 #[cfg(test)]
@@ -290,6 +393,58 @@ mod tests {
         assert_eq!(
             validate_x86_64_ranked_u32_countdown_in_edi(&trailing),
             Err(X86_64RankedU32CountdownEncodingError::WrongByteCount)
+        );
+    }
+
+    #[test]
+    fn rebased_branch_fragments_target_charge_group_entrances() {
+        let layout = X86_64RankedU32CountdownRebasedBranchLayout {
+            preheader_branch_offset: 36,
+            header_charge_offset: 41,
+            exit_branch_offset: 115,
+            exit_charge_offset: 272,
+            backward_branch_offset: 267,
+        };
+        let fragments = encode_x86_64_rebased_ranked_u32_countdown_branches(layout).unwrap();
+        assert_eq!(fragments.preheader(), [0xe9, 0, 0, 0, 0]);
+        assert_eq!(&fragments.exit()[2..], &151_i32.to_le_bytes());
+        assert_eq!(&fragments.backward()[1..], &(-231_i32).to_le_bytes());
+        let mut bytes = vec![0_u8; 345];
+        bytes[36..41].copy_from_slice(&fragments.preheader());
+        bytes[115..121].copy_from_slice(&fragments.exit());
+        bytes[267..272].copy_from_slice(&fragments.backward());
+        validate_x86_64_rebased_ranked_u32_countdown_branches(&bytes, layout).unwrap();
+
+        bytes[117] ^= 1;
+        assert_eq!(
+            validate_x86_64_rebased_ranked_u32_countdown_branches(&bytes, layout),
+            Err(X86_64RankedU32CountdownBranchError::TargetMismatch)
+        );
+        bytes[117] ^= 1;
+        bytes[115] ^= 1;
+        assert_eq!(
+            validate_x86_64_rebased_ranked_u32_countdown_branches(&bytes, layout),
+            Err(X86_64RankedU32CountdownBranchError::MalformedInstruction)
+        );
+        assert_eq!(
+            validate_x86_64_rebased_ranked_u32_countdown_branches(&bytes[..270], layout),
+            Err(X86_64RankedU32CountdownBranchError::TruncatedInstruction)
+        );
+    }
+
+    #[test]
+    fn rebased_branch_encoder_rejects_rel32_overflow() {
+        assert_eq!(
+            encode_x86_64_rebased_ranked_u32_countdown_branches(
+                X86_64RankedU32CountdownRebasedBranchLayout {
+                    preheader_branch_offset: 0,
+                    header_charge_offset: usize::MAX,
+                    exit_branch_offset: 10,
+                    exit_charge_offset: 20,
+                    backward_branch_offset: 30,
+                }
+            ),
+            Err(X86_64RankedU32CountdownBranchError::DistanceOutOfRange)
         );
     }
 }

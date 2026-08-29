@@ -35,8 +35,9 @@ pub struct MachineCodePlan {
 
 /// Metered bytes derived from one immutable, already emitted semantic plan.
 /// The source plan remains intact so object validation can replay every
-/// semantic interval independently; charge records provide the exact mapping
-/// into the derived byte stream.
+/// semantic interval independently. Charge records map those intervals into
+/// the derived byte stream; ranked branch immediates are the one explicitly
+/// recorded, equivalent rebase over that mapping.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeFuelInstrumentedPlan {
     pub source: MachineCodePlan,
@@ -51,6 +52,18 @@ pub struct NativeFuelInstrumentedFunction {
     /// End of semantic code and start of appended cold dispatch thunks.
     pub semantic_end_offset: usize,
     pub charges: Vec<NativeFuelChargeRecord>,
+    /// Exact function-local control coordinates for the one ranked carrier
+    /// whose semantic branch immediates move when hot charges are inserted.
+    pub ranked_u32_countdown: Option<NativeFuelRankedU32CountdownRebaseRecord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeFuelRankedU32CountdownRebaseRecord {
+    pub preheader_branch_code_offset: usize,
+    pub header_charge_code_offset: usize,
+    pub exit_branch_code_offset: usize,
+    pub exit_charge_code_offset: usize,
+    pub backward_branch_code_offset: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +72,8 @@ pub struct NativeFuelChargeRecord {
     pub attribution: NativeFuelAttribution,
     pub charge_code_offset: usize,
     pub charge_byte_count: usize,
-    /// Position of the unchanged semantic interval in the metered bytes.
+    /// Position of the corresponding semantic interval in the metered bytes.
+    /// Ranked control fragments may contain an equivalent rebased immediate.
     pub semantic_code_offset: usize,
     pub cold_dispatch_code_offset: usize,
     pub cold_dispatch_byte_count: usize,

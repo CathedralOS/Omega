@@ -460,6 +460,15 @@ not authorize structured cancellation, migration, replacement, or source-level
 handling. Replenishment restores that opaque state at the failed pre-charge
 check, so already completed work and paid call edges are not replayed.
 
+When inserting charges into ranked control, an internal branch to a semantic
+site targets the first charge associated with that source coordinate. This is
+distinct from the relocated semantic-instruction coordinate, which follows all
+charges at the same source offset. The distinction ensures every header visit
+pays its zero/compare work and the false exit pays its edge/return work. Target
+encoders may rebase the relative fields, but object admission independently
+decodes hot charges, cold dispatches, and semantic branch destinations before
+retaining metered custody.
+
 Every dynamic region requires an exhaustion-transfer plan executable from each
 charge site without waiting on a resource held by the suspended activation.
 The compiler/target transfer stub is trusted instrumentation outside Terminal
