@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::manifest::dependencies::read::{ActiveDependencyAliasError, ActiveDependencyAliasScope};
+use crate::resolution::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits};
 use crate::resolution::{PackageSourceClosureResolutionError, ResolvedPackageSourceClosure};
 use omega_target::TargetProfile;
 
@@ -81,8 +82,75 @@ fn selects_common_and_one_exact_profile_without_acquiring_inactive_sources() {
         .collect::<Vec<_>>();
     assert_eq!(authored_indices, [0, 1]);
 
+    let subject = CanonicalSourceClosureSubject::from_resolved(
+        &closure,
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("conditioned closure has canonical identity");
+    assert_eq!(subject.target_profile(), TargetProfile::WindowsX64);
+    let recovered = CanonicalSourceClosureSubject::recover(
+        subject.canonical_bytes(),
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("conditioned closure identity recovers");
+    let recovered_projection = recovered
+        .package_dependency_projection(closure.graph().root())
+        .expect("root projection survives recovery");
+    assert_eq!(recovered_projection.authored_dependencies().len(), 3);
+    assert_eq!(recovered_projection.common_occurrence_indices(), [0]);
+    assert_eq!(recovered_projection.by_profile().len(), 2);
+    assert_eq!(
+        recovered_projection
+            .condition_schema()
+            .referenced_profile_identities(),
+        [
+            TargetProfile::LinuxX64.identity(),
+            TargetProfile::WindowsX64.identity(),
+        ]
+    );
+    assert!(
+        subject
+            .matches_resolved(&closure, CanonicalSourceClosureSubjectLimits::default())
+            .unwrap()
+    );
+
     let _ = std::fs::remove_dir_all(sources);
     let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
+fn selected_profile_changes_identity_even_when_the_source_graph_does_not() {
+    let sources = temp_root("profile-identity-sources");
+    let windows_cache = temp_root("profile-identity-windows-cache");
+    let linux_cache = temp_root("profile-identity-linux-cache");
+    let root = sources.join("root");
+    write_source_package(&root, "profile-identity-root");
+
+    let windows = resolve(&root, TargetProfile::WindowsX64, &windows_cache)
+        .expect("resolve target-independent package for Windows");
+    let linux = resolve(&root, TargetProfile::LinuxX64, &linux_cache)
+        .expect("resolve target-independent package for Linux");
+    assert_eq!(windows.graph(), linux.graph());
+
+    let windows_subject = CanonicalSourceClosureSubject::from_resolved(
+        &windows,
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("Windows subject");
+    let linux_subject = CanonicalSourceClosureSubject::from_resolved(
+        &linux,
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("Linux subject");
+    assert_ne!(
+        windows_subject.canonical_bytes(),
+        linux_subject.canonical_bytes()
+    );
+    assert_ne!(windows_subject.fingerprint(), linux_subject.fingerprint());
+
+    let _ = std::fs::remove_dir_all(sources);
+    let _ = std::fs::remove_dir_all(windows_cache);
+    let _ = std::fs::remove_dir_all(linux_cache);
 }
 
 #[test]

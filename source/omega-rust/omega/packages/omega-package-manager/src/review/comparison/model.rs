@@ -451,6 +451,7 @@ pub enum ReviewOnlyCapabilityConflictError {
         package: Box<PackageKey>,
         maximum_steps: usize,
     },
+    InvalidCandidateSourceClosure,
     AllocationFailed,
 }
 
@@ -553,6 +554,9 @@ impl fmt::Display for ReviewOnlyCapabilityConflictError {
                 formatter,
                 "candidate dependency path to `{}` exceeds its {maximum_steps}-step ceiling",
                 package.name().as_str()
+            ),
+            Self::InvalidCandidateSourceClosure => formatter.write_str(
+                "candidate source closure could not be canonically identified for review",
             ),
             Self::AllocationFailed => {
                 formatter.write_str("capability conflict comparison allocation failed")

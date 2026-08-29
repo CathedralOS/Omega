@@ -129,9 +129,11 @@ Static role/member/dependency projection stays direct and root-owned. Evaluated
 composition may use ordinary helpers borrowing `&mut Build`, with their complete
 transitive contracts retained against the root.
 
-Canonical source-closure encoding v4 binds the selected root's explicit role,
-root and dependency selectors, plus one stable navigation value for every
-package. Review revalidates the complete
+Canonical source-closure encoding v5 binds the selected root's explicit role,
+selected target profile, root and dependency selectors, complete target-
+condition schema and projected dependency map, plus one stable navigation value
+for every package. Candidate-closure commitment v5 binds that canonical source
+question before compiler review evidence. Review revalidates the complete
 authenticated repository commitment before opening a selected member subtree;
 it never compares a member-only digest to the repository digest.
 Operational custody separately retains the selected package materialization
@@ -168,7 +170,8 @@ indices into it. It validates and retains stable identities for exactly the
 referenced profiles. Closure resolution selects one explicit profile, retains
 the complete target-independent map in source custody, and validates aliases
 over only the selected active set after package-authored names are known.
-Canonical closure/review identity and accepted-lock sections remain downstream
+Canonical source-closure v5 and candidate-review v5 identities bind the complete
+map and selected profile. Per-profile accepted-lock sections remain downstream
 work.
 
 Projection validates referenced profiles against the trusted toolchain catalog

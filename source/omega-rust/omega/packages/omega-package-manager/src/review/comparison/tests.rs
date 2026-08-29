@@ -162,6 +162,60 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
 }
 
 #[test]
+fn candidate_closure_binds_the_selected_target_profile() {
+    let root = temp_root("target-profile");
+    let cache = temp_root("target-profile-cache");
+    write_package(&root, "profile-probe", None);
+    let source_context = ExternalSourceContext::derive(b"candidate-closure-target-profile");
+    let windows = resolve_external_local_package_closure(
+        &root,
+        source_context.clone(),
+        omega_target::TargetProfile::WindowsX64,
+        &cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve Windows closure");
+    let linux = resolve_external_local_package_closure(
+        &root,
+        source_context,
+        omega_target::TargetProfile::LinuxX64,
+        &cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve Linux closure");
+    assert_eq!(windows.graph(), linux.graph());
+
+    let reviews = windows
+        .graph()
+        .packages()
+        .iter()
+        .map(|package| TestReview {
+            key: package.source().key().clone(),
+            resolution: package.source().resolution().clone(),
+            target: "same-compiler-target".to_owned(),
+            executable_incident_metadata: [1; 32],
+            source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
+                [2; 32],
+            ),
+            build_observation: None,
+            whole_review: [3; 32],
+            rows: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+
+    assert_ne!(
+        commitment(&windows, &reviews),
+        commitment(&linux, &reviews),
+        "review identity must bind the package closure's selected profile"
+    );
+
+    let _ = std::fs::remove_dir_all(root);
+    let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
 fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
     let root = temp_root("root-role");
     let cache = temp_root("root-role-cache");

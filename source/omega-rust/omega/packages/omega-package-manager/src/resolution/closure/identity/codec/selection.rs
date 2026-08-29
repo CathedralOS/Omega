@@ -7,6 +7,7 @@ use super::super::{
     CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
 use super::framing::{Decoder, Encoder, decode_hex_32, encode_hex};
+use super::projection::{encode_dependency_projection, encode_target_profile};
 use super::source::{
     decode_package_key, decode_source_identity, decode_source_lineage, encode_package_key,
     encode_source_identity, encode_source_lineage,
@@ -14,25 +15,35 @@ use super::source::{
 use crate::identity::{AliasName, PackageName};
 use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::PackageSelection;
+use crate::manifest::dependencies::read::ProjectedDependencies;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
 use omega_package_source::{ExternalSourceContext, SourceRelativePath};
+use omega_target::TargetProfile;
 
 pub(in super::super) fn encode_subject(
+    target_profile: TargetProfile,
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     package_navigations: &[PackageSourceNavigation],
+    package_dependency_projections: &[ProjectedDependencies],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
     let mut encoder = Encoder::new();
     encoder.fixed(SOURCE_CLOSURE_SUBJECT_MAGIC);
     encoder.u16(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION);
+    encode_target_profile(&mut encoder, target_profile, limits)?;
     encode_root_selection(&mut encoder, root, limits)?;
     encoder.count(packages.len())?;
-    for (source, navigation) in packages.iter().zip(package_navigations) {
+    for ((source, navigation), projection) in packages
+        .iter()
+        .zip(package_navigations)
+        .zip(package_dependency_projections)
+    {
         encode_source_identity(&mut encoder, source, limits.maximum_identity_bytes)?;
         encode_package_navigation(&mut encoder, navigation, limits.maximum_request_bytes)?;
+        encode_dependency_projection(&mut encoder, projection, limits)?;
     }
     encoder.count(dependency_requests.len())?;
     for request in dependency_requests {
@@ -161,7 +172,20 @@ fn encode_dependency_selection(
     encoder.u32(u32::try_from(selection.dependency_index).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds canonical range")
     })?);
-    match &selection.request {
+    encode_dependency_request(encoder, &selection.request, limits)?;
+    encoder.bytes_bounded(
+        selection.alias.as_str().as_bytes(),
+        limits.maximum_identity_bytes,
+    )?;
+    encode_source_identity(encoder, &selection.selected, limits.maximum_identity_bytes)
+}
+
+pub(super) fn encode_dependency_request(
+    encoder: &mut Encoder,
+    request: &CanonicalDependencySourceRequest,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    match request {
         CanonicalDependencySourceRequest::Path {
             explicit_alias,
             location,
@@ -183,11 +207,7 @@ fn encode_dependency_selection(
             encode_package_selection(encoder, selection, limits.maximum_identity_bytes)?;
         }
     }
-    encoder.bytes_bounded(
-        selection.alias.as_str().as_bytes(),
-        limits.maximum_identity_bytes,
-    )?;
-    encode_source_identity(encoder, &selection.selected, limits.maximum_identity_bytes)
+    Ok(())
 }
 
 pub(in super::super) fn decode_dependency_selection(
@@ -198,7 +218,25 @@ pub(in super::super) fn decode_dependency_selection(
     let dependency_index = usize::try_from(decoder.u32()?).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds platform range")
     })?;
-    let request = match decoder.byte()? {
+    let request = decode_dependency_request(decoder, limits)?;
+    let alias = AliasName::parse(decoder.string(limits.maximum_identity_bytes)?).map_err(|_| {
+        CanonicalSourceClosureSubjectError::new("invalid resolved dependency alias")
+    })?;
+    let selected = decode_source_identity(decoder, limits.maximum_identity_bytes)?;
+    Ok(CanonicalDependencySourceSelection {
+        requester,
+        dependency_index,
+        request,
+        alias,
+        selected,
+    })
+}
+
+pub(super) fn decode_dependency_request(
+    decoder: &mut Decoder<'_>,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<CanonicalDependencySourceRequest, CanonicalSourceClosureSubjectError> {
+    Ok(match decoder.byte()? {
         0 => CanonicalDependencySourceRequest::Path {
             explicit_alias: decode_optional_alias(decoder, limits.maximum_identity_bytes)?,
             location: decoder.string(limits.maximum_request_bytes)?,
@@ -214,17 +252,6 @@ pub(in super::super) fn decode_dependency_selection(
                 "invalid dependency source-request tag",
             ));
         }
-    };
-    let alias = AliasName::parse(decoder.string(limits.maximum_identity_bytes)?).map_err(|_| {
-        CanonicalSourceClosureSubjectError::new("invalid resolved dependency alias")
-    })?;
-    let selected = decode_source_identity(decoder, limits.maximum_identity_bytes)?;
-    Ok(CanonicalDependencySourceSelection {
-        requester,
-        dependency_index,
-        request,
-        alias,
-        selected,
     })
 }
 
