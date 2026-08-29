@@ -9925,11 +9925,18 @@ boundary without its corresponding checked law.
   layout, and placed-header owner; rejection returns the complete upstream
   owner. The carrier remains explicitly non-runnable and performs no payload
   copying, relocation application, or image mutation.
+  Exact procedure/source address-fixup application is now complete as a
+  separate non-runnable rung. It copies only the retained source `.text`,
+  `.plt`, `.got.plt`, and `.rela.plt` fragments, applies every indexed fixup
+  from the absolute load layout, and retains an exact typed application ledger.
+  Independent replay rederives every semantic target, range/alignment rule,
+  mutable mask, encoded field, and unchanged byte; rejection returns the
+  complete file-envelope owner and the retained `FinalImage` is not mutated.
   Runnable ELF emission remains fail closed before image mutation: optional
-  `.gnu.hash`, procedure/source address-fixup application, payload and fragment
-  placement into one image, image mutation, and independent final-byte replay
-  remain unimplemented. Validated semantic tags, absolute geometry, applied
-  section-header/`.dynamic` bytes, and the file-envelope fragments do not
+  `.gnu.hash`, payload and fragment placement into one image, image mutation,
+  and independent final-byte replay remain unimplemented. Validated semantic
+  tags, absolute geometry, applied section-header/`.dynamic` bytes, the file-
+  envelope fragments, and resolved procedure-linkage fragments do not
   constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
