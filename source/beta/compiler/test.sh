@@ -78,6 +78,32 @@ accept_io() {
   fi
 }
 
+# Runtime trap identity belongs to Alpha's exact observation gate rather than a
+# host shell signal number. Here the compiler contract pins that the exact Beta
+# operation does not halt normally and preserves every preceding output byte.
+accept_trap_prefix() {
+  name=$1
+  source=$2
+  expected_output=$3
+  if ! printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.tape"; then
+    echo "FAIL $name: compiler rejected valid trapping source" >&2
+    fail=$((fail + 1))
+    return
+  fi
+  stamp_seed "$TMP/$name.tape" "$SEED" "$TMP/$name" >/dev/null
+  set +e
+  sh -c '"$1" </dev/null > "$2"' sh "$TMP/$name" "$TMP/$name.stdout" 2>/dev/null
+  actual_status=$?
+  set -e
+  printf '%b' "$expected_output" > "$TMP/$name.expected"
+  if [ "$actual_status" -ne 0 ] && cmp -s "$TMP/$name.stdout" "$TMP/$name.expected"; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: expected a trap after bytes $(od -An -tu1 "$TMP/$name.expected"), got status $actual_status and $(od -An -tu1 "$TMP/$name.stdout")" >&2
+    fail=$((fail + 1))
+  fi
+}
+
 reject() {
   name=$1
   source=$2
@@ -89,6 +115,26 @@ reject() {
     pass=$((pass + 1))
   else
     echo "FAIL $name: invalid source status=$status output=$(wc -c < "$TMP/$name.out" | tr -d ' ')" >&2
+    fail=$((fail + 1))
+  fi
+}
+
+# Compile a valid source without running its artifact and pin the exact private
+# tape extent. This is used at the maximum runnable Alpha payload, where
+# execution would only add noise to the compiler-capacity check.
+accept_compile_extent() {
+  name=$1
+  source=$2
+  expected_bytes=$3
+  set +e
+  printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.tape"
+  status=$?
+  set -e
+  actual_bytes=$(wc -c < "$TMP/$name.tape" | tr -d ' ')
+  if [ "$status" -eq 0 ] && [ "$actual_bytes" -eq "$expected_bytes" ]; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: expected accepted $expected_bytes-byte tape, got status $status and $actual_bytes bytes" >&2
     fail=$((fail + 1))
   fi
 }
@@ -148,6 +194,11 @@ accept precedence 'proc main() { return 2 + 3 * 4 }' 14
 accept parentheses 'proc main() { return (2 + 3) * 4 }' 20
 accept associativity 'proc main() { return 100 - 58 + 7 % 5 }' 44
 accept division 'proc main() { return 100 / 7 }' 14
+accept signed_division 'proc main() { return (0 - 7) / 2 }' 253
+accept signed_remainder 'proc main() { return (0 - 7) % 2 }' 255
+accept_trap_prefix division_by_zero_prefix 'proc main() { emit("D") return 1 / 0 }' D
+accept_trap_prefix remainder_by_zero_prefix 'proc main() { emit("R") return 1 % 0 }' R
+accept_trap_prefix signed_division_overflow_prefix 'proc main() { emit("O") return 9223372036854775808 / 18446744073709551615 }' O
 accept character "proc main() { return 'A' }" 65
 accept escaped "proc main() { return '\\n' }" 10
 accept comments ' ; before
@@ -210,6 +261,11 @@ accept call_statement 'proc main() { let b = 2097152 touch(b) return word[b] } p
 accept final_fallthrough_zero 'proc main() { return f(42) } proc f(x) { }' 0
 accept explicit_return_preserved 'proc main() { return f(42) } proc f(x) { return x }' 42
 accept_io byte_io 'proc main() { let c = read_byte() write_byte(c + 1) return c }' A 65 B
+accept_io eof_read 'proc main() { return read_byte() }' '' 255 ''
+accept_io write_return 'proc main() { return write_byte(321) }' '' 65 A
+accept_io binary_evaluation_order 'proc mark(x) { write_byte(x + 48) return x } proc main() { return mark(3) + mark(4) }' '' 7 34
+accept_io call_argument_evaluation_order 'proc mark(x) { write_byte(x + 48) return x } proc pair(a, b) { return a * 10 + b } proc main() { return pair(mark(1), mark(2)) }' '' 12 12
+accept_io store_evaluation_order 'proc address() { write_byte(65) return 0 } proc value() { write_byte(86) return 42 } proc main() { word[address()] = value() return word[0] }' '' 42 AV
 accept_io emit_text 'proc main() { emit("A\n") return 42 }' '' 42 'A\n'
 accept_io emit_empty 'proc main() { emit("") return 7 }' '' 7 ''
 
@@ -292,34 +348,70 @@ reject unterminated_emit 'proc main() { emit("unterminated) return 0 }'
 reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
 reject decimal_overflow 'proc main() { return 18446744073709551616 }'
 reject bad_character "proc main() { return '\\x' }"
-long_ident=$(awk 'BEGIN { for (i = 0; i < 65; i++) printf "a" }')
-reject identifier_extent "proc main() { let $long_ident = 1 return 0 }"
-deep='proc main() { return '
+
+# Pin each source-shape table at its last admitted row and first refused row.
+# These are private compiler ceilings; Q16 still owns their eventual typed
+# outcome carrier. Until that ruling, every refusal must remain fail-closed and
+# publish no partial tape.
+ident_64=$(awk 'BEGIN { for (i = 0; i < 64; i++) printf "a" }')
+ident_65="${ident_64}a"
+accept identifier_limit "proc main() { let $ident_64 = 42 return $ident_64 }" 42
+reject identifier_extent "proc main() { let $ident_65 = 1 return 0 }"
+
+deep_64='proc main() { return '
 i=0
-while [ "$i" -lt 65 ]; do deep="${deep}("; i=$((i + 1)); done
-deep="${deep}1"
+while [ "$i" -lt 64 ]; do deep_64="${deep_64}("; i=$((i + 1)); done
+deep_64="${deep_64}1"
 i=0
-while [ "$i" -lt 65 ]; do deep="${deep})"; i=$((i + 1)); done
-deep="${deep} }"
-reject nesting_extent "$deep"
-deep_load='proc main() { return '
+while [ "$i" -lt 64 ]; do deep_64="${deep_64})"; i=$((i + 1)); done
+deep_64="${deep_64} }"
+accept nesting_limit "$deep_64" 1
+deep_65=$(printf '%s' "$deep_64" | sed 's/return /return (/; s/ }$/) }/')
+reject nesting_extent "$deep_65"
+
+nested_calls_64='proc main() { return '
 i=0
-while [ "$i" -lt 65 ]; do deep_load="${deep_load}word["; i=$((i + 1)); done
-deep_load="${deep_load}2097152"
+while [ "$i" -lt 64 ]; do nested_calls_64="${nested_calls_64}identity("; i=$((i + 1)); done
+nested_calls_64="${nested_calls_64}1"
 i=0
-while [ "$i" -lt 65 ]; do deep_load="${deep_load}]"; i=$((i + 1)); done
-deep_load="${deep_load} }"
-reject load_nesting_extent "$deep_load"
+while [ "$i" -lt 64 ]; do nested_calls_64="${nested_calls_64})"; i=$((i + 1)); done
+nested_calls_64="${nested_calls_64} } proc identity(x) { return x }"
+accept call_nesting_limit "$nested_calls_64" 1
+nested_calls_65=$(printf '%s' "$nested_calls_64" | sed 's/return /return identity(/; s/ } proc identity/) } proc identity/')
+reject call_nesting_extent "$nested_calls_65"
+
+deep_load_64='proc main() { return '
+i=0
+while [ "$i" -lt 64 ]; do deep_load_64="${deep_load_64}word["; i=$((i + 1)); done
+deep_load_64="${deep_load_64}2097152"
+i=0
+while [ "$i" -lt 64 ]; do deep_load_64="${deep_load_64}]"; i=$((i + 1)); done
+deep_load_64="${deep_load_64} }"
+accept load_nesting_limit "$deep_load_64" 0
+deep_load_65=$(printf '%s' "$deep_load_64" | sed 's/return /return word[/; s/ }$/] }/')
+reject load_nesting_extent "$deep_load_65"
+
+# A fixed emit body lets the gate hit Alpha's 262140-byte runnable payload
+# exactly. The second source requests 262141 bytes and must publish nothing.
+tape_limit=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21829; i++) printf "a"; print "\") return 1 + 1 }" }')
+accept_compile_extent output_limit "$tape_limit" 262140
+tape_over=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21834; i++) printf "a"; print "\") return 0 }" }')
+reject output_extent "$tape_over"
+
 wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 14000; i++) printf "+1"; print " }" }')
-reject output_extent "$wide"
-many_slots=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
-reject slot_extent "$many_slots"
+reject expression_output_extent "$wide"
+slots_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " let v%d = %d", i, i; print " return v63 }" }')
+accept slot_limit "$slots_64" 63
+slots_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
+reject slot_extent "$slots_65"
 calls_1024=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1024; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
 accept call_global_limit "$calls_1024" 0
 calls_1025=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1025; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
 reject call_global_extent "$calls_1025"
-many_procs=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 128; i++) printf "proc p%d() { return %d }\n", i, i }')
-reject procedure_extent "$many_procs"
+procs_128=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 127; i++) printf "proc p%d() { return %d }\n", i, i }')
+accept procedure_limit "$procs_128" 0
+procs_129="$procs_128 proc overflow() { return 0 }"
+reject procedure_extent "$procs_129"
 states_128=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" }')
 accept state_proc_limit "$states_128" 0
 states_129=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " return 0 }" }')
@@ -336,6 +428,11 @@ edges_1024=$(awk 'BEGIN { for (p = 0; p < 4; p++) { if (p == 0) printf "proc mai
 accept edge_global_limit "$edges_1024" 0
 edges_1025="$edges_1024 proc extra_edges() { to done state done { return 0 } }"
 reject edge_global_extent "$edges_1025"
+
+# The 32768-fixup and 65536-internal-label arrays are secondary corruption
+# guards rather than independently reachable source-profile limits: every row
+# requires emitted reference/control bytes, so the exact tape ceiling above is
+# necessarily reached first.
 
 # Pin the compiler-owned source extent: exactly 1 MiB is accepted, while the
 # next byte is observed before any table write or output publication.
