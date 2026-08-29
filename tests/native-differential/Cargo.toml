@@ -34,7 +34,7 @@ omega-compiler = { path = "../../source/omega-rust/omega/compiler/omega-compiler
 omega-artifacts = { path = "../../source/omega-rust/omega/tooling/omega-artifacts", features = ["external-root-report"] }
 omega-component-publication = { path = "../../source/omega-rust/omega/backend/runtime/omega-component-publication" }
 omega-component-deployment = { path = "../../source/omega-rust/omega/build/omega-component-deployment" }
-omega-provider-planning = { path = "../../source/omega-rust/omega/build/omega-provider-planning" }
+omega-provider-planning = { path = "../../source/omega-rust/omega/build/omega-provider-planning", features = ["installed-writer"] }
 omega-external-roots = { path = "../../source/omega-rust/omega/backend/runtime/omega-external-roots" }
 omega-executable-installation = { path = "../../source/omega-rust/omega/backend/runtime/omega-executable-installation" }
 omega-calling-conventions = { path = "../../source/omega-rust/omega/representations/omega-calling-conventions" }
