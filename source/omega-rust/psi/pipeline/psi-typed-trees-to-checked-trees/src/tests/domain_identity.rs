@@ -82,7 +82,7 @@ fn distinct_domains_with_the_same_term_count_do_not_share_a_specialization() {
         "domain contents, not a diagnostic constraint count, own specialization identity"
     );
     assert_ne!(
-        specializations[0].fingerprint, specializations[1].fingerprint,
+        specializations[0].report_fingerprint, specializations[1].report_fingerprint,
         "distinct normalized domain expressions must publish distinct specialization fingerprints"
     );
 }

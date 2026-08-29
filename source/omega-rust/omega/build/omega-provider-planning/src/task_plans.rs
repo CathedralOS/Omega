@@ -2737,7 +2737,7 @@ mod tests {
                 template: baseline_start.target_machine,
                 instance: baseline_start.target_machine,
                 type_argument_identities: vec!["exact::Baseline".to_owned()],
-                fingerprint: 0x4455,
+                report_fingerprint: 0x4455,
                 ..Default::default()
             },
         );
@@ -2769,8 +2769,8 @@ mod tests {
         substituted.typed.machine_specializations[target_specialization_index]
             .type_argument_identities[0] = "exact::Substituted".to_owned();
         assert_eq!(
-            substituted.machine_specializations[target_specialization_index].fingerprint,
-            checked.machine_specializations[target_specialization_index].fingerprint,
+            substituted.machine_specializations[target_specialization_index].report_fingerprint,
+            checked.machine_specializations[target_specialization_index].report_fingerprint,
         );
         let (changed_machine, changed_entry) = exact_task_activation_target(
             &substituted,

@@ -241,6 +241,12 @@ derivations may reach the same term through different admitted premises; two
 terms may inhabit the same proof-irrelevant proposition while carrying
 different hidden witnesses.
 
+For a generic machine instance, the producer coordinate is the replayed
+domain-separated `MachineSpecializationCommitment`: canonical template
+contract, exact generic arguments, selected machine contracts, closed
+conformances, and accepted-template grant. Proof-output lowering encodes the
+full 32-byte commitment, never the compact specialization report fingerprint.
+
 Result-case guarantee groups are a contract-indexing form, not another proof
 carrier. `ExactCase -> { ... }` attaches each contained named or unnamed
 guarantee to one nominal result case. Matching the sum tag activates its facts;

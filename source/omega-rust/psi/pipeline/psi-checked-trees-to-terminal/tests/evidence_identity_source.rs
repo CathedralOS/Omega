@@ -1079,7 +1079,9 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
             "#
         )
     }
-    fn selected_fingerprint(checked: &psi_checked_trees::CheckedTrees) -> u64 {
+    fn selected_specialization(
+        checked: &psi_checked_trees::CheckedTrees,
+    ) -> &psi_typed_trees::typed_trees::MachineSpecialization {
         let target = checked
             .facts
             .proof
@@ -1092,46 +1094,70 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
             .machine_specializations
             .iter()
             .find(|specialization| specialization.instance == target)
-            .map(|specialization| specialization.fingerprint)
             .expect("the target should retain its checked specialization")
+    }
+
+    fn commitment_hex(
+        commitment: psi_typed_trees::typed_trees::MachineSpecializationCommitment,
+    ) -> String {
+        use std::fmt::Write;
+
+        let mut rendered = String::with_capacity(64);
+        for byte in commitment.as_bytes() {
+            write!(&mut rendered, "{byte:02x}").expect("writing to String cannot fail");
+        }
+        rendered
     }
 
     let first = check(&source("FirstMarker"));
     let second = check(&source("SecondMarker"));
-    let first_fingerprint = selected_fingerprint(&first);
-    let second_fingerprint = selected_fingerprint(&second);
-    assert_ne!(first_fingerprint, second_fingerprint);
-    let first = psi_checked_trees_to_terminal::lower_machine(&first, "Root::relay")
+    let first_specialization = selected_specialization(&first);
+    let second_specialization = selected_specialization(&second);
+    assert_ne!(
+        first_specialization.report_fingerprint,
+        second_specialization.report_fingerprint,
+    );
+    assert_ne!(
+        first_specialization.commitment,
+        second_specialization.commitment,
+    );
+    let first_commitment = commitment_hex(first_specialization.commitment);
+    let second_commitment = commitment_hex(second_specialization.commitment);
+    let first_lowered = psi_checked_trees_to_terminal::lower_machine(&first, "Root::relay")
         .expect("first closed generic proof output should lower");
-    let second = psi_checked_trees_to_terminal::lower_machine(&second, "Root::relay")
+    let first_replay = psi_checked_trees_to_terminal::lower_machine(&first, "Root::relay")
+        .expect("the same exact specialization should lower deterministically");
+    let second_lowered = psi_checked_trees_to_terminal::lower_machine(&second, "Root::relay")
         .expect("second closed generic proof output should lower");
-    let [first_call] = first.semantic_module.proof_output_calls.as_slice() else {
+    let [first_call] = first_lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one first proof-output call expected")
     };
-    let [second_call] = second.semantic_module.proof_output_calls.as_slice() else {
+    let [first_replay_call] = first_replay.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one replayed proof-output call expected")
+    };
+    let [second_call] = second_lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one second proof-output call expected")
     };
-    assert!(
-        first_call
-            .target_machine_identity
-            .starts_with("specialized-machine|")
-    );
-    assert!(
-        first_call
-            .target_machine_identity
-            .ends_with(&format!("application={first_fingerprint:016x}"))
-    );
-    assert!(
-        second_call
-            .target_machine_identity
-            .ends_with(&format!("application={second_fingerprint:016x}"))
+    assert!(first_call
+        .target_machine_identity
+        .starts_with("specialized-machine|"));
+    assert!(first_call
+        .target_machine_identity
+        .ends_with(&format!("application={first_commitment}")));
+    assert!(second_call
+        .target_machine_identity
+        .ends_with(&format!("application={second_commitment}")));
+    assert_eq!(
+        first_call.target_machine_identity, first_replay_call.target_machine_identity,
+        "the same exact specialization has one deterministic producer identity",
     );
     assert_ne!(
         first_call.target_machine_identity, second_call.target_machine_identity,
         "different closed conformance selections are different proof-output targets"
     );
-    let baseline = semantic_fingerprint(&first.semantic_module).expect("generic target identity");
-    let mut tampered = first.semantic_module.clone();
+    let baseline =
+        semantic_fingerprint(&first_lowered.semantic_module).expect("generic target identity");
+    let mut tampered = first_lowered.semantic_module.clone();
     let identity = &mut tampered.proof_output_calls[0].target_machine_identity;
     let last = identity.len() - 1;
     let replacement = if identity.ends_with('0') { "1" } else { "0" };
@@ -1140,6 +1166,46 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
         semantic_fingerprint(&tampered).expect("tampered generic target remains canonical"),
         baseline,
         "the exact closed application enters terminal semantic identity"
+    );
+
+    let mut changed_exact_specialization = first.clone();
+    let specialization = selected_specialization(&changed_exact_specialization);
+    let target = specialization.instance;
+    let retained_report = specialization.report_fingerprint;
+    let specialization = changed_exact_specialization
+        .typed
+        .machine_specializations
+        .iter_mut()
+        .find(|specialization| specialization.instance == target)
+        .expect("mutated specialization remains present");
+    specialization.type_argument_identities[0].push_str("|substituted");
+    assert_eq!(specialization.report_fingerprint, retained_report);
+    assert_eq!(
+        psi_checked_trees_to_terminal::lower_machine(&changed_exact_specialization, "Root::relay",),
+        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+            "evidence machine specialization commitment does not replay",
+        )),
+        "an exact specialization mutation cannot hide behind the same compact report coordinate",
+    );
+
+    let mut substituted_commitment = first.clone();
+    let specialization = selected_specialization(&substituted_commitment);
+    let target = specialization.instance;
+    let retained_report = specialization.report_fingerprint;
+    let specialization = substituted_commitment
+        .typed
+        .machine_specializations
+        .iter_mut()
+        .find(|specialization| specialization.instance == target)
+        .expect("substituted specialization remains present");
+    specialization.commitment = selected_specialization(&second).commitment;
+    assert_eq!(specialization.report_fingerprint, retained_report);
+    assert_eq!(
+        psi_checked_trees_to_terminal::lower_machine(&substituted_commitment, "Root::relay"),
+        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+            "evidence machine specialization commitment does not replay",
+        )),
+        "a stored commitment from another exact specialization must not be admitted",
     );
 }
 

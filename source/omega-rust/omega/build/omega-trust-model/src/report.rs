@@ -345,7 +345,7 @@ pub fn reconstruct_trust_report(
             .push(TrustGenericAcceptedInstanceRow {
                 template_commitment: template_commitment.clone(),
                 template_report_fingerprint: specialization.template_contract_fingerprint,
-                instance_report_fingerprint: specialization.fingerprint,
+                instance_report_fingerprint: specialization.report_fingerprint,
                 instance_contract_report_fingerprint: instance_contract.fingerprint,
                 instance_contract_commitment: instance_contract.commitment,
                 type_argument_identities: specialization.type_argument_identities.clone(),

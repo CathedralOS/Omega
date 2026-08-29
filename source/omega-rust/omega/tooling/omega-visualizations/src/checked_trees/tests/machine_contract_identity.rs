@@ -371,7 +371,7 @@ fn specialization_coordinate_fixture() -> CheckedTrees {
             instance: template_symbol,
             type_arguments: vec!["ReadableReuse".to_owned()],
             type_argument_identities: vec!["type(reuse)".to_owned()],
-            fingerprint: 0xaaaa,
+            report_fingerprint: 0xaaaa,
             ..Default::default()
         },
         MachineSpecialization {
@@ -379,7 +379,7 @@ fn specialization_coordinate_fixture() -> CheckedTrees {
             instance: clone_symbol,
             type_arguments: vec!["ReadableClone".to_owned()],
             type_argument_identities: vec!["type(clone)".to_owned()],
-            fingerprint: 0xbbbb,
+            report_fingerprint: 0xbbbb,
             ..Default::default()
         },
     ];
@@ -550,7 +550,11 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
             accepted_template_commitment: Some("accepted_map".to_owned()),
             machine_argument_contract_report_fingerprints: vec![0x2222],
             conformance_argument_report_fingerprints: vec![0x4444, 0x5555],
-            fingerprint: 0x3333,
+            report_fingerprint: 0x3333,
+            commitment: psi_typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
+                [0x33; 32],
+            ),
+            ..Default::default()
         });
     push_behavior_contract(&mut program, symbol, false, false);
     program

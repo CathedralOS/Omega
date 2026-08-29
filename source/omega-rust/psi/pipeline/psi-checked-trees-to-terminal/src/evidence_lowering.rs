@@ -2003,17 +2003,38 @@ fn checked_evidence_machine_identity(
         if specializations.next().is_some() {
             return unsupported("evidence machine has ambiguous generic application identity");
         }
-        if specialization.fingerprint == 0 {
-            return unsupported("evidence machine has an empty generic application identity");
+        let replayed_commitment =
+            psi_typed_trees_to_checked_trees::recompute_machine_specialization_commitment(
+                &checked.typed,
+                &checked.facts.contract_plans,
+                specialization,
+            )
+            .map_err(|_| {
+                LoweringError::Unsupported(
+                    "evidence machine specialization commitment could not be replayed",
+                )
+            })?;
+        if specialization.commitment.is_zero() || specialization.commitment != replayed_commitment {
+            return unsupported("evidence machine specialization commitment does not replay");
         }
         identity = format!(
-            "specialized-machine|callable={}:{}|application={:016x}",
+            "specialized-machine|callable={}:{}|application={}",
             identity.len(),
             identity,
-            specialization.fingerprint
+            hex_bytes(&specialization.commitment.as_bytes()),
         );
     }
     Ok(identity)
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+
+    let mut rendered = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut rendered, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    rendered
 }
 
 fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
