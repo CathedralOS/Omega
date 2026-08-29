@@ -145,7 +145,7 @@ fn local_snapshot_rejects_cache_inside_source_before_creating_it() {
     std::fs::create_dir_all(&root).expect("create source");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
-    let error = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+    let error = resolve_local_source_snapshot_at_path(&root, &cache, LocalSourceLimits::default())
         .expect_err("overlapping cache must reject");
     assert!(matches!(
         error,
@@ -164,7 +164,7 @@ fn local_snapshot_rejects_live_source_beneath_snapshot_collection() {
     std::fs::create_dir_all(&root).expect("create nested source");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
-    let error = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
+    let error = resolve_local_source_snapshot_at_path(&root, &cache, LocalSourceLimits::default())
         .expect_err("resolver-owned collection source must reject");
     assert!(matches!(
         error,

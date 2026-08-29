@@ -1,8 +1,10 @@
 use omega_packages::{
-    LocalSourceLimits, PackageSourceClosureLimits, SourceLineage, WorkspaceMemberPath,
-    compile_resolved_package_reviews, resolve_workspace_package_closure,
+    LocalSourceLimits, PackageSourceClosureLimits, ResolvePackageSourceError,
+    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
+    SourceResolverStorage, WorkspaceMemberPath, compile_resolved_package_reviews,
+    resolve_workspace_package_closure_with_storage,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -21,6 +23,27 @@ fn temporary_root() -> PathBuf {
         std::process::id(),
         TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed),
     ))
+}
+
+fn resolve_workspace_package_closure(
+    workspace_root_source: &SourceLineage,
+    root_member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    resolve_workspace_package_closure_with_storage(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root,
+        &storage,
+        source_limits,
+        closure_limits,
+    )
 }
 
 #[test]

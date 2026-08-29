@@ -1,7 +1,7 @@
 use omega_compiler::compile_to_checked_with_packages;
 use omega_packages::{
-    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
-    package_compilation_inputs, resolve_external_local_package_closure,
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, SourceResolverStorage,
+    package_compilation_inputs, resolve_external_local_package_closure_with_storage,
 };
 use psi_source::SourceOrigin;
 use std::fs;
@@ -27,10 +27,6 @@ impl TempTree {
         let path = self.0.join(name);
         fs::create_dir(&path).expect("create test package");
         path
-    }
-
-    fn cache(&self, name: &str) -> PathBuf {
-        self.0.join(name)
     }
 }
 
@@ -92,10 +88,12 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     let live_standard_library = repository_standard_library();
     write_consumer(&live_root, Some(&live_standard_library));
 
-    let closure = resolve_external_local_package_closure(
+    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("resolved"))
+        .expect("create resolver storage");
+    let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"ordinary-standard-library-canary"),
-        tree.cache("resolved"),
+        &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
@@ -181,10 +179,12 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
     let live_root = tree.package("missing-edge-consumer");
     write_consumer(&live_root, None);
 
-    let closure = resolve_external_local_package_closure(
+    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("missing-edge"))
+        .expect("create resolver storage");
+    let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"missing-standard-library-edge-canary"),
-        tree.cache("missing-edge"),
+        &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )

@@ -4,8 +4,8 @@ use omega_package_review::{
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
     PackageTriageReason, ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
-    compare_review_only_capabilities, compile_resolved_package_reviews,
-    resolve_external_local_package_closure, triage_review_update,
+    SourceResolverStorage, compare_review_only_capabilities, compile_resolved_package_reviews,
+    resolve_external_local_package_closure_with_storage, triage_review_update,
 };
 use std::collections::BTreeSet;
 use std::fs;
@@ -73,10 +73,12 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let context = ExternalSourceContext::derive(b"provider-selection-conflict");
     write_provider_package(&live, "MonotonicClock");
 
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_storage = SourceResolverStorage::for_hardened_base(tree.path("baseline-cache"))
+        .expect("create baseline resolver storage");
+    let baseline_sources = resolve_external_local_package_closure_with_storage(
         &live,
         context.clone(),
-        tree.path("baseline-cache"),
+        &baseline_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
@@ -89,10 +91,12 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     .expect("compile baseline provider evidence");
 
     write_provider_package(&live, "WallClock");
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_storage = SourceResolverStorage::for_hardened_base(tree.path("candidate-cache"))
+        .expect("create candidate resolver storage");
+    let candidate_sources = resolve_external_local_package_closure_with_storage(
         &live,
         context,
-        tree.path("candidate-cache"),
+        &candidate_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )

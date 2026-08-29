@@ -5,7 +5,7 @@ use crate::resolution::identity::{
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use crate::resolution::source::{RetainedStorageLane, resolve_local_source_snapshot_in_lane};
-use crate::source::{LocalSourceLimits, ResolvedLocalSnapshot, resolve_local_source_snapshot};
+use crate::source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
 use std::path::{Path, PathBuf};
 
 /// Snapshot one workspace member and bind it to the workspace root's source
@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 /// caller does not supply a second spelling to reconcile. It must remain a
 /// strict descendant of the canonical workspace root. Only that member is
 /// passed to local snapshot custody.
+#[cfg(test)]
 pub fn resolve_workspace_member_package_source(
     workspace_root_source: &SourceLineage,
     member_path: WorkspaceMemberPath,
@@ -22,12 +23,14 @@ pub fn resolve_workspace_member_package_source(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let limits = limits.compiler_bounded();
-    let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
-    let canonical_declared_member_root =
-        validate_workspace_member_root(live_workspace_root.as_ref(), &member_path)?;
-    let source = resolve_local_source_snapshot(&canonical_declared_member_root, cache_dir, limits)?;
-    bind_workspace_member_package_source(workspace_identity, member_path, source, limits)
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
+    resolve_workspace_member_package_source_with_storage(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        &storage,
+        limits,
+    )
 }
 
 pub(in crate::resolution) fn resolve_workspace_member_package_source_in_lane(
@@ -44,6 +47,25 @@ pub(in crate::resolution) fn resolve_workspace_member_package_source_in_lane(
     let source =
         resolve_local_source_snapshot_in_lane(&canonical_declared_member_root, lane, limits)?;
     bind_workspace_member_package_source(workspace_identity, member_path, source, limits)
+}
+
+pub fn resolve_workspace_member_package_source_with_storage(
+    workspace_root_source: &SourceLineage,
+    member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    storage.verify_path_identity()?;
+    let result = resolve_workspace_member_package_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        storage.workspace_members(),
+        limits,
+    );
+    storage.verify_path_identity()?;
+    result
 }
 
 fn validate_workspace_member_root(

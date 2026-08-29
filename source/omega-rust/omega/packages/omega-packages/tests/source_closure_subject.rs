@@ -1,8 +1,11 @@
 use omega_packages::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectLimits, ExternalSourceContext, LocalSourceLimits,
-    PackageSourceClosureLimits, ResolvedPackageSourceClosure, SourceLineage, WorkspaceMemberPath,
-    resolve_external_local_package_closure, resolve_workspace_package_closure,
+    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
+    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
+    SourceResolverStorage, WorkspaceMemberPath,
+    resolve_external_local_package_closure_with_storage,
+    resolve_workspace_package_closure_with_storage,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -73,6 +76,46 @@ fn write_diamond(tree: &TempTree) -> PathBuf {
     );
     write_package(&sources.join("shared"), "shared-package", "");
     sources.join("root")
+}
+
+fn resolve_external_local_package_closure(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    resolve_external_local_package_closure_with_storage(
+        live_root,
+        source_context,
+        &storage,
+        source_limits,
+        closure_limits,
+    )
+}
+
+fn resolve_workspace_package_closure(
+    workspace_root_source: &SourceLineage,
+    root_member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    resolve_workspace_package_closure_with_storage(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root,
+        &storage,
+        source_limits,
+        closure_limits,
+    )
 }
 
 fn resolve_diamond(

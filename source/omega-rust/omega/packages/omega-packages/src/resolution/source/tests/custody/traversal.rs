@@ -1,7 +1,7 @@
 use super::super::{
-    CacheCustodyKind, LocalSourceLimits, SourceResolveError, open_absolute_directory_nofollow,
-    open_cache_custody_directory, resolve_local_source_snapshot, temp_root,
-    verify_cache_custody_from_open_root,
+    CacheCustodyKind, LocalSourceLimits, SourceResolveError, SourceResolverStorage,
+    external_local_storage_lane, open_absolute_directory_nofollow, open_cache_custody_directory,
+    resolve_local_source_snapshot_with_storage, temp_root, verify_cache_custody_from_open_root,
 };
 use std::path::Path;
 
@@ -121,19 +121,24 @@ fn local_snapshot_cache_rejects_group_or_other_writable_custody() {
     let cache = temp_root("local-custody-cache");
     std::fs::create_dir_all(&source).expect("create source");
     std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
-    resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained local snapshot storage");
+    resolve_local_source_snapshot_with_storage(&source, &storage, LocalSourceLimits::default())
         .expect("prime local snapshot cache");
-    std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o777))
+    let local_lane = external_local_storage_lane(&cache);
+    std::fs::set_permissions(&local_lane, std::fs::Permissions::from_mode(0o777))
         .expect("make cache externally writable");
 
-    let error = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
-        .expect_err("externally writable local cache custody must reject");
+    let error =
+        resolve_local_source_snapshot_with_storage(&source, &storage, LocalSourceLimits::default())
+            .expect_err("externally writable local cache custody must reject");
     assert!(matches!(
         error,
         SourceResolveError::LocalSnapshotInvalid { .. }
     ));
 
-    std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::set_permissions(&local_lane, std::fs::Permissions::from_mode(0o700)).unwrap();
+    drop(storage);
     let _ = std::fs::remove_dir_all(&source);
     let _ = std::fs::remove_dir_all(&cache);
 }

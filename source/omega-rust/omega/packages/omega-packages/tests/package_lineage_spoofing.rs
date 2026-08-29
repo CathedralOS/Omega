@@ -1,7 +1,7 @@
 use omega_package_review::PackageReviewCanonicalRowKind;
 use omega_packages::{
-    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
-    compile_resolved_package_reviews, resolve_external_local_package_closure,
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, SourceResolverStorage,
+    compile_resolved_package_reviews, resolve_external_local_package_closure_with_storage,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,10 +27,6 @@ impl TempTree {
         let path = self.0.join(directory);
         fs::create_dir(&path).expect("create test package");
         path
-    }
-
-    fn cache(&self) -> PathBuf {
-        self.0.join("cache")
     }
 
     fn compiler_workspace(&self) -> PathBuf {
@@ -117,10 +113,12 @@ machine build(builder: &mut Build) {{
     )
     .expect("write root package source");
 
-    let closure = resolve_external_local_package_closure(
+    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("cache"))
+        .expect("create resolver storage");
+    let closure = resolve_external_local_package_closure_with_storage(
         &root,
         ExternalSourceContext::derive(b"same-name-different-lineage-fixture"),
-        tree.cache(),
+        &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )

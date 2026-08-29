@@ -14,6 +14,8 @@ pub use identity::{
     SourceContentDigest, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
     WorkspaceMemberPath,
 };
+#[cfg(test)]
+pub(crate) use package_closure::resolve_external_local_package_closure;
 pub use package_closure::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
@@ -27,25 +29,27 @@ pub use package_closure::{
     ResolvedDependencySourceRequest, ResolvedPackageClosure, ResolvedPackageNode,
     ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
     ResolvedRootPackageSourceRequest, ResolvedSourceIdentity,
-    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, resolve_external_local_package_closure,
-    resolve_external_local_package_closure_with_storage, resolve_external_local_project_closure,
-    resolve_external_local_project_closure_with_storage, resolve_git_package_closure,
-    resolve_git_package_closure_with_storage, resolve_workspace_package_closure,
-    resolve_workspace_package_closure_in_context,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, resolve_external_local_package_closure_with_storage,
+    resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
 pub use package_source::{
-    ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
-    resolve_external_local_project_source, resolve_git_package_source,
-    resolve_workspace_member_package_source,
+    ResolvePackageSourceError, ResolvedPackageSource,
+    resolve_external_local_package_source_with_storage,
+    resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
+    resolve_workspace_member_package_source_with_storage,
+};
+#[cfg(test)]
+pub(crate) use package_source::{
+    resolve_external_local_package_source, resolve_workspace_member_package_source,
 };
 pub use source::{
     GitExecutableIdentity, GitNetworkTransferObservation, GitSourceRequest, GitSourceRequestError,
     GitSourceResolutionObservation, GitTransportExecutableIdentity, GitTransportProfile,
     LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource,
-    SourceResolveError, SourceResolverStorage, resolve_git_source, resolve_local_source,
-    resolve_local_source_snapshot,
+    SourceResolveError, SourceResolverStorage, resolve_git_source_with_storage,
+    resolve_local_source, resolve_local_source_snapshot_with_storage,
 };
 pub use source_commands::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,

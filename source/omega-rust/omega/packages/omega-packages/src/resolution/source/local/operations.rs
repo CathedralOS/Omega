@@ -6,7 +6,7 @@ use crate::resolution::identity::SourceContentDigest;
 use crate::resolution::source::custody::CacheCustodyKind;
 use crate::resolution::source::git::{local_snapshot_invalid, verify_open_snapshot_tree_modes};
 use crate::resolution::source::storage::RetainedStorageLane;
-use crate::resolution::source::{LocalSourceLimits, SourceResolveError};
+use crate::resolution::source::{LocalSourceLimits, SourceResolveError, SourceResolverStorage};
 
 use super::capture::{
     CapturedLocalEntryKind, SourceTreePolicy, capture_local_source,
@@ -16,7 +16,9 @@ use super::model::{
     ResolvedLocalSnapshot, ResolvedLocalSource, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind,
 };
-use super::snapshot::{publish_local_snapshot, publish_local_snapshot_in_lane};
+#[cfg(test)]
+use super::snapshot::publish_local_snapshot;
+use super::snapshot::publish_local_snapshot_in_lane;
 
 pub fn resolve_local_source(
     root: impl AsRef<Path>,
@@ -85,7 +87,8 @@ pub(crate) fn capture_verified_package_source_snapshot(
         .collect())
 }
 
-pub fn resolve_local_source_snapshot(
+#[cfg(test)]
+pub(in crate::resolution) fn resolve_local_source_snapshot_at_path(
     root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
@@ -112,4 +115,16 @@ pub(in crate::resolution) fn resolve_local_source_snapshot_in_lane(
         Ok(()) => result,
         Err(error) => Err(error),
     }
+}
+
+pub fn resolve_local_source_snapshot_with_storage(
+    root: impl AsRef<Path>,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    storage.verify_path_identity()?;
+    let result =
+        resolve_local_source_snapshot_in_lane(root, storage.external_local_sources(), limits);
+    storage.verify_path_identity()?;
+    result
 }

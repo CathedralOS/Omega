@@ -4,15 +4,16 @@ use omega_package_review::{
 };
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
-    PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits,
+    PackageTriageReason, ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
+    ResolvedPackageSourceClosure, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDirectory,
     ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
     ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
-    ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolutionError,
+    ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolutionError, SourceResolverStorage,
     compare_review_only_capabilities, compare_review_only_capabilities_from_baseline,
     compile_resolved_package_reviews, recover_review_only_root_policy_resolution,
-    resolve_external_local_package_closure, resolve_review_only_root_policy_decisions,
+    resolve_external_local_package_closure_with_storage, resolve_review_only_root_policy_decisions,
     triage_review_update, triage_review_update_from_baseline,
 };
 use sha2::{Digest, Sha256};
@@ -48,6 +49,25 @@ machine build(builder: &mut Build) {
     )
     .expect("write package declaration");
     std::fs::write(root.join("main.omg"), main).expect("write package source");
+}
+
+fn resolve_external_local_package_closure(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    cache_base: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let storage = SourceResolverStorage::for_hardened_base(cache_base).map_err(|error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    resolve_external_local_package_closure_with_storage(
+        live_root,
+        source_context,
+        &storage,
+        source_limits,
+        closure_limits,
+    )
 }
 
 mod operational;
