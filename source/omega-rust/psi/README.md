@@ -36,7 +36,6 @@ Current roots:
 - `foundation/psi-source`: loaded-source records and maps, source identities,
   coordinates, and source-backed text shared by the Psi frontend and Omega
   orchestration;
-- `foundation/psi-source-loader`: root-file loading into Psi-owned source maps;
 - `foundation/psi-symbols`: stable source symbol identities, names, paths, and
   hierarchy storage used by resolution and later semantic stages;
 - `foundation/psi-core`: stable terminal semantic identities and the initial
@@ -67,7 +66,6 @@ Current roots:
 - `pipeline/psi-checked-trees-to-terminal`: fail-closed vertical-slice
   production from checked semantics into terminal Psi, including current
   scalar/control/call/crash and content-evidence slices;
-- `semantics/psi-types`: unresolved source type-surface analysis;
 - `semantics/psi-validation`: target-neutral cross-semantic source validation;
 - `semantics/psi-proof`: source proof-surface collection, obligation planning,
   and checking;

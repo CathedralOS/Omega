@@ -1,8 +1,9 @@
 use crate::pipeline::PackageCompilationInputs;
-use crate::pipeline::stages::{
-    source_files_to_syntax_trees_for_engine, symbol_resolved_trees_to_typed_trees,
-    syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
+use crate::pipeline::phase_transitions::{
+    symbol_resolved_trees_to_typed_trees, syntax_trees_to_symbol_resolved_trees,
+    typed_trees_to_checked_trees,
 };
+use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
@@ -279,6 +280,46 @@ impl std::ops::DerefMut for CheckedCompilation {
     }
 }
 
+/// One owned request for the checked-Psi frontend. Public compatibility
+/// helpers differ only in how they populate this request; execution and option
+/// pairing have one implementation.
+struct CheckedCompileRequest {
+    root_path: std::path::PathBuf,
+    target_name: Option<String>,
+    package_inputs: Option<PackageCompilationInputs>,
+    build_dir: Option<std::path::PathBuf>,
+    filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
+    replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
+}
+
+impl CheckedCompileRequest {
+    fn new(root_path: &Path, target_name: Option<&str>) -> Self {
+        Self {
+            root_path: root_path.to_owned(),
+            target_name: target_name.map(str::to_owned),
+            package_inputs: None,
+            build_dir: None,
+            filesystem_sponsor: None,
+            replay_record: None,
+        }
+    }
+}
+
+fn execute_checked_request(
+    request: CheckedCompileRequest,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    crate::compiler::execution::run_on_compile_thread(move || {
+        compile_to_checked_inner_with_replay(
+            &request.root_path,
+            request.target_name.as_deref(),
+            request.package_inputs.as_ref(),
+            request.build_dir.as_deref(),
+            request.filesystem_sponsor,
+            request.replay_record.as_ref(),
+        )
+    })
+}
+
 /// Runs ONLY the four frontend stages (lex/parse -> symbol resolution -> typing ->
 /// checking) and returns the in-memory `CheckedTrees` program. No backend lowering,
 /// no file output. The Psi checked-tree interpreter evaluates this transitional
@@ -288,14 +329,7 @@ pub fn compile_to_checked(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    // Checked-only callers traverse the same recursive parser as deployment
-    // compilation and must reach its explicit depth guard before the host
-    // thread's smaller default stack can overflow.
-    let root_path = root_path.to_owned();
-    let target_name = target_name.map(str::to_owned);
-    crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner(&root_path, target_name.as_deref(), None, None, None)
-    })
+    execute_checked_request(CheckedCompileRequest::new(root_path, target_name))
 }
 
 /// Checked-only compilation using a complete reconciled package graph. This
@@ -306,17 +340,9 @@ pub fn compile_to_checked_with_packages(
     target_name: Option<&str>,
     package_inputs: PackageCompilationInputs,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let root_path = root_path.to_owned();
-    let target_name = target_name.map(str::to_owned);
-    crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner(
-            &root_path,
-            target_name.as_deref(),
-            Some(&package_inputs),
-            None,
-            None,
-        )
-    })
+    let mut request = CheckedCompileRequest::new(root_path, target_name);
+    request.package_inputs = Some(package_inputs);
+    execute_checked_request(request)
 }
 
 /// Checked-only compilation whose build machine reconsumes one compiler-owned
@@ -327,18 +353,9 @@ pub fn compile_to_checked_with_replay_record(
     target_name: Option<&str>,
     replay_record: super::ReviewOnlyBuildFilesystemReplayRecord,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let root_path = root_path.to_owned();
-    let target_name = target_name.map(str::to_owned);
-    crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner_with_replay(
-            &root_path,
-            target_name.as_deref(),
-            None,
-            None,
-            None,
-            Some(&replay_record),
-        )
-    })
+    let mut request = CheckedCompileRequest::new(root_path, target_name);
+    request.replay_record = Some(replay_record);
+    execute_checked_request(request)
 }
 
 /// Package-aware checked compilation whose build machine reconsumes one
@@ -349,18 +366,10 @@ pub fn compile_to_checked_with_packages_and_replay_record(
     package_inputs: PackageCompilationInputs,
     replay_record: super::ReviewOnlyBuildFilesystemReplayRecord,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let root_path = root_path.to_owned();
-    let target_name = target_name.map(str::to_owned);
-    crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner_with_replay(
-            &root_path,
-            target_name.as_deref(),
-            Some(&package_inputs),
-            None,
-            None,
-            Some(&replay_record),
-        )
-    })
+    let mut request = CheckedCompileRequest::new(root_path, target_name);
+    request.package_inputs = Some(package_inputs);
+    request.replay_record = Some(replay_record);
+    execute_checked_request(request)
 }
 
 /// Package-aware checked compilation with a caller-owned writable build root.
@@ -372,18 +381,10 @@ pub fn compile_to_checked_with_packages_in_build_dir(
     target_name: Option<&str>,
     package_inputs: PackageCompilationInputs,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let root_path = root_path.to_owned();
-    let build_dir = build_dir.to_owned();
-    let target_name = target_name.map(str::to_owned);
-    crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner(
-            &root_path,
-            target_name.as_deref(),
-            Some(&package_inputs),
-            Some(&build_dir),
-            None,
-        )
-    })
+    let mut request = CheckedCompileRequest::new(root_path, target_name);
+    request.package_inputs = Some(package_inputs);
+    request.build_dir = Some(build_dir.to_owned());
+    execute_checked_request(request)
 }
 
 /// Package-aware checked compilation whose build machine consumes one
@@ -395,18 +396,11 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
     package_inputs: PackageCompilationInputs,
     filesystem_sponsor: psi_build_time_evaluation::BuildMachineFilesystemSponsor,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let root_path = root_path.to_owned();
-    let build_dir = build_dir.to_owned();
-    let target_name = target_name.map(str::to_owned);
-    crate::compiler::execution::run_on_compile_thread(move || {
-        compile_to_checked_inner(
-            &root_path,
-            target_name.as_deref(),
-            Some(&package_inputs),
-            Some(&build_dir),
-            Some(filesystem_sponsor),
-        )
-    })
+    let mut request = CheckedCompileRequest::new(root_path, target_name);
+    request.package_inputs = Some(package_inputs);
+    request.build_dir = Some(build_dir.to_owned());
+    request.filesystem_sponsor = Some(filesystem_sponsor);
+    execute_checked_request(request)
 }
 
 /// Run the ordinary checked frontend for the typed terminal-component handoff
@@ -434,7 +428,7 @@ struct CheckedFrontend {
 }
 
 fn lower_checked_frontend(
-    mut syntax: crate::pipeline::stages::AssembledSyntax,
+    mut syntax: crate::pipeline::source_assembly::AssembledSyntax,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
@@ -513,12 +507,9 @@ fn compile_to_checked_inner_with_replay(
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
 
-    // The interpreter keeps the abstract `boundary trait Gui` for its headless
-    // provider; only the native-image pipeline substitutes target providers.
     let (mut source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
         root_path,
         target_name,
-        false,
         package_inputs,
         &mut timings,
     )?;
@@ -640,7 +631,7 @@ fn compile_to_checked_inner_with_replay(
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
         let mut final_syntax = frozen_syntax;
-        let retained = crate::pipeline::stages::append_retained_generated_sources(
+        let retained = crate::pipeline::source_assembly::append_retained_generated_sources(
             &mut final_syntax,
             package_root,
             Some(package_inputs.root()),
@@ -699,7 +690,7 @@ fn compile_to_checked_inner_with_replay(
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
-    crate::pipeline::wire_report::validate_wire_protocol(
+    crate::pipeline::reporting::wire::validate_wire_protocol(
         &typed,
         &build_config.wire_compatibility_demands,
     )?;

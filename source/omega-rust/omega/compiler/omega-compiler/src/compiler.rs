@@ -14,8 +14,8 @@ mod request;
 
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
 pub use report::{
-    CompileOutputKind, CompileReport, ComponentDeploymentReportError,
-    ExecutablePublicationDestination, ExecutablePublicationReceipt, RetainedNativeArtifact,
+    CompileOutputKind, CompileReport, ExecutablePublicationDestination,
+    ExecutablePublicationReceipt, RetainedNativeArtifact,
 };
 pub use request::{CompileRequest, RequestedCompileProduct};
 

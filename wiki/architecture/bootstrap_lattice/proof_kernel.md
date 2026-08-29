@@ -6,9 +6,10 @@
 > implementations accept valid certificates, reject invalid ones, and are
 > exercised by logical, equality, operational-seam, fuzz, and
 > cross-implementation gates. The accepted Beta checker tape is constructed by
-> the Alpha-written cold compiler below `bc`; encoding and discharging the full
-> compiler-simulation/coinduction claim in its calculus is blocked on
-> [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18.
+> the Alpha-written cold compiler below `bc`. The remaining compiler-refinement
+> bridge is implementation work: encode the existing Beta and Alpha small-step
+> machines, synchronization, and well-founded stuttering proof in the existing
+> calculus. No coinductive kernel extension is selected.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned
@@ -182,6 +183,37 @@ Fuel bounds ensure normalization and checking terminate operationally. Fuel
 exhaustion is rejection or an explicit incomplete result; it is never evidence
 that a proposition is false and never termination evidence for the program being
 proved.
+
+## Cyclic operational refinement
+
+Loops do not by themselves require a greatest-fixed-point rule in the kernel.
+For the deterministic Beta compiler edge, the artifact-aware owner reconstructs
+constructive total step functions for the canonical Beta and Alpha machines.
+Terminal outcomes self-loop, so primitive recursion defines one coherent state
+at every natural-number index; this avoids treating `forall n. exists a prefix`
+as though it constructively selected one infinite execution.
+
+The systems need not advance in lockstep. A nondecreasing synchronization
+function maps source indices to artifact indices. One Beta step may lower to
+many Alpha steps, while an erased source operation may lower to none. Every
+single-sided step is required to preserve the published observation and
+decrease a well-founded rank over the related source/artifact state pair.
+Matched progress may establish the next rank. This prevents either system from
+stuttering forever while claiming correspondence.
+
+States, steps, observations, relation schemas, synchronization, determinism,
+progress, and rank decrease are represented by existing terms and predicates.
+Their proofs use the current first-order rules and natural-number induction.
+An untrusted elaborator may construct or compress those derivations; it cannot
+add a trusted LTS judgment or assert a reconstructed premise. Reusable generic
+simulation lemmas are checked once and referenced through a shared proof DAG.
+
+The first implementation must measure certificate size and checking time and
+exercise termination, divergence, zero-instruction source steps, multi-step
+artifact lowering, infinite internal stuttering, changed observations, weakened
+input profiles, and swapped subjects. Performance pressure first justifies DAG
+sharing, reusable proved lemmas, and better elaboration. Only an identified
+expressiveness failure can reopen the kernel-rule decision.
 
 ## Producer and self-host boundaries
 

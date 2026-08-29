@@ -160,7 +160,6 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     );
     assert!(native.executable_publication().is_none());
     assert!(native.app_bundle_publication().is_none());
-    assert!(native.component_deployment().is_none());
     assert!(native.checked_native_executable_path().is_none());
     let artifact = native
         .retained_native_artifact()
@@ -199,7 +198,6 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     );
     assert!(terminal.retained_native_artifact().is_none());
     assert!(terminal.executable_publication().is_none());
-    assert!(terminal.component_deployment().is_none());
     let artifact = terminal
         .artifact()
         .expect("terminal-artifact report must retain exactly one canonical payload");

@@ -73,3 +73,49 @@ fn source_audit_requires_an_explicit_supported_adapter() {
     assert_eq!(unsupported.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&unsupported.stderr).contains("UnsupportedSourceAdapter"));
 }
+
+#[test]
+fn source_snapshot_is_an_omega_subcommand_and_retains_package_custody() {
+    let project = temp_path("source-snapshot");
+    std::fs::create_dir(&project).expect("create source snapshot project");
+    std::fs::write(
+        project.join("build.omg"),
+        concat!(
+            "machine build(builder: &mut Build) {\n",
+            "    builder.application(\"closure-observer\");\n",
+            "}\n",
+        ),
+    )
+    .expect("write source snapshot build entry");
+    std::fs::write(
+        project.join("main.omg"),
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    )
+    .expect("write source snapshot source entry");
+
+    let cache = project.with_extension("cache");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(&project)
+        .env("OMEGA_SOURCE_CACHE_DIR", &cache)
+        .args(["source-snapshot", "--repository-root", ".", "main.omg"])
+        .output()
+        .expect("run source snapshot");
+
+    assert!(
+        output.status.success(),
+        "source snapshot failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("package_source_closure"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("subject_fingerprint"),
+        "stdout was: {stdout}"
+    );
+
+    let _ = std::fs::remove_dir_all(project);
+    let _ = std::fs::remove_dir_all(cache);
+}

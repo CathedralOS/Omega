@@ -350,55 +350,6 @@ impl ExecutablePublicationReceipt {
     }
 }
 
-/// A rejected attempt to retain terminal deployment custody in a compiler
-/// report. The complete published runnable is returned for exact recovery.
-#[derive(Debug)]
-pub struct ComponentDeploymentReportError {
-    root_path: PathBuf,
-    source_file_count: usize,
-    deployment: omega_component_deployment::PublishedComponentFlatOutput,
-    build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
-    build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
-    diagnostic: String,
-}
-
-impl ComponentDeploymentReportError {
-    pub fn diagnostic(&self) -> &str {
-        &self.diagnostic
-    }
-
-    pub fn into_deployment(self) -> omega_component_deployment::PublishedComponentFlatOutput {
-        self.deployment
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn into_parts(
-        self,
-    ) -> (
-        PathBuf,
-        usize,
-        omega_component_deployment::PublishedComponentFlatOutput,
-        Option<omega_build_evaluation::BuildEvaluationUsage>,
-        Option<omega_build_evaluation::BuildObservationSummary>,
-    ) {
-        (
-            self.root_path,
-            self.source_file_count,
-            self.deployment,
-            self.build_evaluation_usage,
-            self.build_observation_summary,
-        )
-    }
-}
-
-impl std::fmt::Display for ComponentDeploymentReportError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
-
-impl std::error::Error for ComponentDeploymentReportError {}
-
 #[derive(Debug)]
 pub struct CompileReport {
     root_path: PathBuf,
@@ -421,10 +372,6 @@ pub struct CompileReport {
     /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
     /// `None`; this remains distinct from the flat executable receipt.
     app_bundle_publication: Option<ExecutablePublicationReceipt>,
-    /// Complete non-clonable terminal deployment result. This is mutually
-    /// exclusive with the legacy executable receipts and retains both the
-    /// runnable installation custody and its flat publication receipt.
-    component_deployment: Option<omega_component_deployment::PublishedComponentFlatOutput>,
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
     pub build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
@@ -455,7 +402,6 @@ impl CompileReport {
             artifact: None,
             executable_publication,
             app_bundle_publication,
-            component_deployment: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -464,47 +410,6 @@ impl CompileReport {
         } else {
             Err("compiler report retained inconsistent executable publication receipts")
         }
-    }
-
-    /// Retain one successfully published terminal deployment as the compiler
-    /// report's native output custody.
-    ///
-    /// Validation replays the installation/image/file join before the report
-    /// takes ownership. Rejection returns the complete non-clonable deployment
-    /// instead of reducing it to a path or diagnostic.
-    pub fn from_component_deployment(
-        root_path: PathBuf,
-        source_file_count: usize,
-        deployment: omega_component_deployment::PublishedComponentFlatOutput,
-        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
-        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
-    ) -> Result<Self, Box<ComponentDeploymentReportError>> {
-        if let Err(error) = deployment.validate() {
-            return Err(Box::new(ComponentDeploymentReportError {
-                root_path,
-                source_file_count,
-                deployment,
-                build_evaluation_usage,
-                build_observation_summary,
-                diagnostic: format!(
-                    "terminal component deployment cannot enter compiler report custody: {}",
-                    error.diagnostic()
-                ),
-            }));
-        }
-        Ok(Self {
-            root_path,
-            source_file_count,
-            wrote_output: true,
-            output_kind: CompileOutputKind::NativeExecutable,
-            retained_native_artifact: None,
-            artifact: None,
-            executable_publication: None,
-            app_bundle_publication: None,
-            component_deployment: Some(deployment),
-            build_evaluation_usage,
-            build_observation_summary,
-        })
     }
 
     pub fn from_retained_native_artifact(
@@ -526,7 +431,6 @@ impl CompileReport {
             artifact: None,
             executable_publication: None,
             app_bundle_publication: None,
-            component_deployment: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -551,7 +455,6 @@ impl CompileReport {
             || self.artifact.is_some()
             || self.executable_publication.is_some()
             || self.app_bundle_publication.is_some()
-            || self.component_deployment.is_some()
         {
             return Err(
                 "native publication requires exactly one retained native artifact".to_owned(),
@@ -650,7 +553,6 @@ impl CompileReport {
             artifact: None,
             executable_publication: Some(receipt),
             app_bundle_publication: None,
-            component_deployment: None,
             build_evaluation_usage: self.build_evaluation_usage,
             build_observation_summary: self.build_observation_summary,
         };
@@ -695,7 +597,6 @@ impl CompileReport {
             artifact: Some(artifact),
             executable_publication: None,
             app_bundle_publication: None,
-            component_deployment: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -727,20 +628,6 @@ impl CompileReport {
         self.app_bundle_publication.as_ref()
     }
 
-    pub const fn component_deployment(
-        &self,
-    ) -> Option<&omega_component_deployment::PublishedComponentFlatOutput> {
-        self.component_deployment.as_ref()
-    }
-
-    /// Transfer the complete non-clonable terminal deployment result out of
-    /// this report. Legacy and non-native reports return `None`.
-    pub fn into_component_deployment(
-        self,
-    ) -> Option<omega_component_deployment::PublishedComponentFlatOutput> {
-        self.component_deployment
-    }
-
     /// Returns the exact installed flat executable only after independently
     /// replaying the complete report custody checks. Object/check-only reports
     /// and any internally drifted receipt graph fail closed.
@@ -750,14 +637,9 @@ impl CompileReport {
         {
             return None;
         }
-        self.component_deployment
+        self.executable_publication
             .as_ref()
-            .map(|deployment| deployment.receipt().output_path())
-            .or_else(|| {
-                self.executable_publication
-                    .as_ref()
-                    .map(ExecutablePublicationReceipt::output_path)
-            })
+            .map(ExecutablePublicationReceipt::output_path)
     }
 
     /// Replays exact output-product cardinality. A retained native artifact is
@@ -765,10 +647,6 @@ impl CompileReport {
     /// executable and optional app-bundle copy, and terminal output replays
     /// the retained installation/image/file join.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
-        let terminal_deployment_valid = self
-            .component_deployment
-            .as_ref()
-            .is_some_and(|deployment| deployment.validate().is_ok());
         let cardinality_matches_kind = match self.output_kind {
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
@@ -776,7 +654,6 @@ impl CompileReport {
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
-                    && self.component_deployment.is_none()
             }
             CompileOutputKind::TerminalArtifact => {
                 !self.wrote_output
@@ -787,7 +664,6 @@ impl CompileReport {
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
-                    && self.component_deployment.is_none()
             }
             CompileOutputKind::RetainedNativeArtifact => {
                 !self.wrote_output
@@ -798,24 +674,15 @@ impl CompileReport {
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
-                    && self.component_deployment.is_none()
             }
             CompileOutputKind::NativeExecutable => {
                 self.wrote_output
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
-                    && match (
-                        self.executable_publication.as_ref(),
-                        self.app_bundle_publication.as_ref(),
-                        self.component_deployment.as_ref(),
-                    ) {
-                        (Some(receipt), _, None) => {
-                            receipt.destination == ExecutablePublicationDestination::FlatOutput
-                                && receipt.has_consistent_installation_identity()
-                        }
-                        (None, None, Some(_)) => terminal_deployment_valid,
-                        _ => false,
-                    }
+                    && self.executable_publication.as_ref().is_some_and(|receipt| {
+                        receipt.destination == ExecutablePublicationDestination::FlatOutput
+                            && receipt.has_consistent_installation_identity()
+                    })
             }
             CompileOutputKind::ObjectContainer => {
                 self.wrote_output
@@ -823,7 +690,6 @@ impl CompileReport {
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
-                    && self.component_deployment.is_none()
             }
         };
         if !cardinality_matches_kind {
@@ -896,7 +762,6 @@ mod tests {
             artifact: None,
             executable_publication: flat,
             app_bundle_publication: bundle,
-            component_deployment: None,
             build_evaluation_usage: None,
             build_observation_summary: None,
         }

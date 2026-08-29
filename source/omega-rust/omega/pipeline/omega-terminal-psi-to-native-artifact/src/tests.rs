@@ -56,30 +56,16 @@ fn hosted_custody() -> (
 }
 
 #[test]
-fn empty_build_uses_bare_plan_while_named_build_constructs_optimizer_context() {
+fn every_build_constructs_the_verified_optimizer_context() {
     let (artifact, _, _) = hosted_custody();
-    let empty = omega_optimization_core::OptimizationSelections::default();
-    let baseline = lower_native_realization_input(
+    let input = lower_native_realization_input(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &psi_proof_admission::AdmissionProfile::default(),
-        &empty,
     )
-    .expect("empty build lowers through the ordinary plan boundary");
-    assert!(matches!(baseline, NativeRealizationInput::Baseline(_)));
+    .expect("every native build must retain verified optimizer context");
 
-    let named = omega_optimization_core::OptimizationSelections::new([
-        omega_optimization_core::Optimization::CopyPropagation,
-    ])
-    .unwrap();
-    let optimized = lower_native_realization_input(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        &psi_proof_admission::AdmissionProfile::default(),
-        &named,
-    )
-    .expect("named build constructs the verified optimizer input");
-    assert!(matches!(optimized, NativeRealizationInput::Optimized(_)));
+    assert_eq!(input.context().module().entry, input.plan().entry);
 }
 
 fn checked_adapter_plan(

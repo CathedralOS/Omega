@@ -91,6 +91,32 @@ metadata visually and semantically distinct. There is no unqualified
 “artifact proven correct” verdict; the honest statement always names the
 profile, semantics, observation profile, and admissions.
 
+## D9 — Cyclic compiler refinement starts inside the existing calculus
+
+The Beta compiler edge does not add a coinductive or labelled-transition-system
+judgment to the accepted checker merely because the subject contains loops.
+Beta already has canonical deterministic small-step semantics. The admission
+owner first presents those semantics and Alpha execution as constructive total
+step functions, with explicit terminal states that self-loop, and defines each
+trace by primitive recursion over `Nat`.
+
+The proof relates source and artifact states at nondecreasing synchronization
+points. A source step may correspond to zero or more artifact steps. Every
+unmatched step must be observationally silent and decrease one well-founded
+rank over the related state pair, so neither side can hide infinite internal
+work. Symbolic relation rows are ordinary predicates and their determinism,
+progress, observation, synchronization, and rank obligations are ordinary
+intuitionistic first-order propositions discharged using the existing
+induction rules.
+
+The producer may elaborate and DAG-share the proof, but the artifact-aware
+owner reconstructs both machines, the exact input/resource profile, and the
+observation profile. ROOT execution and agreement with the Gamma checker remain
+diagnostic evidence. A new trusted kernel primitive is considered only after a
+concrete attempt proves that the required theorem is inexpressible in the
+existing calculus; certificate verbosity or producer inconvenience alone is
+not such a proof.
+
 ## Dependency order
 
 1. close lower-rung semantics and proof checking needed by Delta publication;

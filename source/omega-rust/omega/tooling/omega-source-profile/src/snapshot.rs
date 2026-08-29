@@ -2,7 +2,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v4";
+pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v5";
 
 /// Exact package-resolution custody joined to a source-discovery observation.
 ///
@@ -53,7 +53,6 @@ pub struct SourceClosureSnapshot {
     /// custody. A companion-free focused compilation remains standalone.
     pub package_source_closure: Option<PackageSourceClosureCustodySnapshot>,
     pub selected_target: Option<String>,
-    pub native_provider_substitution: bool,
     pub sources: Vec<SourceClosureSnapshotEntry>,
     pub syntax: psi_syntax_trees::SyntaxTreesSnapshot,
 }
@@ -92,7 +91,6 @@ impl SourceClosureSnapshot {
             }
             None => digest.update([0]),
         }
-        digest.update([u8::from(self.native_provider_substitution)]);
         digest.update(
             u64::try_from(self.sources.len())
                 .expect("source closure count fits u64")
@@ -187,7 +185,6 @@ mod tests {
                 canonical_subject_bytes_hex: "010203".to_owned(),
             }),
             selected_target: Some("linux_x64".to_owned()),
-            native_provider_substitution: false,
             sources: vec![SourceClosureSnapshotEntry {
                 source_id: 7,
                 identity: format!("package:{}/main.omg", "22".repeat(32)),

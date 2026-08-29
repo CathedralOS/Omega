@@ -107,9 +107,19 @@ The retained evidence is intentionally responsibility-specific:
 - reference and differential gates exercise finite behavior but grant no
   authority.
 
-The ROOT executable is strong, unique lower-rung evidence for the intended
-maximal observation, including guarded greatest-fixed-point divergence. It is
-not yet a derivation accepted by the universal proof checker: the repository
-has no encoded Alpha/Beta simulation relation or settled coinduction rule in
-that proof language. Complete source/artifact admission therefore remains
-open, exactly as disclosed in the bootstrap chain manifest.
+The ROOT executable is strong, unique lower-rung executable evidence for the
+intended maximal observation, including divergent cases. It is not a derivation
+accepted by the universal proof checker and never becomes a premise merely by
+returning success.
+
+The remaining admission route is settled as an ordinary theorem in the current
+intuitionistic first-order calculus. The owner reconstructs constructive total
+Beta and Alpha traces, finitely many symbolic relation schemas, a nondecreasing
+source-to-artifact synchronization function, exact observation preservation,
+and one well-founded rank that decreases on every unmatched silent step. The
+certificate must cover the unchanged `B_bc1` subject and profile. A new
+coinductive or LTS-specific kernel rule is not selected; proof size first calls
+for DAG sharing, reusable proved lemmas, or an untrusted elaborator.
+
+Complete source/artifact admission remains open until that derivation is
+encoded and checked, exactly as disclosed in the bootstrap chain manifest.

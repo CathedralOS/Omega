@@ -77,7 +77,6 @@ Omega/
 |   |   |   |-- [CRATE] psi-layout-plans/                # Normalized layout geometry and materialization plans.
 |   |   |   |-- [CRATE] psi-numerics/                   # Exact numerics, float semantics, and literal payloads.
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
-|   |   |   |-- [CRATE] psi-source-loader/              # Root-file loading into Psi-owned source maps.
 |   |   |   |-- [CRATE] psi-symbols/                    # Stable symbol identities and hierarchy storage.
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic/fuel ids and typed proposition vocabulary.
 |   |   |-- representations/
@@ -97,7 +96,6 @@ Omega/
 |   |   |   |-- [CRATE] psi-typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
 |   |   |   `-- [CRATE] psi-checked-trees-to-terminal/   # Fail-closed executable slice plus checked content-evidence production.
 |   |   `-- semantics/
-|   |       |-- [CRATE] psi-types/                      # Unresolved source type-surface analysis.
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
 |   |       |-- [CRATE] psi-proof-admission/            # Product-local Psi judgment and admission checking.
@@ -289,9 +287,9 @@ final implementation resolves std through the package graph.
   execution separate from responsibility-specific source differential families;
   it does not recombine semantic verification cases in its test root.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
-  invariants, and validation. Borrow, invariant, contract, and const-evaluation
-  reasoning live chiefly in `psi-types`, `psi-facts`, `psi-validation`, and
-  `psi-proof`.
+  invariants, and validation. Resolved and checked type reasoning belongs to
+  the typed/checked pipeline and `psi-validation`; durable facts and proof
+  obligations belong to `psi-facts` and `psi-proof`.
 - `psi-facts` carries checked facts, invariants, and refinement data: what
   remains true. Transitional backend consumers depend on the Psi owner directly
   until terminal-Psi slices replace them.

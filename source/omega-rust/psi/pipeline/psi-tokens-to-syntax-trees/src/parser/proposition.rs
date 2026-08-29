@@ -3,8 +3,8 @@ use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_optional_state_parameters;
 use crate::parser::type_reference::parse_type_reference_handle;
-use psi_syntax_trees::item::{PropositionBody, PropositionDefinition};
 use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::item::{PropositionBody, PropositionDefinition};
 use psi_tokens::PunctuationKind;
 
 pub(super) fn parse_proposition_definition<'tokens, 'source>(

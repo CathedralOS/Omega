@@ -2267,6 +2267,7 @@ impl<'program> super::Evaluator<'program> {
             });
     }
 
+    #[cfg(unix)]
     fn real_result_unit(&mut self, outcome: std::io::Result<()>) -> i64 {
         match outcome {
             Ok(()) => 0,

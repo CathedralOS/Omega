@@ -22,6 +22,27 @@ closed. Compiler-issued package review remains non-admitting.
 
 ## P0 — Source resolver boundary
 
+- [ ] **PRIVATE-RESOLVER-STORAGE-BY-DEFAULT.** Replace the ambient-filesystem
+  custody model with package-manager-owned storage. Ordinary resolution must
+  use a private per-user cache and private staging beneath that cache; project
+  build products remain beneath the project's own build root. Do not use a
+  shared writable cache or ambient `%TEMP%` as the default resolution root.
+
+  Create each root with platform-appropriate private permissions, retain and
+  traverse it handle-relatively, authenticate cached content by its immutable
+  source identity, and publish through an atomic rename inside the same root.
+  Tests must use the production private-root constructor rather than inherit
+  the host test runner's temporary-directory ACL.
+
+  Remove unconditional ACL ancestry auditing of ordinary host-installed tools
+  and do not maintain an ad hoc allowlist that attempts to reproduce Windows
+  trust policy. Resolver tools must be selected explicitly and their exact
+  executable identity recorded. A shared cache or stronger executable-custody
+  audit may exist only as an explicit hardened/multi-tenant mode with its trust
+  policy and resulting evidence disclosed. The normal Windows path must accept
+  a standard Git installation under `Program Files` and must not make package
+  tests depend on ambient host ACL accidents.
+
 - [ ] **HARDEN-SOURCE-RESOLVER.** Finish the hostile-process boundary around
   local and Git resolution.
 
@@ -36,7 +57,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q19 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q18 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - enforce whole-operation transfer, object-store, temporary-disk, descendant
     CPU/memory/process, and during-write quotas rather than only rejecting
@@ -51,7 +72,7 @@ closed. Compiler-issued package review remains non-admitting.
 
   The detailed established floor and remaining platform gaps are maintained in
   `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
-  design-blocked on OWNER Q19; the other bullets are engineering work.
+  design-blocked on OWNER Q18; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -290,7 +311,7 @@ closed. Compiler-issued package review remains non-admitting.
   authored override selection for same-path overloaded boundary-operator
   families before admitting that provider form into package evidence.
 
-- [ ] **BLOCKED — OWNER Q19: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q18: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

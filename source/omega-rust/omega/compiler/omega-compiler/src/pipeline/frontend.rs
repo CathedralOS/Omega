@@ -533,21 +533,6 @@ pub(crate) fn bundled_omega_root() -> PathBuf {
         })
 }
 
-/// Read a bundled std module's source text (`source/library/std/<module>.omg`).
-/// Target-specific provider substitution uses this to inject bundled provider
-/// modules, such as `macos_gui`, that application source does not import itself.
-pub(crate) fn read_bundled_std_source(module: &str) -> Result<String, Vec<Diagnostic>> {
-    let mut path = bundled_omega_root();
-    path.push("std");
-    path.push(format!("{module}.omg"));
-    std::fs::read_to_string(&path).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "failed to read bundled std module {}: {error}",
-            path.display()
-        ))]
-    })
-}
-
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
     path.canonicalize().map_err(|error| {
         vec![Diagnostic::error(format!(

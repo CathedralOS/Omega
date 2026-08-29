@@ -247,6 +247,7 @@ dependencies = [
  "psi-checked-interpreter",
  "psi-checked-trees-to-terminal",
  "psi-core",
+ "psi-diagnostics",
  "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-fixed-fuel",
@@ -419,7 +420,6 @@ name = "omega-compilation-report"
 version = "0.1.0"
 dependencies = [
  "omega-build-evaluation",
- "omega-component-deployment",
  "omega-image",
  "omega-native-artifact",
  "psi-terminal-codec",
@@ -1060,6 +1060,7 @@ dependencies = [
  "psi-syntax-trees",
  "psi-tokens",
  "psi-tokens-to-syntax-trees",
+ "same-file",
  "sha1-checked",
  "sha2",
 ]
@@ -1634,14 +1635,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "psi-source-loader"
-version = "0.1.0"
-dependencies = [
- "psi-diagnostics",
- "psi-source",
-]
-
-[[package]]
 name = "psi-symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
@@ -1851,16 +1844,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "psi-types"
-version = "0.1.0"
-dependencies = [
- "psi-arena",
- "psi-language-semantics",
- "psi-numerics",
- "psi-syntax-trees",
-]
-
-[[package]]
 name = "psi-validation"
 version = "0.1.0"
 dependencies = [
@@ -1920,6 +1903,15 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "same-file"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
+dependencies = [
+ "winapi-util",
+]
 
 [[package]]
 name = "serde"
@@ -2040,6 +2032,15 @@ name = "winapi-i686-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
+
+[[package]]
+name = "winapi-util"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
+dependencies = [
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "winapi-x86_64-pc-windows-gnu"

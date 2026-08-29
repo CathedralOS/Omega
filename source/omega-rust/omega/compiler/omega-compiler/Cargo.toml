@@ -69,6 +69,7 @@ omega-executable-installation = { path = "../../backend/runtime/omega-executable
 omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
+omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-package-compilation = { path = "../../build/omega-package-compilation", features = ["test-support"] }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }

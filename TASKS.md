@@ -36,6 +36,94 @@ Compiler validation and code generation may consume general plans. They must
 not acquire customer-shaped semantic types, lifecycle states, writers,
 scanners, or receipts.
 
+## Trusted-core simplification
+
+- [ ] **SEPARATE-COMPILATION-FROM-ADMISSION.** Remove trust-policy discovery
+  and mutation from `omega-compiler`. Compilation may reconstruct the exact
+  obligation set, consume an explicitly supplied admission set, and return
+  unresolved obligations and evidence facts. It must not discover, create, or
+  rewrite `omega.lock`, approve drift, or make an owner-policy decision.
+
+  Give the build/package coordinator an explicit acceptance operation that
+  owns lockfile mutation. A normal check against an existing policy remains
+  fail-closed; first acceptance and changed admissions require that explicit
+  operation. Trust reports are derived diagnostics and never authority.
+
+  Acceptance: `omega-compiler` has no filesystem dependency on `omega.lock`
+  and no dependency on the legacy lockfile owner. Its request names the exact
+  accepted admissions, its result names every consumed and unresolved
+  obligation, and tests prove ordinary compilation cannot create or update
+  admission policy.
+
+- [ ] **KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+  reconstruction of the complete Terminal-Psi obligation set from discovery
+  of proof routes. The producer may search and must serialize the selected
+  derivation. The verifier checks that explicit derivation against the
+  independently reconstructed obligation; it must not enumerate alternate
+  candidates merely to discover whether some proof exists.
+
+  Audit the mirrored producer `nonzero_divisor_certificate` and verifier
+  `verification/reconstruction` trees. Share canonical rule definitions where
+  that reduces drift without sharing producer conclusions, and retain mutation
+  teeth proving that omitted obligations and malformed witness edges reject.
+
+  Acceptance: verifier complexity scales with the supplied certificate and
+  reconstructed obligations rather than a proof-search frontier; deleting the
+  producer-selected route from a certificate rejects even when the verifier
+  could otherwise rediscover another route.
+
+- [ ] **CLASSIFY-AND-HARDEN-AUTHORITATIVE-IDENTITIES.** Inventory every compact
+  FNV or other `u64` fingerprint in Psi, native realization, image emission,
+  installation, provider planning, external roots, and component machinery.
+  Classify each as either a non-authoritative local index/cache discriminator
+  or an identity used for evidence, compatibility, replay, installation, or
+  admission.
+
+  Local discriminators may remain compact. Authoritative identities must bind
+  canonical bytes or use a domain-separated collision-resistant digest; no
+  authority decision may depend solely on FNV equality. Preserve structural
+  byte replay where it already supplies the real check, and rename residual
+  fingerprints so their non-authoritative role is unmistakable.
+
+  Acceptance: an automated architecture test rejects new authoritative
+  `u64`-only identities, every retained FNV use has a local non-authoritative
+  owner, and adversarial collision tests cannot substitute an artifact,
+  certificate, provider plan, or installed image.
+
+- [ ] **QUARANTINE-SPECULATIVE-COMPONENT-RUNTIME.** Keep component deployment,
+  executable installation, external-root, era, and native-fuel experiments
+  outside the ordinary compiler and package-manager production dependency
+  graph until one real checked Omega provider is independently emitted,
+  verified, installed, invoked through its boundary contract, replaced, and
+  safely retired or retained.
+
+  The compilation report no longer carries component-deployment custody; keep
+  that separation. Experimental crates may retain focused direct tests, but
+  ordinary compilation reports contain only checked/Terminal/native products
+  actually produced by the compiler route.
+
+  Acceptance: the normal compiler/package closure imports none of the
+  speculative runtime deployment crates, and reintegration is driven by the
+  end-to-end provider customer rather than by placeholder report states.
+
+- [ ] **REMOVE-PROVENANCE-AND-ADVISORY-POLICY-FROM-PACKAGE-SEMANTICS.** Keep
+  exact source, dependency, compiler-semantic, and artifact subjects required
+  to reconstruct refinement and compatibility. Demote the hash of
+  `current_exe` to optional incident metadata: it neither identifies the
+  loaded process image nor proves correctness and must not participate in
+  semantic review, capability conflict, admission, or verified-package
+  identity.
+
+  Move model-facing source-review prompts, response schemas, and invocation
+  into optional tooling or a plugin. The package core may publish deterministic
+  source/capability changes for such tools to consume, but advisory prose and
+  model availability never affect acceptance.
+
+  Acceptance: package acceptance is identical with advisory tooling absent;
+  changing only executable-provenance metadata cannot alter a semantic verdict
+  or conflict result; and the core package library has no LLM protocol or
+  runner dependency.
+
 Optimizer architecture is specified in
 [`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md), and
 its detailed execution queue lives in

@@ -1289,10 +1289,21 @@ fn retained_native_product_enters_only_terminal_realization() {
 #[test]
 fn shared_frontend_stages_stop_at_checked_psi() {
     let root = workspace_root();
-    let stages_path =
-        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/stages.rs");
-    let stages = std::fs::read_to_string(&stages_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", stages_path.display()));
+    let frontend_paths = [
+        root.join(
+            "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_assembly.rs",
+        ),
+        root.join(
+            "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/phase_transitions.rs",
+        ),
+    ];
+    let frontend = frontend_paths
+        .iter()
+        .map(|path| {
+            std::fs::read_to_string(path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .collect::<String>();
     for forbidden in [
         "checked_trees_to_state_graph",
         "state_graph_to_control_flow",
@@ -1300,7 +1311,7 @@ fn shared_frontend_stages_stop_at_checked_psi() {
         "backend_plan_to_native_image_payload",
     ] {
         assert!(
-            !stages.contains(forbidden),
+            !frontend.contains(forbidden),
             "shared frontend stages crossed the checked-Psi seam through `{forbidden}`"
         );
     }

@@ -60,6 +60,27 @@ The artifact being checked owns its validation. Do not recreate generic
 Product compiler implementation belongs to **OMEGA-PRODUCT-COMPILER-SOURCE**
 in [`TASKS.md`](TASKS.md), not in this queue.
 
+## Evidence minimality
+
+- [ ] **SEPARATE-EDGE-CORRECTNESS-FROM-REPRODUCIBILITY.** Audit every required
+  bootstrap receipt, repeated execution, process marker, custody record, and
+  installation gate. Keep an item mandatory only when it closes a named
+  source-to-artifact refinement, obligation-reconstruction, target-realization,
+  or disclosed-admission edge. Repeated runs, producer pedigree, and byte
+  reproducibility remain useful diagnostics and supply-chain controls but do
+  not establish semantic correctness and must not gate an otherwise checked
+  edge merely by existing.
+
+  Preserve exact source and artifact subjects: authenticity asks whether the
+  produced artifact corresponds to the approved source, while correctness asks
+  whether the checked refinement and obligation evidence hold. Do not erase
+  that distinction while removing ceremonial custody machinery.
+
+  Acceptance: every mandatory artifact in the fixed sequence has a one-line
+  semantic obligation it discharges; deleting any diagnostic-only receipt or
+  second execution leaves the correctness verdict unchanged; and the direct
+  lattice can run without a provenance ceremony masquerading as proof.
+
 ## Edge status
 
 | Producer edge | Current state | Required result |
@@ -115,11 +136,39 @@ Canonical subjects:
   teeth bind those families without moving their semantics. A literal census
   rejected generic pooling across semantic owners and retained only one
   statement-family-local label-suffix literal.
-- [ ] **BLOCKED — OWNER Q18:** ratify the generic guarded
-  simulation/coinduction judgment and finite certificate shape. Then reconstruct
-  the exact compiler proposition below `bc` and check it with the Alpha-owned
-  derivation checker. The candidate compiler may not select its proposition or
-  accept its own evidence.
+- [ ] **BETA-COMPILER-FOL-REFINEMENT.** Encode and discharge the exact
+  `bc.beta` to persisted-Alpha-tape refinement theorem using the accepted
+  intuitionistic first-order calculus; do not add a coinductive or LTS-specific
+  kernel rule.
+
+  Beta already has canonical small-step semantics. Give the proof subject a
+  constructive total `next_beta` presentation, totalize terminal outcomes with
+  self-loops, and route malformed or semantically undefined states to an
+  explicit invalid proof state whose reachability rejects. Do the same for the
+  exact Alpha subject. Define both traces by primitive recursion over `Nat`;
+  determinism alone may not be used to extract a successor from `exists!`.
+
+  Represent the simulation as finitely many symbolic relation schemas. Define
+  a nondecreasing synchronization function because one Beta step may lower to
+  zero or many Alpha steps. Every unmatched step must be observationally silent
+  and decrease one well-founded rank over the related state pair. Prove exact
+  halt, trap, typed exhaustion, output-stream, and divergence agreement for the
+  independently reconstructed `B_bc1` profile and observation identity.
+
+  Use ordinary checked lemmas, natural-number induction, and DAG-shared proof
+  terms. An untrusted elaborator may produce the certificate but may not choose
+  its subjects, premises, input profile, observations, or terminal cases.
+  Measure certificate bytes, peak checker storage, and check time; optimize
+  sharing and reusable proved lemmas before treating size as evidence for a new
+  primitive rule.
+
+  Acceptance: the rooted checker accepts finite, genuinely divergent,
+  zero-artifact-step, and multi-artifact-step seams. It rejects an unguarded
+  self-cycle, infinite single-sided stuttering, a non-silent unmatched step,
+  missing successor, changed output or resource result, reachable invalid
+  state, swapped subject, and a certificate valid only under a weaker input or
+  observation profile. ROOT and the Gamma checker remain differential evidence,
+  never premises or alternate authorities.
 - [x] Keep the default edge bounded to cold construction, artifact framing,
   and exact maximal-observation reconstruction. Alternate checkers, fuzzing,
   exhaustive mutations, and developer reports remain optional. The copied
