@@ -2,6 +2,7 @@ use super::callables::*;
 use super::contracts::*;
 use super::evidence::*;
 use super::exact_identity::*;
+use super::provider_families::project_selected_provider_families;
 use super::provider_intrinsics::project_compiler_intrinsic_execution;
 use super::public_api::*;
 use super::public_traits::*;
@@ -333,6 +334,8 @@ pub fn project_checked_package_review(
             row_declarations,
         });
     }
+    let selected_provider_families =
+        project_selected_provider_families(compilation, target, &selected_providers)?;
     let (public_traits, public_trait_sources) = finalize_projected_rows(
         compilation,
         public_traits,
@@ -424,6 +427,7 @@ pub fn project_checked_package_review(
         dangerous_authorities,
         dangerous_authority_slack,
         selected_providers,
+        selected_provider_families,
         row_sources,
     })
 }

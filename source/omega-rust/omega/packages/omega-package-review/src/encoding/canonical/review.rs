@@ -6,7 +6,7 @@ use super::{
 };
 use crate::encoding::values::{
     encode_callable, encode_const_shape, encode_external_executable_supply, encode_operator_shape,
-    encode_proposition_shape, encode_provider,
+    encode_proposition_shape, encode_provider, encode_provider_family,
 };
 use crate::model::CheckedPackageReviewProjection;
 
@@ -45,5 +45,6 @@ pub(crate) fn encode_with_limits(
         encode_dangerous_authority_slack,
     )?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
+    encoder.sequence(&review.selected_provider_families, encode_provider_family)?;
     encoder.finish()
 }

@@ -1149,9 +1149,10 @@ dispatch exists. Typed build selection now resolves a package-qualified
 same-path boundary-operator family, canonicalizes every exact overload
 coordinate, and selects complete plans from one nominal provider atomically;
 unknown, ambiguous, or provider-missing coordinates reject the whole family.
-Package review still must retain that family set, mapping, target, and
-generic/exact-application coverage under
-**BOUNDARY-OPERATOR-FAMILY-SELECTION**. Public callable `requires`
+Review v82 and canonical row v40 rejoin each explicit complete-declaration
+family to its exact family identity, provider type, selected target, selection
+authority, and canonical coordinate-to-plan mapping. Generic/exact-application
+coverage remains under **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact

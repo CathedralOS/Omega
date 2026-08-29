@@ -5,7 +5,8 @@ use super::{
     },
     identity::{PackageReviewSemanticDependency, PackageReviewToolchainSourceIdentity},
     projection::{
-        CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
+        CheckedPackageCallableReview, CheckedPackageProviderFamilyReview,
+        CheckedPackageProviderReview, CheckedPackageReviewProjection,
     },
     public_api::{
         PackageReviewDataShape, PackageReviewDomainShape, PackageReviewRepresentationTcb,
@@ -295,5 +296,9 @@ impl CheckedPackageReviewProjection {
 
     pub fn selected_providers(&self) -> &[CheckedPackageProviderReview] {
         &self.selected_providers
+    }
+
+    pub fn selected_provider_families(&self) -> &[CheckedPackageProviderFamilyReview] {
+        &self.selected_provider_families
     }
 }

@@ -223,6 +223,7 @@ pub(crate) fn empty_review() -> CheckedPackageReviewProjection {
         dangerous_authorities: Vec::new(),
         dangerous_authority_slack: Vec::new(),
         selected_providers: Vec::new(),
+        selected_provider_families: Vec::new(),
         row_sources: PackageReviewCanonicalRowSources {
             public_traits: Vec::new(),
             public_conformances: Vec::new(),

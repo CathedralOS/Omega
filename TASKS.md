@@ -343,9 +343,11 @@ Remaining:
   same-path boundary family, canonicalize its exact requirement coordinates,
   and select every coordinate through one nominal provider atomically. Unknown,
   ambiguous, or provider-missing coordinates reject the whole selection.
-  Remaining work is package-review family evidence, generic/exact-application
-  coverage, public-leaf delegation/recursive redispatch, and the external-leaf
-  source-form migration below.
+  Package review now rejoins that complete declaration-family selection to the
+  exact provider, target, selection authority, and coordinate-to-plan mapping.
+  Remaining work is generic/exact-application coverage, public-leaf
+  delegation/recursive redispatch, and the external-leaf source-form migration
+  below.
 
   In the same migration, make external provider leaves bodyless `boundary
   machine ... satisfies ...` declarations. Infer compiler-intrinsic supply from

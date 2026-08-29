@@ -8,7 +8,7 @@ use super::{
 use crate::encoding::values::{
     encode_callable, encode_const_shape, encode_external_executable_supply,
     encode_external_executable_supply_key, encode_nominal, encode_operator_coordinate,
-    encode_operator_shape, encode_proposition_shape, encode_provider,
+    encode_operator_shape, encode_proposition_shape, encode_provider, encode_provider_family,
 };
 use crate::model::{
     CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRow,
@@ -312,7 +312,10 @@ pub(crate) fn encode_rows_with_limits(
             PackageReviewCanonicalRowRisk::OpaqueBlocking,
             review.row_sources.selected_provider_set.clone(),
             |_| Ok(()),
-            |encoder| encoder.sequence(&review.selected_providers, encode_provider),
+            |encoder| {
+                encoder.sequence(&review.selected_providers, encode_provider)?;
+                encoder.sequence(&review.selected_provider_families, encode_provider_family)
+            },
         )?,
     )?;
     rows.sort_by(|left, right| {
