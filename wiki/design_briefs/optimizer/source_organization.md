@@ -143,7 +143,9 @@ projection, and independent replay; its entrance owns the exact environment
 through replayed-result custody join. Selected-CFG liveness follows with a
 single analysis-to-independent-replay entrance over separate model, analysis,
 validation, and custody leaves. CFG-aware live ranges repeat that explicit
-analysis/replay custody shape before allocation legality. Allocation-legality
+analysis/replay custody shape before allocation legality. Exact fixed-view-copy
+recovery similarly separates model, materialization, independent replay, and
+custody projection below one source-validated entrance. Allocation-legality
 staging puts each exact availability policy in one visible leaf and keeps
 analysis, independent replay, custody projection, and the retained model
 separate; its entrance owns policy selection plus the replay-gated stage join.

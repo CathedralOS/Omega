@@ -92,6 +92,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_live_ranges",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/fixed_view_copies/mod.rs",
+        coordination_marker: "pub fn stage_optimized_fixed_view_copies",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/mod.rs",
         coordination_marker: "OptimizedPostAllocationMachineOptimizationError",
     },
