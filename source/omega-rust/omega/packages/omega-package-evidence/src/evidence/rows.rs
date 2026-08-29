@@ -1,14 +1,16 @@
 use super::{
-    api::{PackageReviewDataShape, PackageReviewDomainShape, PackageReviewRepresentationTcb},
     authority::{PackageReviewDangerousAuthority, PackageReviewDangerousAuthoritySlack},
     contracts::{
         PackageReviewConstShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
     },
+    data::PackageReviewDataShape,
+    domains::PackageReviewDomainShape,
     identity::{PackageReviewSemanticDependency, PackageReviewToolchainSourceIdentity},
     package::{
         CheckedPackageCallableReview, CheckedPackageProviderFamilyReview,
         CheckedPackageProviderReview, CheckedPackageReviewProjection,
     },
+    representation::PackageReviewRepresentationTcb,
     signatures::{
         PackageReviewConformanceShape, PackageReviewExternalExecutableSupply,
         PackageReviewTraitShape,

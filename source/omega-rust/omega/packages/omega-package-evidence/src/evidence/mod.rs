@@ -3,22 +3,16 @@
 //! This module owns the review shapes and canonical-row model. It does not
 //! inspect compiler state, encode persistence bytes, or make admission policy.
 
-mod api;
 mod authority;
 mod contracts;
+mod data;
+mod domains;
 mod identity;
 pub(crate) mod package;
+mod representation;
 mod rows;
 mod signatures;
 
-pub use api::{
-    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember,
-    PackageReviewDataProperties, PackageReviewDataShape, PackageReviewDomainAliasAtom,
-    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
-    PackageReviewDomainShape, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewRepresentationTcb,
-};
 pub use authority::{
     PackageReviewCapabilityFlow, PackageReviewCrash, PackageReviewCrashCall,
     PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
@@ -46,6 +40,15 @@ pub use contracts::{
     PackageReviewReferenceAccess, PackageReviewResultCaseIdentity,
     PackageReviewSynchronousInvocation,
 };
+pub use data::{
+    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember,
+    PackageReviewDataProperties, PackageReviewDataShape,
+};
+pub use domains::{
+    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainSemanticRole, PackageReviewDomainShape,
+};
 pub use identity::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
@@ -59,6 +62,10 @@ pub use package::{
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
     PackageReviewSelectedInstallationReach,
+};
+pub use representation::{
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewRepresentationTcb,
 };
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
