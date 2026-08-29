@@ -13,45 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-28.
 
-## Q1 — Physical ABI for opaque by-value boundary data
-
-### Context
-
-`InterruptAcknowledgement` and `InterruptMaskGuard` are now public opaque
-linear boundary data. Their provider-owned settlement fields are correctly no
-longer source-visible. Both can nevertheless cross a boundary by value; for
-example, `InterruptEntry::enter` receives an `InterruptAcknowledgement` and is
-governed by a source-authored `Calling<C>` policy.
-
-### Problem statement
-
-Calling-policy evaluation needs a target-specific byte size and alignment
-before it can validate a by-value placement. Opaque boundary data deliberately
-has no ordinary Omega layout, and package review currently records its ABI and
-mechanism as `Unbound`. The compiler therefore rejects the interrupt entry as
-zero-sized. Restoring public structural fields, treating the value as a ZST, or
-hardcoding its former five-`u64` shape would each contradict the opacity and
-representation-TCB decisions.
-
-### Proposed direction
-
-Keep the source type opaque, but require the selected provider/installation to
-supply a compiler-validated, target-specific representation descriptor before
-evaluating any `Calling<C>` policy that passes the value by value. The policy
-may inspect only the closed shape descriptor, never provider fields. Review and
-eventual admission should replace `Unbound` with the exact ABI and mechanism
-commitments and reject when no unique descriptor is selected.
-
-### Alternates
-
-- Acceptable if it matches the intended machine contract: make opaque
-  obligations cross this boundary through an explicit reference/handle shape,
-  so no by-value representation is promised.
-- Tempting but wrong: restore public identity fields merely to recover layout.
-- Tempting but wrong: assign a compiler-global magic size or accept zero-sized
-  placement without selected representation evidence.
-
-## Q2 — Package selector for a multi-package source
+## Q1 — Package selector for a multi-package source
 
 ### Context
 
@@ -96,7 +58,7 @@ ambiguous.
 - Tempting but wrong: infer selection from the default alias or defer it to
   `omega.lock`; explicit aliases and first resolution make both ambiguous.
 
-## Q3 — Application identity in the package graph
+## Q2 — Application identity in the package graph
 
 ### Context
 
@@ -127,7 +89,7 @@ package dependency. Exact source and artifact evidence remain instance facts.
 - Tempting but wrong: make applications importable packages merely to reuse
   existing graph code.
 
-## Q4 — Scoped build machines as project manifests
+## Q3 — Scoped build machines as project manifests
 
 ### Context
 
@@ -180,7 +142,7 @@ under the canonical root.
   build; that restores duplicate build roots rather than one authoritative
   entry.
 
-## Q5 — Fixed-array element cleanup order
+## Q4 — Fixed-array element cleanup order
 
 ### Context
 
@@ -223,7 +185,7 @@ sequence.
   unobservable. Cleanup calls can carry effects, requirements, guarantees,
   fuel, and diagnostics, so their sequence is semantic.
 
-## Q6 — Lifetime application on conformance target traits
+## Q5 — Lifetime application on conformance target traits
 
 ### Context
 
@@ -259,7 +221,7 @@ package review.
 - Tempting but wrong: erase the target-trait lifetime application because it
   has no runtime layout effect; it remains proof and public-interface identity.
 
-## Q7 — Authority-bearing roles for ordinary packages
+## Q6 — Authority-bearing roles for ordinary packages
 
 ### Context
 
@@ -317,7 +279,7 @@ role from names.
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
 
-## Q8 — Explicit transport authority for quotient preconditions
+## Q7 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -365,7 +327,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q9 — Source result schema for placed-view establishment
+## Q8 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -427,7 +389,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q10 — Reborrow restoration disposition
+## Q9 — Reborrow restoration disposition
 
 ### Context
 
@@ -476,7 +438,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q11 — Nominal result carriers for observing compare-exchange
+## Q10 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -547,7 +509,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q12 — Strict SSH trust and credential authority
+## Q11 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -596,7 +558,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q13 — Suspension as control-flow exit or resumable continuation
+## Q12 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -635,7 +597,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q14 — Cyclic control flow in Terminal Psi
+## Q13 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -675,7 +637,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q15 — Close the Delta v1 semantic contract
+## Q14 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -755,7 +717,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q16 — Select one typed executable Gamma contract
+## Q15 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -825,7 +787,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q17 — Fix Beta block formation and definite-initialization reachability
+## Q16 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 

@@ -1482,7 +1482,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q9](OWNER_QUESTIONS.md#q9--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q8](OWNER_QUESTIONS.md#q8--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -6041,7 +6041,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q10](OWNER_QUESTIONS.md#q10--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q9](OWNER_QUESTIONS.md#q9--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the

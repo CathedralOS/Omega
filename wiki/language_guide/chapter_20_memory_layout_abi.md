@@ -225,6 +225,20 @@ feeds both derivers — the outbound call encoder and the inbound entry stub —
 so caller and callee agree by construction without confusing ABI placement with
 interrupted-state preservation.
 
+Opaque boundary data used by value must first resolve one exact target-closed
+representation application. A named provider representation is selected during
+build composition; a compiler-owned family such as `Ptr<T>` derives its
+representation from pinned target semantics. The compiler derives the closed
+shape and physical move/finalization plan from that carrier, then the calling
+policy places it like any other sealed shape. The policy cannot inspect private
+carrier fields or invent the ABI.
+
+This demand is lazy: reference-only opaque pointees and proof-erased values need
+no by-value representation. The exact application is part of the boundary
+signature and `CallPlan` identity, and every producer and consumer must agree on
+it. Representation does not mint a valid value, establish a domain fact, or
+change the opaque declaration's multiplicity or discharge rules.
+
 The plan's `EntryStack` member selects the execution-stack disposition. It is
 not a scalar claim that hardware arrival, adapter execution, and the machine
 body all occupy that stack. External-root installation separately validates a

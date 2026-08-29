@@ -256,6 +256,20 @@ Binding identity contains the abstract requirement contract, selected
 realizations may change without changing the binding identity; changing the
 ceiling is a contract change.
 
+If a boundary exports opaque values by value, its exact representation
+application is another mandatory replacement-facing compatibility row. Inline
+carriers permit independent replacement only when the opaque declaration,
+target-closed shape, movement, and physical finalization match exactly. A stable
+indirect handle keeps that descriptor fixed while allowing provider-owned
+backing to vary; outstanding non-copy handles pin the era that interprets them.
+
+A provider cannot migrate or reinterpret a live inline carrier under a changed
+descriptor merely by proving a state-migration theorem: callers have already
+compiled the old ABI. A descriptor change therefore expands the replacement
+cohort to every fused producer and consumer, requires their rebuild, or rejects
+the replacement. Static descriptor equality and semantic state continuity are
+separate obligations.
+
 Local `dyn` tables never cross this boundary. A consumer that wants a local
 dynamic interface owns a local proxy whose methods call the boundary binding.
 The proxy localizes the ABI, entry, effect, and resource costs while the

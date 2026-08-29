@@ -7,7 +7,10 @@
 // interrupt provider and must be completed exactly once.
 //
 // Both obligations are public opaque linear data. Their runtime identities are
-// owned by the selected provider and are not source-level representation.
+// owned by the selected provider and are not source-level representation. A
+// runtime by-value use therefore demands one build-selected, target-closed
+// `OpaqueRepresentation` application before calling-plan evaluation; every
+// producer and consumer must retain that same application.
 // Active guards use an exact routed result; acknowledgement entry occurrence
 // evidence is bound at runtime. Pending names one stable core-owned entry
 // requirement through `established by`; installation makes its matching

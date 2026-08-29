@@ -35,6 +35,12 @@ proof is evidence inhabiting one proposition application. `requires` and
 machine's entry and terminal edges; they do not add runtime parameters or
 result fields.
 
+Erasure does not make proof evidence a runtime carrier. Runtime representation,
+occurrence minting, and carried authority are separate questions: a selected
+opaque representation says how a value's bits move, an authorized operation
+says who may create a valid occurrence, and a proposition or domain records the
+fact that occurrence establishes. None substitutes for another.
+
 ```omega
 proposition rat_equivalent(left: Rat, right: Rat);
 

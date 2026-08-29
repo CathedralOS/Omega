@@ -193,7 +193,7 @@ admission evidence nor a package instance and has no decoder or public
 constructor.
 
 The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q7. A physical-path
+the exact ordinary-package staging-authority role in OWNER Q6. A physical-path
 or spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 
@@ -609,6 +609,23 @@ It performs a declaration-family-per-slot override; users do not repeat every
 default and cannot append or mutate derived plan rows. Strings, normalized
 signature spellings, ordinals, compiler fingerprints, and declaration order
 never select an overload.
+
+Opaque by-value representations use the parallel typed operation
+`Build::select_representation<Opaque, Conformance>()`. `Conformance` must be one
+exact named satisfaction of the compiler-owned
+`OpaqueRepresentation<Opaque>` trait, and remains inert until selected. Build
+policy cannot author sizes, alignments, ABI classes, field offsets, movement
+rules, or numeric representation identifiers; the compiler derives the closed
+descriptor from the conformance's concrete carrier. Compiler-owned target
+families such as `Ptr<T>` resolve from pinned `TargetSemantics` without an
+authored selection.
+
+Resolution is demand-driven. Reference-only opaque pointees and proof-erased
+values may remain `Unbound`; a runtime by-value occurrence may not. Each demand
+must close before calling-policy evaluation, and all selected producers and
+consumers must agree on one exact application. A missing, conflicting,
+lookalike-trait, foreign-target, or shape-invalid selection rejects with the
+full demand and selection provenance chain.
 
 Selection remains nominal and argument-free. Target-specific values such as a
 Windows standard-output handle or Linux file descriptor belong inside the
@@ -2319,13 +2336,15 @@ contract baseline. Complete rows for the remaining unsupported forms and exact
 proof/admission dispositions still gate sealing.
 
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
-lane. Its row binds the package-qualified declaration to the exact target,
-representation/ABI commitment, external mechanism or explicit unbound status,
-and source/toolchain/compiler evidence. Introduction or material change
-strongly recommends a code/ABI audit, while unchanged rows remain visible
-without recurring blanket approval. Opacity alone is not a blocking trust
-claim. Deployment policy may still classify an exact compiler-owned mechanism
-as dangerous and blocking.
+lane. A demanded runtime by-value row binds the package-qualified declaration
+to its exact selected or compiler-derived representation application: the
+authorized source, target-semantics identity, closed shape graph or sealed ABI
+leaf, physical movement/finalization, representation version, and evidence
+origin. `Unbound` is accepted only when no runtime by-value crossing demands the
+declaration. Introduction or material change strongly recommends a code/ABI
+audit, while unchanged rows remain visible without recurring blanket approval.
+Opacity alone is not a blocking trust claim. Deployment policy may still
+classify an exact compiler-owned mechanism as dangerous and blocking.
 
 Accepted propositions, boundary/provider guarantees, authority establishment,
 executable mechanisms, and derived dangerous reach remain independent

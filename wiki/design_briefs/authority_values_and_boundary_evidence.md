@@ -829,19 +829,40 @@ Evidence crosses in the contracts of boundary machines and requirements. A
 receipt records the exact qualified subject and the owner-authorized
 requirement that licensed the accepted assertion.
 
-Proof-only abstract values such as `Real` continue to use boundary data when
-their representation is supplied by the admitted proof boundary. Runtime
-authority values use ordinary data declarations whose layouts are derived from
-their fields.
+Proof-only abstract values such as `Real` continue to use boundary data without
+a runtime representation. Runtime authority values whose owner publishes a
+fixed structure use ordinary data declarations whose layouts derive from their
+fields. A provider-owned opaque value may instead cross by value through one
+exact, target-closed representation application selected during build
+composition. Reference-only uses do not demand such an application.
+
+Representation, minting, and authority are independent axes. A representation
+application says how the bits move; an owner-authorized operation says who may
+mint a valid occurrence; a domain such as `Active` or `Pending` says what that
+occurrence permits and how it must be discharged. Selecting a carrier therefore
+cannot make a linear declaration copyable, add a terminal disposition, or
+establish any domain fact.
+
+The source relationship uses the ordinary named-conformance model, conceptually
+`Carrier satisfies OpaqueRepresentation<Opaque>`, and remains inert until the
+build selects that exact conformance. Compiler-owned families such as `Ptr<T>`
+derive their application from pinned target semantics instead. In both cases
+the compiler derives the closed value-shape graph and physical move/finalization
+plan from the concrete carrier; source never authors byte size, alignment, ABI
+class, or a numeric representation identifier.
 
 Representation supply and accepted facts remain separate evidence lanes. A
-claim-free opaque boundary declaration always produces an exact
-representation-TCB row and recommends code/ABI audit when introduced or
-materially changed, but opacity alone does not admit a proposition or
-authority. Accepted guarantees, qualification establishment, dangerous
-mechanisms, executable supply, and compatibility changes retain their own
-independent admission policy. An absent service-reach row never suppresses the
-representation evidence.
+runtime by-value opaque demand produces an exact representation-TCB row binding
+the opaque declaration, authorized representation source, target-semantics
+identity, closed shape or sealed ABI leaf, physical move/finalization plan, and
+evidence origin. `Unbound` is a valid complete state only when no runtime
+by-value crossing demands the value. A foreign carrier recommends code/ABI
+audit and may require admission; a compiler-derived target carrier remains
+checked evidence. Opacity alone does not admit a proposition or authority.
+Accepted guarantees, qualification establishment, dangerous mechanisms,
+executable supply, and compatibility changes retain their own independent
+admission policy. An absent service-reach row never suppresses representation
+evidence.
 
 ## Identity and reporting
 
@@ -995,5 +1016,10 @@ declarations and compiler metadata while preserving the authority contracts.
   tag;
 - claim-free boundary representation remains reported without being treated as
   an accepted fact; and
-- proof-only boundary data remains representation-free unless its boundary
-  contract supplies a representation.
+- proof-only and reference-only boundary data do not demand a by-value
+  representation;
+- every runtime by-value opaque crossing resolves one exact representation
+  application before calling-policy evaluation, and every producer and consumer
+  agrees on it; and
+- representation never substitutes for minting authority, qualification, or a
+  linear value's authored discharge.

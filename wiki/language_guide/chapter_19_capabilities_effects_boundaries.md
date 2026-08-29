@@ -73,11 +73,83 @@ itself a proposition, capability establishment, provider guarantee, or service
 reach grant. It can still enlarge the code/ABI trusted computing base because
 an external realization determines some or all of its representation.
 
+Opacity does not imply one representation source. The source is an independent
+part of the declaration's closed application:
+
+- compiler primitives such as `Ptr<T>` derive their runtime shape from pinned
+  target semantics, while provider/compiler operations retain the separate
+  authority to mint valid pointer occurrences;
+- provider-owned runtime values such as `InterruptAcknowledgement` close through
+  one selected checked or admitted opaque-representation application;
+- a boundary datum used only behind a reference, such as `EfiSystemTable`, does
+  not require a by-value pointee representation; and
+- proof-erased data such as the temporary `Real` carrier has no runtime
+  representation to close.
+
+Representation demand is therefore lazy. A runtime-relevant by-value crossing
+requires one exact target-closed application before calling-policy evaluation.
+Reference-only and proof-erased uses are complete without one. Missing,
+duplicate, conflicting, stale, or ambient applications reject only when a use
+actually demands closure.
+
+Packages declare provider-owned candidates through the ordinary named-
+conformance model rather than a new `represents` keyword. Conceptually:
+
+```omega
+pub trait OpaqueRepresentation<Opaque> { }
+
+PicAckRepresentation:
+    PicAckCarrier satisfies
+        OpaqueRepresentation<InterruptAcknowledgement>;
+
+machine build(builder: &mut Build) {
+    builder.select_representation<
+        InterruptAcknowledgement,
+        PicAckRepresentation
+    >();
+}
+```
+
+The compiler-owned trait is recognized by exact identity; a package-authored
+lookalike grants nothing. The conformance is inert until selected. Its concrete
+subject is load-bearing: the compiler derives the closed shape and physical
+movement/finalization plan from `PicAckCarrier` rather than accepting authored
+sizes, alignments, ABI classes, or numeric representation IDs. A foreign
+carrier may supply the same relationship only through a disclosed admission.
+Compiler-sealed generic families such as `Ptr<T>` resolve from target semantics
+without package selection.
+
+Representation, minting, and authority remain independent. A representation
+application states how bits carry a value. A minting route states who may create
+a valid occurrence. A domain fact states what one occurrence permits. None
+implies either of the others.
+
+The opaque declaration, not its carrier, owns multiplicity and terminal
+discharge. A `[linear]` acknowledgement remains legally consumable only through
+its named protocol. Its selected carrier may define byte movement and storage
+finalization performed inside that valid consumption, but cannot make the value
+copyable, droppable, or otherwise create another terminal path.
+
 Package evidence therefore always reports it as an exact representation-TCB
 row. The row is keyed by the package-qualified declaration, target,
 representation/ABI commitment, selected mechanism or explicit unbound status,
 and source/toolchain/compiler evidence. Package-controlled names never classify
 its risk.
+
+For a demanded by-value application, that exact row additionally retains the
+named conformance or compiler-owned target-semantics source, closed shape graph,
+physical movement/finalization plan, representation version, and evidence
+origin. `Unbound` remains a complete report state for a declaration with no
+runtime by-value demand; it is an error only when closure requires a shape.
+Checked carrier derivation is recheckable evidence rather than an admission.
+
+The same exact descriptor is a replacement-facing contract row. An inline
+provider may replace independently only when the descriptor matches exactly. A
+stable indirect handle may keep its public descriptor while changing backing,
+but outstanding non-copy handles pin the era that interprets them. A descriptor
+change expands the replacement cohort to every fused producer and consumer,
+requires their rebuild, or rejects; a state-migration theorem cannot repair an
+ABI mismatch in already-compiled callers.
 
 Initial introduction or material change strongly recommends code/ABI audit but
 does not, by opacity alone, create a blocking trust-claim admission. Unchanged
