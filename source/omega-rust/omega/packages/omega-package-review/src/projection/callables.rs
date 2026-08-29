@@ -1,9 +1,9 @@
-use super::contracts::metadata::contracts::project_callable_contracts;
-use super::contracts::metadata::operations::canonical_checked_invocation_targets;
-use super::exact_identity::checked_facts::exactly_one;
-use super::exact_identity::conformances::project_conformance_bounds;
-use super::exact_identity::parameter_contracts::project_type_parameters;
-use super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::checked_semantics::conformances::project_conformance_bounds;
+use super::checked_semantics::facts::exactly_one;
+use super::checked_semantics::signatures::parameters::project_type_parameters;
+use super::checked_semantics::types::review_signature_type_identity_with_binders;
+use super::contracts::checked::facts::project_callable_contracts;
+use super::contracts::checked::operations::canonical_checked_invocation_targets;
 use super::operational::{
     project_capability_flow, project_crash, project_installation_reaches, project_mutation,
     project_service_row, project_synchronous_invocations, project_termination,

@@ -1,5 +1,7 @@
-use super::canonical::framed_identity;
-use super::lifetime_identities::review_lifetime_topology_with_substitutions;
+use super::encoding::framed_identity;
+use lifetimes::review_lifetime_topology_with_substitutions;
+
+pub(in crate::projection) mod lifetimes;
 use crate::evidence::{PackageReviewDataField, PackageReviewTypeIdentity};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

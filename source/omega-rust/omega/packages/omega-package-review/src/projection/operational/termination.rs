@@ -1,5 +1,5 @@
+use super::super::checked_semantics::declarations::nominal_identity;
 use super::super::contracts::expressions::names::portable_parameter_position;
-use super::super::exact_identity::nominal_identities::nominal_identity;
 use crate::evidence::{
     PackageReviewProgressPremise, PackageReviewProgressSubject, PackageReviewTermination,
 };

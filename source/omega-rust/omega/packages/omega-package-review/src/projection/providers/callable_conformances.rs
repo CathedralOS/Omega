@@ -1,7 +1,5 @@
-use super::super::exact_identity::nominal_identities::{
-    nominal_identity, trait_requirement_identity,
-};
-use super::super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::super::checked_semantics::declarations::{nominal_identity, trait_requirement_identity};
+use super::super::checked_semantics::types::review_signature_type_identity_with_binders;
 use super::super::public_api::operators::project_operator_coordinate;
 use super::boundary_operator_selection::{
     validate_selected_boundary_operator_checked_adapter,

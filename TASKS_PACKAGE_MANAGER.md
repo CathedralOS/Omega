@@ -30,10 +30,6 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining work:
 
-  - replace source-owned `WorkspaceMemberPath` with a neutral validated
-    source-relative path; authored workspace-member semantics stay manager-owned;
-  - replace the remaining misleading exact-identity and contract-metadata
-    groupings without changing canonical rows or encodings;
   - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,
     then refresh each crate map and enforce the intended dependency direction.
 

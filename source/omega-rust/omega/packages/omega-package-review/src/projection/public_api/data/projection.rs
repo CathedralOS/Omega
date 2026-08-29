@@ -4,16 +4,14 @@ use crate::evidence::{
     PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataShape, PackageReviewNominalIdentity, PackageReviewSourceLocationRole,
 };
-use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
-use crate::projection::contracts::metadata::parameters::collect_type_parameter_source_locations;
-use crate::projection::contracts::metadata::source_locations::project_required_proof_fact_source_locations;
-use crate::projection::exact_identity::nominal_identities::{
-    nominal_identity, reviewed_package_owns,
-};
-use crate::projection::exact_identity::parameter_contracts::project_type_parameters;
-use crate::projection::exact_identity::type_identities::{
+use crate::projection::checked_semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::projection::checked_semantics::signatures::parameters::project_type_parameters;
+use crate::projection::checked_semantics::types::{
     project_data_field, review_signature_type_identity_with_binders,
 };
+use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::checked::parameters::collect_type_parameter_source_locations;
+use crate::projection::contracts::checked::source_locations::project_required_proof_fact_source_locations;
 use crate::projection::public_api::domains::facts::{
     project_definition_contract_fact, semantic_fact_matches_definition_fact,
 };

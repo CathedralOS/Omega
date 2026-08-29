@@ -2,7 +2,7 @@ use crate::evidence::{
     PackageReviewContractBinaryOperator, PackageReviewContractOperatorMeaning,
     PackageReviewContractUnaryOperator,
 };
-use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
+use crate::projection::contracts::checked::facts::ContractProjectionContext;
 use crate::projection::public_api::operators::project_operator_coordinate;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

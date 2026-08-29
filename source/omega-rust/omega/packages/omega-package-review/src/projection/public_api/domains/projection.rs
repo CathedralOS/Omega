@@ -5,13 +5,11 @@ use crate::evidence::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity,
 };
-use crate::projection::contracts::metadata::parameters::collect_type_parameter_source_locations;
-use crate::projection::contracts::metadata::source_locations::project_required_proof_fact_source_locations;
-use crate::projection::exact_identity::nominal_identities::{
-    nominal_identity, reviewed_package_owns,
-};
-use crate::projection::exact_identity::parameter_contracts::project_type_parameters;
-use crate::projection::exact_identity::type_identities::review_type_identity_with_binders;
+use crate::projection::checked_semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::projection::checked_semantics::signatures::parameters::project_type_parameters;
+use crate::projection::checked_semantics::types::review_type_identity_with_binders;
+use crate::projection::contracts::checked::parameters::collect_type_parameter_source_locations;
+use crate::projection::contracts::checked::source_locations::project_required_proof_fact_source_locations;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

@@ -25,12 +25,12 @@ src/
 |   |-- source_custody/       bounded source coordinates and final row/source pairing
 |   |-- public_api/           public domains, data, propositions, constants, operators, traits, and conformances
 |   |-- callables.rs          callable envelope projection
-|   |-- contracts/            contract metadata, propositions, and expressions
-|   |   |-- metadata/         checked contract evidence, operations, and service reach
+|   |-- contracts/            checked facts, propositions, and expressions
+|   |   |-- checked/          evidence, operations, parameters, reach, and source custody
 |   |   `-- expressions/      calls, members, constructors, names, and operators
 |   |-- providers/           selection, families, intrinsics, conformances, and external supply
 |   |-- operational/          reach, invocation, mutation, crash, termination, and flow rows
-|   `-- exact_identity/       exact nominal, type, lifetime, and owner identity
+|   `-- checked_semantics/    declarations, types, signatures, facts, and conformances
 |-- encoding/                 canonical persistence boundaries; no compiler IR
 |   |-- canonical/            framing, row assembly, limits, and primitive encoder
 |   |-- values/               semantic value encoding by evidence family

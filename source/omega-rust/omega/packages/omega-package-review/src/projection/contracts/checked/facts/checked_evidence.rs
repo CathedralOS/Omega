@@ -1,11 +1,11 @@
-use super::contracts::ContractProjectionContext;
+use super::projection::ContractProjectionContext;
 use crate::evidence::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
 };
-use crate::projection::contracts::expressions::names::portable_parameter_position;
-use crate::projection::exact_identity::nominal_identities::{
+use crate::projection::checked_semantics::declarations::{
     nominal_identity, trait_requirement_identity,
 };
+use crate::projection::contracts::expressions::names::portable_parameter_position;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

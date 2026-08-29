@@ -6,10 +6,10 @@ use crate::evidence::{
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewNominalIdentity,
     PackageReviewTypeIdentity,
 };
-use crate::projection::exact_identity::nominal_identities::{
+use crate::projection::checked_semantics::declarations::{
     nominal_identity, trait_requirement_identity,
 };
-use crate::projection::exact_identity::type_identities::{
+use crate::projection::checked_semantics::types::{
     review_signature_type_identity_with_binders_and_substitutions,
     review_type_identity_with_binders_and_substitutions,
 };

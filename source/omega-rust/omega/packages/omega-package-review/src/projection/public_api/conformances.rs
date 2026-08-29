@@ -1,10 +1,10 @@
-use super::super::contracts::metadata::parameters::collect_type_parameter_source_locations;
-use super::super::contracts::propositions::evidence::collect_evidence_requirements;
-use super::super::exact_identity::nominal_identities::{
+use super::super::checked_semantics::declarations::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,
 };
-use super::super::exact_identity::parameter_contracts::project_type_parameters;
-use super::super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::super::checked_semantics::signatures::parameters::project_type_parameters;
+use super::super::checked_semantics::types::review_signature_type_identity_with_binders;
+use super::super::contracts::checked::parameters::collect_type_parameter_source_locations;
+use super::super::contracts::propositions::evidence::collect_evidence_requirements;
 use crate::evidence::projection::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
