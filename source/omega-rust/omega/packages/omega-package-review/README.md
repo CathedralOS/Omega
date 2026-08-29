@@ -29,7 +29,7 @@ src/
 |   |   |-- metadata/         checked contract evidence, operations, and service reach
 |   |   `-- expressions/      calls, members, constructors, names, and operators
 |   |-- providers/           selection, families, intrinsics, conformances, and external supply
-|   |-- operational.rs        reach, invocation, mutation, crash, and flow rows
+|   |-- operational/          reach, invocation, mutation, crash, termination, and flow rows
 |   `-- exact_identity/       exact nominal, type, lifetime, and owner identity
 |-- encoding/                 canonical persistence boundaries; no compiler IR
 |   |-- canonical/            framing, row assembly, limits, and primitive encoder
