@@ -615,7 +615,9 @@ A constant is either anonymous or landed—never both and never neither.
 - **Landing:** the first site that requests a type renders the value ONCE
   — range-checked into an integer type, rounded once into a float format.
   The same literal lands as `u8`, `u64`, `f32`, or any future format with
-  no suffix; a suffix (`0u32`) merely lands the literal where it stands.
+  no suffix; a suffix (`0u32`) merely lands the literal where it stands. A
+  contract comparison inherits this destination from a typed named operand or
+  from the owning callable's declared `result` type; review never guesses one.
 - **Landed:** from that point the constant IS a value of its type, and the
   type/domain/format ride with it. All further compile-time folding
   happens at the landed type's semantics — width, signedness, domain

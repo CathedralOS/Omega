@@ -101,6 +101,81 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
 }
 
 #[test]
+fn review_projects_result_typed_float_contract_literals() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub boundary machine measured() -> f32
+ensures result == 1.25
+;
+"#,
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("result-typed float contract should check");
+    let review = project_checked_package_review(&checked)
+        .expect("result-typed float contract should have exact review identity");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.role() == PackageReviewCallableRole::Boundary)
+        .expect("public measured callable");
+    let ensures = callable
+        .contracts()
+        .iter()
+        .find(|contract| contract.kind() == PackageReviewContractKind::Ensures)
+        .expect("measured ensures contract");
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = ensures.fact()
+    else {
+        panic!("one result float comparison")
+    };
+    assert_eq!(
+        right.as_ref(),
+        &PackageReviewContractExpression::Float(PackageReviewFloatLiteral::F32(1.25f32.to_bits())),
+    );
+}
+
+#[test]
+fn review_lands_result_float_contracts_for_trait_and_operator_declarations() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Scalar {}
+
+pub boundary operator Scalar::measure() -> f32
+ensures result == 1.25;
+
+pub trait Measures {
+    machine measured() -> f64
+    ensures result == 2.5;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("trait and operator result-float contracts should check");
+    project_checked_package_review(&checked)
+        .expect("trait and operator result-float contracts should retain exact landings");
+}
+
+#[test]
 fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
     let project = |predicate: &str| {
         let package = TempPackage::new();
