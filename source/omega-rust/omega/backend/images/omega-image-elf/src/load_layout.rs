@@ -297,6 +297,13 @@ impl ValidatedElfDynamicLoadLayout {
         }
     }
 
+    /// Crate-private custody access for later exact ELF serialization rungs.
+    /// Public consumers must not bypass the validated layout carrier to recover
+    /// the mutable source image.
+    pub(crate) fn retained_image(&self) -> &omega_image::FinalImage {
+        retained_image(&self.relative)
+    }
+
     pub fn sections(&self) -> &[ElfPlacedDynamicSection] {
         &self.sections
     }

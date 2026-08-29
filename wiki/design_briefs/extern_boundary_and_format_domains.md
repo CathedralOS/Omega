@@ -358,11 +358,22 @@ byte, deterministic identity, and the complete placed-header/load-layout
 custody chain. It does not resolve procedure/source relocations, serialize
 headers, mutate the image, or grant loader authority.
 
-Program/ELF header serialization and final section-header placement, procedure
-address-fixup application, optional `.gnu.hash`, image mutation, and independent
-final-byte replay remain open. Validated semantic tags, absolute geometry, and
-applied section-header/`.dynamic` bytes still grant no loader, publication, or
-runnable-image authority. An owned
+The dynamic file-envelope carrier now consumes that resolved owner and emits
+the exact 64-byte ELF64-LSB header followed by the five already-planned 56-byte
+program-header rows. It binds the retained entry symbol, target machine,
+`e_shoff`, fixed table geometry, every exact load-layout row, and the already-
+applied 768-byte section-header table as a separate file fragment at that exact
+offset. An independent bounded decoder rejoins both fragments to the entry,
+absolute layout, and placed-header owner, and rejection returns the complete
+resolved owner. This carrier is deliberately non-runnable: it copies no payload
+into an image, applies no procedure or source relocation, and mutates no
+`FinalImage`.
+
+Procedure/source address-fixup application, optional `.gnu.hash`, placement of
+all payloads and fragments into one image, image mutation, and independent
+final-byte replay remain open. Validated semantic tags, absolute geometry,
+applied section-header/`.dynamic` bytes, and the file-envelope fragments still
+grant no loader, publication, or runnable-image authority. An owned
 direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
