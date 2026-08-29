@@ -1,10 +1,10 @@
+use super::subject::{SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN, SOURCE_CLOSURE_SUBJECT_MAGIC};
 use super::validation::{validate_package_key, validate_source_lineage};
 use super::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
     CanonicalSourceClosureSubjectFingerprint, CanonicalSourceClosureSubjectLimits,
-    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN,
-    SOURCE_CLOSURE_SUBJECT_MAGIC,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
 use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::closure::ResolvedSourceIdentity;
