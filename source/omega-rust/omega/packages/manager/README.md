@@ -35,7 +35,7 @@ source/
 ```
 
 Hostile-process confinement is delegated to
-[`resolver-execution`](../resolver-execution/README.md). Source acquisition
+[`source/execution`](../source/execution/README.md). Source acquisition
 does not know graph identity. `package/` performs the declaration join before
 `graph/` derives graph-owned identities.
 
@@ -97,7 +97,7 @@ change acceptance, conflicts, or compiler-owned audit recommendations.
 
 Package-authored code never chooses admitted capabilities, accepted lock state,
 resolver policy, or review outcome. `build.omg` provides compiler-checked
-declarations; [`package-review`](../package-review/README.md) projects checked
+declarations; [`review/evidence`](../review/evidence/README.md) projects checked
 semantic facts without admission authority.
 
 Language and design references:
