@@ -114,6 +114,15 @@ order once; its descriptor generates both `Optimization` and
 generated views and every exact name is evaluated independently through both
 preludes, so swapped name-to-counter mappings fail.
 
+The mandatory target-legalization and instruction-selection crate is now a
+governed reference slice as well. Its crate map points to a 66-line
+legalization join and a 30-line selection join. Legal source construction and
+independent replay each descend into structural, scalar-function, and
+leaf-expression families; selected-plan construction and validation descend
+separately through constraints, roster construction, function/block/register
+checks, integrity replay, and canonical identity. No production leaf in that
+crate exceeds the 1,300-line ceiling.
+
 Psi, selected-lowering, allocation-recovery, post-allocation, and
 function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and

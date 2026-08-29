@@ -220,6 +220,11 @@ and no-selection compatibility remain enforced.
 - [x] Split complete-unit core validation into canonical identity/fact indexes,
   active/pruned machine and structural/service catalogs, retained affine
   authority, and final entry/frontier checks below one ordered entrance.
+- [x] Replace the 5,000-line target-legalization/instruction-selection entrance
+  with separate legalization and selection joins; construction, independent
+  replay/validation, identities, constraints, structural/scalar families, and
+  focused fixtures descend through named leaves, and the architecture gate now
+  governs the entire lowering crate.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
