@@ -5,7 +5,7 @@ use omega_optimization_core::{
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 
-use crate::function_relative_realization::{
+use crate::stages::realization::function_relative_realization::{
     function_relative_statistics, seal_function_relative_manifest,
 };
 use crate::{

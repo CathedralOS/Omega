@@ -3,7 +3,7 @@ use omega_optimization_core::{
     OptimizationSelections,
 };
 
-use crate::function_relative_realization::expected_aarch64_movn_manifest;
+use crate::stages::realization::function_relative_realization::expected_aarch64_movn_manifest;
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     OptimizedAarch64MovnResolvedSelectedFormLayoutError,
@@ -405,7 +405,7 @@ fn selected_lowering_manifest(
 pub(crate) fn corrupt_aarch64_movn_function_relative_source_for_test(
     staged: &mut StagedOptimizedAarch64MovnFunctionRelativeRealization,
 ) {
-    crate::aarch64_movn_resolved_selected_form_layout::corrupt_aarch64_movn_resolved_layout_byte_for_test(
+    crate::stages::layout::aarch64_movn_resolved_selected_form_layout::corrupt_aarch64_movn_resolved_layout_byte_for_test(
         &mut staged.source,
     );
 }

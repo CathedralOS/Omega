@@ -3428,6 +3428,39 @@ those leaves, so a reader reaches the rule implementation and its preservation
 checks through the same path. The public compatibility facade and serialized
 semantic identities remain unchanged.
 
+The physical pipeline demonstrates the custody-stage variant:
+
+```text
+omega-optimization-pipeline/src/
+  lib.rs                         # coordination + custody stages
+  coordination/
+    mod.rs                       # compiler-facing route catalog
+    {psi_optimization,native_continuation,physical_pipeline,report}.rs
+  stages/
+    mod.rs                       # ordered custody-boundary catalog
+    selection/                   # target lowering, assignment, selection
+    allocation/                  # liveness through physical homes
+    machine/                     # selected lowering + machine transforms
+    encoding/                    # layout-independent selected form
+    layout/                      # resolved layout + exit contracts
+    realization/                 # function-relative + callable boundaries
+    artifacts/                   # fragments, text, objects, final artifact
+  tests/
+    coordination/                # request and complete-route tests
+    stages/                      # mirrors the production custody taxonomy
+    fixtures/                    # typed artifact/CFG/lowering/Unit fixtures
+    validation.rs                # cross-stage corruption and custody checks
+```
+
+The crate entrance does not enumerate implementation files. `coordination`
+owns complete-route entry points and exact optimization requests, while
+`stages` makes every intermediate custody boundary discoverable without a flat
+`#[path]` wall. The test catalog follows the same route and stage vocabulary;
+broad fixtures are named separately rather than hiding the stage taxonomy in a
+single integration file. Reorganization must not change the flat public
+compatibility surface, semantic identities, exact selected schedule, or stage
+outputs.
+
 ## Testing strategy
 
 Each rule has positive, negative, boundary, and fact-expiry tests. The full

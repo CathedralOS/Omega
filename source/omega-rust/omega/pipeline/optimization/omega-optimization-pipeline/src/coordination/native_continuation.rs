@@ -43,7 +43,7 @@ pub fn stage_optimized_native_continuation_with_provider_executions(
     settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<StagedOptimizedNativeContinuation, OptimizedNativeContinuationError> {
     if optimized.selections().is_empty() {
-        return crate::assignment::stage_optimized_assignment_with_provider_executions(
+        return crate::stages::selection::assignment::stage_optimized_assignment_with_provider_executions(
             optimized,
             target,
             settlements,
@@ -51,7 +51,7 @@ pub fn stage_optimized_native_continuation_with_provider_executions(
         .map(StagedOptimizedNativeContinuation::CoverageFallbackAssigned)
         .map_err(OptimizedNativeContinuationError::CoverageFallbackAssigned);
     }
-    crate::physical_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions(
+    crate::coordination::physical_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions(
         optimized,
         target,
         settlements,
@@ -67,7 +67,7 @@ pub fn stage_optimized_native_continuation_with_provider_executions_and_installa
     installation: AdmittedProviderInstallation,
 ) -> Result<StagedOptimizedNativeContinuation, OptimizedNativeContinuationError> {
     if optimized.selections().is_empty() {
-        return crate::assignment::stage_optimized_assignment_with_provider_executions_and_installation(
+        return crate::stages::selection::assignment::stage_optimized_assignment_with_provider_executions_and_installation(
             optimized,
             target,
             settlements,
@@ -76,7 +76,7 @@ pub fn stage_optimized_native_continuation_with_provider_executions_and_installa
         .map(StagedOptimizedNativeContinuation::CoverageFallbackAssigned)
         .map_err(OptimizedNativeContinuationError::CoverageFallbackAssigned);
     }
-    crate::physical_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
+    crate::coordination::physical_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
         optimized,
         target,
         settlements,
