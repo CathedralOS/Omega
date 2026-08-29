@@ -3,7 +3,7 @@ use super::{
     nominal_owner_from_symbols, toolchain_source_identity, validate_package_type_identity_input,
     validate_package_type_identity_input_inner,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
 use psi_core::PackageKeyIdentity;

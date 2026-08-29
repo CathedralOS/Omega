@@ -1,5 +1,5 @@
 use super::{framed_identity, review_lifetime_topology_with_substitutions};
-use crate::model::{PackageReviewDataField, PackageReviewTypeIdentity};
+use crate::evidence::{PackageReviewDataField, PackageReviewTypeIdentity};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

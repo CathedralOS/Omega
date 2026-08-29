@@ -2,7 +2,7 @@ use super::members::{
     checked_contract_member_path, data_subject_binder_position, is_data_subject_field_expression,
     project_contract_member_expression,
 };
-use crate::model::PackageReviewContractExpression;
+use crate::evidence::PackageReviewContractExpression;
 use crate::projection::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::nominal_identity;
 use omega_compiler::CheckedCompilation;

@@ -6,7 +6,7 @@ use super::super::operational::{
 use super::{
     nominal_identity, review_signature_type_identity_with_binders, trait_requirement_identity,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,

@@ -4,7 +4,7 @@ use crate::encoding::values::{
     encode_crash_route, encode_evidence_interface, encode_nominal, encode_synchronous_invocation,
     encode_termination,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
     PackageReviewDangerousAuthoritySlack, PackageReviewDataField, PackageReviewDataKind,

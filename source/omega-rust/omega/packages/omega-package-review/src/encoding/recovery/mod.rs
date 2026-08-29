@@ -16,7 +16,7 @@ pub use model::{
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
 
-use crate::model::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
+use crate::evidence::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 
 pub(super) fn canonical_row_subject_for_ledger(
     canonical_bytes: &[u8],

@@ -2,7 +2,7 @@ use crate::encoding::{
     Encoder, PackageReviewEncodingError, encode_data_properties, encode_type_identity,
     encode_type_parameter,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewConstShape, PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
     PackageReviewOperatorShape, PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
     PackageReviewPropositionShape, PackageReviewPublicPropositionBody,

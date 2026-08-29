@@ -1,4 +1,4 @@
-use crate::model::{
+use crate::evidence::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
     PackageReviewSourceLocationRole, ProjectedNestedSourceLocation, ProjectedReviewRow,
 };

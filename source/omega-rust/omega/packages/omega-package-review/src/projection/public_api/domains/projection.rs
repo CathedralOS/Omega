@@ -2,7 +2,7 @@ use super::{
     project_domain_alias_expansion, project_domain_establishment_route,
     project_domain_predicate_facts,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity, ProjectedReviewRow,
 };

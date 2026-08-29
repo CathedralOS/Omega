@@ -14,7 +14,7 @@ use super::operators::{
 use super::static_arguments::{
     contract_call_static_parameter_kinds, project_contract_static_argument,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
 };

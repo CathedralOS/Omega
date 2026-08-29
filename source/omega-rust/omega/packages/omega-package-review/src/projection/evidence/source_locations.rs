@@ -1,7 +1,7 @@
 use super::super::exact_identity::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };
-use crate::model::*;
+use crate::evidence::*;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

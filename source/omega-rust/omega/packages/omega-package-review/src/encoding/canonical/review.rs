@@ -8,7 +8,7 @@ use crate::encoding::values::{
     encode_callable, encode_const_shape, encode_external_executable_supply, encode_operator_shape,
     encode_proposition_shape, encode_provider, encode_provider_family,
 };
-use crate::model::CheckedPackageReviewProjection;
+use crate::evidence::CheckedPackageReviewProjection;
 
 pub(crate) fn encode(
     review: &CheckedPackageReviewProjection,

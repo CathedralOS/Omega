@@ -1,4 +1,4 @@
-use crate::model::PackageReviewContractExpression;
+use crate::evidence::PackageReviewContractExpression;
 use crate::projection::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::nominal_identity;
 use omega_compiler::CheckedCompilation;

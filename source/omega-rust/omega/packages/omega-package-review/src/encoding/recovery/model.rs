@@ -1,7 +1,7 @@
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
 
-use crate::model::{
+use crate::evidence::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCanonicalRowSource,
 };

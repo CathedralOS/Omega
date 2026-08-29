@@ -1,4 +1,4 @@
-use crate::model::PackageReviewCompilerIntrinsicExecution;
+use crate::evidence::PackageReviewCompilerIntrinsicExecution;
 use omega_compiler::CheckedCompilation;
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;

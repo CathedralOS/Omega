@@ -1,5 +1,5 @@
 use super::source_locations::{canonical_source_location, canonical_source_span_location};
-use crate::model::*;
+use crate::evidence::*;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

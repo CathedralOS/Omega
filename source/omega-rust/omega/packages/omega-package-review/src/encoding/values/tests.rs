@@ -2,7 +2,7 @@ use crate::encoding::{
     Encoder, PackageReviewEncodingLimits, encode, encode_rows, encode_rows_with_limits,
     encode_with_limits,
 };
-use crate::model::{
+use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCanonicalRowSources, PackageReviewCompilerIntrinsicExecution,
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,

@@ -1,5 +1,5 @@
 use super::{canonical_digest_label, framed_identity, nominal_identity};
-use crate::model::PackageReviewNominalOwner;
+use crate::evidence::PackageReviewNominalOwner;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

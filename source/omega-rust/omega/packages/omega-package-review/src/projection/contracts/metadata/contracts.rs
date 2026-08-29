@@ -2,7 +2,7 @@ use super::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewResultCaseIdentity,
 };

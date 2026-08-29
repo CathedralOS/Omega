@@ -6,7 +6,7 @@ use super::provider_families::project_selected_provider_families;
 use super::provider_intrinsics::project_compiler_intrinsic_execution;
 use super::public_api::*;
 use super::public_traits::*;
-use crate::model::*;
+use crate::evidence::*;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;

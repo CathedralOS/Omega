@@ -1,4 +1,4 @@
-use crate::model::{PackageReviewByteSequencePredicate, PackageReviewContractCallTarget};
+use crate::evidence::{PackageReviewByteSequencePredicate, PackageReviewContractCallTarget};
 use crate::projection::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::nominal_identity;
 use omega_compiler::CheckedCompilation;

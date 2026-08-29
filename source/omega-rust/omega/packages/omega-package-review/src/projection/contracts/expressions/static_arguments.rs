@@ -1,5 +1,5 @@
 use super::names::portable_parameter_position;
-use crate::model::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
+use crate::evidence::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
 use crate::projection::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::{
     lifetime_binder_ordinal, missing_exact_toolchain_type_owner, nominal_identity,

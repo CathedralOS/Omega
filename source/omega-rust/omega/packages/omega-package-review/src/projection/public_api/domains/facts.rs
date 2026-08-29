@@ -1,4 +1,4 @@
-use crate::model::{PackageReviewContractFact, PackageReviewNominalIdentity};
+use crate::evidence::{PackageReviewContractFact, PackageReviewNominalIdentity};
 use crate::projection::contracts::{
     ContractProjectionContext, project_contract_expression, project_contract_proposition,
 };

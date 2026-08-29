@@ -1,4 +1,4 @@
-use crate::model::{PackageReviewSourceLocationRole, ProjectedNestedSourceLocation};
+use crate::evidence::{PackageReviewSourceLocationRole, ProjectedNestedSourceLocation};
 use crate::projection::evidence::canonical_source_span_location;
 use crate::projection::exact_identity::exactly_one;
 use omega_compiler::CheckedCompilation;

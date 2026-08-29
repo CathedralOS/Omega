@@ -1,5 +1,5 @@
 use super::require_rederived_data_definition_facts;
-use crate::model::{
+use crate::evidence::{
     PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataShape, PackageReviewNominalIdentity, PackageReviewSourceLocationRole,
     ProjectedReviewRow,

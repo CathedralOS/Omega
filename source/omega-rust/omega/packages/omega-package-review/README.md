@@ -10,7 +10,7 @@ is not package admission, an accepted lock, or proof that an audit occurred.
 ```text
 src/
 |-- lib.rs                    public entrance and explicit reexports
-|-- model/                    stable review vocabulary; no compiler traversal
+|-- evidence/                 stable compiler-issued review vocabulary
 |   |-- identity.rs           package/toolchain nominal identity
 |   |-- signatures.rs         public signature and generic parameter shapes
 |   |-- public_api.rs         domain and data API shapes
@@ -18,7 +18,7 @@ src/
 |   |-- authority.rs          reach, capability, mutation, crash, and termination
 |   |-- projection.rs         complete review aggregate and internal row pairings
 |   `-- rows.rs               canonical row and source-coordinate carriers
-|-- projection/               checked compiler state -> review model
+|-- projection/               checked compiler state -> review evidence
 |   |-- aggregate.rs          total projection entry and final assembly
 |   |-- evidence/             retained evidence, authority classes, and sources
 |   |   |-- mod.rs            evidence-projection facade
@@ -63,11 +63,11 @@ tests/
 
 ## Dependency direction
 
-`projection` reads compiler-owned checked state and constructs `model` values.
-`encoding` reads `model` values but never compiler IR. `model` neither traverses
-compiler state nor depends on persistence. Recovery decodes canonical rows into
-a distinct inert type, and the obligation ledger requires local compiler
-reconstruction before recovered rows can be compared.
+`projection` reads compiler-owned checked state and constructs `evidence`
+values. `encoding` reads `evidence` values but never compiler IR. `evidence`
+neither traverses compiler state nor depends on persistence. Recovery decodes
+canonical rows into a distinct inert type, and the obligation ledger requires
+local compiler reconstruction before recovered rows can be compared.
 
 The crate root exports the stable external surface. Cross-responsibility
 construction helpers and fields remain `pub(crate)` and are not external API.

@@ -1,5 +1,5 @@
 use crate::encoding::{Encoder, PackageReviewEncodingError, encode_type_identity};
-use crate::model::{
+use crate::evidence::{
     PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCastForm,
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
