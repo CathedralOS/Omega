@@ -11,6 +11,8 @@ const SHIFT_ZERO_COUNT_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1";
 const MULTIPLY_ZERO_ANNIHILATION_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1";
+const SATURATING_NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
+    b"omega.psi-rule.live-obligation-free-saturating-integer-neutral-arithmetic-identity-elimination.v1";
 
 pub fn validate_total_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
@@ -154,6 +156,15 @@ fn exact_rule_validator(
         | TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight => (
             MULTIPLY_ZERO_ANNIHILATION_RULE_DOMAIN,
             b"omega.validator.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1"
+                .as_slice(),
+        ),
+        TotalScalarIdentityKind::SaturatingIntegerAddZeroLeft
+        | TotalScalarIdentityKind::SaturatingIntegerAddZeroRight
+        | TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight
+        | TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft
+        | TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight => (
+            SATURATING_NEUTRAL_ARITHMETIC_RULE_DOMAIN,
+            b"omega.validator.live-obligation-free-saturating-integer-neutral-arithmetic-identity-elimination.v1"
                 .as_slice(),
         ),
     };

@@ -1,4 +1,4 @@
-//! Closed independent classification of total wrapping identities.
+//! Closed independent classification of total scalar identities.
 
 use super::*;
 
@@ -189,6 +189,96 @@ pub(super) fn independently_classify_total_scalar_identity(
             *scalar_type,
             *scalar_type,
             independently_typed_integer(*scalar_type, 0),
+        ),
+        (
+            O::SaturatingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            TotalScalarIdentityKind::SaturatingIntegerAddZeroLeft,
+        ) => (
+            *psi_operation,
+            *result,
+            *right,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
+        (
+            O::SaturatingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            TotalScalarIdentityKind::SaturatingIntegerAddZeroRight,
+        ) => (
+            *psi_operation,
+            *result,
+            *left,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
+        (
+            O::SaturatingIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight,
+        ) => (
+            *psi_operation,
+            *result,
+            *left,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
+        (
+            O::SaturatingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft,
+        ) => (
+            *psi_operation,
+            *result,
+            *right,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 1),
+        ),
+        (
+            O::SaturatingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight,
+        ) => (
+            *psi_operation,
+            *result,
+            *left,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 1),
         ),
         _ => return None,
     };

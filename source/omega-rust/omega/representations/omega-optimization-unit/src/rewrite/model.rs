@@ -510,8 +510,9 @@ pub struct DeadScalarNodeRewrite {
     pub scalar_type: ScalarType,
 }
 
-/// The closed, obligation-free wrapping identities whose result is exactly an
+/// Closed, obligation-free scalar identities whose result is exactly an
 /// existing operand for every value of the declared integer and count types.
+/// Operation policies remain distinct rows and rule identities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TotalScalarIdentityKind {
     WrappingIntegerAddZeroLeft,
@@ -523,11 +524,16 @@ pub enum TotalScalarIdentityKind {
     WrappingIntegerShiftRightZeroCount,
     WrappingIntegerMultiplyZeroLeft,
     WrappingIntegerMultiplyZeroRight,
+    SaturatingIntegerAddZeroLeft,
+    SaturatingIntegerAddZeroRight,
+    SaturatingIntegerSubtractZeroRight,
+    SaturatingIntegerMultiplyOneLeft,
+    SaturatingIntegerMultiplyOneRight,
 }
 
-/// Remove one total wrapping integer identity and replace every use of its
-/// live result with the equivalent existing value operand. The source
-/// operation independently retains any distinct shift-count type.
+/// Remove one total integer identity and replace every use of its live result
+/// with the equivalent existing value operand. The source operation policy is
+/// retained by the identity kind, including any distinct shift-count type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TotalScalarIdentityRewrite {
     pub location: NodeLocation,

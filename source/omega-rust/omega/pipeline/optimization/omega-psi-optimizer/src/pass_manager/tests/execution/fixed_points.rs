@@ -1,8 +1,13 @@
 //! Deterministic fixed-point execution across the exact Psi pass families.
 
 use super::super::*;
-use crate::rules::WrappingNeutralArithmeticIdentityRule;
-use crate::rules::tests::wrapping_multiply_literal_pair_unit;
+use crate::rules::{
+    SaturatingNeutralArithmeticIdentityRule, WrappingNeutralArithmeticIdentityRule,
+};
+use crate::rules::tests::{
+    SaturatingNeutralOperation, saturating_neutral_identity_unit,
+    wrapping_multiply_literal_pair_unit,
+};
 
 #[test]
 fn named_global_value_numbering_reaches_a_wrapping_neutral_identity_fixed_point() {
@@ -18,10 +23,10 @@ fn named_global_value_numbering_reaches_a_wrapping_neutral_identity_fixed_point(
         run_unit(unit, &registry, budget(8)).unwrap();
     assert_eq!(commits.len(), 1);
     assert_eq!(usage.iterations, 2);
-    assert_eq!(usage.rule_evaluations, 22);
+    assert_eq!(usage.rule_evaluations, 23);
     assert_eq!(usage.candidates, 1);
     assert_eq!(usage.validation_steps, 1);
-    assert_eq!(manifest.unwrap().ordered_rules().len(), 12);
+    assert_eq!(manifest.unwrap().ordered_rules().len(), 13);
     assert_eq!(ledger.records().len(), 1);
     assert!(matches!(
         output.functions[0].blocks[0].nodes[1].operation,
@@ -34,7 +39,46 @@ fn named_global_value_numbering_reaches_a_wrapping_neutral_identity_fixed_point(
     assert_eq!(second.identity, output.identity);
     assert!(second_commits.is_empty());
     assert_eq!(second_usage.iterations, 1);
-    assert_eq!(second_usage.rule_evaluations, 12);
+    assert_eq!(second_usage.rule_evaluations, 13);
+    assert!(second_ledger.records().is_empty());
+}
+
+#[test]
+fn named_global_value_numbering_reaches_a_saturating_neutral_identity_fixed_point() {
+    let unit = saturating_neutral_identity_unit(
+        SaturatingNeutralOperation::Add,
+        psi_core::IntegerValue::Unsigned(0),
+        false,
+        false,
+    );
+    let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+    let registry = built_in_psi_registry(&selections).unwrap();
+    let (output, commits, usage, _, manifest, ledger) =
+        run_unit(unit, &registry, budget(8)).unwrap();
+    assert_eq!(commits.len(), 1);
+    assert_eq!(usage.iterations, 2);
+    assert_eq!(usage.rule_evaluations, 26);
+    assert_eq!(usage.candidates, 1);
+    assert_eq!(usage.validation_steps, 1);
+    let manifest = manifest.unwrap();
+    assert_eq!(manifest.ordered_rules().len(), 13);
+    assert_eq!(
+        manifest.decisions()[0].rule(),
+        SaturatingNeutralArithmeticIdentityRule::contract().identity()
+    );
+    assert_eq!(ledger.records().len(), 1);
+    assert!(matches!(
+        output.functions[0].blocks[0].nodes[1].operation,
+        AbstractOperation::Return { value, .. }
+            if value == psi_core::ValueId::new(1_903).unwrap()
+    ));
+
+    let (second, second_commits, second_usage, _, _, second_ledger) =
+        run_unit(output.clone(), &registry, budget(8)).unwrap();
+    assert_eq!(second.identity, output.identity);
+    assert!(second_commits.is_empty());
+    assert_eq!(second_usage.iterations, 1);
+    assert_eq!(second_usage.rule_evaluations, 13);
     assert!(second_ledger.records().is_empty());
 }
 
@@ -62,9 +106,9 @@ fn wrapping_multiply_zero_overlap_uses_the_earlier_neutral_rule() {
         )
         .unwrap();
         assert_eq!(commits.len(), 1);
-        assert_eq!(usage.rule_evaluations, 22);
+        assert_eq!(usage.rule_evaluations, 23);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 12);
+        assert_eq!(manifest.ordered_rules().len(), 13);
         assert_eq!(
             manifest.decisions()[0].rule(),
             WrappingNeutralArithmeticIdentityRule::contract().identity()
@@ -616,10 +660,10 @@ fn named_global_value_numbering_reaches_a_cross_block_ledger_fixed_point() {
         run_unit(diamond_dominator_gvn_unit(), &registry, budget(8)).unwrap();
     assert_eq!(commits.len(), 2);
     assert_eq!(usage.iterations, 3);
-    assert_eq!(usage.rule_evaluations, 18);
+    assert_eq!(usage.rule_evaluations, 19);
     assert_eq!(usage.candidates, 2);
     assert_eq!(usage.validation_steps, 2);
-    assert_eq!(manifest.unwrap().ordered_rules().len(), 12);
+    assert_eq!(manifest.unwrap().ordered_rules().len(), 13);
     assert_eq!(ledger.records().len(), 2);
     assert_eq!(ledger.records()[0].provenance.len(), 5);
     assert_eq!(ledger.records()[1].provenance.len(), 4);
@@ -629,7 +673,7 @@ fn named_global_value_numbering_reaches_a_cross_block_ledger_fixed_point() {
     assert_eq!(second.identity, output.identity);
     assert!(second_commits.is_empty());
     assert_eq!(second_usage.iterations, 1);
-    assert_eq!(second_usage.rule_evaluations, 12);
+    assert_eq!(second_usage.rule_evaluations, 13);
     assert!(second_ledger.records().is_empty());
     assert_eq!(second_ledger.input(), second_ledger.output());
 }
@@ -642,10 +686,10 @@ fn named_global_value_numbering_reaches_a_phi_translated_fixed_point() {
         run_unit(phi_translated_gvn_unit(), &registry, budget(8)).unwrap();
     assert_eq!(commits.len(), 1);
     assert_eq!(usage.iterations, 2);
-    assert_eq!(usage.rule_evaluations, 17);
+    assert_eq!(usage.rule_evaluations, 18);
     assert_eq!(usage.candidates, 1);
     assert_eq!(usage.validation_steps, 1);
-    assert_eq!(manifest.unwrap().ordered_rules().len(), 12);
+    assert_eq!(manifest.unwrap().ordered_rules().len(), 13);
     assert_eq!(ledger.records().len(), 1);
     let join = &output.functions[0].blocks[0];
     assert_eq!(join.parameters.len(), 2);
@@ -656,7 +700,7 @@ fn named_global_value_numbering_reaches_a_phi_translated_fixed_point() {
     assert_eq!(second.identity, output.identity);
     assert!(second_commits.is_empty());
     assert_eq!(second_usage.iterations, 1);
-    assert_eq!(second_usage.rule_evaluations, 12);
+    assert_eq!(second_usage.rule_evaluations, 13);
     assert!(second_ledger.records().is_empty());
 }
 
@@ -675,11 +719,11 @@ fn named_global_value_numbering_records_proof_phi_fact_consumption() {
         run_unit(unit, &registry, budget(8)).unwrap();
     assert_eq!(commits.len(), 1);
     assert_eq!(usage.iterations, 2);
-    assert_eq!(usage.rule_evaluations, 18);
+    assert_eq!(usage.rule_evaluations, 19);
     assert_eq!(usage.candidates, 1);
     assert_eq!(ledger.records().len(), 1);
     let manifest = manifest.unwrap();
-    assert_eq!(manifest.ordered_rules().len(), 12);
+    assert_eq!(manifest.ordered_rules().len(), 13);
     assert_eq!(
         manifest.decisions()[0].consumed_facts(),
         [OptimizationFactReference::AcceptedObligation(
@@ -692,7 +736,7 @@ fn named_global_value_numbering_records_proof_phi_fact_consumption() {
     let (_, second_commits, second_usage, _, _, second_ledger) =
         run_unit(output, &registry, budget(8)).unwrap();
     assert!(second_commits.is_empty());
-    assert_eq!(second_usage.rule_evaluations, 12);
+    assert_eq!(second_usage.rule_evaluations, 13);
     assert!(second_ledger.records().is_empty());
 }
 
@@ -715,7 +759,7 @@ fn named_global_value_numbering_records_proof_certified_fact_consumption() {
     assert_eq!(output.functions[0].blocks[0].nodes.len(), 3);
     assert_eq!(ledger.records().len(), 1);
     let manifest = manifest.unwrap();
-    assert_eq!(manifest.ordered_rules().len(), 12);
+    assert_eq!(manifest.ordered_rules().len(), 13);
     assert_eq!(
         manifest.decisions()[0].consumed_facts(),
         [OptimizationFactReference::AcceptedObligation(
@@ -742,7 +786,7 @@ fn named_global_value_numbering_reaches_compatible_policy_fixed_point() {
     assert_eq!(commits.len(), 1);
     assert_eq!(usage.iterations, 2);
     assert_eq!(usage.validation_steps, 1);
-    assert_eq!(manifest.unwrap().ordered_rules().len(), 12);
+    assert_eq!(manifest.unwrap().ordered_rules().len(), 13);
     assert_eq!(ledger.records().len(), 1);
     assert_eq!(output.accepted_obligation_facts, accepted_catalog);
     assert_eq!(output.functions[0].blocks[0].nodes.len(), 3);
@@ -751,7 +795,7 @@ fn named_global_value_numbering_reaches_compatible_policy_fixed_point() {
         run_unit(output.clone(), &registry, budget(8)).unwrap();
     assert_eq!(second, output);
     assert!(commits.is_empty());
-    assert_eq!(usage.rule_evaluations, 12);
+    assert_eq!(usage.rule_evaluations, 13);
     assert!(ledger.records().is_empty());
 }
 
@@ -765,9 +809,9 @@ fn named_global_value_numbering_reaches_compatible_policy_phi_fixed_point() {
         run_unit(unit, &registry, budget(8)).unwrap();
     assert_eq!(commits.len(), 1);
     assert_eq!(usage.iterations, 2);
-    assert_eq!(usage.rule_evaluations, 21);
+    assert_eq!(usage.rule_evaluations, 22);
     assert_eq!(usage.validation_steps, 1);
-    assert_eq!(manifest.unwrap().ordered_rules().len(), 12);
+    assert_eq!(manifest.unwrap().ordered_rules().len(), 13);
     assert_eq!(ledger.records().len(), 1);
     assert_eq!(output.accepted_obligation_facts, accepted_catalog);
     assert_eq!(output.functions[0].blocks[0].parameters.len(), 2);
@@ -776,7 +820,7 @@ fn named_global_value_numbering_reaches_compatible_policy_phi_fixed_point() {
         run_unit(output.clone(), &registry, budget(8)).unwrap();
     assert_eq!(second, output);
     assert!(commits.is_empty());
-    assert_eq!(usage.rule_evaluations, 12);
+    assert_eq!(usage.rule_evaluations, 13);
     assert!(ledger.records().is_empty());
 }
 

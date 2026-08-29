@@ -333,6 +333,11 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => 7,
                 TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft => 8,
                 TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight => 9,
+                TotalScalarIdentityKind::SaturatingIntegerAddZeroLeft => 10,
+                TotalScalarIdentityKind::SaturatingIntegerAddZeroRight => 11,
+                TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight => 12,
+                TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft => 13,
+                TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight => 14,
             });
         }
     }
