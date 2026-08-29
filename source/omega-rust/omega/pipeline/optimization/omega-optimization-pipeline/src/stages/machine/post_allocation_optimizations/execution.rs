@@ -41,12 +41,23 @@ pub fn stage_optimized_post_allocation_machine_optimization(
         .optimized_target()
         .optimized()
         .selections();
-    match selected_post_allocation_machine_rule(
+    let rule = selected_post_allocation_machine_rule(
         selections,
         machine.machine().plan().target.architecture,
     )?
-    .0
-    {
+    .0;
+    stage_optimized_post_allocation_machine_optimization_for_rule(source, machine, rule)
+}
+
+pub(crate) fn stage_optimized_post_allocation_machine_optimization_for_rule(
+    source: &StagedOptimizedRegisterHomes,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    rule: Optimization,
+) -> Result<
+    StagedOptimizedPostAllocationMachineOptimization,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    match rule {
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
             stage_optimized_aarch64_cbnz_fusion(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz)
@@ -107,12 +118,25 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lower
         .optimized_target()
         .optimized()
         .selections();
-    match selected_post_allocation_machine_rule(
+    let rule = selected_post_allocation_machine_rule(
         selections,
         machine.machine().plan().target.architecture,
     )?
-    .0
-    {
+    .0;
+    stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_rule(
+        source, machine, rule,
+    )
+}
+
+pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_rule(
+    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    rule: Optimization,
+) -> Result<
+    StagedOptimizedPostAllocationMachineOptimization,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    match rule {
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
             stage_optimized_aarch64_cbnz_fusion_after_selected_lowering(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz)

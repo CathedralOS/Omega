@@ -277,17 +277,23 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
 #[test]
 fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_policy() {
     let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
-    for selections in [
-        OptimizationSelections::new([
-            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
-            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
-        ])
-        .unwrap(),
-        OptimizationSelections::new([
-            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
-            Optimization::SelectedIncomingU12ExactAddImmediate,
-        ])
-        .unwrap(),
+    for (selections, same_phase) in [
+        (
+            OptimizationSelections::new([
+                Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+            true,
+        ),
+        (
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap(),
+            false,
+        ),
     ] {
         let optimized = optimize_artifact_sections(
             &semantic,
@@ -296,14 +302,26 @@ fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_polic
             ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
         )
         .unwrap();
-        assert!(matches!(
-            stage_optimized_verified_physical_pipeline_with_provider_executions(
-                optimized,
-                NativeTarget::linux_x64(),
-                &[],
-            ),
-            Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
-        ));
+        let result = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        );
+        if same_phase {
+            assert!(matches!(
+                result,
+                Err(
+                    OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryRuleCatalog(
+                        omega_regalloc::AllocationRecoveryRuleCatalogError::UnsupportedComposition
+                    )
+                )
+            ));
+        } else {
+            assert!(matches!(
+                result,
+                Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+            ));
+        }
     }
 }
 

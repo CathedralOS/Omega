@@ -11,8 +11,6 @@ mod model;
 mod routes;
 
 use crate::ValidatedOptimizedTargetOperations;
-use omega_regalloc::selected_allocation_recovery_rule;
-
 pub use error::OptimizedVerifiedPhysicalPipelineError;
 pub(crate) use input::{
     stage_optimized_verified_physical_pipeline_with_provider_executions,
@@ -20,16 +18,24 @@ pub(crate) use input::{
 };
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 
+pub(crate) use routes::{
+    ResolvedNonAllocationComposition, ResolvedPhysicalPhaseComposition,
+    resolve_physical_phase_composition,
+};
 use routes::{stage_allocation_recovery_pipeline, stage_non_allocation_recovery_physical_pipeline};
 
 pub(super) fn stage_optimized_verified_physical_pipeline(
     optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
     let selections = optimized_target.optimized().selections();
-    let allocation_recovery = selected_allocation_recovery_rule(selections)
-        .map_err(|_| OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)?;
-    if let Some(rule) = allocation_recovery {
-        return stage_allocation_recovery_pipeline(optimized_target, rule);
+    let composition =
+        resolve_physical_phase_composition(selections, optimized_target.target().architecture)?;
+    match composition {
+        ResolvedPhysicalPhaseComposition::AllocationRecovery { rule } => {
+            stage_allocation_recovery_pipeline(optimized_target, rule)
+        }
+        ResolvedPhysicalPhaseComposition::NonAllocation(composition) => {
+            stage_non_allocation_recovery_physical_pipeline(optimized_target, composition)
+        }
     }
-    stage_non_allocation_recovery_physical_pipeline(optimized_target)
 }

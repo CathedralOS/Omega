@@ -138,6 +138,12 @@ and fragment publication has one generic post-allocation source. Adding
 XOR-zero did not copy the former MOVN route, and the named CBNZ/MOVN owning
 complete routes were removed.
 
+Physical composition is likewise navigable rather than implicit. A 74-line
+`routes/composition/mod.rs` entrance owns the catalog-backed phase/target
+preflight and returns a closed route model from `model.rs`; its focused matrix
+stays in `tests.rs`. The compiler-facing physical entrance dispatches only from
+that result, while lower route leaves retain independent custody checks.
+
 The organization gate is executable for the catalog-driven reference slices.
 `omega-optimization-core` declares
 each exact name, stable tag, build case, build counter, phase, and canonical

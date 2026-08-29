@@ -216,6 +216,16 @@ only exact implemented sets and rejects the rest with a closed error. The
 long-term coordinator executes each stage catalog over one typed stage carrier;
 it must not encode an optimization name in top-level route variants.
 
+The current policy is centralized at
+`coordination/physical_pipeline/routes/composition/mod.rs`. Owning catalogs
+first validate each phase selection and target predicate; this entrance alone
+admits baseline, selected lowering, one allocation-recovery rule alone, one
+post-allocation rule with optional selected lowering, or function-relative
+layout with optional selected lowering. Multiple recovery or machine rules,
+recovery mixed with another physical phase, and machine plus layout reject
+before route execution. The resolved post-allocation rule drives dispatch;
+lower leaves independently validate transformation and custody.
+
 ## Required tests
 
 - disabled selection preserves baseline bytes and identities;
@@ -231,6 +241,13 @@ The catalog matrix covers all 15 current exact names across all five native
 target constructors: 63 admitted cells and 12 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
+
+The adjacent composition matrix covers all 105 unordered exact-name pairs on
+both x86-64 and AArch64. Its 210 cells contain 120 admitted routes, 50 typed
+composition rejections, and 40 target rejections. Every cell also checks the
+exact Psi pass projection and proves that overlaying the complete Psi suite
+does not change the physical disposition; focused triple cases pin the two
+selected-lowering rules with machine and layout routes.
 
 Current XOR-zero coverage proves both direct and selected-lowering routes
 through fragment, object, and callable publication. Target-register-environment
