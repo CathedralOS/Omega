@@ -26,7 +26,7 @@ use crate::limits::*;
 #[allow(unused_imports)]
 use crate::local::{capture::*, snapshot::*};
 #[allow(unused_imports)]
-use crate::observations::{accounting::*, execution::*, resolution::*, resolved::*};
+use crate::observations::{accounting::*, execution::*, receipt::*, resolution::*, resolved::*};
 use cap_std::ambient_authority;
 use cap_std::fs::Dir as CapabilityDirectory;
 use omega_resolver_execution::{

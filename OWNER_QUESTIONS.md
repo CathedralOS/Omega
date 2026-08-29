@@ -1037,3 +1037,63 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: use the countdown entry itself as sponsor.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
+
+## Q20 — Source identity for target-conditioned package dependencies
+
+### Context
+
+Package dependency discovery is a static projection of direct calls in the
+canonical free `build` machine. Unconditional `builder.depend` and
+`builder.depend_as` rows are implemented. The package design settles that a
+future conditioned row is selected only from one immutable request-time
+`TargetProfile`, normalizes to `Always | TargetProfile(...)`, and is retained
+with the selected closure. Arbitrary evaluated build control flow cannot choose
+the graph.
+
+Omega currently has three target spellings with different purposes: CLI
+profiles such as `linux_x64`, target-owned namespaces such as
+`linux_x86_64`, and Rust's temporary closed `TargetProfile::LinuxX64` carrier.
+The design ultimately allows concrete profiles to arrive from validated target
+packages rather than remaining a permanent compiler enum. No source-visible
+dependency-condition or target-profile value is yet defined in the build
+prelude.
+
+### Problem statement
+
+The package projector needs one exact ordinary-Omega value and call shape for a
+conditioned dependency before implementation can assign source identity. Using
+a raw string would preserve the current spelling split and allow compiler and
+target-package vocabularies to drift. Reusing a target-owned namespace path as
+the profile value could accidentally confer role authority. Evaluating
+`builder.target` control flow would make graph discovery dynamic and permit an
+inactive dependency to influence whether it is fetched.
+
+### Proposed direction
+
+Define one ordinary closed build-library `DependencyCondition` whose
+`TargetProfile` case contains the canonical source-level profile identity, then
+add ordinary `Build::depend_when(condition, source)` and
+`Build::depend_as_when(alias, condition, source)` operations. Existing calls
+normalize to `Always`; source does not spell an explicit `Always`. The profile
+value must resolve to the same exact request-time identity used by target
+activation without deriving authority from a package name, alias, namespace,
+or path. The projector accepts only a direct canonical literal and filters
+inactive rows before invoking any source adapter.
+
+### Alternates
+
+- Acceptable and narrower: use one dedicated operation per closed target
+  profile if the initial target set must remain compiler-welded, provided the
+  spelling has one canonical identity and can later migrate without changing
+  lock semantics.
+- Acceptable: make the condition carry an exact target-package declaration
+  coordinate, provided candidate target roles are authenticated independently
+  and graph discovery can resolve the coordinate without executing package
+  code.
+- Tempting but wrong: accept CLI-name strings or target-owner namespace strings
+  as interchangeable profile identity.
+- Tempting but wrong: project arbitrary `if`, `transition`, helper calls, or
+  comparisons against evaluated `builder.target` state.
+- Tempting but wrong: fetch every conditioned edge and discard it later; an
+  inactive dependency must receive no resolver, build, import, or alias
+  authority.

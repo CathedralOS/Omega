@@ -4,6 +4,13 @@ use omega_resolver_execution::{
 };
 use std::path::{Path, PathBuf};
 
+/// Exact standard input committed into one sealed Git command identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GitCommandInputObservation {
+    Null,
+    ExactBytes { length: u64, identity: String },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitExecutableIdentity {
     pub(crate) path: PathBuf,
@@ -53,6 +60,7 @@ pub struct GitCommandExecutionObservation {
     pub(crate) phase: ResolverExecutionPhase,
     pub(crate) policy_identity: String,
     pub(crate) command_identity: String,
+    pub(crate) input: GitCommandInputObservation,
     pub(crate) status_code: Option<i32>,
     pub(crate) termination_signal: Option<i32>,
     pub(crate) stdout_length: u64,
@@ -74,6 +82,10 @@ impl GitCommandExecutionObservation {
 
     pub fn command_identity(&self) -> &str {
         &self.command_identity
+    }
+
+    pub const fn input(&self) -> &GitCommandInputObservation {
+        &self.input
     }
 
     pub const fn status_code(&self) -> Option<i32> {

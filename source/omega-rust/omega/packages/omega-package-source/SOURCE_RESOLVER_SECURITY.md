@@ -1,6 +1,6 @@
 # Source resolver security boundary
 
-Status: engineering contract, revised 2026-08-28. This document refines
+Status: engineering contract, revised 2026-08-29. This document refines
 `HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
 
 ## Boundary
@@ -104,7 +104,25 @@ a distinct trust class, not the default.
 
 ## Resolver-owned receipt
 
-The future `SourceResolutionReceiptV1` is an opaque, canonical value issued by
+Git resolution now performs a local strict-receipt reconstruction immediately
+after final cache, executable, command, endpoint, accounting, and snapshot
+revalidation. `ResolvedGitSource` retains either an opaque
+`GitSourceStrictReceipt` or one closed `GitSourceStrictReceiptError`. The
+reconstructor first reproduces the complete non-admitting resolution
+observation exactly, rejoins each package command identity to its native
+completion and exact null-or-byte-committed input, verifies executable path and
+endpoint custody, and calls `require_strict` on every native policy. Missing or
+changed policy, completion, input, endpoint, executable, accounting, source, or
+limit rows reject. Persisted strings cannot construct or decode the receipt.
+
+No current platform result is thereby promoted. The current native backends
+still expose unavailable guarantees, and the closed receipt requirement
+vocabulary additionally rejects absent transport trust, credential custody,
+whole-operation storage/resource ceilings, same-user mutation isolation, and
+the test-only transport. These rows must acquire real locally reconstructed
+evidence before the success path can issue a receipt.
+
+The complete `SourceResolutionReceiptV1` target is an opaque, canonical value issued by
 the trusted resolver path. Parsing a persisted receipt never mints authority.
 It binds:
 
@@ -712,9 +730,9 @@ bypass that route; Linux and Windows still can until their native backends deny
 direct egress. None of this pins TLS or SSH host trust.
 
 Parent-owned selected-object-graph authentication and the current macOS and
-Linux native enforcement supply real evidence for a later strict receipt but do
-not by themselves make the resolver admissible. Complete Linux/Windows strict
+Linux native enforcement supply real inputs to strict-receipt reconstruction
+but do not by themselves make the resolver admissible. Complete Linux/Windows strict
 isolation, hostile same-user mutation, non-Windows aggregate and all during-write resource
 ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
 custody (OWNER Q10),
-and the opaque receipt remain open.
+and the remaining closed receipt rows remain open.

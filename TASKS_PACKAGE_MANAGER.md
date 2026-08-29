@@ -52,10 +52,14 @@ closed. Compiler-issued package review remains non-admitting.
   - decide and implement the stronger isolation needed against hostile
     same-user cache/source mutation, executable replacement, loaded-image
     substitution, and hostile Unix descendants escaping their process group;
-  - replace the current non-admitting resolution observation with a locally
-    reconstructed opaque strict receipt binding native enforcement, effective
-    endpoints and transfer counts, complete executable custody, exact source
-    subjects, and every required resource observation. Missing rows must reject.
+  - finish the existing locally reconstructed opaque strict receipt. The landed
+    kernel exactly rejoins non-admitting resolution, native policy/completion,
+    command input, endpoint, executable-path, transfer-accounting, source, and
+    limit rows; calls `require_strict` for every command; and retains a closed
+    rejection for missing, changed, unavailable, or unreconstructed evidence.
+    Complete the still-missing transport-trust, credential-custody,
+    whole-operation storage/resource, same-user mutation, and platform-native
+    rows before any success receipt can issue;
 
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
@@ -305,7 +309,7 @@ items are still owner-blocked.
   different selector spellings resolving identically, and same-key resolution
   conflict.
 
-- [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES.** Extend dependency projection
+- [ ] **BLOCKED — OWNER Q20: STATIC-TARGET-CONDITIONED-DEPENDENCIES.** Extend dependency projection
   only through a closed condition vocabulary over request-time inputs such as
   `TargetProfile`. Normalize every edge to `Always | TargetProfile(...)`, retain
   the selected condition and closure in the lock, and reject arbitrary evaluated

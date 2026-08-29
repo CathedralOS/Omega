@@ -169,6 +169,7 @@ fn execute_git_blob_batch(
     executor.record_command_execution(
         ResolverExecutionPhase::RepositoryInspection,
         command_identity,
+        stdin_identity,
         &output,
         None,
     )?;

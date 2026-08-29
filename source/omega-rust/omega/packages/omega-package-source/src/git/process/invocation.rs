@@ -2,11 +2,12 @@
 
 use super::capture::{BoundedCommandOutput, run_command_bounded_with_budget};
 use super::command::sealed_git_command_with_route;
-use super::identity::{GitCommandStdinIdentity, git_command_configuration_identity};
+use super::identity::git_command_configuration_identity;
 use super::reconciliation::reconcile_git_command_endpoint_result;
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::{GIT_STDERR_LIMIT, GIT_STDOUT_LIMIT};
+use crate::observations::execution::GitCommandInputObservation;
 use omega_resolver_execution::{
     ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
     ResolverExecutionEndpointRoute, ResolverExecutionPhase,
@@ -112,8 +113,8 @@ where
         sealed_git_command_with_route(executor, working_directory, phase, endpoint_route.as_ref())?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
-    let command_identity =
-        git_command_configuration_identity(&mut command, phase, &GitCommandStdinIdentity::Null)?;
+    let input = GitCommandInputObservation::Null;
+    let command_identity = git_command_configuration_identity(&mut command, phase, &input)?;
     let result = run_command_bounded_with_budget(
         command,
         "command",
@@ -140,7 +141,13 @@ where
     )?;
     let endpoint_observation =
         endpoint_result.expect("successful reconciliation checked endpoint result");
-    executor.record_command_execution(phase, command_identity, &output, endpoint_observation)?;
+    executor.record_command_execution(
+        phase,
+        command_identity,
+        input,
+        &output,
+        endpoint_observation,
+    )?;
     Ok(output)
 }
 

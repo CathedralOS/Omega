@@ -44,7 +44,12 @@ pub use local::operations::{
 };
 pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
 pub use observations::accounting::GitNetworkTransferObservation;
-pub use observations::execution::{GitExecutableIdentity, GitTransportExecutableIdentity};
+pub use observations::execution::{
+    GitCommandInputObservation, GitExecutableIdentity, GitTransportExecutableIdentity,
+};
+pub use observations::receipt::{
+    GitSourceStrictReceipt, GitSourceStrictReceiptError, GitSourceStrictReceiptRequirement,
+};
 pub use observations::resolution::GitSourceResolutionObservation;
 pub use observations::resolved::ResolvedGitSource;
 #[doc(hidden)]
