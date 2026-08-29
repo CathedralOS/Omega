@@ -8,13 +8,13 @@ use crate::git::cache::creation::create_git_cache_entry;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
 use crate::git::cache::repository::VerifiedGitRepository;
+use crate::git::commands::reconciliation::{
+    reconcile_git_cache_operation_result, reconcile_git_command_result,
+};
 use crate::git::executable::executor::GitExecutor;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::git::executable::executor::test_file_network_endpoint;
 use crate::git::objects::identity::is_object_id;
-use crate::git::process::reconciliation::{
-    reconcile_git_cache_operation_result, reconcile_git_command_result,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::git::request::GitExecutionTransport;
 use crate::git::request::GitSourceRequest;

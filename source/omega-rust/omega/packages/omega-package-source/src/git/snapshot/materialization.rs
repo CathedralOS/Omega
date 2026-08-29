@@ -5,11 +5,11 @@ use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid, read_bounded_cache_record};
 use crate::git::cache::identity::cache_invalid;
 use crate::git::cache::repository::VerifiedGitRepository;
+use crate::git::commands::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::authentication::authenticate_git_tree;
 use crate::git::objects::tree::{git_directory_paths, git_tree_invalid};
 use crate::git::objects::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
-use crate::git::process::reconciliation::reconcile_git_cache_operation_result;
 use crate::limits::{
     CANONICAL_DIRECTORY_MODE, GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE, LocalSourceLimits,
 };

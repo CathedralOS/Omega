@@ -55,8 +55,8 @@ pub(crate) static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalSourceLimits {
-    /// Legacy field name: this caps every non-root source identity entry, including directories.
-    pub max_files: usize,
+    /// Caps every non-root source identity entry, including directories.
+    pub max_entries: usize,
     pub max_bytes: u64,
     pub max_depth: usize,
 }
@@ -64,7 +64,7 @@ pub struct LocalSourceLimits {
 impl Default for LocalSourceLimits {
     fn default() -> Self {
         Self {
-            max_files: 4096,
+            max_entries: 4096,
             max_bytes: 256 * 1024 * 1024,
             max_depth: 64,
         }
@@ -80,7 +80,7 @@ impl LocalSourceLimits {
     #[doc(hidden)]
     pub fn compiler_bounded(self) -> Self {
         Self {
-            max_files: self.max_files.min(SOURCE_ENTRY_ABSOLUTE_LIMIT),
+            max_entries: self.max_entries.min(SOURCE_ENTRY_ABSOLUTE_LIMIT),
             max_bytes: self.max_bytes.min(SOURCE_BYTE_ABSOLUTE_LIMIT),
             max_depth: self.max_depth.min(SOURCE_DEPTH_ABSOLUTE_LIMIT),
         }

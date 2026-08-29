@@ -5,7 +5,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 use crate::SourceResolveError;
-use crate::git::process::identity::format_sha256;
+use crate::git::commands::identity::format_sha256;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::GIT_CACHE_POLICY;
 use crate::local::capture::hash_bytes;

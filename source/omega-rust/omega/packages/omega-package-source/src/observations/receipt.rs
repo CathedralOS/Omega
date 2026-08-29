@@ -14,7 +14,7 @@ use std::path::Path;
 use super::resolution::{GitSourceResolutionObservation, issue_git_source_resolution_observation};
 use super::resolved::PendingResolvedGitSource;
 use super::storage::{GitRetainedStorageObservation, validate_git_retained_storage_observation};
-use crate::git::process::identity::git_command_configuration_identity_from_resolver;
+use crate::git::commands::identity::git_command_configuration_identity_from_resolver;
 
 /// Reserved opaque success type for evidence that one Git source resolution
 /// met every strict native and resolver-owned requirement.

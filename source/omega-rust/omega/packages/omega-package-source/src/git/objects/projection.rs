@@ -130,9 +130,9 @@ impl GitTreeProjectionPlan {
                     .clone()
             })
             .collect::<Vec<_>>();
-        if selected_payload_rows.len() > limits.max_files {
+        if selected_payload_rows.len() > limits.max_entries {
             return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_files,
+                limit: limits.max_entries,
             });
         }
 
@@ -205,9 +205,9 @@ pub(super) fn select_regular_files(
     let request = GitTreeProjectionRequest::new(exact_paths, Vec::new());
     validate_request_paths(&request)?;
     let paths = select_declarations(graph, &request)?;
-    if paths.len() > limits.max_files {
+    if paths.len() > limits.max_entries {
         return Err(SourceResolveError::TooManyFiles {
-            limit: limits.max_files,
+            limit: limits.max_entries,
         });
     }
     let mut total_bytes = 0_u64;
@@ -327,11 +327,11 @@ fn project_member(
             rows.len()
                 .checked_add(1)
                 .ok_or(SourceResolveError::TooManyFiles {
-                    limit: limits.max_files,
+                    limit: limits.max_entries,
                 })?;
-        if projected_count > limits.max_files {
+        if projected_count > limits.max_entries {
             return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_files,
+                limit: limits.max_entries,
             });
         }
         let mut projected = entry.clone();

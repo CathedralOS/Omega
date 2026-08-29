@@ -17,10 +17,10 @@ use crate::custody::platform::verify_capability_cache_node_owner_and_mode;
 use crate::custody::publication::PendingCacheEntry;
 use crate::custody::tree::CacheCustodyKind;
 use crate::git::cache::configuration::replace_canonical_git_control_file;
+use crate::git::commands::invocation::{run_git, run_git_bytes_stdout};
+use crate::git::commands::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::identity::{git_object_algorithm, is_object_id};
-use crate::git::process::invocation::{run_git, run_git_bytes_stdout};
-use crate::git::process::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::request::GitExecutionTransport;
 use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::{
