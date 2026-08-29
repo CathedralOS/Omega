@@ -1,10 +1,7 @@
 use omega_package_manager::identity::PackageName;
 use omega_package_manager::manifest::{
-    BuildDeclaration, WorkspaceMemberPath, extract_build_declaration,
+    BuildDeclaration, PackageDeclarationError, WorkspaceMemberPath, extract_build_declaration,
 };
-use psi_source_files_to_tokens::Lexer;
-use psi_syntax_trees::item::Item;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -47,61 +44,6 @@ fn expected_sample_application_name(root: &Path) -> String {
     leaf.replace('_', "-")
 }
 
-const ROLE_MIGRATION_EXCEPTIONS: &[&str] = &[
-    "fail/build/build-boundary-rowless",
-    "fail/build/build-effects-undeclared",
-    "fail/build/build-service-name-spoof",
-    "pass/providers/component-owner-provider-override-compile",
-    "pass/providers/test-owner-provider-override-compile",
-];
-
-fn omega_case_migration_key(cases: &Path, root: &Path) -> String {
-    root.strip_prefix(cases)
-        .expect("Omega case root must be beneath the Omega case corpus")
-        .to_string_lossy()
-        .replace(['_', '\\'], "-")
-}
-
-fn assert_scoped_build_exception(root: &Path) {
-    let build_path = root.join("build.omg");
-    let source = fs::read_to_string(&build_path)
-        .unwrap_or_else(|error| panic!("read {}: {error}", build_path.display()));
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .unwrap_or_else(|error| panic!("lex {}: {}", build_path.display(), error.message));
-    let syntax_trees = parse_syntax_trees(&tokens)
-        .unwrap_or_else(|error| panic!("parse {}: {}", build_path.display(), error.message));
-
-    let mut scoped_builds = 0;
-    let mut free_builds = 0;
-    for item in syntax_trees.root_items() {
-        let Item::Machine(machine) = item else {
-            continue;
-        };
-        if machine.name.as_str().rsplit("::").next() != Some("build") {
-            continue;
-        }
-        if machine.attached_data.is_some() {
-            scoped_builds += 1;
-        } else {
-            free_builds += 1;
-        }
-    }
-
-    assert_eq!(
-        scoped_builds,
-        1,
-        "role-migration exception must retain exactly one scoped build machine in {}",
-        build_path.display()
-    );
-    assert_eq!(
-        free_builds,
-        0,
-        "role-migration exception must not acquire a free build root in {}",
-        build_path.display()
-    );
-}
-
 fn expected_omega_case_application_name(root: &Path) -> String {
     let leaf = root
         .file_name()
@@ -119,6 +61,15 @@ fn expected_omega_case_application_name(root: &Path) -> String {
         return "x86-baseline-float-semantic-edge-twin".to_owned();
     }
     leaf.replace('_', "-")
+}
+
+const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
+
+fn omega_case_key(cases: &Path, root: &Path) -> String {
+    root.strip_prefix(cases)
+        .expect("Omega case root must be beneath the Omega case corpus")
+        .to_string_lossy()
+        .replace(['_', '\\'], "-")
 }
 
 #[test]
@@ -194,13 +145,17 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     assert!(!roots.is_empty(), "Omega case corpus must not be empty");
     let root_count = roots.len();
 
-    let mut exceptions = 0;
     let mut applications = 0;
+    let mut declaration_rejections = 0;
     for root in roots {
-        let migration_key = omega_case_migration_key(&cases, &root);
-        if ROLE_MIGRATION_EXCEPTIONS.contains(&migration_key.as_str()) {
-            assert_scoped_build_exception(&root);
-            exceptions += 1;
+        if DECLARATION_REJECTION_CASES.contains(&omega_case_key(&cases, &root).as_str()) {
+            assert_eq!(
+                extract_build_declaration(&root),
+                Err(PackageDeclarationError::InvalidBuildParameter),
+                "unexpected declaration rejection in {}",
+                root.display()
+            );
+            declaration_rejections += 1;
             continue;
         }
 
@@ -223,6 +178,6 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
         applications += 1;
     }
 
-    assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
-    assert_eq!(applications + exceptions, root_count);
+    assert_eq!(declaration_rejections, DECLARATION_REJECTION_CASES.len());
+    assert_eq!(applications + declaration_rejections, root_count);
 }
