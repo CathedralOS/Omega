@@ -2,6 +2,7 @@
 ; 3=Trap, 4=Diverge, 5=Body/Continue. Parse: 1=Ret0, 2=Ret252(rho), 3=Div.
 ; The sole coinductive guard is a completed parse/guard/skip/backedge step.
 
+root_observation_shape_successor_init:
 root_observation_gfp_init:
         call root_observation_gfp_require_imports
         call root_observation_build_loop_split

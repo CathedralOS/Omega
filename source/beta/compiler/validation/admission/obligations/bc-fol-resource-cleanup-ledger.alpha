@@ -1,19 +1,68 @@
-; Exact-subject FOL ledger endpoint for bc.main.resource.
+; Exact-subject FOL instruction ledger endpoint for bc.main.resource.
 ;
-; Linked in place of the executable ROOT publication after the ordinary
-; source/tape owners have reconstructed the canonical bundle.  Recheck the
-; cleanup and its five typed-resource joins directly, then emit the checker
-; declaration/goal prefix.  No ROOT/GFP success token becomes a proof premise;
-; the emitted proposition is fixed here and the proof producer supplies only
-; the final proof term.
+; Linked directly after exact main shape reconstruction. Build and recheck the
+; cleanup and its five typed-resource joins, validate every raw instruction
+; boundary, then emit the checker declaration/goal prefix. ROOT/GFP/maximal-
+; observation execution is not in this program. The proof producer supplies
+; only the final proof term.
+
+root_observation_shape_successor_init:
+        call root_observation_resource_join_init
+        jmp root_observation_publication_init
 
 root_observation_publication_init:
         call root_resource_join_require_cleanup
         call root_resource_join_require_rows
         call root_resource_join_require_domain
+        call bc_fol_resource_require_raw_path
         call bc_fol_resource_emit_prefix
         imm r0, 0
         halt r0
+
+; Reconstruct the seven executed instructions without a producer PC. Block354
+; begins at the RESOURCE_FAIL literal; the memory owner rejoins its load; the
+; epilogue owner returns mov/load/add/ret starts; the prelude owner fixes halt39.
+; The ARet control includes the root-return-slot=39 cutpoint invariant. Full-run
+; reachability of that invariant remains a later whole-refinement obligation.
+bc_fol_resource_require_raw_path:
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r40, r0
+
+        imm r20, 94
+        imm r21, 354
+        imm r25, 815
+        imm r26, 2097072
+        call exact_memory_load_pc
+        mov r41, r0
+        mov r1, r40
+        imm r2, 10
+        add r1, r2
+        jeq r1, r41, bc_fol_resource_require_epilogue
+        jmp reject
+
+bc_fol_resource_require_epilogue:
+        imm r20, 69
+        imm r21, 354
+        call exact_require_event_epilogue
+        mov r1, r41
+        imm r2, 3
+        add r1, r2
+        jeq r1, r0, bc_fol_resource_require_root_halt
+        jmp reject
+
+bc_fol_resource_require_root_halt:
+        imm r20, 69
+        call exact_require_program_prelude
+        ; r3 is the exact halt at the root-call fallthrough. The resource-join
+        ; cleanup constructor separately requires its root-continuation field.
+        imm r1, 39
+        jeq r3, r1, bc_fol_resource_raw_path_done
+        jmp reject
+bc_fol_resource_raw_path_done:
+        ret
 
 bc_fol_resource_emit_prefix:
         imm r10, bc_fol_resource_prefix
@@ -29,5 +78,5 @@ bc_fol_resource_emit_byte:
         jmp bc_fol_resource_emit_loop
 
 bc_fol_resource_prefix:
-        db "(data 10 1 0 0) (data 11 1 0 0) (data 12 1 0 0) (data 13 1 0 0) (data 14 0 0 0) (data 15 1 0 0) (data 16 1 0 0) (data 17 1 0 0) (data 18 1 0 0) (data 19 1 0 0) (data 20 1 0 0) (data 21 0 0 0) (data 22 0 0 0) (data 30 2 0 0) (data 31 0 0 0) (data 32 0 0 0) (data 33 0 0 0) (data 34 0 0 0) (data 35 0 0 0) (data 36 0 0 0) (data 37 0 0 0) (data 38 0 0 0) (data 39 0 0 0) (data 40 0 0 0) (data 41 0 0 0) (data 42 0 0 0) (data 43 0 0 0) (data 44 0 0 0) (data 45 0 0 0) (data 46 0 0 0) (data 47 0 0 0) (data 48 0 0 0) (data 49 0 0 0) (fun 29 30 (v 1)) (fun 30 10 (f 31 (v 0))) (fun 30 11 (k 11 (v 0))) (fun 30 14 (k 14)) (fun 31 15 (k 11 (k 20 (f 29 (v 0))))) (fun 32 12 (f 33 (v 0))) (fun 32 13 (k 13 (v 0))) (fun 32 14 (k 14)) (fun 33 16 (k 12 (k 17 (v 0)))) (fun 33 17 (k 12 (k 18 (v 0)))) (fun 33 18 (k 12 (k 19 (v 0)))) (fun 33 19 (k 13 (k 20 (f 29 (v 0))))) (fun 34 10 (k 21)) (fun 34 11 (v 0)) (fun 34 14 (k 22)) (fun 35 12 (k 21)) (fun 35 13 (v 0)) (fun 35 14 (k 22)) (fun 36 12 (f 37 (v 0))) (fun 36 13 z) (fun 36 14 z) (fun 37 16 (s (s (s (s z))))) (fun 37 17 (s (s (s z)))) (fun 37 18 (s (s z))) (fun 37 19 (s z)) (def 0 (All (& (= (f 30 (k 10 (k 15 (v 0)))) (k 11 (k 20 (f 29 (v 0))))) (& (= (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (v 0))))))) (k 13 (k 20 (f 29 (v 0))))) (& (= (f 34 (k 10 (k 15 (v 0)))) (f 35 (k 12 (k 16 (v 0))))) (& (= (f 34 (f 30 (k 10 (k 15 (v 0))))) (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (v 0))))))))) (& (= (f 35 (k 12 (k 16 (v 0)))) (f 35 (f 32 (k 12 (k 16 (v 0)))))) (& (= (f 35 (f 32 (k 12 (k 16 (v 0))))) (f 35 (f 32 (f 32 (k 12 (k 16 (v 0))))))) (& (= (f 35 (f 32 (f 32 (k 12 (k 16 (v 0)))))) (f 35 (f 32 (f 32 (f 32 (k 12 (k 16 (v 0)))))))) (& (= (p (f 36 (f 32 (k 12 (k 16 (v 0))))) (s z)) (f 36 (k 12 (k 16 (v 0))))) (& (= (p (f 36 (f 32 (f 32 (k 12 (k 16 (v 0)))))) (s z)) (f 36 (f 32 (k 12 (k 16 (v 0)))))) (& (= (p (f 36 (f 32 (f 32 (f 32 (k 12 (k 16 (v 0))))))) (s z)) (f 36 (f 32 (f 32 (k 12 (k 16 (v 0))))))) (& (= (p (f 36 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (v 0)))))))) (s z)) (f 36 (f 32 (f 32 (f 32 (k 12 (k 16 (v 0)))))))) (& (= (f 30 (k 11 (k 20 (f 29 (v 0))))) (k 11 (k 20 (f 29 (v 0))))) (& (= (f 32 (k 13 (k 20 (f 29 (v 0))))) (k 13 (k 20 (f 29 (v 0))))) (& (= (f 30 (k 14)) (k 14)) (= (f 32 (k 14)) (k 14))))))))))))))))) (gen (pair (refl (k 11 (k 20 (f 29 (v 0))))) (pair (refl (k 13 (k 20 (f 29 (v 0))))) (pair (refl (k 21)) (pair (refl (k 20 (f 29 (v 0)))) (pair (refl (k 21)) (pair (refl (k 21)) (pair (refl (k 21)) (pair (refl (s (s (s (s z))))) (pair (refl (s (s (s z)))) (pair (refl (s (s z))) (pair (refl (s z)) (pair (refl (k 11 (k 20 (f 29 (v 0))))) (pair (refl (k 13 (k 20 (f 29 (v 0))))) (pair (refl (k 14)) (refl (k 14)))))))))))))))))) (& (= (k 30 (k 41) (k 42)) (k 30 (k 41) (k 42))) (& (= (k 30 (k 43) (k 44)) (k 30 (k 43) (k 44))) (& (= (f 34 (f 30 (k 10 (k 15 (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38)))))))) (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38)))))))))))) (& (= (f 34 (f 30 (k 10 (k 15 (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39)))))))) (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39)))))))))))) (& (= (f 34 (f 30 (k 10 (k 15 (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39)))))))) (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39)))))))))))) (& (= (f 34 (f 30 (k 10 (k 15 (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38)))))))) (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38)))))))))))) (= (f 34 (f 30 (k 10 (k 15 (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40)))))))) (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40)))))))))))))))))) "
+        db "(data 10 1 0 0) (data 11 1 0 0) (data 12 1 0 0) (data 13 1 0 0) (data 14 0 0 0) (data 15 1 0 0) (data 16 1 0 0) (data 17 1 0 0) (data 18 1 0 0) (data 19 1 0 0) (data 20 1 0 0) (data 21 1 0 0) (data 22 1 0 0) (data 23 1 0 0) (data 24 0 0 0) (data 25 0 0 0) (data 30 2 0 0) (data 31 0 0 0) (data 32 0 0 0) (data 33 0 0 0) (data 34 0 0 0) (data 35 0 0 0) (data 36 0 0 0) (data 37 0 0 0) (data 38 0 0 0) (data 39 0 0 0) (data 40 0 0 0) (data 41 0 0 0) (data 42 0 0 0) (data 43 0 0 0) (data 44 0 0 0) (data 45 0 0 0) (data 46 0 0 0) (data 47 0 0 0) (data 48 0 0 0) (data 49 0 0 0) (fun 28 43 (y 0)) (fun 29 30 (v 1)) (fun 30 41 (f 31 (y 0))) (fun 31 10 (f 32 (v 0))) (fun 31 11 (k 11 (v 0))) (fun 31 12 (k 14)) (fun 31 13 (k 14)) (fun 31 14 (k 14)) (fun 32 15 (k 11 (k 23 (f 29 (v 0))))) (fun 32 16 (k 14)) (fun 32 17 (k 14)) (fun 32 18 (k 14)) (fun 32 19 (k 14)) (fun 32 20 (k 14)) (fun 32 21 (k 14)) (fun 32 22 (k 14)) (fun 33 42 (f 34 (y 0))) (fun 34 10 (k 14)) (fun 34 11 (k 14)) (fun 34 12 (f 35 (v 0))) (fun 34 13 (k 13 (v 0))) (fun 34 14 (k 14)) (fun 35 15 (k 14)) (fun 35 16 (k 12 (k 17 (v 0)))) (fun 35 17 (k 12 (k 18 (v 0)))) (fun 35 18 (k 12 (k 19 (v 0)))) (fun 35 19 (k 12 (k 20 (v 0)))) (fun 35 20 (k 12 (k 21 (v 0)))) (fun 35 21 (k 12 (k 22 (v 0)))) (fun 35 22 (k 13 (k 23 (f 29 (v 0))))) (fun 36 44 (f 37 (y 0))) (fun 37 10 (k 24)) (fun 37 11 (v 0)) (fun 37 12 (k 24)) (fun 37 13 (v 0)) (fun 37 14 (k 25)) (fun 38 42 (f 39 (y 0))) (fun 39 10 z) (fun 39 11 z) (fun 39 12 (f 40 (v 0))) (fun 39 13 z) (fun 39 14 z) (fun 40 15 z) (fun 40 16 (s (s (s (s (s (s (s z)))))))) (fun 40 17 (s (s (s (s (s (s z))))))) (fun 40 18 (s (s (s (s (s z)))))) (fun 40 19 (s (s (s (s z))))) (fun 40 20 (s (s (s z)))) (fun 40 21 (s (s z))) (fun 40 22 (s z)) (def 0 (All (& (= (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (v 0))))) (k 11 (k 23 (f 29 (f 28 (k 43) (v 0)))))) (& (= (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))))))) (k 13 (k 23 (f 29 (f 28 (k 43) (v 0)))))) (= (f 36 (k 44) (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (v 0)))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0)))))))))))))))) (gen (pair (refl (k 11 (k 23 (f 29 (f 28 (k 43) (v 0)))))) (pair (refl (k 13 (k 23 (f 29 (f 28 (k 43) (v 0)))))) (refl (k 23 (f 29 (f 28 (k 43) (v 0))))))))) (def 1 (All (& (= (f 36 (k 44) (k 10 (k 15 (f 28 (k 43) (v 0))))) (f 36 (k 44) (k 12 (k 16 (f 28 (k 43) (v 0)))))) (& (= (f 36 (k 44) (k 12 (k 16 (f 28 (k 43) (v 0))))) (f 36 (k 44) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))) (& (= (f 36 (k 44) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0)))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0)))))))) (& (= (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))))) (& (= (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0)))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0)))))))))) (& (= (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))))))) (= (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0)))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (v 0))))))))))))))))))) (gen (pair (refl (k 24)) (pair (refl (k 24)) (pair (refl (k 24)) (pair (refl (k 24)) (pair (refl (k 24)) (pair (refl (k 24)) (refl (k 24)))))))))) (def 2 (All (& (= (p (f 38 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0))))) (s z)) (f 38 (k 42) (k 12 (k 16 (v 0))))) (& (= (p (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))) (s z)) (f 38 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))) (& (= (p (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0))))))) (s z)) (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0))))))) (& (= (p (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))))) (s z)) (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))))) (& (= (p (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0))))))))) (s z)) (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0))))))))) (& (= (p (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))))))) (s z)) (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))))))) (= (p (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0))))))))))) (s z)) (f 38 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (v 0)))))))))))))))))) (gen (pair (refl (s (s (s (s (s (s (s z)))))))) (pair (refl (s (s (s (s (s (s z))))))) (pair (refl (s (s (s (s (s z)))))) (pair (refl (s (s (s (s z))))) (pair (refl (s (s (s z)))) (pair (refl (s (s z))) (refl (s z)))))))))) (def 3 (& (= (f 30 (k 41) (k 11 (k 23 (k 31)))) (k 11 (k 23 (k 31)))) (& (= (f 33 (k 42) (k 13 (k 23 (k 31)))) (k 13 (k 23 (k 31)))) (& (= (f 30 (k 41) (k 14)) (k 14)) (= (f 33 (k 42) (k 14)) (k 14))))) (pair (refl (k 11 (k 23 (k 31)))) (pair (refl (k 13 (k 23 (k 31)))) (pair (refl (k 14)) (refl (k 14)))))) (& (= (f 36 (k 44) (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38)))))))))))))))) (& (= (f 36 (k 44) (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39)))))))))))))))) (& (= (f 36 (k 44) (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39)))))))))))))))) (& (= (f 36 (k 44) (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38)))))))))))))))) (= (f 36 (k 44) (f 30 (k 41) (k 10 (k 15 (f 28 (k 43) (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40))))))))) (f 36 (k 44) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (f 33 (k 42) (k 12 (k 16 (f 28 (k 43) (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40)))))))))))))))))))) "
 bc_fol_resource_prefix_end:

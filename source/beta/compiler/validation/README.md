@@ -6,7 +6,7 @@ This directory owns validation of the exact `bc.beta` source and persisted
 | path | role |
 | --- | --- |
 | `admission/bc-artifact-structure.sh` | Alpha-rooted instruction framing, reachable direct targets, procedure regions, call/return shape, and seed payload bounds |
-| `admission/bc-block-control.sh` | canonical whole-source/artifact maximal-observation reconstruction for `B_bc1`, plus the first owner-bound FOL cleanup-stage certificate |
+| `admission/bc-block-control.sh` | canonical whole-source/artifact maximal-observation reconstruction for `B_bc1`, plus the first owner-bound FOL instruction-cutpoint certificate |
 | `admission/fol/trace-refinement-seam.sh` | focused rooted-FOL development seam for constructive traces, non-lockstep synchronization, rank, and cyclic execution; not yet exact `bc.beta` admission |
 | `admission/obligations/` | Alpha modules used to assemble the bounded exact-subject checkers |
 | `admission/witnesses/` | untrusted witness producers; these cannot select or replace either admitted subject |
@@ -227,13 +227,18 @@ the universal `source/alpha/checker/artifacts/check.tape` and cannot be promoted
 to one by pedigree or successful execution.
 
 The first narrower universal-checker certificate is now part of that default
-gate. An Alpha ledger independently rechecks the exact `main.resource` cleanup
-and its five typed-resource joins, owns a fixed FOL declaration/goal prefix,
-and accepts only the producer's proof suffix. Swapped-subject and
-swapped-profile certificates are valid logic in isolation but rejected by the
-owner-prefix comparison. This proves the ownership protocol and the four-stage
-cleanup schema; it does not yet identify those stages with every raw Alpha
-instruction, so complete `bc.beta` admission remains open.
+gate. A dedicated Alpha ledger independently rechecks the exact
+`main.resource` cleanup's seven instruction cutpoint coordinates and its five
+typed-resource joins; owns a fixed indexed FOL declaration/goal prefix; and
+accepts only the producer's proof suffix. It links directly after exact
+main-shape reconstruction, builds the resource join itself, and does not run
+the ROOT GFP or maximal-observation path. Subject, profile, and observation
+identities are normalization indices, not detached reflexive claims. The
+checker rejects mutations of a subject index, profile index, observation index,
+or the declared return successor, while the ledger separately rejects changed
+source and tape bundles. The cutpoint rule is conditional on root return slot
+39; proving that slot reachable through the earlier execution, and complete
+`bc.beta` admission, remain open.
 
 The language decision is settled: encode the exact relation in the existing
 intuitionistic first-order calculus over constructive total Beta and Alpha

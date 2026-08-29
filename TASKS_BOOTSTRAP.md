@@ -191,32 +191,43 @@ Canonical subjects:
     `def`/`use`; all three checker implementations accept it. This replaces
     per-length unrolling without granting a producer control over a machine,
     relation schema, or premise.
-  - [x] The 4,254-byte `bc-main-resource-refinement.elab` proof-authoring
-    candidate models one Beta resource return and four symbolic Alpha cleanup
-    stages, with empty observations, exact stage-debt decrease, typed `Exhaust`
-    payload preservation, terminal self-loops, and Invalid self-loops. Its
-    final proposition instantiates all five root-reachable structural resource
-    origins and passes the same three-checker seam. These are deliberately
-    called stages rather than instructions: the raw `next_alpha` expansion is
-    still open below.
-  - [x] Bind that stage-level schema to the exact subjects. The default
-    `bc-block-control.sh` gate now substitutes an Alpha ledger for the ROOT
-    publication endpoint. After directly rechecking the canonical cleanup and
-    five resource joins, the ledger emits the fixed declarations and goal for
-    canonical `bc.beta`, its persisted tape, `B_bc1`, and the maximal
-    observation identity. The untrusted elaborator contributes only the proof
-    term after a byte-for-byte prefix comparison; the rooted checker accepts
-    the combined certificate. Two controls construct independently valid
-    proofs with swapped subject and profile identities and confirm that the
-    owner boundary rejects both. ROOT/GFP cells are not theorem premises.
-  - [ ] Expand the first exact-subject theorem tranche through the decoded raw
-    `next_alpha` instruction sequence for `main.resource`: one Beta return maps
-    through every load/epilogue/return/root-halt instruction, preserves empty
-    stdout and the sticky resource identity, projects the exact typed
-    exhaustion outcome, keeps invalid states unreachable, and decreases an
-    instruction-debt rank. Reuse the artifact owner's decoded PCs and
-    successors rather than treating the four administrative stages as raw
-    instructions.
+  - [x] The initial 4,254-byte `bc-main-resource-refinement.elab` authoring
+    candidate established a four-stage cleanup model and the proof-suffix
+    custody protocol. Review found that the stages compressed seven Alpha
+    instructions and that its subject/profile tokens were disconnected
+    reflexive conjuncts. The custody mechanism was sound, but the stronger
+    exact-subject interpretation was not; the replacement below removes those
+    tautologies rather than preserving the overclaim.
+  - [x] Replace that candidate with the 7,539-byte instruction-level cutpoint
+    theorem. Its indexed `next_beta(exact_bc, state)`,
+    `next_alpha(exact_tape, state)`, `obs(maximal_observation, state)`, and
+    profile gate normalize only at the owner-selected identities. One Beta
+    resource return maps, conditional on the cutpoint relation's root return
+    slot, through controls for `40251 imm`, `40261 load`,
+    `40264 mov`, `40267 load`, `40270 add`, `40273 ret`, and `39 halt`; all six
+    running-to-running steps are silent, seven instruction-debt decreases are
+    exact, the sticky resource payload reaches typed `Exhaust`, and terminal
+    and Invalid states self-loop. The five reachable resource origins occur in
+    the indexed final goal. The fixed-subject successors are total on their
+    declared State/Control domains: cross-machine and malformed control tags
+    route to Invalid. The focused three-checker seam accepts it.
+  - [x] Bind that cutpoint theorem to the exact owner without running the ROOT
+    GFP. A FOL-specific shape successor directly builds and rechecks the five
+    resource joins, rejoins block354's literal/load/epilogue instruction
+    boundaries and the root halt, emits the fixed declarations and goal, and
+    accepts only the untrusted proof suffix after byte comparison. The rooted
+    checker rejects isolated subject, profile, observation, and
+    `ret`-successor mutations; the Alpha ledger separately rejects changed
+    source and tape bundles.
+    ROOT/GFP/maximal-observation cells and success tokens are absent from this
+    ledger program.
+  - [ ] Prove reachability of the instruction-level resource cutpoint from the
+    exact initial states. In particular, carry the root call's hidden return
+    slot `39` through balanced intervening calls so the dynamic `40273 ret ->
+    39` edge is derived rather than merely included in the cutpoint relation;
+    prove the exact explicit-frame/register values and Invalid unreachability.
+    The linear synthetic epilogue at `40274..40283` is decoded but unreachable
+    after the explicit return and must never be used as its successor.
 - [x] Keep the default edge bounded to cold construction, artifact framing,
   and exact maximal-observation reconstruction. Alternate checkers, fuzzing,
   exhaustive mutations, and developer reports remain optional. The copied

@@ -965,6 +965,14 @@ emit_root_observation_prefix() {
     "$OBLIGATION_DIR/bc-root-observation-maximal.alpha"
 }
 
+emit_fol_resource_prefix() {
+  emit_expression_table_prefix
+  cat "$OBLIGATION_DIR/bc-root-observation-root.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-antecedents.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-shape.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-resource-join.alpha"
+}
+
 build_root_observation_checker() {
   root_observation_require_module_budgets
   {
@@ -991,7 +999,7 @@ build_root_observation_checker() {
 
 build_fol_resource_cleanup_ledger() {
   {
-    emit_root_observation_prefix
+    emit_fol_resource_prefix
     cat "$OBLIGATION_DIR/bc-fol-resource-cleanup-ledger.alpha"
   } > "$T/fol-resource-ledger.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
@@ -1047,42 +1055,50 @@ smoke_fol_resource_cleanup_ledger() {
     exit 1
   fi
 
-  # A producer can construct a valid proof about different symbolic subjects.
-  # Show that such a certificate remains logically valid, then require the
-  # owner-prefix boundary—not producer pedigree—to reject the substitution.
-  for fol_resource_binding_case in subject profile
+  # The exact indices participate in normalization rather than appearing as
+  # ceremonial equalities. Mutate one use in the owner-fixed goal, plus the
+  # dynamic-ret successor rule, and require the same proof to fail.
+  for fol_resource_binding_case in subject profile observation ret-successor
   do
     case "$fol_resource_binding_case" in
       subject)
-        fol_resource_binding_old='(k 30 (k 41) (k 42))'
-        fol_resource_binding_new='(k 30 (k 42) (k 41))'
+        fol_resource_binding_old='(k 41)'
+        fol_resource_binding_new='(k 42)'
         ;;
       profile)
-        fol_resource_binding_old='(k 30 (k 43) (k 44))'
-        fol_resource_binding_new='(k 30 (k 44) (k 43))'
+        fol_resource_binding_old='(k 43)'
+        fol_resource_binding_new='(k 44)'
+        ;;
+      observation)
+        fol_resource_binding_old='(k 44)'
+        fol_resource_binding_new='(k 43)'
+        ;;
+      ret-successor)
+        fol_resource_binding_old='(fun 35 21 (k 12 (k 22 (v 0))))'
+        fol_resource_binding_new='(fun 35 21 (k 12 (k 16 (v 0))))'
         ;;
     esac
     python3 -c 'import pathlib,sys
 p = pathlib.Path(sys.argv[1]); out = pathlib.Path(sys.argv[2])
 raw = p.read_bytes(); old = sys.argv[3].encode(); new = sys.argv[4].encode()
-changed = raw.replace(old, new)
-if changed == raw: raise SystemExit("binding tooth did not find its target")
+at = raw.rfind(old)
+if at < 0: raise SystemExit("binding tooth did not find its target")
+changed = raw[:at] + new + raw[at + len(old):]
 out.write_bytes(changed)' \
-      "$T/fol-resource-candidate.raw" \
-      "$T/fol-resource-$fol_resource_binding_case.raw" \
+      "$T/fol-resource-candidate-prefix" \
+      "$T/fol-resource-$fol_resource_binding_case-prefix" \
       "$fol_resource_binding_old" "$fol_resource_binding_new"
+    cat "$T/fol-resource-$fol_resource_binding_case-prefix" \
+      "$T/fol-resource-candidate-proof" \
+      > "$T/fol-resource-$fol_resource_binding_case.raw"
     set +e
     fol_resource_binding_verdict=$("$T/proof-checker" \
       < "$T/fol-resource-$fol_resource_binding_case.raw")
     set -e
-    if [ "$fol_resource_binding_verdict" != accept ]; then
-      echo "bc block control FAIL — FOL $fol_resource_binding_case binding control was not independently valid" >&2
+    if [ "$fol_resource_binding_verdict" != reject ]; then
+      echo "bc block control FAIL — FOL $fol_resource_binding_case mutation was not rejected" >&2
       exit 1
     fi
-    python3 "$GATE_DIR/fol/trace_refinement_seam.py" --split \
-      "$T/fol-resource-$fol_resource_binding_case.raw" \
-      "$T/fol-resource-$fol_resource_binding_case-prefix" \
-      "$T/fol-resource-$fol_resource_binding_case-proof"
     if cmp -s "$T/fol-resource-owner-prefix" \
         "$T/fol-resource-$fol_resource_binding_case-prefix"; then
       echo "bc block control FAIL — owner accepted changed FOL $fol_resource_binding_case" >&2
@@ -1334,6 +1350,16 @@ root_case_run() {
     exit 1
   fi
 }
+fol_resource_case_run() {
+  set +e
+  "$T/fol-resource-ledger" < "$2" > "$T/stdout"
+  fol_resource_case_status=$?
+  set -e
+  if [ "$fol_resource_case_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc admission FAIL — $1 was not rejected by the FOL instruction owner" >&2
+    exit 1
+  fi
+}
 label_emitters_case_run() {
   set +e
   "$T/label-emitters-check" < "$2" > "$T/stdout"
@@ -1351,8 +1377,10 @@ root_case_run wrong-length "$T/wrong-length.bundle"
 root_case_run wrong-event-pc "$T/wrong-event-pc.bundle"
 root_case_run swapped-event-occurrence "$T/swapped-event-occurrence.bundle"
 root_case_run swapped-memory-identity "$T/swapped-memory-identity.bundle"
+fol_resource_case_run wrong-source "$T/wrong-source.bundle"
+fol_resource_case_run wrong-tape "$T/wrong-tape.bundle"
 label_emitters_case_run swapped-emit-occurrence "$T/swapped-emit-occurrence.bundle"
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 2 FOL owner-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 2 FOL subject-bundle teeth + 4 FOL semantic-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
