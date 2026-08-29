@@ -144,6 +144,17 @@ normalized_id!(
     OpaqueCallbackUnregistrationReceiptId,
     "opaque callback unregistration receipt"
 );
+normalized_id!(
+    UefiApplicationBootstrapLedgerId,
+    "UEFI application bootstrap ledger"
+);
+normalized_id!(UefiFirmwareSessionId, "UEFI firmware session");
+normalized_id!(UefiPhysicalInvocationId, "UEFI physical invocation");
+normalized_id!(UefiSystemTableOccurrenceId, "UEFI system-table occurrence");
+normalized_id!(
+    UefiBootServicesPhaseLeaseId,
+    "UEFI Boot Services phase lease"
+);
 
 mod fixed_fuel;
 pub use fixed_fuel::*;
@@ -167,6 +178,8 @@ mod root_validation;
 pub use root_validation::*;
 mod stack_demand;
 pub use stack_demand::*;
+mod uefi_bootstrap;
+pub use uefi_bootstrap::*;
 
 fn bind_terminal_function<TerminalArtifact: ObjectEvidence>(
     artifact: &TerminalArtifact,
