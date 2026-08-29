@@ -25,6 +25,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-unit",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
 ];
@@ -78,6 +79,22 @@ struct RequiredCoordinationEntrance {
 /// keeping these paths small is insufficient: deleting the coordination seam
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/artifact/mod.rs",
+        coordination_marker: "pub fn lower_artifact_sections",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/optimization/mod.rs",
+        coordination_marker: "pub fn build_verified_psi_optimization_unit",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/provider_installation/mod.rs",
+        coordination_marker: "pub fn admit_provider_installation",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/mod.rs",
+        coordination_marker: "pub(crate) fn lower_decoded_verified_module",
+    },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/mod.rs",
         coordination_marker: "pub fn assign_registers",

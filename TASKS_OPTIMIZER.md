@@ -235,6 +235,12 @@ and no-selection compatibility remain enforced.
   named cleanup, boundary, Unit, structural, scalar-control, placement,
   expression-frame, typed-expression, and parameter-discovery leaves. The
   architecture gate now governs the entire assignment stage.
+- [x] Replace the 2,924-line Terminal-to-abstract entrance with separate
+  artifact admission/replay, verified optimizer-unit construction,
+  provider-installation custody, and machine-lowering joins. Proof-fact,
+  proof-question, ownership-frontier, payloadless, ordinary-machine, and
+  structural-machine mechanics descend through named leaves, and the
+  architecture gate governs the entire stage.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

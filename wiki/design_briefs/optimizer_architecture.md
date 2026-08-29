@@ -125,6 +125,8 @@ source/omega-rust/omega/
     omega-optimization-unit/       # complete input model, reconstruction, rewrite custody
     omega-register-model/          # register views, units, aliases, ABI facts
   pipeline/
+    omega-psi-to-abstract-operations/
+                                      # artifact, optimizer-unit, provider, and lowering entrances
     omega-abstract-operations-to-target-operations/
                                       # settlement, per-result, and lowering-family entrances
     omega-target-operations-to-assigned-target-operations/
