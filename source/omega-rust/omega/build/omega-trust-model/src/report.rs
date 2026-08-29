@@ -24,12 +24,40 @@ pub fn reconstruct_trust_report(
     report.selected_provider_closure_report_fingerprint =
         selected_provider_plans.compatibility_report_identity();
     report.selected_provider_closure_digest = selected_provider_plans.identity_digest();
+    for selected_plan in selected_provider_plans.plans() {
+        let exact_candidate_matches = provider_plans
+            .iter()
+            .filter(|candidate| {
+                *candidate == selected_plan
+                    && candidate.identity_digest() == selected_plan.identity_digest()
+            })
+            .count();
+        if exact_candidate_matches != 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` replays against {exact_candidate_matches} exact candidate plans",
+                selected_plan.name,
+            ))]);
+        }
+    }
     let provider_grants = crate::resolve_selected_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    for grant in &provider_grants {
+        let exact_selected_matches = selected_provider_plans
+            .plans()
+            .iter()
+            .filter(|plan| grant.replays_selected_plan(plan))
+            .count();
+        if exact_selected_matches != 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "provider grant `{}` replays against {exact_selected_matches} exact selected provider plans",
+                grant.selector,
+            ))]);
+        }
+    }
     let mut non_provider_grants = Vec::new();
     for grant in root_grants {
         if provider_grants
@@ -46,16 +74,17 @@ pub fn reconstruct_trust_report(
     }
     // PRV3: derived provider plans -- one row each, dev-active with the
     // standing warning until the final build grants the plan by exact name or
-    // exact selected slot, fingerprint shown so drift is visible at a glance.
+    // exact selected slot, report fingerprint shown so drift is visible at a
+    // glance while exact structure and the strong digest classify authority.
     for plan in provider_plans {
-        let selected = selected_provider_plans
-            .plan_by_identity(plan.identity_fingerprint())
-            .is_some();
+        let selected = selected_provider_plans.plans().iter().any(|selected| {
+            selected == plan && selected.identity_digest() == plan.identity_digest()
+        });
         let grant_selectors = selected
             .then(|| {
                 provider_grants
                     .iter()
-                    .filter(|grant| grant.selected_plan_identity == plan.identity_fingerprint())
+                    .filter(|grant| grant.replays_selected_plan(plan))
                     .map(|grant| grant.selector.clone())
                     .collect::<Vec<_>>()
             })
@@ -269,7 +298,8 @@ pub fn reconstruct_trust_report(
         let machine_contract_report_fingerprint = contract.report_fingerprint;
         let machine_template_report_fingerprint = accepted_template_classifications
             .for_machine(machine.symbol, machine.name.as_str())
-            .map_err(|diagnostic| vec![diagnostic])?;
+            .map_err(|diagnostic| vec![diagnostic])?
+            .map(|identity| identity.report_fingerprint());
         let machine_service_reach =
             accepted_machine_service_reach(checked, machine.symbol, machine.name.as_str())
                 .map_err(|diagnostic| vec![diagnostic])?;
@@ -344,7 +374,7 @@ pub fn reconstruct_trust_report(
             .generic_accepted_instances
             .push(TrustGenericAcceptedInstanceRow {
                 template_commitment: template_commitment.clone(),
-                template_report_fingerprint: specialization.template_contract_fingerprint,
+                template_report_fingerprint: specialization.template_contract_report_fingerprint,
                 instance_report_fingerprint: specialization.report_fingerprint,
                 instance_contract_report_fingerprint: instance_contract.report_fingerprint,
                 instance_contract_commitment: instance_contract.commitment,
@@ -699,7 +729,7 @@ mod tests {
         accepted_instance_contract_plan, accepted_machine_crash_routes, accepted_machine_may_block,
         accepted_machine_may_suspend, accepted_machine_service_reach,
         accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
-        exact_machine_contract_plan, trust_provider_realization,
+        exact_machine_contract_plan, reconstruct_trust_report, trust_provider_realization,
     };
     use omega_artifacts::{
         TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard, TrustProviderRealization,
@@ -718,6 +748,52 @@ mod tests {
         TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
+
+    #[test]
+    fn trust_report_rejects_compact_equal_selected_plan_substitution() {
+        let checked = CheckedTrees::default();
+        let classifications = crate::AcceptedTemplateClassifications::capture(&checked.typed);
+        let candidate = omega_effects::provider_plan::ProviderPlan {
+            name: "Provider".to_owned(),
+            provider_type: "Provider".to_owned(),
+            schema: omega_effects::provider_plan::ServiceSchema {
+                trait_name: "Pair".to_owned(),
+                methods: vec![omega_effects::provider_plan::ServiceMethod {
+                    name: "run".to_owned(),
+                    requirement_owner: "Pair".to_owned(),
+                    requirement_identity: "Pair::run".to_owned(),
+                    service_reach: vec!["Pair".to_owned()],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            rows: vec![omega_effects::provider_plan::ProviderPlanRow {
+                method: "run".to_owned(),
+                requirement_identity: "Pair::run".to_owned(),
+                binding: omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 0 },
+            }],
+            ..Default::default()
+        };
+        let mut substituted = candidate.clone();
+        substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
+        assert_eq!(
+            candidate.identity_fingerprint(),
+            substituted.identity_fingerprint()
+        );
+        assert_ne!(candidate.identity_digest(), substituted.identity_digest());
+        let selected =
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
+                .expect("compact-equal selected closure");
+
+        let diagnostics =
+            reconstruct_trust_report(&checked, &[], &[candidate], &selected, &classifications)
+                .expect_err("exact selected-plan substitution must not enter the trust report");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("replays against 0 exact candidate plans")
+        );
+    }
 
     #[test]
     fn trust_realization_retains_normalized_locator_and_keeps_bootstrap_distinct() {

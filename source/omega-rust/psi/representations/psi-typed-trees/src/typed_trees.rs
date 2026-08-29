@@ -284,7 +284,10 @@ pub struct MachineSpecialization {
     pub conformance_applications: Vec<ClosedConformanceApplication>,
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.
-    pub template_contract_fingerprint: u64,
+    pub template_contract_report_fingerprint: u64,
+    /// Domain-separated commitment to the same exact canonical universal-
+    /// template bytes represented by the adjacent compact report coordinate.
+    pub template_contract_commitment: MachineTemplateCommitment,
     /// Exact canonical universal-template encoding captured before in-place
     /// substitution consumes its generic parameter declarations. This is
     /// retained so later checked-to-terminal review can independently replay
@@ -326,6 +329,23 @@ pub struct MachineSpecialization {
 pub struct MachineSpecializationCommitment([u8; 32]);
 
 impl MachineSpecializationCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MachineTemplateCommitment([u8; 32]);
+
+impl MachineTemplateCommitment {
     pub const fn from_digest(digest: [u8; 32]) -> Self {
         Self(digest)
     }

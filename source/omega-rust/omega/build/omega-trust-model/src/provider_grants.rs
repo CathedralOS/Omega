@@ -1,4 +1,4 @@
-use omega_effects::provider_plan::ProviderPlan;
+use omega_effects::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use psi_diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -7,25 +7,38 @@ pub enum ProviderGrantSelectorKind {
     ProviderSlot,
 }
 
+fn selected_subjects_coincide(plan: &ProviderPlan, slot_plan: &ProviderPlan) -> bool {
+    plan == slot_plan
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedSelectedProviderGrant {
     pub selector: String,
     pub selector_kind: ProviderGrantSelectorKind,
-    pub selected_plan_identity: u64,
-    pub selected_plan_name: String,
-    pub selected_slot_name: String,
+    pub selected_plan: ProviderPlan,
+    pub selected_plan_digest: ProviderPlanDigest,
+    pub selected_plan_report_identity: u64,
 }
 
 impl ResolvedSelectedProviderGrant {
     pub fn commitment(&self) -> String {
         match self.selector_kind {
             ProviderGrantSelectorKind::PlanName => {
-                format!("provider plan: {}", self.selected_plan_name)
+                format!("provider plan: {}", self.selected_plan.name)
             }
             ProviderGrantSelectorKind::ProviderSlot => {
-                format!("provider slot: {}", self.selected_slot_name)
+                format!("provider slot: {}", self.selected_plan.schema.trait_name)
             }
         }
+    }
+
+    /// Replay this grant against one complete selected plan. The compact
+    /// identity remains a report coordinate; exact structural equality and
+    /// the domain-separated digest retain admission authority.
+    pub fn replays_selected_plan(&self, plan: &ProviderPlan) -> bool {
+        self.selected_plan_report_identity == plan.identity_fingerprint()
+            && self.selected_plan_digest == plan.identity_digest()
+            && self.selected_plan == *plan
     }
 }
 
@@ -83,9 +96,7 @@ pub fn resolve_selected_provider_grants(
             )));
         }
         let (plan, selector_kind) = match (plan_name_plan, slot_plan) {
-            (Some(plan), Some(slot_plan))
-                if plan.identity_fingerprint() == slot_plan.identity_fingerprint() =>
-            {
+            (Some(plan), Some(slot_plan)) if selected_subjects_coincide(plan, slot_plan) => {
                 (plan, ProviderGrantSelectorKind::PlanName)
             }
             (Some(_), Some(_)) => {
@@ -121,10 +132,35 @@ pub fn resolve_selected_provider_grants(
         resolved.push(ResolvedSelectedProviderGrant {
             selector: grant.clone(),
             selector_kind,
-            selected_plan_identity: plan.identity_fingerprint(),
-            selected_plan_name: plan.name.clone(),
-            selected_slot_name: plan.schema.trait_name.clone(),
+            selected_plan: plan.clone(),
+            selected_plan_digest: plan.identity_digest(),
+            selected_plan_report_identity: plan.identity_fingerprint(),
         });
     }
     Ok(resolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plan_and_slot_coincidence_rejects_compact_equal_structural_substitution() {
+        let mut plan = ProviderPlan::default();
+        plan.schema
+            .methods
+            .push(omega_effects::provider_plan::ServiceMethod {
+                requirement_owner: "Pair".to_owned(),
+                ..Default::default()
+            });
+        let mut substituted = plan.clone();
+        substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
+
+        assert_eq!(
+            plan.identity_fingerprint(),
+            substituted.identity_fingerprint()
+        );
+        assert_ne!(plan.identity_digest(), substituted.identity_digest());
+        assert!(!selected_subjects_coincide(&plan, &substituted));
+    }
 }

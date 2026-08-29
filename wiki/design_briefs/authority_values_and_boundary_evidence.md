@@ -980,6 +980,15 @@ conformance-application commitments, and the specialized instance-contract
 commitment. Equal compact display coordinates therefore never imply equal
 trust authority.
 
+Owner admission follows the same rule before reporting. A provider grant
+retains the complete selected plan and its `ProviderPlanDigest`; a generic
+accepted grant retains the canonical `MachineTemplateCommitment`; and an
+ordinary accepted machine retains its checked `MachineContractCommitment`.
+The persisted trust-admission digest domain-separates those subject kinds and
+also binds the human policy commitment. The narrow standalone `omega.lock`
+receipt section stores the full digest, while legacy compact-only rows fail
+closed and require explicit re-acceptance.
+
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row
 uses the carrier-aware semantic-domain identity, begins with the strict

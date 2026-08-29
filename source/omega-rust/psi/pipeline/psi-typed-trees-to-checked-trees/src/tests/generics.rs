@@ -1594,6 +1594,29 @@ fn specialization_commitment_replays_and_rejects_compact_equal_substitution() {
             .contains("stale authoritative commitment")
     }));
 
+    let mut stale_template_commitment = checked.clone();
+    let template_report = stale_template_commitment.typed.machine_specializations[0]
+        .template_contract_report_fingerprint;
+    stale_template_commitment.typed.machine_specializations[0].template_contract_commitment =
+        psi_typed_trees::typed_trees::MachineTemplateCommitment::from_digest([0xa5; 32]);
+    assert_eq!(
+        stale_template_commitment.typed.machine_specializations[0]
+            .template_contract_report_fingerprint,
+        template_report,
+        "the adversary deliberately retains the compact template coordinate"
+    );
+    let contracts = stale_template_commitment.facts.contract_plans.clone();
+    let diagnostics = crate::monomorphization::bind_specialization_contract_identities(
+        &mut stale_template_commitment.typed,
+        &contracts,
+    )
+    .expect_err("a stale template commitment must fail despite compact equality");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("authoritative template commitment")
+    }));
+
     let mut stale_report_row = checked.clone();
     stale_report_row.typed.machine_specializations[0]
         .machine_argument_contract_report_fingerprints[0] ^= 1;
@@ -3674,13 +3697,14 @@ fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts()
     assert_eq!(instances.len(), 2);
     assert!(instances.iter().all(|instance| {
         instance.accepted_template_commitment.as_deref() == Some("admitted")
-            && instance.template_contract_fingerprint != 0
+            && instance.template_contract_report_fingerprint != 0
+            && !instance.template_contract_commitment.is_zero()
             && instance.machine_argument_contract_report_fingerprints.len() == 1
             && instance.machine_argument_contract_report_fingerprints[0] != 0
     }));
     assert_eq!(
-        instances[0].template_contract_fingerprint,
-        instances[1].template_contract_fingerprint
+        instances[0].template_contract_report_fingerprint,
+        instances[1].template_contract_report_fingerprint
     );
     assert_ne!(
         instances[0].machine_argument_contract_report_fingerprints,
@@ -3754,7 +3778,11 @@ fn specialization_identity_ignores_selected_machine_body_edits() {
 
 #[test]
 fn generic_template_identity_is_positional_across_parameter_renames() {
-    fn fingerprint(machine_parameter: &str, value: &str, item: &str) -> u64 {
+    fn identity(
+        machine_parameter: &str,
+        value: &str,
+        item: &str,
+    ) -> (u64, psi_typed_trees::typed_trees::MachineTemplateCommitment) {
         let source = format!(
             r#"
                 boundary machine admitted<machine {machine_parameter}>({value}: i32)
@@ -3775,13 +3803,20 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("accepted template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        (
+            crate::monomorphization::generic_machine_template_report_fingerprint(
+                &typed,
+                admitted.symbol,
+            )
+            .expect("generic template should have a report identity"),
+            crate::monomorphization::generic_machine_template_commitment(&typed, admitted.symbol)
+                .expect("generic template should have a strong identity"),
+        )
     }
 
     assert_eq!(
-        fingerprint("F", "value", "item"),
-        fingerprint("Operation", "input", "candidate")
+        identity("F", "value", "item"),
+        identity("Operation", "input", "candidate")
     );
 }
 
@@ -3806,8 +3841,11 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("generic template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        crate::monomorphization::generic_machine_template_report_fingerprint(
+            &typed,
+            admitted.symbol,
+        )
+        .expect("generic template should have an identity")
     }
 
     let grouped = r#"
@@ -3869,8 +3907,11 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("generic template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        crate::monomorphization::generic_machine_template_report_fingerprint(
+            &typed,
+            admitted.symbol,
+        )
+        .expect("generic template should have an identity")
     }
 
     assert_eq!(slot_fingerprint(grouped), slot_fingerprint(split));
@@ -3908,8 +3949,11 @@ fn generic_template_identity_pins_conformance_bounds_positionally() {
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("generic template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        crate::monomorphization::generic_machine_template_report_fingerprint(
+            &typed,
+            admitted.symbol,
+        )
+        .expect("generic template should have an identity")
     }
 
     assert_eq!(fingerprint("T", "First"), fingerprint("Item", "First"));
@@ -3966,8 +4010,11 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("generic template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        crate::monomorphization::generic_machine_template_report_fingerprint(
+            &typed,
+            admitted.symbol,
+        )
+        .expect("generic template should have an identity")
     }
 
     assert_ne!(
@@ -3991,8 +4038,11 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("generic template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        crate::monomorphization::generic_machine_template_report_fingerprint(
+            &typed,
+            admitted.symbol,
+        )
+        .expect("generic template should have an identity")
     }
 
     fn template_fingerprint(template_clause: &str) -> u64 {
@@ -4090,8 +4140,11 @@ fn generic_template_identity_distinguishes_structural_and_nominal_machine_contra
             .iter()
             .find(|machine| machine.name.as_str() == "admitted")
             .expect("generic template should exist");
-        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
-            .expect("generic template should have an identity")
+        crate::monomorphization::generic_machine_template_report_fingerprint(
+            &typed,
+            admitted.symbol,
+        )
+        .expect("generic template should have an identity")
     }
 
     assert_ne!(

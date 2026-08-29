@@ -119,16 +119,24 @@ pub(crate) fn run() {
             } else if !settlement.is_exactly_admitted() {
                 for admission in settlement.unresolved() {
                     eprintln!(
-                        "unresolved trust admission `{}` [{:016x}]",
+                        "unresolved trust admission `{}` [{}]{}",
                         admission.commitment(),
-                        admission.identity()
+                        admission.digest(),
+                        admission
+                            .report_identity()
+                            .map(|identity| format!(" (report {identity:016x})"))
+                            .unwrap_or_default(),
                     );
                 }
                 for admission in settlement.unused() {
                     eprintln!(
-                        "stale trust admission `{}` [{:016x}]",
+                        "stale trust admission `{}` [{}]{}",
                         admission.commitment(),
-                        admission.identity()
+                        admission.digest(),
+                        admission
+                            .report_identity()
+                            .map(|identity| format!(" (report {identity:016x})"))
+                            .unwrap_or_default(),
                     );
                 }
                 eprintln!("run again with --accept-admissions to accept this exact set");

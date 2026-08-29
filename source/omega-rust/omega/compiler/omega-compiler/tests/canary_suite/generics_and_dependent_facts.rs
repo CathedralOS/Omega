@@ -1363,7 +1363,10 @@ fn open_computed_quantity_result_canary_runs() {
         checked
             .machine_specializations
             .iter()
-            .any(|specialization| specialization.template_contract_fingerprint != 0)
+            .any(|specialization| {
+                specialization.template_contract_report_fingerprint != 0
+                    && !specialization.template_contract_commitment.is_zero()
+            })
     );
     assert!(
         checked

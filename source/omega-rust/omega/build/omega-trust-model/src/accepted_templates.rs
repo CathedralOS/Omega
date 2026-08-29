@@ -12,7 +12,23 @@ pub struct AcceptedTemplateClassifications {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct AcceptedTemplateClassification {
     machine: SymbolHandle,
-    fingerprint: Option<u64>,
+    identity: Option<AcceptedTemplateIdentity>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AcceptedTemplateIdentity {
+    report_fingerprint: u64,
+    commitment: psi_typed_trees::typed_trees::MachineTemplateCommitment,
+}
+
+impl AcceptedTemplateIdentity {
+    pub const fn report_fingerprint(self) -> u64 {
+        self.report_fingerprint
+    }
+
+    pub const fn commitment(self) -> psi_typed_trees::typed_trees::MachineTemplateCommitment {
+        self.commitment
+    }
 }
 
 impl AcceptedTemplateClassifications {
@@ -24,13 +40,27 @@ impl AcceptedTemplateClassifications {
                 .filter(|machine| {
                     machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
                 })
-                .map(|machine| AcceptedTemplateClassification {
-                    machine: machine.symbol,
-                    fingerprint:
-                        psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
+                .map(|machine| {
+                    let report_fingerprint = psi_typed_trees_to_checked_trees::
+                        generic_machine_template_report_fingerprint(
                             typed,
                             machine.symbol,
-                        ),
+                        );
+                    let commitment =
+                        psi_typed_trees_to_checked_trees::generic_machine_template_commitment(
+                            typed,
+                            machine.symbol,
+                        );
+                    let identity = report_fingerprint.zip(commitment).map(
+                        |(report_fingerprint, commitment)| AcceptedTemplateIdentity {
+                            report_fingerprint,
+                            commitment,
+                        },
+                    );
+                    AcceptedTemplateClassification {
+                        machine: machine.symbol,
+                        identity,
+                    }
                 })
                 .collect(),
         }
@@ -40,7 +70,7 @@ impl AcceptedTemplateClassifications {
         &self,
         machine: SymbolHandle,
         machine_name: &str,
-    ) -> Result<Option<u64>, Diagnostic> {
+    ) -> Result<Option<AcceptedTemplateIdentity>, Diagnostic> {
         let mut matches = self.rows.iter().filter(|row| row.machine == machine);
         let row = matches.next().ok_or_else(|| {
             Diagnostic::error(format!(
@@ -52,7 +82,7 @@ impl AcceptedTemplateClassifications {
                 "accepted machine `{machine_name}` has duplicate pre-lowering template classifications"
             )));
         }
-        Ok(row.fingerprint)
+        Ok(row.identity)
     }
 }
 
@@ -94,13 +124,21 @@ mod tests {
         }
 
         let classifications = AcceptedTemplateClassifications::capture(&typed);
-        let first_fingerprint =
-            psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(&typed, first)
-                .expect("authored generic accepted machine must have a template fingerprint");
+        let first_report_fingerprint =
+            psi_typed_trees_to_checked_trees::generic_machine_template_report_fingerprint(
+                &typed, first,
+            )
+            .expect("authored generic accepted machine must have a template report fingerprint");
+        let first_commitment =
+            psi_typed_trees_to_checked_trees::generic_machine_template_commitment(&typed, first)
+                .expect("authored generic accepted machine must have a template commitment");
 
         assert_eq!(
             classifications.for_machine(first, "first"),
-            Ok(Some(first_fingerprint))
+            Ok(Some(AcceptedTemplateIdentity {
+                report_fingerprint: first_report_fingerprint,
+                commitment: first_commitment,
+            }))
         );
         assert_eq!(classifications.for_machine(second, "second"), Ok(None));
         assert!(classifications.for_machine(checked, "checked").is_err());

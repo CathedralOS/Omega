@@ -254,9 +254,9 @@ scanners, or receipts.
   A repository-wide
   architecture test now scans exported direct, optional, and vector `u64`
   fingerprint fields:
-  explicit report/cache/compatibility names pass, while the remaining legacy
-  inventory is a shrinking per-owner ceiling that rejects new fields or
-  duplicate occurrences. Task activation specialization now follows the same
+  explicit report/cache/compatibility names pass, while every unclassified
+  exported fingerprint now rejects; the former legacy ceiling is empty. Task
+  activation specialization now follows the same
   rule: its historical FNV value is a report coordinate, while a
   domain-separated SHA-256 commitment binds the exact checked TaskRuntime
   requirement, operation, target/entry signature, and target machine-contract
@@ -273,11 +273,16 @@ scanners, or receipts.
   grant. Checked-to-Terminal lowering independently replays a domain-separated
   SHA-256 specialization commitment and places all 32 bytes in proof-producer
   identity; the aggregate FNV is report-only, and compact-equal structural or
-  stored-commitment substitution rejects. Accepted universal-template trust
-  admission still relies on the legacy compact template-contract coordinate
-  and remains in the broader inventory. Remaining work is the broader compact-identity
-  inventory and repository-wide enforcement, including checked-Psi carriers
-  and private/local fields outside the exported-field scanner.
+  stored-commitment substitution rejects. Universal-template trust identity
+  now likewise retains a domain-separated SHA-256 commitment to the canonical
+  pre-substitution contract beside its report FNV. Provider grants retain and
+  replay the exact selected plan plus its strong digest instead of rejoining by
+  compact identity. Persisted owner admissions bind subject kind, human
+  commitment, and the underlying provider-plan, machine-template, or checked
+  machine-contract digest; `omega.lock` stores the resulting 32-byte digest,
+  and legacy 16-hex compact rows fail closed. Remaining work is the broader
+  compact-identity inventory and repository-wide enforcement, including
+  private/local fields outside the exported-field scanner.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

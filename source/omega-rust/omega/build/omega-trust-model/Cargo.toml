@@ -18,6 +18,7 @@ psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantic
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+sha2 = "0.10.9"
 
 [dev-dependencies]
 omega-target = { path = "../../representations/omega-target" }
