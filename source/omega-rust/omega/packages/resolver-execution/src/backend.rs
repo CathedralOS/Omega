@@ -1,6 +1,9 @@
 use crate::ResolverPreparedExecution;
 use crate::confinement;
-use crate::model::*;
+use crate::model::{
+    ResolverExecutionBackendIdentity, ResolverExecutionGuarantee, ResolverExecutionGuaranteeRow,
+    ResolverExecutionNetworkTransport, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
+};
 use crate::network::{
     ResolverExecutionEndpointRoute, ResolverExecutionEndpointRoutePolicy,
     ResolverExecutionRequestedEndpoint, ResolverExecutionTransferBudget,

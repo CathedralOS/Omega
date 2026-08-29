@@ -1,3 +1,8 @@
+//! Owned resolver-child lifecycle, limits, descriptors, and completion.
+//!
+//! [`ResolverExecutionChild`] is the only launch/lifecycle owner. Completion
+//! observations are issued only after explicit container closure and reaping.
+
 use std::io;
 
 #[cfg(unix)]

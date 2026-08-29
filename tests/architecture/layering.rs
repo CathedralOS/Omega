@@ -552,6 +552,30 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
     let packages = workspace_root().join("source/omega-rust/omega/packages");
+    let top_level = std::fs::read_dir(&packages)
+        .expect("read package subsystem entrance")
+        .map(|entry| {
+            entry
+                .expect("read package subsystem entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    let expected_top_level = [
+        "README.md",
+        "manager",
+        "package-review",
+        "resolver-execution",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<BTreeSet<_>>();
+    assert_eq!(
+        top_level, expected_top_level,
+        "the package subsystem top level is a deliberate architectural map; document and guard new responsibilities"
+    );
+
     for required in [
         "README.md",
         "manager/src/lib.rs",
@@ -566,9 +590,22 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "package-review/src/lib.rs",
         "resolver-execution/src/lib.rs",
     ] {
+        let entrance = packages.join(required);
         assert!(
-            packages.join(required).is_file(),
+            entrance.is_file(),
             "package responsibility entrance is missing: {required}"
+        );
+        let source = std::fs::read_to_string(&entrance)
+            .unwrap_or_else(|error| panic!("read package entrance {required}: {error}"));
+        let has_entrance_documentation =
+            if entrance.extension().and_then(|value| value.to_str()) == Some("md") {
+                source.lines().take(12).any(|line| line.starts_with('#'))
+            } else {
+                source.lines().take(12).any(|line| line.starts_with("//!"))
+            };
+        assert!(
+            has_entrance_documentation,
+            "package responsibility entrance must explain where curiosity leads next: {required}"
         );
     }
     for retired in [
@@ -603,10 +640,51 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
             }
             let source = std::fs::read_to_string(&path).expect("read package Rust source");
             let lines = source.lines().count();
+            let line_ceiling = if path
+                .components()
+                .any(|component| component.as_os_str() == "tests")
+            {
+                1_000
+            } else {
+                800
+            };
             assert!(
-                lines <= 1_000,
-                "package Rust module exceeds the 1,000-line discovery ceiling: {} ({lines} lines)",
+                lines <= line_ceiling,
+                "package Rust module exceeds its {line_ceiling}-line discovery ceiling: {} ({lines} lines)",
                 path.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn package_crates_keep_one_way_ownership() {
+    let graph = load_graph();
+    let manager = graph
+        .get("omega-package-manager")
+        .expect("package manager crate participates in architecture metadata");
+    for required in ["omega-package-review", "omega-resolver-execution"] {
+        assert!(
+            manager.deps.iter().any(|dependency| dependency == required),
+            "package manager must compose its supporting owner {required}"
+        );
+    }
+
+    for leaf in ["omega-package-review", "omega-resolver-execution"] {
+        let krate = graph
+            .get(leaf)
+            .unwrap_or_else(|| panic!("package support crate missing from metadata: {leaf}"));
+        for forbidden in [
+            "omega-package-manager",
+            "omega-package-review",
+            "omega-resolver-execution",
+        ] {
+            if forbidden == leaf {
+                continue;
+            }
+            assert!(
+                !krate.deps.iter().any(|dependency| dependency == forbidden),
+                "package support owner {leaf} must not depend on sibling {forbidden}"
             );
         }
     }
