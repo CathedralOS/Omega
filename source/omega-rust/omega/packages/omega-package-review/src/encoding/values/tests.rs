@@ -1,8 +1,8 @@
-use crate::encoding::canonical::PackageReviewEncodingLimits;
-use crate::encoding::canonical::encoder::Encoder;
-use crate::encoding::canonical::review::{encode, encode_with_limits};
-use crate::encoding::canonical::rows::{encode_rows, encode_rows_with_limits};
-use crate::evidence::review::PackageReviewCanonicalRowSources;
+use crate::encoding::encode::PackageReviewEncodingLimits;
+use crate::encoding::encode::encoder::Encoder;
+use crate::encoding::encode::review::{encode, encode_with_limits};
+use crate::encoding::encode::rows::{encode_rows, encode_rows_with_limits};
+use crate::evidence::package::PackageReviewCanonicalRowSources;
 use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCompilerIntrinsicExecution, PackageReviewNominalIdentity,

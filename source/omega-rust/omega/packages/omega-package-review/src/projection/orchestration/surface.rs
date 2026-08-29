@@ -1,12 +1,12 @@
-use super::super::public_api::conformances::project_public_conformances;
-use super::super::public_api::constants::project_public_consts;
-use super::super::public_api::data::projection::project_public_data;
-use super::super::public_api::domains::projection::project_public_domains;
-use super::super::public_api::operators::project_public_operators;
-use super::super::public_api::propositions::project_public_propositions;
-use super::super::public_api::traits::project_public_traits;
-use super::super::semantics::{project_representation_tcb, project_semantic_dependencies};
-use crate::evidence::projection::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
+use super::super::api::conformances::project_public_conformances;
+use super::super::api::constants::project_public_consts;
+use super::super::api::data::projection::project_public_data;
+use super::super::api::domains::projection::project_public_domains;
+use super::super::api::operators::project_public_operators;
+use super::super::api::propositions::project_public_propositions;
+use super::super::api::traits::project_public_traits;
+use super::super::representation::{project_representation_tcb, project_semantic_dependencies};
+use crate::evidence::package::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use crate::evidence::{
     PackageReviewConformanceShape, PackageReviewConstShape, PackageReviewDataShape,
     PackageReviewDomainShape, PackageReviewOperatorShape, PackageReviewPropositionShape,

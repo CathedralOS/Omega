@@ -1,5 +1,5 @@
 use crate::encoding::PackageReviewEncodingError;
-use crate::encoding::canonical::encoder::Encoder;
+use crate::encoding::encode::encoder::Encoder;
 use crate::evidence::{
     PackageReviewCallableSupply, PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };

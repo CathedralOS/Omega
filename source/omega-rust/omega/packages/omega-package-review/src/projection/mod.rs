@@ -1,12 +1,18 @@
+//! Compiler-owned translation into inert package-review evidence.
+//!
+//! The entrance coordinates checked semantic interpretation, public API and
+//! behavior projection, provider selection, representation disclosure, and
+//! source custody. Evidence types and canonical encoding remain separate owners.
+
+mod api;
 mod authority;
+mod behavior;
 mod callables;
-mod checked_semantics;
 mod contracts;
-mod operational;
 mod orchestration;
 mod providers;
-mod public_api;
+mod representation;
 mod semantics;
-mod source_custody;
+mod source;
 
 pub use orchestration::project_checked_package_review;

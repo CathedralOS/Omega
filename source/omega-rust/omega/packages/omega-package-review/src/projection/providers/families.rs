@@ -1,4 +1,4 @@
-use super::super::checked_semantics::declarations::nominal_identity;
+use super::super::semantics::declarations::nominal_identity;
 use super::selection::validate_selected_provider_declaration_owner;
 use crate::evidence::{
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,

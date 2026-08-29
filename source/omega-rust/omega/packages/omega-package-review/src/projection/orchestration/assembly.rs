@@ -1,13 +1,13 @@
 use super::super::providers::selection::selected_provider_row_source;
-use super::super::source_custody::finalization::{
+use super::super::source::finalization::{
     finalize_dangerous_authority_rows, finalize_dangerous_authority_slack_rows,
     finalize_projected_rows, finalize_semantic_dependency_rows,
 };
-use super::super::source_custody::locations::validate_canonical_row_source_limits;
+use super::super::source::locations::validate_canonical_row_source_limits;
 use super::callables::ProjectedPackageCallables;
 use super::providers::ProjectedProviders;
 use super::surface::ProjectedPackageSurface;
-use crate::evidence::projection::{
+use crate::evidence::package::{
     PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,
     ProjectedDangerousAuthoritySlackRow,
 };

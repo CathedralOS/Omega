@@ -31,7 +31,7 @@ pub(crate) use omega_package_review::evidence::{
     PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
     PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind,
 };
-pub(crate) use omega_package_review::obligation_ledger::{
+pub(crate) use omega_package_review::obligations::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
     ordinary_package_obligation_ledger_fingerprint,
     ordinary_package_obligation_ledger_from_compiler_rows,

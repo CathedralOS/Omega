@@ -1,5 +1,5 @@
-use super::checked_semantics::declarations::nominal_identity;
-use crate::evidence::projection::{
+use super::semantics::declarations::nominal_identity;
+use crate::evidence::package::{
     ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
 };
 use crate::evidence::{

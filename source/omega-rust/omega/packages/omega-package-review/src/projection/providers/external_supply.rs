@@ -1,4 +1,4 @@
-use crate::evidence::projection::{ProjectedNestedSourceLocation, ProjectedReviewRow};
+use crate::evidence::package::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::evidence::{
     PackageReviewExternalBinding, PackageReviewExternalExecutableSupply,
     PackageReviewSourceLocationRole,

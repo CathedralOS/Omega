@@ -1,16 +1,24 @@
+//! Stable, inert evidence vocabulary emitted by compiler-owned projection.
+//!
+//! This module owns the review shapes and canonical-row model. It does not
+//! inspect compiler state, encode persistence bytes, or make admission policy.
+
+mod api;
 mod authority;
 mod contracts;
 mod identity;
-mod public_api;
-pub(crate) mod review;
+pub(crate) mod package;
 mod rows;
 mod signatures;
 
-// The projection pipeline is concurrently being reorganized. Preserve its
-// crate-private import path while the evidence model's canonical home becomes
-// `evidence::review`.
-pub(crate) use review as projection;
-
+pub use api::{
+    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,
+    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainSemanticRole, PackageReviewDomainShape,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewRepresentationTcb,
+};
 pub use authority::{
     PackageReviewCapabilityFlow, PackageReviewCrash, PackageReviewCrashCall,
     PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
@@ -42,15 +50,7 @@ pub use identity::{
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewToolchainSourceIdentity,
 };
-pub use public_api::{
-    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole, PackageReviewDomainShape,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewRepresentationTcb,
-};
-pub use review::{
+pub use package::{
     CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,

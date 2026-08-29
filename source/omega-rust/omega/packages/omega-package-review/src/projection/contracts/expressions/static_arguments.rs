@@ -1,9 +1,9 @@
 use super::names::portable_parameter_position;
 use crate::evidence::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
-use crate::projection::checked_semantics::declarations::nominal_identity;
-use crate::projection::checked_semantics::types::lifetimes::lifetime_binder_ordinal;
-use crate::projection::checked_semantics::types::missing_exact_toolchain_type_owner;
 use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::semantics::declarations::nominal_identity;
+use crate::projection::semantics::types::lifetimes::lifetime_binder_ordinal;
+use crate::projection::semantics::types::missing_exact_toolchain_type_owner;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
