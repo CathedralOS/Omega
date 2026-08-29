@@ -17,6 +17,14 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Global value numbering now has a separate five-row obligation-free
+saturating neutral-arithmetic family: add-zero left/right, subtract-zero right,
+and multiply-one left/right. It appends candidate tags 10-14 and catalog row 12
+under GVN v11, retains one independently typed law-literal fact, and maps to a
+separate independently reconstructed validator identity. Signed one-bit
+multiply-one is explicitly absent because that type cannot represent `+1`;
+`0+0` and `1*1` choose their left rows deterministically.
+
 [x] Global value numbering now has a separate two-row obligation-free wrapping
 multiplication annihilation family: `0 * x -> 0` and `x * 0 -> 0`. It appends
 candidate tags 8/9 and catalog row 11 under GVN v10, retains exactly the
@@ -492,8 +500,9 @@ parallel route or optional coordinator field.
   arithmetic identity partition and independent validator reconstruction.
 - [>] Extend GVN and scalar identities to further exact operation families only
   with exhaustive producer/validator partitions. The separate wrapping-shift
-  zero-count and wrapping multiply-zero families are complete; saturating
-  neutral arithmetic and bitwise identities remain unselected future families.
+  zero-count, wrapping multiply-zero, and saturating neutral-arithmetic
+  families are complete. Saturating multiply-zero annihilation and separately
+  named bitwise neutral/absorbing identities remain unselected future families.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
   are resolved.
 - [?] Define suspension/resume edges for CFG analyses.

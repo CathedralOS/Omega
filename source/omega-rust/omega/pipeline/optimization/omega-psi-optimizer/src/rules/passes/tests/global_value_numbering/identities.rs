@@ -64,7 +64,7 @@ fn wrapping_neutral_rule_accepts_signed_and_wider_unsigned_typed_literals() {
 }
 
 #[test]
-fn wrapping_identity_rules_are_disabled_by_default_and_cataloged_once() {
+fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
     assert!(
         built_in_psi_registry(&OptimizationSelections::default())
             .unwrap()
@@ -80,7 +80,7 @@ fn wrapping_identity_rules_are_disabled_by_default_and_cataloged_once() {
     assert_eq!(
         contract.pass(),
         OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v10",
+            b"omega.psi-pass.global-value-numbering.v11",
         )
     );
     let expected = contract.identity();
@@ -113,6 +113,18 @@ fn wrapping_identity_rules_are_disabled_by_default_and_cataloged_once() {
         registry
             .contracts()
             .filter(|contract| contract.identity() == annihilation)
+            .count(),
+        1
+    );
+    let saturating = SaturatingNeutralArithmeticIdentityRule::contract().identity();
+    assert_eq!(
+        registry.contracts().nth(12).map(|row| row.identity()),
+        Some(saturating)
+    );
+    assert_eq!(
+        registry
+            .contracts()
+            .filter(|contract| contract.identity() == saturating)
             .count(),
         1
     );

@@ -13,8 +13,10 @@ of accessors. A pure re-export wall is also insufficient.
 
 Preferred entrance size is below 100 lines. Crossing 200 lines requires a
 specific reason in review. Production files have a 1,000-line hard ceiling;
-dedicated test fixtures retain a 1,500-line ceiling. The architecture guard's
-legacy exception table is empty and new exceptions are forbidden.
+dedicated test fixtures retain a 1,500-line ceiling. These are rejection
+ceilings, not healthy targets: leaves approaching them should be split at
+their next semantic rung before another rule grows them. The architecture
+guard's legacy exception table is empty and new exceptions are forbidden.
 
 ## Taxonomy
 
@@ -427,6 +429,14 @@ identity and a focused `multiply_zero.rs` test leaf. The shared conveyor calls
 its proving constant the law-defining literal rather than assuming every law
 uses a neutral element. Catalog order makes its overlap with multiply-one
 explicit and deterministic without merging their rule custody.
+Saturating neutral arithmetic is a fourth exact rule and a named
+`saturating.rs` classifier leaf beside the wrapping partitions. Its five rows
+retain saturating policy in both candidate kind and independent validator
+mapping; the shared conveyor does not reclassify them as wrapping operations.
+The focused `saturating_neutral.rs` test leaf owns width boundaries, canonical
+ties, policy isolation, and invalid-fact rejection. Bitwise work remains split
+into future neutral-literal and absorbing-literal families rather than one
+vague identity bucket.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one

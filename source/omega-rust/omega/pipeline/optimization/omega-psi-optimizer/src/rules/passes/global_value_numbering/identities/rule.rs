@@ -9,8 +9,8 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 use super::super::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use super::proposal::propose_total_scalar_identities;
 use super::{
-    wrapping_multiply_zero_annihilation_shapes, wrapping_neutral_identity_shapes,
-    wrapping_shift_zero_count_identity_shapes,
+    saturating_neutral_identity_shapes, wrapping_multiply_zero_annihilation_shapes,
+    wrapping_neutral_identity_shapes, wrapping_shift_zero_count_identity_shapes,
 };
 
 const REQUIRED_ANALYSES: [AnalysisKind; 3] = [
@@ -120,6 +120,36 @@ impl PsiOptimizationRule for WrappingMultiplyZeroAnnihilationRule {
             analyses,
             Self::contract(),
             wrapping_multiply_zero_annihilation_shapes,
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SaturatingNeutralArithmeticIdentityRule;
+
+impl SaturatingNeutralArithmeticIdentityRule {
+    pub fn contract() -> OptimizationRuleContract {
+        contract(
+            b"omega.psi-rule.live-obligation-free-saturating-integer-neutral-arithmetic-identity-elimination.v1",
+        )
+    }
+}
+
+impl PsiOptimizationRule for SaturatingNeutralArithmeticIdentityRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        propose_total_scalar_identities(
+            unit,
+            analyses,
+            Self::contract(),
+            saturating_neutral_identity_shapes,
         )
     }
 }

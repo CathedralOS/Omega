@@ -11,6 +11,98 @@ pub(crate) enum WrappingNeutralOperation {
     ShiftRight,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SaturatingNeutralOperation {
+    Add,
+    Subtract,
+    Multiply,
+}
+
+pub(crate) fn saturating_neutral_identity_unit(
+    operation: SaturatingNeutralOperation,
+    literal_value: IntegerValue,
+    literal_left: bool,
+    both_operands_literal: bool,
+) -> PsiOptimizationUnit {
+    saturating_neutral_identity_unit_with_type_and_liveness(
+        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        operation,
+        literal_value,
+        literal_left,
+        both_operands_literal,
+        true,
+    )
+}
+
+pub(crate) fn saturating_neutral_identity_unit_with_type_and_liveness(
+    integer: IntegerType,
+    operation: SaturatingNeutralOperation,
+    literal_value: IntegerValue,
+    literal_left: bool,
+    both_operands_literal: bool,
+    result_is_live: bool,
+) -> PsiOptimizationUnit {
+    let wrapping = match operation {
+        SaturatingNeutralOperation::Add => WrappingNeutralOperation::Add,
+        SaturatingNeutralOperation::Subtract => WrappingNeutralOperation::Subtract,
+        SaturatingNeutralOperation::Multiply => WrappingNeutralOperation::Multiply,
+    };
+    let mut unit = wrapping_neutral_identity_unit_with_type_and_liveness(
+        integer,
+        wrapping,
+        literal_value,
+        literal_left,
+        both_operands_literal,
+        result_is_live,
+    );
+    let node = &mut unit.functions[0].blocks[0].nodes[1];
+    node.operation = match node.operation {
+        O::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => O::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        },
+        O::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => O::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        },
+        O::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => O::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        },
+        _ => unreachable!("fixture selected one arithmetic operation"),
+    };
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    validate_psi_optimization_unit(&unit).unwrap();
+    unit
+}
+
 pub(crate) fn wrapping_neutral_identity_unit(
     operation: WrappingNeutralOperation,
     literal_value: IntegerValue,
