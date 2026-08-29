@@ -1,6 +1,0 @@
-; two input bytes, multiplied. refines a*b.
-proc main() {
-    let a = read_byte()
-    let b = read_byte()
-    return a * b
-}

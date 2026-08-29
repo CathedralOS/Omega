@@ -1,5 +1,0 @@
-; one input byte: 3*a + 1, built from adds and a literal. refines (3*a)+1.
-proc main() {
-    let a = read_byte()
-    return a + a + a + 1
-}

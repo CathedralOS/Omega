@@ -198,14 +198,15 @@ proved.
 ## Cyclic operational refinement
 
 Loops do not by themselves require a greatest-fixed-point rule in the kernel.
-For the deterministic Beta compiler edge, the artifact-aware owner reconstructs
-constructive total step functions for the canonical Beta and Alpha machines.
-Terminal outcomes self-loop, so primitive recursion defines one coherent state
-at every natural-number index; this avoids treating `forall n. exists a prefix`
+For a source-language-to-Alpha compiler-correctness edge, the artifact-aware
+owner reconstructs constructive total step functions for the canonical source
+and Alpha machines. Terminal outcomes self-loop, so primitive recursion defines
+one coherent state at every natural-number index; this avoids treating
+`forall n. exists a prefix`
 as though it constructively selected one infinite execution.
 
 The systems need not advance in lockstep. A nondecreasing synchronization
-function maps source indices to artifact indices. One Beta step may lower to
+function maps source indices to artifact indices. One source step may lower to
 many Alpha steps, while an erased source operation may lower to none. Every
 single-sided step is required to preserve the published observation and
 decrease a well-founded rank over the related source/artifact state pair.
@@ -218,6 +219,12 @@ Their proofs use the current first-order rules and natural-number induction.
 An untrusted elaborator may construct or compress those derivations; it cannot
 add a trusted LTS judgment or assert a reconstructed premise. Reusable generic
 simulation lemmas are checked once and referenced through a shared proof DAG.
+
+The Alpha assembly source used to construct the Beta compiler is not such an
+edge. Its authoritative encoder must produce the exact persisted tape; byte
+equality gives identical Alpha initial programs and therefore lockstep traces.
+Non-lockstep machinery begins with proving that the compiler correctly lowers
+arbitrary Beta source, and with later compiler rungs.
 
 The first implementation must measure certificate size and checking time and
 exercise termination, divergence, zero-instruction source steps, multi-step

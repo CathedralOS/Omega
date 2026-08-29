@@ -106,7 +106,7 @@ metadata visually and semantically distinct. There is no unqualified “artifact
 proven correct” verdict; the honest statement names the source, Alpha semantics,
 observation and resource profiles, and admissions.
 
-## D9 — Cyclic compiler refinement starts inside the existing calculus
+## D9 — Non-lockstep compiler refinement stays inside the existing calculus
 
 A compiler edge does not add a coinductive or labelled-transition-system
 judgment to the accepted checker merely because the subject contains loops. The
@@ -127,6 +127,13 @@ reconstructs both machines and the exact input, resource, and observation
 profiles. Executable agreement remains diagnostic. A new trusted kernel
 primitive is considered only after a concrete attempt proves an expressiveness
 failure; certificate verbosity or producer inconvenience alone is insufficient.
+
+This rule applies when a source-language transition system is related to a
+lowered Alpha transition system. The Alpha-written Beta compiler's own
+`.alpha`-source-to-`.tape` edge is simpler: authoritative assembly encoding
+must equal the exact tape. Equal tapes under the same Alpha input and resource
+profile have identical deterministic traces in lockstep, so that first edge
+does not invent a synchronization function or stuttering rank.
 
 ## D10 — Delta meaning is independent; spelling and artifact names are explicit
 

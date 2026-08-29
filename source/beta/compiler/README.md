@@ -12,8 +12,8 @@ This directory owns the compiler artifact required by the Beta rung:
 Construction, testing, and evidence generation do not grant authority by
 themselves. One Alpha source directly produces one exact Beta compiler tape.
 The validation directory belongs here because the artifact
-being admitted owns its validation. Alternate checkers and stress corpora are
-useful tests, but acceptance must ultimately terminate in the independently
+being admitted owns its validation. Bounded diagnostics can expose regressions,
+but acceptance must ultimately terminate in the independently
 rooted checker under `source/alpha/checker/`.
 
 ## Persisted artifact

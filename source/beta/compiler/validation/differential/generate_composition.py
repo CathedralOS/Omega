@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# refinement_compose_gen.py SEED — emit ONE random COMPOSED Beta program: pre-loop arithmetic, a data-
+# Emit one deterministic composed Beta case selected by `SEED`: pre-loop arithmetic, a data-
 # dependent linear loop, and POST-loop arithmetic on its result. The straight-line fuzzer tests pure
 # arithmetic and the loop fuzzer tests a bare loop returning an accumulator; NEITHER tests the INTERACTION —
 # a loop's summarized closed form flowing into further computation (and a computed value feeding the loop's
 # delta). That interaction is where the two summarization mechanisms meet, so it is the most valuable thing to
-# fuzz. The refinement gate proves bc's output ≡ the source meaning for each, ∀ inputs.
+# exercise in the bounded symbolic differential.
 #
 # Shape: read n + 1-2 data inputs; an optional pre-loop `let` (invariant +/* arithmetic over the inputs — no
 # `-`: a ℤ-pair invariant feeding a loop delta is a known conservative refusal); a unit-stride counter loop

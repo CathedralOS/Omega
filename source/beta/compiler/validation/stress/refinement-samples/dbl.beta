@@ -1,5 +1,0 @@
-; one input byte, doubled by self-addition. refines 2*a.
-proc main() {
-    let a = read_byte()
-    return a + a
-}

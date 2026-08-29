@@ -3,7 +3,7 @@
 # 21-op VM on concrete bytes, it runs it over a mix of CONCRETE integers and SYMBOLIC Peano terms: each `read`
 # introduces a fresh input variable, `imm`/arithmetic build up a value, and `write`/`halt` reports the output
 # as a closed-form expression over the inputs. So it answers "what function of its inputs does this machine
-# code compute?" WITHOUT running it — the first step of instruction-level REFINEMENT (the Cathedral endgame).
+# code compute?" without choosing concrete input bytes.
 #
 # A value is either a Python int (CONCRETE — addresses, stack-pointer arithmetic, literals) or a Peano-term
 # tuple (SYMBOLIC — data derived from inputs). This split is what lets it execute REAL bc output: bc's calling
@@ -13,9 +13,10 @@
 # any symbolic operand lifts to a `p`/`m` term. Control flow that would branch on a SYMBOLIC value, symbolic
 # subtraction/division, or a symbolic address raises Unsupported — those need the ZZ / loop-invariant slices.
 #
-# UNTRUSTED and CHECKED, like the *_ref tools: alpha_refinement_check.py (a) DIFFERENTIALLY pins the derived
-# expression to alpha_ref.py on random inputs and (b) PROVES it equals the claimed source meaning for ALL
-# inputs via prover.py + check.beta. Encoding mirrors alpha_ref.py (the seed-diamonded reference).
+# This is an untrusted diagnostic component. `symbolic_differential.py`
+# differentially compares its term to `alpha_ref.py` on a finite input set and
+# asks the rooted checker to validate equality with the independently generated
+# source term. That does not make either generated term authoritative semantics.
 import sys
 sys.setrecursionlimit(400000)          # deep-nat traversals (buffer addresses render as s^k chains)
 

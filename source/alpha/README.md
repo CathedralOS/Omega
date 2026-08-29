@@ -20,6 +20,7 @@ seed_env.sh              per-platform seed selection + tape-stamping, sourced by
 resize-x64-tape-hole.py  one-purpose audited 32 KiB -> 256 KiB PE extent migration
 
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
+ASSEMBLY.md              authoritative `.alpha` grammar and deterministic two-pass payload encoding
 conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
 verify.sh                full seed check; --edge omits the provenance diagnostic
 
@@ -45,7 +46,8 @@ another compiler-correctness premise.
 
 To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
 x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
-`SEMANTICS.md`. That's the entire trust obligation for the platform — a few hundred
+`SEMANTICS.md`. `ASSEMBLY.md` separately fixes how readable Alpha source becomes
+the exact cross-platform payload. That's the entire trust obligation for the platform — a few hundred
 instructions. `conformance.sh` mechanically checks the runtime behavior against the spec
 (`sh conformance.sh` runs the host seed through every case).
 

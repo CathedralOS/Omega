@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-# refinement_fork_gen.py SEED — emit ONE random BRANCHING Beta program, chosen deterministically from SEED.
+# Emit one branching Beta program chosen deterministically from `SEED`.
 # This is the fuzz surface for CONDITIONAL TERMS (fork-to-completion): if-diamonds over symbolic guards, with
 # all six comparison spellings, ℤ-pair arms, ~30% nested diamonds, and ~25% a summarizable LOOP inside an
-# arm (forks and loop summaries composing). The refinement gate proves bc's compiled output ≡ the source
-# meaning for every generated program, ∀ inputs.
+# arm (forks and loop summaries composing) for the bounded symbolic differential.
 import sys, random
 
 OPS = ['<', '<=', '>', '>=', '==', '!=']

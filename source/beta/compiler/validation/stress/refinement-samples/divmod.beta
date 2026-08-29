@@ -1,6 +1,0 @@
-; reassemble a byte from its quotient and remainder: (a/10)*10 + (a%10). Both div and mod in one program;
-; the two evaluators must derive the SAME opaque div/mod terms for the equivalence to hold.
-proc main() {
-    let a = read_byte()
-    return (a / 10) * 10 + a % 10
-}

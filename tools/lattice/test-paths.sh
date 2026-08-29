@@ -62,6 +62,8 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/terminal-codec-primitives" ] || fail "unowned Gamma terminal-codec bucket remains"
 [ ! -e "$OMEGA_PATH_DELTA/source-closures" ] || fail "Delta compiler validation records remain at the language root"
 [ ! -e "$OMEGA_PATH_BETA_COMPILER/artifacts" ] || fail "Beta compiler artifact remains in a nested artifacts bucket"
+[ ! -e "$OMEGA_PATH_BETA_VALIDATION/stress" ] || fail "generic Beta stress bucket remains"
+[ ! -e "$OMEGA_PATH_BETA_VALIDATION/admission/fol" ] || fail "toy Beta FOL capability seam remains"
 [ ! -e "$OMEGA_PATH_GAMMA_COMPILER/artifacts" ] || fail "Gamma compiler artifact remains in a nested artifacts bucket"
 [ ! -e "$OMEGA_PATH_DELTA_COMPILER/artifacts" ] || fail "Delta compiler artifact remains in a nested artifacts bucket"
 [ ! -e "$OMEGA_PATH_OMEGA/artifacts" ] || fail "Omega compiler artifacts remain in a nested artifacts bucket"

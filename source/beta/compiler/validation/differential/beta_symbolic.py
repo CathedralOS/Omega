@@ -5,12 +5,10 @@
 # denotes, as a closed-form expression. Where beta_interp.py RUNS a Beta program on concrete input, this asks
 # "what does the source MEAN, for all inputs?" without picking any.
 #
-# WHY — it turns instruction-level refinement into FULLY AUTOMATIC translation validation. alpha_symbolic
-# derives what the COMPILED machine code computes; this derives what the SOURCE means; the refinement gate
-# proves the two agree for ALL inputs (prover.py -> check.beta). Both derivations are independent and
-# UNTRUSTED — this one is differentially pinned against beta_interp.py's concrete runs, exactly as the *_ref
-# tools are — so a bc miscompile OR a bug in either symbolic evaluator surfaces as a rejected proof or a
-# differential disagreement. No human writes the "claimed meaning" any more.
+# This is an untrusted diagnostic component. `symbolic_differential.py`
+# compares its generated term with the machine-side term, checks term equality
+# in the rooted checker, and differentially pins both on a finite input set. It
+# does not establish an exact connection to the written Beta semantics.
 #
 # Scope mirrors alpha_symbolic: the concrete-control, non-negative-arithmetic fragment. Control flow that
 # branches on a SYMBOLIC value (input-dependent loop bound), symbolic subtraction, div/mod, or symbolic memory

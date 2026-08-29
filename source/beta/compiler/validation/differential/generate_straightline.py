@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-# refinement_fuzz_gen.py SEED — emit ONE random, straight-line, arithmetic Beta program, chosen
-# deterministically from SEED. The refinement fuzzer compiles it with bc, derives what the machine code
-# computes (alpha_symbolic) and what the source means (beta_symbolic), and proves the two agree for ALL
-# inputs (prover -> check.beta). So this generates the PROGRAM SPACE over which bc is certified correct at
-# the instruction level, and differentially hardens the two independent symbolic evaluators against each other.
+# Emit one deterministic straight-line Beta case selected by `SEED` for the
+# bounded symbolic differential.
 #
 # Fragment (kept inside what both evaluators model exactly): 1-3 input bytes via read_byte(), a few let-bound
 # intermediate expressions, and a returned expression — all over `+` and `*` (NO `-` / `/` / loops: symbolic
