@@ -43,6 +43,21 @@ separate review metadata for reproduction, cache partitioning, and incident
 response; it never seals the instance or proves that the producer or an audit
 was trustworthy.
 
+The one graph-forming control-flow exception is an exact branch on immutable
+`builder.target`. Authors use ordinary `depend` and `depend_as` calls in states
+reached by exact `TargetProfile` arms; Omega does not add `depend_when` or string
+conditions. The package manager statically projects the complete finite state
+graph into `common` edges plus one column per referenced profile. It follows
+unconditional transitions, intersects nested exact target constraints, and
+merges shared states without executing the build machine.
+
+A dependency reached through a transition on another runtime value, a `_`
+target arm, a mixed safe/dynamic path, or no path rejects. In particular,
+wildcards may control ordinary build behavior but cannot add dependencies. Thus
+adding a new target profile never changes an existing package's projected map.
+The workspace lock keeps independently resolved profile closures; requesting a
+missing locked profile fails rather than silently fetching it.
+
 `PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
 the canonical repository namespace and
 does **not** include the requested revision, resolved commit, tree, or content.

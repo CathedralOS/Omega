@@ -78,7 +78,7 @@ The locator is one typed variant, so its object-format coordinates cannot drift
 apart, while raw foreign bytes remain honest data rather than Omega names:
 
 ```omega
-windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
+windows_x86_64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",

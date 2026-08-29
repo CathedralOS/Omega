@@ -141,12 +141,58 @@ projectable; hiding them behind arbitrary machine control flow rejects. Ordinary
 build behavior such as provider selection and root binding remains evaluated
 Omega code after graph closure.
 
-The initial projector accepts unconditional dependency edges. That implementation
-limit is not a permanent declaration that target-conditioned dependencies are
-meaningless. If introduced, they must use a closed statically projectable
-condition over request-time inputs such as `TargetProfile`, normalize to an
-explicit edge condition, and be retained with the selected target and closure in
-the lock. Arbitrary evaluated build control flow may never decide the graph.
+Target-conditioned dependencies reuse ordinary Omega control flow rather than a
+second dependency API. The author branches on immutable, source-visible
+`builder.target` and writes the same `depend` or `depend_as` call in an exact
+profile arm:
+
+```omega
+machine build(builder: &mut Build) {
+    builder.depend(Source::Path { location: "../portable" });
+    transition builder.target {
+        TargetProfile::WindowsX86_64 -> windows(builder)
+        TargetProfile::LinuxX86_64 -> linux(builder)
+        TargetProfile::MacosArm64 -> macos(builder)
+        _ -> portable(builder)
+    }
+
+    state windows(builder: &mut Build) {
+        builder.depend_as("native_api", Source::Path { location: "../win32" });
+    }
+}
+```
+
+The package manager still does not execute this machine. It statically walks
+the finite state graph and emits
+`ProjectedDependencies { common, by_profile }`. Unconditional transitions may
+factor the graph; exact `transition builder.target` arms constrain a column;
+nested exact constraints intersect; shared states contribute to every exact
+profile that reaches them; separate arms naming the same profile merge; cycles
+close by graph fixpoint. Each authored dependency occurrence projects once. A
+dependency is `common` only when an authorized path reaches it without crossing
+a target partition.
+
+A dependency occurrence rejects if it is unreachable, if any path to it crosses
+a transition on another runtime subject, or if any path reaches it through the
+`_` target arm. Mixed authorized and tainted paths reject too: a safe path does
+not cleanse a dynamic one. Wildcard arms remain valid for ordinary build
+behavior but may not introduce dependency edges. This restriction purchases a
+stable invariant: adding a profile to the target catalog never changes any
+existing dependency column or silently grants the new profile an edge. Removing
+or renaming a referenced profile is correspondingly a catalog compatibility
+event.
+
+Rejection retains both the dependency source span and the transition/arm path
+that tainted it. A wildcard diagnostic identifies the `_` arm and directs the
+author to hoist a genuinely common edge above the target partition or replace
+the wildcard with exact profile arms. Runtime-subject and mixed-path failures
+likewise name the transition that made static graph authority impossible.
+
+The active request set for profile `P` is `common + by_profile[P]`. Alias
+uniqueness is checked over that set: mutually exclusive exact-profile columns
+may reuse an alias, while a common alias conflicts with the same alias in every
+column. No `DependencyCondition`, `depend_when`, condition string, or evaluated
+manifest path is introduced.
 
 ```omega
 machine build(builder: &mut Build)
@@ -1883,7 +1929,8 @@ The unified lock artifact records the resolved closure:
   `PackageInstance` values;
 - source acquisition requests, explicit `Root`/`Named` package selections,
   resolved member-path custody, and resolved commit/tree/content identities;
-- requester-local alias edges and any statically closed dependency conditions;
+- requester-local alias edges and the package's complete statically projected
+  `{ common, by_profile }` dependency-request map;
 - per-subject obligation-semantics and evidence-schema identities;
 - exact certificate provenance, re-derived discharge results, and transitive
   open obligations;
@@ -1902,6 +1949,31 @@ hand-authored dependency language, and should normally be committed. Source
 caches and expanded artifacts may be ignored. If the lock embeds only an
 evidence fingerprint while the corresponding normalized baseline is absent, it
 is not sufficient for update admission.
+
+Projection is target-independent: it enumerates every exact profile column from
+one fetched package without fetching any dependency. That makes the projected
+map complete for that package only, not for the transitive graph. A dependency's
+own map is unknown until its source is resolved. Package review and diagnostics
+must distinguish those facts rather than labeling an unexplored transitive
+column merely "unreviewed."
+
+One workspace lock carries independently populated closure/review sections per
+target profile. Ordinary resolution selects one explicit column. In locked mode,
+an absent column fails without network access; an explicit operation may resolve
+all projected columns sequentially. Common immutable instances may be shared
+across sections, but a retained inactive section grants no authority to the
+current build. Git edges cannot be "resolved but not fetched": authenticating a
+commit, tree, workspace declaration, and selected member already exercises
+resolver authority.
+
+Profile keys are checked during projection against the trusted toolchain target
+catalog. The retained projection identity includes the condition-schema version
+and only the exact profile identities the package referenced, not a whole-catalog
+fingerprint; unrelated catalog growth therefore leaves the package stable.
+Package-authored lookalike profile values reject. The target catalog owns the
+canonical Omega value, semantic profile identity, canonical CLI spelling, and
+input-only aliases. Locks retain the semantic identity, never a string, ordinal,
+or temporary Rust enum case.
 
 The first implementation performs no semantic-version solving. Requests for
 one `PackageKey` that resolve to one immutable source instance deduplicate even
@@ -2798,6 +2870,9 @@ One `omega.lock` lives at the workspace root, and a dependency's lock is never
 read by its consumers. The lock belongs to whoever builds an artifact; a library
 does not pin its consumers' graph. What composes upward from a dependency is its
 manifest and its disclosed admissions — separate artifacts with separate rules.
+The single lock may contain several independently resolved target-profile
+closures; their presence, absence, review state, and exact semantic profile
+identity are explicit rather than inferred from the host running the command.
 
 Compilation itself does not discover or mutate that lock. A compile request
 supplies one complete in-memory admission set; the compiler independently

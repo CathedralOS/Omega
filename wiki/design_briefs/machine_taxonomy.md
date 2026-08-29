@@ -124,7 +124,7 @@ root. `via` is not a supply keyword or expression-body operator. It is present
 only when it carries binding data the declaration cannot derive:
 
 ```omega
-windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
+windows_x86_64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",

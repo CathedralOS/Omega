@@ -146,6 +146,33 @@ accepts a caller-authored member path. The resolved member path is retained as
 navigation/replay custody and as the base for relative dependencies, but it does
 not enter `PackageKey`; relocating the member does not replace the package.
 
+Target-conditioned requests use those same operations under exact branches of
+the immutable `builder.target` value. There is no `depend_when` family or
+condition string:
+
+```omega
+transition builder.target {
+    TargetProfile::WindowsX86_64 -> windows(builder)
+    TargetProfile::LinuxX86_64 -> linux(builder)
+    _ -> portable(builder)
+}
+```
+
+The package manager does not execute the machine. Static state-graph projection
+follows unconditional transitions and exact target arms, intersects nested
+target constraints, merges shared states, and closes cycles by fixpoint. It
+produces one target-independent map with `common` edges and exact `by_profile`
+columns. Dependencies reached through another runtime subject, a wildcard
+target arm, both an authorized and tainted path, or no path reject. The wildcard
+restriction ensures that adding a profile to the catalog cannot silently change
+an existing package's dependency map.
+
+For profile `P`, aliases must be unique across `common + by_profile[P]`.
+Mutually exclusive columns may reuse a local alias. Projection validates exact
+profile identities against the toolchain target catalog and retains only the
+condition-schema version and referenced identities, so unrelated catalog growth
+does not invalidate the package.
+
 The resolver obtains the selected package's name from its own
 `builder.package` declaration. The default in-code alias is the mechanical
 kebab-to-snake mapping, `arithmetic-kernels` to `arithmetic_kernels`. Only a genuine local collision
@@ -401,6 +428,15 @@ baseline, transitive open obligations, build observations, and policy-resolution
 references. Compiler and toolchain identifiers remain separately labeled
 review metadata that supports reproduction and cache partitioning; they do not
 authorize truth or prove that anyone audited it.
+
+The lock contains independently populated closure/review sections for exact
+target-profile identities. The projected request map is complete for each
+fetched package, but an unresolved dependency's transitive map remains unknown.
+Ordinary resolution populates the selected profile column; an explicit command
+may populate all columns. Locked use of an absent column fails without network
+access. Common immutable instances may deduplicate across columns, while an
+inactive retained column grants no current resolver, import, build, alias, or
+capability authority.
 
 The compiler always builds from the lock and never silently re-resolves a
 mutable selector. `omega.lock` is generated but should normally be committed;
