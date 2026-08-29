@@ -26,7 +26,7 @@ cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "beta correctness fuzz: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_BETA_COMPILER}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); trap 'trash "$T"' EXIT
 BC="$T/bc.exe"
 stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "beta correctness fuzz: lattice bc artifact unavailable"; exit 1; }
 N=${1:-60}

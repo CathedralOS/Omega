@@ -33,7 +33,6 @@ source/
       delta_compiler.gamma       canonical compiler implementation
       delta_compiler_bytecode.tape
       validation/                Gamma-source/Delta-compiler tape refinement
-    tests/                       Delta language cases
 
   psi/                           target-neutral product compiler packages
   omega/                         Omega language and both Omega implementations

@@ -19,7 +19,7 @@ fi
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
 
 T=$(mktemp -d)
-trap 'rm -rf "$T"' EXIT
+trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 "$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/gamma_interpreter_bytecode.tape"
 stamp_seed "$T/gamma_interpreter_bytecode.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$T/interp.exe" >/dev/null 2>&1

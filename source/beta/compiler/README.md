@@ -4,9 +4,10 @@ This directory owns the compiler artifact required by the Beta rung:
 
 - `beta_compiler.alpha` is the canonical immediate-predecessor source;
 - `beta_compiler_bytecode.tape` is the current platform-independent artifact;
-- `cold-start/` owns direct construction and focused compiler tests;
 - `validation/` contains only machinery that targets the canonical source or
   its emitted tape;
+- `rebuild-artifact.sh` performs exact direct construction;
+- `test.sh` owns the focused accepted/rejected language discriminators;
 - `artifact_env.sh` installs the admitted tape into the selected Alpha seed.
 
 Construction, testing, and evidence generation do not grant authority by
@@ -27,7 +28,7 @@ audited Alpha seed + Alpha-written assembler
   -> beta_compiler_bytecode.tape
 ```
 
-`cold-start/rebuild-artifact.sh --check` reconstructs the tape and compares it
+`rebuild-artifact.sh --check` reconstructs the tape and compares it
 byte-for-byte without changing the repository. `artifact_env.sh` stamps it into
 the selected audited Alpha seed. No Beta self-host, textual Alpha output, or
 second assembler invocation participates.
@@ -41,3 +42,14 @@ edge until its subject-bound judgment is expressed as a derivation checked by
 The committed artifact is 20,977 bytes with SHA-256
 `1911fc4f9667081ca96559ee970f07c3359f225c1177b5ed889d55c05a059f0f`.
 The byte comparison, not the convenient digest, governs repository identity.
+
+## Retention inventory
+
+| Retained child | Bounded role | Deletion condition |
+| --- | --- | --- |
+| `validation/` | Exact artifact structure and exact Alpha encoding reconstruction for this compiler edge. | Delete a diagnostic when a stronger artifact-bound proof subsumes it; delete the subtree when direct checked refinement subsumes every retained check. |
+
+Root files are the one compiler source, one Alpha-tape artifact, one artifact
+loader, one exact reconstruction entry point, and one focused language gate.
+No separate cold-start, self-host, generated-artifact, or publication owner is
+retained.

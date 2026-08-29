@@ -1,10 +1,9 @@
 #!/usr/bin/env sh
 # GAMMA MEANING DIAMOND — the independent reference evaluator (gamma_ref.py) agrees with interp.beta.
 #
-# interp.beta is the canonical definition of what Gamma programs MEAN; the proof kernel proves theorems ABOUT that
-# meaning, so its correctness underpins the proof edifice. Its arithmetic is cross-checked against the proof kernel's
-# normalizer (seam-fuzz.sh) and it is checked on the omega samples (kernel-diamond) — but its ADT / match /
-# recursion EVALUATION has no independent implementation to diamond against. gamma_ref.py is that
+# interp.beta is the current executable definition of what Gamma programs mean,
+# but its ADT / match / recursion evaluation needs an independent discriminator.
+# gamma_ref.py is that
 # implementation; this gate runs random Gamma programs (gamma-fuzz-gen.py) through BOTH and asserts they
 # agree on the printed result and exit code. A disagreement over ADTs / match / recursion / signed
 # arithmetic / traps would expose a meaning bug in one of them. Deterministic; needs python3; skips cleanly.
@@ -28,7 +27,7 @@ cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "gamma diamond (py): skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 "$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/g.tape" 2>/dev/null \
   && stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1 || { echo "gamma diamond (py): interp build failed"; exit 1; }

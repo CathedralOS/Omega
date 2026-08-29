@@ -97,3 +97,15 @@ emit Alpha tape; it is not a revival of an unrelated historical language.
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
 [`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for
 Gamma's architectural role.
+
+## Retention inventory
+
+| Retained child | Canonical role | Deletion condition |
+| --- | --- | --- |
+| `compiler/` | The sole owner of the future Beta-written compiler accepting Gamma and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
+| `reference/` | One independent executable Gamma meaning reference and bounded differential. | Delete when a stronger checked semantic relation subsumes every retained case. |
+
+At the root, `interp.beta` and `typeck.beta` remain candidate implementation
+components and executable semantic oracles for the blocked compiler edge. Each
+must be absorbed, adapted, or deleted when Q14 freezes the executable Gamma
+contract; neither is itself a compiler artifact.
