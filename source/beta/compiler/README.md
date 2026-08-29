@@ -32,6 +32,12 @@ byte-for-byte without changing the repository. `artifact_env.sh` stamps it into
 the selected audited Alpha seed. No Beta self-host, textual Alpha output, or
 second assembler invocation participates.
 
+`validation/admission/encoding/test.sh` independently replays the authoritative
+two-pass assembly relation in Alpha against the exact framed source and tape.
+It is a bounded reconstructor with mutation controls; it does not admit the
+edge until its subject-bound judgment is expressed as a derivation checked by
+`source/alpha/checker/`.
+
 The committed artifact is 20,977 bytes with SHA-256
 `1911fc4f9667081ca96559ee970f07c3359f225c1177b5ed889d55c05a059f0f`.
 The byte comparison, not the convenient digest, governs repository identity.

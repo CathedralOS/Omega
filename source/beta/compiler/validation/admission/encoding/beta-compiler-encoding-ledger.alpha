@@ -1,7 +1,12 @@
-; assembler.alpha — the Alpha assembler, written in Alpha assembly. Reads assembly text
-; on stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
-; addresses, pass 2 emits, resolving label references. This is the self-hosting
-; target: assembled to a tape, which the alpha seed then runs to reproduce that tape.
+; Subject-bound encoding ledger for the canonical Alpha-written Beta compiler.
+;
+; stdin is one canonical frame:
+;   u64le source length | exact raw source | u64le tape length | exact raw tape
+; No trailing byte is permitted.  This verifier accepts only the committed subject
+; extents (78,109 source bytes and 20,977 tape bytes), independently performs both
+; Alpha assembly passes, and compares every pass-two byte (including label fixups)
+; with the framed tape.  It never writes stdout: status 0 accepts; every nonzero
+; status rejects before exposing any partial reconstruction.
 ;
 ; The source language is human mnemonics: opcode names (imm/mov/add/.../ret), registers
 ; written `rN`, decimal immediates, and label names. Commas are treated as whitespace.
@@ -11,7 +16,9 @@
 ;   524288 SRCLEN   524296 CUR     524304 TSTART  524312 TLEN    524320 TDONE
 ;   524328 OUT      524336 NLBL    524344 NOPS    524352 WID0    524360 WID1
 ;   524368 WID2     524376 OPCODE  524384 NUM     524392 EMITW   524416 SKIP
-; Buffers: 1048576 SRC (input);  label tables: 2097152 off, 2621440 len, 3145728 addr.
+;   524424 TAPELEN  524432 EMITTED 524440 FRAMEACC 524448 FRAMEPLACE
+; Buffers: 1048576 SRC; 1310720 TAPE; label tables: 2097152 off,
+; 2621440 len, 3145728 addr.
 ; Mnemonic table (op -> packed name, i64 each): 4194304.
 
 ; ---------------- main ----------------
@@ -80,21 +87,38 @@
         imm   r1, 4194464
         store r1, r0           ; ret = 20
 
-        ; read all of stdin into SRC
-        imm   r0, 1048576       ; r0 = write pointer
-read_loop:
-        read  r1
-        imm   r3, 0
-        jlt   r1, r3, read_done ; byte < 0  =>  EOF
-        storeb r0, r1
-        imm   r3, 1
-        add   r0, r3
-        jmp   read_loop
-read_done:
-        imm   r2, 1048576
-        sub   r0, r2           ; r0 = source length
+        ; Decode and retain the exact subject frame before interpreting either
+        ; payload.  Fixed extents make truncation, extension, and re-framing fail.
+        call  read_u64
+        imm   r3, 524440
+        load  r0, r3
+        imm   r1, 78109
+        jeq   r0, r1, source_extent_ok
+        jmp   frame_reject
+source_extent_ok:
         imm   r3, 524288
-        store r3, r0           ; SRCLEN = length
+        store r3, r0           ; SRCLEN
+        imm   r0, 1048576
+        imm   r1, 78109
+        call  read_exact
+
+        call  read_u64
+        imm   r3, 524440
+        load  r0, r3
+        imm   r1, 20977
+        jeq   r0, r1, tape_extent_ok
+        jmp   frame_reject
+tape_extent_ok:
+        imm   r3, 524424
+        store r3, r0           ; TAPELEN
+        imm   r0, 1310720
+        imm   r1, 20977
+        call  read_exact
+        read  r0
+        imm   r1, 0
+        jlt   r0, r1, frame_done
+        jmp   frame_reject      ; trailing byte
+frame_done:
         imm   r3, 524336       ; NLBL = 0
         imm   r4, 0
         store r3, r4
@@ -175,10 +199,20 @@ p1_db:
         call  db_scan
         jmp   p1_loop
 p1_done:
-        ; pass 2: CUR = 0, emit
+        ; Pass-one output extent must equal the independently framed tape extent.
+        imm   r3, 524328
+        load  r0, r3
+        imm   r3, 524424
+        load  r1, r3
+        jeq   r0, r1, p1_extent_ok
+        jmp   mismatch_reject
+p1_extent_ok:
+        ; pass 2: CUR = 0, compare rather than emit
         imm   r3, 524296
         imm   r4, 0
         store r3, r4
+        imm   r3, 524432
+        store r3, r4           ; EMITTED = 0
 p2_loop:
         call  next_token
         imm   r3, 524320
@@ -201,7 +235,8 @@ p2_loop:
         load  r4, r3
         imm   r5, 524376
         store r5, r4
-        write r4               ; emit opcode byte
+        mov   r9, r4
+        call  compare_byte     ; compare opcode byte
         call  op_widths
         ; operand 0
         imm   r3, 524344
@@ -241,8 +276,83 @@ p2_db:
         call  db_scan
         jmp   p2_loop
 p2_done:
+        imm   r3, 524432
+        load  r0, r3
+        imm   r3, 524424
+        load  r1, r3
+        jeq   r0, r1, accept
+        jmp   mismatch_reject
+accept:
         imm   r0, 0
         halt  r0
+
+frame_reject:
+        imm   r0, 2
+        halt  r0
+mismatch_reject:
+        imm   r0, 1
+        halt  r0
+
+; ---------------- canonical frame ----------------
+; read_u64 decodes exactly eight little-endian stdin bytes into FRAMEACC.
+read_u64:
+        imm   r10, 0
+        imm   r11, 1
+        imm   r12, 0
+ru_loop:
+        imm   r13, 8
+        jlt   r12, r13, ru_byte
+        imm   r13, 524440
+        store r13, r10
+        ret
+ru_byte:
+        read  r13
+        imm   r14, 0
+        jlt   r13, r14, frame_reject
+        mul   r13, r11
+        add   r10, r13
+        imm   r13, 256
+        mul   r11, r13
+        imm   r13, 1
+        add   r12, r13
+        jmp   ru_loop
+
+; read_exact retains r1 bytes at r0.  EOF before the complete extent rejects.
+read_exact:
+        imm   r10, 0
+re_loop:
+        jlt   r10, r1, re_byte
+        ret
+re_byte:
+        read  r11
+        imm   r12, 0
+        jlt   r11, r12, frame_reject
+        storeb r0, r11
+        imm   r12, 1
+        add   r0, r12
+        add   r10, r12
+        jmp   re_loop
+
+; r9 is one reconstructed output byte.  Check it against TAPE[EMITTED], then
+; advance exactly once.  This is the sole pass-two byte sink.
+compare_byte:
+        imm   r10, 524432
+        load  r11, r10
+        imm   r12, 524424
+        load  r12, r12
+        jlt   r11, r12, cb_in_range
+        jmp   mismatch_reject
+cb_in_range:
+        imm   r13, 1310720
+        add   r13, r11
+        loadb r14, r13
+        jeq   r9, r14, cb_equal
+        jmp   mismatch_reject
+cb_equal:
+        imm   r12, 1
+        add   r11, r12
+        store r10, r11
+        ret
 
 ; ---------------- next_token ----------------
 ; skip whitespace (<=32), commas, and `;` comments, then read a token;
@@ -754,7 +864,7 @@ fl_none:
 
 ; ---------------- emit_operand ----------------
 ; Read and validate the next operand according to EMITW: width 1 is exactly
-; REGISTER, width 8 is exactly DECIMAL or IDENT. Emit little-endian bytes.
+; REGISTER, width 8 is exactly DECIMAL or IDENT. Compare little-endian bytes.
 emit_operand:
         call  next_token
         imm   r3, 524320
@@ -851,7 +961,8 @@ eo_bloop:
         imm   r3, 524384
         add   r3, r2
         loadb r3, r3
-        write r3
+        mov   r9, r3
+        call  compare_byte
         imm   r4, 1
         add   r2, r4
         sub   r1, r4
@@ -908,7 +1019,8 @@ isdb_yes:
 ; occur before the opening quote. Raw string bytes must be printable ASCII and
 ; escapes are exactly \n \t \r \0 \\ \" \'. DBEMIT (524400) selects:
 ;   0 = pass 1, add each byte to OUT (so labels after the data get right addrs);
-;   1 = pass 2, write each byte to the tape. Leaves CUR past the closing quote.
+;   1 = pass 2, compare each byte with the framed tape. Leaves CUR past the
+; closing quote.
 db_scan:
         imm   r3, 524296
         load  r1, r3           ; r1 = CUR
@@ -1018,7 +1130,8 @@ ds_emit:
         store r3, r8           ; OUT += 1
         jmp   ds_next
 ds_write:
-        write r2
+        mov   r9, r2
+        call  compare_byte
 ds_next:
         imm   r6, 1
         add   r1, r6           ; past this source char

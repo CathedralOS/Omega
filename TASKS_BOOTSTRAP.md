@@ -50,10 +50,10 @@ the implementation of the agreed chain.
   one bounded diagnostic or canonical-edge role, or delete it. No viewer,
   report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Delta
   lattice. Retained wrappers now divide into exact seed/assembler construction,
-  below-Beta checker construction and soundness tests, one temporary historical
-  Beta artifact reconstruction, generic structure/FOL checks, and a retargetable
-  compiler differential harness. The duplicate Beta self-host wrapper was
-  deleted.
+  below-Beta checker construction and soundness tests, exact seed/assembler and
+  Beta artifact reconstruction, one structure check, one Alpha-written exact
+  encoding reconstructor, and a bounded compiler differential. The duplicate
+  Beta self-host wrapper was deleted.
 
 ## Non-negotiable edge contract
 
@@ -209,11 +209,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
   resource, and divergence observation; this first edge needs no stuttering
   rank or new trusted LTS rule. Correctness of the compiler for arbitrary Beta
   source is a separate `ADMIT-ALPHA-BETA-COMPILER` obligation.
-  - [x] Freeze `source/alpha/ASSEMBLY.md`: ASCII lexical form, exact operand
-    grammar, full opcode/width table, string decoding, absolute label meaning,
-    deterministic two-pass encoding, and the raw-payload/container boundary.
-  - [ ] Build the subject-bound whole-source encoding certificate and mutation
-    controls against the exact 78,109-byte source and 20,977-byte tape.
+  - [x] Freeze `source/alpha/ASSEMBLY.md`: byte-stream lexical form with
+    arbitrary ignored comment payloads, exact operand grammar, full
+    opcode/width table, string decoding, absolute label meaning, deterministic
+    two-pass encoding, and the raw-payload/container boundary. Close the Alpha
+    assembler and independent reference implementation over that grammar while
+    retaining their byte-identical fixed point.
+  - [x] Land the Alpha-written, subject-bound whole-source encoding
+    reconstructor and mutation controls against the exact 78,109-byte source
+    and 20,977-byte tape. It is a 6,993-byte Alpha tape; its 12-control gate runs
+    in under one second and covers source/tape bytes, fixups, extents, and closed
+    grammar failures without writing output.
+  - [ ] Turn the reconstructed ground judgment into a derivation certificate
+    checked by `source/alpha/checker/`; the status-only reconstructor does not
+    itself admit the edge.
 
 ## 3. Beta-written Gamma compiler
 

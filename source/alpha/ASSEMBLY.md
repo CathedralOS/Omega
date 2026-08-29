@@ -12,7 +12,9 @@ identity.
 
 ## Lexical form
 
-Assembly source is ASCII. Outside a quoted `db` string:
+Assembly source is a byte stream. Significant tokens and `db` contents use the
+ASCII grammar below; bytes inside a comment are ignored and may be arbitrary
+except that line feed ends the comment. Outside a quoted `db` string:
 
 - bytes `0x00..0x20` and comma separate tokens;
 - `;` begins a comment through the next line feed or end of source; and
@@ -70,8 +72,8 @@ word or a label and encodes an eight-byte word/address.
 | `jmp` | `0x0c` | `x` | 9 |
 | `jz` | `0x0d` | `r x` | 10 |
 | `jnz` | `0x0e` | `r x` | 10 |
-| `jlt` | `0x0f` | `r r x` | 12 |
-| `jeq` | `0x10` | `r r x` | 12 |
+| `jlt` | `0x0f` | `r r x` | 11 |
+| `jeq` | `0x10` | `r r x` | 11 |
 | `read` | `0x11` | `r` | 2 |
 | `write` | `0x12` | `r` | 2 |
 | `call` | `0x13` | `x` | 9 |
