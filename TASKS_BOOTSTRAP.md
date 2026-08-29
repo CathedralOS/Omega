@@ -269,6 +269,19 @@ Canonical subjects:
     source and tape bundles.
     ROOT/GFP/maximal-observation cells and success tokens are absent from this
     ledger program.
+  - [x] Add the conditional body-to-resource seam needed before whole-run
+    reachability. An alternate Checker-A continuation reconstructs the exact
+    `main.body` parse call/fallthrough, RESOURCE_FAIL address/load and staged
+    push, zero literal, `!=` comparison, guarded transition to block354, full
+    body censuses, and the existing MFC1 relative-frame row. Its 134,172-byte
+    owner tape emits a 490-byte FOL certificate proving that
+    `MainBody(kappa, Ret252(rho))` advances to
+    `MainResource(kappa, rho)` under the exact source, tape, and frame gates.
+    The rooted checker rejects changed subject, tape, frame, child outcome, or
+    result mapping; both focused FOL ledgers reject changed source/tape bundles.
+    This theorem is explicitly conditional on PPRC's `Ret252(rho)` premise and
+    does not claim initial-state reachability, absolute registers, or the hidden
+    root return slot.
   - [ ] Prove reachability of the instruction-level resource cutpoint from the
     exact initial states. In particular, carry the root call's hidden return
     slot `39` through balanced intervening calls so the dynamic `40273 ret ->

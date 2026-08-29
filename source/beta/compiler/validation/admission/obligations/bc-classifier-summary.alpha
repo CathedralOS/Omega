@@ -24,6 +24,11 @@
 ;   parameter / alpha/digit handoff  526760/526768/526776
 ;   quiet-frame relation             526784
 
+; The ordinary Checker-A route continues here. FOL cutpoint ledgers may supply
+; the same predecessor label and terminate after emitting their fixed subject.
+main_loop_entry_summary_successor_init:
+        jmp classifier_summary_init
+
 classifier_summary_init:
         call classifier_require_shape
         call classifier_prove_byte_domain

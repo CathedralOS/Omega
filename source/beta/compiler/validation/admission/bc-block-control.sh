@@ -1144,6 +1144,155 @@ establish_root_observation_canonical() {
   smoke_fol_resource_cleanup_ledger
 }
 
+# Exact Checker-A lineage through the first main.loop split.  The ordinary
+# checker and the focused FOL body/resource ledger deliberately share these
+# bytes; only their successor after main-loop-entry-summary differs.
+emit_checker_a_through_main_loop_prefix() {
+  cat "$OBLIGATION_DIR/bc-block-control.alpha" \
+    "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+    "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+    "$OBLIGATION_DIR/bc-procedure-inventory.alpha" \
+    "$OBLIGATION_DIR/bc-event-identity.alpha" \
+    "$OBLIGATION_DIR/bc-frame-shape.alpha" \
+    "$OBLIGATION_DIR/bc-local-access.alpha" \
+    "$OBLIGATION_DIR/bc-memory-sites.alpha" \
+    "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
+    "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
+    "$OBLIGATION_DIR/bc-expression-census-prefix.alpha" \
+    "$OBLIGATION_DIR/bc-effect-census-prefix.alpha" \
+    "$OBLIGATION_DIR/bc-expr-composition.alpha" \
+    "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
+    "$OBLIGATION_DIR/bc-call-bounds.alpha" \
+    "$OBLIGATION_DIR/bc-stack-register-custody.alpha" \
+    "$OBLIGATION_DIR/bc-ranged-store-bounds.alpha" \
+    "$OBLIGATION_DIR/bc-frame-summary.alpha" \
+    "$OBLIGATION_DIR/bc-ranged-store-transfer.alpha" \
+    "$OBLIGATION_DIR/bc-counter-transfer.alpha" \
+    "$OBLIGATION_DIR/bc-stack-potential-lift.alpha" \
+    "$OBLIGATION_DIR/bc-post-stack-fixed.alpha" \
+    "$OBLIGATION_DIR/bc-slurp-summary.alpha" \
+    "$OBLIGATION_DIR/bc-main-slurp-bridge.alpha" \
+    "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
+    "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
+    "$OBLIGATION_DIR/bc-fixed-emitter-summary.alpha" \
+    "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
+    "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
+    "$OBLIGATION_DIR/bc-main-ready-summary.alpha" \
+    "$OBLIGATION_DIR/bc-main-loop-entry-summary.alpha"
+}
+
+build_fol_main_resource_body_ledger() {
+  {
+    emit_checker_a_through_main_loop_prefix
+    cat "$OBLIGATION_DIR/bc-fol-main-resource-body-ledger.alpha"
+  } > "$T/fol-main-resource-body-ledger.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/fol-main-resource-body-ledger.alpha" \
+    > "$T/fol-main-resource-body-ledger-ref.tape"
+  "$ASM" < "$T/fol-main-resource-body-ledger.alpha" \
+    > "$T/fol-main-resource-body-ledger.tape"
+  cmp -s "$T/fol-main-resource-body-ledger.tape" \
+    "$T/fol-main-resource-body-ledger-ref.tape" || {
+    echo "bc block control FAIL — FOL main body ledger assembler diamond disagrees" >&2
+    exit 1
+  }
+  fol_main_body_ledger_tape_bytes=$(wc -c \
+    < "$T/fol-main-resource-body-ledger.tape" | tr -d ' ')
+  if [ "$fol_main_body_ledger_tape_bytes" -gt "$checker_a_seed_payload_limit" ]; then
+    echo "bc block control FAIL — FOL main body ledger tape is ${fol_main_body_ledger_tape_bytes} bytes (${checker_a_seed_payload_limit}-byte seed payload budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/fol-main-resource-body-ledger.tape" "$SEED" \
+    "$T/fol-main-resource-body-ledger" >/dev/null
+  stamp_proof_checker "$T/proof-checker" >/dev/null
+}
+
+smoke_fol_main_resource_body_ledger() {
+  set +e
+  "$T/fol-main-resource-body-ledger" < "$T/control.bundle" \
+    > "$T/fol-main-resource-body-owner-prefix"
+  fol_main_body_ledger_status=$?
+  set -e
+  if [ "$fol_main_body_ledger_status" != 0 ] || \
+      [ ! -s "$T/fol-main-resource-body-owner-prefix" ]; then
+    echo "bc block control FAIL — FOL main body ledger expected 0/nonempty, got $fol_main_body_ledger_status/$(wc -c < "$T/fol-main-resource-body-owner-prefix" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+  python3 "$OMEGA_PATH_ALPHA_CHECKER/tools/elab.py" \
+    < "$GATE_DIR/fol/bc-main-resource-body.proof" \
+    > "$T/fol-main-resource-body-candidate.raw"
+  python3 "$GATE_DIR/fol/trace_refinement_seam.py" --split \
+    "$T/fol-main-resource-body-candidate.raw" \
+    "$T/fol-main-resource-body-candidate-prefix" \
+    "$T/fol-main-resource-body-candidate-proof"
+  cmp -s "$T/fol-main-resource-body-owner-prefix" \
+    "$T/fol-main-resource-body-candidate-prefix" || {
+    echo "bc block control FAIL — proof producer changed FOL main body declarations or goal" >&2
+    exit 1
+  }
+  cat "$T/fol-main-resource-body-owner-prefix" \
+    "$T/fol-main-resource-body-candidate-proof" \
+    > "$T/fol-main-resource-body-certificate"
+  set +e
+  fol_main_body_verdict=$("$T/proof-checker" \
+    < "$T/fol-main-resource-body-certificate")
+  fol_main_body_checker_status=$?
+  set -e
+  if [ "$fol_main_body_verdict" != accept ]; then
+    echo "bc block control FAIL — rooted checker rejected FOL main body seam (status $fol_main_body_checker_status)" >&2
+    exit 1
+  fi
+
+  # Each owner-selected gate and the result mapping must be proof-relevant.
+  for fol_main_body_binding_case in subject tape frame outcome result
+  do
+    case "$fol_main_body_binding_case" in
+      subject)
+        fol_main_body_binding_old='(k 20)'
+        fol_main_body_binding_new='(k 21)'
+        ;;
+      tape)
+        fol_main_body_binding_old='(k 21)'
+        fol_main_body_binding_new='(k 22)'
+        ;;
+      frame)
+        fol_main_body_binding_old='(k 22)'
+        fol_main_body_binding_new='(k 20)'
+        ;;
+      outcome)
+        fol_main_body_binding_old='(k 11 (v 0))'
+        fol_main_body_binding_new='(k 13)'
+        ;;
+      result)
+        fol_main_body_binding_old='(fun 34 11 (k 12 (y 0) (v 0)))'
+        fol_main_body_binding_new='(fun 34 11 (k 12 (v 0) (y 0)))'
+        ;;
+    esac
+    python3 -c 'import pathlib,sys
+p = pathlib.Path(sys.argv[1]); out = pathlib.Path(sys.argv[2])
+raw = p.read_bytes(); old = sys.argv[3].encode(); new = sys.argv[4].encode()
+at = raw.rfind(old)
+if at < 0: raise SystemExit("binding tooth did not find its target")
+out.write_bytes(raw[:at] + new + raw[at + len(old):])' \
+      "$T/fol-main-resource-body-candidate-prefix" \
+      "$T/fol-main-resource-body-$fol_main_body_binding_case-prefix" \
+      "$fol_main_body_binding_old" "$fol_main_body_binding_new"
+    cat "$T/fol-main-resource-body-$fol_main_body_binding_case-prefix" \
+      "$T/fol-main-resource-body-candidate-proof" \
+      > "$T/fol-main-resource-body-$fol_main_body_binding_case.raw"
+    set +e
+    fol_main_body_binding_verdict=$("$T/proof-checker" \
+      < "$T/fol-main-resource-body-$fol_main_body_binding_case.raw")
+    set -e
+    if [ "$fol_main_body_binding_verdict" != reject ]; then
+      echo "bc block control FAIL — FOL main body $fol_main_body_binding_case mutation was not rejected" >&2
+      exit 1
+    fi
+  done
+  require_control_bundle_unchanged
+  return 0
+}
+
 bc_timing_start canonical-prerequisites
 procedure_inventory_module_bytes=$(wc -c \
   < "$OBLIGATION_DIR/bc-procedure-inventory.alpha" | tr -d ' ')
@@ -1168,38 +1317,9 @@ smoke_statement_family_shape_checker
 bc_timing_finish
 
 bc_timing_start checker-a-canonical
-cat "$OBLIGATION_DIR/bc-block-control.alpha" \
-  "$OBLIGATION_DIR/bc-effect-sites.alpha" \
-  "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
-  "$OBLIGATION_DIR/bc-procedure-inventory.alpha" \
-  "$OBLIGATION_DIR/bc-event-identity.alpha" \
-  "$OBLIGATION_DIR/bc-frame-shape.alpha" \
-  "$OBLIGATION_DIR/bc-local-access.alpha" \
-  "$OBLIGATION_DIR/bc-memory-sites.alpha" \
-  "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
-  "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
-  "$OBLIGATION_DIR/bc-expression-census-prefix.alpha" \
-  "$OBLIGATION_DIR/bc-effect-census-prefix.alpha" \
-  "$OBLIGATION_DIR/bc-expr-composition.alpha" \
-  "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
-  "$OBLIGATION_DIR/bc-call-bounds.alpha" \
-  "$OBLIGATION_DIR/bc-stack-register-custody.alpha" \
-  "$OBLIGATION_DIR/bc-ranged-store-bounds.alpha" \
-  "$OBLIGATION_DIR/bc-frame-summary.alpha" \
-  "$OBLIGATION_DIR/bc-ranged-store-transfer.alpha" \
-  "$OBLIGATION_DIR/bc-counter-transfer.alpha" \
-  "$OBLIGATION_DIR/bc-stack-potential-lift.alpha" \
-  "$OBLIGATION_DIR/bc-post-stack-fixed.alpha" \
-  "$OBLIGATION_DIR/bc-slurp-summary.alpha" \
-  "$OBLIGATION_DIR/bc-main-slurp-bridge.alpha" \
-  "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
-  "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
-  "$OBLIGATION_DIR/bc-fixed-emitter-summary.alpha" \
-  "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
-  "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
-  "$OBLIGATION_DIR/bc-main-ready-summary.alpha" \
-  "$OBLIGATION_DIR/bc-main-loop-entry-summary.alpha" \
-  "$OBLIGATION_DIR/bc-classifier-shape.alpha" \
+{
+  emit_checker_a_through_main_loop_prefix
+  cat "$OBLIGATION_DIR/bc-classifier-shape.alpha" \
   "$OBLIGATION_DIR/bc-classifier-summary.alpha" \
   "$OBLIGATION_DIR/bc-read-ident-shape.alpha" \
   "$OBLIGATION_DIR/bc-read-ident-summary.alpha" \
@@ -1241,8 +1361,9 @@ cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-cmp-op-summary.alpha" \
   "$OBLIGATION_DIR/bc-fixed-keyword-shape-core.alpha" \
   "$OBLIGATION_DIR/bc-fixed-keyword-data-shape.alpha" \
-  "$OBLIGATION_DIR/bc-fixed-keyword-cases.alpha" \
-  "$OBLIGATION_DIR/bc-fixed-keyword-summary.alpha" > "$T/control-check.alpha"
+    "$OBLIGATION_DIR/bc-fixed-keyword-cases.alpha" \
+    "$OBLIGATION_DIR/bc-fixed-keyword-summary.alpha"
+} > "$T/control-check.alpha"
 checker_a_source_bytes=$(wc -c < "$T/control-check.alpha" | tr -d ' ')
 if [ "$checker_a_source_bytes" -gt 1048576 ]; then
   echo "bc block control FAIL — Checker A source is ${checker_a_source_bytes} bytes (1048576-byte assembler input limit)" >&2
@@ -1268,6 +1389,8 @@ if [ "$control_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
 fi
 require_control_bundle_unchanged
 BC_OWNER_CHECKER_A=1
+build_fol_main_resource_body_ledger
+smoke_fol_main_resource_body_ledger
 bc_timing_finish
 
 bc_timing_start whole-root-observation
@@ -1360,6 +1483,16 @@ fol_resource_case_run() {
     exit 1
   fi
 }
+fol_main_body_case_run() {
+  set +e
+  "$T/fol-main-resource-body-ledger" < "$2" > "$T/stdout"
+  fol_main_body_case_status=$?
+  set -e
+  if [ "$fol_main_body_case_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc admission FAIL — $1 was not rejected by the FOL main-body owner" >&2
+    exit 1
+  fi
+}
 label_emitters_case_run() {
   set +e
   "$T/label-emitters-check" < "$2" > "$T/stdout"
@@ -1379,8 +1512,10 @@ root_case_run swapped-event-occurrence "$T/swapped-event-occurrence.bundle"
 root_case_run swapped-memory-identity "$T/swapped-memory-identity.bundle"
 fol_resource_case_run wrong-source "$T/wrong-source.bundle"
 fol_resource_case_run wrong-tape "$T/wrong-tape.bundle"
+fol_main_body_case_run wrong-source "$T/wrong-source.bundle"
+fol_main_body_case_run wrong-tape "$T/wrong-tape.bundle"
 label_emitters_case_run swapped-emit-occurrence "$T/swapped-emit-occurrence.bundle"
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 2 FOL subject-bundle teeth + 4 FOL semantic-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 4 FOL subject-bundle teeth + 9 FOL semantic-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${fol_main_body_ledger_tape_bytes}-byte body ledger; ${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

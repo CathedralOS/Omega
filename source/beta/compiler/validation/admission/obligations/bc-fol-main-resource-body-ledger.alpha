@@ -1,0 +1,245 @@
+; Owner-bound FOL seam for the conditional main.body resource edge.
+;
+; This is an alternate continuation after bc-main-loop-entry-summary.alpha.
+; It reconstructs only the exact static body/guard facts and the already-owned
+; MFC1 relative frame row, then emits a fixed FOL declaration/goal prefix.
+; PPRC's Ret252(rho) is deliberately a premise: this checker proves no initial
+; reachability and manufactures no absolute r14/r15 or hidden return slot.
+
+main_loop_entry_summary_successor_init:
+        call bc_fol_main_body_require_frame
+        call bc_fol_main_body_require_shape
+        call bc_fol_main_body_require_order
+        call bc_fol_main_body_emit_prefix
+        imm r0, 0
+        halt r0
+
+bc_fol_main_body_require_frame:
+        imm r20, 638000
+        imm r21, 826492493            ; MFC1
+        call exact_require_cell
+        imm r20, 638008
+        imm r21, 40251                ; exact main.resource start
+        call exact_require_cell
+        imm r20, 638016
+        imm r21, 16                   ; relative active-frame depth
+        call exact_require_cell
+        imm r20, 638024
+        imm r21, 1                    ; active main FP kind
+        call exact_require_cell
+        imm r20, 638032
+        imm r21, 1                    ; saved caller-FP token
+        call exact_require_cell
+        imm r20, 638040
+        imm r21, 1                    ; complete
+        call exact_require_cell
+        ret
+
+bc_fol_main_body_require_shape:
+        imm r20, 638048
+        imm r21, 826430029            ; MBR1
+        store r20, r21
+        ; Exact owning blocks and zero-argument parse_proc call.
+        imm r20, 353
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        imm r1, 638056
+        store r1, r0                 ; main.body start
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        imm r1, 638120
+        store r1, r0                 ; main.resource start
+        imm r1, 40251
+        jeq r0, r1, bc_fol_main_body_require_call
+        jmp reject
+bc_fol_main_body_require_call:
+        imm r20, 69
+        imm r21, 353
+        imm r22, 0
+        imm r23, 0
+        imm r24, 68                  ; parse_proc
+        call summary_require_call_fallthrough_identity
+        imm r20, 69
+        imm r21, 353
+        imm r22, 0
+        imm r23, 0
+        imm r24, 68
+        call exact_unique_call_event_identity
+        imm r1, 638064
+        store r1, r0                 ; exact parse_proc call PC
+        imm r20, 812
+        imm r21, 353
+        imm r22, 1
+        imm r23, 2097072
+        call exact_primitive_identity_pc
+        imm r1, 638072
+        store r1, r0                 ; exact address-literal PC
+
+        ; RESOURCE_FAIL address/load, staged guard-left push, literal zero,
+        ; comparison !=, and true transition to main.resource.
+        imm r20, 93
+        imm r21, 353
+        imm r25, 812
+        imm r26, 2097072
+        call exact_memory_load_pc
+        imm r1, 638080
+        store r1, r0                 ; exact load PC
+        imm r20, 234
+        imm r21, 353
+        call exact_require_binary_push_identity
+        imm r1, 638088
+        store r1, r0                 ; exact push PC
+        imm r20, 814
+        imm r21, 353
+        imm r22, 1
+        imm r23, 0
+        call exact_primitive_identity_pc
+        imm r1, 638096
+        store r1, r0                 ; exact right-zero PC
+        imm r20, 813
+        imm r21, 353
+        imm r22, 3
+        imm r23, 11                  ; !=
+        call exact_primitive_identity_pc
+        imm r1, 638104
+        store r1, r0                 ; exact comparison PC
+        imm r20, 289
+        imm r21, 353
+        imm r22, 1
+        imm r23, 354
+        call exact_transition_identity_pc
+        imm r1, 638112
+        store r1, r0                 ; exact guarded-transfer PC
+        ret
+
+; Reconstruct the executed suffix order independently of source labels.  The
+; parse call is the block start; its nine-byte fallthrough begins the address
+; literal.  The memory helper already proves address+10=load.  The checked
+; stack push is load+3 and spans sub/store (six bytes); the zero literal then
+; begins.  The remaining comparison/transition identities are owner-selected
+; by their exact semantic table rows and the complete body census below.
+bc_fol_main_body_require_order:
+        imm r20, 638048
+        imm r21, 826430029            ; MBR1
+        call exact_require_cell
+        imm r20, 638056
+        load r2, r20
+        imm r20, 638064
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_load_order
+        jmp reject
+bc_fol_main_body_require_load_order:
+        imm r20, 638064
+        load r2, r20
+        imm r1, 9
+        add r2, r1
+        imm r20, 638072
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_address_load_order
+        jmp reject
+bc_fol_main_body_require_address_load_order:
+        imm r20, 638072
+        load r2, r20
+        imm r1, 10
+        add r2, r1
+        imm r20, 638080
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_push_order
+        jmp reject
+bc_fol_main_body_require_push_order:
+        imm r20, 638080
+        load r2, r20
+        imm r1, 3
+        add r2, r1
+        imm r20, 638088
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_zero_order
+        jmp reject
+bc_fol_main_body_require_zero_order:
+        imm r20, 638088
+        load r2, r20
+        imm r1, 6
+        add r2, r1
+        imm r20, 638096
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_comparison_order
+        jmp reject
+bc_fol_main_body_require_comparison_order:
+        ; The comparison lowering begins immediately after the ten-byte zero
+        ; literal; its row owns the following staged-left compare sequence.
+        imm r20, 638096
+        load r2, r20
+        imm r1, 10
+        add r2, r1
+        imm r20, 638104
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_transition_order
+        jmp reject
+bc_fol_main_body_require_transition_order:
+        ; mov/load/pop, jeq, true-imm/jump, and false-imm span 49 bytes
+        ; from the comparison row to the guarded jz.
+        imm r20, 638104
+        load r2, r20
+        imm r1, 49
+        add r2, r1
+        imm r20, 638112
+        load r3, r20
+        jeq r2, r3, bc_fol_main_body_require_resource_target
+        jmp reject
+bc_fol_main_body_require_resource_target:
+        imm r20, 638120
+        imm r21, 40251
+        call exact_require_cell
+bc_fol_main_body_require_census:
+        ; The exact final rows exclude omitted main-body effects/expressions.
+        imm r20, 353
+        imm r21, 353
+        imm r22, 242
+        imm r23, 242
+        imm r24, 93
+        imm r25, 94
+        imm r26, 289
+        imm r27, 291
+        imm r28, 610
+        imm r29, 612
+        call exact_require_effect_census
+        imm r20, 353
+        imm r21, 353
+        imm r22, 812
+        imm r23, 815
+        imm r24, 234
+        imm r25, 235
+        imm r26, 371
+        imm r27, 371
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+        imm r20, 638128
+        imm r21, 1
+        store r20, r21              ; MBR1 row complete only after censuses
+        ret
+
+bc_fol_main_body_emit_prefix:
+        imm r20, 638128
+        imm r21, 1
+        call exact_require_cell
+        imm r10, bc_fol_main_body_prefix
+        imm r11, bc_fol_main_body_prefix_end
+bc_fol_main_body_emit_loop:
+        jlt r10, r11, bc_fol_main_body_emit_byte
+        ret
+bc_fol_main_body_emit_byte:
+        loadb r0, r10
+        write r0
+        imm r1, 1
+        add r10, r1
+        jmp bc_fol_main_body_emit_loop
+
+; Generated from fol/bc-main-resource-body.proof. The owner emits every
+; declaration and the goal; the untrusted producer contributes only the proof.
+bc_fol_main_body_prefix:
+        db "(data 10 2 0 0) (data 11 1 0 0) (data 12 2 0 0) (data 13 0 0 0) (data 20 0 0 0) (data 21 0 0 0) (data 22 0 0 0) (fun 30 20 (y 0)) (fun 31 21 (y 0)) (fun 32 22 (f 33 (y 0))) (fun 33 10 (f 34 (v 1) (v 0))) (fun 33 11 (k 13)) (fun 33 12 (k 13)) (fun 33 13 (k 13)) (fun 34 10 (k 13)) (fun 34 11 (k 12 (y 0) (v 0))) (fun 34 12 (k 13)) (fun 34 13 (k 13)) (All (All (= (f 30 (k 20) (f 31 (k 21) (f 32 (k 22) (k 10 (v 1) (k 11 (v 0)))))) (k 12 (v 1) (v 0))))) "
+bc_fol_main_body_prefix_end:
