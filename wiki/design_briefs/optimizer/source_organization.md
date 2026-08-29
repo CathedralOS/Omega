@@ -214,6 +214,10 @@ entrance validates candidate custody and selects local/dominating elimination
 or phi-translated join synthesis; `rule_catalog` exposes the exact admitted
 rule identities, while proof admission, expression keys, dominance replay,
 and the two rewrite protocols descend into named leaves.
+Independent dead-scalar validation exposes one custody-and-analysis-contract
+entrance above its exact rule catalog, exhaustive closed operation partition,
+and rewrite replay. A new operation or dead-scalar rule therefore has one
+obvious classification rung without growing the public coordination file.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.

@@ -196,6 +196,9 @@ and no-selection compatibility remain enforced.
   proof admission, expression keys, dominance reconstruction, local/dominating
   elimination, and phi-translated join synthesis below one custody-and-dispatch
   entrance.
+- [x] Split independent dead-scalar validation into exact rule classification,
+  an exhaustive operation-safety partition, and rewrite replay below one
+  custody-and-analysis-contract entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
