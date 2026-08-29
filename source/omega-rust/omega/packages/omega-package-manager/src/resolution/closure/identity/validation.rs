@@ -3,11 +3,11 @@ use super::{
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
     CanonicalSourceClosureSubjectLimits,
 };
-use crate::resolution::binding::PackageSourceNavigation;
 use crate::resolution::closure::reconciliation::PackageRootSourceRequest;
 use crate::resolution::closure::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
+use crate::resolution::source::PackageSourceNavigation;
 use omega_package_source::GitSourceRequest;
 use omega_package_source::{
     AliasName, ImmutableSourceResolution, PackageKey, SourceLineage, WorkspaceLineageIdentity,

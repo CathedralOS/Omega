@@ -6,7 +6,7 @@ use super::super::reconciliation::{
 use super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::dependency_resolution::{register_git_repository, resolve_registered_package_closure};
 use super::errors::ResolveGitPackageClosureError;
-use crate::resolution::binding::{
+use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
 };
 use omega_package_source::SourceLineage;
@@ -131,7 +131,7 @@ pub(crate) fn git_root_request_matches(
 
 fn git_package_root_request_matches(
     request: &GitPackageSourceRequest,
-    resolved: &crate::resolution::binding::ResolvedPackageSource<ResolvedGitSource>,
+    resolved: &crate::resolution::source::ResolvedPackageSource<ResolvedGitSource>,
 ) -> bool {
     if !git_root_request_matches(
         request.acquisition(),

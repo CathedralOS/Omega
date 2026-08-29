@@ -6,7 +6,7 @@ use super::super::reconciliation::{
 use super::cache::{GitAcquisitionCache, SourceCacheLane, resolve_workspace_member_from_cache};
 use super::dependency_resolution::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
-use crate::resolution::binding::ResolvePackageSourceError;
+use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{
     ExternalSourceContext, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
     WorkspaceMemberPath,

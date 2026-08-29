@@ -69,7 +69,7 @@ pub fn package_compilation_inputs_for(
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::resolution::binding::PackageSourceCustody,
+    custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::capture_verified_package_source_snapshot(
@@ -92,7 +92,7 @@ fn binding_with_canonical_source_metadata(
 }
 
 fn revalidate_package_source_selection(
-    custody: &crate::resolution::binding::PackageSourceCustody,
+    custody: &crate::resolution::source::PackageSourceCustody,
 ) -> Result<(), PackageCompilationInputError> {
     custody.selection_evidence().revalidate().map_err(|error| {
         PackageCompilationInputError::InvalidSourceRoot {
@@ -130,9 +130,9 @@ pub(crate) fn reachable_package_keys(
 mod tests {
     use super::*;
     use crate::manifest::dependencies::read::DependencySourceRequest;
-    use crate::resolution::binding::PackageSourceCustody;
     use crate::resolution::closure::PackageRootSourceRequest;
     use crate::resolution::closure::reconciliation::resolve_package_source_closure;
+    use crate::resolution::source::PackageSourceCustody;
     use omega_package_source::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName, SourceLineage,
     };

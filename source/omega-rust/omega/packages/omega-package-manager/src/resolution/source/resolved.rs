@@ -1,43 +1,33 @@
-//! Transport-erased custody for one declared package snapshot.
-
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::{
-    PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
-};
+use crate::resolution::source::PackageSourceCustody;
+use crate::resolution::source::PackageSourceMaterialization;
+use crate::resolution::source::PackageSourceNavigation;
+use crate::resolution::source::PackageSourceSelectionEvidence;
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
 
-/// Immutable package source after acquisition, declaration extraction, and
-/// dependency projection have all succeeded.
-#[derive(Debug, Clone)]
-pub struct PackageSourceCustody {
+/// An immutable source snapshot after its package-owned declaration has been
+/// extracted and joined to canonical source lineage.
+///
+/// This is source custody, not package admission. Toolchain identity and
+/// compiler-issued package evidence are intentionally absent; only those later
+/// stages can construct the future sealed `PackageInstance`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
     materialization: PackageSourceMaterialization,
-    pub(crate) snapshot_root: PathBuf,
+    snapshot_root: PathBuf,
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
+    source: S,
 }
 
-impl PartialEq for PackageSourceCustody {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-            && self.resolution == other.resolution
-            && self.materialization == other.materialization
-            && self.snapshot_root == other.snapshot_root
-            && self.navigation == other.navigation
-            && self.selection_evidence == other.selection_evidence
-            && self.dependency_requests == other.dependency_requests
-    }
-}
-
-impl Eq for PackageSourceCustody {}
-
-impl PackageSourceCustody {
-    pub(crate) fn from_resolved_parts(
+impl<S> ResolvedPackageSource<S> {
+    pub(super) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
         materialization: PackageSourceMaterialization,
@@ -46,8 +36,8 @@ impl PackageSourceCustody {
         selection_evidence: PackageSourceSelectionEvidence,
         source_limits: LocalSourceLimits,
         dependency_requests: Vec<DependencySourceRequest>,
+        source: S,
     ) -> Self {
-        debug_assert!(resolution.matches_lineage(key.source_lineage()));
         Self {
             key,
             resolution,
@@ -57,6 +47,7 @@ impl PackageSourceCustody {
             selection_evidence,
             source_limits,
             dependency_requests,
+            source,
         }
     }
 
@@ -84,20 +75,38 @@ impl PackageSourceCustody {
         &self.selection_evidence
     }
 
-    pub fn source_limits(&self) -> LocalSourceLimits {
-        self.source_limits
-    }
-
     pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
         &self.dependency_requests
     }
 
-    pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
-        self.key == other.key
-            && self.resolution == other.resolution
-            && self.materialization == other.materialization
-            && self.navigation == other.navigation
-            && self.selection_evidence == other.selection_evidence
-            && self.dependency_requests == other.dependency_requests
+    pub fn source_limits(&self) -> LocalSourceLimits {
+        self.source_limits
+    }
+
+    pub fn source(&self) -> &S {
+        &self.source
+    }
+
+    /// Erase the transport-specific resolver payload while retaining the
+    /// immutable package source custody needed for closure reconciliation.
+    ///
+    /// `PackageSourceCustody` has no public constructor: adapters obtain it
+    /// only after source resolution, declaration extraction, and dependency
+    /// projection have all succeeded.
+    pub fn into_custody(self) -> PackageSourceCustody {
+        PackageSourceCustody::from_resolved_parts(
+            self.key,
+            self.resolution,
+            self.materialization,
+            self.snapshot_root,
+            self.navigation,
+            self.selection_evidence,
+            self.source_limits,
+            self.dependency_requests,
+        )
+    }
+
+    pub fn into_source(self) -> S {
+        self.source
     }
 }

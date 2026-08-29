@@ -1,5 +1,5 @@
 use super::super::reconciliation::PackageSourceClosureResolutionError;
-use crate::resolution::binding::ResolvePackageSourceError;
+use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::GitSourceRequestError;
 use omega_package_source::{PackageKey, WorkspaceLineageIdentity, WorkspaceMemberPath};
 use std::fmt;

@@ -1,6 +1,6 @@
 use crate::manifest::dependencies::read::DependencyProjectionError;
 use crate::manifest::roles::PackageDeclarationError;
-use crate::resolution::binding::git_selection::GitWorkspaceSelectionError;
+use crate::resolution::source::git::workspace::GitWorkspaceSelectionError;
 use omega_package_source::IdentityError;
 use omega_package_source::SourceResolveError;
 use omega_package_source::WorkspaceMemberPath;

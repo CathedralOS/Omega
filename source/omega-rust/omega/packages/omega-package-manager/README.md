@@ -11,7 +11,7 @@ src/
 ├── manifest/         read package roles and dependency rows from build.omg
 │   └── dependencies/ read exact rows or plan conservative edits
 ├── resolution/       turn declared sources into one validated closure
-│   ├── binding/      join immutable snapshots to package declarations
+│   ├── source/       join immutable snapshots to package declarations
 │   └── closure/      traverse, reconcile, validate, and identify the graph
 └── review/           compile, compare, triage, and apply root review policy
 ```
@@ -33,13 +33,13 @@ confined native execution from
 [`omega-resolver-execution`](../omega-resolver-execution/README.md).
 Source acquisition owns shared source-lineage and package-coordinate
 vocabulary, but cannot select a dependency closure or admit it.
-`resolution/binding/` performs the declaration join before
+`resolution/source/` performs the declaration join before
 `resolution/closure/` derives closure-owned identities.
 
 ```text
-resolution/binding/
-├── git.rs             join one resolved Git acquisition to package custody
-├── git_selection/     discover, select, commit, and replay workspace declarations
+resolution/source/
+├── git/               resolve Git requests into selected package custody
+│   └── workspace/     discover, select, commit, and replay declarations
 ├── local.rs           bind external-local snapshots
 ├── workspace.rs       bind explicit live-workspace members
 ├── custody.rs         transport-erased package source custody

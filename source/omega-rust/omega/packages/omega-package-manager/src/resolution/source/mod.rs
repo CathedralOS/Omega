@@ -1,12 +1,11 @@
-//! Package declarations and keys recovered from immutable source snapshots.
+//! Resolve immutable source custody into one declared package source.
 //!
 //! The entry points are grouped by source lineage. Shared declaration
 //! projection, errors, and resolved custody live behind this narrow facade.
 
 mod custody;
 mod error;
-mod git;
-pub mod git_selection;
+pub(crate) mod git;
 mod local;
 mod materialization;
 mod navigation;
@@ -20,6 +19,7 @@ pub use error::ResolvePackageSourceError;
 #[cfg(test)]
 pub(crate) use git::resolve_git_package_source;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
+pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
 pub use git::{
     GitPackageSourceRequest, resolve_git_package_source_with_storage,
     resolve_selected_git_package_source_with_storage,
@@ -36,7 +36,6 @@ pub use local::{
 pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;
 pub use resolved::ResolvedPackageSource;
-pub(crate) use selection::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
 pub use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
 #[cfg(test)]
 pub(crate) use workspace::resolve_workspace_member_package_source;

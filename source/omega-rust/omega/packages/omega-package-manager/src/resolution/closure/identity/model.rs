@@ -12,7 +12,7 @@ mod encoding;
 #[path = "validation.rs"]
 mod validation;
 
-use crate::resolution::binding::PackageSourceNavigation;
+use crate::resolution::source::PackageSourceNavigation;
 use encoding::{
     Decoder, decode_dependency_selection, decode_root_selection, decode_source_identity,
     encode_hex, encode_subject, fingerprint,

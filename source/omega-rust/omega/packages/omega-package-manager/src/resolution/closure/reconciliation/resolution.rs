@@ -10,8 +10,8 @@ use super::model::{
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::PackageSourceCustody;
 use crate::resolution::closure::PackageRootSourceRequest;
+use crate::resolution::source::PackageSourceCustody;
 use omega_package_source::{AliasName, PackageKey};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
