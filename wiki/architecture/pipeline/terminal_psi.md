@@ -346,6 +346,16 @@ no resolved address and grants no registrar invocation, source `Registration`,
 capacity, lease, or publication authority. `DataAddress`, direct parameters,
 and multi-segment physical paths remain fenced.
 
+Provider-execution metadata crossing target operations, machine code, and the
+native artifact is an authority-free report projection. Its compact selected
+plan, execution, normalized-root, and boundary-contract coordinates are named
+report identities/fingerprints and preserve the existing installation wire
+order. The admitted provider object borrowed at the lowering entrance remains
+the authority carrier. The retained artifact additionally keeps the strong
+selected-provider-closure digest and exact requirement strings/catalogs, and
+its replay rejects exact-requirement substitution even when all compact report
+coordinates are unchanged.
+
 The current canonical checked-to-Terminal function has no input field for the
 compiler's validated callback-placement sidecar. The compiler product driver
 therefore accepts those rows for check-only output but rejects Terminal and

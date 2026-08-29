@@ -79,12 +79,12 @@ impl CallSiteOwner {
     }
 }
 
-/// Installation-selected provider-plan identity for one bodyless boundary.
-/// This is realization metadata, not executable authority.
+/// Non-authoritative report identity for the installation-selected provider
+/// plan of one bodyless boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProviderPlanIdentity(u64);
+pub struct ProviderPlanReportIdentity(u64);
 
-impl ProviderPlanIdentity {
+impl ProviderPlanReportIdentity {
     pub const fn new(raw: u64) -> Option<Self> {
         if raw == 0 { None } else { Some(Self(raw)) }
     }
@@ -94,16 +94,19 @@ impl ProviderPlanIdentity {
     }
 }
 
-/// Exact admitted provider execution selected for this terminal realization.
-/// The execution fingerprint covers the normalized root, selected plan,
-/// entry/boundary contract, resource realizations, and exit assurance.
+/// Non-authoritative target-operation report projection of the exact admitted
+/// provider execution selected for this terminal realization.
+///
+/// The ledger-owned `ProviderExecutionEvidence` borrowed by lowering is the
+/// authority carrier. These compact coordinates support deterministic reports
+/// and serialization only and cannot recreate admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProviderExecutionBinding {
-    provider_plan: ProviderPlanIdentity,
-    provider_execution_identity: u64,
-    provider_execution_fingerprint: u64,
-    normalized_root_identity: u64,
-    boundary_contract_fingerprint: u64,
+    provider_plan_report_identity: ProviderPlanReportIdentity,
+    provider_execution_report_identity: u64,
+    provider_execution_report_fingerprint: u64,
+    normalized_root_report_identity: u64,
+    boundary_contract_report_fingerprint: u64,
 }
 
 impl ProviderExecutionBinding {
@@ -111,47 +114,47 @@ impl ProviderExecutionBinding {
     /// fields from `omega_external_roots::ProviderExecution`; constructing a
     /// record does not grant root admission or executable authority.
     pub fn from_execution_record(
-        provider_plan: ProviderPlanIdentity,
-        provider_execution_identity: u64,
-        provider_execution_fingerprint: u64,
-        normalized_root_identity: u64,
-        boundary_contract_fingerprint: u64,
+        provider_plan_report_identity: ProviderPlanReportIdentity,
+        provider_execution_report_identity: u64,
+        provider_execution_report_fingerprint: u64,
+        normalized_root_report_identity: u64,
+        boundary_contract_report_fingerprint: u64,
     ) -> Option<Self> {
         [
-            provider_execution_identity,
-            provider_execution_fingerprint,
-            normalized_root_identity,
-            boundary_contract_fingerprint,
+            provider_execution_report_identity,
+            provider_execution_report_fingerprint,
+            normalized_root_report_identity,
+            boundary_contract_report_fingerprint,
         ]
         .iter()
         .all(|identity| *identity != 0)
         .then_some(Self {
-            provider_plan,
-            provider_execution_identity,
-            provider_execution_fingerprint,
-            normalized_root_identity,
-            boundary_contract_fingerprint,
+            provider_plan_report_identity,
+            provider_execution_report_identity,
+            provider_execution_report_fingerprint,
+            normalized_root_report_identity,
+            boundary_contract_report_fingerprint,
         })
     }
 
-    pub const fn provider_plan(self) -> ProviderPlanIdentity {
-        self.provider_plan
+    pub const fn provider_plan_report_identity(self) -> ProviderPlanReportIdentity {
+        self.provider_plan_report_identity
     }
 
-    pub const fn provider_execution_identity(self) -> u64 {
-        self.provider_execution_identity
+    pub const fn provider_execution_report_identity(self) -> u64 {
+        self.provider_execution_report_identity
     }
 
-    pub const fn provider_execution_fingerprint(self) -> u64 {
-        self.provider_execution_fingerprint
+    pub const fn provider_execution_report_fingerprint(self) -> u64 {
+        self.provider_execution_report_fingerprint
     }
 
-    pub const fn normalized_root_identity(self) -> u64 {
-        self.normalized_root_identity
+    pub const fn normalized_root_report_identity(self) -> u64 {
+        self.normalized_root_report_identity
     }
 
-    pub const fn boundary_contract_fingerprint(self) -> u64 {
-        self.boundary_contract_fingerprint
+    pub const fn boundary_contract_report_fingerprint(self) -> u64 {
+        self.boundary_contract_report_fingerprint
     }
 }
 

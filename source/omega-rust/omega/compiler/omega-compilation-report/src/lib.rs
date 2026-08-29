@@ -121,11 +121,12 @@ pub fn executable_publication_pair_matches(
         && flat.callback_placement_identity_fingerprint
             == bundle.callback_placement_identity_fingerprint
         && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
-        && flat.inventory_fingerprint == bundle.inventory_fingerprint
+        && flat.inventory_digest == bundle.inventory_digest
+        && flat.inventory_report_fingerprint == bundle.inventory_report_fingerprint
         && flat.compiler_text_validation_digest == bundle.compiler_text_validation_digest
         && flat.compiler_function_validation_digest == bundle.compiler_function_validation_digest
-        && flat.compiler_function_validation_fingerprint
-            == bundle.compiler_function_validation_fingerprint
+        && flat.compiler_function_validation_report_fingerprint
+            == bundle.compiler_function_validation_report_fingerprint
         && flat.publication_evidence_digest == bundle.publication_evidence_digest
         && flat.container_byte_count == bundle.container_byte_count
         && flat.container_digest == bundle.container_digest
@@ -153,8 +154,9 @@ fn native_publication_certificate_digest(
     boundary_contract_fingerprint: Option<u64>,
     text_validation_digest: omega_image::CompilerTextDerivationDigest,
     function_validation_digest: omega_image::CompilerFunctionValidationDigest,
-    function_validation_fingerprint: u64,
-    inventory_fingerprint: u64,
+    function_validation_report_fingerprint: u64,
+    inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
+    inventory_report_fingerprint: u64,
 ) -> NativePublicationCertificateDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.native-publication-certificate.sha256.v1\0");
@@ -183,18 +185,20 @@ fn native_publication_certificate_digest(
     );
     digest.update(text_validation_digest.as_bytes());
     digest.update(function_validation_digest.as_bytes());
-    digest.update(function_validation_fingerprint.to_le_bytes());
-    digest.update(inventory_fingerprint.to_le_bytes());
+    digest.update(function_validation_report_fingerprint.to_le_bytes());
+    digest.update(inventory_digest.as_bytes());
+    digest.update(inventory_report_fingerprint.to_le_bytes());
     NativePublicationCertificateDigest::from_digest(digest.finalize().into())
 }
 
 fn native_publication_evidence_digest(
     certificate_digest: NativePublicationCertificateDigest,
     callback_placement_identity_fingerprint: u64,
-    inventory_fingerprint: u64,
+    inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
+    inventory_report_fingerprint: u64,
     text_validation_digest: omega_image::CompilerTextDerivationDigest,
     function_validation_digest: omega_image::CompilerFunctionValidationDigest,
-    function_validation_fingerprint: u64,
+    function_validation_report_fingerprint: u64,
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> NativePublicationEvidenceDigest {
@@ -202,10 +206,11 @@ fn native_publication_evidence_digest(
     digest.update(b"omega.native-publication-evidence.sha256.v1\0");
     digest.update(certificate_digest.as_bytes());
     digest.update(function_validation_digest.as_bytes());
+    digest.update(inventory_digest.as_bytes());
     for value in [
         callback_placement_identity_fingerprint,
-        inventory_fingerprint,
-        function_validation_fingerprint,
+        inventory_report_fingerprint,
+        function_validation_report_fingerprint,
         container_byte_count as u64,
     ] {
         digest.update(value.to_le_bytes());
@@ -283,12 +288,15 @@ pub struct ExecutablePublicationReceipt {
     certificate_digest: NativePublicationCertificateDigest,
     callback_placement_identity_fingerprint: u64,
     boundary_contract_fingerprint: Option<u64>,
-    inventory_fingerprint: u64,
+    inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
+    /// Compact report compatibility only. Publication and replay authority is
+    /// `inventory_digest`.
+    inventory_report_fingerprint: u64,
     compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
     compiler_function_validation_digest: omega_image::CompilerFunctionValidationDigest,
     /// Compact report compatibility only. Publication and replay authority is
     /// `compiler_function_validation_digest`.
-    compiler_function_validation_fingerprint: u64,
+    compiler_function_validation_report_fingerprint: u64,
     publication_evidence_digest: NativePublicationEvidenceDigest,
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
@@ -302,10 +310,11 @@ impl ExecutablePublicationReceipt {
         certificate_digest: NativePublicationCertificateDigest,
         callback_placement_identity_fingerprint: u64,
         boundary_contract_fingerprint: Option<u64>,
-        inventory_fingerprint: u64,
+        inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
+        inventory_report_fingerprint: u64,
         compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
         compiler_function_validation_digest: omega_image::CompilerFunctionValidationDigest,
-        compiler_function_validation_fingerprint: u64,
+        compiler_function_validation_report_fingerprint: u64,
         publication_evidence_digest: NativePublicationEvidenceDigest,
         container_byte_count: usize,
         container_digest: ExecutableContainerDigest,
@@ -317,10 +326,11 @@ impl ExecutablePublicationReceipt {
             certificate_digest,
             callback_placement_identity_fingerprint,
             boundary_contract_fingerprint,
-            inventory_fingerprint,
+            inventory_digest,
+            inventory_report_fingerprint,
             compiler_text_validation_digest,
             compiler_function_validation_digest,
-            compiler_function_validation_fingerprint,
+            compiler_function_validation_report_fingerprint,
             publication_evidence_digest,
             container_byte_count,
             container_digest,
@@ -348,8 +358,12 @@ impl ExecutablePublicationReceipt {
         self.boundary_contract_fingerprint
     }
 
-    pub const fn inventory_fingerprint(&self) -> u64 {
-        self.inventory_fingerprint
+    pub const fn inventory_digest(&self) -> omega_image::PlacedExecutableRegionInventoryDigest {
+        self.inventory_digest
+    }
+
+    pub const fn inventory_report_fingerprint(&self) -> u64 {
+        self.inventory_report_fingerprint
     }
 
     pub const fn compiler_text_validation_digest(
@@ -358,8 +372,8 @@ impl ExecutablePublicationReceipt {
         self.compiler_text_validation_digest
     }
 
-    pub const fn compiler_function_validation_fingerprint(&self) -> u64 {
-        self.compiler_function_validation_fingerprint
+    pub const fn compiler_function_validation_report_fingerprint(&self) -> u64 {
+        self.compiler_function_validation_report_fingerprint
     }
 
     pub const fn compiler_function_validation_digest(
@@ -389,10 +403,11 @@ impl ExecutablePublicationReceipt {
             == native_publication_evidence_digest(
                 self.certificate_digest,
                 self.callback_placement_identity_fingerprint,
-                self.inventory_fingerprint,
+                self.inventory_digest,
+                self.inventory_report_fingerprint,
                 self.compiler_text_validation_digest,
                 self.compiler_function_validation_digest,
-                self.compiler_function_validation_fingerprint,
+                self.compiler_function_validation_report_fingerprint,
                 self.container_byte_count,
                 self.container_digest,
             )
@@ -534,7 +549,8 @@ impl CompileReport {
             "native publication requires compiler-function validation evidence".to_owned()
         })?;
         let function_validation_digest = function_validation.evidence_digest();
-        let function_validation_fingerprint = function_validation.evidence_fingerprint();
+        let function_validation_report_fingerprint =
+            function_validation.evidence_report_fingerprint();
         let boundary_contract_fingerprint = output
             .compiler_function_validation
             .map(publication_boundary_contract_fingerprint)
@@ -556,16 +572,18 @@ impl CompileReport {
             boundary_contract_fingerprint,
             text_validation_digest,
             function_validation_digest,
-            function_validation_fingerprint,
-            output.executable_regions.inventory_fingerprint,
+            function_validation_report_fingerprint,
+            output.executable_regions.inventory_digest,
+            output.executable_regions.inventory_report_fingerprint,
         );
         let publication_evidence_digest = native_publication_evidence_digest(
             certificate_digest,
             output.callback_placement_identity_fingerprint,
-            output.executable_regions.inventory_fingerprint,
+            output.executable_regions.inventory_digest,
+            output.executable_regions.inventory_report_fingerprint,
             text_validation_digest,
             function_validation_digest,
-            function_validation_fingerprint,
+            function_validation_report_fingerprint,
             output.bytes.len(),
             container_digest,
         );
@@ -583,10 +601,11 @@ impl CompileReport {
             certificate_digest,
             output.callback_placement_identity_fingerprint,
             boundary_contract_fingerprint,
-            output.executable_regions.inventory_fingerprint,
+            output.executable_regions.inventory_digest,
+            output.executable_regions.inventory_report_fingerprint,
             text_validation_digest,
             function_validation_digest,
-            function_validation_fingerprint,
+            function_validation_report_fingerprint,
             publication_evidence_digest,
             output.bytes.len(),
             container_digest,
@@ -833,10 +852,12 @@ mod tests {
         let certificate = super::NativePublicationCertificateDigest::from_digest([1; 32]);
         let text_validation = omega_image::CompilerTextDerivationDigest::from_digest([3; 32]);
         let function_validation = function_validation_digest(7);
+        let inventory = omega_image::PlacedExecutableRegionInventoryDigest::from_digest([5; 32]);
         let container = super::ExecutableContainerDigest::from_digest([7; 32]);
         let publication = super::native_publication_evidence_digest(
             certificate,
             8,
+            inventory,
             2,
             text_validation,
             function_validation,
@@ -858,6 +879,7 @@ mod tests {
             certificate,
             8,
             Some(2),
+            inventory,
             2,
             text_validation,
             function_validation,
@@ -1014,7 +1036,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = flat.clone();
-        changed.compiler_function_validation_fingerprint ^= 1;
+        changed.compiler_function_validation_report_fingerprint ^= 1;
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -1026,8 +1048,8 @@ mod tests {
         let mut compact_collision = flat.clone();
         compact_collision.compiler_function_validation_digest = function_validation_digest(99);
         assert_eq!(
-            compact_collision.compiler_function_validation_fingerprint,
-            flat.compiler_function_validation_fingerprint,
+            compact_collision.compiler_function_validation_report_fingerprint,
+            flat.compiler_function_validation_report_fingerprint,
             "the adversary preserves the compact report identity",
         );
         let compact_collision = report(
@@ -1119,7 +1141,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
-        changed.inventory_fingerprint ^= 1;
+        changed.inventory_report_fingerprint ^= 1;
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -1127,6 +1149,25 @@ mod tests {
             Some(changed),
         );
         assert!(!changed.has_consistent_executable_publication_custody());
+        assert!(changed.checked_native_executable_path().is_none());
+        let mut compact_equal_inventory_substitution = bundle.clone();
+        compact_equal_inventory_substitution.inventory_digest =
+            omega_image::PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
+        assert_eq!(
+            compact_equal_inventory_substitution.inventory_report_fingerprint,
+            bundle.inventory_report_fingerprint,
+            "the adversary preserves the compact inventory report coordinate",
+        );
+        let changed = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(compact_equal_inventory_substitution),
+        );
+        assert!(
+            !changed.has_consistent_executable_publication_custody(),
+            "strong inventory drift must reject even with a collision-equal report fingerprint",
+        );
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
         changed.compiler_text_validation_digest =
@@ -1140,7 +1181,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
-        changed.compiler_function_validation_fingerprint ^= 1;
+        changed.compiler_function_validation_report_fingerprint ^= 1;
         assert!(
             !report(
                 true,

@@ -9,7 +9,7 @@ macro_rules! executable_digest {
         pub struct $name([u8; 32]);
 
         impl $name {
-            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
                 Self(digest)
             }
 
@@ -56,7 +56,7 @@ pub struct PlacedExecutableRegion {
     /// Collision-resistant commitment to the exact placed region bytes.
     pub byte_digest: PlacedExecutableRegionBytesDigest,
     /// Compact report compatibility only. It never authorizes a region join.
-    pub byte_fingerprint: u64,
+    pub byte_report_fingerprint: u64,
     pub symbol: String,
     pub footprint: Option<omega_calling_conventions::StateFootprintEvidence>,
 }
@@ -69,7 +69,7 @@ pub struct PlacedExecutableGap {
     /// Collision-resistant commitment to the exact unclassified gap bytes.
     pub byte_digest: PlacedExecutableGapBytesDigest,
     /// Compact report compatibility only.
-    pub byte_fingerprint: u64,
+    pub byte_report_fingerprint: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,12 +79,12 @@ pub struct PlacedExecutableRegionInventory {
     /// Collision-resistant commitment to the complete exact final text.
     pub text_digest: FinalExecutableTextDigest,
     /// Compact report compatibility only.
-    pub text_fingerprint: u64,
+    pub text_report_fingerprint: u64,
     /// Domain-separated commitment to the exact placed rows, gaps, text
     /// commitment, and structural footprint evidence.
     pub inventory_digest: PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only.
-    pub inventory_fingerprint: u64,
+    pub inventory_report_fingerprint: u64,
     pub regions: Vec<PlacedExecutableRegion>,
     pub unclassified_gaps: Vec<PlacedExecutableGap>,
 }
@@ -156,7 +156,7 @@ pub fn place_executable_regions(
                 b"omega.placed-executable-region-bytes.sha256.v1\0",
                 region_bytes,
             )),
-            byte_fingerprint: byte_fingerprint(region_bytes),
+            byte_report_fingerprint: byte_report_fingerprint(region_bytes),
             symbol: region.symbol,
             footprint: region.footprint,
         });
@@ -174,11 +174,11 @@ pub fn place_executable_regions(
         b"omega.final-executable-text.sha256.v1\0",
         &image.memory.text,
     ));
-    let text_fingerprint = byte_fingerprint(&image.memory.text);
-    let inventory_fingerprint = executable_inventory_fingerprint(
+    let text_report_fingerprint = byte_report_fingerprint(&image.memory.text);
+    let inventory_report_fingerprint = executable_inventory_report_fingerprint(
         layout.text_address,
         image.memory.text.len(),
-        text_fingerprint,
+        text_report_fingerprint,
         &placed,
         &unclassified_gaps,
     );
@@ -193,9 +193,9 @@ pub fn place_executable_regions(
         text_address: layout.text_address,
         text_byte_count: image.memory.text.len(),
         text_digest,
-        text_fingerprint,
+        text_report_fingerprint,
         inventory_digest,
-        inventory_fingerprint,
+        inventory_report_fingerprint,
         regions: placed,
         unclassified_gaps,
     })
@@ -225,8 +225,8 @@ pub fn validate_placed_executable_region_inventory(
             "final executable inventory text digest does not match final text",
         ));
     }
-    let text_fingerprint = byte_fingerprint(final_text_bytes);
-    if inventory.text_fingerprint != text_fingerprint {
+    let text_report_fingerprint = byte_report_fingerprint(final_text_bytes);
+    if inventory.text_report_fingerprint != text_report_fingerprint {
         return Err(Diagnostic::error(
             "final executable inventory text fingerprint does not match final text",
         ));
@@ -286,7 +286,7 @@ pub fn validate_placed_executable_region_inventory(
                 region.symbol
             )));
         }
-        if region.byte_fingerprint != byte_fingerprint(region_bytes) {
+        if region.byte_report_fingerprint != byte_report_fingerprint(region_bytes) {
             return Err(Diagnostic::error(format!(
                 "placed executable region `{}` byte fingerprint does not match final text",
                 region.symbol
@@ -308,14 +308,14 @@ pub fn validate_placed_executable_region_inventory(
         ));
     }
 
-    let inventory_fingerprint = executable_inventory_fingerprint(
+    let inventory_report_fingerprint = executable_inventory_report_fingerprint(
         inventory.text_address,
         inventory.text_byte_count,
-        inventory.text_fingerprint,
+        inventory.text_report_fingerprint,
         &inventory.regions,
         &inventory.unclassified_gaps,
     );
-    if inventory.inventory_fingerprint != inventory_fingerprint {
+    if inventory.inventory_report_fingerprint != inventory_report_fingerprint {
         return Err(Diagnostic::error(
             "final executable inventory fingerprint does not match its retained rows",
         ));
@@ -366,10 +366,10 @@ pub fn bind_compiler_entry_footprint(
         || !binding.object_symbol_handle.is_valid()
         || !binding.has_valid_evidence_digest()
         || binding.inventory_digest != inventory.inventory_digest
-        || binding.inventory_fingerprint != inventory.inventory_fingerprint
+        || binding.inventory_report_fingerprint != inventory.inventory_report_fingerprint
         || binding.final_region_binding_fingerprint == 0
         || binding.final_region_binding_fingerprint != final_region_binding_fingerprint
-        || binding.evidence_fingerprint != binding.recomputed_evidence_fingerprint()
+        || binding.evidence_report_fingerprint != binding.recomputed_evidence_report_fingerprint()
     {
         return Err(Diagnostic::error(
             "compiler entry footprint binding does not retain valid final-region custody",
@@ -387,7 +387,7 @@ pub fn bind_compiler_entry_footprint(
                 && region.1.address == binding.address
                 && region.1.byte_count == binding.byte_count
                 && region.1.byte_digest == binding.byte_digest
-                && region.1.byte_fingerprint == binding.byte_fingerprint
+                && region.1.byte_report_fingerprint == binding.byte_report_fingerprint
         })
         .count();
     if matching_entries != 1 {
@@ -409,7 +409,7 @@ pub fn bind_compiler_entry_footprint(
                 && region.address == binding.address
                 && region.byte_count == binding.byte_count
                 && region.byte_digest == binding.byte_digest
-                && region.byte_fingerprint == binding.byte_fingerprint
+                && region.byte_report_fingerprint == binding.byte_report_fingerprint
         })
         .map(|(_, region)| region)
         .expect("exactly one matching compiler entry region was counted");
@@ -423,15 +423,15 @@ pub fn bind_compiler_entry_footprint(
             binding.symbol
         )));
     }
-    let prior_inventory_fingerprint = inventory.inventory_fingerprint;
+    let prior_inventory_fingerprint = inventory.inventory_report_fingerprint;
     let prior_inventory_digest = inventory.inventory_digest;
     let footprint_fingerprint = footprint.evidence_fingerprint();
     let footprint_digest = state_footprint_evidence_digest(&footprint);
     entry.footprint = Some(footprint);
-    inventory.inventory_fingerprint = executable_inventory_fingerprint(
+    inventory.inventory_report_fingerprint = executable_inventory_report_fingerprint(
         inventory.text_address,
         inventory.text_byte_count,
-        inventory.text_fingerprint,
+        inventory.text_report_fingerprint,
         &inventory.regions,
         &inventory.unclassified_gaps,
     );
@@ -444,18 +444,18 @@ pub fn bind_compiler_entry_footprint(
     );
     let mut evidence = crate::CompilerEntryFootprintBindingEvidence {
         entry_region_evidence_digest: binding.evidence_digest,
-        entry_region_evidence_fingerprint: binding.evidence_fingerprint,
+        entry_region_evidence_report_fingerprint: binding.evidence_report_fingerprint,
         final_region_binding_fingerprint,
-        prior_inventory_fingerprint,
+        prior_inventory_report_fingerprint: prior_inventory_fingerprint,
         prior_inventory_digest,
-        footprint_fingerprint,
+        footprint_report_fingerprint: footprint_fingerprint,
         footprint_digest,
-        resulting_inventory_fingerprint: inventory.inventory_fingerprint,
+        resulting_inventory_report_fingerprint: inventory.inventory_report_fingerprint,
         resulting_inventory_digest: inventory.inventory_digest,
-        evidence_fingerprint: 0,
+        evidence_report_fingerprint: 0,
         evidence_digest: crate::CompilerEntryFootprintBindingDigest::from_digest([0; 32]),
     };
-    evidence.evidence_fingerprint = evidence.recomputed_evidence_fingerprint();
+    evidence.evidence_report_fingerprint = evidence.recomputed_evidence_report_fingerprint();
     evidence.evidence_digest = evidence.recomputed_evidence_digest();
     Ok(evidence)
 }
@@ -491,7 +491,7 @@ fn placed_gap_from_bytes(
             b"omega.placed-executable-gap-bytes.sha256.v1\0",
             &text_bytes[section_offset..section_offset + byte_count],
         )),
-        byte_fingerprint: byte_fingerprint(
+        byte_report_fingerprint: byte_report_fingerprint(
             &text_bytes[section_offset..section_offset + byte_count],
         ),
     })
@@ -594,23 +594,23 @@ fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     digest.finalize().into()
 }
 
-fn byte_fingerprint(bytes: &[u8]) -> u64 {
+fn byte_report_fingerprint(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_bytes(&mut hash, bytes);
     hash
 }
 
-fn executable_inventory_fingerprint(
+fn executable_inventory_report_fingerprint(
     text_address: u64,
     text_byte_count: usize,
-    text_fingerprint: u64,
+    text_report_fingerprint: u64,
     regions: &[PlacedExecutableRegion],
     gaps: &[PlacedExecutableGap],
 ) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_bytes(&mut hash, &text_address.to_le_bytes());
     fingerprint_bytes(&mut hash, &(text_byte_count as u64).to_le_bytes());
-    fingerprint_bytes(&mut hash, &text_fingerprint.to_le_bytes());
+    fingerprint_bytes(&mut hash, &text_report_fingerprint.to_le_bytes());
     for region in regions {
         fingerprint_bytes(
             &mut hash,
@@ -622,7 +622,7 @@ fn executable_inventory_fingerprint(
         fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
         fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
         fingerprint_bytes(&mut hash, &(region.byte_count as u64).to_le_bytes());
-        fingerprint_bytes(&mut hash, &region.byte_fingerprint.to_le_bytes());
+        fingerprint_bytes(&mut hash, &region.byte_report_fingerprint.to_le_bytes());
         fingerprint_bytes(&mut hash, region.symbol.as_bytes());
         fingerprint_bytes(&mut hash, &[0]);
         match &region.footprint {
@@ -637,7 +637,7 @@ fn executable_inventory_fingerprint(
         fingerprint_bytes(&mut hash, &(gap.section_offset as u64).to_le_bytes());
         fingerprint_bytes(&mut hash, &gap.address.to_le_bytes());
         fingerprint_bytes(&mut hash, &(gap.byte_count as u64).to_le_bytes());
-        fingerprint_bytes(&mut hash, &gap.byte_fingerprint.to_le_bytes());
+        fingerprint_bytes(&mut hash, &gap.byte_report_fingerprint.to_le_bytes());
     }
     hash
 }
@@ -709,11 +709,14 @@ mod tests {
                     b"omega.placed-executable-gap-bytes.sha256.v1\0",
                     &[0; 4],
                 )),
-                byte_fingerprint: byte_fingerprint(&[0; 4]),
+                byte_report_fingerprint: byte_report_fingerprint(&[0; 4]),
             }]
         );
-        assert_eq!(inventory.text_fingerprint, byte_fingerprint(&[0; 12]));
-        assert_ne!(inventory.inventory_fingerprint, 0);
+        assert_eq!(
+            inventory.text_report_fingerprint,
+            byte_report_fingerprint(&[0; 12])
+        );
+        assert_ne!(inventory.inventory_report_fingerprint, 0);
     }
 
     #[test]
@@ -773,7 +776,7 @@ mod tests {
         });
         let mut inventory = place_executable_regions(&image, FinalImageLayout::default())
             .expect("entry region should place");
-        let original_fingerprint = inventory.inventory_fingerprint;
+        let original_fingerprint = inventory.inventory_report_fingerprint;
         let original_digest = inventory.inventory_digest;
         let footprint = StateFootprintEvidence::new(
             RegisterSet::new([MachineRegister::X86Rax]),
@@ -792,16 +795,16 @@ mod tests {
             address: inventory.regions[0].address,
             byte_count: inventory.regions[0].byte_count,
             byte_digest: inventory.regions[0].byte_digest,
-            byte_fingerprint: inventory.regions[0].byte_fingerprint,
+            byte_report_fingerprint: inventory.regions[0].byte_report_fingerprint,
             inventory_digest: inventory.inventory_digest,
-            inventory_fingerprint: inventory.inventory_fingerprint,
+            inventory_report_fingerprint: inventory.inventory_report_fingerprint,
             final_region_binding_fingerprint: 8,
             evidence_digest: crate::CompilerEntryRegionBindingDigest::from_digest([0; 32]),
-            evidence_fingerprint: 0,
+            evidence_report_fingerprint: 0,
         };
         let mut binding = binding;
         binding.evidence_digest = binding.recomputed_evidence_digest();
-        binding.evidence_fingerprint = binding.recomputed_evidence_fingerprint();
+        binding.evidence_report_fingerprint = binding.recomputed_evidence_report_fingerprint();
 
         let mut identity_drift = binding.clone();
         identity_drift.function_identity = MachineFunctionIdentity::source(StateKey {
@@ -834,18 +837,21 @@ mod tests {
             .expect("the exact entry should accept retained evidence");
 
         assert_eq!(inventory.regions[0].footprint, Some(footprint));
-        assert_ne!(inventory.inventory_fingerprint, original_fingerprint);
+        assert_ne!(inventory.inventory_report_fingerprint, original_fingerprint);
         assert_ne!(inventory.inventory_digest, original_digest);
         assert!(receipt.validate_identity());
         assert_eq!(receipt.prior_inventory_digest, original_digest);
-        assert_eq!(receipt.prior_inventory_fingerprint, original_fingerprint);
         assert_eq!(
-            receipt.resulting_inventory_fingerprint,
-            inventory.inventory_fingerprint
+            receipt.prior_inventory_report_fingerprint,
+            original_fingerprint
+        );
+        assert_eq!(
+            receipt.resulting_inventory_report_fingerprint,
+            inventory.inventory_report_fingerprint
         );
         let mut drifted_binding = binding;
         drifted_binding.inventory_digest = inventory.inventory_digest;
-        drifted_binding.inventory_fingerprint = inventory.inventory_fingerprint;
+        drifted_binding.inventory_report_fingerprint = inventory.inventory_report_fingerprint;
         drifted_binding.region_index = 1;
         let diagnostic = bind_compiler_entry_footprint(
             &mut inventory,
@@ -904,7 +910,7 @@ mod tests {
             validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
         );
         let mut corrupted = inventory.clone();
-        corrupted.regions[0].byte_fingerprint ^= 1;
+        corrupted.regions[0].byte_report_fingerprint ^= 1;
         assert!(
             validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
         );
@@ -919,7 +925,7 @@ mod tests {
             validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
         );
         let mut corrupted = inventory.clone();
-        corrupted.inventory_fingerprint ^= 1;
+        corrupted.inventory_report_fingerprint ^= 1;
         assert!(
             validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
         );
@@ -927,8 +933,8 @@ mod tests {
         strong_identity_substitution.inventory_digest =
             PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
         assert_eq!(
-            strong_identity_substitution.inventory_fingerprint,
-            inventory.inventory_fingerprint
+            strong_identity_substitution.inventory_report_fingerprint,
+            inventory.inventory_report_fingerprint
         );
         assert!(
             validate_placed_executable_region_inventory(

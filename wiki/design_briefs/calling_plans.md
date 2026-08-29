@@ -959,13 +959,23 @@ receives its own durable call-site row. Exact repeated observations collapse;
 conflicting identities for one site and ordinal reject. Structural machine
 parameters deliberately produce no nominal-use row. Published/actual envelope
 projection and refinement evidence are described below. Callback uses now also
-retain the nonzero fingerprint of their exact evaluated boundary calling plan;
-ordinary nominal uses retain no callback placement. This is the target-owned
-plan join key, not a source-visible address. Check-only and native orchestration
+retain the nonzero report fingerprint of their exact evaluated boundary calling
+plan; ordinary nominal uses retain no callback placement. This is the target-
+owned plan cache/join coordinate, not authority or a source-visible address.
+Check-only and native orchestration
 consume it before handoff, revalidate the retained plan, and require one exact
 trait/requirement/fingerprint realization. The validated payloadless thunk and
 its address-free relocation demand are now retained; target/object relocation
 and runtime registration remain later lowering slices.
+
+Provider planning carries the complete validated inbound plan in the bound
+placement and the complete registrar plan in any private materialization. The
+thunk's structural placement identity now retains the inbound plan itself as
+well as the compact report coordinate. Root-schedule replay compares that exact
+identity and independently revalidates the plan before consulting later compact
+summaries, so a collision-equal plan substitution rejects. The compact inbound,
+registrar, and ordered-thunk fingerprints remain compatibility/report data;
+they do not authorize a callback, relocation, or installed entry.
 
 The canonical checked-to-Terminal producer does not yet accept that retained
 callback-placement sidecar. Check-only compilation therefore remains valid,

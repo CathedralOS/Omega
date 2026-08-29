@@ -24,7 +24,7 @@ pub(super) fn bind_provider_executions(
                         .to_owned(),
                 });
             }
-            let provider_plan = omega_target_operations::ProviderPlanIdentity::new(
+            let provider_plan = omega_target_operations::ProviderPlanReportIdentity::new(
                 settlement.provider_execution.provider_plan(),
             )
             .ok_or_else(|| LoweringError::ProviderExecutionBinding("zero provider plan".into()))?;

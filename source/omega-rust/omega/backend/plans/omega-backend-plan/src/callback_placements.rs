@@ -9,10 +9,11 @@ use std::sync::Arc;
 
 /// Target-owned callback recipe joined to one admitted nominal machine use.
 ///
-/// The checked program owns the semantic admission and only retains the
-/// evaluated plan fingerprint. This row carries the exact validated plan past
+/// The checked program owns the semantic admission and retains a compact
+/// report coordinate. This row carries the exact validated plan past
 /// orchestration so thunk lowering never has to rediscover ABI placement from
-/// names, types, or a convention oracle.
+/// names, types, or a convention oracle. Authority never rests on the compact
+/// coordinate alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundNominalCallbackPlacement {
     pub site: NominalMachineUseSite,
@@ -23,7 +24,9 @@ pub struct BoundNominalCallbackPlacement {
     pub satisfaction_trait: SymbolHandle,
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
-    pub boundary_calling_plan_fingerprint: u64,
+    /// Non-authoritative compatibility/report coordinate beside the exact
+    /// `boundary_entry_plan` below.
+    pub boundary_calling_plan_report_fingerprint: u64,
     /// Exact checked per-entry resource anchor selected by semantic callback
     /// admission. It remains a derivation receipt only; later resource
     /// realizations must independently join it before admission.
@@ -47,7 +50,9 @@ pub struct BoundCallbackPrivateMaterialization {
     /// binder-to-destination mapping. This is distinct from the callback
     /// handler's inbound `boundary_entry_plan` retained by the placement.
     pub registrar_boundary_entry_plan: BoundaryEntryPlan,
-    pub registrar_calling_plan_fingerprint: u64,
+    /// Non-authoritative compatibility/report coordinate beside the exact
+    /// registrar plan above.
+    pub registrar_calling_plan_report_fingerprint: u64,
     pub context: CallbackMaterializationContext,
 }
 
@@ -68,7 +73,10 @@ pub struct CallbackPlacementBindingIdentity {
     pub satisfaction_trait: SymbolHandle,
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
-    pub boundary_calling_plan_fingerprint: u64,
+    /// Non-authoritative compatibility/report coordinate. Exact thunk replay
+    /// compares `boundary_entry_plan` structurally.
+    pub boundary_calling_plan_report_fingerprint: u64,
+    pub boundary_entry_plan: BoundaryEntryPlan,
     pub resource_receipt: psi_checked_trees::CheckedCallbackResourceReceipt,
     pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
 }
@@ -91,12 +99,13 @@ pub struct CallbackThunkPlan {
     pub root_schedule: Arc<crate::CallbackRootSchedule>,
 }
 
-/// Fingerprint the exact ordered checked-placement receipts carried by callback
-/// thunks for final-footprint evidence.
+/// Compactly fingerprint the exact ordered checked-placement receipts carried
+/// by callback thunks for final-footprint reporting.
 ///
-/// This is evidence rather than authority: final emission still compares each
-/// structural receipt with its placement row before this summary can be used.
-pub fn callback_thunk_placement_identity_fingerprint(thunks: &[CallbackThunkPlan]) -> u64 {
+/// This compact summary is not authority: final emission still compares each
+/// structural receipt, including its exact boundary plan, with its placement
+/// row before the summary can be used.
+pub fn callback_thunk_placement_identity_report_fingerprint(thunks: &[CallbackThunkPlan]) -> u64 {
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_into(&mut fingerprint, b"omega.callback-placement-identity.v2");
     fingerprint_into(&mut fingerprint, &(thunks.len() as u64).to_le_bytes());
@@ -146,7 +155,9 @@ fn fingerprint_placement_identity(
     );
     fingerprint_into(
         fingerprint,
-        &identity.boundary_calling_plan_fingerprint.to_le_bytes(),
+        &identity
+            .boundary_calling_plan_report_fingerprint
+            .to_le_bytes(),
     );
     fingerprint_callback_resource_receipt(fingerprint, identity.resource_receipt);
     fingerprint_private_materialization(fingerprint, identity.private_materialization.as_ref());
@@ -189,7 +200,7 @@ fn fingerprint_private_materialization(
     fingerprint_into(
         fingerprint,
         &materialization
-            .registrar_calling_plan_fingerprint
+            .registrar_calling_plan_report_fingerprint
             .to_le_bytes(),
     );
     fingerprint_into(
@@ -257,7 +268,9 @@ pub fn callback_placement_binding_identity(
         satisfaction_trait: placement.satisfaction_trait,
         satisfaction_requirement: placement.satisfaction_requirement,
         canonical_requirement_overload: placement.canonical_requirement_overload.clone(),
-        boundary_calling_plan_fingerprint: placement.boundary_calling_plan_fingerprint,
+        boundary_calling_plan_report_fingerprint: placement
+            .boundary_calling_plan_report_fingerprint,
+        boundary_entry_plan: placement.boundary_entry_plan.clone(),
         resource_receipt: placement.resource_receipt,
         private_materialization: placement.private_materialization.clone(),
     }
@@ -331,9 +344,9 @@ pub fn validate_bound_nominal_callback_placement(
                 &materialization.context,
             )?;
         if validated_registrar.plan() != &materialization.registrar_boundary_entry_plan
-            || materialization.registrar_calling_plan_fingerprint == 0
+            || materialization.registrar_calling_plan_report_fingerprint == 0
             || validated_registrar.contract_fingerprint()
-                != materialization.registrar_calling_plan_fingerprint
+                != materialization.registrar_calling_plan_report_fingerprint
         {
             return Err(omega_calling_conventions::PlanDiagnostic(
                 "callback placement private materialization drifted from its exact evaluated registrar plan"
@@ -384,8 +397,8 @@ pub fn validate_bound_nominal_callback_placement(
             "callback placement retained a noncanonical boundary entry plan".to_owned(),
         ));
     }
-    if placement.boundary_calling_plan_fingerprint == 0
-        || validated.contract_fingerprint() != placement.boundary_calling_plan_fingerprint
+    if placement.boundary_calling_plan_report_fingerprint == 0
+        || validated.contract_fingerprint() != placement.boundary_calling_plan_report_fingerprint
     {
         return Err(omega_calling_conventions::PlanDiagnostic(
             "callback placement boundary entry plan drifted from its retained fingerprint"
@@ -415,7 +428,7 @@ pub fn canonical_callback_private_symbol(placement: &BoundNominalCallbackPlaceme
         placement.selected_machine.generation(),
         placement.selected_entry.arena_index(),
         placement.selected_entry.generation(),
-        placement.boundary_calling_plan_fingerprint,
+        placement.boundary_calling_plan_report_fingerprint,
     ))
 }
 
@@ -458,7 +471,7 @@ mod tests {
             satisfaction_trait: SymbolHandle::from_arena_index(6),
             satisfaction_requirement: SymbolHandle::from_arena_index(8),
             canonical_requirement_overload: "Handler::call".to_owned(),
-            boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            boundary_calling_plan_report_fingerprint: validated.contract_fingerprint(),
             resource_receipt: resource_receipt(selected_machine, selected_entry, 0xfeed),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
@@ -486,7 +499,7 @@ mod tests {
         entry.selected_entry = SymbolHandle::from_parts(5, 6);
         drifts.push(entry);
         let mut fingerprint = baseline.clone();
-        fingerprint.boundary_calling_plan_fingerprint ^= 1;
+        fingerprint.boundary_calling_plan_report_fingerprint ^= 1;
         drifts.push(fingerprint);
 
         assert!(baseline_symbol.starts_with("__omega_callback_e"));
@@ -523,7 +536,7 @@ mod tests {
         );
 
         let mut fingerprint_drift = baseline;
-        fingerprint_drift.boundary_calling_plan_fingerprint ^= 1;
+        fingerprint_drift.boundary_calling_plan_report_fingerprint ^= 1;
         let error = validate_bound_nominal_callback_placement(&fingerprint_drift)
             .expect_err("changed callback fingerprint must not retain the old plan");
         assert!(error.0.contains("drifted from its retained fingerprint"));
@@ -533,6 +546,21 @@ mod tests {
     fn callback_placement_binding_identity_binds_registration_and_satisfaction_row() {
         let baseline = placement();
         let identity = callback_placement_binding_identity(&baseline);
+
+        let mut compact_equal_plan_substitution = baseline.clone();
+        compact_equal_plan_substitution
+            .boundary_entry_plan
+            .state
+            .preemption = omega_calling_conventions::Preemption::ProviderDefined;
+        assert_eq!(
+            compact_equal_plan_substitution.boundary_calling_plan_report_fingerprint,
+            baseline.boundary_calling_plan_report_fingerprint,
+        );
+        assert_ne!(
+            callback_placement_binding_identity(&compact_equal_plan_substitution),
+            identity,
+            "an equal compact report coordinate cannot hide exact plan substitution",
+        );
 
         let mut registration_drift = baseline.clone();
         registration_drift.registration_operation = SymbolHandle::from_parts(3, 2);
@@ -568,7 +596,7 @@ mod tests {
     }
 
     #[test]
-    fn callback_thunk_placement_fingerprint_binds_exact_ordered_receipts() {
+    fn callback_thunk_placement_report_fingerprint_binds_exact_ordered_receipts() {
         let baseline = placement();
         let entry_key = StateKey {
             machine: baseline.selected_machine,
@@ -598,12 +626,12 @@ mod tests {
             root_schedule,
         };
         let fingerprint =
-            callback_thunk_placement_identity_fingerprint(std::slice::from_ref(&thunk));
+            callback_thunk_placement_identity_report_fingerprint(std::slice::from_ref(&thunk));
 
         let mut drifted = thunk.clone();
         drifted.placement_identity.satisfaction_requirement = SymbolHandle::from_parts(8, 2);
         assert_ne!(
-            callback_thunk_placement_identity_fingerprint(&[drifted]),
+            callback_thunk_placement_identity_report_fingerprint(&[drifted]),
             fingerprint
         );
 
@@ -614,14 +642,14 @@ mod tests {
             0xbeef,
         );
         assert_ne!(
-            callback_thunk_placement_identity_fingerprint(&[resource_drifted]),
+            callback_thunk_placement_identity_report_fingerprint(&[resource_drifted]),
             fingerprint
         );
 
         let mut reindexed = thunk;
         reindexed.placement_index = 1;
         assert_ne!(
-            callback_thunk_placement_identity_fingerprint(&[reindexed]),
+            callback_thunk_placement_identity_report_fingerprint(&[reindexed]),
             fingerprint
         );
     }

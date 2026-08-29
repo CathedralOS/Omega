@@ -32,7 +32,7 @@ pub(crate) fn assemble_native_artifact(
             )
         })
         .collect::<Vec<_>>();
-    selected_provider_plans.sort_by_key(NativeSelectedProviderPlan::identity);
+    selected_provider_plans.sort_by_key(NativeSelectedProviderPlan::report_identity);
     NativeArtifact::from_replayed_parts(NativeArtifactParts {
         target: request.target,
         psi_artifact,

@@ -29,12 +29,12 @@ pub struct ValidatedConstSumMaterialization {
     schema_identity: u64,
     value: BuildTimeValue,
     layout: ConventionalSumLayoutReport,
-    layout_fingerprint: u64,
+    non_authoritative_layout_report_fingerprint: u64,
     selected_case_identity: Option<u64>,
     selected_case_ordinal: u32,
     byte_order: ByteOrder,
     bytes: Vec<u8>,
-    identity: u64,
+    non_authoritative_materialization_report_fingerprint: u64,
 }
 
 impl ValidatedConstSumMaterialization {
@@ -54,8 +54,16 @@ impl ValidatedConstSumMaterialization {
         &self.layout
     }
 
+    /// Compact report coordinate retained for compatibility and diagnostics.
+    /// Replay authority comes from the exact retained layout, value, and bytes.
     pub const fn layout_fingerprint(&self) -> u64 {
-        self.layout_fingerprint
+        self.non_authoritative_layout_report_fingerprint
+    }
+
+    /// Explicitly named accessor for the non-authoritative layout report
+    /// coordinate.
+    pub const fn non_authoritative_layout_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_layout_report_fingerprint
     }
 
     pub const fn selected_case_identity(&self) -> Option<u64> {
@@ -74,8 +82,16 @@ impl ValidatedConstSumMaterialization {
         &self.bytes
     }
 
+    /// Compact report coordinate retained for compatibility and diagnostics.
+    /// It is not materialization or replay authority.
     pub const fn identity(&self) -> u64 {
-        self.identity
+        self.non_authoritative_materialization_report_fingerprint
+    }
+
+    /// Explicitly named accessor for the non-authoritative materialization
+    /// report coordinate.
+    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_materialization_report_fingerprint
     }
 
     pub fn replay_against(
@@ -102,8 +118,8 @@ impl ValidatedConstSumMaterialization {
                 "ConstMaterializable sum target byte order drifted from retained custody".into(),
             ));
         }
-        let fingerprint = normalized_conventional_sum_layout_fingerprint(layout);
-        if fingerprint != self.layout_fingerprint
+        let layout_report_fingerprint = normalized_conventional_sum_layout_fingerprint(layout);
+        if layout_report_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !conventional_sum_layout_reports_match_for_replay(layout, &self.layout)
         {
             return Err(MaterializationDiagnostic(
@@ -124,19 +140,22 @@ impl ValidatedConstSumMaterialization {
                 "ConstMaterializable sum bytes drifted from exact zero-initialized replay".into(),
             ));
         }
-        let identity = sum_materialization_identity(
-            schema_name,
-            replayed.schema_identity,
-            fingerprint,
-            replayed.selected_case_identity,
-            replayed.selected_case_ordinal,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if identity != self.identity {
+        let materialization_report_fingerprint =
+            non_authoritative_sum_materialization_report_fingerprint(
+                schema_name,
+                replayed.schema_identity,
+                layout_report_fingerprint,
+                replayed.selected_case_identity,
+                replayed.selected_case_ordinal,
+                byte_order,
+                value,
+                &replayed.bytes,
+            );
+        if materialization_report_fingerprint
+            != self.non_authoritative_materialization_report_fingerprint
+        {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum identity drifted from exact replay".into(),
+                "ConstMaterializable sum report fingerprint drifted from exact replay".into(),
             ));
         }
         Ok(())
@@ -178,28 +197,29 @@ pub fn validate_const_materializable_conventional_sum(
     byte_order: ByteOrder,
 ) -> Result<ValidatedConstSumMaterialization, MaterializationDiagnostic> {
     let derived = derive_sum_bytes(typed, schema_name, layout, value, byte_order)?;
-    let layout_fingerprint = normalized_conventional_sum_layout_fingerprint(layout);
-    let identity = sum_materialization_identity(
-        schema_name,
-        derived.schema_identity,
-        layout_fingerprint,
-        derived.selected_case_identity,
-        derived.selected_case_ordinal,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
+    let layout_report_fingerprint = normalized_conventional_sum_layout_fingerprint(layout);
+    let materialization_report_fingerprint =
+        non_authoritative_sum_materialization_report_fingerprint(
+            schema_name,
+            derived.schema_identity,
+            layout_report_fingerprint,
+            derived.selected_case_identity,
+            derived.selected_case_ordinal,
+            byte_order,
+            value,
+            &derived.bytes,
+        );
     Ok(ValidatedConstSumMaterialization {
         schema_name: schema_name.to_owned(),
         schema_identity: derived.schema_identity,
         value: value.clone(),
         layout: layout.clone(),
-        layout_fingerprint,
+        non_authoritative_layout_report_fingerprint: layout_report_fingerprint,
         selected_case_identity: derived.selected_case_identity,
         selected_case_ordinal: derived.selected_case_ordinal,
         byte_order,
         bytes: derived.bytes,
-        identity,
+        non_authoritative_materialization_report_fingerprint: materialization_report_fingerprint,
     })
 }
 
@@ -556,10 +576,10 @@ fn validate_selected_payload(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn sum_materialization_identity(
+fn non_authoritative_sum_materialization_report_fingerprint(
     schema_name: &str,
     schema_identity: u64,
-    layout_fingerprint: u64,
+    layout_report_fingerprint: u64,
     selected_case_identity: Option<u64>,
     selected_case_ordinal: u32,
     byte_order: ByteOrder,
@@ -570,7 +590,7 @@ fn sum_materialization_identity(
     hash_bytes(&mut hash, b"omega.const-materializable-sum.v1");
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_identity);
-    hash_u64(&mut hash, layout_fingerprint);
+    hash_u64(&mut hash, layout_report_fingerprint);
     match selected_case_identity {
         Some(identity) => {
             hash_byte(&mut hash, 1);
@@ -838,6 +858,40 @@ mod tests {
         let mut destination = [0xa5; 12];
         assert!(carrier.apply(&typed, &mut destination).is_err());
         assert_eq!(destination, [0xa5; 12]);
+    }
+
+    #[test]
+    fn replay_rejects_sum_layout_substitution_when_compact_report_fingerprint_is_forced_equal() {
+        let typed = typed();
+        let layout = layout(&typed, "Choice");
+        let value = BuildTimeValue::Case {
+            variant: "Number".into(),
+            payload: vec![("value".into(), BuildTimeValue::Int(9))],
+        };
+        let mut carrier = validate_const_materializable_conventional_sum(
+            &typed,
+            "Choice",
+            &layout,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("fixture should validate");
+
+        let mut substituted_layout = layout.clone();
+        substituted_layout.cases[3].payload_fields[0].offset += 1;
+        carrier.non_authoritative_layout_report_fingerprint =
+            normalized_conventional_sum_layout_fingerprint(&substituted_layout);
+
+        let error = carrier
+            .replay_against(
+                &typed,
+                "Choice",
+                &substituted_layout,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .expect_err("exact retained sum layout rejects a compact-equal substitute");
+        assert!(error.0.contains("layout drifted"));
     }
 
     #[test]

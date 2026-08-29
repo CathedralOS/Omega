@@ -9,11 +9,11 @@ use omega_machine_code::ProviderExecutionRecord;
 use super::{InstallationError, Reader, push_u64};
 
 pub(super) fn encode_provider_execution(bytes: &mut Vec<u8>, execution: ProviderExecutionRecord) {
-    push_u64(bytes, execution.provider_plan);
-    push_u64(bytes, execution.provider_execution_identity);
-    push_u64(bytes, execution.provider_execution_fingerprint);
-    push_u64(bytes, execution.normalized_root_identity);
-    push_u64(bytes, execution.boundary_contract_fingerprint);
+    push_u64(bytes, execution.provider_plan_report_identity);
+    push_u64(bytes, execution.provider_execution_report_identity);
+    push_u64(bytes, execution.provider_execution_report_fingerprint);
+    push_u64(bytes, execution.normalized_root_report_identity);
+    push_u64(bytes, execution.boundary_contract_report_fingerprint);
 }
 
 pub(super) fn decode_provider_execution(

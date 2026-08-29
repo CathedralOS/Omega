@@ -75,14 +75,14 @@ pub struct CompilerEntryRegionBindingEvidence {
     pub byte_count: usize,
     pub byte_digest: crate::PlacedExecutableRegionBytesDigest,
     /// Compact report compatibility only.
-    pub byte_fingerprint: u64,
+    pub byte_report_fingerprint: u64,
     pub inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only.
-    pub inventory_fingerprint: u64,
+    pub inventory_report_fingerprint: u64,
     pub final_region_binding_fingerprint: u64,
     pub evidence_digest: CompilerEntryRegionBindingDigest,
     /// Compact report compatibility only.
-    pub evidence_fingerprint: u64,
+    pub evidence_report_fingerprint: u64,
 }
 
 impl CompilerEntryRegionBindingEvidence {
@@ -130,7 +130,7 @@ impl CompilerEntryRegionBindingEvidence {
         self.evidence_digest == self.recomputed_evidence_digest()
     }
 
-    pub fn recomputed_evidence_fingerprint(&self) -> u64 {
+    pub fn recomputed_evidence_report_fingerprint(&self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         let identity = self.function_identity;
         let role_tag = if identity.source_key().is_some() {
@@ -185,8 +185,8 @@ impl CompilerEntryRegionBindingEvidence {
         fingerprint_bytes(&mut hash, &(self.symbol.len() as u64).to_le_bytes());
         fingerprint_bytes(&mut hash, self.symbol.as_bytes());
         fingerprint_bytes(&mut hash, &self.address.to_le_bytes());
-        fingerprint_bytes(&mut hash, &self.byte_fingerprint.to_le_bytes());
-        fingerprint_bytes(&mut hash, &self.inventory_fingerprint.to_le_bytes());
+        fingerprint_bytes(&mut hash, &self.byte_report_fingerprint.to_le_bytes());
+        fingerprint_bytes(&mut hash, &self.inventory_report_fingerprint.to_le_bytes());
         fingerprint_bytes(
             &mut hash,
             &self.final_region_binding_fingerprint.to_le_bytes(),
@@ -202,20 +202,20 @@ impl CompilerEntryRegionBindingEvidence {
 pub struct CompilerEntryFootprintBindingEvidence {
     pub entry_region_evidence_digest: CompilerEntryRegionBindingDigest,
     /// Compact report compatibility only.
-    pub entry_region_evidence_fingerprint: u64,
+    pub entry_region_evidence_report_fingerprint: u64,
     pub final_region_binding_fingerprint: u64,
     pub prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only.
-    pub prior_inventory_fingerprint: u64,
+    pub prior_inventory_report_fingerprint: u64,
     pub footprint_digest: crate::StateFootprintEvidenceDigest,
     /// Compact report compatibility only.
-    pub footprint_fingerprint: u64,
+    pub footprint_report_fingerprint: u64,
     pub resulting_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only.
-    pub resulting_inventory_fingerprint: u64,
+    pub resulting_inventory_report_fingerprint: u64,
     pub evidence_digest: CompilerEntryFootprintBindingDigest,
     /// Compact report compatibility only.
-    pub evidence_fingerprint: u64,
+    pub evidence_report_fingerprint: u64,
 }
 
 impl CompilerEntryFootprintBindingEvidence {
@@ -230,14 +230,14 @@ impl CompilerEntryFootprintBindingEvidence {
         CompilerEntryFootprintBindingDigest::from_digest(digest.finalize().into())
     }
 
-    pub fn recomputed_evidence_fingerprint(self) -> u64 {
+    pub fn recomputed_evidence_report_fingerprint(self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         for value in [
-            self.entry_region_evidence_fingerprint,
+            self.entry_region_evidence_report_fingerprint,
             self.final_region_binding_fingerprint,
-            self.prior_inventory_fingerprint,
-            self.footprint_fingerprint,
-            self.resulting_inventory_fingerprint,
+            self.prior_inventory_report_fingerprint,
+            self.footprint_report_fingerprint,
+            self.resulting_inventory_report_fingerprint,
         ] {
             fingerprint_bytes(&mut hash, &value.to_le_bytes());
         }
@@ -245,14 +245,14 @@ impl CompilerEntryFootprintBindingEvidence {
     }
 
     pub fn validate_identity(self) -> bool {
-        self.entry_region_evidence_fingerprint != 0
+        self.entry_region_evidence_report_fingerprint != 0
             && self.final_region_binding_fingerprint != 0
-            && self.prior_inventory_fingerprint != 0
-            && self.footprint_fingerprint != 0
-            && self.resulting_inventory_fingerprint != 0
+            && self.prior_inventory_report_fingerprint != 0
+            && self.footprint_report_fingerprint != 0
+            && self.resulting_inventory_report_fingerprint != 0
             && self.prior_inventory_digest != self.resulting_inventory_digest
             && self.evidence_digest == self.recomputed_evidence_digest()
-            && self.evidence_fingerprint == self.recomputed_evidence_fingerprint()
+            && self.evidence_report_fingerprint == self.recomputed_evidence_report_fingerprint()
     }
 }
 
@@ -316,7 +316,7 @@ impl CompilerFunctionValidationEvidence {
 
     /// Compact report compatibility only. This is not evidence, admission,
     /// publication, or replay authority; use [`Self::evidence_digest`].
-    pub fn evidence_fingerprint(self) -> u64 {
+    pub fn evidence_report_fingerprint(self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         for bytes in [
             self.validation_fingerprint.to_le_bytes(),

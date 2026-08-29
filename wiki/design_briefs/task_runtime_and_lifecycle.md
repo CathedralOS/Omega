@@ -122,6 +122,10 @@ Call-graph consumers therefore cannot construct a trusted contribution from a
 byte count directly. Compiler collection of those summaries, binding the
 composition evidence into the activation `StackPlan`, and stack reservation
 remain the fixed-stack lowering rung below.
+External-root ordinary and entry-epoch stack compositions follow the same
+rule: each result retains the exact nesting relation, per-root inputs, and
+admitted realization evidence. Their compact FNV values are report/cache
+coordinates only and never replace structural replay at admission.
 `05_carry_manifest.json` remains useful
 because it names each suspension crossing and its typed live-value/storage
 frontier; tools consume that checked artifact rather than reinterpret source.

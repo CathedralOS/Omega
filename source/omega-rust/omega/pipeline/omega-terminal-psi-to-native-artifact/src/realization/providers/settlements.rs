@@ -70,13 +70,13 @@ pub(crate) fn settle_provider_executions<'request>(
     provider_executions.sort_by(|left, right| {
         (
             left.requirement_identity(),
-            left.provider_plan(),
-            left.provider_execution_identity(),
+            left.provider_plan_report_identity(),
+            left.provider_execution_report_identity(),
         )
             .cmp(&(
                 right.requirement_identity(),
-                right.provider_plan(),
-                right.provider_execution_identity(),
+                right.provider_plan_report_identity(),
+                right.provider_execution_report_identity(),
             ))
     });
     Ok((admitted, provider_executions))

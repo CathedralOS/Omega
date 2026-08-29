@@ -694,7 +694,7 @@ pub struct EpochStackComposition {
     inputs: BTreeMap<ExternalRootId, EpochStackCompositionInput>,
     demands: BTreeMap<ExternalRootId, ComposedEpochStackDemand>,
     domain_wcsu: BTreeMap<StackDomain, DomainStackDemand>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl EpochStackComposition {
@@ -710,8 +710,14 @@ impl EpochStackComposition {
         self.domain_wcsu.get(&domain).copied()
     }
 
+    /// Compatibility accessor for the non-authoritative report/cache
+    /// fingerprint. Exact relation, inputs, and demands remain retained.
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.non_authoritative_report_fingerprint
+    }
+
+    pub const fn non_authoritative_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -721,7 +727,7 @@ impl EpochStackComposition {
 pub struct BoundEpochStackComposition {
     composition: EpochStackComposition,
     inputs: BTreeMap<ExternalRootId, BoundEpochStackCompositionInput>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl BoundEpochStackComposition {
@@ -751,8 +757,14 @@ impl BoundEpochStackComposition {
         self.composition.relation()
     }
 
+    /// Compatibility accessor for the non-authoritative report/cache
+    /// fingerprint. Every exact bound body and realization row is retained.
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.non_authoritative_report_fingerprint
+    }
+
+    pub const fn non_authoritative_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -773,34 +785,34 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         relation,
         bound.values().map(BoundEpochStackCompositionInput::pure),
     )?;
-    let mut fingerprint = Fnv1a::new();
-    fingerprint.u64(composition.fingerprint());
-    fingerprint.u64(bound.len() as u64);
+    let mut report_fingerprint = Fnv1a::new();
+    report_fingerprint.u64(composition.fingerprint());
+    report_fingerprint.u64(bound.len() as u64);
     for input in bound.values() {
         let evidence = input.realization_evidence();
-        fingerprint.u64(match evidence.arrival_origin() {
+        report_fingerprint.u64(match evidence.arrival_origin() {
             ArrivalStackRealizationOrigin::NoHardwareArrival => 0,
             ArrivalStackRealizationOrigin::X86_64TargetRule => 1,
             ArrivalStackRealizationOrigin::OpaqueProvider => 2,
         });
-        fingerprint.u64(match evidence.adapter_origin() {
+        report_fingerprint.u64(match evidence.adapter_origin() {
             AdapterStackRealizationOrigin::None => 0,
             AdapterStackRealizationOrigin::OpaqueProvider => 1,
         });
-        fingerprint.u64(evidence.root().normalized_identity());
-        fingerprint.u64(evidence.provider().normalized_identity());
-        fingerprint.u64(match evidence.architecture() {
+        report_fingerprint.u64(evidence.root().normalized_identity());
+        report_fingerprint.u64(evidence.provider().normalized_identity());
+        report_fingerprint.u64(match evidence.architecture() {
             omega_target::Architecture::X86_64 => 1,
             omega_target::Architecture::Aarch64 => 2,
         });
-        fingerprint.u64(evidence.installed_code().normalized_identity());
-        fingerprint.u64(evidence.artifact().normalized_identity());
-        fingerprint.u64(evidence.entry().normalized_identity());
-        fingerprint.u64(evidence.boundary_contract_fingerprint());
-        fingerprint.u64(evidence.body_domains.fingerprint());
-        fingerprint.u64(evidence.realization().fingerprint());
-        fingerprint.u64(evidence.target_rule_fingerprint().unwrap_or_default());
-        fingerprint.u64(
+        report_fingerprint.u64(evidence.installed_code().normalized_identity());
+        report_fingerprint.u64(evidence.artifact().normalized_identity());
+        report_fingerprint.u64(evidence.entry().normalized_identity());
+        report_fingerprint.u64(evidence.boundary_contract_fingerprint());
+        report_fingerprint.u64(evidence.body_domains.fingerprint());
+        report_fingerprint.u64(evidence.realization().fingerprint());
+        report_fingerprint.u64(evidence.target_rule_fingerprint().unwrap_or_default());
+        report_fingerprint.u64(
             evidence
                 .validation_receipt()
                 .map(StackValidationReceiptId::normalized_identity)
@@ -810,7 +822,7 @@ pub fn compose_bound_entry_stack_epochs<'a>(
     Ok(BoundEpochStackComposition {
         composition,
         inputs: bound,
-        fingerprint: fingerprint.finish(),
+        non_authoritative_report_fingerprint: report_fingerprint.finish(),
     })
 }
 
@@ -891,13 +903,14 @@ pub fn compose_entry_stack_epochs<'a>(
         demands.insert(input.root, composed);
     }
 
-    let fingerprint = fingerprint_inputs(relation, &by_root);
+    let non_authoritative_report_fingerprint =
+        non_authoritative_epoch_stack_inputs_report_fingerprint(relation, &by_root);
     Ok(EpochStackComposition {
         relation: relation.clone(),
         inputs: by_root,
         demands,
         domain_wcsu,
-        fingerprint,
+        non_authoritative_report_fingerprint,
     })
 }
 
@@ -1079,7 +1092,7 @@ fn merge_alternative_map(
     }
 }
 
-fn fingerprint_inputs(
+fn non_authoritative_epoch_stack_inputs_report_fingerprint(
     relation: &StackNestingRelation,
     inputs: &BTreeMap<ExternalRootId, EpochStackCompositionInput>,
 ) -> u64 {
@@ -1212,6 +1225,45 @@ mod tests {
                 alignment: 16,
             })
         );
+    }
+
+    #[test]
+    fn compact_equal_epoch_compositions_remain_structurally_distinct() {
+        let root = id(4, ExternalRootId::from_normalized_identity);
+        let provider = id(5, RootProviderId::from_normalized_identity);
+        let relation = StackNestingRelation {
+            identity: id(6, NestingRelationId::from_normalized_identity),
+            edges: BTreeSet::new(),
+        };
+        let input = |body_wcsu_bytes| EpochStackCompositionInput {
+            root,
+            provider,
+            realization: realization(vec![context(
+                1,
+                vec![epoch(
+                    EntryStackStage::Body,
+                    StackDomainRef::Interrupted,
+                    Vec::new(),
+                    Preemption::Masked,
+                )],
+            )]),
+            body_wcsu_bytes,
+            body_wcsu_alignment: 8,
+        };
+        let first_input = input(64);
+        let second_input = input(72);
+        let exact = compose_entry_stack_epochs(&relation, [&first_input])
+            .expect("first exact epoch composition");
+        let mut substituted = compose_entry_stack_epochs(&relation, [&second_input])
+            .expect("second exact epoch composition");
+        substituted.non_authoritative_report_fingerprint =
+            exact.non_authoritative_report_fingerprint;
+
+        assert_eq!(
+            exact.non_authoritative_report_fingerprint(),
+            substituted.non_authoritative_report_fingerprint()
+        );
+        assert_ne!(exact, substituted);
     }
 
     #[test]

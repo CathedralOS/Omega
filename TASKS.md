@@ -135,7 +135,14 @@ scanners, or receipts.
   coordinate. Exact plans, execution scope, indexed coverage, opaque
   admissions, and installation-reach resolutions enter the commitment, and an
   architecture inventory plus adversarial test reject a compact-equal
-  structural substitution. External-root producer-schema cohorts now use a
+  structural substitution. Provider-execution coordinates projected through
+  target operations, machine code, installation encoding, and retained native
+  artifacts are now likewise named report identities/fingerprints. Lowering
+  still requires borrowed non-constructible admitted evidence; native custody
+  retains the strong selected-closure digest plus exact requirement strings
+  and plan requirement catalogs, and exact-requirement substitution rejects
+  even when every compact execution coordinate is held equal. External-root
+  producer-schema cohorts now use a
   domain-separated SHA-256 commitment over the complete resolved schema for
   prebinding uniqueness, aggregation, lifecycle ownership, and epoch grouping;
   the historical schema FNV is report compatibility only. Required-slot
@@ -170,10 +177,36 @@ scanners, or receipts.
   receipt admission and component sealing replay both, so a compact-equal
   selected closure cannot substitute. Durable deployment-journal bytes and
   normalized may-write frames likewise expose their FNV values only as report
-  coordinates beside exact bytes/records or completeness/paths. Remaining work
-  is the broader compact-identity inventory and repository-wide enforcement,
-  including residual native-image, provider, stack/fuel, target-layout, and
-  build-time report fields.
+  coordinates beside exact bytes/records or completeness/paths. The target-
+  owned UEFI system-table layout now names its FNV value as a non-authoritative
+  report fingerprint, while lifecycle admission replays the complete target
+  slot and every exact field/aggregate layout row; a compact-equal structural
+  substitute rejects. Backend callback placements likewise name inbound and
+  registrar calling-plan FNV values as report coordinates; thunk binding
+  identity retains the exact inbound plan, and schedule replay rejects an
+  exact-plan substitution even when the compact report value is held equal.
+  Fixed-fuel, ordinary stack, and epoch-stack composition carriers likewise
+  name their FNV values as non-authoritative report/cache fingerprints while
+  retaining complete provider graphs, nesting relations, arithmetic inputs,
+  and admitted evidence; compact-equal graph substitutions remain structurally
+  distinct.
+  Fixed-record and conventional-sum `ConstMaterializable` carriers now also
+  name their layout and materialization FNV values as non-authoritative report
+  fingerprints. Replay retains and compares the exact typed value, complete
+  layout report, target byte order, selected sum case, and staged bytes, so a
+  compact-equal layout substitution rejects before materialization or copying.
+  Package-review provider projections likewise label plan FNV values as report
+  coordinates beside the exact package owners, schema, target, rows, and
+  declaration coordinates retained in canonical review evidence.
+  Native image region bytes, final text, and placed-region inventory now expose
+  their compact values only as report fingerprints beside domain-separated
+  byte/text/inventory digests. Native publication certificates and flat/bundle
+  replay retain the strong inventory digest, so compact-equal inventory-digest
+  substitution rejects. Remaining work is the broader compact-identity
+  inventory and repository-wide enforcement, including residual compiler/image
+  report projections, external-root execution summaries, task-specialization
+  coordinates, checked-Psi carriers, tooling views, and the build-evaluation
+  package discriminator.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

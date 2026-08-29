@@ -30,26 +30,27 @@ impl NativeSelectedProviderClosureDigest {
 }
 
 /// One selected provider plan projected into source-free native-artifact
-/// identity. Requirements are canonical, strictly ordered, and complete for
-/// this selected plan.
+/// reporting. Requirements are exact, canonical, strictly ordered, and
+/// complete for this selected plan; the compact plan coordinate is not
+/// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSelectedProviderPlan {
-    identity: u64,
+    report_identity: u64,
     requirement_identities: Vec<String>,
 }
 
 impl NativeSelectedProviderPlan {
-    pub fn new(identity: u64, mut requirement_identities: Vec<String>) -> Self {
+    pub fn new(report_identity: u64, mut requirement_identities: Vec<String>) -> Self {
         requirement_identities.sort();
         requirement_identities.dedup();
         Self {
-            identity,
+            report_identity,
             requirement_identities,
         }
     }
 
-    pub const fn identity(&self) -> u64 {
-        self.identity
+    pub const fn report_identity(&self) -> u64 {
+        self.report_identity
     }
 
     pub fn requirement_identities(&self) -> &[String] {
@@ -57,29 +58,53 @@ impl NativeSelectedProviderPlan {
     }
 }
 
-/// One exact admitted provider execution selected during native
-/// realization. This is an owned identity projection, not a provider
-/// occurrence or installation receipt.
+/// One source-free report projection of an exact admitted provider execution
+/// selected during native realization.
+///
+/// The exact requirement string and selected-plan requirement catalog are
+/// replayed here. Compact execution/root/contract coordinates remain reports;
+/// provider authority stays with the non-constructible evidence borrowed by
+/// lowering and the selected-closure digest retained by the artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeProviderExecution {
     requirement_identity: String,
-    provider_plan: u64,
-    provider_execution_identity: u64,
-    provider_execution_fingerprint: u64,
-    normalized_root_identity: u64,
-    boundary_contract_fingerprint: u64,
+    provider_plan_report_identity: u64,
+    provider_execution_report_identity: u64,
+    provider_execution_report_fingerprint: u64,
+    normalized_root_report_identity: u64,
+    boundary_contract_report_fingerprint: u64,
 }
 
 impl NativeProviderExecution {
     pub fn from_evidence(evidence: &dyn ProviderExecutionEvidence) -> Self {
         Self {
             requirement_identity: evidence.requirement_identity().to_owned(),
-            provider_plan: evidence.provider_plan(),
-            provider_execution_identity: evidence.provider_execution_identity(),
-            provider_execution_fingerprint: evidence.provider_execution_fingerprint(),
-            normalized_root_identity: evidence.normalized_root_identity(),
-            boundary_contract_fingerprint: evidence.boundary_contract_fingerprint(),
+            provider_plan_report_identity: evidence.provider_plan(),
+            provider_execution_report_identity: evidence.provider_execution_identity(),
+            provider_execution_report_fingerprint: evidence.provider_execution_fingerprint(),
+            normalized_root_report_identity: evidence.normalized_root_identity(),
+            boundary_contract_report_fingerprint: evidence.boundary_contract_fingerprint(),
         }
+    }
+
+    pub const fn provider_plan_report_identity(&self) -> u64 {
+        self.provider_plan_report_identity
+    }
+
+    pub const fn provider_execution_report_identity(&self) -> u64 {
+        self.provider_execution_report_identity
+    }
+
+    pub const fn provider_execution_report_fingerprint(&self) -> u64 {
+        self.provider_execution_report_fingerprint
+    }
+
+    pub const fn normalized_root_report_identity(&self) -> u64 {
+        self.normalized_root_report_identity
+    }
+
+    pub const fn boundary_contract_report_fingerprint(&self) -> u64 {
+        self.boundary_contract_report_fingerprint
     }
 }
 
@@ -89,23 +114,23 @@ impl ProviderExecutionEvidence for NativeProviderExecution {
     }
 
     fn provider_plan(&self) -> u64 {
-        self.provider_plan
+        self.provider_plan_report_identity
     }
 
     fn provider_execution_identity(&self) -> u64 {
-        self.provider_execution_identity
+        self.provider_execution_report_identity
     }
 
     fn provider_execution_fingerprint(&self) -> u64 {
-        self.provider_execution_fingerprint
+        self.provider_execution_report_fingerprint
     }
 
     fn normalized_root_identity(&self) -> u64 {
-        self.normalized_root_identity
+        self.normalized_root_report_identity
     }
 
     fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
+        self.boundary_contract_report_fingerprint
     }
 }
 
@@ -133,6 +158,77 @@ pub struct NativeArtifactParts {
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
+}
+
+type ProviderExecutionReportKey = (String, u64, u64, u64, u64, u64);
+
+fn validate_provider_execution_reports(
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+    provider_executions: &[NativeProviderExecution],
+    required_executions: &BTreeSet<ProviderExecutionReportKey>,
+) -> Result<(), &'static str> {
+    let mut prior_plan = None;
+    for plan in selected_provider_plans {
+        if plan.report_identity == 0
+            || prior_plan.is_some_and(|prior| prior >= plan.report_identity)
+        {
+            return Err("native artifact selected provider plans are not canonical and unique");
+        }
+        prior_plan = Some(plan.report_identity);
+        if plan.requirement_identities.is_empty()
+            || plan
+                .requirement_identities
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(
+                "native artifact selected provider requirements are not canonical and unique",
+            );
+        }
+    }
+
+    let mut prior_execution = None;
+    let mut seen_requirements = BTreeSet::new();
+    let mut reported_executions = BTreeSet::new();
+    for execution in provider_executions {
+        let key = (
+            execution.requirement_identity(),
+            execution.provider_plan_report_identity(),
+            execution.provider_execution_report_identity(),
+        );
+        if prior_execution.is_some_and(|prior| prior >= key) {
+            return Err("native artifact provider executions are not in canonical order");
+        }
+        prior_execution = Some(key);
+        if !seen_requirements.insert(execution.requirement_identity()) {
+            return Err("native artifact contains duplicate provider requirement executions");
+        }
+        let Some(plan) = selected_provider_plans
+            .iter()
+            .find(|plan| plan.report_identity == execution.provider_plan_report_identity())
+        else {
+            return Err("native artifact provider execution names an unselected plan");
+        };
+        if plan
+            .requirement_identities
+            .binary_search_by(|identity| identity.as_str().cmp(execution.requirement_identity()))
+            .is_err()
+        {
+            return Err("native artifact provider execution is absent from its selected plan");
+        }
+        reported_executions.insert((
+            execution.requirement_identity().to_owned(),
+            execution.provider_plan_report_identity(),
+            execution.provider_execution_report_identity(),
+            execution.provider_execution_report_fingerprint(),
+            execution.normalized_root_report_identity(),
+            execution.boundary_contract_report_fingerprint(),
+        ));
+    }
+    if reported_executions != *required_executions {
+        return Err("native artifact provider execution reports disagree with its image");
+    }
+    Ok(())
 }
 
 impl NativeArtifact {
@@ -176,65 +272,6 @@ impl NativeArtifact {
             return Err("native artifact selected provider closure has the reserved zero identity");
         }
 
-        let mut prior_plan = None;
-        for plan in &self.selected_provider_plans {
-            if plan.identity == 0 || prior_plan.is_some_and(|prior| prior >= plan.identity) {
-                return Err("native artifact selected provider plans are not canonical and unique");
-            }
-            prior_plan = Some(plan.identity);
-            if plan.requirement_identities.is_empty()
-                || plan
-                    .requirement_identities
-                    .windows(2)
-                    .any(|pair| pair[0] >= pair[1])
-            {
-                return Err(
-                    "native artifact selected provider requirements are not canonical and unique",
-                );
-            }
-        }
-
-        let mut prior_execution = None;
-        let mut seen_requirements = BTreeSet::new();
-        let mut admitted_executions = BTreeSet::new();
-        for execution in &self.provider_executions {
-            let key = (
-                execution.requirement_identity(),
-                execution.provider_plan(),
-                execution.provider_execution_identity(),
-            );
-            if prior_execution.is_some_and(|prior| prior >= key) {
-                return Err("native artifact provider executions are not in canonical order");
-            }
-            prior_execution = Some(key);
-            if !seen_requirements.insert(execution.requirement_identity()) {
-                return Err("native artifact contains duplicate provider requirement executions");
-            }
-            let Some(plan) = self
-                .selected_provider_plans
-                .iter()
-                .find(|plan| plan.identity == execution.provider_plan())
-            else {
-                return Err("native artifact provider execution names an unselected plan");
-            };
-            if plan
-                .requirement_identities
-                .binary_search_by(|identity| {
-                    identity.as_str().cmp(execution.requirement_identity())
-                })
-                .is_err()
-            {
-                return Err("native artifact provider execution is absent from its selected plan");
-            }
-            admitted_executions.insert((
-                execution.requirement_identity().to_owned(),
-                execution.provider_plan(),
-                execution.provider_execution_identity(),
-                execution.provider_execution_fingerprint(),
-                execution.normalized_root_identity(),
-                execution.boundary_contract_fingerprint(),
-            ));
-        }
         let required_executions = self
             .image
             .boundary_settlements()
@@ -248,20 +285,21 @@ impl NativeArtifact {
                     .map(|boundary| {
                         (
                             boundary.identity.clone(),
-                            execution.provider_plan,
-                            execution.provider_execution_identity,
-                            execution.provider_execution_fingerprint,
-                            execution.normalized_root_identity,
-                            execution.boundary_contract_fingerprint,
+                            execution.provider_plan_report_identity,
+                            execution.provider_execution_report_identity,
+                            execution.provider_execution_report_fingerprint,
+                            execution.normalized_root_report_identity,
+                            execution.boundary_contract_report_fingerprint,
                         )
                     })
             })
             .collect::<Option<BTreeSet<_>>>()
             .ok_or("native artifact image settlement names an absent boundary requirement")?;
-        if admitted_executions != required_executions {
-            return Err("native artifact provider execution closure disagrees with its image");
-        }
-        Ok(())
+        validate_provider_execution_reports(
+            &self.selected_provider_plans,
+            &self.provider_executions,
+            &required_executions,
+        )
     }
 
     pub const fn target(&self) -> omega_target::NativeTarget {
@@ -318,5 +356,32 @@ impl NativeArtifact {
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_equal_execution_cannot_substitute_an_exact_requirement() {
+        let selected = vec![NativeSelectedProviderPlan::new(
+            7,
+            vec!["core::Expected".to_owned()],
+        )];
+        let required = BTreeSet::from([("core::Expected".to_owned(), 7, 11, 13, 17, 19)]);
+        let substituted = vec![NativeProviderExecution {
+            requirement_identity: "core::Substitute".to_owned(),
+            provider_plan_report_identity: 7,
+            provider_execution_report_identity: 11,
+            provider_execution_report_fingerprint: 13,
+            normalized_root_report_identity: 17,
+            boundary_contract_report_fingerprint: 19,
+        }];
+
+        assert_eq!(
+            validate_provider_execution_reports(&selected, &substituted, &required),
+            Err("native artifact provider execution is absent from its selected plan"),
+        );
     }
 }

@@ -312,6 +312,15 @@ the existing atomic aggregate writer. Applying the carrier copies only after
 replay succeeds, so malformed evidence or a short destination leaves the
 destination unchanged.
 
+The normalized layout fingerprint and deterministic materialization identity
+are compact, non-authoritative report coordinates. Their compatibility
+accessors remain available, but the owning fields and explicit accessors name
+that report-only role. Fixed-record and conventional-sum replay authority comes
+from the retained typed value, complete layout report, target byte order, and
+exact staged bytes. Even if a substituted layout is assigned the same compact
+report coordinate, the hash-free structural comparison rejects it before
+materialization or copying.
+
 This slice deliberately rejects every NaN without canonical or selected exact
 raw-representation evidence, plus generic/opaque/quotient records, references,
 slices, Text, dynamic values, atomics, non-copy records, and malformed shapes.
@@ -324,10 +333,11 @@ target-independent geometry, and validates only the selected value payload.
 It emits the selected ordinal and payload into fresh zero-initialized staging,
 so inactive overlay bytes, intra-payload gaps, and tail padding remain zero.
 The non-clone carrier retains the selected case identity/ordinal, exact report
-and fingerprint, byte order, bytes, and deterministic identity. Replay uses an
-exact hash-free comparison that treats stable-numbered case/payload names as
-presentation while retaining authored ordinal and complete geometry; replay
-and short-destination rejection leave the destination unchanged. Mixed shapes,
+and report fingerprint, byte order, bytes, and deterministic report identity.
+Replay uses an exact hash-free comparison that treats stable-numbered
+case/payload names as presentation while retaining authored ordinal and
+complete geometry; replay and short-destination rejection leave the destination
+unchanged. Mixed shapes,
 sums nested in records or arrays, and sums whose all-case geometry requires a
 target capsule remain later rungs. Neither slice narrows the legacy typed-owned
 materialization API or establishes evaluator admission, quotient

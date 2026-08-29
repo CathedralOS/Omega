@@ -2809,3 +2809,262 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         );
     }
 }
+
+#[test]
+fn callback_calling_plan_compact_coordinates_are_report_only_beside_exact_plans() {
+    let root = workspace_root();
+    let placement_path = root.join(
+        "source/omega-rust/omega/backend/plans/omega-backend-plan/src/callback_placements.rs",
+    );
+    let placement = std::fs::read_to_string(&placement_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", placement_path.display()));
+    assert!(
+        placement.contains("pub boundary_calling_plan_report_fingerprint: u64")
+            && placement.contains("pub registrar_calling_plan_report_fingerprint: u64")
+            && placement.contains("callback_thunk_placement_identity_report_fingerprint")
+            && !placement.contains("pub boundary_calling_plan_fingerprint: u64")
+            && !placement.contains("pub registrar_calling_plan_fingerprint: u64"),
+        "backend callback-plan compact coordinates must remain explicitly report-only",
+    );
+    assert!(
+        placement.contains("pub boundary_entry_plan: BoundaryEntryPlan")
+            && placement.contains("pub registrar_boundary_entry_plan: BoundaryEntryPlan")
+            && placement.contains("boundary_entry_plan: placement.boundary_entry_plan.clone()"),
+        "callback thunk binding identity must retain exact inbound and registrar plans",
+    );
+
+    let schedule_path = root.join(
+        "source/omega-rust/omega/backend/plans/omega-backend-plan/src/callback_root_schedule.rs",
+    );
+    let schedule = std::fs::read_to_string(&schedule_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", schedule_path.display()));
+    assert!(
+        schedule.contains(
+            "schedule.placement_identity != callback_placement_binding_identity(placement)",
+        ) && schedule.contains("schedule.boundary_entry_plan != expected_boundary"),
+        "callback schedule replay must compare exact structural placement and validated plan",
+    );
+}
+
+#[test]
+fn native_provider_execution_compact_coordinates_are_report_only() {
+    let root = workspace_root();
+    let target_path =
+        root.join("source/omega-rust/omega/representations/omega-target-operations/src/lib.rs");
+    let target = std::fs::read_to_string(&target_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_path.display()));
+    assert!(
+        target.contains("pub struct ProviderPlanReportIdentity(u64)")
+            && target.contains("provider_execution_report_identity: u64")
+            && target.contains("provider_execution_report_fingerprint: u64")
+            && target.contains("normalized_root_report_identity: u64")
+            && target.contains("boundary_contract_report_fingerprint: u64")
+            && !target.contains("pub struct ProviderPlanIdentity(u64)"),
+        "target-operation provider coordinates must be explicitly non-authoritative reports",
+    );
+
+    let machine_path =
+        root.join("source/omega-rust/omega/representations/omega-machine-code/src/lib.rs");
+    let machine = std::fs::read_to_string(&machine_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_path.display()));
+    assert!(
+        machine.contains("pub provider_plan_report_identity: u64")
+            && machine.contains("pub provider_execution_report_identity: u64")
+            && machine.contains("pub provider_execution_report_fingerprint: u64")
+            && machine.contains("pub normalized_root_report_identity: u64")
+            && machine.contains("pub boundary_contract_report_fingerprint: u64")
+            && !machine.contains("pub provider_execution_identity: u64"),
+        "machine-code provider records must not imply compact executable authority",
+    );
+
+    let installation_path = root
+        .join("source/omega-rust/omega/backend/images/omega-image-emission/src/installation.rs");
+    let installation = std::fs::read_to_string(&installation_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+    assert!(
+        installation.contains("pub struct SelectedProviderPlanReportIdentity(NonZeroU64)")
+            && installation.contains("execution.provider_execution_report_identity")
+            && installation.contains("execution.boundary_contract_report_fingerprint")
+            && !installation.contains("pub struct SelectedProviderPlanIdentity(NonZeroU64)"),
+        "decodable installation provider coordinates must remain report-only",
+    );
+
+    let native_path =
+        root.join("source/omega-rust/omega/backend/artifacts/omega-native-artifact/src/lib.rs");
+    let native = std::fs::read_to_string(&native_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", native_path.display()));
+    assert!(
+        native.contains("selected_provider_closure_digest: NativeSelectedProviderClosureDigest")
+            && native.contains("requirement_identities: Vec<String>")
+            && native.contains("provider_execution_report_identity: u64")
+            && native.contains("boundary_contract_report_fingerprint: u64")
+            && native.contains("validate_provider_execution_reports")
+            && native.contains("compact_equal_execution_cannot_substitute_an_exact_requirement",),
+        "native artifacts must retain strong closure identity and exact requirement replay beside compact reports",
+    );
+}
+
+#[test]
+fn uefi_target_layout_fingerprint_is_report_only_beside_exact_replay() {
+    let root = workspace_root();
+    let target_path =
+        root.join("source/omega-rust/omega/representations/omega-target/src/uefi_system_table.rs");
+    let target = std::fs::read_to_string(&target_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_path.display()));
+    assert!(
+        target.contains("non_authoritative_layout_report_fingerprint: u64")
+            && target.contains("pub fn matches_exact_plan")
+            && target.contains("self.contents == expected.contents")
+            && !target.contains("\n    layout_identity: u64"),
+        "target-owned UEFI layout FNV must be report-only beside complete structural replay",
+    );
+
+    let lifecycle_path = root
+        .join("source/omega-rust/omega/backend/runtime/omega-external-roots/src/uefi_bootstrap.rs");
+    let lifecycle = std::fs::read_to_string(&lifecycle_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", lifecycle_path.display()));
+    assert!(
+        lifecycle.contains("if !integrity.layout().matches_exact_plan(&expected_layout)")
+            && lifecycle.contains("non_authoritative_layout_report_fingerprint: u64")
+            && !lifecycle.contains(
+                "integrity.layout().layout_identity() != expected_layout.layout_identity()",
+            ),
+        "UEFI lifecycle admission must compare the exact target layout rather than its compact report coordinate",
+    );
+}
+
+#[test]
+fn external_root_stack_and_fuel_fingerprints_are_report_only() {
+    let root = workspace_root();
+    let runtime = root.join("source/omega-rust/omega/backend/runtime/omega-external-roots/src");
+    let fixed = std::fs::read_to_string(runtime.join("fixed_fuel.rs"))
+        .expect("read external-root fixed fuel");
+    assert!(
+        fixed.contains("composition_evidence: FixedFuelCompositionEvidence")
+            && fixed.contains("demand: ComposedFuelDemand")
+            && fixed.contains("non_authoritative_composition_report_fingerprint: u64")
+            && fixed.contains("non_authoritative_report_fingerprint: u64")
+            && !fixed.contains("\n    fingerprint: u64")
+            && !fixed.contains("\n    pub(super) composition_fingerprint: u64"),
+        "fixed-fuel FNV values must remain report-only beside exact graph and suspension evidence",
+    );
+
+    let stack = std::fs::read_to_string(runtime.join("stack_demand.rs"))
+        .expect("read external-root stack composition");
+    assert!(
+        stack.contains("composition_evidence: StackCompositionEvidence")
+            && stack.contains("relation: StackNestingRelation")
+            && stack.contains("non_authoritative_artifact_composition_report_fingerprint: u64")
+            && stack.contains("non_authoritative_composition_report_fingerprint: u64")
+            && !stack.contains("\n    pub(super) artifact_composition_fingerprint: u64")
+            && !stack.contains("\n    composition_fingerprint: u64"),
+        "ordinary stack FNV values must remain report-only beside exact nesting evidence",
+    );
+
+    let epochs = std::fs::read_to_string(runtime.join("epoch_stack_demand.rs"))
+        .expect("read external-root epoch stack composition");
+    assert!(
+        epochs
+            .matches("non_authoritative_report_fingerprint: u64")
+            .count()
+            == 2
+            && epochs.contains("inputs: BTreeMap<ExternalRootId, EpochStackCompositionInput>")
+            && epochs.contains("inputs: BTreeMap<ExternalRootId, BoundEpochStackCompositionInput>")
+            && !epochs.contains("\n    fingerprint: u64"),
+        "epoch stack FNV values must remain report-only beside exact pure and bound inputs",
+    );
+
+    let adversarial = std::fs::read_to_string(runtime.join("tests.rs"))
+        .expect("read external-root adversarial tests");
+    assert!(
+        adversarial
+            .contains("collided.non_authoritative_artifact_composition_report_fingerprint =",)
+            && adversarial
+                .matches("collided.non_authoritative_composition_report_fingerprint =")
+                .count()
+                >= 2,
+        "stack and fixed-fuel tests must preserve compact-equal structural substitution coverage",
+    );
+}
+
+#[test]
+fn package_review_provider_plan_fingerprints_are_report_only() {
+    let root = workspace_root();
+    let evidence_path =
+        root.join("source/omega-rust/omega/packages/package-review/src/evidence/projection.rs");
+    let evidence = std::fs::read_to_string(&evidence_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
+    assert!(
+        evidence.matches("plan_report_fingerprint: u64").count() == 2
+            && evidence
+                .contains("pub(crate) rows: Vec<omega_effects::provider_plan::ProviderPlanRow>",)
+            && evidence
+                .contains("pub(crate) row_declarations: Vec<CheckedPackageProviderRowIdentity>",)
+            && !evidence.contains("pub(crate) plan_fingerprint: u64"),
+        "package-review compact plan values must remain report-only beside exact provider evidence",
+    );
+
+    let encoding_path = root
+        .join("source/omega-rust/omega/packages/package-review/src/encoding/values/providers.rs");
+    let encoding = std::fs::read_to_string(&encoding_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", encoding_path.display()));
+    assert!(
+        encoding.contains("encoder.u64(provider.plan_report_fingerprint)")
+            && encoding.contains("encode_provider_row")
+            && encoding.contains("encode_nominal(encoder, &provider.schema_declaration)"),
+        "canonical package review must serialize the report coordinate beside exact provider structure",
+    );
+}
+
+#[test]
+fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
+    let root = workspace_root();
+    let layout_plans =
+        root.join("source/omega-rust/psi/semantics/psi-build-time-evaluation/src/layout_plans");
+
+    let record = std::fs::read_to_string(layout_plans.join("const_materializable.rs"))
+        .expect("read fixed-layout ConstMaterializable implementation");
+    let record_carrier = record
+        .split("impl ValidatedConstMaterialization")
+        .next()
+        .expect("fixed materialization carrier precedes its implementation");
+    assert!(
+        record.contains("non_authoritative_layout_report_fingerprint: u64")
+            && record.contains("non_authoritative_materialization_report_fingerprint: u64")
+            && record.contains("layout: LayoutPlanReport")
+            && record.contains("value: BuildTimeValue")
+            && record.contains("bytes: Vec<u8>")
+            && record.contains("layout_plan_reports_match_for_replay(layout, &self.layout)")
+            && record.contains("replayed.bytes != self.bytes")
+            && record.contains(
+                "replay_rejects_layout_substitution_when_compact_report_fingerprint_is_forced_equal",
+            )
+            && !record_carrier.contains("\n    layout_fingerprint: u64")
+            && !record_carrier.contains("\n    identity: u64"),
+        "fixed const materialization must retain exact replay carriers beside report-only FNV values",
+    );
+
+    let sum = std::fs::read_to_string(layout_plans.join("const_sum_materializable.rs"))
+        .expect("read conventional-sum ConstMaterializable implementation");
+    let sum_carrier = sum
+        .split("impl ValidatedConstSumMaterialization")
+        .next()
+        .expect("sum materialization carrier precedes its implementation");
+    assert!(
+        sum.contains("non_authoritative_layout_report_fingerprint: u64")
+            && sum.contains("non_authoritative_materialization_report_fingerprint: u64")
+            && sum.contains("layout: ConventionalSumLayoutReport")
+            && sum.contains("value: BuildTimeValue")
+            && sum.contains("bytes: Vec<u8>")
+            && sum.contains(
+                "conventional_sum_layout_reports_match_for_replay(layout, &self.layout)",
+            )
+            && sum.contains("replayed.bytes != self.bytes")
+            && sum.contains(
+                "replay_rejects_sum_layout_substitution_when_compact_report_fingerprint_is_forced_equal",
+            )
+            && !sum_carrier.contains("\n    layout_fingerprint: u64")
+            && !sum_carrier.contains("\n    identity: u64"),
+        "sum const materialization must retain exact replay carriers beside report-only FNV values",
+    );
+}

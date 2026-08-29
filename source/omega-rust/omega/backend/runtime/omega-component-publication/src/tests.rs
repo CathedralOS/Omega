@@ -38,7 +38,7 @@ use omega_machine_code::{
 };
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, LinuxExitGroupI32Realization,
-    ProviderExecutionBinding, ProviderPlanIdentity, TerminalPsiProvenance,
+    ProviderExecutionBinding, ProviderPlanReportIdentity, TerminalPsiProvenance,
 };
 use psi_core::{BoundaryMachineId, EdgeId, MachineId, OperationId, ProfileDecisionId};
 use psi_extents::{
@@ -269,7 +269,7 @@ fn terminal_image(
     let edge = EdgeId::new(1).expect("edge");
     let bytes = omega_isa_x86_64::encode_linux_exit_group_i32(0);
     let provider = ProviderExecutionBinding::from_execution_record(
-        ProviderPlanIdentity::new(execution.plan).expect("provider plan"),
+        ProviderPlanReportIdentity::new(execution.plan).expect("provider plan"),
         execution.execution,
         execution.fingerprint,
         execution.root,

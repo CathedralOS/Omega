@@ -17,7 +17,7 @@ pub(crate) fn encode_provider(
     provider: &CheckedPackageProviderReview,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.string(&provider.plan_name)?;
-    encoder.u64(provider.plan_fingerprint);
+    encoder.u64(provider.plan_report_fingerprint);
     encoder.optional_package_identity(provider.realizing_package);
     encode_nominal(encoder, &provider.schema_declaration)?;
     encoder.string(&provider.provider_type)?;
@@ -53,7 +53,7 @@ pub(crate) fn encode_provider_family(
     encoder.sequence(&family.coordinates, |encoder, coordinate| {
         encoder.string(&coordinate.requirement_identity)?;
         encode_nominal(encoder, &coordinate.operator_declaration)?;
-        encoder.u64(coordinate.plan_fingerprint);
+        encoder.u64(coordinate.plan_report_fingerprint);
         Ok(())
     })
 }

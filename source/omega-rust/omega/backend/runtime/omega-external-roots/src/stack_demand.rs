@@ -288,8 +288,8 @@ pub struct ComposedStackDemand {
     pub(super) contributing_roots: BTreeSet<ExternalRootId>,
     validation_receipts: BTreeSet<StackValidationReceiptId>,
     pub(super) composition_evidence: StackCompositionEvidence,
-    pub(super) artifact_composition_fingerprint: u64,
-    pub(super) composition_fingerprint: u64,
+    pub(super) non_authoritative_artifact_composition_report_fingerprint: u64,
+    pub(super) non_authoritative_composition_report_fingerprint: u64,
 }
 
 impl ComposedStackDemand {
@@ -329,12 +329,24 @@ impl ComposedStackDemand {
         &self.validation_receipts
     }
 
+    /// Compatibility accessor for the non-authoritative compact report/cache
+    /// coordinate. Exact relation and summary evidence are retained above.
     pub const fn composition_fingerprint(&self) -> u64 {
-        self.composition_fingerprint
+        self.non_authoritative_composition_report_fingerprint
     }
 
+    /// Compatibility accessor for the artifact-wide compact report/cache
+    /// coordinate.
     pub const fn artifact_composition_fingerprint(&self) -> u64 {
-        self.artifact_composition_fingerprint
+        self.non_authoritative_artifact_composition_report_fingerprint
+    }
+
+    pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_composition_report_fingerprint
+    }
+
+    pub const fn non_authoritative_artifact_composition_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_artifact_composition_report_fingerprint
     }
 
     pub fn summary_evidence(
@@ -353,7 +365,7 @@ pub struct ArtifactStackComposition {
     demands: BTreeMap<ExternalRootId, ComposedStackDemand>,
     domain_wcsu_bytes: BTreeMap<StackDomain, u64>,
     domain_alignments: BTreeMap<StackDomain, u64>,
-    composition_fingerprint: u64,
+    non_authoritative_composition_report_fingerprint: u64,
 }
 
 impl ArtifactStackComposition {
@@ -373,8 +385,14 @@ impl ArtifactStackComposition {
         self.domain_alignments.get(&domain).copied()
     }
 
+    /// Compatibility accessor for the non-authoritative compact report/cache
+    /// coordinate. Exact per-root demands remain retained by this value.
     pub const fn composition_fingerprint(&self) -> u64 {
-        self.composition_fingerprint
+        self.non_authoritative_composition_report_fingerprint
+    }
+
+    pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_composition_report_fingerprint
     }
 }
 
@@ -468,7 +486,8 @@ pub fn compose_artifact_stacks<'a>(
             .map(|(root, summary)| (*root, (*summary).clone()))
             .collect(),
     };
-    let input_fingerprint = fingerprint_stack_inputs(relation, &by_root);
+    let non_authoritative_input_report_fingerprint =
+        non_authoritative_stack_inputs_report_fingerprint(relation, &by_root);
     let mut demands = BTreeMap::new();
     let mut domain_wcsu_bytes = BTreeMap::new();
     let mut domain_alignments = BTreeMap::new();
@@ -498,13 +517,13 @@ pub fn compose_artifact_stacks<'a>(
             .and_modify(|alignment: &mut u64| *alignment = (*alignment).max(wcsu_alignment))
             .or_insert(wcsu_alignment);
 
-        let mut fingerprint = Fnv1a::new();
-        fingerprint.u64(input_fingerprint);
-        fingerprint.u64(root.normalized_identity());
-        fingerprint.u64(composed_wcsu_bytes);
-        fingerprint.u64(wcsu_alignment);
+        let mut report_fingerprint = Fnv1a::new();
+        report_fingerprint.u64(non_authoritative_input_report_fingerprint);
+        report_fingerprint.u64(root.normalized_identity());
+        report_fingerprint.u64(composed_wcsu_bytes);
+        report_fingerprint.u64(wcsu_alignment);
         for contributor in &contributing_roots {
-            fingerprint.u64(contributor.normalized_identity());
+            report_fingerprint.u64(contributor.normalized_identity());
         }
         demands.insert(
             *root,
@@ -519,8 +538,9 @@ pub fn compose_artifact_stacks<'a>(
                 contributing_roots,
                 validation_receipts,
                 composition_evidence: composition_evidence.clone(),
-                artifact_composition_fingerprint: input_fingerprint,
-                composition_fingerprint: fingerprint.finish(),
+                non_authoritative_artifact_composition_report_fingerprint:
+                    non_authoritative_input_report_fingerprint,
+                non_authoritative_composition_report_fingerprint: report_fingerprint.finish(),
             },
         );
     }
@@ -529,7 +549,8 @@ pub fn compose_artifact_stacks<'a>(
         demands,
         domain_wcsu_bytes,
         domain_alignments,
-        composition_fingerprint: input_fingerprint,
+        non_authoritative_composition_report_fingerprint:
+            non_authoritative_input_report_fingerprint,
     })
 }
 
@@ -651,7 +672,7 @@ const fn stack_domain(stack: EntryStack) -> StackDomain {
     }
 }
 
-fn fingerprint_stack_inputs(
+fn non_authoritative_stack_inputs_report_fingerprint(
     relation: &StackNestingRelation,
     summaries: &BTreeMap<ExternalRootId, &ProviderStackSummary>,
 ) -> u64 {

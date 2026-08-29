@@ -254,7 +254,7 @@ fn fixed_array_layout_repeats_padded_nested_elements_and_rejects_overflow() {
 #[test]
 fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
     use omega_target_operations::{
-        MetadataOnlyPortRealization, ProviderExecutionBinding, ProviderPlanIdentity,
+        MetadataOnlyPortRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
     };
 
     let machine = MachineId::new(1).unwrap();
@@ -269,7 +269,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
     let u64_type =
         ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
     let provider_execution = ProviderExecutionBinding::from_execution_record(
-        ProviderPlanIdentity::new(7).unwrap(),
+        ProviderPlanReportIdentity::new(7).unwrap(),
         8,
         9,
         10,
@@ -489,7 +489,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
 fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inputs() {
     use omega_abstract_operations::CompletionClaimSource;
     use omega_target_operations::{
-        ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanIdentity,
+        ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
     };
     use psi_core::{ClaimId, StructuralDomainId};
     use psi_terminal::{CompletionReceipt, EntryClaim};
@@ -507,7 +507,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
     let storage_settle = OperationId::new(32).unwrap();
     let return_edge = EdgeId::new(31).unwrap();
     let provider_execution = ProviderExecutionBinding::from_execution_record(
-        ProviderPlanIdentity::new(31).unwrap(),
+        ProviderPlanReportIdentity::new(31).unwrap(),
         32,
         33,
         34,

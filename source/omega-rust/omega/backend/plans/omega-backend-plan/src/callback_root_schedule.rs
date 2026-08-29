@@ -317,7 +317,7 @@ mod tests {
             satisfaction_trait: symbol(1),
             satisfaction_requirement: symbol(2),
             canonical_requirement_overload: "Handler::call".to_owned(),
-            boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            boundary_calling_plan_report_fingerprint: validated.contract_fingerprint(),
             resource_receipt: resource_receipt(selected_machine, selected_entry),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
@@ -458,6 +458,22 @@ mod tests {
                 .unwrap_err()
                 .0
                 .contains("placement identity")
+        );
+
+        let (mut compact_equal_placement, compact_equal_schedule) = schedule();
+        let report = compact_equal_placement.boundary_calling_plan_report_fingerprint;
+        compact_equal_placement.boundary_entry_plan.state.preemption =
+            omega_calling_conventions::Preemption::ProviderDefined;
+        assert_eq!(
+            compact_equal_placement.boundary_calling_plan_report_fingerprint,
+            report,
+        );
+        assert!(
+            replay_callback_root_schedule(&compact_equal_schedule, &compact_equal_placement)
+                .unwrap_err()
+                .0
+                .contains("placement identity"),
+            "schedule replay must compare the exact plan before compact report coordinates",
         );
 
         let (placement, mut thunk_schedule) = schedule();

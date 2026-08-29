@@ -237,7 +237,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
     let scalar_type = ScalarType::Integer(i32_type);
     let provider_execution =
         omega_target_operations::ProviderExecutionBinding::from_execution_record(
-            omega_target_operations::ProviderPlanIdentity::new(901).unwrap(),
+            omega_target_operations::ProviderPlanReportIdentity::new(901).unwrap(),
             902,
             903,
             904,
@@ -475,7 +475,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
     };
     let provider = |seed| {
         omega_target_operations::ProviderExecutionBinding::from_execution_record(
-            omega_target_operations::ProviderPlanIdentity::new(seed).unwrap(),
+            omega_target_operations::ProviderPlanReportIdentity::new(seed).unwrap(),
             seed + 1,
             seed + 2,
             seed + 3,

@@ -601,11 +601,24 @@ fn encode_boundary_settlement(bytes: &mut Vec<u8>, settlement: &LegalizedBoundar
     bytes.extend_from_slice(&settlement.operation.get().to_le_bytes());
     bytes.extend_from_slice(&settlement.boundary.get().to_le_bytes());
     let execution = settlement.provider_execution;
-    bytes.extend_from_slice(&execution.provider_plan().get().to_le_bytes());
-    bytes.extend_from_slice(&execution.provider_execution_identity().to_le_bytes());
-    bytes.extend_from_slice(&execution.provider_execution_fingerprint().to_le_bytes());
-    bytes.extend_from_slice(&execution.normalized_root_identity().to_le_bytes());
-    bytes.extend_from_slice(&execution.boundary_contract_fingerprint().to_le_bytes());
+    bytes.extend_from_slice(
+        &execution
+            .provider_plan_report_identity()
+            .get()
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&execution.provider_execution_report_identity().to_le_bytes());
+    bytes.extend_from_slice(
+        &execution
+            .provider_execution_report_fingerprint()
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&execution.normalized_root_report_identity().to_le_bytes());
+    bytes.extend_from_slice(
+        &execution
+            .boundary_contract_report_fingerprint()
+            .to_le_bytes(),
+    );
     bytes.push(1);
     encode_len(bytes, settlement.arguments.len());
     for argument in &settlement.arguments {

@@ -313,36 +313,36 @@ pub fn derive_completion_provider_custody(
 /// target lowering, which requires the ledger-owned admitted binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProviderExecutionRecord {
-    pub provider_plan: u64,
-    pub provider_execution_identity: u64,
-    pub provider_execution_fingerprint: u64,
-    pub normalized_root_identity: u64,
-    pub boundary_contract_fingerprint: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_execution_report_identity: u64,
+    pub provider_execution_report_fingerprint: u64,
+    pub normalized_root_report_identity: u64,
+    pub boundary_contract_report_fingerprint: u64,
 }
 
 impl ProviderExecutionRecord {
     pub fn new(
-        provider_plan: u64,
-        provider_execution_identity: u64,
-        provider_execution_fingerprint: u64,
-        normalized_root_identity: u64,
-        boundary_contract_fingerprint: u64,
+        provider_plan_report_identity: u64,
+        provider_execution_report_identity: u64,
+        provider_execution_report_fingerprint: u64,
+        normalized_root_report_identity: u64,
+        boundary_contract_report_fingerprint: u64,
     ) -> Option<Self> {
         [
-            provider_plan,
-            provider_execution_identity,
-            provider_execution_fingerprint,
-            normalized_root_identity,
-            boundary_contract_fingerprint,
+            provider_plan_report_identity,
+            provider_execution_report_identity,
+            provider_execution_report_fingerprint,
+            normalized_root_report_identity,
+            boundary_contract_report_fingerprint,
         ]
         .iter()
         .all(|identity| *identity != 0)
         .then_some(Self {
-            provider_plan,
-            provider_execution_identity,
-            provider_execution_fingerprint,
-            normalized_root_identity,
-            boundary_contract_fingerprint,
+            provider_plan_report_identity,
+            provider_execution_report_identity,
+            provider_execution_report_fingerprint,
+            normalized_root_report_identity,
+            boundary_contract_report_fingerprint,
         })
     }
 }
@@ -350,11 +350,11 @@ impl ProviderExecutionRecord {
 impl From<ProviderExecutionBinding> for ProviderExecutionRecord {
     fn from(binding: ProviderExecutionBinding) -> Self {
         Self {
-            provider_plan: binding.provider_plan().get(),
-            provider_execution_identity: binding.provider_execution_identity(),
-            provider_execution_fingerprint: binding.provider_execution_fingerprint(),
-            normalized_root_identity: binding.normalized_root_identity(),
-            boundary_contract_fingerprint: binding.boundary_contract_fingerprint(),
+            provider_plan_report_identity: binding.provider_plan_report_identity().get(),
+            provider_execution_report_identity: binding.provider_execution_report_identity(),
+            provider_execution_report_fingerprint: binding.provider_execution_report_fingerprint(),
+            normalized_root_report_identity: binding.normalized_root_report_identity(),
+            boundary_contract_report_fingerprint: binding.boundary_contract_report_fingerprint(),
         }
     }
 }

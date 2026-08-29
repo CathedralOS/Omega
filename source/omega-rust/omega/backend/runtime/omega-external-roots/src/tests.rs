@@ -5474,8 +5474,10 @@ fn stack_composition_retains_exact_inputs_beyond_compact_fingerprints() {
 
     let exact = without_edge.demand(root).expect("root demand");
     let mut collided = with_edge.demand(root).expect("root demand").clone();
-    collided.artifact_composition_fingerprint = exact.artifact_composition_fingerprint;
-    collided.composition_fingerprint = exact.composition_fingerprint;
+    collided.non_authoritative_artifact_composition_report_fingerprint =
+        exact.non_authoritative_artifact_composition_report_fingerprint;
+    collided.non_authoritative_composition_report_fingerprint =
+        exact.non_authoritative_composition_report_fingerprint;
 
     assert_eq!(exact.composed_wcsu_bytes, collided.composed_wcsu_bytes);
     assert_eq!(exact.contributing_roots, collided.contributing_roots);
@@ -5708,7 +5710,8 @@ fn fixed_fuel_composition_retains_exact_graph_beyond_compact_fingerprint() {
     };
     let mut collided = compose_fixed_fuel(root_identity, [&drifted_root, &drifted_leaf])
         .expect("equal-total drifted fuel graph");
-    collided.composition_fingerprint = exact.composition_fingerprint;
+    collided.non_authoritative_composition_report_fingerprint =
+        exact.non_authoritative_composition_report_fingerprint;
 
     assert_eq!(exact.units, collided.units);
     assert_eq!(exact.summaries, collided.summaries);

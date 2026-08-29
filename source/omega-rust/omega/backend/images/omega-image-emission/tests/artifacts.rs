@@ -29,7 +29,7 @@ use omega_target::{NativeTarget, TargetProfile};
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
     LinuxExitGroupI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
-    ProviderPlanIdentity, TerminalPsiProvenance,
+    ProviderPlanReportIdentity, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
@@ -163,7 +163,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             }
         };
         let provider = ProviderExecutionBinding::from_execution_record(
-            ProviderPlanIdentity::new(91).unwrap(),
+            ProviderPlanReportIdentity::new(91).unwrap(),
             92,
             93,
             94,
@@ -346,7 +346,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     let exit_provider = Provider(980);
     let binding = |provider: &Provider| {
         ProviderExecutionBinding::from_execution_record(
-            ProviderPlanIdentity::new(provider.provider_plan()).unwrap(),
+            ProviderPlanReportIdentity::new(provider.provider_plan()).unwrap(),
             provider.provider_execution_identity(),
             provider.provider_execution_fingerprint(),
             provider.normalized_root_identity(),
@@ -2242,7 +2242,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "76ee6e4ef16aff878c7f1959a23d0dc7cdf064c340ba63ee86f56e50b5e7442d"
+        "088e99aa938c1a25f862e691e162aaa6a49e5256da6946be4a726f116efd6dc2"
     );
 
     let mut changed_plan = plan;
@@ -2408,7 +2408,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     let settlement_operation = operation_id(2);
     let service = ServiceId::new(1).unwrap();
     let boundary = BoundaryMachineId::new(1).unwrap();
-    let provider_plan = ProviderPlanIdentity::new(7).unwrap();
+    let provider_plan = ProviderPlanReportIdentity::new(7).unwrap();
     let provider_execution =
         ProviderExecutionBinding::from_execution_record(provider_plan, 8, 9, 10, 11).unwrap();
     let realization = MetadataOnlyPortRealization {
