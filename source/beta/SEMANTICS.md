@@ -26,9 +26,9 @@ A parsed procedure contains:
 3. ordered, procedure-scoped state blocks; and
 4. the source-order fallthrough edge from each block to the next block.
 
-The fixed compiler subject `bc.beta` is well formed. Handling arbitrary bytes
-fed *to* that compiler is ordinary Beta byte-I/O behavior; the quantified input
-stream is not reparsed as the definition of Beta itself.
+A runnable Beta program has exactly one zero-parameter `main`. Handling bytes
+fed to a compiler written in Beta is ordinary Beta byte-I/O behavior; that
+input stream is not reparsed as the definition of Beta itself.
 
 ## 2. Configurations
 
@@ -55,18 +55,19 @@ updates the resolved local. A well-formed program never reads an uninitialized
 or unresolved local.
 
 `pending_exhaustion` is observer ghost state and is not addressable by the Beta
-program. It begins as `None`. `B_bc1` is fixed in
-[`compiler/validation/MAXIMAL_OBSERVATION.md`](compiler/validation/MAXIMAL_OBSERVATION.md). A
-resource admission that would exceed a declared checked ceiling records sticky
+program. It begins as `None`. An exact compiler edge fixes its resource profile
+beside the canonical source/tape subjects. A resource admission that would
+exceed a declared checked ceiling records sticky
 `Exhaust(kind, limit, requested)` provenance before the overlapping write or
-recursive activation. The exact `bc.beta` control flow may then execute its
+recursive activation. The exact program control flow may then execute its
 specified safe return and cleanup suffix; the pending provenance is projected
 to the typed `Exhaust` terminal when the compiler returns its resource status.
 Those cleanup steps may extend stdout but may not perform the refused admission,
 clear the first-failure provenance, or turn exhaustion back into success.
-Out-of-range raw memory remains a stuck configuration until Alpha's corresponding
-edge is hardened or an independent proof shows it unreachable; `B_bc1` requires
-the latter proof for `bc.beta`.
+Out-of-range raw memory remains a stuck configuration until Alpha's
+corresponding edge is hardened or an independent proof shows it unreachable.
+Every admitted compiler tape must prove the latter under its exact profile,
+including non-aliasing between source-visible memory and compiler frames/stacks.
 
 ## 3. Expression order and arithmetic
 
@@ -175,9 +176,9 @@ exhaustion retains every byte emitted before it, including any specified safe
 cleanup suffix after the refused admission. `Diverge` means an infinite small-
 step run; a fuel limit or wall-clock timeout cannot be relabelled as a trap.
 
-The `bc.beta` theorem required by `compiler/validation/MAXIMAL_OBSERVATION.md` compares this maximal
-Beta observation with the exact Alpha tape observation for every finite input
-stream admitted by `B_bc1`.
+A compiler-refinement theorem compares this maximal Beta observation with the
+exact Alpha tape observation for every finite input stream admitted by the
+edge's exact resource profile.
 
 ## 8. Constructive trace presentation for compiler admission
 
@@ -218,18 +219,13 @@ fuel limit and ROOT execution remain tests, not divergence evidence.
 - `reference/beta-correctness-fuzz.sh` compares interpreted and compiled runs;
 - `reference/beta-io-exhaust.sh` exhausts all 256 single-byte inputs for its
   admitted programs;
-- `source-exhaustion.sh` pins `B_bc1` resource boundaries;
-- `source/beta/compiler/validation/admission/bc-artifact-structure.sh` checks the
-  exact artifact's reachable instruction framing and direct targets below `bc`.
-- `source/beta/compiler/validation/admission/bc-block-control.sh` reconstructs one
-  canonical exact-source/exact-artifact obligation and checks its component
-  Alpha programs through the final ROOT maximal-observation conjunction.
+- `compiler/cold-start/test.sh` exercises arbitrary accepted/rejected source
+  against the Alpha-written compiler candidate; and
+- `compiler/validation/admission/bc-artifact-structure.sh` is a generic
+  reachable-instruction and procedure-region checker being retargeted to the
+  canonical compiler tape.
 
-These executable gates are evidence for the declared `B_bc1` relation. The
-ROOT conjunction covers memory bounds, call/return discipline, complete output
-traces, traps, exhaustion, and divergent cases, but it is not a certificate
-accepted by the universal derivation checker. Complete admission requires the
-ordinary first-order trace, synchronization, observation, and well-founded
-stuttering derivation described above. Soundness of the executable
-reconstruction against these written semantics remains an explicit lattice
-obligation.
+These gates are regression evidence. Complete admission still requires exact
+source/tape obligation reconstruction and the ordinary first-order trace,
+synchronization, observation, and well-founded-stuttering derivation described
+above.

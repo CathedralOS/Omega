@@ -1,9 +1,0 @@
-; Independent exact-shape tranche for gen_store and the complete statement
-; family. The checked call-bound prefix transfers control here. No semantic
-; theorem is imported or exported by this process.
-
-stack_register_custody_init:
-        imm r1, 546000
-        imm r2, 1414681427             ; SSRT
-        store r1, r2
-        jmp statement_family_shape_init

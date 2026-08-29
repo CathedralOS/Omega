@@ -1,7 +1,9 @@
 #!/usr/bin/env sh
-# Shared loader for the platform-independent, lattice-built Beta compiler tape.
+# Shared loader for the current platform-independent Beta compiler tape.
 # Source tools/lattice/paths.sh first. The function stamps the tape into the audited
-# Alpha seed selected for the host; no Rust producer participates.
+# Alpha seed selected for the host. The current tape is the historical
+# `bc.beta` fixed point and remains migration evidence until the Alpha-written
+# compiler tape replaces it.
 
 [ -n "${OMEGA_PATH_BETA:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
   echo "beta artifact: source tools/lattice/paths.sh first" >&2

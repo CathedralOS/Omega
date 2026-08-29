@@ -1,9 +1,0 @@
-; Continue Checker E from independently rebuilt EXPS into full-Word DECW.
-
-bc_post_expect:
-        call emit_dec_word_reset
-        call emit_dec_word_require_stack_root
-        call emit_dec_require_shape
-        call emit_dec_word_domain_init
-        call emit_dec_word_prove_rows
-        jmp emit_dec_word_publication_init

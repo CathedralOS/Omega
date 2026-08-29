@@ -1,8 +1,9 @@
 # The Beta language
 
-> The small structured systems layer above Alpha assembly. `bc.beta` implements
-> this surface and self-hosts; the rung name and place in
-> `Alpha → Beta → Gamma → Delta` are fixed by bootstrap decision D6.
+> The small structured systems layer above Alpha assembly. The canonical
+> compiler is implemented in Alpha; `bc.beta` is a self-hosted comparison.
+> The rung name and place in `Alpha → Beta → Gamma → Delta` are fixed by
+> bootstrap decision D6.
 > Runtime meaning is fixed separately by [`SEMANTICS.md`](SEMANTICS.md).
 
 ## What it is
@@ -77,8 +78,9 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 - No algebraic data, pattern matching, ownership, effects, generics, or proofs.
 - String literals exist only inside `emit`; there is no string value type.
 
-These are rung boundaries, not unfinished Gamma or Delta features. The
-self-hosting compiler is [`bc.beta`](compiler/bc.beta); its
-fixed-point and language corpus are gated by
-`source/beta/compiler/validation/selfhost.sh`
-and `source/beta/test.sh`.
+These are rung boundaries, not unfinished Gamma or Delta features. The current
+Alpha-written compiler candidate is
+[`compiler/cold-start/bc-alpha.alpha`](compiler/cold-start/bc-alpha.alpha).
+[`compiler/bc.beta`](compiler/bc.beta), its fixed point, and
+`source/beta/test.sh` remain bounded differential evidence while the Alpha
+implementation is promoted; they do not define compiler authority.

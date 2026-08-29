@@ -1,4 +1,0 @@
-; Continue Checker E from independently rebuilt cursor/skip summaries.
-
-bc_post_skip_ws:
-        jmp expect_summary_init

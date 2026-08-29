@@ -776,3 +776,153 @@ block-loop API.
 - Tempting but wrong: permit cyclic `Jump`/`Conditional` graphs by weakening
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
+
+## Q18 — Close the Delta v1 semantic contract
+
+### Context
+
+Delta is the independent C-like compiler-host language accepted by the
+Gamma-written Delta compiler and used to author the first full Omega compiler
+implementation `D`. `source/delta/LANGUAGE.md` now separates Delta from the
+deleted Beta-written Delta-to-Gamma route, but a corpus audit found choices that
+change source validity or observable meaning. Implementing them ad hoc inside
+`delta_compiler.gamma` would make the compiler, rather than the language
+contract, define Delta.
+
+The current candidate native compiler prototype uses the intended plain core:
+records, fixed arrays, `i32`/`u8`, receiver machines, states, arithmetic,
+strings, and Console calls. It does not require packages, attributes,
+contracts, proof syntax, range types, or general domains. The broader test
+corpus does exercise several of those unsettled forms.
+
+### Problem statement
+
+The following decisions must be closed together:
+
+1. `Incomplete` is currently listed as a `DeltaV1` result and later called not
+   a Delta result. Decide whether it is a language observation, an
+   execution-profile outcome, or an outer compiler/checker status. Enumerate
+   every exact reject code/offset and trap kind so failure is deterministic.
+2. Decide whether keywords are reserved or contextual. The grammar reserves
+   `state`, `transition`, `machine`, and others, while
+   `contextual-state-identifiers.delta` uses them as identifiers. The reserved
+   set also currently omits `use`, `requires`, `ensures`, and `assert`.
+3. Either define or remove v1 `use`, attributes, domains, `requires`,
+   `ensures`, and `terminates by`. Existing tests additionally use field
+   domains, a special `result` binding, and `i32 in 0..N` range types that the
+   grammar does not admit. Define whether `min`/`max` are reserved builtins,
+   shadowable builtins, or ordinary declarations.
+4. Define the sealed boundary ABI: whether bare `read_byte`/`write_byte` are
+   sugar for `self.console`, the type/lifetime of decoded string literals, and
+   their conversion to `&[u8]` for `write_line`.
+5. Define the outcome of a scalar transition with no matching arm and no `_`.
+6. Reconcile one Delta translation unit with the package-resolved closure `D`:
+   select either one canonical packed/resolved unit supplied as compiler input
+   or a real Delta module/import model with an exact closure owner.
+
+### Proposed direction
+
+Keep Delta v1 deliberately small and sufficient for `D`:
+
+- make `Incomplete` an explicit verifier/compiler resource outcome outside
+  source execution, while `Exit`, `Reject`, `Trap`, and `Diverges` are Delta
+  observations; bind private-capacity failures to `Incomplete` without partial
+  artifact bytes;
+- reserve the complete keyword set and rewrite tests that pin the deleted
+  translator's contextual-keyword behavior;
+- omit `use`, attributes, range types, proof-oriented contracts, and
+  `terminates by` from v1 unless a concrete `D` implementation need is shown;
+  retain only arithmetic-domain placements that receive complete rules;
+- define string literals as immutable call-scoped byte views, and define bare
+  byte I/O as exact sugar for the single threaded Console capability;
+- trap deterministically on a nonexhaustive scalar transition; and
+- give the Delta compiler one already resolved, canonically packed translation
+  unit, leaving package resolution outside Delta semantics but inside exact
+  source custody.
+
+This direction minimizes the Gamma compiler and keeps package/proof semantics
+out of Delta without weakening its ability to host a robust compiler.
+
+### Alternates
+
+- Acceptable: retain contracts and arithmetic domains if their complete static,
+  dynamic, failure, and result-binding rules are fixed now and needed by `D`.
+- Acceptable: use contextual keywords if every grammar position has an
+  unambiguous deterministic resolution rule and the complexity is justified.
+- Acceptable: make `Incomplete` part of a larger profiled evaluation judgment,
+  provided it is no longer simultaneously denied as a Delta result and its
+  relation to divergence/exhaustion is exact.
+- Tempting but wrong: implement whatever the 75 historical positive files happen
+  to accept and call that the Delta specification.
+- Tempting but wrong: retain the old translator's private capacities, exit
+  codes, or Darwin output behavior as language rules.
+
+## Q19 — Select one typed executable Gamma contract
+
+### Context
+
+Gamma is the safe definitional rung used to write the Delta compiler. The
+current repository implements two disconnected surfaces:
+
+- `interp.beta` accepts untyped `def* EXPR` programs and evaluates a final
+  expression; and
+- `typeck.beta` accepts typed `data* def*` programs, checks every definition,
+  and has no executable entry or final expression.
+
+The intended Delta compiler must be typed and executable. Gamma is otherwise
+pure and currently has no source-level byte-I/O effects. A Beta-written
+Gamma-to-Alpha compiler therefore cannot choose its entry, byte-stream ABI,
+outcome mapping, or fuel meaning without adding language semantics.
+
+### Problem statement
+
+Fix one canonical contract for:
+
+1. typed executable grammar and erasure/evaluation after type checking;
+2. a unique entry declaration;
+3. a pure compiler ABI mapping sealed Alpha stdin bytes into a Gamma value and
+   the accepted Gamma result into exact tape/stdout bytes;
+4. malformed source, type error, trap, private exhaustion, fuel exhaustion,
+   divergence, and the no-partial-artifact rule; and
+5. whether the current 50,000,000-call evaluator fuel is language meaning or a
+   verifier-selected resource-profile parameter.
+
+The contract must support arbitrary constructor arity and realistic functions
+with more than Beta's four register arguments. Those are implementation ABI
+requirements, not reasons to extend Beta or Alpha.
+
+### Proposed direction
+
+Use one typed `data* def*` source language with a distinguished declaration of
+type equivalent to:
+
+```text
+main : Bytes -> CompileOutcome
+```
+
+`Bytes` and `CompileOutcome` are ordinary closed Gamma data types fixed by the
+compiler-entry profile. The generated Alpha runtime alone reads sealed stdin,
+constructs `Bytes`, invokes pure Gamma `main`, and serializes the selected
+outcome. Successful artifact bytes are exact; rejection, trap, or private
+resource exhaustion publishes no partial tape. Call fuel and heap/tape limits
+are explicit resource-profile parameters and cannot change Gamma meaning.
+
+The Beta-written compiler then type-checks before emission, erases types into a
+defined runtime representation, uses a custom arbitrary-arity Gamma frame ABI,
+preserves proper tail calls, and emits Alpha tape directly. `interp.beta` and
+`typeck.beta` remain semantic oracles/components only while they expose distinct
+failures.
+
+### Alternates
+
+- Acceptable: retain a final typed expression rather than a named `main`, if
+  its type and byte-stream adapter are equally unique and explicit.
+- Acceptable: define a different closed `Bytes`/outcome carrier, provided the
+  mapping to sealed input, exact output, and failure status is canonical.
+- Tempting but wrong: compile the untyped interpreter language while describing
+  Gamma as the typed safety rung.
+- Tempting but wrong: publish an interpreter plus serialized AST as the final
+  compiler architecture; it duplicates the evaluator in every tape and leaves
+  the compiler dependent on interpreter capacities and dispatch cost.
+- Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
+  Gamma source merely to avoid defining the compiler-entry adapter.

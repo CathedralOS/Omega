@@ -1,6 +1,0 @@
-; Default Checker-E terminal continuation.  Other lower-rooted checkers may
-; compose the complete E5PK publication into a larger theorem without copying
-; the label-emitter proof family.
-
-label_emitters_post_publication:
-        jmp scan_owned_effects_init

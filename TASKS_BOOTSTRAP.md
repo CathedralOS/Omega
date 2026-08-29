@@ -34,11 +34,14 @@ delete it. Git history is the archive; the repository is not.
   decoder, and the entire Darwin-native Delta publication/custody apparatus.
   They crossed the immediate-predecessor boundary and established the wrong
   artifact identity.
-- [ ] Move the current Delta-written Omega compiler work from
-  `source/delta/compiler/main.delta` to the `source/omega/` closure `D` after a
-  focused role audit. Delete pieces that only serve the removed Gamma/native
-  route; retain Delta source tests only when they state Delta semantics or test
-  the Gamma-written replacement compiler.
+- [ ] Reconcile the current Delta-written native compiler prototype at
+  `source/delta/compiler/main.delta` before moving any useful code into the
+  `source/omega/` closure `D`. The audit found a restricted single-source
+  frontend and Darwin ARM64 assembly backend, not a full Omega compiler. A path
+  move now would be a semantic overclaim. Delete prototype pieces that cannot
+  be economically adapted to the complete Omega frontend/Psi/product backend;
+  retain Delta source tests only when they state Delta semantics or test the
+  Gamma-written replacement compiler.
 - [ ] Audit every remaining bootstrap viewer, generated report, repeated-run
   receipt, wrapper, fixed-point gate, and differential implementation. Give it
   one bounded diagnostic or canonical-edge role, or delete it.
@@ -89,24 +92,32 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
   executable from beyond its immediate successor.
-- [ ] Make every README distinguish the language accepted by a compiler from
+- [x] Make every rung/compiler README distinguish the language accepted by a compiler from
   the language in which it is implemented. The source suffix names the latter;
-  the owner directory names the former.
+  the owner directory names the former. The Alpha/Beta/Gamma/Delta/Omega roots,
+  compiler owners, rung pages, repository map, and chain manifest now use this
+  distinction consistently; paths that still contradict it are migration tasks
+  above rather than alternate roles.
 
 ## 1. Alpha execution floor
 
-- [ ] Keep `source/alpha/SEMANTICS.md`, the audited seed implementations, and
+- [x] Keep `source/alpha/SEMANTICS.md`, the audited seed implementations, and
   conformance tests synchronized. A seed consumes an exact length-prefixed tape
-  and exposes the exact Alpha observation model.
-- [ ] Treat tape stamping as transparent packaging. No Mach-O, PE, ELF, code
+  and exposes the exact Alpha observation model. `source/alpha/verify.sh --edge`
+  currently passes all 25 conformance cases and exact assembler reconstruction.
+- [x] Treat tape stamping as transparent packaging. No Mach-O, PE, ELF, code
   signature, linker receipt, or installation inventory becomes compiler
-  identity above the seed.
-- [ ] Keep the root derivation checker separate from the VM and assembler. Its
+  identity above the seed. Canonical locators and manifests identify tapes;
+  `seed_env.sh` only constructs disposable execution containers.
+- [x] Keep the root derivation checker separate from the VM and assembler. Its
   calculus may check every compiler edge, but the checker is not a language
-  rung and never decides artifact-specific obligations by itself.
-- [ ] If execution speed becomes unacceptable, first profile the VM and tape.
+  rung and never decides artifact-specific obligations by itself. It is owned
+  by `source/alpha/checker/` and reconstructs independently below Beta.
+- [x] Ratify the performance boundary: if execution speed becomes unacceptable, first profile the VM and tape.
   A general checked Alpha-to-native realization may be proposed; source-,
-  function-, hash-, or workload-specific jets are forbidden.
+  function-, hash-, or workload-specific jets are forbidden. No current floor
+  measurement triggers escalation: the complete Alpha-written Beta compiler
+  surface gate runs 104 cases in under three seconds on the development host.
 
 ## 2. Alpha-written Beta compiler
 
@@ -119,10 +130,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds `bc.beta`, then `bc.beta` becomes canonical” logic.
-- [ ] Reassess the large `bc.beta` refinement/admission tree module by module.
+- [x] Reassess the large `bc.beta` refinement/admission tree module by module.
   Adapt general Alpha-machine decoding, observation, stuttering, and proof-DAG
   machinery to the actual Alpha-written compiler edge. Delete source-specific
   machinery that exists only to prove the noncanonical `bc.beta` fixed point.
+  The retained surface is the generic artifact-structure check, generic FOL
+  trace seam, stress/refinement harness, and bounded fixed-point comparator;
+  about 65,000 source-specific lines and their wrapper scripts were removed.
 - [ ] Retain `bc.beta` only as a bounded independent Beta compiler comparison
   and Beta-language regression subject. If it does not expose failures not
   covered more cheaply, delete it and its fixed-point gate.
@@ -133,11 +147,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Beta-written Gamma compiler
 
-- [ ] **BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
+- [ ] **DESIGN-BLOCKED — Q19: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
   implement `source/gamma/compiler/gamma_compiler.beta` as a standalone
   compiler from Gamma source to Alpha tape. It may reuse or reorganize
   `interp.beta` and `typeck.beta`; no external interpreter may remain part of
-  compilation.
+  compilation. Q19 must first select one typed executable grammar, entry/stream
+  ABI, outcome model, and fuel/resource meaning. The current interpreter and
+  type checker implement disconnected untyped-executable and typed-nonexecuting
+  languages, so choosing either in code would invent Gamma semantics.
 - [ ] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Delete either if the canonical compiler subsumes
   its useful failure detection.
@@ -147,11 +164,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Gamma-written Delta compiler
 
-- [ ] **FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
+- [ ] **DESIGN-BLOCKED — Q18: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
   semantics, deterministic execution model, sealed byte I/O contract, and
   resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling.
-- [ ] **BUILD-DELTA-COMPILER.** Implement
+  language; it does not inherit Omega meaning merely by sharing spelling. Q18
+  must close the contradictory `Incomplete` placement, exact reject/trap
+  taxonomy, keyword policy, optional domains/contracts, builtin resolution,
+  Console/string ABI, scalar-transition miss, and closure presentation.
+- [ ] **DESIGN-BLOCKED — Q18: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
@@ -159,6 +179,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] Turn the existing Delta tests into positive, negative, trap, and
   `Incomplete` conformance for that compiler. Delete cases that merely pin
   quirks of the removed translator.
+  - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
+    removed Darwin-native route rather than authoritative Delta observations.
+  - [ ] Classify `contextual-state-identifiers.delta`, `fieldsat.delta`, the
+    range/contracts portion of `discharge.delta`, and `calls.delta` after Q18.
+    They currently contradict the written keyword/domain/result/builtin rules.
 - [ ] Check exact Gamma-source-to-Alpha-tape refinement, including realistic
   source closures large enough to compile `D`.
 
@@ -167,7 +192,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] **OWN-OMEGA-D.** Reconcile and move the useful portion of current
   `source/delta/compiler/main.delta` to `source/omega/omega_compiler.delta`.
   Establish one exact package-resolved closure `D`; do not preserve historical
-  filenames, snapshots, or native-publication adapters as authorities.
+  filenames, snapshots, or native-publication adapters as authorities. This is
+  downstream of Q18; the audited prototype has 63 receiver machines and 1,217
+  states but emits only Darwin ARM64 assembly and lacks the complete Omega
+  frontend, checking/Psi pipeline, optimizer, and product target model.
 - [ ] Make `D` implement the complete Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are allowed; weakened Omega semantics are not.

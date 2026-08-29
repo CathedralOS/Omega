@@ -143,6 +143,8 @@ accept byte_memory 'proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 
 accept word_memory 'proc main() { let b = 2097152 word[b] = 42 return word[b] }' 42
 accept nested_memory 'proc main() { let b = 2097152 word[b] = b + 16 byte[b + 16] = 77 return byte[word[b]] }' 77
 accept call_statement 'proc main() { let b = 2097152 touch(b) return word[b] } proc touch(p) { word[p] = 42 return 0 }' 42
+accept final_fallthrough_zero 'proc main() { return f(42) } proc f(x) { }' 0
+accept explicit_return_preserved 'proc main() { return f(42) } proc f(x) { return x }' 42
 accept_io byte_io 'proc main() { let c = read_byte() write_byte(c + 1) return c }' A 65 B
 accept_io emit_text 'proc main() { emit("A\n") return 42 }' '' 42 'A\n'
 accept_io emit_empty 'proc main() { emit("") return 7 }' '' 7 ''
@@ -156,24 +158,23 @@ fi
 
 printf '%s' 'imm r15,1048576
 imm r14,1048576
+imm r13,8
 call main
 halt r0
 main:
-imm r5,8
-sub r15,r5
+sub r15,r13
 store r15,r14
 mov r14,r15
 imm r0,42
 mov r15,r14
 load r14,r15
-imm r2,8
-add r15,r2
+add r15,r13
 ret
+imm r0,0
 
 mov r15,r14
 load r14,r15
-imm r2,8
-add r15,r2
+add r15,r13
 ret
 ' > "$TMP/literal.expected"
 if cmp -s "$TMP/literal.alpha" "$TMP/literal.expected"; then
@@ -192,6 +193,12 @@ reject duplicate_proc 'proc main() { return 1 } proc main() { return 2 }'
 reject duplicate_parameter 'proc main() { return f(1, 2) } proc f(x, x) { return x }'
 reject duplicate_local 'proc main() { let x = 1 let x = 2 return x }'
 reject reserved_local 'proc main() { let return = 1 return 0 }'
+reject reserved_read_proc 'proc read_byte() { return 1 } proc main() { return 0 }'
+reject reserved_write_proc 'proc write_byte(x) { return x } proc main() { return 0 }'
+reject reserved_read_local 'proc main() { let read_byte = 1 return read_byte }'
+reject reserved_write_local 'proc main() { let write_byte = 1 return write_byte }'
+reject reserved_read_state 'proc main() { state read_byte { return 0 } }'
+reject reserved_write_state 'proc main() { state write_byte { return 0 } }'
 reject unknown_variable 'proc main() { return x }'
 reject unknown_assignment 'proc main() { x = 1 return x }'
 reject unknown_call 'proc main() { return nope() }'
@@ -233,7 +240,7 @@ i=0
 while [ "$i" -lt 65 ]; do deep_load="${deep_load}]"; i=$((i + 1)); done
 deep_load="${deep_load} }"
 reject load_nesting_extent "$deep_load"
-wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 12000; i++) printf "+1"; print " }" }')
+wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 14000; i++) printf "+1"; print " }" }')
 reject output_extent "$wide"
 many_slots=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
 reject slot_extent "$many_slots"

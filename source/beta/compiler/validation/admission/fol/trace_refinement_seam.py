@@ -111,10 +111,7 @@ def main() -> int:
     gamma_definitions = Path(sys.argv[6]).read_bytes()
     fol_dir = Path(sys.argv[7])
 
-    positives = [
-        fol_dir / "trace-refinement.proof",
-        fol_dir / "bc-main-resource-refinement.proof",
-    ]
+    positives = [fol_dir / "trace-refinement.proof"]
     negatives = sorted((fol_dir / "negative").glob("*.proof"))
     cases = [(path, "accept") for path in positives]
     cases += [(path, "reject") for path in negatives]
