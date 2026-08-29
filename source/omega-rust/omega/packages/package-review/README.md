@@ -12,9 +12,9 @@ src/
 |-- lib.rs                    public entrance and explicit reexports
 |-- evidence/                 stable compiler-issued review vocabulary
 |   |-- identity.rs           package/toolchain nominal identity
-|   |-- signatures.rs         public signature and generic parameter shapes
+|   |-- signatures/           types, callables, traits, and external supply
 |   |-- public_api.rs         domain and data API shapes
-|   |-- contracts.rs          contract, proposition, and expression vocabulary
+|   |-- contracts/            expressions, propositions, declarations, and callable contracts
 |   |-- authority.rs          reach, capability, mutation, crash, and termination
 |   |-- projection.rs         complete review aggregate and internal row pairings
 |   `-- rows.rs               canonical row and source-coordinate carriers
