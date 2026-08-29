@@ -298,6 +298,49 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
         "the typed-to-checked transition must return the provider facts settled beside the program"
     );
 
+    let selected_execution_dispatches = [
+        "omega_selected_dispatch::settle_selected_operator_adapter_dispatch(",
+        "omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(",
+        "omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(",
+        "omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(",
+    ];
+    let mut ordered_transition_suffix = transition.as_str();
+    for settlement_step in [
+        "build_selected_component_progress_manifest(",
+        selected_execution_dispatches[0],
+        selected_execution_dispatches[1],
+        selected_execution_dispatches[2],
+        selected_execution_dispatches[3],
+        "elaborate_task_activation_plans(",
+    ] {
+        let offset = ordered_transition_suffix
+            .find(settlement_step)
+            .unwrap_or_else(|| {
+                panic!(
+                    "the selected-execution phase transition must own ordered step `{settlement_step}`"
+                )
+            });
+        ordered_transition_suffix = &ordered_transition_suffix[offset + settlement_step.len()..];
+    }
+    for settled_output in ["component_progress", "task_activations"] {
+        assert!(
+            transition.contains(&format!("pub(super){settled_output}:")),
+            "the final selected-execution settlement surface must carry `{settled_output}`"
+        );
+        let returned_settlement = transition
+            .split_once("Ok(SelectedExecutionSettlementSurface{")
+            .map(|(_, returned_settlement)| returned_settlement)
+            .expect("selected execution must return its named settlement surface");
+        assert!(
+            returned_settlement.contains(settled_output),
+            "selected execution must return settled output `{settled_output}`"
+        );
+    }
+    assert!(
+        transition.contains("structSelectedExecutionSettlement"),
+        "phase transitions must publish selected execution through a named settlement surface"
+    );
+
     for driver_relative_path in [
         "source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs",
         "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/checked_entry.rs",
@@ -324,6 +367,29 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     assert!(
         !checked_entry.contains("checked.program="),
         "checked orchestration must not replace the checked program after its phase transition"
+    );
+    for dispatch in selected_execution_dispatches {
+        assert!(
+            !checked_entry.contains(dispatch),
+            "checked orchestration must consume selected-execution settlement instead of directly calling `{dispatch}`"
+        );
+    }
+    for phase_owned_step in [
+        "build_selected_component_progress_manifest(",
+        "elaborate_task_activation_plans(",
+    ] {
+        assert!(
+            !checked_entry.contains(phase_owned_step),
+            "checked orchestration must not directly perform phase-owned settlement step `{phase_owned_step}`"
+        );
+    }
+    assert!(
+        checked_entry.contains("selected_execution_settlement"),
+        "checked orchestration must consume a named selected-execution settlement surface"
+    );
+    assert!(
+        checked_entry.contains("ExactComponentProgressRoot::new("),
+        "checked orchestration may derive only the exact component-progress root passed into selected-execution settlement"
     );
 }
 

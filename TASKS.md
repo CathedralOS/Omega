@@ -2665,8 +2665,16 @@ Remaining:
   `Arc::get_mut`, calls the provider-fact binder, or replaces the checked
   program after the transition. Preliminary package-selection validation uses
   a distinct checked observation and cannot construct an incomplete final
-  surface. Selected execution-dispatch rewrites and the compiler-intrinsic
-  review-provenance courier remain open.
+  surface. Selected execution now closes through one consuming
+  `SelectedExecutionSettlementInput` as well. In the existing diagnostic order
+  it constructs component progress from the exact retained entry root, settles
+  operator and float dispatch, retains compiler-intrinsic review provenance,
+  settles boundary-adapter dispatch, and elaborates task activations from the
+  rewritten call tables. `SelectedExecutionSettlementSurface` owns the final
+  program and every resulting sidecar; `checked_entry` only derives the exact
+  progress root and consumes the complete surface. Remaining cleanup belongs
+  to the broader semantic-owner and observation/report consolidation below,
+  not post-check mutation or a mutable provenance courier.
 
   Restore the driver contract:
 

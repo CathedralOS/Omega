@@ -1,7 +1,8 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::phase_transitions::{
-    TypedToCheckedSettlementInput, symbol_resolved_trees_to_typed_trees,
-    syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
+    SelectedExecutionSettlementInput, TypedToCheckedSettlementInput, settle_selected_execution,
+    symbol_resolved_trees_to_typed_trees, syntax_trees_to_symbol_resolved_trees,
+    typed_trees_to_checked_trees,
 };
 use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
@@ -742,7 +743,7 @@ fn compile_to_checked_inner_with_replay(
         &typed,
         &selected_semantic_plans,
     )?;
-    let (selected_provider_plan_facts, mut selected_provider_provenance) =
+    let (selected_provider_plan_facts, selected_provider_provenance) =
         crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
             &typed,
             selected_provider_plans,
@@ -755,7 +756,7 @@ fn compile_to_checked_inner_with_replay(
             &selected_provider_plan_facts,
         )?;
     }
-    let mut checked = typed_trees_to_checked_trees(
+    let checked = typed_trees_to_checked_trees(
         typed,
         &mut timings,
         TypedToCheckedSettlementInput {
@@ -767,49 +768,26 @@ fn compile_to_checked_inner_with_replay(
             root_grants: &build_config.grants,
         },
     )?;
-    let callback_placements = std::mem::take(&mut checked.callback_placements);
-    let selected_provider_plan_facts = checked.selected_provider_plan_facts;
-    let component_progress =
-        crate::pipeline::component_progress::build_selected_component_progress_manifest(
-            &checked.program,
-            &selected_provider_plan_facts,
-            selected_program_entry.as_ref().map(|entry| {
-                let source = entry.source_signature();
-                crate::pipeline::component_progress::ExactComponentProgressRoot::new(
-                    source.machine_symbol(),
-                    source.normalized_callable_identity(),
-                )
-            }),
-            None,
-        )?;
-    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
-        &mut checked.program,
-        &selected_provider_plan_facts,
-    )?;
-    omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
-        &mut checked.program,
-        &selected_provider_plan_facts,
-    )?;
-    omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
-        &checked.program,
-        &selected_provider_plan_facts,
-        &mut selected_provider_provenance,
-    )?;
-    // Preserve boundary-requirement proof/evidence at checking time, then
-    // redirect only execution to the selected checked adapter.
-    omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
-        &mut checked.program,
-        &selected_provider_plan_facts,
-    )?;
-    let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
-        &checked.program,
-        &selected_provider_plan_facts,
-        provider_selection_target,
+    let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
+        let source = entry.source_signature();
+        crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+            source.machine_symbol(),
+            source.normalized_callable_identity(),
+        )
+    });
+    let selected_execution_settlement = settle_selected_execution(
+        checked,
+        SelectedExecutionSettlementInput {
+            exact_component_progress_root,
+            provider_selection_target,
+            selected_provider_provenance,
+        },
     )?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).
-    let program = Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone());
+    let program = Arc::try_unwrap(selected_execution_settlement.program)
+        .unwrap_or_else(|shared| (*shared).clone());
     let dependency_closure = package_inputs.map(PackageCompilationInputs::dependency_closure);
     let source_consumption_commitment = package_inputs
         .map(|inputs| {
@@ -844,16 +822,18 @@ fn compile_to_checked_inner_with_replay(
         optimization_selections,
         optimization_selection_identity,
         optimization_report,
-        selected_provider_plans: selected_provider_plan_facts,
+        selected_provider_plans: selected_execution_settlement.selected_provider_plan_facts,
         provider_plans,
         root_grants: build_config.grants,
-        accepted_template_classifications: checked.accepted_template_classifications,
-        selected_provider_provenance,
-        component_progress,
-        task_activations,
-        callback_placements,
+        accepted_template_classifications: selected_execution_settlement
+            .accepted_template_classifications,
+        selected_provider_provenance: selected_execution_settlement.selected_provider_provenance,
+        component_progress: selected_execution_settlement.component_progress,
+        task_activations: selected_execution_settlement.task_activations,
+        callback_placements: selected_execution_settlement.callback_placements,
         build_evaluation_usage,
         build_observation_summary,
-        contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
+        contract_entailment_stand_downs: selected_execution_settlement
+            .contract_entailment_stand_downs,
     })
 }

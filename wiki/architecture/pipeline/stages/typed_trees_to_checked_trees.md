@@ -34,6 +34,16 @@ replaces the checked program with an out-of-band provider settlement.
 Preliminary package-selection validation uses a separate checked observation;
 it does not fabricate a final surface with absent settlement fields.
 
+The next consuming transition owns selected execution as one ordered
+settlement. It constructs component progress from the exact retained entry
+root before any execution redirection, settles operator and float dispatch,
+retains compiler-intrinsic package-review provenance, settles boundary-adapter
+dispatch, and only then elaborates task activations from the rewritten call
+tables. `SelectedExecutionSettlementSurface` returns the final checked program,
+provider facts and provenance, callback placements, component progress, task
+activations, accepted-template classifications, and entailment stand-downs.
+The compiler coordinator does not courier or mutate any of those results.
+
 ## Semantic Ownership
 
 This stage is the first durable semantic fact owner. It should be the place

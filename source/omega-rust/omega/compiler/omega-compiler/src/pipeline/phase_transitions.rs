@@ -22,6 +22,30 @@ pub(super) struct CheckedProgramSurface {
     pub(super) contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
 }
 
+/// Checked semantics after selected execution has been settled in the exact
+/// compiler-owned dispatch order. This surface owns the now-closed review
+/// provenance alongside every checked-phase sidecar.
+pub(super) struct SelectedExecutionSettlementSurface {
+    pub(super) program: Arc<CheckedProgram>,
+    pub(super) selected_provider_plan_facts: omega_effects::SelectedProviderPlanFacts,
+    pub(super) callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
+    pub(super) accepted_template_classifications:
+        omega_trust_model::AcceptedTemplateClassifications,
+    pub(super) contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
+    pub(super) selected_provider_provenance:
+        Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
+    pub(super) component_progress: Option<omega_effects::ComponentProgressManifest>,
+    pub(super) task_activations: omega_task_plans::TaskActivationPlanSet,
+}
+
+pub(super) struct SelectedExecutionSettlementInput<'a> {
+    pub(super) exact_component_progress_root:
+        Option<crate::pipeline::component_progress::ExactComponentProgressRoot<'a>>,
+    pub(super) provider_selection_target: omega_target::NativeTarget,
+    pub(super) selected_provider_provenance:
+        Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
+}
+
 /// Final typed settlements that must finish inside the phase transition that
 /// produces the checked program surface.
 pub(super) struct TypedToCheckedSettlementInput<'a> {
@@ -104,6 +128,54 @@ pub(super) fn typed_trees_to_checked_trees(
             accepted_template_classifications,
             contract_entailment_stand_downs,
         })
+    })
+}
+
+/// Consume a complete checked surface and settle every selected execution
+/// rewrite before publishing the final compiler-facing surface.
+pub(super) fn settle_selected_execution(
+    mut checked: CheckedProgramSurface,
+    mut settlement: SelectedExecutionSettlementInput<'_>,
+) -> Result<SelectedExecutionSettlementSurface, Vec<Diagnostic>> {
+    let component_progress =
+        crate::pipeline::component_progress::build_selected_component_progress_manifest(
+            &checked.program,
+            &checked.selected_provider_plan_facts,
+            settlement.exact_component_progress_root,
+            None,
+        )?;
+    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
+        &mut checked.program,
+        &checked.selected_provider_plan_facts,
+    )?;
+    omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
+        &mut checked.program,
+        &checked.selected_provider_plan_facts,
+    )?;
+    omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
+        &checked.program,
+        &checked.selected_provider_plan_facts,
+        &mut settlement.selected_provider_provenance,
+    )?;
+    omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
+        &mut checked.program,
+        &checked.selected_provider_plan_facts,
+    )?;
+    let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
+        &checked.program,
+        &checked.selected_provider_plan_facts,
+        settlement.provider_selection_target,
+    )?;
+
+    Ok(SelectedExecutionSettlementSurface {
+        program: checked.program,
+        selected_provider_plan_facts: checked.selected_provider_plan_facts,
+        callback_placements: checked.callback_placements,
+        accepted_template_classifications: checked.accepted_template_classifications,
+        contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
+        selected_provider_provenance: settlement.selected_provider_provenance,
+        component_progress,
+        task_activations,
     })
 }
 
