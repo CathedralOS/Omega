@@ -290,6 +290,270 @@ fn git_tree_graph_authenticates_before_blob_payloads_are_opened() {
 }
 
 #[test]
+fn selective_git_member_opens_only_authenticated_declarations_and_member_payloads() {
+    let (repo, _) = create_git_source("selective-member-payloads");
+    std::fs::create_dir_all(repo.join("packages/member/src")).expect("create member source");
+    std::fs::create_dir_all(repo.join("packages/member/tools")).expect("create member tools");
+    std::fs::write(repo.join("build.omg"), b"root declaration\n").expect("write root declaration");
+    std::fs::write(
+        repo.join("packages/member/build.omg"),
+        b"member declaration\n",
+    )
+    .expect("write member declaration");
+    std::fs::write(
+        repo.join("packages/member/src/lib.omg"),
+        b"machine Member::value() {}\n",
+    )
+    .expect("write member source");
+    std::fs::write(
+        repo.join("packages/member/tools/generate"),
+        b"#!/bin/sh\nexit 0\n",
+    )
+    .expect("write member executable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let mut permissions = std::fs::metadata(repo.join("packages/member/tools/generate"))
+            .expect("read executable metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(repo.join("packages/member/tools/generate"), permissions)
+            .expect("make member tool executable");
+        symlink("src/lib.omg", repo.join("packages/member/current"))
+            .expect("create member symlink");
+    }
+    std::fs::write(repo.join("unrelated.bin"), vec![b'x'; 4096])
+        .expect("write unrelated oversized blob");
+    run_test_git(&repo, ["add", "."]);
+    run_test_git(&repo, ["commit", "--quiet", "-m", "add workspace member"]);
+
+    let cache = temp_root("selective-member-payloads-cache");
+    let request = local_git_request(&repo, "HEAD");
+    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+        .expect("prime authenticated repository cache");
+    let tree = resolved.tree().to_owned();
+    let repository = open_verified_git_repository(&cache, &request);
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+    let projection = inspect_git_tree_projection(
+        &executor,
+        &repository,
+        &tree,
+        &GitTreeProjectionRequest::new(
+            [b"build.omg".to_vec(), b"packages/member/build.omg".to_vec()],
+            b"packages/member".to_vec(),
+        ),
+        LocalSourceLimits {
+            max_bytes: 1024,
+            ..LocalSourceLimits::default()
+        },
+    )
+    .expect("open only selected payloads beneath the package byte ceiling");
+
+    assert_eq!(projection.repository_tree_oid(), tree);
+    assert_eq!(projection.member().source_path(), b"packages/member");
+    assert_eq!(
+        projection.member().tree_oid(),
+        run_test_git_with_input(&repo, ["rev-parse", "HEAD:packages/member"], b"")
+    );
+    assert_eq!(projection.declarations().len(), 2);
+    assert!(matches!(
+        &projection.declarations()[0].kind,
+        GitTreeEntryKind::File { bytes, .. } if bytes.as_slice() == b"root declaration\n"
+    ));
+    assert!(projection.member().entries().iter().all(|entry| {
+        !entry.relative_bytes.starts_with(b"packages/member")
+            && entry.relative_bytes != b"unrelated.bin"
+    }));
+    assert!(projection.member().entries().iter().any(|entry| {
+        entry.relative_bytes == b"src/lib.omg"
+            && matches!(
+                &entry.kind,
+                GitTreeEntryKind::File { bytes, .. }
+                    if bytes.as_slice() == b"machine Member::value() {}\n"
+            )
+    }));
+    #[cfg(unix)]
+    {
+        assert!(projection.member().entries().iter().any(|entry| {
+            entry.relative_bytes == b"tools/generate"
+                && matches!(
+                    &entry.kind,
+                    GitTreeEntryKind::File {
+                        executable: true,
+                        ..
+                    }
+                )
+        }));
+        assert!(projection.member().entries().iter().any(|entry| {
+            entry.relative_bytes == b"current"
+                && matches!(
+                    &entry.kind,
+                    GitTreeEntryKind::Symlink { target_bytes }
+                        if target_bytes.as_slice() == b"src/lib.omg"
+                )
+        }));
+    }
+
+    drop(repository);
+    let _ = std::fs::remove_dir_all(&repo);
+    make_tree_owner_writable(&cache);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn selective_git_projection_rejects_duplicate_missing_and_wrong_type_paths() {
+    let (repo, _) = create_git_source("selective-member-path-errors");
+    std::fs::create_dir_all(repo.join("member/empty")).expect("create member directories");
+    std::fs::write(repo.join("member/build.omg"), b"declaration\n").expect("write declaration");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("build.omg", repo.join("member/declaration-link"))
+        .expect("create declaration symlink");
+    run_test_git(&repo, ["add", "."]);
+    run_test_git(&repo, ["commit", "--quiet", "-m", "add member paths"]);
+
+    let cache = temp_root("selective-member-path-errors-cache");
+    let request = local_git_request(&repo, "HEAD");
+    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+        .expect("prime authenticated repository cache");
+    let tree = resolved.tree().to_owned();
+    let repository = open_verified_git_repository(&cache, &request);
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+
+    for (projection_request, expected_message) in [
+        (
+            GitTreeProjectionRequest::new(
+                [b"main.omg".to_vec(), b"main.omg".to_vec()],
+                b"member".to_vec(),
+            ),
+            "requested more than once",
+        ),
+        (
+            GitTreeProjectionRequest::new([b"absent.omg".to_vec()], b"member".to_vec()),
+            "declaration path is absent",
+        ),
+        (
+            GitTreeProjectionRequest::new([b"member".to_vec()], b"member".to_vec()),
+            "declaration path is not a regular file",
+        ),
+        (
+            GitTreeProjectionRequest::new([b"main.omg".to_vec()], b"absent".to_vec()),
+            "member tree is absent",
+        ),
+        (
+            GitTreeProjectionRequest::new([b"main.omg".to_vec()], b"main.omg".to_vec()),
+            "member root is not a tree",
+        ),
+    ] {
+        let error = inspect_git_tree_projection(
+            &executor,
+            &repository,
+            &tree,
+            &projection_request,
+            LocalSourceLimits::default(),
+        )
+        .expect_err("invalid exact projection path must fail closed");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitTreeInvalid { ref message, .. }
+                if message.contains(expected_message)
+        ));
+    }
+
+    #[cfg(unix)]
+    for projection_request in [
+        GitTreeProjectionRequest::new([b"member/declaration-link".to_vec()], b"member".to_vec()),
+        GitTreeProjectionRequest::new([b"main.omg".to_vec()], b"member/declaration-link".to_vec()),
+    ] {
+        assert!(matches!(
+            inspect_git_tree_projection(
+                &executor,
+                &repository,
+                &tree,
+                &projection_request,
+                LocalSourceLimits::default(),
+            ),
+            Err(SourceResolveError::GitTreeInvalid { .. })
+        ));
+    }
+
+    drop(repository);
+    let _ = std::fs::remove_dir_all(&repo);
+    make_tree_owner_writable(&cache);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn selective_git_projection_authenticates_an_empty_member_tree() {
+    let (repo, _) = create_git_source("selective-empty-member");
+    let revision = add_empty_tree_commit(&repo);
+    let cache = temp_root("selective-empty-member-cache");
+    let request = local_git_request(&repo, &revision);
+    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+        .expect("prime authenticated empty-tree repository cache");
+    let repository = open_verified_git_repository(&cache, &request);
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+    let projection = inspect_git_tree_projection(
+        &executor,
+        &repository,
+        resolved.tree(),
+        &GitTreeProjectionRequest::new([b"main.omg".to_vec()], b"empty".to_vec()),
+        LocalSourceLimits {
+            max_files: 1,
+            max_bytes: 64,
+            max_depth: 0,
+        },
+    )
+    .expect("authenticate and project an empty member tree");
+
+    assert_eq!(
+        projection.member().tree_oid(),
+        "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    );
+    assert!(projection.member().entries().is_empty());
+
+    drop(repository);
+    let _ = std::fs::remove_dir_all(&repo);
+    make_tree_owner_writable(&cache);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn selective_git_graph_rejects_omitted_forged_and_duplicate_edges() {
+    let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
+    let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";
+    assert!(matches!(
+        authenticate_git_tree_graph(tree, &[]),
+        Err(SourceResolveError::GitObjectInvalid { .. })
+    ));
+    assert!(matches!(
+        authenticate_git_tree_graph(
+            tree,
+            &[authenticated_file_entry(
+                "1111111111111111111111111111111111111111",
+                "main.omg",
+                b""
+            )]
+        ),
+        Err(SourceResolveError::GitObjectInvalid { .. })
+    ));
+
+    let record = format!("100644 blob {blob} 6\tmain.omg\0");
+    let listing = [record.as_bytes(), record.as_bytes()].concat();
+    assert!(matches!(
+        parse_git_tree_entries(
+            &listing,
+            Path::new("duplicate-listing.git"),
+            LocalSourceLimits::default()
+        ),
+        Err(SourceResolveError::GitTreeInvalid { .. })
+    ));
+}
+
+#[test]
 fn git_object_authentication_rejects_mismatched_bytes_and_edges() {
     let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
     let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";
