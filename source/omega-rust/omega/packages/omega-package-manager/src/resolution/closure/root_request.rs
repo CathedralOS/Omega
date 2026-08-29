@@ -1,6 +1,6 @@
 //! Exact request that selected a dependency graph root.
 
-use omega_package_source::GitSourceRequest;
+use crate::resolution::binding::GitPackageSourceRequest;
 use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
 use std::path::PathBuf;
 
@@ -8,7 +8,7 @@ use std::path::PathBuf;
 /// requester, so its exact source request is retained separately.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageRootSourceRequest {
-    Git(GitSourceRequest),
+    Git(GitPackageSourceRequest),
     WorkspaceMember {
         workspace_root_source: SourceLineage,
         member_path: WorkspaceMemberPath,

@@ -6,7 +6,7 @@ use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatc
 use crate::resolution::PackageSourceCustody;
 use omega_package_source::{
     GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits, VerifiedPackageSourceEntry,
-    VerifiedPackageSourceEntryKind, capture_verified_package_source_snapshot,
+    VerifiedPackageSourceEntryKind, capture_verified_package_source_snapshot, resolve_local_source,
     verify_package_source_snapshot,
 };
 use sha2::{Digest, Sha256};
@@ -79,9 +79,23 @@ pub(super) fn capture_snapshot(
             .min(limits.maximum_bytes_per_snapshot()),
         max_depth: custody_limits.max_depth,
     };
+    verify_package_source_snapshot(
+        custody.acquisition_root(),
+        custody.resolution().content(),
+        custody.source_limits(),
+    )
+    .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
+    let selected_content = match custody.navigation() {
+        crate::resolution::PackageSourceNavigation::Root => custody.resolution().content().clone(),
+        crate::resolution::PackageSourceNavigation::Member(_) => {
+            let selected = resolve_local_source(custody.snapshot_root(), review_limits)
+                .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
+            omega_package_source::SourceContentDigest::derive(selected.content_identity.as_bytes())
+        }
+    };
     let entries = capture_verified_package_source_snapshot(
         custody.snapshot_root(),
-        custody.resolution().content(),
+        &selected_content,
         review_limits,
     )
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
@@ -120,7 +134,7 @@ pub(super) fn revalidate_snapshot(
     side: PackageSourcePatchSide,
 ) -> Result<(), PackageSourcePatchError> {
     verify_package_source_snapshot(
-        custody.snapshot_root(),
+        custody.acquisition_root(),
         custody.resolution().content(),
         custody.source_limits(),
     )

@@ -8,9 +8,11 @@ pub mod binding;
 pub mod closure;
 
 pub use binding::{
-    PackageSourceCustody, ResolvePackageSourceError, ResolvedPackageSource,
+    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
+    ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_with_storage,
     resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
+    resolve_selected_git_package_source_with_storage,
     resolve_workspace_member_package_source_with_storage,
 };
 #[cfg(test)]
@@ -33,6 +35,7 @@ pub use closure::{
     ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest, ResolvedSourceIdentity,
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, resolve_external_local_package_closure_with_storage,
     resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
+    resolve_selected_git_package_closure_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
 };

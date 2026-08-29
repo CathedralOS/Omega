@@ -130,6 +130,8 @@ fn bind_external_local_declared_source(
         PackageKey::new(declaration.name, lineage),
         resolution,
         source.snapshot_root().to_path_buf(),
+        source.snapshot_root().to_path_buf(),
+        super::PackageSourceNavigation::Root,
         limits,
         dependency_requests,
         source,

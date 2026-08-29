@@ -12,6 +12,7 @@ mod encoding;
 #[path = "validation.rs"]
 mod validation;
 
+use crate::resolution::binding::PackageSourceNavigation;
 use encoding::{
     Decoder, decode_dependency_selection, decode_root_selection, decode_source_identity,
     encode_hex, encode_subject, fingerprint,
@@ -19,7 +20,7 @@ use encoding::{
 use validation::{canonical_root_request, validate_subject};
 
 const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 2;
+pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 3;
 const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 64 * 1024 * 1024;
@@ -113,6 +114,7 @@ pub enum CanonicalRootSourceRequest {
     Git {
         requested_locator: String,
         requested_revision: String,
+        selection: PackageSelection,
     },
     WorkspaceMember {
         workspace_root_source: SourceLineage,
@@ -244,6 +246,7 @@ impl CanonicalDependencySourceSelection {
 pub struct CanonicalSourceClosureSubject {
     root: CanonicalRootSourceSelection,
     packages: Vec<ResolvedSourceIdentity>,
+    package_navigations: Vec<PackageSourceNavigation>,
     dependency_requests: Vec<CanonicalDependencySourceSelection>,
     canonical_bytes: Vec<u8>,
     fingerprint: CanonicalSourceClosureSubjectFingerprint,
@@ -266,6 +269,16 @@ impl CanonicalSourceClosureSubject {
             .map(|package| package.source().clone())
             .collect::<Vec<_>>();
         packages.sort_by(|left, right| left.key().cmp(right.key()));
+        let package_navigations = packages
+            .iter()
+            .map(|package| {
+                closure
+                    .custody(package.key())
+                    .expect("validated closure retains every package custody")
+                    .navigation()
+                    .clone()
+            })
+            .collect::<Vec<_>>();
         let mut dependency_requests = closure
             .source_requests()
             .dependencies()
@@ -282,7 +295,13 @@ impl CanonicalSourceClosureSubject {
                 .cmp(&right.requester)
                 .then(left.dependency_index.cmp(&right.dependency_index))
         });
-        Self::finish(root, packages, dependency_requests, limits)
+        Self::finish(
+            root,
+            packages,
+            package_navigations,
+            dependency_requests,
+            limits,
+        )
     }
 
     pub fn recover(
@@ -305,10 +324,15 @@ impl CanonicalSourceClosureSubject {
         let root = decode_root_selection(&mut decoder, limits)?;
         let package_count = decoder.count(limits.maximum_packages)?;
         let mut packages = Vec::with_capacity(package_count);
+        let mut package_navigations = Vec::with_capacity(package_count);
         for _ in 0..package_count {
             packages.push(decode_source_identity(
                 &mut decoder,
                 limits.maximum_identity_bytes,
+            )?);
+            package_navigations.push(encoding::decode_package_navigation(
+                &mut decoder,
+                limits.maximum_request_bytes,
             )?);
         }
         let request_count = decoder.count(limits.maximum_dependency_requests)?;
@@ -317,7 +341,13 @@ impl CanonicalSourceClosureSubject {
             dependency_requests.push(decode_dependency_selection(&mut decoder, limits)?);
         }
         decoder.finish()?;
-        let recovered = Self::finish(root, packages, dependency_requests, limits)?;
+        let recovered = Self::finish(
+            root,
+            packages,
+            package_navigations,
+            dependency_requests,
+            limits,
+        )?;
         if recovered.canonical_bytes != bytes {
             return Err(CanonicalSourceClosureSubjectError::new(
                 "source-closure subject is not canonically encoded",
@@ -332,6 +362,13 @@ impl CanonicalSourceClosureSubject {
 
     pub fn packages(&self) -> &[ResolvedSourceIdentity] {
         &self.packages
+    }
+
+    pub fn package_navigation(&self, package: &PackageKey) -> Option<&PackageSourceNavigation> {
+        self.packages
+            .binary_search_by(|source| source.key().cmp(package))
+            .ok()
+            .map(|index| &self.package_navigations[index])
     }
 
     pub fn dependency_requests(&self) -> &[CanonicalDependencySourceSelection] {
@@ -360,12 +397,25 @@ impl CanonicalSourceClosureSubject {
     fn finish(
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
+        package_navigations: Vec<PackageSourceNavigation>,
         dependency_requests: Vec<CanonicalDependencySourceSelection>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let limits = limits.compiler_bounded();
-        validate_subject(&root, &packages, &dependency_requests, limits)?;
-        let canonical_bytes = encode_subject(&root, &packages, &dependency_requests, limits)?;
+        validate_subject(
+            &root,
+            &packages,
+            &package_navigations,
+            &dependency_requests,
+            limits,
+        )?;
+        let canonical_bytes = encode_subject(
+            &root,
+            &packages,
+            &package_navigations,
+            &dependency_requests,
+            limits,
+        )?;
         if canonical_bytes.len() > limits.maximum_record_bytes {
             return Err(CanonicalSourceClosureSubjectError::new(
                 "source-closure subject exceeds its record-byte limit",
@@ -375,6 +425,7 @@ impl CanonicalSourceClosureSubject {
         Ok(Self {
             root,
             packages,
+            package_navigations,
             dependency_requests,
             canonical_bytes,
             fingerprint,

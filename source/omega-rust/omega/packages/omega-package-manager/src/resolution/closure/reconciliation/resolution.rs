@@ -133,7 +133,7 @@ where
             let candidates = observed.entry(target.clone()).or_default();
             if let Some(candidate) = candidates
                 .iter_mut()
-                .find(|candidate| candidate.custody == dependency)
+                .find(|candidate| candidate.custody.semantically_equivalent(&dependency))
             {
                 candidate.origins.push(origin);
             } else {

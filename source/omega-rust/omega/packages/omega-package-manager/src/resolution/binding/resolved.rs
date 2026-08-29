@@ -1,5 +1,6 @@
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::binding::PackageSourceCustody;
+use crate::resolution::binding::PackageSourceNavigation;
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
@@ -14,7 +15,9 @@ use std::path::{Path, PathBuf};
 pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
+    acquisition_root: PathBuf,
     snapshot_root: PathBuf,
+    navigation: PackageSourceNavigation,
     source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
     source: S,
@@ -24,7 +27,9 @@ impl<S> ResolvedPackageSource<S> {
     pub(super) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
+        acquisition_root: PathBuf,
         snapshot_root: PathBuf,
+        navigation: PackageSourceNavigation,
         source_limits: LocalSourceLimits,
         dependency_requests: Vec<DependencySourceRequest>,
         source: S,
@@ -32,7 +37,9 @@ impl<S> ResolvedPackageSource<S> {
         Self {
             key,
             resolution,
+            acquisition_root,
             snapshot_root,
+            navigation,
             source_limits,
             dependency_requests,
             source,
@@ -49,6 +56,14 @@ impl<S> ResolvedPackageSource<S> {
 
     pub fn snapshot_root(&self) -> &Path {
         &self.snapshot_root
+    }
+
+    pub fn acquisition_root(&self) -> &Path {
+        &self.acquisition_root
+    }
+
+    pub const fn navigation(&self) -> &PackageSourceNavigation {
+        &self.navigation
     }
 
     pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
@@ -73,7 +88,9 @@ impl<S> ResolvedPackageSource<S> {
         PackageSourceCustody::from_resolved_parts(
             self.key,
             self.resolution,
+            self.acquisition_root,
             self.snapshot_root,
+            self.navigation,
             self.source_limits,
             self.dependency_requests,
         )

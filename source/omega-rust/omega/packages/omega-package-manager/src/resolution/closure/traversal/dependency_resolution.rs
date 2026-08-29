@@ -5,18 +5,22 @@ use super::super::reconciliation::{
     ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
 use super::cache::{
-    SourceCacheLane, resolve_external_local_package_from_cache, resolve_git_from_cache,
+    GitAcquisitionCache, SourceCacheLane, resolve_external_local_package_from_cache,
     resolve_workspace_member_from_cache,
 };
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::manifest::dependencies::read::PackageSelection;
-use crate::resolution::binding::{PackageSourceCustody, ResolvePackageSourceError};
-use omega_package_source::{
-    ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
+use crate::manifest::{BuildDeclaration, extract_build_declaration};
+use crate::resolution::binding::{
+    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
+    ResolvePackageSourceError, bind_git_member_package_custody,
 };
-use omega_package_source::{GitSourceRequest, LocalSourceLimits};
-use std::collections::BTreeMap;
+use omega_package_source::LocalSourceLimits;
+use omega_package_source::{
+    ExternalSourceContext, ImmutableSourceResolution, PackageKey, SourceLineage,
+    WorkspaceLineageIdentity, WorkspaceMemberPath,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +28,29 @@ pub(super) struct WorkspaceContext {
     pub(super) root_source: SourceLineage,
     pub(super) root: PathBuf,
     pub(super) allows_external_paths: bool,
+    git_repository: Option<GitRepositoryContext>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GitRepositoryContext {
+    resolution: ImmutableSourceResolution,
+    declared_members: BTreeSet<WorkspaceMemberPath>,
+    source_limits: LocalSourceLimits,
+}
+
+impl WorkspaceContext {
+    pub(super) fn local(
+        root_source: SourceLineage,
+        root: PathBuf,
+        allows_external_paths: bool,
+    ) -> Self {
+        Self {
+            root_source,
+            root,
+            allows_external_paths,
+            git_repository: None,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -38,6 +65,7 @@ pub(super) fn resolve_registered_package_closure(
     workspaces: &mut BTreeMap<WorkspaceLineageIdentity, WorkspaceContext>,
     external_roots: &mut BTreeMap<PackageKey, PathBuf>,
     external_context: Option<&ExternalSourceContext>,
+    git_acquisitions: &mut GitAcquisitionCache,
 ) -> Result<
     ResolvedPackageSourceClosure,
     PackageSourceClosureResolutionError<ResolveDependencySourceError>,
@@ -53,22 +81,21 @@ pub(super) fn resolve_registered_package_closure(
                 selection,
                 ..
             } => {
-                if let PackageSelection::Named(package) = selection {
-                    return Err(
-                        ResolveDependencySourceError::NamedGitPackageSelectionUnavailable {
-                            package: package.clone(),
-                        },
-                    );
-                }
-                let resolved = resolve_git_from_cache(
-                    &GitSourceRequest::new(repository.clone(), Some(revision.clone()))?,
-                    git_cache,
-                    source_limits,
-                )?;
-                register_workspace(
+                let request = GitPackageSourceRequest::new(
+                    omega_package_source::GitSourceRequest::new(
+                        repository.clone(),
+                        Some(revision.clone()),
+                    )?,
+                    selection.clone(),
+                );
+                let resolved =
+                    git_acquisitions.resolve_selected(&request, git_cache, source_limits)?;
+                register_git_repository(
                     workspaces,
                     resolved.key().source_lineage(),
-                    resolved.snapshot_root(),
+                    resolved.acquisition_root(),
+                    resolved.resolution(),
+                    resolved.source_limits(),
                 )?;
                 Ok(resolved.into_custody())
             }
@@ -93,15 +120,36 @@ pub(super) fn resolve_registered_package_closure(
                     }
                 })?;
                 match normalize_member_path(base.as_deref(), location) {
-                    Ok(member_path) => resolve_workspace_member_from_cache(
-                        &context.root_source,
-                        member_path,
-                        &context.root,
-                        workspace_cache,
-                        source_limits,
-                    )
-                    .map(|resolved| resolved.into_custody())
-                    .map_err(ResolveDependencySourceError::from),
+                    Ok(member_path) => {
+                        if let Some(git_repository) = &context.git_repository {
+                            if !git_repository.declared_members.contains(&member_path) {
+                                return Err(
+                                    ResolveDependencySourceError::UndeclaredGitWorkspaceMember {
+                                        package: requester.key().clone(),
+                                        member_path,
+                                    },
+                                );
+                            }
+                            bind_git_member_package_custody(
+                                requester.key().source_lineage().clone(),
+                                git_repository.resolution.clone(),
+                                &context.root,
+                                member_path,
+                                git_repository.source_limits,
+                            )
+                            .map_err(ResolveDependencySourceError::from)
+                        } else {
+                            resolve_workspace_member_from_cache(
+                                &context.root_source,
+                                member_path,
+                                &context.root,
+                                workspace_cache,
+                                source_limits,
+                            )
+                            .map(|resolved| resolved.into_custody())
+                            .map_err(ResolveDependencySourceError::from)
+                        }
+                    }
                     Err(_)
                         if context.allows_external_paths
                             && external_context.is_some()
@@ -124,17 +172,30 @@ pub(super) fn resolve_registered_package_closure(
     )
 }
 
-pub(super) fn register_workspace(
+pub(super) fn register_git_repository(
     workspaces: &mut BTreeMap<WorkspaceLineageIdentity, WorkspaceContext>,
     root_source: &SourceLineage,
-    root: &Path,
+    acquisition_root: &Path,
+    resolution: &ImmutableSourceResolution,
+    source_limits: LocalSourceLimits,
 ) -> Result<WorkspaceLineageIdentity, ResolveDependencySourceError> {
+    let declaration =
+        extract_build_declaration(acquisition_root).map_err(ResolvePackageSourceError::from)?;
+    let declared_members = match declaration {
+        BuildDeclaration::Workspace(workspace) => workspace.members.into_iter().collect(),
+        BuildDeclaration::Package(_) | BuildDeclaration::Application(_) => BTreeSet::new(),
+    };
     let identity = WorkspaceLineageIdentity::from_root_source(root_source)
         .map_err(ResolvePackageSourceError::from)?;
     let context = WorkspaceContext {
         root_source: root_source.clone(),
-        root: root.to_path_buf(),
+        root: acquisition_root.to_path_buf(),
         allows_external_paths: false,
+        git_repository: Some(GitRepositoryContext {
+            resolution: resolution.clone(),
+            declared_members,
+            source_limits: source_limits.compiler_bounded(),
+        }),
     };
     if let Some(existing) = workspaces.get(&identity) {
         if existing != &context {
@@ -244,13 +305,23 @@ fn requester_workspace(
             lineage.workspace_identity().clone(),
             Some(lineage.member_path().as_str().to_owned()),
         )),
-        lineage @ (SourceLineage::GitHub(_)
-        | SourceLineage::GitLab(_)
-        | SourceLineage::Git(_)
-        | SourceLineage::ExternalLocal(_)) => {
-            let identity = register_workspace(workspaces, lineage, requester.snapshot_root())?;
-            Ok((identity, None))
+        lineage @ (SourceLineage::GitHub(_) | SourceLineage::GitLab(_) | SourceLineage::Git(_)) => {
+            let identity = WorkspaceLineageIdentity::from_root_source(lineage)
+                .map_err(ResolvePackageSourceError::from)?;
+            if !workspaces.contains_key(&identity) {
+                return Err(ResolveDependencySourceError::UnknownWorkspace {
+                    package: requester.key().clone(),
+                });
+            }
+            let member = match requester.navigation() {
+                PackageSourceNavigation::Root => None,
+                PackageSourceNavigation::Member(path) => Some(path.as_str().to_owned()),
+            };
+            Ok((identity, member))
         }
+        SourceLineage::ExternalLocal(_) => Err(ResolveDependencySourceError::UnknownWorkspace {
+            package: requester.key().clone(),
+        }),
     }
 }
 

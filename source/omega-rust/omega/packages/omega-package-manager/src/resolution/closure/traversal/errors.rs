@@ -1,7 +1,7 @@
 use super::super::reconciliation::PackageSourceClosureResolutionError;
 use crate::resolution::binding::ResolvePackageSourceError;
 use omega_package_source::GitSourceRequestError;
-use omega_package_source::{PackageKey, WorkspaceLineageIdentity};
+use omega_package_source::{PackageKey, WorkspaceLineageIdentity, WorkspaceMemberPath};
 use std::fmt;
 
 #[derive(Debug)]
@@ -89,8 +89,9 @@ pub enum ResolveDependencySourceError {
     },
     MissingExternalSourceContext,
     InvalidGitRequest(GitSourceRequestError),
-    NamedGitPackageSelectionUnavailable {
-        package: omega_package_source::PackageName,
+    UndeclaredGitWorkspaceMember {
+        package: PackageKey,
+        member_path: WorkspaceMemberPath,
     },
     Source(ResolvePackageSourceError),
 }
@@ -122,10 +123,14 @@ impl fmt::Display for ResolveDependencySourceError {
                 "an external-local dependency requires an explicit consuming source context",
             ),
             Self::InvalidGitRequest(error) => error.fmt(formatter),
-            Self::NamedGitPackageSelectionUnavailable { package } => write!(
+            Self::UndeclaredGitWorkspaceMember {
+                package,
+                member_path,
+            } => write!(
                 formatter,
-                "named Git package selection for `{}` is not available until authenticated member binding completes",
-                package.as_str()
+                "Git package `{}` requested undeclared workspace member `{}`",
+                package.name().as_str(),
+                member_path.as_str()
             ),
             Self::Source(error) => error.fmt(formatter),
         }

@@ -39,6 +39,7 @@ pub use traversal::{
     ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
     resolve_external_local_package_closure_with_storage,
     resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
+    resolve_selected_git_package_closure_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
 };

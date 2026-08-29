@@ -4,7 +4,7 @@ use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
 use super::cache::{
-    SourceCacheLane, resolve_external_local_package_from_cache,
+    GitAcquisitionCache, SourceCacheLane, resolve_external_local_package_from_cache,
     resolve_external_local_project_from_cache,
 };
 use super::dependency_resolution::resolve_registered_package_closure;
@@ -153,6 +153,7 @@ fn resolve_external_local_declared_closure_from_lanes(
         root.key().clone(),
         root.source().canonical_live_root().to_path_buf(),
     )]);
+    let mut git_acquisitions = GitAcquisitionCache::default();
 
     resolve_registered_package_closure(
         root_request,
@@ -165,6 +166,7 @@ fn resolve_external_local_declared_closure_from_lanes(
         &mut BTreeMap::new(),
         &mut external_roots,
         Some(&source_context),
+        &mut git_acquisitions,
     )
     .map_err(ResolveExternalLocalPackageClosureError::Closure)
 }

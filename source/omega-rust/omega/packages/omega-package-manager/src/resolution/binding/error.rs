@@ -2,6 +2,7 @@ use crate::manifest::dependencies::read::DependencyProjectionError;
 use crate::manifest::roles::PackageDeclarationError;
 use omega_package_source::IdentityError;
 use omega_package_source::SourceResolveError;
+use omega_package_source::{PackageName, WorkspaceMemberPath};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -21,6 +22,24 @@ pub enum ResolvePackageSourceError {
     },
     WorkspaceMemberIsRoot {
         workspace_root: PathBuf,
+    },
+    NamedGitSelectionRequiresWorkspace {
+        found: crate::manifest::BuildDeclarationKind,
+    },
+    GitWorkspaceMemberInvalid {
+        member_path: WorkspaceMemberPath,
+        error: Box<ResolvePackageSourceError>,
+    },
+    GitWorkspaceMemberNavigation {
+        member_path: WorkspaceMemberPath,
+        message: String,
+    },
+    NamedGitPackageMissing {
+        package: PackageName,
+    },
+    NamedGitPackageDuplicate {
+        package: PackageName,
+        member_paths: Vec<WorkspaceMemberPath>,
     },
 }
 
@@ -55,6 +74,42 @@ impl fmt::Display for ResolvePackageSourceError {
                 formatter,
                 "workspace member resolves to the whole workspace root `{}`",
                 workspace_root.display()
+            ),
+            Self::NamedGitSelectionRequiresWorkspace { found } => write!(
+                formatter,
+                "named Git package selection requires a workspace root, found {}",
+                found.as_str()
+            ),
+            Self::GitWorkspaceMemberInvalid { member_path, error } => write!(
+                formatter,
+                "declared Git workspace member `{}` is invalid: {error}",
+                member_path.as_str()
+            ),
+            Self::GitWorkspaceMemberNavigation {
+                member_path,
+                message,
+            } => write!(
+                formatter,
+                "cannot navigate declared Git workspace member `{}`: {message}",
+                member_path.as_str()
+            ),
+            Self::NamedGitPackageMissing { package } => write!(
+                formatter,
+                "Git workspace declares no member package named `{}`",
+                package.as_str()
+            ),
+            Self::NamedGitPackageDuplicate {
+                package,
+                member_paths,
+            } => write!(
+                formatter,
+                "Git workspace declares package `{}` at multiple member paths: {}",
+                package.as_str(),
+                member_paths
+                    .iter()
+                    .map(|path| path.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         }
     }

@@ -3,7 +3,7 @@
 use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
-use super::cache::{SourceCacheLane, resolve_workspace_member_from_cache};
+use super::cache::{GitAcquisitionCache, SourceCacheLane, resolve_workspace_member_from_cache};
 use super::dependency_resolution::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::resolution::binding::ResolvePackageSourceError;
@@ -181,12 +181,13 @@ fn resolve_workspace_package_closure_impl(
     }
     let mut workspaces = BTreeMap::from([(
         workspace_identity,
-        WorkspaceContext {
-            root_source: workspace_root_source.clone(),
-            root: canonical_workspace_root,
-            allows_external_paths: true,
-        },
+        WorkspaceContext::local(
+            workspace_root_source.clone(),
+            canonical_workspace_root,
+            true,
+        ),
     )]);
+    let mut git_acquisitions = GitAcquisitionCache::default();
 
     resolve_registered_package_closure(
         root_request,
@@ -199,6 +200,7 @@ fn resolve_workspace_package_closure_impl(
         &mut workspaces,
         &mut BTreeMap::new(),
         external_context,
+        &mut git_acquisitions,
     )
     .map_err(ResolveWorkspacePackageClosureError::Closure)
 }

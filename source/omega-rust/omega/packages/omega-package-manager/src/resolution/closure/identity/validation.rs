@@ -3,6 +3,7 @@ use super::{
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
     CanonicalSourceClosureSubjectLimits,
 };
+use crate::resolution::binding::PackageSourceNavigation;
 use crate::resolution::closure::reconciliation::PackageRootSourceRequest;
 use crate::resolution::closure::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
@@ -18,8 +19,9 @@ pub(super) fn canonical_root_request(
 ) -> CanonicalRootSourceRequest {
     match request {
         PackageRootSourceRequest::Git(request) => CanonicalRootSourceRequest::Git {
-            requested_locator: request.requested_locator().to_owned(),
-            requested_revision: request.requested_revision().to_owned(),
+            requested_locator: request.acquisition().requested_locator().to_owned(),
+            requested_revision: request.acquisition().requested_revision().to_owned(),
+            selection: request.selection().clone(),
         },
         PackageRootSourceRequest::WorkspaceMember {
             workspace_root_source,
@@ -46,10 +48,14 @@ pub(super) fn canonical_root_request(
 pub(super) fn validate_subject(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
+    package_navigations: &[PackageSourceNavigation],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
-    if packages.is_empty() || packages.len() > limits.maximum_packages {
+    if packages.is_empty()
+        || packages.len() > limits.maximum_packages
+        || packages.len() != package_navigations.len()
+    {
         return Err(CanonicalSourceClosureSubjectError::new(
             "source-closure subject violates its package-count limit",
         ));
@@ -75,12 +81,26 @@ pub(super) fn validate_subject(
         .iter()
         .map(|source| (source.key(), source))
         .collect::<BTreeMap<_, _>>();
+    let navigation_by_key = packages
+        .iter()
+        .zip(package_navigations)
+        .map(|(source, navigation)| (source.key(), navigation))
+        .collect::<BTreeMap<_, _>>();
+    for (source, navigation) in packages.iter().zip(package_navigations) {
+        validate_package_navigation(source, navigation)?;
+    }
     if package_by_key.get(root.selected.key()).copied() != Some(&root.selected) {
         return Err(CanonicalSourceClosureSubjectError::new(
             "root request selection is absent or resolution-mismatched",
         ));
     }
-    validate_root_request(root, limits)?;
+    let root_navigation = navigation_by_key
+        .get(root.selected.key())
+        .copied()
+        .ok_or_else(|| {
+            CanonicalSourceClosureSubjectError::new("root package navigation is absent")
+        })?;
+    validate_root_request(root, root_navigation, limits)?;
 
     let mut previous: Option<(&PackageKey, usize)> = None;
     let mut dependencies = BTreeMap::<PackageKey, Vec<ResolvedDependency>>::new();
@@ -126,7 +146,20 @@ pub(super) fn validate_subject(
             }
             _ => {}
         }
-        validate_dependency_selection_kind(selection)?;
+        let requester_navigation = navigation_by_key
+            .get(&selection.requester)
+            .copied()
+            .expect("known requester has navigation");
+        let selected_navigation = navigation_by_key
+            .get(selection.selected.key())
+            .copied()
+            .expect("known selected package has navigation");
+        validate_dependency_selection_kind(
+            selection,
+            package_by_key[&selection.requester],
+            requester_navigation,
+            selected_navigation,
+        )?;
         dependencies
             .entry(selection.requester.clone())
             .or_default()
@@ -156,12 +189,14 @@ pub(super) fn validate_subject(
 
 fn validate_root_request(
     root: &CanonicalRootSourceSelection,
+    navigation: &PackageSourceNavigation,
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match &root.request {
         CanonicalRootSourceRequest::Git {
             requested_locator,
             requested_revision,
+            selection,
         } => {
             validate_request_bytes(requested_locator.as_bytes(), limits.maximum_request_bytes)?;
             validate_request_bytes(requested_revision.as_bytes(), limits.maximum_request_bytes)?;
@@ -180,6 +215,7 @@ fn validate_root_request(
                     "root Git request disagrees with its selected source",
                 ));
             }
+            validate_git_selection(selection, &root.selected, navigation)?;
         }
         CanonicalRootSourceRequest::WorkspaceMember {
             workspace_root_source,
@@ -211,6 +247,11 @@ fn validate_root_request(
                     "workspace root request disagrees with its selected source",
                 ));
             }
+            if navigation != &PackageSourceNavigation::Root {
+                return Err(CanonicalSourceClosureSubjectError::new(
+                    "workspace root request has non-root package navigation",
+                ));
+            }
         }
         CanonicalRootSourceRequest::ExternalLocal {
             requested_root,
@@ -229,6 +270,11 @@ fn validate_root_request(
                     "external-local root request disagrees with its selected source",
                 ));
             }
+            if navigation != &PackageSourceNavigation::Root {
+                return Err(CanonicalSourceClosureSubjectError::new(
+                    "external-local root request has non-root package navigation",
+                ));
+            }
         }
     }
     Ok(())
@@ -236,16 +282,30 @@ fn validate_root_request(
 
 fn validate_dependency_selection_kind(
     selection: &CanonicalDependencySourceSelection,
+    requester: &ResolvedSourceIdentity,
+    _requester_navigation: &PackageSourceNavigation,
+    selected_navigation: &PackageSourceNavigation,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match &selection.request {
         CanonicalDependencySourceRequest::Path { .. } => {
-            if !matches!(
-                selection.selected.key().source_lineage(),
-                SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_)
-            ) {
-                return Err(CanonicalSourceClosureSubjectError::new(
-                    "path request selected a non-path source lineage",
-                ));
+            match selection.selected.key().source_lineage() {
+                SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
+                    if selected_navigation != &PackageSourceNavigation::Root {
+                        return Err(CanonicalSourceClosureSubjectError::new(
+                            "path request selected invalid package navigation",
+                        ));
+                    }
+                }
+                SourceLineage::GitHub(_) | SourceLineage::GitLab(_) | SourceLineage::Git(_) => {
+                    if requester.key().source_lineage() != selection.selected.key().source_lineage()
+                        || requester.resolution() != selection.selected.resolution()
+                        || !matches!(selected_navigation, PackageSourceNavigation::Member(_))
+                    {
+                        return Err(CanonicalSourceClosureSubjectError::new(
+                            "Git member path request escaped its repository resolution",
+                        ));
+                    }
+                }
             }
         }
         CanonicalDependencySourceRequest::Git {
@@ -268,16 +328,52 @@ fn validate_dependency_selection_kind(
                     "dependency Git request disagrees with its selected source",
                 ));
             }
-            if let crate::manifest::PackageSelection::Named(package) = package_selection
-                && package != selection.selected.key().name()
-            {
-                return Err(CanonicalSourceClosureSubjectError::new(
-                    "named Git package selection disagrees with its selected package",
-                ));
-            }
+            validate_git_selection(package_selection, &selection.selected, selected_navigation)?;
         }
     }
     Ok(())
+}
+
+fn validate_package_navigation(
+    source: &ResolvedSourceIdentity,
+    navigation: &PackageSourceNavigation,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    if matches!(navigation, PackageSourceNavigation::Member(_))
+        && (!matches!(
+            source.key().source_lineage(),
+            SourceLineage::GitHub(_) | SourceLineage::GitLab(_) | SourceLineage::Git(_)
+        ) || !matches!(source.resolution(), ImmutableSourceResolution::Git { .. }))
+    {
+        return Err(CanonicalSourceClosureSubjectError::new(
+            "member navigation requires an immutable Git package",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_git_selection(
+    selection: &crate::manifest::PackageSelection,
+    selected: &ResolvedSourceIdentity,
+    navigation: &PackageSourceNavigation,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    match (selection, navigation) {
+        (crate::manifest::PackageSelection::Root, PackageSourceNavigation::Root) => Ok(()),
+        (crate::manifest::PackageSelection::Named(package), PackageSourceNavigation::Member(_))
+            if package == selected.key().name() =>
+        {
+            Ok(())
+        }
+        (crate::manifest::PackageSelection::Named(package), _)
+            if package != selected.key().name() =>
+        {
+            Err(CanonicalSourceClosureSubjectError::new(
+                "named Git package selection disagrees with its selected package",
+            ))
+        }
+        _ => Err(CanonicalSourceClosureSubjectError::new(
+            "Git package selection disagrees with package navigation",
+        )),
+    }
 }
 
 fn validate_dependency_request(
