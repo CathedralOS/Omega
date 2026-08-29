@@ -5,6 +5,7 @@ use psi_symbol_resolved_trees::proposition::PropositionBody;
 use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
+use super::expressions::assign_struct_literal_symbols;
 use super::lookup::{child_symbol_by_kinds, top_level_symbol_by_kinds};
 use super::targets::{
     resolve_free_machine_entry_state_symbol, resolve_proposition_binder_argument_symbol,
@@ -216,6 +217,7 @@ fn assign_expression_symbols(
             for field in fields {
                 recurse!(field.value);
             }
+            assign_struct_literal_symbols(symbols, expressions, expression);
         }
         ExpressionNode::Unary(unary) => recurse!(unary.operand),
         ExpressionNode::ZeroValue(type_reference) => {

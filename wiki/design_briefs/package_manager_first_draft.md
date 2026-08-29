@@ -796,6 +796,13 @@ builtin-operator meaning before projecting the existing structural unary
 operator. That custody-only change did not alter the then-current v76/row v34
 bytes; it closes a source-custody join rather than adding a semantic
 discriminant.
+Transparent public proposition bodies now use the same recursive declaration
+resolution for nominal constructors as machine contracts. Constructor type and
+field selections finalize before package authority checks, and a member selected
+from the resulting computed nominal value is rejoined to its exact finalized
+member-selection row. The existing constructor and member expression encoding
+already carries the complete semantic identity, so this custody completion does
+not change review schema bytes.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings

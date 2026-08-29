@@ -319,6 +319,11 @@ For a reviewed nominal member expression, the authored member token and the
 checked semantic place or call-result projection must also select the same
 exact field. The token cannot disappear merely because the checked expression
 already carries a structurally representable receiver and field path.
+This applies equally when the receiver is a computed nominal value, including
+a record or case constructor inside a transparent public proposition. The
+constructor type, every authored constructor field, and the selected result
+field retain their independent exact declaration selections; review recurses
+through the receiver value and rejoins the member token to its finalized field.
 
 Generic conformance bounds apply the same distinction. Their subject and
 evidence binder are lexical; the right-hand trait, or both declarations in a

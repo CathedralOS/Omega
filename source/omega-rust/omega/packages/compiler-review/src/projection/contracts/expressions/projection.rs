@@ -2,8 +2,9 @@ use super::calls::{exact_checked_contract_call_target, exact_fact_call_projectio
 use super::constructors::project_contract_constructor_expression;
 use super::members::{
     checked_contract_member_path, contract_member_has_exact_collection_length,
-    contract_member_path_root, contract_member_path_source, is_data_subject_field_expression,
-    project_contract_member_expression, require_exact_checked_contract_collection_length,
+    contract_member_path_root, contract_member_path_source, exact_checked_contract_nominal_member,
+    is_data_subject_field_expression, project_contract_member_expression,
+    require_exact_checked_contract_collection_length,
     require_exact_checked_contract_nominal_member,
 };
 use super::names::{contract_parameter_field_symbol, project_contract_name_expression};
@@ -374,12 +375,27 @@ pub(crate) fn project_contract_expression_with_substitutions(
                 None,
             )
         }
-        ExpressionNode::Member(_) => {
+        ExpressionNode::Member(member) => {
             let Some(checked_fact) = checked_fact else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` uses a proposition-argument member expression without an exact checked place join",
-                    context.subject_kind, context.subject_name
-                ))]);
+                let selected =
+                    exact_checked_contract_nominal_member(compilation, context, expression)?;
+                if member.member_symbol.is_valid() && member.member_symbol != selected {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` computed member disagrees with its exact checked declaration selection",
+                        context.subject_kind, context.subject_name
+                    ))]);
+                }
+                let selected_parent = compilation.symbols.get(selected).parent;
+                let case_variant = (compilation.symbols.get(selected_parent).kind
+                    == psi_symbols::SymbolKind::Variant)
+                    .then_some(selected_parent);
+                return project_contract_member_expression(
+                    compilation,
+                    context,
+                    child(member.receiver)?,
+                    selected,
+                    case_variant,
+                );
             };
             let Some((root_expression, mut source_members)) =
                 contract_member_path_source(compilation, expression)

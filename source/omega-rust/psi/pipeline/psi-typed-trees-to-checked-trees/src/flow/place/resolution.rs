@@ -6,6 +6,17 @@ pub(crate) fn effective_member_symbol(
     receiver: ExpressionHandle,
     member: &psi_typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
+    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(receiver)
+        && let Some(field) = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| field.name == member.member)
+        && field.field_symbol.is_valid()
+    {
+        return field.field_symbol;
+    }
+
     if let Some(symbol) =
         resolve_member_symbol_from_receiver(program, receiver, member.member.as_str())
     {
@@ -125,6 +136,10 @@ pub(crate) fn expression_type_symbol(
             let symbol = effective_member_symbol(program, member.receiver, member);
             symbol_type_symbol(program, symbol)
         }
+        ExpressionNode::StructLiteral(literal) => literal
+            .type_symbol
+            .is_valid()
+            .then_some(literal.type_symbol),
         _ => None,
     }
 }

@@ -37,6 +37,21 @@ pub(crate) fn require_exact_checked_contract_nominal_member(
     expression: psi_typed_trees::expression::ExpressionHandle,
     expected_member: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
+    let selected = exact_checked_contract_nominal_member(compilation, context, expression)?;
+    if !expected_member.is_valid() || selected != expected_member {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member disagrees with its exact checked member-selection row",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
+}
+
+pub(crate) fn exact_checked_contract_nominal_member(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Result<SymbolHandle, Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionTarget,
@@ -72,13 +87,7 @@ pub(crate) fn require_exact_checked_contract_nominal_member(
             context.subject_kind, context.subject_name
         ))]);
     };
-    if !expected_member.is_valid() || target.selected_symbol() != expected_member {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` nominal member disagrees with its exact checked member-selection row",
-            context.subject_kind, context.subject_name
-        ))]);
-    }
-    Ok(())
+    Ok(target.selected_symbol())
 }
 
 pub(crate) fn require_exact_checked_contract_collection_length(
