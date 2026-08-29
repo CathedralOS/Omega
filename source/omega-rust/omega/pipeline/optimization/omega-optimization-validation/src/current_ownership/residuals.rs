@@ -1,0 +1,170 @@
+use super::*;
+
+pub(super) fn partial_affine_residuals(
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root_type: StructuralTypeId,
+    moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
+) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+    if moved_paths.is_empty()
+        || moved_paths
+            .iter()
+            .any(|path| !is_bounded_partial_affine_path(structural_types, root_type, path))
+    {
+        return None;
+    }
+    if moved_paths
+        .iter()
+        .all(|path| matches!(path.as_slice(), [StructuralPathSegment::FixedIndex(_)]))
+    {
+        let StructuralTypeShape::FixedArray { element, length } =
+            structural_types.get(&root_type)?.shape
+        else {
+            return None;
+        };
+        if !matches!(
+            structural_types
+                .get(&element)
+                .map(|declaration| &declaration.shape),
+            Some(StructuralTypeShape::Record { .. })
+        ) {
+            return None;
+        }
+        match length {
+            2 if moved_paths.len() == 1 => {
+                let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] =
+                    moved_paths.first()?.as_slice()
+                else {
+                    return None;
+                };
+                return Some(vec![(
+                    vec![StructuralPathSegment::FixedIndex(1 - index)],
+                    element,
+                )]);
+            }
+            3 if moved_paths.len() == 2 => {
+                let moved = moved_paths
+                    .iter()
+                    .filter_map(|path| match path.as_slice() {
+                        [StructuralPathSegment::FixedIndex(index @ (0 | 1 | 2))] => Some(*index),
+                        _ => None,
+                    })
+                    .collect::<BTreeSet<_>>();
+                if moved.len() != 2 {
+                    return None;
+                }
+                let residual = (0_u64..3).find(|index| !moved.contains(index))?;
+                return Some(vec![(
+                    vec![StructuralPathSegment::FixedIndex(residual)],
+                    element,
+                )]);
+            }
+            _ => return None,
+        }
+    }
+    if moved_paths.iter().enumerate().any(|(index, path)| {
+        moved_paths
+            .iter()
+            .enumerate()
+            .any(|(other_index, other)| index != other_index && path.starts_with(other))
+    }) {
+        return None;
+    }
+    let moved_paths = moved_paths.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    let mut residuals = Vec::new();
+    collect_partial_affine_residuals(
+        structural_types,
+        root_type,
+        &moved_paths,
+        &mut Vec::new(),
+        &mut residuals,
+    )?;
+    Some(residuals)
+}
+
+pub(super) fn is_bounded_partial_affine_path(
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    matches!(path, [StructuralPathSegment::Field(_), ..])
+        || (matches!(path, [StructuralPathSegment::FixedIndex(_)])
+            && structural_types.get(&root_type).is_some_and(|declaration| {
+                matches!(
+                    (&declaration.shape, path),
+                    (
+                        StructuralTypeShape::FixedArray { length: 2, .. },
+                        [StructuralPathSegment::FixedIndex(0 | 1)]
+                    ) | (
+                        StructuralTypeShape::FixedArray { length: 3, .. },
+                        [StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+                    )
+                )
+            }))
+}
+
+pub(super) fn collect_partial_affine_residuals(
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    moved_paths: &[&[StructuralPathSegment]],
+    prefix: &mut Vec<StructuralPathSegment>,
+    residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+) -> Option<()> {
+    let StructuralTypeShape::Record { fields } = &structural_types.get(&structural_type)?.shape
+    else {
+        return None;
+    };
+    if fields.is_empty()
+        || fields.iter().any(|field| {
+            field.relevance.is_erased()
+                || !matches!(
+                    field.field_type,
+                    StructuralFieldType::Structural(_)
+                        | StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                )
+        })
+    {
+        return None;
+    }
+    let mut matched = 0_usize;
+    for field in fields.iter().rev() {
+        prefix.push(StructuralPathSegment::Field(field.identity.clone()));
+        let descendants = moved_paths
+            .iter()
+            .filter_map(|path| match path {
+                [StructuralPathSegment::Field(identity), remaining @ ..]
+                    if *identity == field.identity =>
+                {
+                    Some(remaining)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        matched += descendants.len();
+        let StructuralFieldType::Structural(field_type) = field.field_type else {
+            if !descendants.is_empty() {
+                return None;
+            }
+            prefix.pop();
+            continue;
+        };
+        if descendants.is_empty() {
+            residuals.push((prefix.clone(), field_type));
+        } else if descendants.iter().all(|path| !path.is_empty()) {
+            collect_partial_affine_residuals(
+                structural_types,
+                field_type,
+                &descendants,
+                prefix,
+                residuals,
+            )?;
+        } else if descendants.len() != 1 {
+            return None;
+        }
+        prefix.pop();
+    }
+    (matched == moved_paths.len()).then_some(())
+}
