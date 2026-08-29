@@ -16,6 +16,7 @@ pub use rules::aarch64::compare_zero_branch_nonzero::*;
 pub use rules::aarch64::materialize_i64_movn::*;
 pub use rules::x86_64::materialize_i64_xor_zero::*;
 pub use rules::{
-    ORDERED_POST_ALLOCATION_MACHINE_RULES, PostAllocationMachineRuleCatalogError,
+    ORDERED_POST_ALLOCATION_MACHINE_RULES, POST_ALLOCATION_MACHINE_RULE_CATALOG,
+    PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleCatalogError,
     require_post_allocation_machine_rule, selected_post_allocation_machine_rule,
 };

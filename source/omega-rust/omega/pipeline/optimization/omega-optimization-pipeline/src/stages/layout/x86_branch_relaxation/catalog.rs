@@ -1,24 +1,52 @@
 //! Exact function-relative-layout rule catalog.
 
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::{
+    Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase, OptimizationSelections,
+};
+use omega_target::Architecture;
 
-/// Canonical function-relative-layout rule order.
+pub type FunctionRelativeLayoutRuleCatalogEntry = OptimizationCatalogDescriptor<Architecture>;
+
+/// The single function-relative-layout enable/order/applicability catalog.
+pub const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutRuleCatalogEntry; 1] =
+    [FunctionRelativeLayoutRuleCatalogEntry::new(
+        Optimization::X86RelaxConditionalBranchesToRel8V1,
+        Architecture::X86_64,
+    )];
+
 pub const ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES: [Optimization; 1] =
-    [Optimization::X86RelaxConditionalBranchesToRel8V1];
+    [FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG[0].optimization()];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FunctionRelativeLayoutCatalogError {
+pub enum FunctionRelativeLayoutCatalogError {
     UnsupportedSelection(Optimization),
     UnsupportedComposition,
+    UnsupportedTarget {
+        optimization: Optimization,
+        required: Architecture,
+        actual: Architecture,
+    },
 }
 
 pub(crate) fn x86_rel8_selected(
     selections: &OptimizationSelections,
+    architecture: Architecture,
 ) -> Result<bool, FunctionRelativeLayoutCatalogError> {
     let phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
     match phase.as_slice() {
         [] => Ok(false),
-        [Optimization::X86RelaxConditionalBranchesToRel8V1] => Ok(true),
+        [Optimization::X86RelaxConditionalBranchesToRel8V1] => {
+            let descriptor = FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG[0];
+            let required = *descriptor.payload();
+            if architecture != required {
+                return Err(FunctionRelativeLayoutCatalogError::UnsupportedTarget {
+                    optimization: descriptor.optimization(),
+                    required,
+                    actual: architecture,
+                });
+            }
+            Ok(true)
+        }
         [unsupported] => Err(FunctionRelativeLayoutCatalogError::UnsupportedSelection(
             *unsupported,
         )),
@@ -41,6 +69,21 @@ mod tests {
         assert_eq!(declared, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES);
         let selections =
             OptimizationSelections::new(ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES).unwrap();
-        assert_eq!(x86_rel8_selected(&selections), Ok(true));
+        assert_eq!(
+            FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.map(|entry| entry.optimization()),
+            ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
+        );
+        assert_eq!(
+            x86_rel8_selected(&selections, Architecture::X86_64),
+            Ok(true)
+        );
+        assert_eq!(
+            x86_rel8_selected(&selections, Architecture::Aarch64),
+            Err(FunctionRelativeLayoutCatalogError::UnsupportedTarget {
+                optimization: Optimization::X86RelaxConditionalBranchesToRel8V1,
+                required: Architecture::X86_64,
+                actual: Architecture::Aarch64,
+            })
+        );
     }
 }

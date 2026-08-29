@@ -1,9 +1,10 @@
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 
 use super::{
-    AllocationRecoveryRuleCatalogError, ORDERED_ALLOCATION_RECOVERY_RULES,
-    ORDERED_SELECTED_LOWERING_RULES, selected_allocation_recovery_rule,
-    selected_lowering_rule_policy,
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError,
+    ORDERED_ALLOCATION_RECOVERY_RULES, ORDERED_SELECTED_LOWERING_RULES,
+    RegisterAllocationRuleTargetApplicability, SELECTED_LOWERING_RULE_CATALOG,
+    selected_allocation_recovery_rule, selected_lowering_rule_policy,
 };
 
 #[test]
@@ -15,6 +16,13 @@ fn catalog_exactly_matches_the_allocation_recovery_vocabulary() {
         })
         .collect::<Vec<_>>();
     assert_eq!(declared, ORDERED_ALLOCATION_RECOVERY_RULES);
+    assert_eq!(
+        ALLOCATION_RECOVERY_RULE_CATALOG.map(|entry| entry.optimization()),
+        ORDERED_ALLOCATION_RECOVERY_RULES,
+    );
+    assert!(ALLOCATION_RECOVERY_RULE_CATALOG.iter().all(|entry| {
+        entry.payload().target() == RegisterAllocationRuleTargetApplicability::TargetIndependent
+    }));
     for optimization in ORDERED_ALLOCATION_RECOVERY_RULES {
         let selections = OptimizationSelections::new([optimization]).unwrap();
         assert_eq!(
@@ -39,6 +47,13 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
         })
         .collect::<Vec<_>>();
     assert_eq!(declared, ORDERED_SELECTED_LOWERING_RULES);
+    assert_eq!(
+        SELECTED_LOWERING_RULE_CATALOG.map(|entry| entry.optimization()),
+        ORDERED_SELECTED_LOWERING_RULES,
+    );
+    assert!(SELECTED_LOWERING_RULE_CATALOG.iter().all(|entry| {
+        entry.payload().target() == RegisterAllocationRuleTargetApplicability::TargetIndependent
+    }));
     for optimization in ORDERED_SELECTED_LOWERING_RULES {
         let selections = OptimizationSelections::new([optimization]).unwrap();
         assert!(selected_lowering_rule_policy(&selections).is_ok());

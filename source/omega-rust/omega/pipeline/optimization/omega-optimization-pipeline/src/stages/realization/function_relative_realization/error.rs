@@ -9,6 +9,7 @@ pub enum FunctionRelativeOptimizationRealizationError {
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
     X86BranchRelaxation(OptimizedX86BranchRelaxationError),
+    RuleCatalog(crate::FunctionRelativeLayoutCatalogError),
     ExitContract(WholeFunctionExitContractError),
     MissingFunctionRelativeLayoutOptimization,
     OptimizationCustodyUnavailable,

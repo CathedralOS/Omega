@@ -98,9 +98,8 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                 OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
             );
         }
-        selected_post_allocation_machine_rule(selections).map_err(|_| {
-            OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition
-        })?;
+        selected_post_allocation_machine_rule(selections, ranges.custody().target().architecture)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog)?;
         if selected_lowering.is_empty() {
             let legality = stage_optimized_allocation_legality(ranges)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;

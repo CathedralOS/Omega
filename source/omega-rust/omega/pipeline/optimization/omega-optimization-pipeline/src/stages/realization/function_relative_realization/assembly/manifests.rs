@@ -366,7 +366,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
     if !selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .is_empty()
-        || !rel8_selected(selections)?
+        || !rel8_selected(selections, baseline_layout.target().architecture)?
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }

@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use omega_optimization_core::Optimization;
+use omega_optimization_core::{Optimization, OptimizationCatalogDescriptor};
 
 use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
@@ -18,27 +18,46 @@ use super::passes::{
 
 type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PsiPassTargetApplicability {
+    TargetIndependent,
+}
+
+#[derive(Clone, Copy)]
+struct PsiPassCatalogPayload {
+    target: PsiPassTargetApplicability,
+    rule_catalog: RuleCatalog,
+}
+
 /// One visible route from an exact source selection to its ordered rule leaf.
 #[derive(Clone, Copy)]
 pub struct PsiPassCatalogEntry {
-    optimization: Optimization,
-    rule_catalog: RuleCatalog,
+    descriptor: OptimizationCatalogDescriptor<PsiPassCatalogPayload>,
 }
 
 impl PsiPassCatalogEntry {
     const fn new(optimization: Optimization, rule_catalog: RuleCatalog) -> Self {
         Self {
-            optimization,
-            rule_catalog,
+            descriptor: OptimizationCatalogDescriptor::new(
+                optimization,
+                PsiPassCatalogPayload {
+                    target: PsiPassTargetApplicability::TargetIndependent,
+                    rule_catalog,
+                },
+            ),
         }
     }
 
     pub const fn optimization(self) -> Optimization {
-        self.optimization
+        self.descriptor.optimization()
+    }
+
+    pub const fn target_applicability(self) -> PsiPassTargetApplicability {
+        self.descriptor.payload().target
     }
 
     fn registrations(self) -> Vec<BuiltInRuleRegistration> {
-        (self.rule_catalog)()
+        (self.descriptor.payload().rule_catalog)()
     }
 }
 

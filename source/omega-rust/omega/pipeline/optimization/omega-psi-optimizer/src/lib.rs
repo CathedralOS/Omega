@@ -65,7 +65,7 @@ pub use rules::{
     PhiTranslatedObligationFreeScalarGvnRule,
     PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
     PhiTranslatedProofCertifiedScalarGvnRule, ProofCertifiedDeadScalarEliminationRule,
-    PsiPassCatalogEntry, RedundantBlockParameterRule,
+    PsiPassCatalogEntry, PsiPassTargetApplicability, RedundantBlockParameterRule,
     SameBlockProofCertifiedCompatiblePolicyScalarCseRule, SameBlockProofCertifiedScalarCseRule,
     SameBlockTotalScalarCseRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,

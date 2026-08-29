@@ -13,7 +13,9 @@ use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelections
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
-pub use catalog::{ORDERED_PSI_PASSES, PSI_PASS_CATALOG, PsiPassCatalogEntry};
+pub use catalog::{
+    ORDERED_PSI_PASSES, PSI_PASS_CATALOG, PsiPassCatalogEntry, PsiPassTargetApplicability,
+};
 pub use passes::*;
 
 pub fn built_in_psi_registry(

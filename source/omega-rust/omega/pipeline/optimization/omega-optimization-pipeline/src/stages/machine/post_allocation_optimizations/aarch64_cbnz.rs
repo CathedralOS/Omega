@@ -197,6 +197,7 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        machine.machine().plan().target.architecture,
     )?;
     let fusion = optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz(
         selected,
@@ -226,6 +227,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        machine.machine().plan().target.architecture,
     )?;
     if staged.fusion.plan().budget != budget {
         return Err(OptimizedPostAllocationMachineOptimizationError::ReceiptMismatch);

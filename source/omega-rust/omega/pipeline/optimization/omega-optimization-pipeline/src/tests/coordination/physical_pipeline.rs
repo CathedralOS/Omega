@@ -1203,7 +1203,13 @@ fn aarch64_post_allocation_machine_composition_rejects_without_hidden_ordering_p
             NativeTarget::linux_arm64(),
             &[],
         ),
-        Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+        Err(
+            OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
+                omega_machine_optimizer::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
+                    Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
+                )
+            )
+        )
     ));
 }
 
