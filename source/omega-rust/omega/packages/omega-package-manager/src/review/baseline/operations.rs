@@ -6,6 +6,7 @@ use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::audit_input::assemble_update_source_review_records;
 use crate::review::comparison::compare_review_only_capability_records;
 use crate::review::comparison::compare_review_only_root_role_graphs;
+use crate::review::triage::apply_root_role_change;
 use crate::review::triage::triage_review_update_records;
 use crate::review::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageSourceReviewError,
@@ -39,9 +40,20 @@ pub fn compare_review_only_root_role_from_baseline(
 pub fn triage_review_update_from_baseline(
     baseline: &ReviewOnlyBaselineCapsule,
     candidate: &CompilerIssuedPackageReviewSet,
+    candidate_sources: &ResolvedPackageSourceClosure,
     unavailable_baseline_sources: &BTreeSet<PackageKey>,
 ) -> CompilerReviewTriage {
-    triage_review_update_records(baseline.packages(), candidate, unavailable_baseline_sources)
+    let mut triage =
+        triage_review_update_records(baseline.packages(), candidate, unavailable_baseline_sources);
+    if baseline.graph().root() == candidate_sources.graph().root() {
+        if let Some(change) =
+            compare_review_only_root_role_graphs(baseline.graph(), candidate_sources.graph())
+                .expect("equal root identities are valid for role comparison")
+        {
+            apply_root_role_change(&mut triage, &change);
+        }
+    }
+    triage
 }
 
 pub fn assemble_update_source_review_from_baseline(

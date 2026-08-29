@@ -58,6 +58,7 @@ pub(super) fn derive_and_assert(
         triage_review_update_from_baseline(
             &recovered_baseline,
             &scenario.candidate_reviews,
+            &scenario.candidate_sources,
             &BTreeSet::new(),
         ),
         triage_review_update(
