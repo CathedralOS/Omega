@@ -14,10 +14,15 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 
 ## Implementation Map
 
-- `omega-target-operations-to-assigned-target-operations/src/lib.rs` owns the
-  compatibility assignment boundary.
-- `structural_result.rs` and `structural_scalar.rs` own the currently supported
-  physical families.
+- `src/lib.rs` is the crate map; `assignment/mod.rs` owns entry-roster checking
+  and the target-plan to assigned-plan join.
+- `assignment/function/mod.rs` retains function identity around a 43-line
+  exhaustive carrier-family router. Cleanup, boundary, Unit, scalar, direct
+  structural parameter, and structural-call families descend into named
+  leaves.
+- `assignment/{placement,control,expressions}/` owns physical-location checks,
+  nested control assignment, expression frames, typed expression trees, and
+  independent parameter-location discovery.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is

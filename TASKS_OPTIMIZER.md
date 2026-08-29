@@ -230,6 +230,11 @@ and no-selection compatibility remain enforced.
   per-result routing, scalar setup/special/conditional/straight-line families,
   structural routes/layout, Unit lowering, boundary settlement, cleanup, and
   mirrored test families. The architecture gate now governs this entire stage.
+- [x] Replace the 3,133-line compatibility target-assignment entrance with
+  plan and function coordinators, an exhaustive carrier-family router, and
+  named cleanup, boundary, Unit, structural, scalar-control, placement,
+  expression-frame, typed-expression, and parameter-discovery leaves. The
+  architecture gate now governs the entire assignment stage.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

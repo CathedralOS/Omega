@@ -127,6 +127,8 @@ source/omega-rust/omega/
   pipeline/
     omega-abstract-operations-to-target-operations/
                                       # settlement, per-result, and lowering-family entrances
+    omega-target-operations-to-assigned-target-operations/
+                                      # temporary compatibility assignment families
     omega-target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
     optimization/

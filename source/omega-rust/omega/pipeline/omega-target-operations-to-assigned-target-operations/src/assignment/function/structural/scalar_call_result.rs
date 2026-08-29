@@ -6,9 +6,9 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetOperation;
 use psi_core::MachineId;
 
-use super::AssignmentError;
+use crate::AssignmentError;
 
-pub(super) fn assign(
+pub(crate) fn assign(
     machine: MachineId,
     operation: &TargetOperation,
     target: NativeTarget,

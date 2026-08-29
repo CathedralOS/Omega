@@ -133,6 +133,15 @@ families remain separate leaves. No production leaf exceeds the 1,300-line
 ceiling, and the stage, function, scalar, and structural joins are mandatory
 coordination entrances rather than re-export walls.
 
+The temporary target-to-assigned compatibility continuation is governed too.
+Its 33-line stage entrance checks the entry roster and coordinates per-function
+assignment; a 25-line function entrance retains identity and provenance around
+a 43-line exhaustive carrier-family router. Cleanup, boundary, Unit,
+structural-parameter, structural-call, scalar-control, placement,
+expression-frame, typed-expression, and parameter-discovery mechanics descend
+into named leaves. No production leaf exceeds 554 lines, so its temporary
+status no longer excuses an opaque assignment monolith.
+
 Psi, selected-lowering, allocation-recovery, post-allocation, and
 function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and

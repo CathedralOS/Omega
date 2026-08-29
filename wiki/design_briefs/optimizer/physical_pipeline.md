@@ -38,6 +38,14 @@ special registers, ABI reservations, call clobbers, and stack/frame constraints
 are explicit target facts. Modulo scratch-register assignment is not an
 allocator.
 
+The temporary empty-selection compatibility assignment is navigable without
+pretending to be that allocator. Its plan coordinator validates the entry
+roster, its function coordinator retains provenance, and one exhaustive
+carrier router descends into cleanup, boundary, Unit, structural, scalar,
+placement, control, and expression families. This preserves the explicit
+replacement boundary while the selected physical conveyor gains full
+operation coverage.
+
 ## Post-allocation machine stage
 
 This stage consumes physical symbolic instructions, selected liveness, homes,
