@@ -8,10 +8,11 @@ use std::path::{Path, PathBuf};
 pub(super) fn publish_native_artifact(
     report: omega_compiler::CompileReport,
     build_dir: &Path,
-) -> Result<PathBuf, String> {
+) -> Result<(omega_compiler::CompileReport, PathBuf), String> {
     let published = report.publish_retained_native_artifact(build_dir)?;
-    published
+    let path = published
         .checked_native_executable_path()
         .map(Path::to_path_buf)
-        .ok_or_else(|| "native publication did not retain executable custody".to_owned())
+        .ok_or_else(|| "native publication did not retain executable custody".to_owned())?;
+    Ok((published, path))
 }

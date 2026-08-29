@@ -6,6 +6,7 @@ use psi_diagnostics::Diagnostic;
 /// Check, Terminal Psi, and retained native artifacts share one checked-Psi
 /// frontend and differ only in how far the result proceeds.
 pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
+    reject_rollback_without_native_realization(&request)?;
     let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
         &request.options,
         request.package_inputs.as_ref(),
@@ -16,6 +17,28 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
         RequestedCompileProduct::TerminalArtifact => terminal_report(request, checked),
         RequestedCompileProduct::NativeArtifact => native_report(request, checked),
     }
+}
+
+fn reject_rollback_without_native_realization(
+    request: &CompileRequest,
+) -> Result<(), Vec<Diagnostic>> {
+    if request.optimization_rollback.is_empty()
+        || request.requested_product == RequestedCompileProduct::NativeArtifact
+    {
+        return Ok(());
+    }
+    let names = request
+        .optimization_rollback
+        .requested_disabled()
+        .as_slice()
+        .iter()
+        .map(|optimization| format!("`{}`", optimization.build_case_name()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(vec![Diagnostic::error(format!(
+        "optimization rollback {names} requires NativeArtifact production; {:?} does not enter native optimizer realization",
+        request.requested_product
+    ))])
 }
 
 fn settle_checked_trust(
@@ -131,6 +154,13 @@ fn native_report(
     }
     let build_evaluation_usage = checked.build_evaluation_usage();
     let build_observation_summary = checked.build_observation_summary().cloned();
+    let optimization_rollback = request
+        .optimization_rollback
+        .reconcile(checked.optimization_selections());
+    let effective_optimizations = optimization_rollback.as_ref().map_or_else(
+        || checked.optimization_selections(),
+        |receipt| receipt.effective(),
+    );
     let artifact =
         psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
             .map_err(|error| {
@@ -152,7 +182,7 @@ fn native_report(
             subsystem: checked.subsystem(),
             profile: &request.terminal_admission_profile,
             program_entry,
-            optimization_selections: checked.optimization_selections(),
+            optimization_selections: effective_optimizations,
             selected_provider_plans: checked.selected_provider_plans(),
             settlements: &[],
         },
@@ -161,6 +191,7 @@ fn native_report(
         request.options.root_path,
         source_file_count,
         native_artifact,
+        optimization_rollback,
         build_evaluation_usage,
         build_observation_summary,
     )

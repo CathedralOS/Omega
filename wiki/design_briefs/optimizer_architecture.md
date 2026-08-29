@@ -34,6 +34,8 @@ the execution checklist lives in [`TASKS_OPTIMIZER.md`](../../TASKS_OPTIMIZER.md
    survive until the last stage that can use or must preserve them.
 8. Re-running a completed deterministic pass is stable. Work is bounded by an
    explicit budget and deterministic tie-breaking.
+9. Release rollback is an exact-name, subtractive overlay. It never mutates
+   the authored build selection, enables a rule, or introduces a profile.
 
 ## The coordination shape
 
@@ -178,6 +180,9 @@ names. Rule-specific mechanics must not leak upward into complete-route files.
 ## Resolved decisions
 
 - Exact named suites are the only user-facing selection mechanism.
+- The native command's repeatable exact-name rollback flag is release tooling,
+  not another source selection mechanism; its requested, applied, and
+  effective sets remain separately visible.
 - Empty selection preserves the non-optimizer path and never constructs the
   optimizer-only verifier carrier, unit, pass manager, or projection.
 - Terminal Psi is the first optimization IR; checked-tree shortcuts are not.
