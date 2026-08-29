@@ -148,7 +148,7 @@ pub(super) fn retained_native_snapshot(target: &str, artifact: &RetainedNativeAr
         settlements = image.boundary_settlements().len(),
         plans = artifact.selected_provider_plans().len(),
         executions = artifact.provider_executions().len(),
-        provider_closure = artifact.selected_provider_closure_identity(),
+        provider_closure = artifact.selected_provider_closure_report_identity(),
         text_address = inventory.text_address,
         text_fingerprint = inventory.text_fingerprint,
         inventory_fingerprint = inventory.inventory_fingerprint,

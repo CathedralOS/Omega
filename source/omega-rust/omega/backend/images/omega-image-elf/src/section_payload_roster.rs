@@ -31,7 +31,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfIndexedSectionPayloadPlan {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     contents: ElfIndexedSectionPayloadContents,
-    payload_roster_identity: u64,
+    non_authoritative_payload_roster_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfIndexedSectionPayloadPlan {
@@ -55,8 +55,8 @@ impl ValidatedElfIndexedSectionPayloadPlan {
         self.contents.dynamic_fixups.len()
     }
 
-    pub const fn payload_roster_identity(&self) -> u64 {
-        self.payload_roster_identity
+    pub const fn non_authoritative_payload_roster_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_payload_roster_compatibility_fingerprint
     }
 
     #[allow(dead_code)]
@@ -151,7 +151,7 @@ pub(crate) struct ElfIndexedDynamicFixup {
 struct Candidate {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     contents: ElfIndexedSectionPayloadContents,
-    payload_roster_identity: u64,
+    non_authoritative_payload_roster_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -173,11 +173,12 @@ pub fn plan_elf_indexed_section_payloads(
             }));
         }
     };
-    let payload_roster_identity = payload_roster_identity(&section_headers, &contents);
+    let non_authoritative_payload_roster_compatibility_fingerprint =
+        non_authoritative_payload_roster_compatibility_fingerprint(&section_headers, &contents);
     let candidate = Candidate {
         section_headers,
         contents,
-        payload_roster_identity,
+        non_authoritative_payload_roster_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -344,18 +345,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.payload_roster_identity
-        != payload_roster_identity(&candidate.section_headers, &candidate.contents)
+    if candidate.non_authoritative_payload_roster_compatibility_fingerprint
+        != non_authoritative_payload_roster_compatibility_fingerprint(
+            &candidate.section_headers,
+            &candidate.contents,
+        )
     {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF indexed payload-roster identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF indexed payload-roster compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfIndexedSectionPayloadPlan {
         section_headers: candidate.section_headers,
         contents: candidate.contents,
-        payload_roster_identity: candidate.payload_roster_identity,
+        non_authoritative_payload_roster_compatibility_fingerprint: candidate
+            .non_authoritative_payload_roster_compatibility_fingerprint,
     })
 }
 
@@ -512,13 +519,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn payload_roster_identity(
+fn non_authoritative_payload_roster_compatibility_fingerprint(
     section_headers: &ValidatedElfSectionHeaderTableTemplate,
     contents: &ElfIndexedSectionPayloadContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-indexed-section-payloads.v1");
-    hash.bytes(&section_headers.template_identity().to_le_bytes());
+    hash.bytes(
+        &section_headers
+            .non_authoritative_template_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     for row in &contents.rows {
         hash.bytes(&row.index.to_le_bytes());
         hash.byte(row.kind as u8);
@@ -743,11 +754,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let section_headers = headers(target, &IMPORTS);
         let contents = derive_contents(&section_headers).unwrap();
-        let payload_roster_identity = payload_roster_identity(&section_headers, &contents);
+        let non_authoritative_payload_roster_compatibility_fingerprint =
+            non_authoritative_payload_roster_compatibility_fingerprint(&section_headers, &contents);
         Candidate {
             section_headers,
             contents,
-            payload_roster_identity,
+            non_authoritative_payload_roster_compatibility_fingerprint,
         }
     }
 
@@ -772,7 +784,10 @@ mod tests {
                 );
             }
             validate_contents(plan.section_headers(), &plan.contents).unwrap();
-            assert_ne!(plan.payload_roster_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_payload_roster_compatibility_fingerprint(),
+                0
+            );
         }
     }
 
@@ -829,12 +844,12 @@ mod tests {
             .unwrap();
         assert_eq!(forward.contents, reverse.contents);
         assert_eq!(
-            forward.payload_roster_identity(),
-            reverse.payload_roster_identity()
+            forward.non_authoritative_payload_roster_compatibility_fingerprint(),
+            reverse.non_authoritative_payload_roster_compatibility_fingerprint()
         );
         assert_ne!(
-            forward.payload_roster_identity(),
-            arm.payload_roster_identity()
+            forward.non_authoritative_payload_roster_compatibility_fingerprint(),
+            arm.non_authoritative_payload_roster_compatibility_fingerprint()
         );
     }
 
@@ -849,12 +864,17 @@ mod tests {
         for (row, length) in lengths.into_iter().enumerate() {
             for offset in 0..length {
                 let mut candidate = candidate(TargetProfile::LinuxX64);
-                let identity = candidate.section_headers.template_identity();
+                let identity = candidate
+                    .section_headers
+                    .non_authoritative_template_compatibility_fingerprint();
                 candidate.contents.rows[row].bytes[offset] ^= 1;
                 let error =
                     validate_candidate(candidate).expect_err("payload corruption must reject");
                 assert_eq!(
-                    error.candidate.section_headers.template_identity(),
+                    error
+                        .candidate
+                        .section_headers
+                        .non_authoritative_template_compatibility_fingerprint(),
                     identity
                 );
             }
@@ -886,16 +906,21 @@ mod tests {
             }),
             Box::new(|c| c.contents.dynamic_fixups[0].storage_section_index = 9),
             Box::new(|c| c.contents.dynamic_fixups[0].target_section_index ^= 1),
-            Box::new(|c| c.payload_roster_identity ^= 1),
+            Box::new(|c| c.non_authoritative_payload_roster_compatibility_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let identity = candidate.section_headers.template_identity();
+            let identity = candidate
+                .section_headers
+                .non_authoritative_template_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error =
                 validate_candidate(candidate).expect_err("corrupt indexed payloads must reject");
             assert_eq!(
-                error.candidate.section_headers.template_identity(),
+                error
+                    .candidate
+                    .section_headers
+                    .non_authoritative_template_compatibility_fingerprint(),
                 identity
             );
         }

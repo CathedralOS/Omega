@@ -12,7 +12,10 @@ use psi_core::{
 use psi_language_semantics::content::{CanonicalIntervalSet, NaturalInterval};
 use psi_numerics::bignum::BigInt;
 use psi_terminal::TerminalPsiIdentity;
-use psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog;
+use psi_terminal_codec::{
+    VerifiedProgramLocalRootProducerCatalog, VerifiedProgramLocalRootProducerSchema,
+};
+use sha2::{Digest, Sha256};
 
 use super::{
     ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot,
@@ -20,16 +23,33 @@ use super::{
     RootAdmissionId, RootSlotId, RootSlotOwnerId, bind_terminal_function,
 };
 
+/// Collision-resistant commitment to every exact, resolved producer-schema
+/// field consumed by program-local root installation.
+///
+/// The digest is deliberately separate from terminal Psi's compact FNV schema
+/// identity. It is the identity used for ledger uniqueness, cohort grouping,
+/// and replay; the compact value remains available only as a compatibility
+/// report coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProgramLocalRootSchemaDigest([u8; 32]);
+
+impl ProgramLocalRootSchemaDigest {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
 /// Exact, opaque address of one non-authoritative installed prebinding.
 ///
-/// The tuple is the identity. A presentation hash is insufficient here: a
-/// collision must not let one installed slot stand in for another.
+/// The tuple includes the strong exact-schema commitment. The compact schema
+/// report identity is retained for compatibility diagnostics only and never
+/// selects a ledger row, cohort group, or lifecycle family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProgramLocalRootPrebindingId {
     installed_code: InstalledCodeId,
     root: ExternalRootId,
     slot: RootSlotId,
-    schema_identity: u64,
+    schema_digest: ProgramLocalRootSchemaDigest,
 }
 
 impl ProgramLocalRootPrebindingId {
@@ -45,8 +65,8 @@ impl ProgramLocalRootPrebindingId {
         self.slot
     }
 
-    pub const fn schema_identity(self) -> u64 {
-        self.schema_identity
+    pub const fn schema_digest(self) -> ProgramLocalRootSchemaDigest {
+        self.schema_digest
     }
 }
 
@@ -72,6 +92,7 @@ pub struct ProgramLocalRootInstalledPrebinding {
     qualification_identity: String,
     carrier_identity: String,
     projection: psi_core::ContentProjectionIdentity,
+    schema_compatibility_report_identity: u64,
     algebra: ContentAlgebra,
     per_occurrence_capacity: ContentProjectionExpression,
 }
@@ -125,6 +146,14 @@ impl ProgramLocalRootInstalledPrebinding {
         self.projection
     }
 
+    pub const fn schema_digest(&self) -> ProgramLocalRootSchemaDigest {
+        self.identity.schema_digest
+    }
+
+    pub const fn schema_compatibility_report_identity(&self) -> u64 {
+        self.schema_compatibility_report_identity
+    }
+
     pub const fn algebra(&self) -> &ContentAlgebra {
         &self.algebra
     }
@@ -159,15 +188,110 @@ pub struct ProgramLocalRootInstalledPrebindingCount {
     pub source_parameter_position: u32,
     pub qualification_identity: String,
     pub carrier_identity: String,
-    pub schema_identity: u64,
+    pub schema_digest: ProgramLocalRootSchemaDigest,
+    pub schema_compatibility_report_identity: u64,
     pub algebra: ContentAlgebra,
     pub per_occurrence_capacity: ContentProjectionExpression,
     pub installed_slot_count: NonZeroU64,
     pub prebinding_identities: Vec<ProgramLocalRootPrebindingId>,
 }
 
-type CountKey = (u16, [u8; 32], InstalledCodeId, u64);
-type LifecycleFamilyKey = (InstalledCodeId, u64);
+type CountKey = (u16, [u8; 32], InstalledCodeId, ProgramLocalRootSchemaDigest);
+type LifecycleFamilyKey = (InstalledCodeId, ProgramLocalRootSchemaDigest);
+
+fn program_local_root_schema_digest(
+    verified: &VerifiedProgramLocalRootProducerSchema,
+) -> ProgramLocalRootSchemaDigest {
+    program_local_root_schema_fields_digest(
+        verified.boundary_requirement_identity(),
+        verified.qualification_identity(),
+        verified.carrier_identity(),
+        verified.schema(),
+    )
+}
+
+fn program_local_root_schema_fields_digest(
+    boundary_requirement_identity: &str,
+    qualification_identity: &str,
+    carrier_identity: &str,
+    schema: &psi_terminal::ProgramLocalRootIntroductionSchema,
+) -> ProgramLocalRootSchemaDigest {
+    fn field(digest: &mut Sha256, bytes: &[u8]) {
+        digest.update((bytes.len() as u64).to_le_bytes());
+        digest.update(bytes);
+    }
+
+    fn scalar(digest: &mut Sha256, value: &ContentProjectionScalar) {
+        match value {
+            ContentProjectionScalar::SubjectField(path)
+            | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
+                digest.update([
+                    if matches!(value, ContentProjectionScalar::SubjectField(_)) {
+                        1
+                    } else {
+                        2
+                    },
+                ]);
+                digest.update((path.len() as u64).to_le_bytes());
+                for segment in path {
+                    field(digest, segment.as_bytes());
+                }
+            }
+            ContentProjectionScalar::Natural(value) => {
+                digest.update([3]);
+                field(digest, value.as_bytes());
+            }
+            ContentProjectionScalar::Successor(inner) => {
+                digest.update([4]);
+                scalar(digest, inner);
+            }
+            ContentProjectionScalar::Add(left, right)
+            | ContentProjectionScalar::Subtract(left, right)
+            | ContentProjectionScalar::Multiply(left, right) => {
+                digest.update([match value {
+                    ContentProjectionScalar::Add(_, _) => 5,
+                    ContentProjectionScalar::Subtract(_, _) => 6,
+                    ContentProjectionScalar::Multiply(_, _) => 7,
+                    _ => unreachable!(),
+                }]);
+                scalar(digest, left);
+                scalar(digest, right);
+            }
+        }
+    }
+
+    let mut digest = Sha256::new();
+    digest.update(b"omega.program-local-root-schema.sha256.v1\0");
+    field(&mut digest, boundary_requirement_identity.as_bytes());
+    field(&mut digest, qualification_identity.as_bytes());
+    field(&mut digest, carrier_identity.as_bytes());
+    digest.update(schema.argument_index.to_le_bytes());
+    digest.update(schema.source_parameter_position.to_le_bytes());
+    digest.update(schema.qualification.get().to_le_bytes());
+    digest.update(schema.carrier.get().to_le_bytes());
+    digest.update(schema.projection.domain.get().to_le_bytes());
+    digest.update(schema.projection.projection_fingerprint.to_le_bytes());
+    digest.update([match schema.algebra.kind {
+        ContentAlgebraKind::IntervalSet => 1,
+        ContentAlgebraKind::CountedQuantity => 2,
+    }]);
+    field(&mut digest, schema.algebra.parameter.as_bytes());
+    match &schema.capacity {
+        ContentProjectionExpression::IntervalSet(members) => {
+            digest.update([1]);
+            digest.update((members.len() as u64).to_le_bytes());
+            for (start, end) in members {
+                scalar(&mut digest, start);
+                scalar(&mut digest, end);
+            }
+        }
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
+            digest.update([2]);
+            scalar(&mut digest, magnitude);
+        }
+    }
+    ProgramLocalRootSchemaDigest(digest.finalize().into())
+}
 
 /// Exact lifecycle-qualified identity of one installed occurrence. A later
 /// epoch is intentionally a distinct origin even when it reuses the same code
@@ -541,6 +665,7 @@ impl ProgramLocalRootInstallationLedger {
         let mut local_schema_keys = BTreeSet::new();
         for verified_schema in schemas {
             let schema = verified_schema.schema();
+            let schema_digest = program_local_root_schema_digest(verified_schema);
             if root
                 .evidence
                 .root
@@ -566,7 +691,7 @@ impl ProgramLocalRootInstallationLedger {
                         .into(),
                 ));
             }
-            if !local_schema_keys.insert((schema.source_parameter_position, schema.identity)) {
+            if !local_schema_keys.insert((schema.source_parameter_position, schema_digest)) {
                 return Err(ExternalRootDiagnostic(
                     "program-local root producer schemas repeat one semantic occurrence".into(),
                 ));
@@ -575,7 +700,7 @@ impl ProgramLocalRootInstallationLedger {
                 installed_code: root.installed_code.identity(),
                 root: root.root,
                 slot: root.slot,
-                schema_identity: schema.identity,
+                schema_digest,
             };
             if self.prebindings.contains_key(&identity) {
                 return Err(ExternalRootDiagnostic(
@@ -598,6 +723,7 @@ impl ProgramLocalRootInstallationLedger {
                     qualification_identity: verified_schema.qualification_identity().to_owned(),
                     carrier_identity: verified_schema.carrier_identity().to_owned(),
                     projection: schema.projection,
+                    schema_compatibility_report_identity: schema.identity,
                     algebra: schema.algebra.clone(),
                     per_occurrence_capacity: schema.capacity.clone(),
                 },
@@ -633,7 +759,7 @@ impl ProgramLocalRootInstallationLedger {
                 occurrence.psi.vocabulary_marker.get(),
                 *occurrence.psi.program_fingerprint.as_bytes(),
                 occurrence.identity.installed_code,
-                occurrence.identity.schema_identity,
+                occurrence.identity.schema_digest,
             );
             groups
                 .entry(key)
@@ -653,7 +779,9 @@ impl ProgramLocalRootInstallationLedger {
                     source_parameter_position: occurrence.source_parameter_position,
                     qualification_identity: occurrence.qualification_identity,
                     carrier_identity: occurrence.carrier_identity,
-                    schema_identity: occurrence.identity.schema_identity,
+                    schema_digest: occurrence.identity.schema_digest,
+                    schema_compatibility_report_identity: occurrence
+                        .schema_compatibility_report_identity,
                     algebra: occurrence.algebra,
                     per_occurrence_capacity: occurrence.per_occurrence_capacity,
                     installed_slot_count: NonZeroU64::new(
@@ -758,7 +886,7 @@ impl ProgramLocalRootInstallationLedger {
             }
             let lifecycle_family = (
                 canonical.identity.installed_code,
-                canonical.identity.schema_identity,
+                canonical.identity.schema_digest,
             );
             if self
                 .lifecycle_bindings
@@ -822,7 +950,7 @@ impl ProgramLocalRootInstallationLedger {
                 prebinding.psi.vocabulary_marker.get(),
                 *prebinding.psi.program_fingerprint.as_bytes(),
                 prebinding.identity.installed_code,
-                prebinding.identity.schema_identity,
+                prebinding.identity.schema_digest,
             );
             aggregate_groups
                 .entry(key)
@@ -841,7 +969,9 @@ impl ProgramLocalRootInstallationLedger {
                     source_parameter_position: prebinding.source_parameter_position,
                     qualification_identity: prebinding.qualification_identity,
                     carrier_identity: prebinding.carrier_identity,
-                    schema_identity: prebinding.identity.schema_identity,
+                    schema_digest: prebinding.identity.schema_digest,
+                    schema_compatibility_report_identity: prebinding
+                        .schema_compatibility_report_identity,
                     algebra: prebinding.algebra,
                     per_occurrence_capacity: prebinding.per_occurrence_capacity,
                     occurrence_identities,
@@ -1406,7 +1536,8 @@ pub struct ProgramLocalRootEpochAggregate {
     source_parameter_position: u32,
     qualification_identity: String,
     carrier_identity: String,
-    schema_identity: u64,
+    schema_digest: ProgramLocalRootSchemaDigest,
+    schema_compatibility_report_identity: u64,
     algebra: ContentAlgebra,
     per_occurrence_capacity: ContentProjectionExpression,
     occurrence_identities: Vec<InstalledProgramLocalRootOccurrenceId>,
@@ -1441,8 +1572,12 @@ impl ProgramLocalRootEpochAggregate {
         &self.carrier_identity
     }
 
-    pub const fn schema_identity(&self) -> u64 {
-        self.schema_identity
+    pub const fn schema_digest(&self) -> ProgramLocalRootSchemaDigest {
+        self.schema_digest
+    }
+
+    pub const fn schema_compatibility_report_identity(&self) -> u64 {
+        self.schema_compatibility_report_identity
     }
 
     pub const fn algebra(&self) -> &ContentAlgebra {
@@ -1963,5 +2098,46 @@ mod capacity_evaluation_tests {
                 .0
                 .contains("lower-bound proof")
         );
+    }
+
+    #[test]
+    fn compact_equal_schema_substitution_cannot_alias_an_exact_ledger_key() {
+        let base = psi_terminal::ProgramLocalRootIntroductionSchema {
+            argument_index: 0,
+            source_parameter_position: 0,
+            qualification: psi_core::StructuralDomainId::new(1).expect("qualification"),
+            carrier: psi_core::StructuralTypeId::new(2).expect("carrier"),
+            projection: psi_core::ContentProjectionIdentity {
+                domain: psi_core::ContentDomainId::new(3).expect("content domain"),
+                projection_fingerprint: 0xfeed,
+            },
+            algebra: ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Bytes".into(),
+            },
+            capacity: ContentProjectionExpression::CountedQuantity(
+                ContentProjectionScalar::Natural("1".into()),
+            ),
+            identity: 0xdead_beef,
+        };
+        let mut substituted = base.clone();
+        substituted.capacity = ContentProjectionExpression::CountedQuantity(
+            ContentProjectionScalar::Natural("2".into()),
+        );
+
+        assert_eq!(base.identity, substituted.identity);
+        let original =
+            program_local_root_schema_fields_digest("TestRoot::entry", "Region", "Buffer", &base);
+        let replacement = program_local_root_schema_fields_digest(
+            "TestRoot::entry",
+            "Region",
+            "Buffer",
+            &substituted,
+        );
+        assert_ne!(original, replacement);
+
+        let mut exact_schema_keys = BTreeSet::new();
+        assert!(exact_schema_keys.insert((base.source_parameter_position, original)));
+        assert!(exact_schema_keys.insert((substituted.source_parameter_position, replacement)));
     }
 }

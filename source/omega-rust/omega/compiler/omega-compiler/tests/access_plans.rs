@@ -23,9 +23,9 @@ use psi_access_plans::{
 use psi_build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
 use psi_core::PackageKeyIdentity;
 use psi_extents::{
-    AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentInterpretationId,
-    ExtentContentValidityReceiptId, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
-    ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId, ResidentClaimId,
+    AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
+    ExtentProvenanceId, ExtentProviderIssuance, ExtentRightId, ExtentRights, ExtentRootGrant,
+    MappingEraId, ResidentClaimId,
 };
 use psi_language_core::atomic::{
     AtomicObservingCompareExchangeOperation, AtomicObservingCompareExchangeResultShape,
@@ -433,7 +433,7 @@ fn source_access_policy_evaluates_against_validated_layout() {
     let access = compute_access_plan(&checked.typed, "UartAccess::plan", "Registers", &layout)
         .expect("source access policy should evaluate and normalize");
 
-    assert_ne!(access.identity().normalized_identity(), 0);
+    assert_ne!(access.identity().compatibility_fingerprint(), 0);
     assert_eq!(access.field_descriptors().len(), 4);
     assert_eq!(access.plan().entries().len(), 5);
     assert!(matches!(
@@ -647,7 +647,7 @@ fn source_placement_policy_normalizes_layout_access_and_reach_together() {
     let placement = compute_placement_plan(&checked.typed, "UartPlacement::plan", "Registers")
         .expect("source placement policy should evaluate and normalize");
 
-    assert_ne!(placement.identity().normalized_identity(), 0);
+    assert_ne!(placement.identity().compatibility_fingerprint(), 0);
     assert_eq!(placement.layout().size, Some(24));
     assert_eq!(placement.access().field_descriptors().len(), 4);
     assert_eq!(placement.reach().services().len(), 1);
@@ -1770,10 +1770,7 @@ machine Main::main(&mut self) {}
     .mint_provider_existing_content(
         0xb000,
         8,
-        extent_identity(
-            view.placement.identity().normalized_identity(),
-            ExtentContentInterpretationId::from_normalized_identity,
-        ),
+        view.placement.content_interpretation(),
         extent_identity(456, ResidentClaimId::from_normalized_identity),
         extent_identity(
             457,
@@ -2531,10 +2528,7 @@ machine Main::main(&mut self) {}
     .mint_provider_existing_content(
         0x8000,
         8,
-        extent_identity(
-            home.placement.identity().normalized_identity(),
-            ExtentContentInterpretationId::from_normalized_identity,
-        ),
+        home.placement.content_interpretation(),
         extent_identity(406, ResidentClaimId::from_normalized_identity),
         extent_identity(
             407,

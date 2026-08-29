@@ -39,8 +39,7 @@ pub(crate) use schema_reflection::{RepeatedFieldInfo, SchemaFieldInfo, schema_fi
 use schema_reflection::{
     checked_align_up, primitive_byte_size, reflected_field_layout, reflected_nested_member_layout,
 };
-pub(crate) use schema_value::build_schema_value;
-use schema_value::field_key;
+pub(crate) use schema_value::{build_schema_value, local_schema_field_discriminator};
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 

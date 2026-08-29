@@ -107,6 +107,9 @@ pub fn executable_publication_pair_matches(
     flat: &ExecutablePublicationReceipt,
     bundle: Option<&ExecutablePublicationReceipt>,
 ) -> bool {
+    if !flat.has_consistent_installation_identity() {
+        return false;
+    }
     let Some(bundle) = bundle else {
         return true;
     };
@@ -120,6 +123,7 @@ pub fn executable_publication_pair_matches(
         && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
         && flat.inventory_fingerprint == bundle.inventory_fingerprint
         && flat.compiler_text_validation_digest == bundle.compiler_text_validation_digest
+        && flat.compiler_function_validation_digest == bundle.compiler_function_validation_digest
         && flat.compiler_function_validation_fingerprint
             == bundle.compiler_function_validation_fingerprint
         && flat.publication_evidence_digest == bundle.publication_evidence_digest
@@ -148,6 +152,7 @@ fn native_publication_certificate_digest(
     artifact: &RetainedNativeArtifact,
     boundary_contract_fingerprint: Option<u64>,
     text_validation_digest: omega_image::CompilerTextDerivationDigest,
+    function_validation_digest: omega_image::CompilerFunctionValidationDigest,
     function_validation_fingerprint: u64,
     inventory_fingerprint: u64,
 ) -> NativePublicationCertificateDigest {
@@ -169,6 +174,7 @@ fn native_publication_certificate_digest(
     }]);
     digest.update((target.pointer_size as u64).to_le_bytes());
     digest.update((target.pointer_alignment as u64).to_le_bytes());
+    digest.update(artifact.image().final_image_symbol_digest().as_bytes());
     digest.update([u8::from(boundary_contract_fingerprint.is_some())]);
     digest.update(
         boundary_contract_fingerprint
@@ -176,6 +182,7 @@ fn native_publication_certificate_digest(
             .to_le_bytes(),
     );
     digest.update(text_validation_digest.as_bytes());
+    digest.update(function_validation_digest.as_bytes());
     digest.update(function_validation_fingerprint.to_le_bytes());
     digest.update(inventory_fingerprint.to_le_bytes());
     NativePublicationCertificateDigest::from_digest(digest.finalize().into())
@@ -186,6 +193,7 @@ fn native_publication_evidence_digest(
     callback_placement_identity_fingerprint: u64,
     inventory_fingerprint: u64,
     text_validation_digest: omega_image::CompilerTextDerivationDigest,
+    function_validation_digest: omega_image::CompilerFunctionValidationDigest,
     function_validation_fingerprint: u64,
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
@@ -193,6 +201,7 @@ fn native_publication_evidence_digest(
     let mut digest = Sha256::new();
     digest.update(b"omega.native-publication-evidence.sha256.v1\0");
     digest.update(certificate_digest.as_bytes());
+    digest.update(function_validation_digest.as_bytes());
     for value in [
         callback_placement_identity_fingerprint,
         inventory_fingerprint,
@@ -276,6 +285,9 @@ pub struct ExecutablePublicationReceipt {
     boundary_contract_fingerprint: Option<u64>,
     inventory_fingerprint: u64,
     compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
+    compiler_function_validation_digest: omega_image::CompilerFunctionValidationDigest,
+    /// Compact report compatibility only. Publication and replay authority is
+    /// `compiler_function_validation_digest`.
     compiler_function_validation_fingerprint: u64,
     publication_evidence_digest: NativePublicationEvidenceDigest,
     container_byte_count: usize,
@@ -292,6 +304,7 @@ impl ExecutablePublicationReceipt {
         boundary_contract_fingerprint: Option<u64>,
         inventory_fingerprint: u64,
         compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
+        compiler_function_validation_digest: omega_image::CompilerFunctionValidationDigest,
         compiler_function_validation_fingerprint: u64,
         publication_evidence_digest: NativePublicationEvidenceDigest,
         container_byte_count: usize,
@@ -306,6 +319,7 @@ impl ExecutablePublicationReceipt {
             boundary_contract_fingerprint,
             inventory_fingerprint,
             compiler_text_validation_digest,
+            compiler_function_validation_digest,
             compiler_function_validation_fingerprint,
             publication_evidence_digest,
             container_byte_count,
@@ -348,6 +362,12 @@ impl ExecutablePublicationReceipt {
         self.compiler_function_validation_fingerprint
     }
 
+    pub const fn compiler_function_validation_digest(
+        &self,
+    ) -> omega_image::CompilerFunctionValidationDigest {
+        self.compiler_function_validation_digest
+    }
+
     pub const fn publication_evidence_digest(&self) -> NativePublicationEvidenceDigest {
         self.publication_evidence_digest
     }
@@ -365,15 +385,26 @@ impl ExecutablePublicationReceipt {
     }
 
     pub fn has_consistent_installation_identity(&self) -> bool {
-        self.installation_evidence_digest
-            == executable_installation_evidence_digest(
-                self.destination,
-                self.publication_evidence_digest,
+        self.publication_evidence_digest
+            == native_publication_evidence_digest(
+                self.certificate_digest,
                 self.callback_placement_identity_fingerprint,
-                &self.output_path,
+                self.inventory_fingerprint,
+                self.compiler_text_validation_digest,
+                self.compiler_function_validation_digest,
+                self.compiler_function_validation_fingerprint,
                 self.container_byte_count,
                 self.container_digest,
             )
+            && self.installation_evidence_digest
+                == executable_installation_evidence_digest(
+                    self.destination,
+                    self.publication_evidence_digest,
+                    self.callback_placement_identity_fingerprint,
+                    &self.output_path,
+                    self.container_byte_count,
+                    self.container_digest,
+                )
     }
 }
 
@@ -499,12 +530,11 @@ impl CompileReport {
             .ok_or_else(|| {
                 "native publication requires strong compiler-text validation evidence".to_owned()
             })?;
-        let function_validation_fingerprint = output
-            .compiler_function_validation
-            .map(|validation| validation.evidence_fingerprint())
-            .ok_or_else(|| {
-                "native publication requires compiler-function validation evidence".to_owned()
-            })?;
+        let function_validation = output.compiler_function_validation.ok_or_else(|| {
+            "native publication requires compiler-function validation evidence".to_owned()
+        })?;
+        let function_validation_digest = function_validation.evidence_digest();
+        let function_validation_fingerprint = function_validation.evidence_fingerprint();
         let boundary_contract_fingerprint = output
             .compiler_function_validation
             .map(publication_boundary_contract_fingerprint)
@@ -525,6 +555,7 @@ impl CompileReport {
             artifact,
             boundary_contract_fingerprint,
             text_validation_digest,
+            function_validation_digest,
             function_validation_fingerprint,
             output.executable_regions.inventory_fingerprint,
         );
@@ -533,6 +564,7 @@ impl CompileReport {
             output.callback_placement_identity_fingerprint,
             output.executable_regions.inventory_fingerprint,
             text_validation_digest,
+            function_validation_digest,
             function_validation_fingerprint,
             output.bytes.len(),
             container_digest,
@@ -553,6 +585,7 @@ impl CompileReport {
             boundary_contract_fingerprint,
             output.executable_regions.inventory_fingerprint,
             text_validation_digest,
+            function_validation_digest,
             function_validation_fingerprint,
             publication_evidence_digest,
             output.bytes.len(),
@@ -769,6 +802,29 @@ mod tests {
         ExecutablePublicationReceipt,
     };
 
+    fn function_validation_digest(
+        validation_fingerprint: u64,
+    ) -> omega_image::CompilerFunctionValidationDigest {
+        omega_image::CompilerFunctionValidationEvidence {
+            function_count: 1,
+            instruction_count: 2,
+            zero_width_instruction_count: 0,
+            checked_assembly_instruction_count: 0,
+            fixed_mechanics_instruction_count: 2,
+            fixed_mechanics_validation_fingerprint: 3,
+            fixed_mechanics_boundary_contract_fingerprint: 2,
+            fixed_mechanics_footprint_fingerprint: 4,
+            body_specification_instruction_count: 0,
+            body_specification_validation_fingerprint: 0,
+            body_specification_boundary_contract_fingerprint: 0,
+            body_specification_footprint_fingerprint: 0,
+            composed_footprint_fingerprint: 5,
+            final_region_binding_fingerprint: 6,
+            validation_fingerprint,
+        }
+        .evidence_digest()
+    }
+
     fn receipt(
         destination: ExecutablePublicationDestination,
         path: &str,
@@ -776,8 +832,18 @@ mod tests {
         let path: std::path::PathBuf = path.into();
         let certificate = super::NativePublicationCertificateDigest::from_digest([1; 32]);
         let text_validation = omega_image::CompilerTextDerivationDigest::from_digest([3; 32]);
-        let publication = super::NativePublicationEvidenceDigest::from_digest([5; 32]);
+        let function_validation = function_validation_digest(7);
         let container = super::ExecutableContainerDigest::from_digest([7; 32]);
+        let publication = super::native_publication_evidence_digest(
+            certificate,
+            8,
+            2,
+            text_validation,
+            function_validation,
+            4,
+            6,
+            container,
+        );
         let installation = super::executable_installation_evidence_digest(
             destination,
             publication,
@@ -794,6 +860,7 @@ mod tests {
             Some(2),
             2,
             text_validation,
+            function_validation,
             4,
             publication,
             6,
@@ -956,6 +1023,24 @@ mod tests {
         );
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
+        let mut compact_collision = flat.clone();
+        compact_collision.compiler_function_validation_digest = function_validation_digest(99);
+        assert_eq!(
+            compact_collision.compiler_function_validation_fingerprint,
+            flat.compiler_function_validation_fingerprint,
+            "the adversary preserves the compact report identity",
+        );
+        let compact_collision = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(compact_collision),
+            None,
+        );
+        assert!(
+            !compact_collision.has_consistent_executable_publication_custody(),
+            "strong function-validation drift must reject even with a collision-equal report fingerprint",
+        );
+        assert!(compact_collision.checked_native_executable_path().is_none());
         let retained = report(
             true,
             CompileOutputKind::NativeExecutable,

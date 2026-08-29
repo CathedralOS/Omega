@@ -38,7 +38,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfDynamicTableSectionDescriptorPlan {
     payload: ValidatedElfDynamicTablePayload,
     contents: ElfDynamicTableSectionDescriptorContents,
-    descriptor_identity: u64,
+    non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicTableSectionDescriptorPlan {
@@ -60,9 +60,9 @@ impl ValidatedElfDynamicTableSectionDescriptorPlan {
 
     /// Compatibility fingerprint of the exact serialized payload identity,
     /// append-only name seed, typed link/info semantics, and ABI metadata.
-    /// This is content identity, not layout or image authority.
-    pub const fn descriptor_identity(&self) -> u64 {
-        self.descriptor_identity
+    /// This is a content compatibility coordinate, not layout or image authority.
+    pub const fn non_authoritative_descriptor_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_descriptor_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfDynamicTableSectionDescriptorContents {
@@ -143,7 +143,7 @@ pub(crate) struct ElfDynamicTableSectionDescriptor {
 struct Candidate {
     payload: ValidatedElfDynamicTablePayload,
     contents: ElfDynamicTableSectionDescriptorContents,
-    descriptor_identity: u64,
+    non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -172,11 +172,12 @@ pub fn plan_elf_dynamic_table_section_descriptor(
             }));
         }
     };
-    let descriptor_identity = descriptor_identity(&payload, &contents);
+    let non_authoritative_descriptor_compatibility_fingerprint =
+        non_authoritative_descriptor_compatibility_fingerprint(&payload, &contents);
     let candidate = Candidate {
         payload,
         contents,
-        descriptor_identity,
+        non_authoritative_descriptor_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -234,17 +235,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.descriptor_identity != descriptor_identity(&candidate.payload, &candidate.contents)
+    if candidate.non_authoritative_descriptor_compatibility_fingerprint
+        != non_authoritative_descriptor_compatibility_fingerprint(
+            &candidate.payload,
+            &candidate.contents,
+        )
     {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF dynamic-table descriptor identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF dynamic-table descriptor compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfDynamicTableSectionDescriptorPlan {
         payload: candidate.payload,
         contents: candidate.contents,
-        descriptor_identity: candidate.descriptor_identity,
+        non_authoritative_descriptor_compatibility_fingerprint: candidate
+            .non_authoritative_descriptor_compatibility_fingerprint,
     })
 }
 
@@ -354,13 +362,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn descriptor_identity(
+fn non_authoritative_descriptor_compatibility_fingerprint(
     payload: &ValidatedElfDynamicTablePayload,
     contents: &ElfDynamicTableSectionDescriptorContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-dynamic-table-section-descriptor.v1");
-    hash.bytes(&payload.payload_identity().to_le_bytes());
+    hash.bytes(
+        &payload
+            .non_authoritative_payload_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.section_name_table_seed);
     let row = &contents.descriptor;
     hash.byte(row.kind as u8);
@@ -554,11 +566,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let payload = payload(target, &IMPORTS);
         let contents = derive_contents(&payload).expect("derived dynamic-table descriptor");
-        let descriptor_identity = descriptor_identity(&payload, &contents);
+        let non_authoritative_descriptor_compatibility_fingerprint =
+            non_authoritative_descriptor_compatibility_fingerprint(&payload, &contents);
         Candidate {
             payload,
             contents,
-            descriptor_identity,
+            non_authoritative_descriptor_compatibility_fingerprint,
         }
     }
 
@@ -589,7 +602,10 @@ mod tests {
                     info: None,
                 },
             );
-            assert_ne!(plan.descriptor_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_descriptor_compatibility_fingerprint(),
+                0
+            );
             validate_contents(plan.payload(), &plan.contents)
                 .expect("independent dynamic-table descriptor replay");
         }
@@ -644,20 +660,31 @@ mod tests {
             plan_elf_dynamic_table_section_descriptor(payload(TargetProfile::LinuxArm64, &IMPORTS))
                 .unwrap();
         assert_eq!(forward.contents, reverse.contents);
-        assert_eq!(forward.descriptor_identity(), reverse.descriptor_identity());
-        assert_ne!(forward.descriptor_identity(), arm.descriptor_identity());
+        assert_eq!(
+            forward.non_authoritative_descriptor_compatibility_fingerprint(),
+            reverse.non_authoritative_descriptor_compatibility_fingerprint()
+        );
+        assert_ne!(
+            forward.non_authoritative_descriptor_compatibility_fingerprint(),
+            arm.non_authoritative_descriptor_compatibility_fingerprint()
+        );
     }
 
     #[test]
     fn every_appended_name_byte_replays_and_rejection_retains_payload() {
         for offset in UPSTREAM_NAME_SEED_SIZE..UPSTREAM_NAME_SEED_SIZE + DYNAMIC_NAME_SUFFIX.len() {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.payload.payload_identity();
+            let expected_identity = candidate
+                .payload
+                .non_authoritative_payload_compatibility_fingerprint();
             candidate.contents.section_name_table_seed[offset] ^= 1;
             let error = validate_candidate(candidate)
                 .expect_err("mutated dynamic-table name seed must reject");
             assert_eq!(
-                error.candidate.payload.payload_identity(),
+                error
+                    .candidate
+                    .payload
+                    .non_authoritative_payload_compatibility_fingerprint(),
                 expected_identity
             );
         }
@@ -684,16 +711,23 @@ mod tests {
             Box::new(|candidate| {
                 candidate.contents.descriptor.info = Some(ElfDynamicSectionKind::DynamicString)
             }),
-            Box::new(|candidate| candidate.descriptor_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_descriptor_compatibility_fingerprint ^= 1
+            }),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_identity = candidate.payload.payload_identity();
+            let expected_identity = candidate
+                .payload
+                .non_authoritative_payload_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt dynamic-table descriptor candidate must reject");
             assert_eq!(
-                error.candidate.payload.payload_identity(),
+                error
+                    .candidate
+                    .payload
+                    .non_authoritative_payload_compatibility_fingerprint(),
                 expected_identity
             );
         }

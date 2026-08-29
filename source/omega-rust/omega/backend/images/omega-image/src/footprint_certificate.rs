@@ -590,29 +590,7 @@ fn update_compiler_function_validation_digest(
     evidence: CompilerFunctionValidationEvidence,
 ) {
     digest.update(b"omega.compiler-function-validation-structure.v1\0");
-    for value in [
-        evidence.function_count,
-        evidence.instruction_count,
-        evidence.zero_width_instruction_count,
-        evidence.checked_assembly_instruction_count,
-        evidence.fixed_mechanics_instruction_count,
-        evidence.body_specification_instruction_count,
-    ] {
-        digest.update((value as u64).to_le_bytes());
-    }
-    for value in [
-        evidence.fixed_mechanics_validation_fingerprint,
-        evidence.fixed_mechanics_boundary_contract_fingerprint,
-        evidence.fixed_mechanics_footprint_fingerprint,
-        evidence.body_specification_validation_fingerprint,
-        evidence.body_specification_boundary_contract_fingerprint,
-        evidence.body_specification_footprint_fingerprint,
-        evidence.composed_footprint_fingerprint,
-        evidence.final_region_binding_fingerprint,
-        evidence.validation_fingerprint,
-    ] {
-        digest.update(value.to_le_bytes());
-    }
+    digest.update(evidence.evidence_digest().as_bytes());
 }
 
 fn placement_binding_fingerprint(

@@ -61,7 +61,7 @@ const AARCH64_PLT_ENTRY: [u8; AARCH64_PLT_ENTRY_SIZE] = [
 pub struct ValidatedElfProcedureLinkageTemplatePlan {
     linkage: ValidatedElfProcedureLinkageRelocationPlan,
     contents: ElfProcedureLinkageTemplateContents,
-    template_identity: u64,
+    non_authoritative_template_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfProcedureLinkageTemplatePlan {
@@ -92,8 +92,8 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
     /// Compatibility fingerprint of the upstream linkage identity, exact
     /// target policy, fixed template bytes, semantic fixups, and deferred
     /// placement constraints. This is not final-byte or loader identity.
-    pub const fn template_identity(&self) -> u64 {
-        self.template_identity
+    pub const fn non_authoritative_template_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_template_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfProcedureLinkageTemplateContents {
@@ -218,7 +218,7 @@ pub(crate) enum ElfProcedureLinkagePlacementConstraintKind {
 struct Candidate {
     linkage: ValidatedElfProcedureLinkageRelocationPlan,
     contents: ElfProcedureLinkageTemplateContents,
-    template_identity: u64,
+    non_authoritative_template_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -245,11 +245,12 @@ pub fn plan_elf_procedure_linkage_templates(
             }));
         }
     };
-    let template_identity = template_identity(&linkage, &contents);
+    let non_authoritative_template_compatibility_fingerprint =
+        non_authoritative_template_compatibility_fingerprint(&linkage, &contents);
     let candidate = Candidate {
         linkage,
         contents,
-        template_identity,
+        non_authoritative_template_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -595,16 +596,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.template_identity != template_identity(&candidate.linkage, &candidate.contents) {
+    if candidate.non_authoritative_template_compatibility_fingerprint
+        != non_authoritative_template_compatibility_fingerprint(
+            &candidate.linkage,
+            &candidate.contents,
+        )
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF GOT/PLT template identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF GOT/PLT template compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfProcedureLinkageTemplatePlan {
         linkage: candidate.linkage,
         contents: candidate.contents,
-        template_identity: candidate.template_identity,
+        non_authoritative_template_compatibility_fingerprint: candidate
+            .non_authoritative_template_compatibility_fingerprint,
     })
 }
 
@@ -905,13 +914,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn template_identity(
+fn non_authoritative_template_compatibility_fingerprint(
     linkage: &ValidatedElfProcedureLinkageRelocationPlan,
     contents: &ElfProcedureLinkageTemplateContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-procedure-linkage-templates.v1");
-    hash.bytes(&linkage.linkage_identity().to_le_bytes());
+    hash.bytes(
+        &linkage
+            .non_authoritative_linkage_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.byte(contents.policy as u8);
     hash.bytes(&contents.bytes.plt);
     hash.bytes(&contents.bytes.got_plt);
@@ -1123,11 +1136,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let linkage = linkage(target, &IMPORTS);
         let contents = derive_contents(&linkage).expect("derived templates");
-        let template_identity = template_identity(&linkage, &contents);
+        let non_authoritative_template_compatibility_fingerprint =
+            non_authoritative_template_compatibility_fingerprint(&linkage, &contents);
         Candidate {
             linkage,
             contents,
-            template_identity,
+            non_authoritative_template_compatibility_fingerprint,
         }
     }
 
@@ -1155,7 +1169,10 @@ mod tests {
                 }
             );
             assert_eq!(plan.placement_constraint_count(), 12);
-            assert_ne!(plan.template_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_template_compatibility_fingerprint(),
+                0
+            );
             assert!(plan.contents.bytes.got_plt.iter().all(|byte| *byte == 0));
 
             for (index, relocation) in plan
@@ -1254,9 +1271,15 @@ mod tests {
             plan_elf_procedure_linkage_templates(linkage(TargetProfile::LinuxArm64, &IMPORTS))
                 .unwrap();
 
-        assert_eq!(forward.template_identity(), reverse.template_identity());
+        assert_eq!(
+            forward.non_authoritative_template_compatibility_fingerprint(),
+            reverse.non_authoritative_template_compatibility_fingerprint()
+        );
         assert_eq!(forward.contents, reverse.contents);
-        assert_ne!(forward.template_identity(), arm.template_identity());
+        assert_ne!(
+            forward.non_authoritative_template_compatibility_fingerprint(),
+            arm.non_authoritative_template_compatibility_fingerprint()
+        );
         assert_eq!(forward.linkage().logical_slot_count(), 3);
         assert_eq!(forward.linkage().direct_call_site_count(), 4);
     }
@@ -1313,17 +1336,24 @@ mod tests {
                 candidate.contents.constraints[0].kind =
                     ElfProcedureLinkagePlacementConstraintKind::Aarch64Branch26
             }),
-            Box::new(|candidate| candidate.template_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_template_compatibility_fingerprint ^= 1
+            }),
         ];
 
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.linkage.linkage_identity();
+            let expected_identity = candidate
+                .linkage
+                .non_authoritative_linkage_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt linkage template candidate must reject");
             assert_eq!(
-                error.candidate.linkage.linkage_identity(),
+                error
+                    .candidate
+                    .linkage
+                    .non_authoritative_linkage_compatibility_fingerprint(),
                 expected_identity,
                 "template rejection retains exact linkage custody",
             );
@@ -1348,12 +1378,17 @@ mod tests {
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_identity = candidate.linkage.linkage_identity();
+            let expected_identity = candidate
+                .linkage
+                .non_authoritative_linkage_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error =
                 validate_candidate(candidate).expect_err("corrupt AArch64 template must reject");
             assert_eq!(
-                error.candidate.linkage.linkage_identity(),
+                error
+                    .candidate
+                    .linkage
+                    .non_authoritative_linkage_compatibility_fingerprint(),
                 expected_identity
             );
         }

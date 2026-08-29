@@ -77,7 +77,7 @@ impl ElfAppliedSectionHeaderPlacement {
 pub struct ValidatedElfPlacedSectionHeaderTable {
     load_layout: ValidatedElfDynamicLoadLayout,
     contents: ElfPlacedSectionHeaderContents,
-    placed_identity: u64,
+    non_authoritative_placed_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfPlacedSectionHeaderTable {
@@ -93,8 +93,8 @@ impl ValidatedElfPlacedSectionHeaderTable {
         &self.contents.applications
     }
 
-    pub const fn placed_identity(&self) -> u64 {
-        self.placed_identity
+    pub const fn non_authoritative_placed_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_placed_compatibility_fingerprint
     }
 
     #[allow(dead_code)]
@@ -143,7 +143,7 @@ pub(crate) struct ElfPlacedSectionHeaderContents {
 struct Candidate {
     load_layout: ValidatedElfDynamicLoadLayout,
     contents: ElfPlacedSectionHeaderContents,
-    placed_identity: u64,
+    non_authoritative_placed_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -179,11 +179,12 @@ pub fn apply_elf_section_header_placements(
             }));
         }
     };
-    let placed_identity = placed_identity(&load_layout, &contents);
+    let non_authoritative_placed_compatibility_fingerprint =
+        non_authoritative_placed_compatibility_fingerprint(&load_layout, &contents);
     let candidate = Candidate {
         load_layout,
         contents,
-        placed_identity,
+        non_authoritative_placed_compatibility_fingerprint,
     };
     validate_candidate(candidate).map_err(|error| {
         Box::new(ElfSectionHeaderPlacementApplicationError {
@@ -268,17 +269,25 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    let expected_identity = placed_identity(&candidate.load_layout, &candidate.contents);
-    if candidate.placed_identity == 0 || candidate.placed_identity != expected_identity {
+    let expected_identity = non_authoritative_placed_compatibility_fingerprint(
+        &candidate.load_layout,
+        &candidate.contents,
+    );
+    if candidate.non_authoritative_placed_compatibility_fingerprint == 0
+        || candidate.non_authoritative_placed_compatibility_fingerprint != expected_identity
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("placed ELF section-header identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "placed ELF section-header compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfPlacedSectionHeaderTable {
         load_layout: candidate.load_layout,
         contents: candidate.contents,
-        placed_identity: candidate.placed_identity,
+        non_authoritative_placed_compatibility_fingerprint: candidate
+            .non_authoritative_placed_compatibility_fingerprint,
     })
 }
 
@@ -573,13 +582,17 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
     }
 }
 
-fn placed_identity(
+fn non_authoritative_placed_compatibility_fingerprint(
     load_layout: &ValidatedElfDynamicLoadLayout,
     contents: &ElfPlacedSectionHeaderContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf.placed-section-header-table.v1");
-    hash.bytes(&load_layout.layout_identity().to_le_bytes());
+    hash.bytes(
+        &load_layout
+            .non_authoritative_layout_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.applications.len() as u64).to_le_bytes());
     for application in &contents.applications {
@@ -728,11 +741,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let load_layout = load_layout(target);
         let contents = derive_contents(&load_layout).unwrap();
-        let placed_identity = placed_identity(&load_layout, &contents);
+        let non_authoritative_placed_compatibility_fingerprint =
+            non_authoritative_placed_compatibility_fingerprint(&load_layout, &contents);
         Candidate {
             load_layout,
             contents,
-            placed_identity,
+            non_authoritative_placed_compatibility_fingerprint,
         }
     }
 
@@ -743,7 +757,10 @@ mod tests {
             assert_eq!(placed.load_layout().target(), target);
             assert_eq!(placed.bytes().len(), 768);
             assert_eq!(placed.applied_placements().len(), 21);
-            assert_ne!(placed.placed_identity(), 0);
+            assert_ne!(
+                placed.non_authoritative_placed_compatibility_fingerprint(),
+                0
+            );
 
             let template = placed
                 .load_layout()
@@ -866,8 +883,14 @@ mod tests {
             apply_elf_section_header_placements(load_layout(TargetProfile::LinuxArm64)).unwrap();
         assert_eq!(first.bytes(), second.bytes());
         assert_eq!(first.applied_placements(), second.applied_placements());
-        assert_eq!(first.placed_identity(), second.placed_identity());
-        assert_ne!(first.placed_identity(), arm.placed_identity());
+        assert_eq!(
+            first.non_authoritative_placed_compatibility_fingerprint(),
+            second.non_authoritative_placed_compatibility_fingerprint()
+        );
+        assert_ne!(
+            first.non_authoritative_placed_compatibility_fingerprint(),
+            arm.non_authoritative_placed_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -885,16 +908,21 @@ mod tests {
                     ElfSectionPlacementResolutionKind::FileOffset
             }),
             Box::new(|candidate| candidate.contents.applications[0].row_index = 2),
-            Box::new(|candidate| candidate.placed_identity ^= 1),
+            Box::new(|candidate| candidate.non_authoritative_placed_compatibility_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_layout_identity = candidate.load_layout.layout_identity();
+            let expected_layout_identity = candidate
+                .load_layout
+                .non_authoritative_layout_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("drifted placement application must reject");
             assert_eq!(
-                error.candidate.load_layout.layout_identity(),
+                error
+                    .candidate
+                    .load_layout
+                    .non_authoritative_layout_compatibility_fingerprint(),
                 expected_layout_identity
             );
         }

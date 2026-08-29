@@ -34,7 +34,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfDynamicSectionPayloads {
     plan: ValidatedElfDynamicSectionPlan,
     payloads: ElfDynamicSectionPayloadBytes,
-    payload_identity: u64,
+    non_authoritative_payload_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicSectionPayloads {
@@ -68,9 +68,9 @@ impl ValidatedElfDynamicSectionPayloads {
 
     /// Compatibility fingerprint of the exact source content identity,
     /// ELF64-LSB encoding selection, section-kind boundaries, and serialized
-    /// bytes. This is content identity, not image or loader authority.
-    pub const fn payload_identity(&self) -> u64 {
-        self.payload_identity
+    /// bytes. This is a content compatibility coordinate, not image or loader authority.
+    pub const fn non_authoritative_payload_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_payload_compatibility_fingerprint
     }
 
     pub(crate) const fn payloads(&self) -> &ElfDynamicSectionPayloadBytes {
@@ -127,7 +127,7 @@ pub(crate) struct ElfDynamicSectionPayloadBytes {
 struct Candidate {
     plan: ValidatedElfDynamicSectionPlan,
     payloads: ElfDynamicSectionPayloadBytes,
-    payload_identity: u64,
+    non_authoritative_payload_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -155,11 +155,12 @@ pub fn serialize_elf_dynamic_sections(
             }));
         }
     };
-    let payload_identity = payload_identity(&plan, &payloads);
+    let non_authoritative_payload_compatibility_fingerprint =
+        non_authoritative_payload_compatibility_fingerprint(&plan, &payloads);
     let candidate = Candidate {
         plan,
         payloads,
-        payload_identity,
+        non_authoritative_payload_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -261,16 +262,21 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.payload_identity != payload_identity(&candidate.plan, &candidate.payloads) {
+    if candidate.non_authoritative_payload_compatibility_fingerprint
+        != non_authoritative_payload_compatibility_fingerprint(&candidate.plan, &candidate.payloads)
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF dynamic payload identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF dynamic payload compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfDynamicSectionPayloads {
         plan: candidate.plan,
         payloads: candidate.payloads,
-        payload_identity: candidate.payload_identity,
+        non_authoritative_payload_compatibility_fingerprint: candidate
+            .non_authoritative_payload_compatibility_fingerprint,
     })
 }
 
@@ -595,7 +601,7 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn payload_identity(
+fn non_authoritative_payload_compatibility_fingerprint(
     plan: &ValidatedElfDynamicSectionPlan,
     payloads: &ElfDynamicSectionPayloadBytes,
 ) -> u64 {
@@ -603,7 +609,11 @@ fn payload_identity(
     hash.bytes(b"omega.elf-dynamic-section-payloads.v1");
     hash.bytes(b"ELFCLASS64");
     hash.bytes(b"ELFDATA2LSB");
-    hash.bytes(&plan.content_identity().to_le_bytes());
+    hash.bytes(
+        &plan
+            .non_authoritative_content_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     for (kind, bytes) in [
         (b".interp".as_slice(), payloads.interpreter.as_slice()),
         (b".dynstr".as_slice(), payloads.dynstr.as_slice()),
@@ -770,11 +780,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let plan = structural_plan(target, &IMPORTS);
         let payloads = encode_payloads(plan.contents()).expect("encoded payloads");
-        let payload_identity = payload_identity(&plan, &payloads);
+        let non_authoritative_payload_compatibility_fingerprint =
+            non_authoritative_payload_compatibility_fingerprint(&plan, &payloads);
         Candidate {
             plan,
             payloads,
-            payload_identity,
+            non_authoritative_payload_compatibility_fingerprint,
         }
     }
 
@@ -833,7 +844,10 @@ mod tests {
             assert_eq!(serialized.system_v_hash_byte_count(), 44);
             assert_eq!(serialized.symbol_version_byte_count(), 10);
             assert_eq!(serialized.version_requirement_byte_count(), 80);
-            assert_ne!(serialized.payload_identity(), 0);
+            assert_ne!(
+                serialized.non_authoritative_payload_compatibility_fingerprint(),
+                0
+            );
             validate_payloads(serialized.plan(), payloads).expect("independent byte replay");
         }
     }
@@ -849,7 +863,10 @@ mod tests {
                 .expect("reverse payloads");
 
         assert_eq!(forward.payloads, reverse.payloads);
-        assert_eq!(forward.payload_identity(), reverse.payload_identity());
+        assert_eq!(
+            forward.non_authoritative_payload_compatibility_fingerprint(),
+            reverse.non_authoritative_payload_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -857,18 +874,18 @@ mod tests {
         let baseline =
             serialize_elf_dynamic_sections(structural_plan(TargetProfile::LinuxX64, &IMPORTS))
                 .expect("baseline payloads")
-                .payload_identity();
+                .non_authoritative_payload_compatibility_fingerprint();
         let changed_profile =
             serialize_elf_dynamic_sections(structural_plan(TargetProfile::LinuxArm64, &IMPORTS))
                 .expect("changed-profile payloads")
-                .payload_identity();
+                .non_authoritative_payload_compatibility_fingerprint();
         let changed_interpreter = serialize_elf_dynamic_sections(structural_plan_with_interpreter(
             TargetProfile::LinuxX64,
             &IMPORTS,
             b"/another/ld-linux-x86-64.so.2",
         ))
         .expect("changed-interpreter payloads")
-        .payload_identity();
+        .non_authoritative_payload_compatibility_fingerprint();
         let mut changed_imports = IMPORTS;
         changed_imports[0] = ImportFixture {
             object: b"libalpha\xff.so.1",
@@ -880,7 +897,7 @@ mod tests {
             &changed_imports,
         ))
         .expect("changed-coordinate payloads")
-        .payload_identity();
+        .non_authoritative_payload_compatibility_fingerprint();
 
         assert_ne!(baseline, changed_profile);
         assert_ne!(baseline, changed_interpreter);
@@ -927,7 +944,9 @@ mod tests {
             Box::new(|candidate| candidate.payloads.verneed[8..12].fill(0)),
             Box::new(|candidate| candidate.payloads.verneed[12..16].fill(0)),
             Box::new(|candidate| candidate.payloads.verneed[28..32].fill(0)),
-            Box::new(|candidate| candidate.payload_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_payload_compatibility_fingerprint ^= 1
+            }),
         ];
 
         for corrupt in corruptions {

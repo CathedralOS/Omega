@@ -11,6 +11,24 @@ use std::collections::BTreeSet;
 
 use omega_installation_evidence::ProviderExecutionEvidence;
 
+/// Collision-resistant commitment to the complete source-selected provider
+/// closure carried by this source-free artifact projection.
+///
+/// The digest is derived by the selected-closure owner and independently
+/// replayed when the standalone component candidate rejoins source policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NativeSelectedProviderClosureDigest([u8; 32]);
+
+impl NativeSelectedProviderClosureDigest {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
 /// One selected provider plan projected into source-free native-artifact
 /// identity. Requirements are canonical, strictly ordered, and complete for
 /// this selected plan.
@@ -99,7 +117,8 @@ pub struct NativeArtifact {
     psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     object: omega_image_emission::ObjectArtifact,
     image: omega_image_emission::ExecutableImage,
-    selected_provider_closure_identity: u64,
+    selected_provider_closure_report_identity: u64,
+    selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
 }
@@ -110,7 +129,8 @@ pub struct NativeArtifactParts {
     pub psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     pub object: omega_image_emission::ObjectArtifact,
     pub image: omega_image_emission::ExecutableImage,
-    pub selected_provider_closure_identity: u64,
+    pub selected_provider_closure_report_identity: u64,
+    pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
 }
@@ -124,7 +144,9 @@ impl NativeArtifact {
             psi_artifact: parts.psi_artifact,
             object: parts.object,
             image: parts.image,
-            selected_provider_closure_identity: parts.selected_provider_closure_identity,
+            selected_provider_closure_report_identity: parts
+                .selected_provider_closure_report_identity,
+            selected_provider_closure_digest: parts.selected_provider_closure_digest,
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
         };
@@ -150,7 +172,7 @@ impl NativeArtifact {
         if module.entry != self.object.entry() {
             return Err("native artifact entry disagrees with canonical semantics");
         }
-        if self.selected_provider_closure_identity == 0 {
+        if self.selected_provider_closure_report_identity == 0 {
             return Err("native artifact selected provider closure has the reserved zero identity");
         }
 
@@ -266,8 +288,14 @@ impl NativeArtifact {
         &self.image
     }
 
-    pub const fn selected_provider_closure_identity(&self) -> u64 {
-        self.selected_provider_closure_identity
+    /// Non-authoritative compatibility/report identity of the selected
+    /// provider closure.
+    pub const fn selected_provider_closure_report_identity(&self) -> u64 {
+        self.selected_provider_closure_report_identity
+    }
+
+    pub const fn selected_provider_closure_digest(&self) -> NativeSelectedProviderClosureDigest {
+        self.selected_provider_closure_digest
     }
 
     pub fn selected_provider_plans(&self) -> &[NativeSelectedProviderPlan] {
@@ -284,7 +312,9 @@ impl NativeArtifact {
             psi_artifact: self.psi_artifact,
             object: self.object,
             image: self.image,
-            selected_provider_closure_identity: self.selected_provider_closure_identity,
+            selected_provider_closure_report_identity: self
+                .selected_provider_closure_report_identity,
+            selected_provider_closure_digest: self.selected_provider_closure_digest,
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
         }

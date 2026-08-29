@@ -2,7 +2,8 @@ use crate::realization::diagnostics::realization_error;
 use crate::realization::model::NativeRealizationRequest;
 use omega_machine_code::MachineCodePlan;
 use omega_native_artifact::{
-    NativeArtifact, NativeArtifactParts, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeArtifact, NativeArtifactParts, NativeProviderExecution,
+    NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -37,7 +38,12 @@ pub(crate) fn assemble_native_artifact(
         psi_artifact,
         object,
         image,
-        selected_provider_closure_identity: request.selected_provider_plans.normalized_identity(),
+        selected_provider_closure_report_identity: request
+            .selected_provider_plans
+            .compatibility_report_identity(),
+        selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
+            *request.selected_provider_plans.identity_digest().as_bytes(),
+        ),
         selected_provider_plans,
         provider_executions,
     })

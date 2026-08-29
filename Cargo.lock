@@ -626,6 +626,7 @@ dependencies = [
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
  "psi-terminal-verifier",
+ "sha2",
 ]
 
 [[package]]
@@ -1478,6 +1479,7 @@ dependencies = [
  "psi-extents",
  "psi-language-core",
  "psi-layout-plans",
+ "sha2",
 ]
 
 [[package]]

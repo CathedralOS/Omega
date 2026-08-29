@@ -43,7 +43,7 @@ pub enum ElfRelativeSectionPayloadRegion {
 pub struct ValidatedElfRelativeSectionPayloadLayout {
     payloads: ValidatedElfIndexedSectionPayloadPlan,
     contents: ElfRelativeSectionPayloadLayoutContents,
-    layout_identity: u64,
+    non_authoritative_layout_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfRelativeSectionPayloadLayout {
@@ -63,8 +63,8 @@ impl ValidatedElfRelativeSectionPayloadLayout {
 
     /// Compatibility fingerprint over the indexed-payload identity and every
     /// relative placement row. This is not final ELF layout identity.
-    pub const fn layout_identity(&self) -> u64 {
-        self.layout_identity
+    pub const fn non_authoritative_layout_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_layout_compatibility_fingerprint
     }
 
     #[allow(dead_code)]
@@ -156,7 +156,7 @@ impl ElfRelativeSectionPayloadRegionSpans {
 struct Candidate {
     payloads: ValidatedElfIndexedSectionPayloadPlan,
     contents: ElfRelativeSectionPayloadLayoutContents,
-    layout_identity: u64,
+    non_authoritative_layout_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -184,11 +184,12 @@ pub fn plan_elf_relative_section_payload_layout(
             }));
         }
     };
-    let layout_identity = layout_identity(&payloads, &contents);
+    let non_authoritative_layout_compatibility_fingerprint =
+        non_authoritative_layout_compatibility_fingerprint(&payloads, &contents);
     let candidate = Candidate {
         payloads,
         contents,
-        layout_identity,
+        non_authoritative_layout_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -251,16 +252,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.layout_identity != layout_identity(&candidate.payloads, &candidate.contents) {
+    if candidate.non_authoritative_layout_compatibility_fingerprint
+        != non_authoritative_layout_compatibility_fingerprint(
+            &candidate.payloads,
+            &candidate.contents,
+        )
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("relative ELF payload-layout identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "relative ELF payload-layout compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfRelativeSectionPayloadLayout {
         payloads: candidate.payloads,
         contents: candidate.contents,
-        layout_identity: candidate.layout_identity,
+        non_authoritative_layout_compatibility_fingerprint: candidate
+            .non_authoritative_layout_compatibility_fingerprint,
     })
 }
 
@@ -362,13 +371,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn layout_identity(
+fn non_authoritative_layout_compatibility_fingerprint(
     payloads: &ValidatedElfIndexedSectionPayloadPlan,
     contents: &ElfRelativeSectionPayloadLayoutContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-relative-section-payload-layout.v1");
-    hash.bytes(&payloads.payload_roster_identity().to_le_bytes());
+    hash.bytes(
+        &payloads
+            .non_authoritative_payload_roster_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     for row in &contents.rows {
         hash.bytes(&row.index.to_le_bytes());
         hash.byte(row.kind as u8);
@@ -514,11 +527,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let payloads = payloads(target);
         let contents = derive_contents(&payloads).unwrap();
-        let layout_identity = layout_identity(&payloads, &contents);
+        let non_authoritative_layout_compatibility_fingerprint =
+            non_authoritative_layout_compatibility_fingerprint(&payloads, &contents);
         Candidate {
             payloads,
             contents,
-            layout_identity,
+            non_authoritative_layout_compatibility_fingerprint,
         }
     }
 
@@ -527,7 +541,10 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let layout = plan_elf_relative_section_payload_layout(payloads(target)).unwrap();
             assert_eq!(layout.row_count(), SECTION_COUNT);
-            assert_ne!(layout.layout_identity(), 0);
+            assert_ne!(
+                layout.non_authoritative_layout_compatibility_fingerprint(),
+                0
+            );
             assert_eq!(layout.contents.rows[0].relative_file_offset, 0);
             assert_eq!(layout.contents.rows[0].byte_size, 0);
             assert_eq!(layout.contents.rows[0].region, None);
@@ -590,8 +607,14 @@ mod tests {
         let arm =
             plan_elf_relative_section_payload_layout(payloads(TargetProfile::LinuxArm64)).unwrap();
         assert_eq!(first.contents, second.contents);
-        assert_eq!(first.layout_identity(), second.layout_identity());
-        assert_ne!(first.layout_identity(), arm.layout_identity());
+        assert_eq!(
+            first.non_authoritative_layout_compatibility_fingerprint(),
+            second.non_authoritative_layout_compatibility_fingerprint()
+        );
+        assert_ne!(
+            first.non_authoritative_layout_compatibility_fingerprint(),
+            arm.non_authoritative_layout_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -614,17 +637,22 @@ mod tests {
             Box::new(|c| c.contents.region_spans.read_execute += 1),
             Box::new(|c| c.contents.region_spans.read_write += 1),
             Box::new(|c| c.contents.region_spans.file_only += 1),
-            Box::new(|c| c.layout_identity ^= 1),
+            Box::new(|c| c.non_authoritative_layout_compatibility_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let payload_identity = candidate.payloads.payload_roster_identity();
+            let non_authoritative_payload_compatibility_fingerprint = candidate
+                .payloads
+                .non_authoritative_payload_roster_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("relative layout corruption must reject fail closed");
             assert_eq!(
-                error.candidate.payloads.payload_roster_identity(),
-                payload_identity
+                error
+                    .candidate
+                    .payloads
+                    .non_authoritative_payload_roster_compatibility_fingerprint(),
+                non_authoritative_payload_compatibility_fingerprint
             );
         }
     }

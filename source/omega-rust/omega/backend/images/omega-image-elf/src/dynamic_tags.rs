@@ -37,7 +37,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfDynamicTagPlan {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: ElfDynamicTagContents,
-    tag_identity: u64,
+    non_authoritative_tag_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicTagPlan {
@@ -66,8 +66,8 @@ impl ValidatedElfDynamicTagPlan {
     /// Compatibility fingerprint of the owning nine-section descriptor
     /// identity, exact typed row sequence, and seven semantic address
     /// obligations. This is not final-byte or loader identity.
-    pub const fn tag_identity(&self) -> u64 {
-        self.tag_identity
+    pub const fn non_authoritative_tag_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_tag_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfDynamicTagContents {
@@ -182,7 +182,7 @@ pub(crate) struct ElfDynamicAddressObligation {
 struct Candidate {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: ElfDynamicTagContents,
-    tag_identity: u64,
+    non_authoritative_tag_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -207,11 +207,12 @@ pub fn plan_elf_dynamic_tags(
             }));
         }
     };
-    let tag_identity = tag_identity(&descriptors, &contents);
+    let non_authoritative_tag_compatibility_fingerprint =
+        non_authoritative_tag_compatibility_fingerprint(&descriptors, &contents);
     let candidate = Candidate {
         descriptors,
         contents,
-        tag_identity,
+        non_authoritative_tag_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -368,16 +369,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.tag_identity != tag_identity(&candidate.descriptors, &candidate.contents) {
+    if candidate.non_authoritative_tag_compatibility_fingerprint
+        != non_authoritative_tag_compatibility_fingerprint(
+            &candidate.descriptors,
+            &candidate.contents,
+        )
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF dynamic-tag identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF dynamic-tag compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfDynamicTagPlan {
         descriptors: candidate.descriptors,
         contents: candidate.contents,
-        tag_identity: candidate.tag_identity,
+        non_authoritative_tag_compatibility_fingerprint: candidate
+            .non_authoritative_tag_compatibility_fingerprint,
     })
 }
 
@@ -684,13 +693,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn tag_identity(
+fn non_authoritative_tag_compatibility_fingerprint(
     descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: &ElfDynamicTagContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-dynamic-tags.v1");
-    hash.bytes(&descriptors.descriptor_identity().to_le_bytes());
+    hash.bytes(
+        &descriptors
+            .non_authoritative_descriptor_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&(contents.rows.len() as u64).to_le_bytes());
     for row in &contents.rows {
         hash.bytes(&(row.tag as i64).to_le_bytes());
@@ -896,11 +909,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let descriptors = descriptors(target, &IMPORTS);
         let contents = derive_contents(&descriptors).expect("derived dynamic tags");
-        let tag_identity = tag_identity(&descriptors, &contents);
+        let non_authoritative_tag_compatibility_fingerprint =
+            non_authoritative_tag_compatibility_fingerprint(&descriptors, &contents);
         Candidate {
             descriptors,
             contents,
-            tag_identity,
+            non_authoritative_tag_compatibility_fingerprint,
         }
     }
 
@@ -913,7 +927,7 @@ mod tests {
             assert_eq!(plan.needed_row_count(), 2);
             assert_eq!(plan.row_count(), 15);
             assert_eq!(plan.address_obligation_count(), 7);
-            assert_ne!(plan.tag_identity(), 0);
+            assert_ne!(plan.non_authoritative_tag_compatibility_fingerprint(), 0);
 
             let structural = structural_contents(&plan.descriptors);
             assert_eq!(
@@ -1037,8 +1051,14 @@ mod tests {
             plan_elf_dynamic_tags(descriptors(TargetProfile::LinuxX64, &reverse_imports)).unwrap();
         let arm = plan_elf_dynamic_tags(descriptors(TargetProfile::LinuxArm64, &IMPORTS)).unwrap();
         assert_eq!(forward.contents, reverse.contents);
-        assert_eq!(forward.tag_identity(), reverse.tag_identity());
-        assert_ne!(forward.tag_identity(), arm.tag_identity());
+        assert_eq!(
+            forward.non_authoritative_tag_compatibility_fingerprint(),
+            reverse.non_authoritative_tag_compatibility_fingerprint()
+        );
+        assert_ne!(
+            forward.non_authoritative_tag_compatibility_fingerprint(),
+            arm.non_authoritative_tag_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -1103,16 +1123,21 @@ mod tests {
             Box::new(|candidate| {
                 candidate.contents.rows[14].value = ElfDynamicValue::AddressPlaceholder
             }),
-            Box::new(|candidate| candidate.tag_identity ^= 1),
+            Box::new(|candidate| candidate.non_authoritative_tag_compatibility_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.descriptors.descriptor_identity();
+            let expected_identity = candidate
+                .descriptors
+                .non_authoritative_descriptor_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt semantic dynamic tags must reject");
             assert_eq!(
-                error.candidate.descriptors.descriptor_identity(),
+                error
+                    .candidate
+                    .descriptors
+                    .non_authoritative_descriptor_compatibility_fingerprint(),
                 expected_identity,
                 "dynamic-tag rejection retains exact descriptor custody",
             );
@@ -1141,12 +1166,17 @@ mod tests {
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_identity = candidate.descriptors.descriptor_identity();
+            let expected_identity = candidate
+                .descriptors
+                .non_authoritative_descriptor_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt dynamic address obligations must reject");
             assert_eq!(
-                error.candidate.descriptors.descriptor_identity(),
+                error
+                    .candidate
+                    .descriptors
+                    .non_authoritative_descriptor_compatibility_fingerprint(),
                 expected_identity,
             );
         }

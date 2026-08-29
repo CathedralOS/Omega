@@ -12,3 +12,4 @@ path = "src/lib.rs"
 psi-extents = { path = "../psi-extents" }
 psi-language-core = { path = "../psi-language-core" }
 psi-layout-plans = { path = "../psi-layout-plans" }
+sha2 = "0.10"

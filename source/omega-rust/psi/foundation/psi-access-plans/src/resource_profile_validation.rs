@@ -1,7 +1,7 @@
 use super::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalReadBehavior,
     ResourceProfile, ResourceRegion, TransferRule, ValidatedResourceProfile,
-    normalized_resource_profile_identity,
+    non_authoritative_resource_profile_compatibility_fingerprint,
 };
 
 /// Normalize one provider resource profile into exact disjoint supply rows.
@@ -63,7 +63,8 @@ pub fn validate_resource_profile(
         }
         normalized.push(region);
     }
-    let identity = normalized_resource_profile_identity(length, &normalized);
+    let identity =
+        non_authoritative_resource_profile_compatibility_fingerprint(length, &normalized);
     Ok(ValidatedResourceProfile {
         identity,
         length,

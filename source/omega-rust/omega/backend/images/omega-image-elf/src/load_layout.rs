@@ -260,7 +260,7 @@ pub struct ValidatedElfDynamicLoadLayout {
     sections: Vec<ElfPlacedDynamicSection>,
     section_header_table_file_offset: u64,
     section_header_resolutions: Vec<ElfResolvedSectionHeaderPlacement>,
-    layout_identity: u64,
+    non_authoritative_layout_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicLoadLayout {
@@ -318,8 +318,8 @@ impl ValidatedElfDynamicLoadLayout {
     }
 
     /// Compatibility fingerprint only; this is not a runnable-image identity.
-    pub const fn layout_identity(&self) -> u64 {
-        self.layout_identity
+    pub const fn non_authoritative_layout_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_layout_compatibility_fingerprint
     }
 }
 
@@ -359,7 +359,7 @@ struct Candidate {
     sections: Vec<ElfPlacedDynamicSection>,
     section_header_table_file_offset: u64,
     section_header_resolutions: Vec<ElfResolvedSectionHeaderPlacement>,
-    layout_identity: u64,
+    non_authoritative_layout_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -393,17 +393,18 @@ pub fn plan_elf_dynamic_load_layout(
     };
     let image_base = IMAGE_BASE;
     let max_page_alignment = DYNAMIC_MAX_PAGE_SIZE;
-    let layout_identity = layout_identity(
-        &relative,
-        target,
-        image_base,
-        max_page_alignment,
-        &program_headers,
-        &image_memory,
-        &sections,
-        section_header_table_file_offset,
-        &section_header_resolutions,
-    );
+    let non_authoritative_layout_compatibility_fingerprint =
+        non_authoritative_layout_compatibility_fingerprint(
+            &relative,
+            target,
+            image_base,
+            max_page_alignment,
+            &program_headers,
+            &image_memory,
+            &sections,
+            section_header_table_file_offset,
+            &section_header_resolutions,
+        );
     let candidate = Candidate {
         relative,
         target,
@@ -414,7 +415,7 @@ pub fn plan_elf_dynamic_load_layout(
         sections,
         section_header_table_file_offset,
         section_header_resolutions,
-        layout_identity,
+        non_authoritative_layout_compatibility_fingerprint,
     };
     validate_candidate(candidate).map_err(|error| {
         Box::new(ElfDynamicLoadLayoutError {
@@ -711,7 +712,7 @@ fn validate_candidate(
             diagnostic: Diagnostic::error("dynamic ELF absolute load layout does not replay"),
         });
     }
-    let identity = layout_identity(
+    let identity = non_authoritative_layout_compatibility_fingerprint(
         &candidate.relative,
         candidate.target,
         candidate.image_base,
@@ -722,11 +723,13 @@ fn validate_candidate(
         candidate.section_header_table_file_offset,
         &candidate.section_header_resolutions,
     );
-    if candidate.layout_identity == 0 || candidate.layout_identity != identity {
+    if candidate.non_authoritative_layout_compatibility_fingerprint == 0
+        || candidate.non_authoritative_layout_compatibility_fingerprint != identity
+    {
         return Err(CandidateValidationError {
             candidate,
             diagnostic: Diagnostic::error(
-                "dynamic ELF absolute load-layout identity does not replay",
+                "dynamic ELF absolute load-layout compatibility fingerprint does not replay",
             ),
         });
     }
@@ -746,7 +749,8 @@ fn validate_candidate(
         sections: candidate.sections,
         section_header_table_file_offset: candidate.section_header_table_file_offset,
         section_header_resolutions: candidate.section_header_resolutions,
-        layout_identity: candidate.layout_identity,
+        non_authoritative_layout_compatibility_fingerprint: candidate
+            .non_authoritative_layout_compatibility_fingerprint,
     })
 }
 
@@ -1300,7 +1304,7 @@ fn placed_coordinates(
     Ok((file_offset, virtual_address))
 }
 
-fn layout_identity(
+fn non_authoritative_layout_compatibility_fingerprint(
     relative: &ValidatedElfRelativeSectionPayloadLayout,
     target: TargetProfile,
     image_base: u64,
@@ -1313,7 +1317,11 @@ fn layout_identity(
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf.dynamic-load-layout.v1");
-    hash.bytes(&relative.layout_identity().to_le_bytes());
+    hash.bytes(
+        &relative
+            .non_authoritative_layout_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.byte(target_tag(target));
     hash.byte(DYNAMIC_LOAD_POLICY_TAG);
     hash.bytes(&image_base.to_le_bytes());
@@ -1549,17 +1557,18 @@ mod tests {
             section_header_table_file_offset,
             resolutions,
         ) = derive_contents(&relative, target).unwrap();
-        let layout_identity = layout_identity(
-            &relative,
-            target,
-            IMAGE_BASE,
-            DYNAMIC_MAX_PAGE_SIZE,
-            &program_headers,
-            &image_memory,
-            &sections,
-            section_header_table_file_offset,
-            &resolutions,
-        );
+        let non_authoritative_layout_compatibility_fingerprint =
+            non_authoritative_layout_compatibility_fingerprint(
+                &relative,
+                target,
+                IMAGE_BASE,
+                DYNAMIC_MAX_PAGE_SIZE,
+                &program_headers,
+                &image_memory,
+                &sections,
+                section_header_table_file_offset,
+                &resolutions,
+            );
         Candidate {
             relative,
             target,
@@ -1570,7 +1579,7 @@ mod tests {
             sections,
             section_header_table_file_offset,
             section_header_resolutions: resolutions,
-            layout_identity,
+            non_authoritative_layout_compatibility_fingerprint,
         }
     }
 
@@ -1581,7 +1590,10 @@ mod tests {
             assert_eq!(layout.target(), target);
             assert_eq!(layout.image_base(), IMAGE_BASE);
             assert_eq!(layout.max_page_alignment(), 0x1_0000);
-            assert_ne!(layout.layout_identity(), 0);
+            assert_ne!(
+                layout.non_authoritative_layout_compatibility_fingerprint(),
+                0
+            );
             assert_eq!(
                 layout
                     .program_headers()
@@ -1687,8 +1699,14 @@ mod tests {
         let arm = plan_elf_dynamic_load_layout(relative(TargetProfile::LinuxArm64)).unwrap();
         assert_eq!(first.program_headers(), second.program_headers());
         assert_eq!(first.sections(), second.sections());
-        assert_eq!(first.layout_identity(), second.layout_identity());
-        assert_ne!(first.layout_identity(), arm.layout_identity());
+        assert_eq!(
+            first.non_authoritative_layout_compatibility_fingerprint(),
+            second.non_authoritative_layout_compatibility_fingerprint()
+        );
+        assert_ne!(
+            first.non_authoritative_layout_compatibility_fingerprint(),
+            arm.non_authoritative_layout_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -1708,16 +1726,21 @@ mod tests {
             }),
             Box::new(|candidate| candidate.section_header_resolutions[0].value ^= 1),
             Box::new(|candidate| candidate.max_page_alignment >>= 1),
-            Box::new(|candidate| candidate.layout_identity ^= 1),
+            Box::new(|candidate| candidate.non_authoritative_layout_compatibility_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let relative_identity = candidate.relative.layout_identity();
+            let relative_identity = candidate
+                .relative
+                .non_authoritative_layout_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("absolute ELF load-layout corruption must reject");
             assert_eq!(
-                error.candidate.relative.layout_identity(),
+                error
+                    .candidate
+                    .relative
+                    .non_authoritative_layout_compatibility_fingerprint(),
                 relative_identity
             );
         }
@@ -1821,11 +1844,14 @@ mod tests {
     fn invalid_bss_alignment_rejects_with_exact_relative_layout_custody() {
         for alignment in [0, 3] {
             let relative = relative_with_bss_alignment(TargetProfile::LinuxX64, alignment);
-            let identity = relative.layout_identity();
+            let identity = relative.non_authoritative_layout_compatibility_fingerprint();
             let error = plan_elf_dynamic_load_layout(relative)
                 .expect_err("invalid retained BSS alignment must reject");
             let (relative, _) = error.into_parts();
-            assert_eq!(relative.layout_identity(), identity);
+            assert_eq!(
+                relative.non_authoritative_layout_compatibility_fingerprint(),
+                identity
+            );
         }
     }
 

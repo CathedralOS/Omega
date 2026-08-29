@@ -1103,7 +1103,12 @@ Certificate, publication, container, compiler-text, and installed-destination
 joins use separate domain-framed SHA-256 digest types. Compact callback,
 inventory, and function-validation fingerprints remain report coordinates
 inside those exact semantic/container commitments; none is the sole
-publication or installation key.
+authority. Compiler-function validation additionally has its own domain-framed
+SHA-256 commitment over the complete normalized validation summary. Final-
+footprint identity incorporates that commitment, and publication receipts
+retain and replay it separately from the compatibility fingerprint, so a
+compact-collision-equal substitute rejects before executable custody is
+accepted; the compact fingerprint is never a publication or installation key.
 Executable installation writes that sealed container to a temporary file,
 reads it back, and compares every byte before the atomic rename. The resulting
 non-serialized receipt binds the publication identity, exact output path, byte

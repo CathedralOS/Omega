@@ -56,7 +56,7 @@ const DYNAMIC_SECTION_KINDS: [ElfDynamicSectionKind; 6] = [
 pub struct ValidatedElfDynamicSectionDescriptorPlan {
     payloads: ValidatedElfDynamicSectionPayloads,
     contents: ElfDynamicSectionDescriptorContents,
-    descriptor_identity: u64,
+    non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicSectionDescriptorPlan {
@@ -78,9 +78,9 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
 
     /// Compatibility fingerprint of the exact payload identity, append-only
     /// name seed, semantic descriptor kinds/links, and every ABI metadata
-    /// field. This is content identity, not layout or image authority.
-    pub const fn descriptor_identity(&self) -> u64 {
-        self.descriptor_identity
+    /// field. This is a content compatibility coordinate, not layout or image authority.
+    pub const fn non_authoritative_descriptor_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_descriptor_compatibility_fingerprint
     }
 
     #[allow(dead_code)]
@@ -171,7 +171,7 @@ pub(crate) struct ElfAddressFreeSectionDescriptor {
 struct Candidate {
     payloads: ValidatedElfDynamicSectionPayloads,
     contents: ElfDynamicSectionDescriptorContents,
-    descriptor_identity: u64,
+    non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -199,11 +199,12 @@ pub fn plan_elf_dynamic_section_descriptors(
             }));
         }
     };
-    let descriptor_identity = descriptor_identity(&payloads, &contents);
+    let non_authoritative_descriptor_compatibility_fingerprint =
+        non_authoritative_descriptor_compatibility_fingerprint(&payloads, &contents);
     let candidate = Candidate {
         payloads,
         contents,
-        descriptor_identity,
+        non_authoritative_descriptor_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -329,18 +330,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.descriptor_identity
-        != descriptor_identity(&candidate.payloads, &candidate.contents)
+    if candidate.non_authoritative_descriptor_compatibility_fingerprint
+        != non_authoritative_descriptor_compatibility_fingerprint(
+            &candidate.payloads,
+            &candidate.contents,
+        )
     {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF dynamic descriptor identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF dynamic descriptor compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfDynamicSectionDescriptorPlan {
         payloads: candidate.payloads,
         contents: candidate.contents,
-        descriptor_identity: candidate.descriptor_identity,
+        non_authoritative_descriptor_compatibility_fingerprint: candidate
+            .non_authoritative_descriptor_compatibility_fingerprint,
     })
 }
 
@@ -551,13 +558,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn descriptor_identity(
+fn non_authoritative_descriptor_compatibility_fingerprint(
     payloads: &ValidatedElfDynamicSectionPayloads,
     contents: &ElfDynamicSectionDescriptorContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-dynamic-section-descriptors.v1");
-    hash.bytes(&payloads.payload_identity().to_le_bytes());
+    hash.bytes(
+        &payloads
+            .non_authoritative_payload_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.section_name_table_seed);
     for row in &contents.descriptors {
         hash.byte(row.kind as u8);
@@ -715,11 +726,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let payloads = payloads(target, &IMPORTS);
         let contents = derive_contents(&payloads).expect("derived descriptors");
-        let descriptor_identity = descriptor_identity(&payloads, &contents);
+        let non_authoritative_descriptor_compatibility_fingerprint =
+            non_authoritative_descriptor_compatibility_fingerprint(&payloads, &contents);
         Candidate {
             payloads,
             contents,
-            descriptor_identity,
+            non_authoritative_descriptor_compatibility_fingerprint,
         }
     }
 
@@ -837,7 +849,10 @@ mod tests {
                     info: 2,
                 }
             );
-            assert_ne!(plan.descriptor_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_descriptor_compatibility_fingerprint(),
+                0
+            );
             validate_contents(plan.payloads(), contents).expect("independent descriptor replay");
         }
     }
@@ -893,8 +908,14 @@ mod tests {
                 .expect("arm descriptor plan");
 
         assert_eq!(forward.contents, reverse.contents);
-        assert_eq!(forward.descriptor_identity(), reverse.descriptor_identity());
-        assert_ne!(forward.descriptor_identity(), arm.descriptor_identity());
+        assert_eq!(
+            forward.non_authoritative_descriptor_compatibility_fingerprint(),
+            reverse.non_authoritative_descriptor_compatibility_fingerprint()
+        );
+        assert_ne!(
+            forward.non_authoritative_descriptor_compatibility_fingerprint(),
+            arm.non_authoritative_descriptor_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -923,7 +944,9 @@ mod tests {
             }),
             Box::new(|candidate| candidate.contents.descriptors[2].info = 0),
             Box::new(|candidate| candidate.contents.descriptors[5].info += 1),
-            Box::new(|candidate| candidate.descriptor_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_descriptor_compatibility_fingerprint ^= 1
+            }),
         ];
 
         for corrupt in corruptions {

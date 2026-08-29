@@ -71,9 +71,10 @@ pub(super) fn validate_provider_content_binding(
     loan: &ExtentLoan<'_>,
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
-    if content.interpretation().normalized_identity() != plan.identity().normalized_identity() {
+    if content.interpretation() != plan.content_interpretation() {
         return Err(AccessPlanDiagnostic(
-            "provider existing-content interpretation does not match the admitted placement".into(),
+            "provider existing-content interpretation commitment does not match the admitted placement"
+                .into(),
         ));
     }
     if content.origin() != loan.origin() {

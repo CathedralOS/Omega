@@ -72,8 +72,9 @@ impl ValidatedElfDynamicSectionPlan {
     /// contents, canonical table contents, normalized import identities, and
     /// their assigned dynamic-symbol/version indexes. This is deterministic
     /// artifact content identity, not admission or loader authority.
-    pub const fn content_identity(&self) -> u64 {
-        self.contents.content_identity
+    pub const fn non_authoritative_content_compatibility_fingerprint(&self) -> u64 {
+        self.contents
+            .non_authoritative_content_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfDynamicSectionContents {
@@ -122,7 +123,7 @@ pub(crate) struct ElfDynamicSectionContents {
     pub(crate) verneed: Vec<ElfVersionNeed>,
     pub(crate) needed: Vec<u32>,
     pub(crate) bindings: Vec<ElfDynamicImportBinding>,
-    pub(crate) content_identity: u64,
+    pub(crate) non_authoritative_content_compatibility_fingerprint: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -280,9 +281,10 @@ fn derive_contents(
         verneed,
         needed,
         bindings,
-        content_identity: 0,
+        non_authoritative_content_compatibility_fingerprint: 0,
     };
-    contents.content_identity = content_identity(inputs, &contents);
+    contents.non_authoritative_content_compatibility_fingerprint =
+        non_authoritative_content_compatibility_fingerprint(inputs, &contents);
     Ok(contents)
 }
 
@@ -588,8 +590,9 @@ fn validate_contents(
         "ELF GNU version requirements do not match the exact object/version rows",
     )?;
     require_equal(
-        contents.content_identity == content_identity(inputs, contents),
-        "ELF dynamic-section content identity does not replay",
+        contents.non_authoritative_content_compatibility_fingerprint
+            == non_authoritative_content_compatibility_fingerprint(inputs, contents),
+        "ELF dynamic-section content compatibility fingerprint does not replay",
     )
 }
 
@@ -645,7 +648,7 @@ fn elf_hash(bytes: &[u8]) -> u32 {
     hash
 }
 
-fn content_identity(
+fn non_authoritative_content_compatibility_fingerprint(
     inputs: &PlannedElfDynamicLinkInputs,
     contents: &ElfDynamicSectionContents,
 ) -> u64 {
@@ -918,7 +921,10 @@ mod tests {
                     })
             }));
             validate_contents(plan.inputs(), contents).expect("independent table replay");
-            assert_ne!(plan.content_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_content_compatibility_fingerprint(),
+                0
+            );
         }
     }
 
@@ -937,24 +943,27 @@ mod tests {
         assert_eq!(forward.contents.versym, reverse.contents.versym);
         assert_eq!(forward.contents.verneed, reverse.contents.verneed);
         assert_eq!(forward.contents.needed, reverse.contents.needed);
-        assert_eq!(forward.content_identity(), reverse.content_identity());
+        assert_eq!(
+            forward.non_authoritative_content_compatibility_fingerprint(),
+            reverse.non_authoritative_content_compatibility_fingerprint()
+        );
     }
 
     #[test]
     fn content_identity_binds_profile_interpreter_and_exact_table_coordinates() {
         let baseline = plan_elf_dynamic_sections(input(TargetProfile::LinuxX64, &IMPORTS))
             .expect("baseline plan")
-            .content_identity();
+            .non_authoritative_content_compatibility_fingerprint();
         let changed_interpreter = plan_elf_dynamic_sections(input_with_interpreter(
             TargetProfile::LinuxX64,
             &IMPORTS,
             b"/another/ld-linux-x86-64.so.2",
         ))
         .expect("changed-interpreter plan")
-        .content_identity();
+        .non_authoritative_content_compatibility_fingerprint();
         let changed_profile = plan_elf_dynamic_sections(input(TargetProfile::LinuxArm64, &IMPORTS))
             .expect("changed-profile plan")
-            .content_identity();
+            .non_authoritative_content_compatibility_fingerprint();
         let mut changed_imports = IMPORTS;
         changed_imports[0] = ImportFixture {
             object: b"libalpha\xff.so.1",
@@ -964,7 +973,7 @@ mod tests {
         let changed_coordinate =
             plan_elf_dynamic_sections(input(TargetProfile::LinuxX64, &changed_imports))
                 .expect("changed-coordinate plan")
-                .content_identity();
+                .non_authoritative_content_compatibility_fingerprint();
 
         assert_ne!(baseline, changed_interpreter);
         assert_ne!(baseline, changed_profile);
@@ -1016,7 +1025,7 @@ mod tests {
             Box::new(|contents| contents.verneed[0].auxiliaries[0].next_offset = 0),
             Box::new(|contents| contents.needed[0] = 0),
             Box::new(|contents| contents.bindings[0].dynamic_symbol_index += 1),
-            Box::new(|contents| contents.content_identity ^= 1),
+            Box::new(|contents| contents.non_authoritative_content_compatibility_fingerprint ^= 1),
         ];
 
         for corrupt in corruptions.drain(..) {
