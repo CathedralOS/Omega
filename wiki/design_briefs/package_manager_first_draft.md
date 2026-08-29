@@ -816,6 +816,13 @@ encodes the package-qualified operator target. A static namespace such as
 `Token` in `Token::ordered(left, right)` is path qualification, not a value
 receiver. Target drift and explicit reference arguments inconsistent with the
 selected callable telescope reject. No new canonical discriminant is needed.
+Review v85 and canonical row v43 admit exact atomic-load expressions in public
+contracts. The row binds the recursively projected loaded value and one closed
+load-valid ordering: `NoOrdering`, `Receive`, or `GlobalOrder`. Projection
+requires an invalid result handle because loads have no secondary result
+carrier. Store, read-modify-write, swap, compare-exchange, publish-bearing load
+ordering, missing value, and post-check result-carrier drift reject rather than
+being generalized into a package claim.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,
