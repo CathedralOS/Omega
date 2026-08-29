@@ -24,13 +24,12 @@ closed. Compiler-issued package review remains non-admitting.
 
 - [ ] **PACKAGE-MANAGER-SOURCE-ARCHITECTURE.** Finish replacing the iterative
   monolith layout with a source tree that exposes the package workflow and its
-  trust boundaries. Split mixed resolution, comparison, baseline, encoding,
-  projection, and platform modules by coherent responsibility; move large test
-  populations beside the responsibility they exercise; and remove production
-  `use super::*` prelude coupling. Preserve public behavior while narrowing the
-  historical flat facade. The resolver custody implementation now has separate
-  tree, host-policy, lock, and publication modules; the same standard remains
-  to be applied across the rest of `omega/packages`.
+  trust boundaries. Remaining work is to split the oversized compiler-review
+  projection/encoding modules, Git object/snapshot/executable modules, manager
+  identity/policy/evidence modules, and their large behavioral test files by
+  coherent responsibility; remove the remaining production `use super::*`
+  prelude coupling; and narrow the historical flat facade without changing
+  public behavior.
 
 ## P0 — Source resolver boundary
 
