@@ -218,6 +218,10 @@ Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one
 obvious classification rung without growing the public coordination file.
+Independent redundant-parameter validation likewise keeps candidate custody
+and its structural-identity analysis contract in one entrance, then descends
+through witness validation, closed-region observation normalization,
+outside-region comparison, and exhaustive operation rewriting.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
