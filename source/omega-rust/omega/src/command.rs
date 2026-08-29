@@ -73,7 +73,7 @@ pub(crate) fn run() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    let package_inputs = match reconcile_declared_local_dependencies(&mut options) {
+    let package_inputs = match reconcile_local_project(&mut options) {
         Ok(package_inputs) => package_inputs,
         Err(error) => {
             eprintln!("{error}");
@@ -161,11 +161,11 @@ pub(crate) fn run() {
     };
 }
 
-/// Enter the reconciled package path exactly when the selected project declares
-/// dependencies. A dependency alias is build-owned identity, never a directory
-/// under the entry source. Dependency-free standalone sources retain the small
-/// direct compiler path used by focused probes and canaries.
-fn reconcile_declared_local_dependencies(
+/// Enter the reconciled package path for every project selected by a
+/// `build.omg`. Package identity and source custody belong to the project even
+/// when its dependency closure contains only the root package. Only an entry
+/// without a sibling build root remains on the standalone compiler path.
+fn reconcile_local_project(
     options: &mut CompileOptions,
 ) -> Result<Option<omega_package_compilation::PackageCompilationInputs>, String> {
     let project_root = options
@@ -177,24 +177,22 @@ fn reconcile_declared_local_dependencies(
     if !project_root.join("build.omg").is_file() {
         return Ok(None);
     }
-    let dependencies =
-        omega_package_manager::declarations::extract_dependency_projection(&project_root)
-            .map_err(|error| format!("cannot project declared dependencies: {error}"))?;
-    if dependencies.is_empty() {
-        return Ok(None);
-    }
-
-    let entry_relative = options
-        .root_path
-        .strip_prefix(&project_root)
-        .map(std::path::Path::to_path_buf)
-        .map_err(|_| {
-            format!(
-                "entry source {} is outside its selected project root {}",
-                options.root_path.display(),
-                project_root.display()
-            )
-        })?;
+    let entry_relative =
+        if options.root_path.is_relative() && project_root == std::path::Path::new(".") {
+            options.root_path.clone()
+        } else {
+            options
+                .root_path
+                .strip_prefix(&project_root)
+                .map(std::path::Path::to_path_buf)
+                .map_err(|_| {
+                    format!(
+                        "entry source {} is outside its selected project root {}",
+                        options.root_path.display(),
+                        project_root.display()
+                    )
+                })?
+        };
     let storage = local_source_storage()?;
     let closure =
         omega_package_manager::resolution::resolve_external_local_project_closure_with_storage(

@@ -577,15 +577,17 @@ Remaining:
   diagnostic closure were parallel non-production truth, not reusable `C`
   scaffolding. Architecture coverage rejects their return.
 
-  The remaining production-manifest work must derive one ordered typed
+  **SOURCE-COMPLETE.** Production compilation now derives one ordered typed
   consumed-unit projection from the final `CheckedCompilation` after generated
-  source admission, and join it in `CompileReport` with the production package
-  subject/dependency closure, exact build custody, selected target, and the
-  owner-derived Terminal/native artifact identity. Package projects with a
-  `build.omg` must enter the one production package resolver even when they
-  declare no dependencies. Publication preserves that manifest; a human view
-  may only project its canonical bytes. Do not add another inspection request,
-  resolver domain, census, JSON authority, or standalone command.
+  source admission. One canonical `CompileReport` manifest joins that exact
+  package/dependency/source subject to owner-derived build-observation,
+  selected build-machine, target, Terminal/native-artifact custody. Native
+  identity is owned and replayed by `NativeArtifact`; build-observation
+  identity is owned by build evaluation rather than package review. Package
+  projects with a `build.omg` enter the production package resolver even with
+  zero dependencies, and publication preserves the same manifest while its
+  receipt binds the native-artifact identity. There is no inspection request,
+  second resolver domain, census, JSON authority, or standalone command.
 
   The product build directly selects the complete `ConsoleNativeProvider`
   through the normative

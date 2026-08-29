@@ -14,7 +14,9 @@ use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 pub use source_consumption::{
-    PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
+    ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
+    PackageSourceConsumptionCommitment, derive_consumed_source_units,
+    derive_package_compilation_subject, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
 };
 use std::collections::{BTreeMap, BTreeSet};

@@ -450,9 +450,11 @@ dependencies = [
 name = "omega-compilation-report"
 version = "0.1.0"
 dependencies = [
+ "omega-build-evaluation",
  "omega-image",
  "omega-native-artifact",
  "omega-optimization-core",
+ "omega-package-compilation",
  "omega-target",
  "omega-trust-model",
  "psi-terminal-codec",
@@ -857,6 +859,7 @@ dependencies = [
  "omega-installation-evidence",
  "omega-target",
  "psi-terminal-codec",
+ "sha2",
 ]
 
 [[package]]

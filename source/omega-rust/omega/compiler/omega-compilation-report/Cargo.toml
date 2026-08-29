@@ -9,8 +9,10 @@ name = "omega_compilation_report"
 path = "src/lib.rs"
 
 [dependencies]
+omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-native-artifact = { path = "../../backend/artifacts/omega-native-artifact" }
+omega-package-compilation = { path = "../../build/omega-package-compilation" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-target = { path = "../../representations/omega-target" }
 omega-trust-model = { path = "../../build/omega-trust-model" }

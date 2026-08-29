@@ -19,9 +19,7 @@ pub struct CheckedCompilation {
     program: CheckedTrees,
     source_file_count: usize,
     subsystem: u16,
-    package_identity: Option<psi_core::PackageKeyIdentity>,
-    dependency_closure: Option<super::PackageDependencyClosure>,
-    source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
+    package_subject: Option<omega_package_compilation::PackageCompilationSubject>,
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
@@ -32,6 +30,7 @@ pub struct CheckedCompilation {
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry: Option<omega_build_evaluation::SelectedCompilerProgramEntry>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
+    selected_build_machine_identity: Option<String>,
     optimization_selections: omega_optimization_core::OptimizationSelections,
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
@@ -57,9 +56,7 @@ impl PartialEq for CheckedCompilation {
         self.program == other.program
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
-            && self.package_identity == other.package_identity
-            && self.dependency_closure == other.dependency_closure
-            && self.source_consumption_commitment == other.source_consumption_commitment
+            && self.package_subject == other.package_subject
             && self.exact_toolchain_sources == other.exact_toolchain_sources
             && self.generated_source_custody == other.generated_source_custody
             && self.own_generated_sources == other.own_generated_sources
@@ -67,6 +64,7 @@ impl PartialEq for CheckedCompilation {
             && self.selected_native_target == other.selected_native_target
             && self.selected_program_entry == other.selected_program_entry
             && self.selected_build_machine_symbol == other.selected_build_machine_symbol
+            && self.selected_build_machine_identity == other.selected_build_machine_identity
             && self.optimization_selections == other.optimization_selections
             && self.optimization_selection_identity == other.optimization_selection_identity
             && self.optimization_report == other.optimization_report
@@ -100,13 +98,19 @@ impl CheckedCompilation {
     /// Reconciled root package identity for package-aware compilation.
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<psi_core::PackageKeyIdentity> {
-        self.package_identity
+        match &self.package_subject {
+            Some(subject) => Some(subject.root()),
+            None => None,
+        }
     }
 
     /// Exact source-path-free dependency closure consumed by package-aware
     /// compilation. Standalone compilation has no package closure.
     pub const fn dependency_closure(&self) -> Option<&super::PackageDependencyClosure> {
-        self.dependency_closure.as_ref()
+        match &self.package_subject {
+            Some(subject) => Some(subject.dependency_closure()),
+            None => None,
+        }
     }
 
     /// Canonical commitment to the exact source bytes consumed by this
@@ -115,7 +119,18 @@ impl CheckedCompilation {
     pub const fn source_consumption_commitment(
         &self,
     ) -> Option<super::PackageSourceConsumptionCommitment> {
-        self.source_consumption_commitment
+        match &self.package_subject {
+            Some(subject) => Some(subject.source_consumption_commitment()),
+            None => None,
+        }
+    }
+
+    /// Canonical package/source subject derived from the final checked source
+    /// closure. Standalone compilation has no package subject.
+    pub const fn package_compilation_subject(
+        &self,
+    ) -> Option<&omega_package_compilation::PackageCompilationSubject> {
+        self.package_subject.as_ref()
     }
 
     /// Compiler-validated exact source owners used only while projecting
@@ -145,17 +160,17 @@ impl CheckedCompilation {
         &self,
     ) -> Result<super::PackageGeneratedSourceBundle, &'static str> {
         let package = self
-            .package_identity
+            .package_identity()
             .ok_or("generated-source bundles require package-aware compilation")?;
         let target = self
             .selected_target_profile
             .ok_or("generated-source bundles require one selected target")?;
         let dependency_closure = self
-            .dependency_closure
-            .clone()
+            .dependency_closure()
+            .cloned()
             .ok_or("generated-source bundles require one dependency closure")?;
         let source_consumption_commitment = self
-            .source_consumption_commitment
+            .source_consumption_commitment()
             .ok_or("generated-source bundles require source-consumption custody")?;
         Ok(super::PackageGeneratedSourceBundle::from_checked(
             package,
@@ -203,6 +218,13 @@ impl CheckedCompilation {
     /// is represented by `None`; callers must not rediscover one by name.
     pub const fn selected_build_machine_symbol(&self) -> Option<psi_symbols::SymbolHandle> {
         self.selected_build_machine_symbol
+    }
+
+    /// Canonical semantic identity of the build machine actually evaluated.
+    /// This is derived while the final typed declarations remain available;
+    /// downstream custody must not rediscover it by short name.
+    pub fn selected_build_machine_identity(&self) -> Option<&str> {
+        self.selected_build_machine_identity.as_deref()
     }
 
     /// Exact named optimizations selected by the authoritative root build.
@@ -544,7 +566,6 @@ fn compile_to_checked_inner_with_replay(
     replay_record: Option<&super::ReviewOnlyBuildFilesystemReplayRecord>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
-    let package_identity = package_inputs.map(PackageCompilationInputs::root);
     let selected_target_profile = target_name
         .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
@@ -723,6 +744,27 @@ fn compile_to_checked_inner_with_replay(
         mut boundary_calling_plan_realizations,
         ..
     } = frontend;
+    let selected_build_machine_identity = selected_build_machine_symbol
+        .map(|selected| {
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == selected)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected build machine disappeared before final checking",
+                    )]
+                })?;
+            typed
+                .normalized_machine_overload_identity(machine)
+                .map(|identity| identity.identity().to_owned())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected build machine has no canonical callable identity",
+                    )]
+                })
+        })
+        .transpose()?;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_observation_summary = computed_build_config.observation_summary;
     let optimization_report = computed_build_config.optimization_report_request;
@@ -830,10 +872,13 @@ fn compile_to_checked_inner_with_replay(
     // caller (this is the only owner at this point in the pipeline).
     let program = Arc::try_unwrap(selected_execution_settlement.program)
         .unwrap_or_else(|shared| (*shared).clone());
-    let dependency_closure = package_inputs.map(PackageCompilationInputs::dependency_closure);
-    let source_consumption_commitment = package_inputs
+    let package_subject = package_inputs
         .map(|inputs| {
-            omega_package_compilation::derive_source_consumption_commitment(&program, inputs)
+            omega_package_compilation::derive_package_compilation_subject(
+                &program,
+                inputs,
+                &generated_source_custody,
+            )
         })
         .transpose()?;
     let exact_toolchain_sources = package_inputs
@@ -841,7 +886,7 @@ fn compile_to_checked_inner_with_replay(
         .then(|| omega_package_compilation::toolchain_source_identities(&program))
         .transpose()?
         .unwrap_or_default();
-    if source_consumption_commitment.is_some() {
+    if package_subject.is_some() {
         omega_package_compilation::verify_current_files(&program, &generated_source_custody)?;
     }
     if let Some(package_inputs) = package_inputs {
@@ -851,9 +896,7 @@ fn compile_to_checked_inner_with_replay(
         program,
         source_file_count,
         subsystem,
-        package_identity,
-        dependency_closure,
-        source_consumption_commitment,
+        package_subject,
         exact_toolchain_sources,
         generated_source_custody,
         own_generated_sources,
@@ -861,6 +904,7 @@ fn compile_to_checked_inner_with_replay(
         selected_native_target,
         selected_program_entry,
         selected_build_machine_symbol,
+        selected_build_machine_identity,
         optimization_selections,
         optimization_selection_identity,
         optimization_report,
