@@ -3850,6 +3850,8 @@ pub fn harvest_provider_selections(
                             psi_typed_trees::operator::boundary_operator_requirement_identity(
                                 typed, operator,
                             ),
+                        static_parameter_count: operator.lifetime_parameters.len()
+                            + typed.operator_type_parameters(operator).len(),
                     },
                 )
                 .collect::<Vec<_>>();

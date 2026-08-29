@@ -6,10 +6,11 @@ mod source;
 pub use callables::{CheckedPackageCallableReview, PackageReviewCheckedServiceReach};
 pub use package::CheckedPackageReviewProjection;
 pub use providers::{
-    CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
+    CheckedPackageProviderFamilyCoordinateReview,
+    CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderSelectionAuthority,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
 };
 pub(crate) use source::{
     PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,
