@@ -334,18 +334,6 @@ explicitly.
   identity comes from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in
   `TASKS.md`.
 
-- [ ] **SCOPED-BUILD-ROOT-RETIREMENT — finish fixture migration.** The compiler
-  and declaration projector now select exactly one free
-  `machine build(builder: &mut Build)` entry, reject scoped `Owner::build`
-  entries with directed diagnostics, and retain transitive helper contracts.
-  Finish retiring scoped roots from the seven filesystem-heavy
-  `build_config_granted.rs` fixtures, three native-differential filesystem
-  fixtures, and package-manager review fixtures. Direct canonical-root probes
-  confirm repeated `builder.filesystem` calls, state transitions, and ordinary
-  helper forwarding preserve mutable Build write-back; migrate scoped `self`
-  carrier fields to local root variables without weakening observation
-  assertions.
-
 - [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
   ordinary-package std migration without recreating a privileged `std` role.
   Only core and genuinely compiler-injected vocabulary remain toolchain-owned;
