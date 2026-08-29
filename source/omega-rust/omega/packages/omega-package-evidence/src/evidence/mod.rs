@@ -52,9 +52,10 @@ pub use identity::{
 };
 pub use package::{
     CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
-    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
-    CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
-    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
+    CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
+    CheckedPackageReviewProjection, PackageReviewCheckedServiceReach,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
 };
 pub use rows::{

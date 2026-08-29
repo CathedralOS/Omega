@@ -713,8 +713,15 @@ Remaining:
   ambiguous, or provider-missing coordinates reject the whole selection.
   Package review now rejoins that complete declaration-family selection to the
   exact provider, target, selection authority, and coordinate-to-plan mapping.
-  Remaining work is generic/exact-application coverage, public-leaf
-  delegation/recursive redispatch, and the external-leaf source-form migration
+  Exact-application coverage now reuses the indexed-provider closure carrier:
+  each generic coordinate retains its static-telescope arity, rejoins one
+  selected-plan coverage row, canonicalizes exact normalized applications, and
+  carries their structural arguments through package review and canonical
+  encoding. Missing, stale, duplicate, cross-coordinate, reordered, and
+  arity-drifting rows reject; generic coverage claims remain fail-closed.
+  Producing those exact rows from verified provider artifacts and proving
+  genuinely generic realization coverage remain work, alongside public-leaf
+  delegation/recursive redispatch and the external-leaf source-form migration
   below.
 
   In the same migration, make external provider leaves bodyless `boundary
@@ -767,9 +774,9 @@ Remaining:
   drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
   and the complete declaration-classification migration.
 
-  **DESIGN-BLOCKED — owner ruling required:** the lexical claim has explicit
-  specification conflicts. The current Omega-written lexer accepts Unicode XID
-  identifiers despite the
+  **DESIGN-BLOCKED — [OWNER Q12](OWNER_QUESTIONS.md#q12--normative-identifier-and-string-literal-lexical-contract):**
+  the lexical claim has explicit specification conflicts. The current
+  Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
   escapes even though the guide forbids codepoint-to-byte escapes, and accepts
   raw strings whose delimiter/content rules are not yet normative there. The
@@ -783,15 +790,18 @@ Remaining:
   behavior, or add compiler-source dependencies on those behaviors, until the
   owner rules one normative lexical contract.
 
-  Two broader evaluation/layout rulings must also close before the compiler
-  source may depend on them observably. Call-argument and aggregate-literal
-  field evaluation order are not normative; current bridge slices therefore
-  admit only combinations whose relative order cannot be observed. Explicit sum
-  discriminants can also conflict with the first-case/tag-zero initialization
-  invariant, while default aggregate byte layout remains compiler-controlled.
-  Rule these in the language guide before relying on effectful/trapping
-  evaluation order or explicit discriminants; do not let a bootstrap-private
-  layout become the public Omega ABI by accident.
+  Two broader rulings must also close before the compiler source may depend on
+  them observably. Call-argument and aggregate-literal field evaluation order
+  are not normative under
+  [OWNER Q13](OWNER_QUESTIONS.md#q13--evaluation-order-for-call-arguments-and-aggregate-fields);
+  current bridge slices therefore admit only combinations whose relative order
+  cannot be observed. Explicit sum discriminants can conflict with the first-
+  case/tag-zero initialization invariant under
+  [OWNER Q14](OWNER_QUESTIONS.md#q14--explicit-sum-discriminants-under-zero-initialization),
+  while default aggregate byte layout remains compiler-controlled. Rule these
+  exact language questions before relying on effectful/trapping evaluation
+  order or explicit discriminants; do not let a bootstrap-private schedule or
+  layout become the public Omega contract by accident.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `source/omega-rust/` as a parallel differential implementation

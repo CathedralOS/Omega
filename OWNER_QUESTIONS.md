@@ -610,3 +610,150 @@ inventing a nominal declaration solely for package review.
   before the language has a use for those boundaries.
 - Tempting but wrong: treat a package-wide role or a reviewer/model verdict as
   the authority identity.
+
+## Q12 — Normative identifier and string-literal lexical contract
+
+### Context
+
+Chapter 1 currently makes Omega source ASCII-transparent: non-ASCII bytes are
+opaque payload only inside literals or comments, and cooked byte literals do
+not synthesize an encoding from a Unicode codepoint. The maintained Rust lexer
+and the Omega-written product lexer instead accept Unicode XID identifiers.
+Both also accept `\u{...}` in cooked strings and encode the selected scalar as
+UTF-8 bytes. The product lexer additionally accepts raw strings with Rust-like
+`r###"..."###` delimiters. Its generated tables currently pin Unicode 17.0.0,
+but none of the identifier-version, normalization, raw-delimiter, raw-content,
+or codepoint-to-byte rules are normative language contracts.
+
+### Problem statement
+
+Choose one exact lexical contract. If identifiers use Unicode XID, the language
+must pin how the Unicode version enters source compatibility, whether spelling
+is normalized or compared byte-for-byte, and which non-ASCII whitespace or
+lookalike forms remain ordinary source bytes. If cooked literals admit
+`\u{...}`, the language must explicitly choose UTF-8 synthesis despite its
+byte-literal model. If raw strings remain, their introducer, delimiter bound,
+terminator matching, newline treatment, and exact decoded bytes must be fixed.
+Retaining the current implementation behaviors without those rules would make
+accepted source depend on a bootstrap lexer and library version rather than the
+Omega grammar.
+
+### Proposed direction
+
+Keep identifiers ASCII (`[A-Za-z_][A-Za-z0-9_]*`) and cooked literals
+byte-oriented, with named single-byte escapes plus exact `\xHH`; reject
+`\u{...}` and require an explicit compile-time encoding helper for codepoints.
+Either specify raw strings as exact uninterpreted source-byte payloads using a
+bounded `r###"..."###` delimiter grammar, or reject them until that grammar is
+settled. This preserves the existing ASCII-transparent and explicit-encoding
+model while permitting raw byte payload convenience without granting Unicode
+special status to identifiers or values.
+
+### Alternates
+
+- Acceptable: adopt Unicode XID identifiers, pin one Unicode data version as
+  part of the language revision, compare source spellings byte-for-byte without
+  implicit normalization, and define the exact handling of non-ASCII source
+  whitespace and confusable spellings.
+- Acceptable: admit `\u{scalar}` as an explicit UTF-8-producing cooked-string
+  escape, provided its scalar validity, digit grammar, output bytes, and
+  relationship to byte escapes are normative.
+- Acceptable as a narrow first release: reject Unicode identifiers,
+  codepoint escapes, and raw strings in the product profile even though the
+  differential implementation can currently tokenize them.
+- Tempting but wrong: inherit whatever XID tables, normalization behavior, raw
+  syntax, or Unicode encoding the implementation language happens to provide.
+- Tempting but wrong: call literals raw bytes while silently converting a
+  codepoint escape into UTF-8.
+
+## Q13 — Evaluation order for call arguments and aggregate fields
+
+### Context
+
+Chapter 5 fixes increasing-index evaluation for fixed-array literals, but says
+call-argument order is still a language ruling. Aggregate-literal field order
+is also not normative. Current lowering walks call arguments and authored
+record/case field expressions in source order, while static-value
+canonicalization orders aggregate fields by their declarations. Pure values
+hide the distinction; effects, traps, moves, and partial construction make it
+observable.
+
+### Problem statement
+
+Choose whether call arguments and aggregate field initializers have one
+portable evaluation order, and whether aggregate evaluation follows authored
+literal order or declaration order. The choice controls which effects and
+traps occur first, when moved inputs cease to be available, which established
+aggregate prefix requires cleanup after ordinary abandonment, and whether an
+optimizer may reorder computations that are not proven independent. Layout
+field order is separately compiler-controlled and must not accidentally decide
+source evaluation semantics.
+
+### Proposed direction
+
+Evaluate every call argument exactly once from left to right in authored
+argument order. Evaluate every aggregate-literal field expression exactly once
+in authored literal order, independent of declaration order, canonical static
+identity, or physical layout. Ordinary partial-construction cleanup follows the
+established-value order required by the cleanup model; traps and nuclear aborts
+retain their existing no-successor behavior. Reordering is legal only after
+proof that it preserves all observable effects, failures, moves, and cleanup.
+
+### Alternates
+
+- Acceptable: evaluate aggregate fields in declaration order after validating
+  the complete named field set, provided the guide makes this explicit and
+  diagnostics expose the authored-to-declaration scheduling boundary.
+- Acceptable as a narrower first release: require separate bindings whenever
+  two call arguments or aggregate fields can trap, move overlapping authority,
+  or carry observable effects, so accepted compound expressions remain order
+  insensitive.
+- Tempting but wrong: let source-order storage in one IR or declaration-order
+  canonicalization in another silently define the language.
+- Tempting but wrong: let backends or optimization levels choose different
+  orders for expressions whose effects or failure are observable.
+
+## Q14 — Explicit sum discriminants under zero initialization
+
+### Context
+
+Chapter 1 permits payload-less sum cases to declare explicit integer
+discriminants for foreign layouts, with unspecified cases continuing from the
+previous value. Chapters 1 and 20 also require tag zero to denote the first
+declared case so all-zero storage has one safe, recursively defined sum value.
+An explicit nonzero discriminant on the first case cannot satisfy both rules.
+The current Omega-written parser accepts case order and payloads but excludes
+explicit discriminants rather than selecting a local interpretation.
+
+### Problem statement
+
+Decide whether an explicitly discriminated sum must still contain its first
+case at tag zero, or whether explicit foreign tags define a different
+zero-initialization regime. The answer determines the meaning of all-zero
+storage, case identity versus runtime tag, implicit discriminant sequencing,
+duplicate/range validation, placed decoding, and ABI replay. Compiler-selected
+default layout remains a separate concern; this question is only about the
+authored runtime discriminant contract.
+
+### Proposed direction
+
+Preserve the universal first-case/tag-zero invariant. When any explicit
+discriminant is present, require the first declared case to have discriminant
+zero, whether explicit or implicit. Later payload-less cases may use unique
+representable explicit values, and an unspecified case continues from the
+previous discriminant with checked overflow. A foreign enum with no valid zero
+case cannot be represented as an ordinary zero-initializable Omega sum; it must
+use a distinct validated placed/wire carrier whose raw invalid zero state is
+not claimed to be an established sum value.
+
+### Alternates
+
+- Acceptable but broader: define a distinct explicitly represented foreign-sum
+  form whose all-zero storage is safe but gated and does not denote the first
+  case, while ordinary Omega sums retain first-case/tag-zero semantics.
+- Acceptable: forbid explicit discriminants entirely and require foreign tag
+  conversion through checked wire/placement plans.
+- Tempting but wrong: declare that the first case has a nonzero authored tag
+  while also treating zero bytes as that case during ordinary reads.
+- Tempting but wrong: silently renumber explicit tags in default layouts while
+  advertising those same values as the foreign in-memory discriminants.

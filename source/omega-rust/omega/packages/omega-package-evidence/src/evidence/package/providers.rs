@@ -141,12 +141,40 @@ pub enum PackageReviewProviderSelectionAuthority {
 
 /// Closed coverage vocabulary for an atomic boundary-operator family.
 ///
-/// Exact generic applications remain inadmissible until they receive a
-/// distinct compiler-owned coordinate carrier; this variant means every
-/// declaration coordinate in the selected family is covered.
+/// This axis means every declaration coordinate in the selected family is
+/// covered. Static-telescope application coverage is retained separately on
+/// each coordinate so generic applications cannot be confused with overloads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderFamilyCoverage {
     CompleteDeclarationFamily,
+}
+
+/// One exact normalized static application covered by a selected operator
+/// realization. Argument identities are compiler-derived semantic strings;
+/// source spellings and declaration-local binder names never enter this row.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CheckedPackageProviderFamilyExactApplicationReview {
+    pub(crate) arguments: Vec<String>,
+    pub(crate) report_fingerprint: u64,
+}
+
+impl CheckedPackageProviderFamilyExactApplicationReview {
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
+
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
+    }
+}
+
+/// Static-telescope coverage for one exact overload coordinate. Generic
+/// claims have no representable review variant and therefore remain
+/// fail-closed.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewProviderFamilyApplicationCoverage {
+    NonGeneric,
+    ExactApplications(Vec<CheckedPackageProviderFamilyExactApplicationReview>),
 }
 
 /// One exact overload coordinate mapped to its selected provider plan.
@@ -158,6 +186,7 @@ pub struct CheckedPackageProviderFamilyCoordinateReview {
     pub(crate) requirement_identity: String,
     pub(crate) operator_declaration: PackageReviewNominalIdentity,
     pub(crate) plan_report_fingerprint: u64,
+    pub(crate) application_coverage: PackageReviewProviderFamilyApplicationCoverage,
 }
 
 impl CheckedPackageProviderFamilyCoordinateReview {
@@ -171,6 +200,10 @@ impl CheckedPackageProviderFamilyCoordinateReview {
 
     pub const fn plan_report_fingerprint(&self) -> u64 {
         self.plan_report_fingerprint
+    }
+
+    pub const fn application_coverage(&self) -> &PackageReviewProviderFamilyApplicationCoverage {
+        &self.application_coverage
     }
 }
 

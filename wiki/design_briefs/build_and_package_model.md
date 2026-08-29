@@ -2531,6 +2531,16 @@ checked closure, inherited requirement substitution, public review, and
 canonical encoding. Binder renames are stable and another ordinal is a different
 public conformance. Package review consumes the already-resolved mapping and
 never repeats application-site inference.
+Review v87 and canonical row v45 extend each selected boundary-operator family
+coordinate with static-telescope application coverage. A non-generic
+coordinate carries an explicit non-generic atom. A generic coordinate rejoins
+one exact indexed-application row already attached to the same selected plan,
+schema, package owner, and arity; package review independently checks canonical
+ordering and encodes every normalized structural argument beside the compact
+application report coordinate. Missing, stale, duplicate, cross-coordinate,
+reordered, and arity-drifting evidence rejects. Generic coverage has no review
+variant until the compiler retains proof that the selected realization is
+genuinely generic, and this structural row remains non-authorizing.
 Review v63 and canonical row v21 admit selected generic-conformance
 applications in public generic bounds. The row retains the exact
 package-qualified conformance declaration, alpha-normalized lifetime
