@@ -17,14 +17,16 @@ mod duplicates;
 #[cfg(test)]
 mod lock_tests;
 mod locks;
+mod symlinks;
 
 use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
 use locks::validate_output_lock_shapes;
+use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 24;
+const VERSION: u16 = 25;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -180,7 +182,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 11))
+        .position(|shape| matches!(shape.operation, 1 | 11 | 20))
         .unwrap_or(shapes.len());
     let mut events = Vec::new();
     let mut cursor = 0;
@@ -288,6 +290,11 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             OutputShapeRange::File { start, end } => {
                 psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::File(
                     rehydrate_output_file_shape(&shapes[start..end])?,
+                )
+            }
+            OutputShapeRange::Symlink(index) => {
+                psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Symlink(
+                    rehydrate_output_symlink_shape(&shapes[index])?,
                 )
             }
         });
@@ -1022,7 +1029,7 @@ struct AttemptShape<'a> {
     post_error: i32,
     scalars: Vec<(u8, ShapeScalar)>,
     byte_operands: Vec<(u8, &'a [u8])>,
-    path_like_operand_count: usize,
+    path_like_operands: Vec<(u8, &'a [u8])>,
     rooted_paths: Vec<ShapeRootedPath<'a>>,
     returned_path_count: usize,
     observed_regions: Vec<ShapeObservedRegion>,
@@ -1075,7 +1082,7 @@ fn decode_attempt<'a>(
     for _ in 0..count {
         byte_operands.push((decoder.byte()?, decoder.bytes()?));
     }
-    let path_like_operand_count = decode_ordinal_bytes_lane(decoder)?;
+    let path_like_operands = decode_ordinal_bytes_lane(decoder)?;
 
     let mut rooted_paths = Vec::new();
     let count = decoder.count()?;
@@ -1241,7 +1248,7 @@ fn decode_attempt<'a>(
         post_error,
         scalars,
         byte_operands,
-        path_like_operand_count,
+        path_like_operands,
         rooted_paths,
         returned_path_count,
         observed_regions,
@@ -1258,15 +1265,18 @@ fn decode_attempt<'a>(
     })
 }
 
-fn decode_ordinal_bytes_lane(
-    decoder: &mut Decoder<'_>,
-) -> Result<usize, BuildFilesystemReplayRecordError> {
+fn decode_ordinal_bytes_lane<'a>(
+    decoder: &mut Decoder<'a>,
+) -> Result<Vec<(u8, &'a [u8])>, BuildFilesystemReplayRecordError> {
     let count = decoder.count()?;
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("replay path-like operand allocation failed")
+    })?;
     for _ in 0..count {
-        let _ = decoder.byte()?;
-        let _ = decoder.bytes()?;
+        values.push((decoder.byte()?, decoder.bytes()?));
     }
-    Ok(count)
+    Ok(values)
 }
 
 fn validate_first_rung(
@@ -1276,7 +1286,7 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
-        if matches!(shapes[cursor].operation, 1 | 11) {
+        if matches!(shapes[cursor].operation, 1 | 11 | 20) {
             break;
         }
         if matches!(shapes[cursor].operation, 38 | 40) {
@@ -1384,12 +1394,30 @@ fn validate_first_rung(
             }
             output_paths.push(path);
 
-            let OutputShapeRange::File { start, end } = range else {
-                let OutputShapeRange::Directory(index) = range else {
-                    unreachable!("Output range has one variant")
-                };
-                validate_output_directory_shape(&shapes[index])?;
-                continue;
+            let (start, end) = match range {
+                OutputShapeRange::Directory(index) => {
+                    validate_output_directory_shape(&shapes[index])?;
+                    continue;
+                }
+                OutputShapeRange::Symlink(index) => {
+                    validate_output_symlink_shape(&shapes[index])?;
+                    let [(_, target)] = shapes[index].path_like_operands.as_slice() else {
+                        unreachable!("validated Output symlink has one target spelling")
+                    };
+                    aggregate_path_bytes = aggregate_path_bytes
+                        .checked_add(target.len())
+                        .filter(|bytes| {
+                            *bytes
+                                <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+                        })
+                        .ok_or_else(|| {
+                            BuildFilesystemReplayRecordError::new(
+                                "receipted build output paths and symlink targets exceed their aggregate ceiling",
+                            )
+                        })?;
+                    continue;
+                }
+                OutputShapeRange::File { start, end } => (start, end),
             };
             let chain = &shapes[start..end];
             let create = &chain[0];
@@ -1463,12 +1491,15 @@ fn validate_first_rung(
 enum OutputShapeRange {
     Directory(usize),
     File { start: usize, end: usize },
+    Symlink(usize),
 }
 
 impl OutputShapeRange {
     fn path<'a>(self, shapes: &'a [AttemptShape<'a>]) -> &'a [u8] {
         let index = match self {
-            Self::Directory(index) | Self::File { start: index, .. } => index,
+            Self::Directory(index) | Self::File { start: index, .. } | Self::Symlink(index) => {
+                index
+            }
         };
         shapes[index]
             .rooted_paths
@@ -1562,6 +1593,10 @@ fn output_tree_ranges(
                 ranges.push(OutputShapeRange::File { start: cursor, end });
                 cursor = end;
             }
+            20 => {
+                ranges.push(OutputShapeRange::Symlink(cursor));
+                cursor += 1;
+            }
             _ => {
                 return Err(BuildFilesystemReplayRecordError::new(
                     "receipted build output must contain ordered directory or complete file entries",
@@ -1586,7 +1621,7 @@ fn validate_included_source_shapes(
     }
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 11))
+        .position(|shape| matches!(shape.operation, 1 | 11 | 20))
         .ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
                 "source-only filesystem replay cannot retain included-source handoffs",
@@ -2298,7 +2333,7 @@ fn validate_descriptor_metadata_shape(
 
 fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.metadata.is_empty()
         && attempt.mutable_i64_resolution_count == 0
@@ -2308,7 +2343,7 @@ fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
 
 fn only_path_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
         && attempt.mutable_i64_resolution_count == 0
@@ -2322,7 +2357,7 @@ fn only_path_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
 
 fn only_descriptor_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
         && attempt.mutable_i64_resolution_count == 0
@@ -2373,7 +2408,7 @@ fn only_output_create_lanes(attempt: &AttemptShape<'_>) -> bool {
 }
 
 fn only_output_write_lanes(attempt: &AttemptShape<'_>) -> bool {
-    attempt.path_like_operand_count == 0
+    attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.metadata.is_empty()
         && attempt.mutable_i64_resolution_count == 0
@@ -2391,7 +2426,7 @@ fn only_output_write_lanes(attempt: &AttemptShape<'_>) -> bool {
 fn only_output_sync_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.scalars.is_empty()
         && attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
@@ -2408,7 +2443,7 @@ fn only_output_sync_lanes(attempt: &AttemptShape<'_>) -> bool {
 
 fn only_output_set_length_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
@@ -2425,7 +2460,7 @@ fn only_output_set_length_lanes(attempt: &AttemptShape<'_>) -> bool {
 
 fn only_output_set_file_permissions_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
@@ -2443,7 +2478,7 @@ fn only_output_set_file_permissions_lanes(attempt: &AttemptShape<'_>) -> bool {
 fn only_output_set_file_times_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.scalars.is_empty()
         && attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
@@ -2458,7 +2493,7 @@ fn only_output_set_file_times_lanes(attempt: &AttemptShape<'_>) -> bool {
 
 fn only_output_seek_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
@@ -2509,7 +2544,7 @@ mod first_rung_validation_tests {
             post_error: 0,
             scalars: Vec::new(),
             byte_operands: Vec::new(),
-            path_like_operand_count: 0,
+            path_like_operands: Vec::new(),
             rooted_paths: Vec::new(),
             returned_path_count: 0,
             observed_regions: Vec::new(),

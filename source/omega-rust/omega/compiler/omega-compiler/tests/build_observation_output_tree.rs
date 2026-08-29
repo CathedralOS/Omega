@@ -95,6 +95,8 @@ reaches FilesystemHost
     let output_descriptor: i32 = builder.filesystem.create(nested_source, 438);
     let output_count: i64 = builder.filesystem.write(output_descriptor, "data Table {{}}\n");
     let output_close: i32 = builder.filesystem.close(output_descriptor);
+    let current: &[u8] in Path = builder.output.resolve("generated/current");
+    let current_result: i32 = builder.filesystem.symlink("table.omg", current);
     builder.output.include_source(nested_source);
     let sibling: &[u8] in Path = builder.output.resolve("assets");
     let sibling_result: i32 = builder.filesystem.create_dir(sibling, 493);
@@ -188,7 +190,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 43);
+    assert_eq!(summary.schema_version(), 44);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -268,8 +270,9 @@ fn empty_output_directory_tree_replays_without_host_output() {
     );
 }
 
+#[cfg(unix)]
 #[test]
-fn mixed_output_tree_with_nested_generated_source_replays_without_host_output() {
+fn mixed_output_tree_with_nested_source_and_symlink_replays_without_host_output() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
     project.write_mixed_sources(profile.target_name());
@@ -296,7 +299,7 @@ fn mixed_output_tree_with_nested_generated_source_replays_without_host_output() 
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![2, 4, 8, 11, 1, 5, 8, 11]
+        vec![2, 4, 8, 11, 1, 5, 8, 20, 11]
     );
     assert_eq!(summary.included_source_handoffs().len(), 1);
     assert_eq!(
@@ -305,12 +308,12 @@ fn mixed_output_tree_with_nested_generated_source_replays_without_host_output() 
     );
     assert_eq!(
         summary.included_source_handoffs()[0].filesystem_attempt_ordinal(),
-        7
+        8
     );
     let staged = summary
         .staged_output_tree()
         .expect("mixed tree has explicit staged custody");
-    assert_eq!(staged.entry_count(), 3);
+    assert_eq!(staged.entry_count(), 4);
     assert_eq!(staged.file_bytes(), 14);
 
     let limits = BuildFilesystemReplayRecordLimits::default();

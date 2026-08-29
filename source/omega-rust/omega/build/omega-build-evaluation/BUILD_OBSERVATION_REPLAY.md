@@ -106,3 +106,21 @@ equality. One tree retains at most 4,096 entries, 4,096 bytes per path, and
 content ceilings still apply. Symlinks, hard links, implicit parents,
 interleaved file chains, other namespace operations, and failed outcomes remain
 outside this increment.
+
+## Symbolic-link Output entry (summary v44, replay record v25)
+
+The ordered Output-tree grammar now accepts an exact successful `symlink`
+attempt. Replay retains operation tag 20, the verbatim target spelling in the
+operand-0 path-like lane, the compiler-rooted operand-1 link path and matching
+write authorization, scalar result zero, and zero post-error state. The link
+path must follow its exact parent directory and cannot collide with a prior
+directory, regular file, or symbolic link.
+
+Provider-free replay recreates the exact virtual link mapping and requires the
+complete operation sequence, final namespace, teardown, and sponsored
+staged-tree equality. Staged-tree issuance independently requires a canonical
+self-contained relative UTF-8 target that cannot escape Output. Absolute,
+malformed, NUL-bearing, escaping, missing-parent, colliding, failed, and
+alternate link operations remain outside this increment. A target retains at
+most 4,096 bytes; link-path and target spelling share the existing 16 MiB
+aggregate ceiling.

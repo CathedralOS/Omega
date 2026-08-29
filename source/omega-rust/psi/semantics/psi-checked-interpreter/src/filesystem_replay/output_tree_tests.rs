@@ -1,8 +1,9 @@
 use crate::{
     BuildIncludedSource, FilesystemGrantRootIdentity, FilesystemInputOutputTreeReplayRecord,
     FilesystemOutputDirectoryReplayRecord, FilesystemOutputFileReplayRecord,
-    FilesystemOutputTreeEntryReplayRecord, FilesystemOutputWriteReplayRecord, FilesystemReplay,
-    FilesystemReplayReadKind, FilesystemReplayReadRecord, FilesystemSourceInputReplayEventRecord,
+    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+    FilesystemOutputWriteReplayRecord, FilesystemReplay, FilesystemReplayReadKind,
+    FilesystemReplayReadRecord, FilesystemSourceInputReplayEventRecord,
     FilesystemSourceInputReplayRecord, FilesystemSourceReadChainReplayRecord,
 };
 
@@ -59,6 +60,13 @@ fn file(path: &[u8], identity: u64, bytes: &[u8]) -> FilesystemOutputTreeEntryRe
             0,
         )
         .expect("output file"),
+    )
+}
+
+fn symlink(path: &[u8], target: &[u8]) -> FilesystemOutputTreeEntryReplayRecord {
+    FilesystemOutputTreeEntryReplayRecord::Symlink(
+        FilesystemOutputSymlinkReplayRecord::new(root(2), path.to_vec(), target.to_vec())
+            .expect("output symlink"),
     )
 }
 
@@ -157,4 +165,34 @@ fn typed_tree_rejects_namespace_and_descriptor_collisions() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn typed_tree_retains_exact_symlink_spelling_and_namespace_order() {
+    let record = FilesystemInputOutputTreeReplayRecord::new(
+        source_input(),
+        vec![
+            file(b"artifact", 2, b"bytes"),
+            directory(b"links"),
+            symlink(b"links/artifact", b"../artifact"),
+        ],
+        Vec::new(),
+    )
+    .expect("symlink-bearing output tree");
+    let replay = FilesystemReplay::from_input_output_tree_record(record)
+        .expect("symlink-bearing replay fits custody");
+    assert_eq!(
+        replay
+            .attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 8, 11, 20]
+    );
+    let symlinks = replay.output_symlinks();
+    let [link] = symlinks.as_slice() else {
+        panic!("one exact symlink")
+    };
+    assert_eq!(link.output_relative_path(), b"links/artifact");
+    assert_eq!(link.target_spelling(), b"../artifact");
 }

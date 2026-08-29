@@ -93,16 +93,18 @@ pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
     FilesystemInputOutputTreeReplayRecord, FilesystemOutputDirectoryReplayRecord,
     FilesystemOutputDuplicateReplayRecord, FilesystemOutputLockReplayRecord,
-    FilesystemOutputTreeEntryReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
 use filesystem_replay::{
     output_directory_attempt, output_directory_record_from_attempt, output_duplicate_attempts,
     output_duplicate_record_from_attempts, output_lock_attempts, output_lock_record_from_attempts,
-    output_logical_handle_identities, validate_observed_output_tree_records,
-    validate_output_duplicate_replay, validate_output_lock_replay,
+    output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
+    validate_observed_output_tree_records, validate_output_duplicate_replay,
+    validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -2468,7 +2470,7 @@ impl FilesystemReplay {
     pub(crate) fn executes_output_attempt(&self, attempt_index: usize) -> bool {
         self.attempts
             .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 20))
             .is_some_and(|output_start| attempt_index >= output_start)
     }
 
@@ -2500,7 +2502,8 @@ impl FilesystemReplay {
         self.output_entries()
             .into_iter()
             .filter_map(|entry| match entry {
-                FilesystemOutputTreeEntryReplayRecord::Directory(_) => None,
+                FilesystemOutputTreeEntryReplayRecord::Directory(_)
+                | FilesystemOutputTreeEntryReplayRecord::Symlink(_) => None,
                 FilesystemOutputTreeEntryReplayRecord::File(file) => Some(file),
             })
             .collect()
@@ -2511,7 +2514,7 @@ impl FilesystemReplay {
         let Some(output_start) = self
             .attempts
             .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 20))
         else {
             return Vec::new();
         };
@@ -2526,7 +2529,20 @@ impl FilesystemReplay {
             .into_iter()
             .filter_map(|entry| match entry {
                 FilesystemOutputTreeEntryReplayRecord::Directory(directory) => Some(directory),
-                FilesystemOutputTreeEntryReplayRecord::File(_) => None,
+                FilesystemOutputTreeEntryReplayRecord::File(_)
+                | FilesystemOutputTreeEntryReplayRecord::Symlink(_) => None,
+            })
+            .collect()
+    }
+
+    /// Reconstruct exact Output symlinks in authored operation order.
+    pub fn output_symlinks(&self) -> Vec<FilesystemOutputSymlinkReplayRecord> {
+        self.output_entries()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                FilesystemOutputTreeEntryReplayRecord::Directory(_)
+                | FilesystemOutputTreeEntryReplayRecord::File(_) => None,
+                FilesystemOutputTreeEntryReplayRecord::Symlink(symlink) => Some(symlink),
             })
             .collect()
     }
@@ -2564,7 +2580,7 @@ impl FilesystemReplay {
         validate_filesystem_replay_size(attempts)?;
         let output_start = attempts
             .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 20))
             .ok_or_else(|| {
                 "bounded filesystem replay requires Source inputs before Output chains".to_owned()
             })?;
@@ -2619,6 +2635,9 @@ impl FilesystemReplay {
                 }
                 FilesystemOutputTreeEntryReplayRecord::File(file) => {
                     attempts.extend(output_file_attempts(file));
+                }
+                FilesystemOutputTreeEntryReplayRecord::Symlink(symlink) => {
+                    attempts.push(output_symlink_attempt(symlink));
                 }
             }
         }
@@ -2748,7 +2767,7 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
     let mut cursor = 0;
     let mut event_count = 0;
     while cursor < attempts.len() {
-        if matches!(attempts[cursor].operation_tag(), 1 | 11) {
+        if matches!(attempts[cursor].operation_tag(), 1 | 11 | 20) {
             break;
         }
         if matches!(attempts[cursor].operation_tag(), 38 | 40) {
@@ -3517,6 +3536,12 @@ fn output_tree_entries_from_attempts(
                     output_file_record_from_attempts(&attempts[cursor..end])?,
                 ));
                 cursor = end;
+            }
+            20 => {
+                entries.push(FilesystemOutputTreeEntryReplayRecord::Symlink(
+                    output_symlink_record_from_attempt(&attempts[cursor])?,
+                ));
+                cursor += 1;
             }
             _ => {
                 return Err("bounded filesystem replay requires ordered Output entries".to_owned());

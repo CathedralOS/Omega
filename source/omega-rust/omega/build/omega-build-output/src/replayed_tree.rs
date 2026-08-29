@@ -1,7 +1,8 @@
 use super::{
-    canonical_symlink_target, commitment_for_retained_entries, diagnostics, reserve_path_bytes,
-    retained_native_path, validate_retained_tree, BuildStagedOutputTree, RetainedStagedOutputEntry,
-    RetainedStagedOutputEntryKind, MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
+    BuildStagedOutputTree, MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
+    RetainedStagedOutputEntry, RetainedStagedOutputEntryKind, canonical_symlink_target,
+    commitment_for_retained_entries, diagnostics, reserve_path_bytes, retained_native_path,
+    validate_retained_tree,
 };
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
@@ -286,20 +287,24 @@ mod tests {
             );
         }
 
-        assert!(replayed_output_tree(&[
-            ReplayedBuildOutputEntry::directory(b"generated"),
-            ReplayedBuildOutputEntry::symbolic_link(b"generated/link", b"../../outside",),
-        ])
-        .is_err());
+        assert!(
+            replayed_output_tree(&[
+                ReplayedBuildOutputEntry::directory(b"generated"),
+                ReplayedBuildOutputEntry::symbolic_link(b"generated/link", b"../../outside",),
+            ])
+            .is_err()
+        );
     }
 
     #[test]
     fn rejects_symbolic_links_as_namespace_parents() {
-        assert!(replayed_output_tree(&[
-            ReplayedBuildOutputEntry::symbolic_link(b"alias", b"target"),
-            ReplayedBuildOutputEntry::regular_file(b"alias/child", b"bytes", false),
-        ])
-        .is_err());
+        assert!(
+            replayed_output_tree(&[
+                ReplayedBuildOutputEntry::symbolic_link(b"alias", b"target"),
+                ReplayedBuildOutputEntry::regular_file(b"alias/child", b"bytes", false),
+            ])
+            .is_err()
+        );
     }
 
     #[test]
