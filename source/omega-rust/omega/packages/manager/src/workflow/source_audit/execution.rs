@@ -1,178 +1,19 @@
-//! Read-only source inspection used by the command-facing diagnostic surface.
+//! Source acquisition and report assembly for the audit workflow.
 
+use super::report::PackageSourceAudit;
+#[cfg(test)]
+use super::request::PackageSourceRequestParseError;
+use super::request::{PackageSourceAuditCommandError, PackageSourceRequest, SourceAdapter};
 #[cfg(test)]
 use crate::source::resolve_git_source_with_storage;
 use crate::source::{
-    GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
-    SourceResolverStorage, resolve_local_source,
+    LocalSourceLimits, SourceResolveError, SourceResolverStorage, resolve_local_source,
 };
 use crate::source::{RetainedStorageLane, resolve_git_source_in_lane};
 #[cfg(test)]
 use std::path::Path;
+#[cfg(test)]
 use std::path::PathBuf;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceAdapter {
-    Local,
-    Git,
-}
-
-impl SourceAdapter {
-    pub fn parse(value: &str) -> Result<Self, PackageSourceRequestParseError> {
-        match value {
-            "local" => Ok(Self::Local),
-            "git" => Ok(Self::Git),
-            _ => Err(PackageSourceRequestParseError::UnsupportedSourceAdapter {
-                adapter: value.to_owned(),
-            }),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSourceRequest {
-    LocalPath(PathBuf),
-    Git(GitSourceRequest),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSourceRequestParseError {
-    UnsupportedSourceAdapter { adapter: String },
-    EmptySourceLocator,
-    LocalSourceCannotUseRevision { locator: String, rev: String },
-    UnsupportedFileUrl { locator: String },
-    InvalidGitRequest(GitSourceRequestError),
-}
-
-impl PackageSourceRequest {
-    pub fn parse(
-        adapter: SourceAdapter,
-        locator: impl Into<String>,
-        rev: Option<String>,
-    ) -> Result<Self, PackageSourceRequestParseError> {
-        let locator = locator.into();
-        if locator.trim().is_empty() {
-            return Err(PackageSourceRequestParseError::EmptySourceLocator);
-        }
-        match adapter {
-            SourceAdapter::Local => {
-                let path = file_url_path(&locator)?.unwrap_or_else(|| PathBuf::from(&locator));
-                reject_local_rev(&locator, &rev)?;
-                Ok(Self::LocalPath(path))
-            }
-            SourceAdapter::Git => GitSourceRequest::new(locator, rev)
-                .map(Self::Git)
-                .map_err(PackageSourceRequestParseError::InvalidGitRequest),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageSourceAudit {
-    pub source_kind: String,
-    pub locator: String,
-    pub transport_profile: Option<String>,
-    pub requested_rev: Option<String>,
-    pub resolved_commit: Option<String>,
-    pub resolved_tree: Option<String>,
-    pub network_transfer_ceiling: Option<u64>,
-    pub network_uploaded_bytes: Option<u64>,
-    pub network_downloaded_bytes: Option<u64>,
-    pub content_identity: String,
-    pub file_count: usize,
-    pub byte_count: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSourceAuditCommandError {
-    Parse(PackageSourceRequestParseError),
-    Resolve(SourceResolveError),
-}
-
-impl PackageSourceAudit {
-    pub fn to_text(&self) -> String {
-        let mut report = String::new();
-        report.push_str("package source audit\n");
-        report.push_str("source kind: ");
-        report.push_str(&self.source_kind);
-        report.push('\n');
-        report.push_str("locator: ");
-        report.push_str(&self.locator);
-        report.push('\n');
-        if let Some(transport_profile) = &self.transport_profile {
-            report.push_str("transport profile: ");
-            report.push_str(transport_profile);
-            report.push('\n');
-        }
-        if let Some(rev) = &self.requested_rev {
-            report.push_str("requested rev: ");
-            report.push_str(rev);
-            report.push('\n');
-        }
-        if let Some(commit) = &self.resolved_commit {
-            report.push_str("resolved commit: ");
-            report.push_str(commit);
-            report.push('\n');
-        }
-        if let Some(tree) = &self.resolved_tree {
-            report.push_str("resolved tree: ");
-            report.push_str(tree);
-            report.push('\n');
-        }
-        if let Some(ceiling) = self.network_transfer_ceiling {
-            report.push_str("broker transfer ceiling: ");
-            report.push_str(&ceiling.to_string());
-            report.push('\n');
-        }
-        if let Some(uploaded) = self.network_uploaded_bytes {
-            report.push_str("broker uploaded bytes: ");
-            report.push_str(&uploaded.to_string());
-            report.push('\n');
-        }
-        if let Some(downloaded) = self.network_downloaded_bytes {
-            report.push_str("broker downloaded bytes: ");
-            report.push_str(&downloaded.to_string());
-            report.push('\n');
-        }
-        report.push_str("content identity: ");
-        report.push_str(&self.content_identity);
-        report.push('\n');
-        report.push_str("files: ");
-        report.push_str(&self.file_count.to_string());
-        report.push('\n');
-        report.push_str("bytes: ");
-        report.push_str(&self.byte_count.to_string());
-        report.push('\n');
-        report
-    }
-}
-
-fn file_url_path(locator: &str) -> Result<Option<PathBuf>, PackageSourceRequestParseError> {
-    let Some(rest) = locator.strip_prefix("file://") else {
-        return Ok(None);
-    };
-    if !rest.starts_with('/') {
-        return Err(PackageSourceRequestParseError::UnsupportedFileUrl {
-            locator: locator.to_owned(),
-        });
-    }
-    Ok(Some(PathBuf::from(rest)))
-}
-
-fn reject_local_rev(
-    locator: &str,
-    rev: &Option<String>,
-) -> Result<(), PackageSourceRequestParseError> {
-    if let Some(rev) = rev {
-        return Err(
-            PackageSourceRequestParseError::LocalSourceCannotUseRevision {
-                locator: locator.to_owned(),
-                rev: rev.clone(),
-            },
-        );
-    }
-    Ok(())
-}
 
 #[cfg(test)]
 pub(crate) fn audit_package_source_in_cache(
@@ -306,6 +147,7 @@ pub fn audit_package_source_locator(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::GitSourceRequest;
     use std::ffi::OsStr;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};

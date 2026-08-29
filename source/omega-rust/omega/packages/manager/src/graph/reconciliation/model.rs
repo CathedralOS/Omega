@@ -1,8 +1,8 @@
 //! Paths, limits, conflicts, and failures exposed by reconciliation.
 
 use super::super::validation::PackageClosureValidationError;
-use super::source_custody::PackageSourceCustody;
 use crate::manifest::dependency_projection::DependencySourceRequest;
+use crate::package::PackageSourceCustody;
 use crate::source::identity::{AliasName, PackageKey};
 use std::fmt;
 

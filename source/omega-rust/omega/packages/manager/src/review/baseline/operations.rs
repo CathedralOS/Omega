@@ -1,7 +1,7 @@
 //! High-level comparison, triage, and source-review operations.
 
 use super::ReviewOnlyBaselineCapsule;
-use crate::review::advisor::assemble_update_source_review_records;
+use crate::review::advisory::assemble_update_source_review_records;
 use crate::review::comparison::compare_review_only_capability_records;
 use crate::review::triage::triage_review_update_records;
 use crate::{

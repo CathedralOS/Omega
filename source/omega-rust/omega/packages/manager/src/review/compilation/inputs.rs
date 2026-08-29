@@ -68,7 +68,7 @@ pub fn package_compilation_inputs_for(
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::graph::PackageSourceCustody,
+    custody: &crate::package::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     crate::source::capture_verified_package_source_snapshot(
@@ -116,9 +116,10 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph::PackageRootSourceRequest;
     use crate::graph::reconciliation::resolve_package_source_closure;
-    use crate::graph::{PackageRootSourceRequest, PackageSourceCustody};
     use crate::manifest::dependency_projection::DependencySourceRequest;
+    use crate::package::PackageSourceCustody;
     use crate::source::identity::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,

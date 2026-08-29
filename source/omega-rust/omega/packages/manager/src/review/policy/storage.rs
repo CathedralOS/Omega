@@ -4,7 +4,7 @@ use super::record::{
 };
 use super::resolution::ReviewOnlyRootPolicyResolution;
 use crate::ReviewOnlyCapabilityConflictSet;
-use crate::storage::atomic_file::{
+use crate::records::atomic_file::{
     RecordFileError, RecordFileLimits, RecordFileRoot, is_portable_record_file_name,
 };
 use std::fmt;

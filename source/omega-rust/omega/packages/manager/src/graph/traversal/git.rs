@@ -6,8 +6,8 @@ use super::super::reconciliation::{
 use super::cache::{SourceCacheLane, resolve_git_from_cache};
 use super::dependency_resolution::{register_workspace, resolve_registered_package_closure};
 use super::errors::ResolveGitPackageClosureError;
+use crate::package::ResolvePackageSourceError;
 use crate::source::identity::SourceLineage;
-use crate::source::package::ResolvePackageSourceError;
 use crate::source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };

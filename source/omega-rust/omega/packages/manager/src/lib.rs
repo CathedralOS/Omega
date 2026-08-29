@@ -9,9 +9,11 @@
 
 pub mod graph;
 pub mod manifest;
+pub mod package;
+mod records;
 pub mod review;
 pub mod source;
-mod storage;
+pub mod workflow;
 
 #[cfg(test)]
 pub(crate) use graph::resolve_external_local_package_closure;
@@ -22,12 +24,11 @@ pub use graph::{
     CanonicalSourceClosureSubjectLimits, DependencyRequestPath, DependencyRequestPathStep,
     PackageClosureValidationError, PackageRootSourceRequest, PackageSourceClosureConflict,
     PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
-    PackageSourceClosureLimits, PackageSourceClosureResolutionError, PackageSourceCustody,
-    ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
-    ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError, ResolvedDependency,
-    ResolvedDependencySourceRequest, ResolvedPackageClosure, ResolvedPackageNode,
-    ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
-    ResolvedRootPackageSourceRequest, ResolvedSourceIdentity,
+    PackageSourceClosureLimits, PackageSourceClosureResolutionError, ResolveDependencySourceError,
+    ResolveExternalLocalPackageClosureError, ResolveGitPackageClosureError,
+    ResolveWorkspacePackageClosureError, ResolvedDependency, ResolvedDependencySourceRequest,
+    ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
+    ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest, ResolvedSourceIdentity,
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, resolve_external_local_package_closure_with_storage,
     resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
@@ -41,6 +42,16 @@ pub use manifest::{
     PackageDeclarationError, WorkspaceDeclaration, canonical_dependency_statement,
     extract_build_declaration, extract_build_dependency_projection, extract_dependency_projection,
     extract_package_declaration, plan_dependency_addition, plan_dependency_replacement,
+};
+pub use package::{
+    PackageSourceCustody, ResolvePackageSourceError, ResolvedPackageSource,
+    resolve_external_local_package_source_with_storage,
+    resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
+    resolve_workspace_member_package_source_with_storage,
+};
+#[cfg(test)]
+pub(crate) use package::{
+    resolve_external_local_package_source, resolve_workspace_member_package_source,
 };
 pub use review::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
@@ -82,19 +93,14 @@ pub use source::{
     GitNetworkTransferObservation, GitObjectIdAlgorithm, GitSourceRequest, GitSourceRequestError,
     GitSourceResolutionObservation, GitTransport, GitTransportExecutableIdentity,
     GitTransportProfile, GitTreeId, IdentityError, ImmutableSourceResolution, LocalSourceLimits,
-    LocalSourceResolutionObservation, PackageKey, PackageName, PackageSourceAudit,
-    PackageSourceAuditCommandError, PackageSourceRequest, PackageSourceRequestParseError,
-    ResolvePackageSourceError, ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource,
-    ResolvedPackageSource, SourceAdapter, SourceContentDigest, SourceLineage, SourceResolveError,
-    SourceResolverStorage, WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
-    audit_package_source, audit_package_source_locator,
-    resolve_external_local_package_source_with_storage,
-    resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
-    resolve_git_source_with_storage, resolve_local_source,
+    LocalSourceResolutionObservation, PackageKey, PackageName, ResolvedGitSource,
+    ResolvedLocalSnapshot, ResolvedLocalSource, SourceContentDigest, SourceLineage,
+    SourceResolveError, SourceResolverStorage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
+    WorkspaceMemberPath, resolve_git_source_with_storage, resolve_local_source,
     resolve_local_source_snapshot_with_storage,
-    resolve_workspace_member_package_source_with_storage,
 };
-#[cfg(test)]
-pub(crate) use source::{
-    resolve_external_local_package_source, resolve_workspace_member_package_source,
+pub use workflow::{
+    PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,
+    PackageSourceRequestParseError, SourceAdapter, audit_package_source,
+    audit_package_source_locator,
 };

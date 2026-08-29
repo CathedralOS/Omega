@@ -144,7 +144,7 @@ mod tests {
     use super::{REVIEW_BUILD_SESSION_SEQUENCE, ReviewBuildSession};
     use crate::{
         PackageKey, PackageName, SourceLineage,
-        review::compiler::CompileResolvedPackageReviewsError,
+        review::compilation::CompileResolvedPackageReviewsError,
     };
     use std::fs;
     use std::path::PathBuf;

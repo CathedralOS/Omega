@@ -1,10 +1,10 @@
-use crate::source::RetainedStorageLane;
-use crate::source::identity::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
-use crate::source::package::{
+use crate::package::{
     ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
     resolve_git_package_source_in_lane, resolve_workspace_member_package_source_in_lane,
 };
+use crate::source::RetainedStorageLane;
+use crate::source::identity::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
 use crate::source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
 };

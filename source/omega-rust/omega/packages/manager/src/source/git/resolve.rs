@@ -1,5 +1,6 @@
 //! End-to-end Git resolution and final custody reconciliation.
 
+use crate::records::atomic_file::{RecordFileLimits, RecordFileRoot};
 use crate::source::custody::{
     CacheCustodyKind, CacheEntryLock, direct_cache_child_name, retained_cache_directory_exists,
     same_capability_file_identity, verify_git_cache_custody, verify_git_cache_root_custody,
@@ -11,7 +12,6 @@ use crate::source::observations::{
     PendingResolvedGitSource, ResolvedGitSource, issue_git_source_resolution_observation,
 };
 use crate::source::storage::{RetainedStorageLane, SourceResolverStorage};
-use crate::storage::atomic_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};

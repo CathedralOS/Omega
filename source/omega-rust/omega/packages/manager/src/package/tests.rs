@@ -66,10 +66,6 @@ fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
         root.canonicalize().expect("canonical live root")
     );
     assert_eq!(resolved.snapshot_root(), resolved.source().snapshot_root());
-    let identity = resolved.identity();
-    assert_eq!(identity.key(), resolved.key());
-    assert_eq!(identity.resolution(), resolved.resolution());
-
     let _ = std::fs::remove_dir_all(&root);
     make_tree_owner_writable(&cache);
     let _ = std::fs::remove_dir_all(&cache);
