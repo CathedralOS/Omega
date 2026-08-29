@@ -209,6 +209,12 @@ Canonical subjects:
     every finite trace index. This is the reusable induction needed for the
     root return slot; it neither chooses slot `39` nor supplies the still-open
     exact `bc` preservation premise.
+  - [x] Expose the already-checked frame product through narrow FP-kind and
+    saved-token accessors beside its depth accessor. Checker A now binds the
+    exact `main.resource` start to PC `40251`, relative depth `16`, active-main
+    FP kind `1`, and saved-caller-FP token `1`. This is the relative-frame
+    premise for the reachability theorem; it does not yet derive absolute
+    registers or hidden-stack contents from the initial state.
   - [x] The initial 4,254-byte `bc-main-resource-refinement.elab` authoring
     candidate established a four-stage cleanup model and the proof-suffix
     custody protocol. Review found that the stages compressed seven Alpha
