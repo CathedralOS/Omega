@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — OWNER Q8. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — OWNER Q7. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -56,7 +56,7 @@ scanners, or receipts.
   malformed producer-selected edge rejects even when the verifier could have
   rediscovered a primitive route. Mirrored candidate selectors are test-only
   for these paths. Completion is language-design blocked on
-  [`Q8`](OWNER_QUESTIONS.md#q8--canonical-kernel-propositions-for-exact-scalar-operations):
+  [`Q7`](OWNER_QUESTIONS.md#q7--canonical-kernel-propositions-for-exact-scalar-operations):
   exact cast, exact shift-left representability, and exact add/subtract/multiply
   still have no settled canonical kernel proposition and therefore retain the
   legacy sufficient-form reducer.
@@ -585,7 +585,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q10 (ranked native-fuel sponsor):** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q9 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -9227,7 +9227,8 @@ reach or trust, and private proof improvements do not change public identity.
   reachable. `request_cancel()` changes an eventual ordinary safe-point result
   and consumes nothing; it cannot add a parked-state disposal edge, and only
   `finish(self)` consumes the external task claim. Retain
-  `NoFiniteGuarantee(edge)` at waits lacking accepted finite-response evidence.
+  `NoFiniteGuarantee(Edge(edge), UnboundedWait)` at waits lacking accepted
+  finite-response evidence.
 
   The implemented terminal-image replay retains exact Unit, scalar, and
   acyclic-conditional frame/link/temporary, call, crash-terminal, provenance,

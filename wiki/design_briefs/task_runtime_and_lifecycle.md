@@ -545,9 +545,9 @@ arguments remain TR3–TR8 work.
     ordinary safe-point outcome; source cleanup runs as frames retire normally,
     and only `finish(self)` consumes the external task claim.
 18. A wait without accepted finite-response evidence reports
-    `NoFiniteGuarantee(edge)` at the responsible call. Bounded-response and
-    termination profiles reject it; safety still retains every parked value and
-    claim without duplication or discard.
+    `NoFiniteGuarantee(Edge(edge), UnboundedWait)` at the responsible call.
+    Bounded-response and termination profiles reject it; safety still retains
+    every parked value and claim without duplication or discard.
 
 ## Engineering sequence
 

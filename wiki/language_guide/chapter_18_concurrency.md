@@ -220,6 +220,11 @@ selected provider/runtime evidence. Neither layer may rederive liveness or
 affinity from source shape. The ordinary call result becomes available only
 after the same incomplete invocation resumes and completes.
 
+A call site inside a cycle keeps one static `SuspensionCrossingId`, while each
+dynamic visit that parks creates a distinct linear parked occurrence. Static
+crossing identity is reusable schema; runtime resume custody is neither copied
+nor shared between iterations.
+
 Cancellation creates no hidden edge out of parked state. `request_cancel()`
 retains the `Task<T>` claim and requests that a checked safe-point operation
 eventually produce its cancellation-shaped ordinary result. Source then takes
@@ -228,11 +233,13 @@ terminally consumes the external task claim and reports `Returned`, `Cancelled`,
 or `Failed`. Crash routes remain separate no-successor outcomes.
 
 A wait with no accepted finite response contract is not silently assumed to
-resume: response analysis reports `NoFiniteGuarantee(edge)` with the responsible
-call. A general root may publish that absence of a finite guarantee; a root that
-requires bounded response or termination rejects it. This progress judgment is
-separate from the safety fact that parked custody remains neither duplicated nor
-discarded.
+resume: response analysis reports a structured `NoFiniteGuarantee` with the
+responsible edge. A cyclic component without a quantitative bound names its
+derived component identity and reports `Unranked`, `UnboundedRank`, or the exact
+responsible edge as its cause. A general root may publish that absence of a
+finite guarantee; a root that requires bounded response or termination rejects
+it. This progress judgment is separate from the safety fact that parked custody
+remains neither duplicated nor discarded.
 
 In I/O-heavy code, `block` may be common. Its purpose remains local: reviewers
 can see the exact waiting sites and, especially, whether a block occurs while a
@@ -266,10 +273,12 @@ exclusive branches take their maximum. This is deliberately different from
 WCSU, where stack reclaimed after one sequential call can be reused by the
 next. The checker may analyze a complete entry or a segment to the next
 semantic safe point. Its report is `Bounded(K, evidence)`, `Unknown(reason)`, or
-`NoFiniteGuarantee(edge)` when a reachable wait or foreign edge supplies no
-finite response contract. A wall-clock observation is not a theorem; converting
-a ceiling to time requires a separate target timing model and retains that
-model's trust provenance. See
+`NoFiniteGuarantee(subject, cause)`. `subject` is the responsible edge or the
+verifier-derived cyclic component; a component cause is `Unranked`,
+`UnboundedRank`, or a directed edge whose contract prevents a finite ceiling.
+A wall-clock observation is not a theorem; converting a ceiling to time
+requires a separate target timing model and retains that model's trust
+provenance. See
 [`canonical_ir_fuel_and_resource_provisioning.md`](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
 Installation may reserve a complete certified maximum and emit no native
@@ -282,9 +291,10 @@ transitive installed `FuelSuspensionFree` fact, including admitted guarantees
 for opaque providers and separately sponsored callees.
 
 A hard-control profile that requires bounded response rejects both
-`Unknown(reason)` and `NoFiniteGuarantee(edge)`. It does not make an unbounded
-lock or wait safe by force-terminating its holder, and it need not build a
-dynamic wait-for graph merely to admit primitives that the profile forbids.
+`Unknown(reason)` and `NoFiniteGuarantee(subject, cause)`. It does not make an
+unbounded lock or wait safe by force-terminating its holder, and it need not
+build a dynamic wait-for graph merely to admit primitives that the profile
+forbids.
 
 ## Carry Policy Is A Product
 

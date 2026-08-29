@@ -991,6 +991,49 @@ premise, and requires the exact-subtract evidence before constructing resumable
   transfer-state, installation, and native-artifact custody land. This authority
   is not a general cyclic-control exception and cannot be obtained by converting
   either the interpreter carrier or ordinary acyclic verification.
+
+General cyclic control is nevertheless part of Terminal Psi's durable semantic
+model rather than a second loop language. `Jump` and `Conditional` form the
+graph; block parameters and exact successor arguments carry SSA values around a
+cycle. No `Loop` terminator, implicit induction variable, or optimizer-owned
+progress rule is introduced. The unsigned `n > 0` / `n - 1` countdown above
+remains the only executable implementation slice until the general verifier and
+execution authorities land; `NonExecutableRankedScc` is therefore an
+implementation fence, not the final language invariant.
+
+For every finite cyclic component the verifier derives canonical SCC topology
+from the actual graph: members, entries, exits, and internal edges. A
+`CycleComponentId` combines the owning machine identity with that canonical
+edge membership. Producer material may cite the component but cannot assert its
+topology. The verifier computes the ownership-frontier fixed point and requires
+every incoming edge to supply the exact scalar parameter telescope; scalar
+values may differ through ordinary block parameters. The structural frontier
+must agree exactly on places, claims, partial custody, and cleanup debt.
+Backedges perform only their authored transfers and discards; cleanup runs on a
+real exit or explicit discard, never merely because an edge closes a cycle.
+Reducibility remains an optimizer classification rather than an
+execution-legality rule.
+
+Progress evidence is separate from cyclic safety. A productive transition SCC
+may remain unranked and run indefinitely. A machine publishing termination
+instead carries a producer-supplied, verifier-checked certificate that binds a
+well-founded relation and the rank at the relevant blocks to every derived
+in-component edge. Source measures such as slice length, bounded distance,
+lexicographic order, and declared measures normalize into that relation-plus-
+decrease form; Terminal does not grow one operation variant per source spelling,
+and the verifier checks the cited proof rather than searching for a measure.
+Optimizer rewrites that change component membership, carried state, or decrease
+edges invalidate the old certificate and must pass ordinary Terminal
+verification again.
+
+Accepting this certificate establishes only the stated Terminal semantics. An
+untrusted or modified producer may emit a different safe cyclic module, just as
+it may emit different acyclic code. Binding the module to owner-approved Omega
+source requires the separate source-to-Psi correspondence edge; native
+execution additionally requires the Psi-to-target refinement edge. No producer
+identity, including the canonical Omega compiler's identity, substitutes for
+either proof.
+
 Unconditional jumps and conditional arms may additionally pass
 direct primitive scalar inputs into typed successor block parameters; the edge
 materializes those arguments before committing its structural cleanup.
@@ -2064,7 +2107,8 @@ Crashes remain the existing explicit no-successor routes.
 
 Safety and progress remain separate. A parked frontier preserves custody even
 when no finite response is known. Response analysis reports the existing
-`NoFiniteGuarantee(edge)` at the responsible call; bounded-response and
+structured `NoFiniteGuarantee` at the responsible edge; when that edge belongs
+to a cycle, the report also names the derived component. Bounded-response and
 termination profiles reject that report unless accepted finite-wait evidence
 closes it.
 
@@ -3782,6 +3826,18 @@ conversion are checked; an unrepresentable ceiling rejects. Ranked safe-point
 segments, tail calls, and relevant-precondition refinements require later
 vertical slices.
 
+The general resource report treats a derived cyclic component as one semantic
+subject. Its structured absence-of-bound verdict names the
+`CycleComponentId` and a directed cause: `Unranked`, `UnboundedRank`, or the
+exact edge whose wait, foreign work, or other contract prevents a finite
+ceiling. This report does not mint fixed-fuel authority. A fixed-fuel request
+still rejects when it cannot construct a numeric certificate, but reports that
+same component and cause instead of whichever block a traversal happened to
+revisit first. A well-founded ranking proves eventual exit; only a separately
+checked quantitative bound proves finite provision. Unranked cycles remain
+chargeable under dynamic sponsor control, and exhaustion remains an incomplete
+execution rather than evidence about termination or divergence.
+
 The same exact ranked countdown has a disjoint unmetered native carrier.
 Object admission reconstructs its proof/fixed-fuel identity, graph, ABI,
 structural frontier and cleanup, target instructions, and nine logical fuel
@@ -3805,7 +3861,7 @@ owner-derived identity. The former metered object-container publication API was
 deleted because no supported consumer ended at that weaker checkpoint.
 Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
 honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q10, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
+owner decision (Q9, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
 helper.
 
 Omega may use a certificate only for the exact installed terminal bytes,
