@@ -2,6 +2,113 @@
 
 use super::*;
 
+fn remainder_by_one_certificate(
+    integer: psi_core::IntegerType,
+    divisor: psi_core::ValueId,
+) -> psi_proof_admission::EvidenceRoute {
+    use psi_core::{EvidenceIdentity, IntegerValue, Proposition, ScalarTerm, ScalarType};
+    use psi_proof_admission::{
+        CertificateEnvelope, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    };
+
+    let scalar_type = ScalarType::Integer(integer);
+    let literal_one = ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).unwrap();
+    let divisor_term = ScalarTerm::value(divisor, scalar_type);
+    psi_proof_admission::EvidenceRoute::CertificateDerived(CertificateEnvelope {
+        identity: EvidenceIdentity::new(462).unwrap(),
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof: ProofNode {
+            conclusion: Proposition::LessOrEqual(literal_one.clone(), divisor_term.clone()),
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(ProofNode {
+                    conclusion: Proposition::LessOrEqual(literal_one.clone(), literal_one.clone()),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+                equality: Box::new(ProofNode {
+                    conclusion: Proposition::Equal(divisor_term, literal_one),
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                endpoint: 1,
+            },
+        },
+    })
+}
+
+fn signed_remainder_by_negative_one_certificate(
+    integer: psi_core::IntegerType,
+    dividend: psi_core::ValueId,
+    divisor: psi_core::ValueId,
+) -> psi_proof_admission::EvidenceRoute {
+    use psi_core::{EvidenceIdentity, IntegerValue, Proposition, ScalarTerm, ScalarType};
+    use psi_proof_admission::{
+        CertificateEnvelope, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    };
+
+    let scalar_type = ScalarType::Integer(integer);
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).unwrap();
+    let dividend_term = ScalarTerm::value(dividend, scalar_type);
+    let divisor_term = ScalarTerm::value(divisor, scalar_type);
+    let minimum_plus_one = match integer.minimum_value() {
+        IntegerValue::Signed(minimum) => minimum.checked_add(1).unwrap(),
+        IntegerValue::Unsigned(_) => unreachable!("negative-one fixture requires a signed type"),
+    };
+    let negative_case = Proposition::LessOrEqual(divisor_term.clone(), literal(-1));
+    let dividend_case = Proposition::LessOrEqual(literal(minimum_plus_one), dividend_term.clone());
+    let defined_case = Proposition::Conjunction(vec![negative_case.clone(), dividend_case.clone()]);
+    let goal = Proposition::Disjunction(vec![
+        Proposition::LessOrEqual(divisor_term.clone(), literal(-2)),
+        Proposition::LessOrEqual(literal(1), divisor_term.clone()),
+        defined_case.clone(),
+    ]);
+    let prove_bound = |conclusion: Proposition,
+                       relation: Proposition,
+                       equality: Proposition,
+                       endpoint: usize,
+                       axiom: usize| ProofNode {
+        conclusion,
+        rule: ProofRule::IntegerLessOrEqualSubstitution {
+            relation: Box::new(ProofNode {
+                conclusion: relation,
+                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+            }),
+            equality: Box::new(ProofNode {
+                conclusion: equality,
+                rule: ProofRule::SemanticAxiom { index: axiom },
+            }),
+            endpoint,
+        },
+    };
+    psi_proof_admission::EvidenceRoute::CertificateDerived(CertificateEnvelope {
+        identity: EvidenceIdentity::new(483).unwrap(),
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof: ProofNode {
+            conclusion: goal,
+            rule: ProofRule::DisjunctionIntroduction {
+                disjunct: Box::new(ProofNode {
+                    conclusion: defined_case,
+                    rule: ProofRule::ConjunctionIntroduction(vec![
+                        prove_bound(
+                            negative_case,
+                            Proposition::LessOrEqual(literal(-1), literal(-1)),
+                            Proposition::Equal(divisor_term, literal(-1)),
+                            0,
+                            1,
+                        ),
+                        prove_bound(
+                            dividend_case,
+                            Proposition::LessOrEqual(literal(minimum_plus_one), literal(7)),
+                            Proposition::Equal(dividend_term, literal(7)),
+                            1,
+                            0,
+                        ),
+                    ]),
+                }),
+                index: 2,
+            },
+        },
+    })
+}
+
 pub(super) fn verified_empty_unit() -> VerifiedPsiOptimizationUnit {
     use psi_core::{BlockId, ContractId, EdgeId, MachineId};
     use psi_terminal::{
@@ -643,7 +750,6 @@ pub(super) fn verified_exact_remainder_by_one_unit() -> VerifiedPsiOptimizationU
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
     };
-    use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
         Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
         TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
@@ -732,7 +838,7 @@ pub(super) fn verified_exact_remainder_by_one_unit() -> VerifiedPsiOptimizationU
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
-            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            route: remainder_by_one_certificate(integer, one),
         }],
     };
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
@@ -756,7 +862,6 @@ pub(super) fn verified_exact_signed_remainder_by_negative_one_unit() -> Verified
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
     };
-    use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
         Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
         TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
@@ -852,7 +957,7 @@ pub(super) fn verified_exact_signed_remainder_by_negative_one_unit() -> Verified
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
-            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            route: signed_remainder_by_negative_one_certificate(integer, operand, negative_one),
         }],
     };
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
