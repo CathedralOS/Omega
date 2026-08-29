@@ -459,16 +459,29 @@ common immutable candidate conveyor but has distinct rule/validator domains;
 catalog order explicitly resolves its confluent overlap with saturating
 multiply-one without merging their custody.
 Bitwise neutral literals are a sixth exact rule with a six-row
-`bitwise_neutral.rs` producer leaf: AND with exact-width all-ones, OR with zero,
-and XOR with zero, each in both operand positions. Bitwise absorbing literals
-are a seventh exact rule with a separate four-row `bitwise_absorbing.rs` leaf:
-AND with zero and OR with exact-width all-ones, each in both operand positions.
+`bitwise_neutral/laws.rs` producer leaf: AND with exact-width all-ones, OR with
+zero, and XOR with zero, each in both operand positions. Bitwise absorbing
+literals are a seventh exact rule with a separate four-row
+`bitwise_absorbing/laws.rs` leaf: AND with zero and OR with exact-width
+all-ones, each in both operand positions.
 There is deliberately no XOR absorbing row. Independent classification no
 longer grows in one mixed file: its small exhaustive entrance dispatches to
 `wrapping`, `saturating`, `bitwise_neutral`, and `bitwise_absorbing` semantic
 leaves above a shared reconstructed-shape model, and the architecture gate
 pins that dispatch seam. Focused overlap tests establish that the earlier
 neutral rule wins whenever a neutral and absorbing law both apply.
+
+The complete GVN total-scalar identity rung now mirrors the catalog rather
+than collapsing below it. `identities/mod.rs` is the responsibility map and
+shared-candidate entrance. From there, `wrapping_neutral/`,
+`wrapping_shift_zero_count/`, `wrapping_multiply_zero/`,
+`saturating_neutral/`, `saturating_multiply_zero/`, `bitwise_neutral/`, and
+`bitwise_absorbing/` each own one exact catalog rule. Each folder's `mod.rs`
+owns the versioned contract and proposal join; its `laws.rs` owns only the
+closed operation partition. The former mixed `rule.rs` and `shapes.rs` files
+are forbidden by the architecture gate. Thus the review path is catalog row
+to same-named rule folder to contract/proposal and laws, without a repository
+search or a generic catch-all.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one

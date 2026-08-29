@@ -1,21 +1,15 @@
-//! Closed saturating neutral-arithmetic partition.
+//! Closed wrapping neutral-arithmetic partition.
 
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_unit::TotalScalarIdentityKind;
 use psi_core::{IntegerSign, IntegerType, IntegerValue};
 
-use super::TotalScalarIdentityShape;
+use super::super::TotalScalarIdentityShape;
 
-/// Return the five saturating neutral laws in canonical tie order.
-///
-/// For commutative operations the left-identity row precedes the right row.
-/// Signed one-bit integers have no positive-one literal, so the shared literal
-/// fact lookup naturally declines both multiplication rows for that type.
-pub(in crate::rules::passes) fn saturating_neutral_identity_shapes(
-    operation: &O,
-) -> Vec<TotalScalarIdentityShape> {
+/// Return the exact laws in canonical left-literal/right-literal tie order.
+pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     match operation {
-        O::SaturatingIntegerAdd {
+        O::WrappingIntegerAdd {
             psi_operation,
             result,
             scalar_type,
@@ -29,7 +23,7 @@ pub(in crate::rules::passes) fn saturating_neutral_identity_shapes(
                 law_operand: *left,
                 scalar_type: *scalar_type,
                 law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerAddZeroLeft,
+                identity: TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
                 expected_law_value: integer_value(*scalar_type, 0),
             },
             TotalScalarIdentityShape {
@@ -39,11 +33,11 @@ pub(in crate::rules::passes) fn saturating_neutral_identity_shapes(
                 law_operand: *right,
                 scalar_type: *scalar_type,
                 law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerAddZeroRight,
+                identity: TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
                 expected_law_value: integer_value(*scalar_type, 0),
             },
         ],
-        O::SaturatingIntegerSubtract {
+        O::WrappingIntegerSubtract {
             psi_operation,
             result,
             scalar_type,
@@ -56,10 +50,10 @@ pub(in crate::rules::passes) fn saturating_neutral_identity_shapes(
             law_operand: *right,
             scalar_type: *scalar_type,
             law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight,
+            identity: TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight,
             expected_law_value: integer_value(*scalar_type, 0),
         }],
-        O::SaturatingIntegerMultiply {
+        O::WrappingIntegerMultiply {
             psi_operation,
             result,
             scalar_type,
@@ -73,7 +67,7 @@ pub(in crate::rules::passes) fn saturating_neutral_identity_shapes(
                 law_operand: *left,
                 scalar_type: *scalar_type,
                 law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft,
+                identity: TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft,
                 expected_law_value: integer_value(*scalar_type, 1),
             },
             TotalScalarIdentityShape {
@@ -83,7 +77,7 @@ pub(in crate::rules::passes) fn saturating_neutral_identity_shapes(
                 law_operand: *right,
                 scalar_type: *scalar_type,
                 law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight,
+                identity: TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight,
                 expected_law_value: integer_value(*scalar_type, 1),
             },
         ],
