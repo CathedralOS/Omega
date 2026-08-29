@@ -56,6 +56,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_identifier(type_name, counts);
             }
             count_identifier(&conformance.trait_name, counts);
+            for lifetime in &conformance.trait_lifetime_arguments {
+                count_identifier(lifetime, counts);
+            }
             if let Some(alias) = &conformance.alias {
                 count_identifier(alias, counts);
             }

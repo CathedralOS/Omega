@@ -77,6 +77,8 @@ pub enum ItemSnapshot {
         #[serde(skip_serializing_if = "is_false")]
         subjectless: bool,
         trait_name: IdentifierSnapshot,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        trait_lifetime_arguments: Vec<IdentifierSnapshot>,
         trait_arguments: Vec<TypeReferenceSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         alias: Option<IdentifierSnapshot>,
@@ -812,6 +814,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             },
             subjectless: matches!(value.subject, crate::item::ConformanceSubject::Subjectless),
             trait_name: snapshot_identifier(&value.trait_name),
+            trait_lifetime_arguments: value
+                .trait_lifetime_arguments
+                .iter()
+                .map(snapshot_identifier)
+                .collect(),
             trait_arguments: syntax_trees
                 .type_references
                 .type_reference_handles(value.trait_arguments)

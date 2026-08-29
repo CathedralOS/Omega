@@ -264,6 +264,7 @@ impl SyntaxTrees {
                         .copy_type_parameter_span(other, conformance.type_parameters),
                     subject: conformance.subject.clone(),
                     trait_name: conformance.trait_name.clone(),
+                    trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
                     trait_arguments: self
                         .copy_type_reference_handle_span(other, conformance.trait_arguments),
                     alias: conformance.alias.clone(),

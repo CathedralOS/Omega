@@ -104,12 +104,32 @@ pub(crate) fn project_public_conformances(
                 identity.path, trait_definition.name
             ))]);
         }
-        if !trait_definition.lifetime_parameters.is_empty() {
+        if conformance.trait_lifetime_arguments.len() != trait_definition.lifetime_parameters.len()
+        {
             return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` selects lifetime-parameterized trait `{}` without retained lifetime arguments",
-                identity.path, trait_definition.name
+                "public conformance `{}` retains {} target-trait lifetime arguments for trait `{}`, expected {}",
+                identity.path,
+                conformance.trait_lifetime_arguments.len(),
+                trait_definition.name,
+                trait_definition.lifetime_parameters.len(),
             ))]);
         }
+        let target_trait_lifetime_arguments = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| {
+                usize::try_from(*ordinal)
+                    .ok()
+                    .and_then(|ordinal| conformance.lifetime_parameters.get(ordinal))
+                    .cloned()
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "public conformance `{}` retains a target-trait lifetime outside its checked telescope",
+                            identity.path
+                        ))]
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let trait_arguments = compilation
             .type_reference_table
             .type_reference_handles(conformance.arguments)
@@ -119,6 +139,7 @@ pub(crate) fn project_public_conformances(
             compilation,
             conformance.trait_symbol,
             &trait_arguments,
+            &target_trait_lifetime_arguments,
             &binders,
             Some(&conformance.lifetime_parameters),
             &[],
@@ -141,6 +162,7 @@ pub(crate) fn project_public_conformances(
             .collect::<Result<Vec<_>, _>>()?;
         let interface = PackageReviewEvidenceInterface {
             trait_identity,
+            lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
             arguments: interface_arguments,
             requirements,
         };

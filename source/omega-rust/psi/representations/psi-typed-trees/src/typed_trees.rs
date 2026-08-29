@@ -368,6 +368,9 @@ pub struct ClosedConformanceApplication {
     pub machine_arguments: Vec<psi_symbols::SymbolHandle>,
     pub subject_identity: Option<String>,
     pub trait_definition: psi_symbols::SymbolHandle,
+    /// Concrete target-trait lifetime application after substituting the
+    /// declaration's checked lifetime ordinals through this application.
+    pub trait_lifetime_arguments: Vec<String>,
     pub trait_arguments: Vec<String>,
     pub rows: Vec<ClosedConformanceRowIdentity>,
     /// Historical compact coordinate retained for diagnostics and local

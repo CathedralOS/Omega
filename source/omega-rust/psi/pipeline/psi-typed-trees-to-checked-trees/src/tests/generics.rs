@@ -2542,12 +2542,12 @@ fn private_selected_conformance_bound_closes_lifetime_const_and_machine_lanes() 
 #[test]
 fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
     let source = r#"
-        trait Borrows<Source> {}
+        trait Borrows<'borrow, Source> {}
         data Card {}
         data Borrow<'scope, Element> { value: &'scope Element }
 
         Scoped<'scope, Element>:
-            Element satisfies Borrows<Borrow<'scope, Element>>
+            Element satisfies Borrows<'scope, Borrow<'scope, Element>>
         {}
 
         machine choose<'call, Element, Evidence: Element satisfies Borrows<Borrow<'call, Element>>>(
@@ -2570,18 +2570,19 @@ fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
         .find_map(|specialization| specialization.conformance_applications.first())
         .expect("closed conformance application");
     assert_eq!(application.lifetime_arguments, ["view"]);
+    assert_eq!(application.trait_lifetime_arguments, ["view"]);
     assert_eq!(application.trait_arguments, ["Borrow<'view,Card>"]);
 }
 
 #[test]
 fn generic_conformance_lifetime_elides_from_one_ordinary_borrow_constraint() {
     let source = r#"
-        trait Borrows<Source> {}
+        trait Borrows<'borrow, Source> {}
         data Card {}
         data Borrow<'scope, Element> { value: &'scope Element }
 
         Scoped<'scope, Element>:
-            Element satisfies Borrows<Borrow<'scope, Element>>
+            Element satisfies Borrows<'scope, Borrow<'scope, Element>>
         {}
 
         machine choose<'call, Element, Evidence: Element satisfies Borrows<Borrow<'call, Element>>>(
@@ -2604,6 +2605,7 @@ fn generic_conformance_lifetime_elides_from_one_ordinary_borrow_constraint() {
         .find_map(|specialization| specialization.conformance_applications.first())
         .expect("closed conformance application");
     assert_eq!(application.lifetime_arguments, ["view"]);
+    assert_eq!(application.trait_lifetime_arguments, ["view"]);
     assert_eq!(application.trait_arguments, ["Borrow<'view,Card>"]);
 }
 
@@ -2678,6 +2680,41 @@ fn generic_conformance_lifetime_elision_rejects_conflicting_borrow_constraints()
             .message
             .contains("no unique ordinary borrow constraint is available")
     }));
+}
+
+#[test]
+fn generic_conformance_lifetime_elision_rejects_zero_borrow_candidates() {
+    let source = r#"
+        trait Marker<Source> {}
+        data Card {}
+        data Borrow<'scope, Element> { value: &'scope Element }
+
+        Scoped<'scope, Element>:
+            Element satisfies Marker<Borrow<'scope, Element>>
+        {}
+
+        machine choose<'call, Element, Evidence: Element satisfies Marker<Borrow<'call, Element>>>(
+            value: Element
+        ) {}
+
+        machine caller(value: Card) {
+            choose<Card, Scoped<Card>>(value);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("zero-candidate elision must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("no unique ordinary borrow constraint is available")
+        }),
+        "zero-candidate diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]

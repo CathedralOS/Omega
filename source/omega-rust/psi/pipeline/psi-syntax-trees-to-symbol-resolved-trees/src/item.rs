@@ -186,6 +186,11 @@ fn lower_item_with_exposure(
                 carrier_symbol: psi_symbols::SymbolHandle::invalid(),
                 trait_name: crate::name::lower_name(&conformance.trait_name),
                 trait_symbol: psi_symbols::SymbolHandle::invalid(),
+                trait_lifetime_arguments: conformance
+                    .trait_lifetime_arguments
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect(),
                 arguments,
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
                 implementation,

@@ -27,6 +27,10 @@ pub(super) fn validate_closed_conformance_applications(
                 .telescope
                 .iter()
                 .any(|binding| binding.parameter.is_empty() || binding.argument.is_empty())
+            || application
+                .trait_lifetime_arguments
+                .iter()
+                .any(String::is_empty)
             || application.trait_arguments.iter().any(String::is_empty)
             || application
                 .subject_identity

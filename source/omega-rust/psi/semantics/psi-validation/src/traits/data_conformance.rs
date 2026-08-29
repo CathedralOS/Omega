@@ -99,6 +99,25 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
             continue;
         };
 
+        let expected_lifetimes = trait_definition.lifetime_parameters.len();
+        if conformance.trait_lifetime_arguments.len() != expected_lifetimes {
+            diagnostics.push(Diagnostic::error(format!(
+                "conformance `{subject_name} satisfies {trait_name}` expects {expected_lifetimes} target-trait lifetime argument(s), got {}",
+                conformance.trait_lifetime_arguments.len()
+            )));
+            continue;
+        }
+        if conformance.trait_lifetime_arguments.iter().any(|ordinal| {
+            usize::try_from(*ordinal).map_or(true, |ordinal| {
+                ordinal >= conformance.lifetime_parameters.len()
+            })
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "conformance `{subject_name} satisfies {trait_name}` retains a target-trait lifetime outside its conformance telescope"
+            )));
+            continue;
+        }
+
         let arguments = program
             .type_reference_table
             .type_reference_handles(conformance.arguments);

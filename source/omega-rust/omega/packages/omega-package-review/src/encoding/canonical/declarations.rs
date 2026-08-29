@@ -171,6 +171,10 @@ pub(crate) fn encode_conformance_bound(
         }
     }
     encode_nominal(encoder, &bound.trait_identity)?;
+    encoder.sequence(&bound.trait_lifetime_arguments, |encoder, argument| {
+        encoder.u32(*argument);
+        Ok(())
+    })?;
     encoder.sequence(&bound.arguments, encode_type_identity)
 }
 

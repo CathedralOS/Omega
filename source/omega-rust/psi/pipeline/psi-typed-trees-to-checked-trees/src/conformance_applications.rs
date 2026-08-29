@@ -267,6 +267,21 @@ pub fn close_conformance_application(
             )
         })
         .collect::<Vec<_>>();
+    let trait_lifetime_arguments = conformance
+        .trait_lifetime_arguments
+        .iter()
+        .map(|ordinal| {
+            usize::try_from(*ordinal)
+                .ok()
+                .and_then(|ordinal| lifetime_arguments.get(ordinal))
+                .cloned()
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "conformance `{declaration_name}` target-trait lifetime falls outside its closed application"
+                    ))
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let rows = match program.closed_conformance_rows(conformance) {
         Some(rows) => rows,
         None if program
@@ -304,6 +319,7 @@ pub fn close_conformance_application(
         &machine_arguments,
         subject_identity.as_deref(),
         trait_definition.name.as_str(),
+        &trait_lifetime_arguments,
         &trait_arguments,
         rows,
     );
@@ -315,6 +331,7 @@ pub fn close_conformance_application(
         machine_arguments,
         subject_identity,
         trait_definition: trait_definition.symbol,
+        trait_lifetime_arguments,
         trait_arguments,
         rows: row_identities,
         report_fingerprint: identity.report_fingerprint,
@@ -494,6 +511,7 @@ fn application_identity(
     machine_arguments: &[SymbolHandle],
     subject: Option<&str>,
     trait_name: &str,
+    trait_lifetime_arguments: &[String],
     trait_arguments: &[String],
     rows: &[psi_typed_trees::trait_definition::ConformanceRow],
 ) -> ApplicationIdentity {
@@ -511,6 +529,7 @@ fn application_identity(
         lifetime_arguments,
         type_arguments,
         const_arguments,
+        trait_lifetime_arguments,
         trait_arguments,
     ] {
         bytes.extend((lane.len() as u64).to_le_bytes());
@@ -568,7 +587,7 @@ fn application_identity(
     }
     let mut hash = OFFSET;
     let mut strong = Sha256::new();
-    strong.update(b"omega.psi.closed-conformance-application.v1\0");
+    strong.update(b"omega.psi.closed-conformance-application.v2\0");
     strong.update(&bytes);
     for byte in bytes {
         hash ^= u64::from(byte);

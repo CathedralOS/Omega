@@ -452,6 +452,10 @@ pub struct ConformanceItem {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub subject: ConformanceSubject,
     pub trait_name: Identifier,
+    /// Complete declaration-site lifetime application of `trait_name`, in the
+    /// target trait's declaration order. Every name must refer to this
+    /// conformance's own lifetime telescope.
+    pub trait_lifetime_arguments: Vec<Identifier>,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,
     pub body: ConformanceBody,

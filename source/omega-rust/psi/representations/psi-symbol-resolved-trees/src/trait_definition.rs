@@ -50,6 +50,10 @@ pub struct Conformance {
     pub trait_name: DiagnosticName,
     /// Exact trait declaration selected by `trait_name`.
     pub trait_symbol: SymbolHandle,
+    /// Declaration-site target-trait lifetime arguments, still source-named
+    /// until typed lowering resolves them against this conformance's lifetime
+    /// telescope.
+    pub trait_lifetime_arguments: Vec<DiagnosticName>,
     pub arguments: HandleSpan<crate::types::TypeReference>,
     pub alias: Option<DiagnosticName>,
     pub implementation: ConformanceImplementation,
