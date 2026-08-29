@@ -121,6 +121,9 @@ and no-selection compatibility remain enforced.
 - [x] Split selected-instruction staging into retained model, construction,
   fixed-input constraint projection, and independent replay leaves; its
   entrance owns environment-to-replayed-result custody.
+- [x] Split bounded target-operation assignment into retained model, source
+  lowering, assignment construction, and independent custody replay leaves;
+  its entrance owns the construction-to-replay admission join.
 - [x] Split selected-CFG liveness staging into model, analysis, independent
   replay, and custody projection leaves below one replay-gated entrance.
 - [x] Split CFG-aware live-range staging into model, analysis, independent

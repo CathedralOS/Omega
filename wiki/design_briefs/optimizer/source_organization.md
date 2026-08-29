@@ -177,6 +177,9 @@ mechanics.
 Receiver-free Unit function-relative realization likewise keeps construction,
 replay, Unit-shape admission, manifest reconstruction, custody, and model
 behind one small entrance.
+Bounded target-operation assignment now separates retained model, source
+lowering routes, assignment construction, and independent custody replay; its
+entrance alone admits the constructed assignment after that replay succeeds.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
