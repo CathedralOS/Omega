@@ -6,10 +6,10 @@ use psi_core::ScalarType;
 use super::super::{
     StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
 };
-use super::{ParameterResultKind, is_candidate as shared_is_candidate};
+use super::{model::ParameterResultKind, source};
 
 pub(crate) fn is_candidate(function: &AbstractFunction) -> bool {
-    shared_is_candidate(function, ParameterResultKind::Integer)
+    source::direct::is_candidate(function, ParameterResultKind::Integer)
 }
 
 pub(crate) fn validate(

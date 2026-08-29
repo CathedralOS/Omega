@@ -33,6 +33,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
     StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
     StraightLineBooleanParameter(StraightLineBooleanParameterTranslationError),
+    StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +122,28 @@ pub enum StraightLineBooleanParameterTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineBooleanNotParameterTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceNotResultRoster,
+    SourceOperandLink,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StraightLineParameterReconstructionError {
     SourceParameters,
     SourceStructuralParameters,
@@ -191,6 +214,7 @@ macro_rules! map_parameter_reconstruction_error {
 
 map_parameter_reconstruction_error!(StraightLineIntegerParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanParameterTranslationError);
+map_parameter_reconstruction_error!(StraightLineBooleanNotParameterTranslationError);
 
 impl std::fmt::Display for AbstractToTargetTranslationValidationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

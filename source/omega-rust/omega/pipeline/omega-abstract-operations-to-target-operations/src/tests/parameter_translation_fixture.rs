@@ -71,3 +71,41 @@ pub(super) fn uniform_boolean_plan(parameter_count: usize) -> AbstractOperationP
         parameter_count - 1,
     )
 }
+
+pub(super) fn boolean_not_parameter_plan(
+    parameter_types: &[ScalarType],
+    operand_parameter: usize,
+) -> AbstractOperationPlan {
+    let mut plan = parameter_return_plan(parameter_types, operand_parameter);
+    let function = &mut plan.functions[0];
+    let not_result = ValueId::new(3_701).unwrap();
+    let operand = function.parameters[operand_parameter].value;
+    function.operations.insert(
+        0,
+        AbstractOperation::BooleanNot {
+            psi_operation: OperationId::new(3_700).unwrap(),
+            result: not_result,
+            operand,
+        },
+    );
+    let AbstractOperation::Return {
+        value, scalar_type, ..
+    } = &mut function.operations[1]
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = not_result;
+    *scalar_type = ScalarType::Boolean;
+    function.result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(3_003).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    plan
+}
+
+pub(super) fn uniform_boolean_not_plan(parameter_count: usize) -> AbstractOperationPlan {
+    boolean_not_parameter_plan(
+        &vec![ScalarType::Boolean; parameter_count],
+        parameter_count - 1,
+    )
+}

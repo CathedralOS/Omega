@@ -5,81 +5,70 @@
 
 mod abi;
 pub(crate) mod boolean;
+pub(crate) mod boolean_not;
 pub(crate) mod integer;
+mod model;
 mod source;
 
-use omega_abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
-use omega_target_operations::{ScalarParameterLocation, TargetFunction};
-use psi_core::{EdgeId, ScalarType, ValueId};
+use omega_target_operations::TargetFunction;
+use psi_core::ScalarType;
 
-use super::model::StraightLineParameterReconstructionError;
+use self::model::{ReconstructedBooleanNotParameter, ReconstructedParameterReturn};
+use super::model::{
+    StraightLineBooleanNotParameterTranslationError, StraightLineParameterReconstructionError,
+};
 
-#[derive(Clone, Copy)]
-pub(super) enum ParameterResultKind {
-    Integer,
-    Boolean,
-}
-
-pub(super) struct ReconstructedParameterReturn {
-    pub(super) return_edge: EdgeId,
-    pub(super) source_value: ValueId,
-    pub(super) parameter_index: usize,
-    pub(super) location: ScalarParameterLocation,
-}
-
-pub(super) fn is_candidate(function: &AbstractFunction, result_kind: ParameterResultKind) -> bool {
-    let result_matches = match (&function.result, result_kind) {
-        (AbstractFunctionResult::Scalar(result), ParameterResultKind::Integer) => {
-            matches!(result.scalar_type, ScalarType::Integer(_))
-        }
-        (AbstractFunctionResult::Scalar(result), ParameterResultKind::Boolean) => {
-            result.scalar_type == ScalarType::Boolean
-        }
-        _ => false,
-    };
-    !function.parameters.is_empty()
-        && function.structural_parameters.is_empty()
-        && function.entry_claims.is_empty()
-        && function.published_service_ceiling.is_empty()
-        && result_matches
-        && matches!(
-            function.block_entries.as_slice(),
-            [entry] if entry.block == function.entry
-                && entry.parameters.is_empty()
-                && entry.operation_offset == 0
-        )
-        && matches!(
-            function.operations.as_slice(),
-            [AbstractOperation::Return {
-                cleanup_actions,
-                ..
-            }] if cleanup_actions.is_empty()
-        )
-}
-
-pub(super) fn reconstruct_parameter_return(
+fn reconstruct_parameter_return(
     function: &AbstractFunction,
     expected_target: NativeTarget,
     target: &TargetFunction,
     expected_result: ScalarType,
 ) -> Result<ReconstructedParameterReturn, StraightLineParameterReconstructionError> {
-    let reconstructed = source::reconstruct(function, expected_result)?;
+    let source = source::reconstruct_direct(function, expected_result)?;
     let location = abi::replay(
         &function.parameters,
-        reconstructed.parameter_index,
+        source.parameter_index,
         expected_result,
         expected_target,
     )?;
     if !target.provenance.operations.is_empty()
-        || target.provenance.edges.as_slice() != [reconstructed.return_edge]
+        || target.provenance.edges.as_slice() != [source.return_edge]
     {
         return Err(StraightLineParameterReconstructionError::TargetProvenance);
     }
     Ok(ReconstructedParameterReturn {
-        return_edge: reconstructed.return_edge,
-        source_value: reconstructed.source_value,
-        parameter_index: reconstructed.parameter_index,
+        return_edge: source.return_edge,
+        source_value: source.source_value,
+        parameter_index: source.parameter_index,
+        location,
+    })
+}
+
+fn reconstruct_boolean_not_parameter(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<ReconstructedBooleanNotParameter, StraightLineBooleanNotParameterTranslationError> {
+    let source = source::reconstruct_boolean_not(function)?;
+    let location = abi::replay(
+        &function.parameters,
+        source.parameter_index,
+        ScalarType::Boolean,
+        expected_target,
+    )?;
+    if target.provenance.operations.as_slice() != [source.not_operation]
+        || target.provenance.edges.as_slice() != [source.return_edge]
+    {
+        return Err(StraightLineBooleanNotParameterTranslationError::TargetProvenance);
+    }
+    Ok(ReconstructedBooleanNotParameter {
+        not_operation: source.not_operation,
+        return_edge: source.return_edge,
+        source_value: source.source_value,
+        operand_value: source.operand_value,
+        parameter_index: source.parameter_index,
         location,
     })
 }

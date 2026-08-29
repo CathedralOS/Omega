@@ -41,10 +41,18 @@ pub(crate) fn boolean_parameter_return_artifact(parameter_count: usize) -> (Vec<
     )
 }
 
+pub(crate) fn boolean_not_parameter_return_artifact(parameter_count: usize) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Boolean,
+        ScalarTerminal::BooleanNotParameter { parameter_count },
+    )
+}
+
 enum ScalarTerminal {
     Literal(OperationKind),
     Crash(CrashCause),
     ParameterReturn { parameter_count: usize },
+    BooleanNotParameter { parameter_count: usize },
 }
 
 fn scalar_terminal_artifact(
@@ -98,6 +106,27 @@ fn scalar_terminal_artifact(
                 Terminator::Return {
                     edge,
                     value: returned,
+                    cleanup_actions: Vec::new(),
+                },
+                Vec::new(),
+            )
+        }
+        ScalarTerminal::BooleanNotParameter { parameter_count } => {
+            assert!(parameter_count > 0, "parameter fixture must be nonempty");
+            let parameters = (0..parameter_count)
+                .map(|index| declaration(ValueId::new(30_100 + index as u64).unwrap()))
+                .collect::<Vec<_>>();
+            let operand = parameters[parameter_count - 1].id;
+            (
+                parameters,
+                vec![Operation {
+                    id: OperationId::new(30_005).unwrap(),
+                    result: OperationResult::Scalar(declaration(constant_value)),
+                    kind: OperationKind::BooleanNot { operand },
+                }],
+                Terminator::Return {
+                    edge,
+                    value: constant_value,
                     cleanup_actions: Vec::new(),
                 },
                 Vec::new(),

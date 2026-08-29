@@ -20,11 +20,13 @@ pub use model::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamily,
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
-    StraightLineBooleanImmediateTranslationReceipt, StraightLineBooleanParameterTranslationError,
-    StraightLineBooleanParameterTranslationReceipt, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationError,
-    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
-    StraightLineScalarCrashTranslationReceipt,
+    StraightLineBooleanImmediateTranslationReceipt,
+    StraightLineBooleanNotParameterTranslationError,
+    StraightLineBooleanNotParameterTranslationReceipt,
+    StraightLineBooleanParameterTranslationError, StraightLineBooleanParameterTranslationReceipt,
+    StraightLineIntegerImmediateTranslationError, StraightLineIntegerImmediateTranslationReceipt,
+    StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
+    StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
 };
 
 pub fn validate_abstract_to_target_translation(

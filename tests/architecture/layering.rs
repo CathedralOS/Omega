@@ -2910,7 +2910,10 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::integer::validate",
         "straight_line_parameter::boolean::is_candidate",
         "straight_line_parameter::boolean::validate",
-        "source::reconstruct",
+        "straight_line_parameter::boolean_not::is_candidate",
+        "straight_line_parameter::boolean_not::validate",
+        "source::reconstruct_direct",
+        "source::reconstruct_boolean_not",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -2925,8 +2928,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     }
 
     let parameter_validation = stage.join("validation/straight_line_parameter");
-    let source_replay = std::fs::read_to_string(parameter_validation.join("source.rs"))
-        .expect("read parameter-return source replay");
+    let source_replay = recursive_rust_source(&parameter_validation.join("source"));
     for forbidden in [
         "omega_calling_conventions",
         "omega_target_operations",
@@ -2945,7 +2947,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "parameter ABI replay must not consume source operations or target candidates; found {forbidden}",
         );
     }
-    for leaf in ["integer.rs", "boolean.rs"] {
+    for leaf in ["integer.rs", "boolean.rs", "boolean_not.rs"] {
         let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
             .expect("read typed parameter-return replay");
         for forbidden in [
@@ -2959,11 +2961,32 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             );
         }
     }
+    let direct_source = std::fs::read_to_string(parameter_validation.join("source/direct.rs"))
+        .expect("read direct parameter-return source replay");
+    assert!(direct_source.contains("AbstractOperation::Return"));
+    assert!(!direct_source.contains("AbstractOperation::BooleanNot"));
+    let boolean_not_source =
+        std::fs::read_to_string(parameter_validation.join("source/boolean_not.rs"))
+            .expect("read Boolean-not parameter source replay");
+    for required in ["AbstractOperation::BooleanNot", "AbstractOperation::Return"] {
+        assert!(
+            boolean_not_source.contains(required),
+            "Boolean-not source replay must visibly own {required}",
+        );
+    }
     assert!(
         !stage
             .join("validation/straight_line_integer_parameter.rs")
             .exists(),
         "the retired flat integer-parameter validator must not return",
+    );
+    assert!(
+        !parameter_validation.join("source.rs").exists(),
+        "the retired flat parameter source replay must not return",
+    );
+    assert!(
+        !stage.join("validation/catalog/dispatch.rs").exists(),
+        "the retired flat catalog dispatch must not return",
     );
 
     let optimized_entrance = std::fs::read_to_string(root.join(
@@ -3992,7 +4015,10 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
         pipeline.join("stages/artifacts/function_fragment_emission/source.rs"),
     )
     .expect("read fragment source taxonomy");
-    assert!(fragment_source
-        .contains("AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"));
+    assert!(
+        fragment_source.contains(
+            "AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"
+        )
+    );
     assert!(!fragment_source.contains("ActiveResidentRematerialization("));
 }
