@@ -226,8 +226,13 @@ impl<'program> Evaluator<'program> {
         }
         let outputs = replay.output_files();
         let output_directories = replay.output_directories();
+        let output_hard_links = replay.output_hard_links();
         let output_symlinks = replay.output_symlinks();
-        if outputs.is_empty() && output_directories.is_empty() && output_symlinks.is_empty() {
+        if outputs.is_empty()
+            && output_directories.is_empty()
+            && output_hard_links.is_empty()
+            && output_symlinks.is_empty()
+        {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");
             }
@@ -255,6 +260,31 @@ impl<'program> Evaluator<'program> {
             }
             if let Some(modification_time) = output.replayed_file_modification_time() {
                 expected_times.insert(expected_path, modification_time);
+            }
+        }
+        for hard_link in output_hard_links {
+            let mut existing_path = format!("/root/{}", hard_link.output_root().get()).into_bytes();
+            existing_path.push(b'/');
+            existing_path.extend_from_slice(hard_link.existing_relative_path());
+            let mut output_path = format!("/root/{}", hard_link.output_root().get()).into_bytes();
+            output_path.push(b'/');
+            output_path.extend_from_slice(hard_link.output_relative_path());
+            let bytes = expected_files
+                .get(&existing_path)
+                .ok_or_else(|| {
+                    Halt::Trap(
+                        "filesystem replay hard link has no existing regular-file name".to_owned(),
+                    )
+                })?
+                .clone();
+            if expected_files.insert(output_path.clone(), bytes).is_some() {
+                return trap("filesystem replay contains duplicate Output paths");
+            }
+            if let Some(mode) = expected_permissions.get(&existing_path).copied() {
+                expected_permissions.insert(output_path.clone(), mode);
+            }
+            if let Some(modification_time) = expected_times.get(&existing_path).copied() {
+                expected_times.insert(output_path, modification_time);
             }
         }
         let expected_directories = output_directories

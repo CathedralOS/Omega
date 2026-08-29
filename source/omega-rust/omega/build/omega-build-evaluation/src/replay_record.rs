@@ -14,6 +14,7 @@ mod directories;
 #[cfg(test)]
 mod directory_tests;
 mod duplicates;
+mod hard_links;
 #[cfg(test)]
 mod lock_tests;
 mod locks;
@@ -21,12 +22,15 @@ mod symlinks;
 
 use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
+use hard_links::{
+    output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
+};
 use locks::validate_output_lock_shapes;
 use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 25;
+const VERSION: u16 = 26;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -182,7 +186,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 11 | 20))
+        .position(|shape| matches!(shape.operation, 1 | 11 | 19 | 20 | 27))
         .unwrap_or(shapes.len());
     let mut events = Vec::new();
     let mut cursor = 0;
@@ -290,6 +294,11 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             OutputShapeRange::File { start, end } => {
                 psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::File(
                     rehydrate_output_file_shape(&shapes[start..end])?,
+                )
+            }
+            OutputShapeRange::HardLink(index) => {
+                psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::HardLink(
+                    rehydrate_output_hard_link_shape(&shapes[index])?,
                 )
             }
             OutputShapeRange::Symlink(index) => {
@@ -1399,6 +1408,32 @@ fn validate_first_rung(
                     validate_output_directory_shape(&shapes[index])?;
                     continue;
                 }
+                OutputShapeRange::HardLink(index) => {
+                    validate_output_hard_link_shape(&shapes[index])?;
+                    let (existing, _) = output_hard_link_paths(&shapes[index])?;
+                    aggregate_path_bytes = aggregate_path_bytes
+                        .checked_add(existing.len())
+                        .filter(|bytes| {
+                            *bytes
+                                <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+                        })
+                        .ok_or_else(|| {
+                            BuildFilesystemReplayRecordError::new(
+                                "receipted build output and hard-link paths exceed their aggregate ceiling",
+                            )
+                        })?;
+                    if !output_ranges[..entry_index].iter().any(|prior| {
+                        matches!(
+                            prior,
+                            OutputShapeRange::File { .. } | OutputShapeRange::HardLink(_)
+                        ) && prior.path(shapes) == existing
+                    }) {
+                        return Err(BuildFilesystemReplayRecordError::new(
+                            "filesystem replay Output hard link does not follow an existing regular-file name",
+                        ));
+                    }
+                    continue;
+                }
                 OutputShapeRange::Symlink(index) => {
                     validate_output_symlink_shape(&shapes[index])?;
                     let [(_, target)] = shapes[index].path_like_operands.as_slice() else {
@@ -1491,15 +1526,22 @@ fn validate_first_rung(
 enum OutputShapeRange {
     Directory(usize),
     File { start: usize, end: usize },
+    HardLink(usize),
     Symlink(usize),
 }
 
 impl OutputShapeRange {
     fn path<'a>(self, shapes: &'a [AttemptShape<'a>]) -> &'a [u8] {
+        if let Self::HardLink(index) = self {
+            return output_hard_link_paths(&shapes[index])
+                .expect("validated Output hard link has exact paths")
+                .1;
+        }
         let index = match self {
             Self::Directory(index) | Self::File { start: index, .. } | Self::Symlink(index) => {
                 index
             }
+            Self::HardLink(_) => unreachable!(),
         };
         shapes[index]
             .rooted_paths
@@ -1593,13 +1635,17 @@ fn output_tree_ranges(
                 ranges.push(OutputShapeRange::File { start: cursor, end });
                 cursor = end;
             }
+            19 | 27 => {
+                ranges.push(OutputShapeRange::HardLink(cursor));
+                cursor += 1;
+            }
             20 => {
                 ranges.push(OutputShapeRange::Symlink(cursor));
                 cursor += 1;
             }
             _ => {
                 return Err(BuildFilesystemReplayRecordError::new(
-                    "receipted build output must contain ordered directory or complete file entries",
+                    "receipted build output must contain ordered directory, file, hard-link, or symlink entries",
                 ));
             }
         }
@@ -1621,7 +1667,7 @@ fn validate_included_source_shapes(
     }
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 11 | 20))
+        .position(|shape| matches!(shape.operation, 1 | 11 | 19 | 20 | 27))
         .ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
                 "source-only filesystem replay cannot retain included-source handoffs",

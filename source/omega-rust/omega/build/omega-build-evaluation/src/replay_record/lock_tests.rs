@@ -217,6 +217,128 @@ fn exact_attempt_prefix(operation: i32) -> Vec<u8> {
     bytes
 }
 
+fn hard_link_attempt(
+    operation_tag: u16,
+    existing: &[u8],
+    output: &[u8],
+) -> BuildFilesystemOperationAttempt {
+    let windows = operation_tag == 27;
+    let mut attempt = attempt(
+        operation_tag,
+        BuildFilesystemOperationResult::Scalar(if windows { 1 } else { 0 }),
+    );
+    if windows {
+        attempt.scalar_operands.push(BuildFilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: BuildFilesystemScalarOperandValue::I64(0),
+        });
+    }
+    let rooted =
+        |operand_ordinal, relative_path: &[u8]| BuildFilesystemRootedPathOperandResolution {
+            operand_ordinal,
+            root: BuildFilesystemRoot::Output,
+            relative_path: relative_path.to_vec(),
+        };
+    if windows {
+        attempt
+            .rooted_path_operand_resolutions
+            .extend([rooted(0, output), rooted(1, existing)]);
+        attempt.authorized_paths.extend([
+            BuildFilesystemAuthorizedPath {
+                operand_ordinal: 1,
+                access: BuildFilesystemGrantAccess::Write,
+                root: BuildFilesystemRoot::Output,
+                relative_path: existing.to_vec(),
+            },
+            BuildFilesystemAuthorizedPath {
+                operand_ordinal: 0,
+                access: BuildFilesystemGrantAccess::Write,
+                root: BuildFilesystemRoot::Output,
+                relative_path: output.to_vec(),
+            },
+        ]);
+    } else {
+        attempt
+            .rooted_path_operand_resolutions
+            .extend([rooted(0, existing), rooted(1, output)]);
+        attempt.authorized_paths.extend([
+            BuildFilesystemAuthorizedPath {
+                operand_ordinal: 0,
+                access: BuildFilesystemGrantAccess::Write,
+                root: BuildFilesystemRoot::Output,
+                relative_path: existing.to_vec(),
+            },
+            BuildFilesystemAuthorizedPath {
+                operand_ordinal: 1,
+                access: BuildFilesystemGrantAccess::Write,
+                root: BuildFilesystemRoot::Output,
+                relative_path: output.to_vec(),
+            },
+        ]);
+    }
+    attempt
+}
+
+#[test]
+fn recovery_rehydrates_exact_portable_and_windows_hard_links() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut summary = replay_summary();
+    summary.filesystem_operation_attempts.extend([
+        hard_link_attempt(19, b"locked.bin", b"portable.bin"),
+        hard_link_attempt(27, b"portable.bin", b"windows.bin"),
+    ]);
+    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+        .expect("exact hard-link replay encodes")
+        .expect("verified hard-link replay retains custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("exact hard-link replay recovers");
+    let rehydrated = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("exact hard-link replay rehydrates");
+
+    assert_eq!(
+        rehydrated
+            .attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 46, 46, 8, 19, 27]
+    );
+    assert_eq!(
+        rehydrated
+            .output_hard_links()
+            .iter()
+            .map(|hard_link| (
+                hard_link.kind(),
+                hard_link.existing_relative_path(),
+                hard_link.output_relative_path(),
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                psi_checked_interpreter::FilesystemOutputHardLinkReplayKind::Portable,
+                b"locked.bin".as_slice(),
+                b"portable.bin".as_slice(),
+            ),
+            (
+                psi_checked_interpreter::FilesystemOutputHardLinkReplayKind::Windows,
+                b"portable.bin".as_slice(),
+                b"windows.bin".as_slice(),
+            ),
+        ]
+    );
+}
+
+#[test]
+fn recovery_rejects_hard_link_without_prior_regular_file_name() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut summary = replay_summary();
+    summary
+        .filesystem_operation_attempts
+        .push(hard_link_attempt(19, b"missing.bin", b"linked.bin"));
+    assert!(capture_verified_build_filesystem_replay_record(&summary, limits).is_err());
+}
+
 #[test]
 fn recovery_rehydrates_exact_output_lock_pair() {
     let limits = BuildFilesystemReplayRecordLimits::default();
