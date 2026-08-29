@@ -6,6 +6,7 @@
 
 mod fma;
 mod machine_effects;
+mod mov_r32_imm32_i64_materialization;
 mod native_fuel_runtime;
 mod native_fuel_validation;
 mod post_handoff_writer;
@@ -19,6 +20,13 @@ pub use fma::{encode_vfmadd132sd, encode_vfmadd132ss};
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog,
+};
+pub use mov_r32_imm32_i64_materialization::{
+    ValidatedX86_64MovR32Imm32I64Materialization, X86_64DecodedMovR32Imm32I64Materialization,
+    X86_64MovR32Imm32I64MaterializationError, X86_64MovR32Imm32I64MaterializationFootprint,
+    decode_x86_64_mov_r32_imm32_i64_materialization,
+    encode_x86_64_mov_r32_imm32_i64_materialization,
+    validate_x86_64_mov_r32_imm32_i64_materialization,
 };
 pub use native_fuel_runtime::{
     X86NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,

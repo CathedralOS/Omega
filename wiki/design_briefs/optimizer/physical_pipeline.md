@@ -82,7 +82,10 @@ such as:
 - AArch64 compare-zero plus branch-nonzero to `CBNZ`;
 - AArch64 shortest MOVN-seeded i64 materialization; and
 - x86-64 zero i64 materialization via `XOR r64, r64` when every canonical
-  RFLAGS unit is dead-out.
+  RFLAGS unit is dead-out; and
+- x86-64 `0..=u32::MAX` i64 materialization via the canonical five- or
+  six-byte `MOV r32, imm32` form. Its 32-bit write zero-extends the retained
+  semantic 64-bit destination and preserves RFLAGS.
 
 All produce variants of one validated post-allocation stage result. The result
 contains the original source identity, exact rule identity, validated symbolic
@@ -91,11 +94,11 @@ the complete compiler route does not grow a new parallel carrier family for
 each rule.
 
 Direct homes and homes after selected lowering enter one
-`StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN, and
-XOR-zero therefore share the same encoding, layout, exit, realization, and
-fragment source route. The former named CBNZ/MOVN complete-route carriers have
-been removed; rule-specific values remain typed leaves borrowed from the shared
-result.
+`StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN,
+XOR-zero, and MOV-r32-imm32 therefore share the same encoding, layout, exit,
+realization, and fragment source route. The former named CBNZ/MOVN
+complete-route carriers have been removed; rule-specific values remain typed
+leaves borrowed from the shared result.
 
 Selected-lowering realization likewise enters fragment admission through one
 `SelectedLowering` carrier whether or not a function-relative layout rule also
@@ -112,11 +115,12 @@ not call the producer's transformation helpers; an architecture dependency
 guard enforces that separation.
 
 The adjacent machine catalog is also the architecture-admission point. CBNZ
-and MOVN require AArch64; XOR-zero requires x86-64. Function-relative rel8
-relaxation declares x86-64 in its adjacent layout catalog. Unsupported target
-selection is rejected with the exact optimization, required architecture, and
-actual architecture before rule dispatch; custody errors preserve this reason
-instead of converting it to a generic phase-composition or root mismatch.
+and MOVN require AArch64; XOR-zero and MOV-r32-imm32 require x86-64.
+Function-relative rel8 relaxation declares x86-64 in its adjacent layout
+catalog. Unsupported target selection is rejected with the exact optimization,
+required architecture, and actual architecture before rule dispatch; custody
+errors preserve this reason instead of converting it to a generic
+phase-composition or root mismatch.
 Linux, Windows, and UEFI x64 share x86-64 applicability, while Linux and macOS
 Arm64 share AArch64 applicability. UEFI applicability does not grant its still
 unimplemented publication authority.
@@ -132,7 +136,8 @@ The encoding entrance joins construction to a separate `validation/` rung.
 That rung checks roots and normalized optimization custody, then descends
 independently through ordinary rows, structural rows, and aggregate
 counts/identity. Row validation consumes candidate bytes only through the
-target-owned baseline, MOVN, XOR-zero, and structural-call decoders; an
+target-owned baseline, MOVN, XOR-zero, MOV-r32-imm32, and structural-call
+decoders; an
 architecture guard forbids imports of producer row/structural encoders. CBNZ
 dispositions are reconstructed from the typed optimization plan while its
 unresolved branch remains explicit deferred control.
@@ -212,8 +217,8 @@ it must not encode an optimization name in top-level route variants.
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
 
-The catalog matrix covers all 14 current exact names across all five native
-target constructors: 60 admitted cells and 10 typed architecture rejections.
+The catalog matrix covers all 15 current exact names across all five native
+target constructors: 63 admitted cells and 12 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 

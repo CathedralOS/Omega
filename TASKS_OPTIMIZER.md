@@ -77,7 +77,8 @@ subtrees, all pinned by the source-organization gate.
 through target-owned x86-64/AArch64 decoders and independent image-owned
 contract/fuel replay. Object custody retains the full ranked record; missing
 custody, corrupted bytes/ABI/frontier/provenance/fuel, and mixed body evidence
-reject. Final-image publication remains explicitly fenced as a later stage.
+reject. Unmetered final-image, installation, native-artifact, and callable
+publication custody now replay that record independently.
 
 [x] Ranked native-fuel instrumentation now rebases the preheader, false-exit,
 and backedge branches to the first charge in each destination-site group and
@@ -104,6 +105,14 @@ lowering reach fragment, text, and object-container custody on both supported
 ISAs, then object-artifact and callable custody, without rule-specific route
 variants; v8 fragment/text manifests retain the generic source kind and exact
 selection identity.
+
+[x] Exact x86-64 zero-extended i64 materialization now selects canonical
+five-byte low-register or six-byte extended-register `MOV r32, imm32` for
+`0..=u32::MAX`. Its 29-line machine-rule entrance descends into separate model,
+compute, replay, identity, codec, and test leaves; its 12-line pipeline entrance
+descends into model/stage custody. A closed materialization adapter replaces
+the former optional MOVN/XOR tuple, so another rule does not add another
+parallel route or optional coordinator field.
 
 ## Completed foundation
 
@@ -132,6 +141,7 @@ selection identity.
 - [x] Symbolic post-allocation plan/effects and independent validation.
 - [x] AArch64 compare-zero/branch-nonzero CBNZ fusion.
 - [x] AArch64 shortest MOVN-seeded i64 materialization.
+- [x] x86 zero-extended i64 materialization via canonical `MOV r32, imm32`.
 - [x] x86 conditional-branch rel32-to-rel8 function-relative relaxation.
 - [x] Encoding, layout, whole-function exit, realization, fragment, text,
   object, optimized artifact, and callable-entry custody slices.
@@ -412,13 +422,15 @@ selection identity.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
-  layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
+  layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently. Structural-Unit selected validation also reconstructs ABI
   layout and call constraints without construction helpers. The unmetered
   ranked-`u32` machine carrier now has target-decoder-led unmetered and
-  native-fuel object replay. Ranked final-image/publication routes remain
-  fenced; remaining lowering and publication routes still need closure.
+  native-fuel object replay, and the unmetered ranked route reaches final-image,
+  installation, native-artifact, and callable custody. Only the direct and
+  transfer-runtime ranked native-fuel executable-image routes remain fenced;
+  remaining lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.
@@ -478,6 +490,8 @@ selection identity.
 - [x] AArch64 CBNZ fusion and MOVN materialization rules.
 - [x] x86 rel8 layout relaxation.
 - [x] x86 XOR-zero materialization with RFLAGS-dead proof.
+- [x] x86 MOV-r32-imm32 zero-extended i64 materialization with exact encoded
+  subview, write-semantics, and byte-count replay.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
@@ -570,3 +584,6 @@ rewrite or opt a program into lossy floating-point semantics.
     and fragment/object/callable admission for both exact rules.
 15. [x] Make resolved-layout validation independent before claiming complete
     translation validation for those generic publication routes.
+16. [x] Add x86 MOV-r32-imm32 zero-extended i64 materialization as one exact
+    catalog rule, and route it through the closed generic materialization and
+    publication carriers without a new vertical pipeline.

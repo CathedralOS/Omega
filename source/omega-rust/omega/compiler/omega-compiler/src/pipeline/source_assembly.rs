@@ -504,6 +504,7 @@ pub data Optimization {
     case ActiveResidentImmediateU64MultiUseRematerializationV1;
     case Aarch64SelectShortestMovnSeededI64MaterializationV1;
     case X86SelectXorZeroI64MaterializationV1;
+    case X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -521,6 +522,7 @@ pub data Optimizations {
     active_resident_immediate_u64_multi_use_rematerialization_v1: u8 in Trapping;
     aarch64_select_shortest_movn_seeded_i64_materialization_v1: u8 in Trapping;
     x86_select_xor_zero_i64_materialization_v1: u8 in Trapping;
+    x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1: u8 in Trapping;
 }
 pub data Build {
     subsystem: Subsystem;
@@ -557,6 +559,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 -> active_resident_immediate_u64_multi_use_rematerialization_v1()
         Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 -> aarch64_select_shortest_movn_seeded_i64_materialization_v1()
         Optimization::X86SelectXorZeroI64MaterializationV1 -> x86_select_xor_zero_i64_materialization_v1()
+        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 -> x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -614,6 +617,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     state x86_select_xor_zero_i64_materialization_v1(&mut self) {
         self.x86_select_xor_zero_i64_materialization_v1 = self.x86_select_xor_zero_i64_materialization_v1 + 1;
     }
+
+    state x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1(&mut self) {
+        self.x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1 = self.x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1 + 1;
+    }
 }
 pub machine Optimizations::emit_report(&mut self) {
     self.human_report = self.human_report + 1;
@@ -643,6 +650,7 @@ pub data Optimization {
     case ActiveResidentImmediateU64MultiUseRematerializationV1;
     case Aarch64SelectShortestMovnSeededI64MaterializationV1;
     case X86SelectXorZeroI64MaterializationV1;
+    case X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -660,6 +668,7 @@ pub data Optimizations {
     active_resident_immediate_u64_multi_use_rematerialization_v1: u8 in Trapping;
     aarch64_select_shortest_movn_seeded_i64_materialization_v1: u8 in Trapping;
     x86_select_xor_zero_i64_materialization_v1: u8 in Trapping;
+    x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1: u8 in Trapping;
 }
 pub data BuildSource {
 }
@@ -703,6 +712,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 -> active_resident_immediate_u64_multi_use_rematerialization_v1()
         Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 -> aarch64_select_shortest_movn_seeded_i64_materialization_v1()
         Optimization::X86SelectXorZeroI64MaterializationV1 -> x86_select_xor_zero_i64_materialization_v1()
+        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 -> x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -759,6 +769,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
 
     state x86_select_xor_zero_i64_materialization_v1(&mut self) {
         self.x86_select_xor_zero_i64_materialization_v1 = self.x86_select_xor_zero_i64_materialization_v1 + 1;
+    }
+
+    state x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1(&mut self) {
+        self.x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1 = self.x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1 + 1;
     }
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {

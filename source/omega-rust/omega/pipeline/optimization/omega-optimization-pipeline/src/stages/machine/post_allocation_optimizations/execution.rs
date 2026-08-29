@@ -12,12 +12,16 @@ use super::{
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
     stage_optimized_aarch64_movn_materialization,
     stage_optimized_aarch64_movn_materialization_after_selected_lowering,
+    stage_optimized_x86_mov_r32_imm32_materialization,
+    stage_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering,
     stage_optimized_x86_xor_zero_materialization,
     stage_optimized_x86_xor_zero_materialization_after_selected_lowering,
     validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
     validate_optimized_aarch64_cbnz_fusion_custody,
     validate_optimized_aarch64_movn_materialization_after_selected_lowering_custody,
     validate_optimized_aarch64_movn_materialization_custody,
+    validate_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering_custody,
+    validate_optimized_x86_mov_r32_imm32_materialization_custody,
     validate_optimized_x86_xor_zero_materialization_after_selected_lowering_custody,
     validate_optimized_x86_xor_zero_materialization_custody,
 };
@@ -55,6 +59,10 @@ pub fn stage_optimized_post_allocation_machine_optimization(
             stage_optimized_x86_xor_zero_materialization(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::X86XorZero)
         }
+        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 => {
+            stage_optimized_x86_mov_r32_imm32_materialization(source, machine)
+                .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32)
+        }
         _ => unreachable!("the post-allocation catalog is closed"),
     }
 }
@@ -74,6 +82,10 @@ pub fn validate_optimized_post_allocation_machine_optimization_custody(
         }
         StagedOptimizedPostAllocationMachineOptimization::X86XorZero(staged) => {
             validate_optimized_x86_xor_zero_materialization_custody(source, machine, staged)
+                .map(drop)
+        }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(staged) => {
+            validate_optimized_x86_mov_r32_imm32_materialization_custody(source, machine, staged)
                 .map(drop)
         }
     }
@@ -113,6 +125,12 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lower
             stage_optimized_x86_xor_zero_materialization_after_selected_lowering(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::X86XorZero)
         }
+        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 => {
+            stage_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering(
+                source, machine,
+            )
+            .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32)
+        }
         _ => unreachable!("the post-allocation catalog is closed"),
     }
 }
@@ -137,6 +155,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_after_selected_lo
         }
         StagedOptimizedPostAllocationMachineOptimization::X86XorZero(staged) => {
             validate_optimized_x86_xor_zero_materialization_after_selected_lowering_custody(
+                source, machine, staged,
+            )
+            .map(drop)
+        }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(staged) => {
+            validate_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering_custody(
                 source, machine, staged,
             )
             .map(drop)

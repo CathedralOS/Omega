@@ -15,7 +15,7 @@ use super::{
     OptimizedSelectedFormEncodingError, SelectedFormEncodingCounts, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedStructuralUnitFunctionEncoding,
     StagedOptimizedSelectedFormEncoding, custody::validate_optimization_roots,
-    identity::encoding_identity, row_encoding::encode_row,
+    identity::encoding_identity, materialization::MaterializationPlan, row_encoding::encode_row,
     structural_encoding::encode_structural_function,
 };
 
@@ -39,18 +39,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
         _ => None,
     });
-    let movn = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) => {
-            Some(materialization)
-        }
-        _ => None,
-    });
-    let xor_zero = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) => {
-            Some(materialization)
-        }
-        _ => None,
-    });
+    let materialization = MaterializationPlan::from_optimization(optimization);
     let selected_plan = selected.selected_plan();
     if selected_plan.functions.len() != machine.functions.len() {
         return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
@@ -77,33 +66,15 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
             })
             .transpose()?;
-        let movn_function = movn
-            .map(|materialization| {
-                materialization
-                    .materialization()
-                    .plan()
-                    .functions
-                    .get(function_index)
-                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
-            })
-            .transpose()?;
-        let xor_zero_function = xor_zero
-            .map(|materialization| {
-                materialization
-                    .materialization()
-                    .plan()
-                    .functions
-                    .get(function_index)
-                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
-            })
+        let materialization_function = materialization
+            .map(|materialization| materialization.function(function_index))
             .transpose()?;
         if fusion_function.is_some_and(|row| row.machine != selected_function.machine) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
-        if movn_function.is_some_and(|row| row.machine != selected_function.machine) {
-            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
-        }
-        if xor_zero_function.is_some_and(|row| row.machine != selected_function.machine) {
+        if materialization_function.is_some_and(|row| {
+            !row.matches(selected_function.machine, selected_function.blocks.len())
+        }) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
         for (block_index, (selected_block, machine_block)) in selected_function
@@ -125,21 +96,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                         .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
                 })
                 .transpose()?;
-            let movn_block = movn_function
-                .map(|function| {
-                    function
-                        .blocks
-                        .get(block_index)
-                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
-                })
-                .transpose()?;
-            let xor_zero_block = xor_zero_function
-                .map(|function| {
-                    function
-                        .blocks
-                        .get(block_index)
-                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
-                })
+            let materialization_block = materialization_function
+                .map(|function| function.block(block_index))
                 .transpose()?;
             if fusion_block.is_some_and(|row| {
                 row.block != selected_block.id
@@ -147,15 +105,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
-            if movn_block.is_some_and(|row| {
-                row.block != selected_block.id
-                    || row.instructions.len() != machine_block.instructions.len()
-            }) {
-                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
-            }
-            if xor_zero_block.is_some_and(|row| {
-                row.block != selected_block.id
-                    || row.instructions.len() != machine_block.instructions.len()
+            if materialization_block.is_some_and(|row| {
+                !row.matches(selected_block.id, machine_block.instructions.len())
             }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
@@ -179,30 +130,9 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                 if disposition.is_some_and(|row| row.instruction != selected_instruction.id) {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
-                let movn_disposition = movn_block
-                    .map(|block| {
-                        block
-                            .instructions
-                            .get(index)
-                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
-                    })
+                let materialization_disposition = materialization_block
+                    .map(|block| block.disposition(index, selected_instruction.id))
                     .transpose()?;
-                if movn_disposition.is_some_and(|row| row.instruction != selected_instruction.id) {
-                    return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
-                }
-                let xor_zero_disposition = xor_zero_block
-                    .map(|block| {
-                        block
-                            .instructions
-                            .get(index)
-                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
-                    })
-                    .transpose()?;
-                if xor_zero_disposition
-                    .is_some_and(|row| row.instruction != selected_instruction.id)
-                {
-                    return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
-                }
                 rows.push(encode_row(
                     selected_plan.target.architecture,
                     selected_instruction,
@@ -211,8 +141,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     disposition
                         .map(|row| row.disposition.clone())
                         .unwrap_or(Aarch64CbnzInstructionDisposition::RetainedV1),
-                    movn_disposition.map(|row| &row.disposition),
-                    xor_zero_disposition.map(|row| &row.disposition),
+                    materialization_disposition,
                 )?);
             }
         }

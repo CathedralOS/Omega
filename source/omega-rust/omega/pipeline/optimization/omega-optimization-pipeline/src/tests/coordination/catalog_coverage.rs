@@ -120,7 +120,7 @@ fn every_exact_optimization_has_one_rule_stage_disposition() {
                 *target == TestTargetDisposition::Architecture(Architecture::X86_64)
             })
             .count(),
-        2
+        3
     );
 }
 
@@ -208,6 +208,6 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
         }
     }
 
-    assert_eq!(scheduled, 60);
-    assert_eq!(rejected, 10);
+    assert_eq!(scheduled, 63);
+    assert_eq!(rejected, 12);
 }

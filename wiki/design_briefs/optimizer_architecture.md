@@ -9,7 +9,7 @@ as:
 
 ```omega
 builder.optimizations.enable(Optimization::GlobalValueNumbering);
-builder.optimizations.enable(Optimization::X86SelectXorZeroI64MaterializationV1);
+builder.optimizations.enable(Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1);
 ```
 
 This document is the entrance to the optimizer design. It owns the invariants,
@@ -118,7 +118,7 @@ The major optimization phases are:
 | Psi | validated optimization unit | validated transformed unit | CFG cleanup, SCCP, copy propagation, GVN, dead scalar elimination, proof-check elision |
 | Selected lowering | selected virtual-register program | validated selected rewrite plan | exact incoming-immediate folds |
 | Allocation recovery | selected program plus allocation facts | revalidated physical homes | fixed-view copies, bounded rematerialization |
-| Post-allocation machine | physical symbolic instructions plus liveness | validated form-substitution plan | AArch64 CBNZ/MOVN, x86 XOR-zero |
+| Post-allocation machine | physical symbolic instructions plus liveness | validated form-substitution plan | AArch64 CBNZ/MOVN, x86 XOR-zero/MOV-r32-imm32 |
 | Function-relative layout | encoded rows plus labels | validated resolved layout | x86 rel32-to-rel8 relaxation |
 
 Selections remain exact even when rules share a phase. There are no broad

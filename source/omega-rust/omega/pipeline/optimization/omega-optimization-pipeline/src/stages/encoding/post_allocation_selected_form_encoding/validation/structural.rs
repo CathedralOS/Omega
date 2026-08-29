@@ -169,7 +169,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             physical,
             &Aarch64CbnzInstructionDisposition::RetainedV1,
             None,
-            None,
             &candidate.return_instruction,
         )?;
         if !matches!(
