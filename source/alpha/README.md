@@ -85,15 +85,21 @@ seed owner would add another apparent construction route.
 
 ## Retention inventory
 
-| Retained child | Direct role | Deletion condition |
+| Retained child/files | Direct role | Deletion condition |
 | --- | --- | --- |
 | `assembler/` | The Alpha-written assembler and its exact self-host/reference gates. | Replace only with a smaller audited Alpha assembler that preserves exact encoding. |
 | `checker/` | The rooted certificate-checker service used beside compiler edges. | Delete when an equally low or lower accepted checker service replaces it. |
+| `SEMANTICS.md`, `ASSEMBLY.md` | Authoritative Alpha execution and assembly relations. | Replace only atomically with a ruled Alpha revision and its consumers. |
+| `alpha_arm64_macos`, `alpha_arm64_macos.s`, `alpha_arm64_macos.lst` | Selected Darwin seed, its hand-authored source, and audit disassembly. | Delete only when Darwin arm64 support is retired or an equally audited conforming seed replaces all three. |
+| `alpha_x64_windows.exe`, `alpha_x64_windows.hex` | Selected Windows seed and its annotated audit listing. | Delete only when Windows x64 support is retired or an equally audited conforming seed replaces both. |
+| `seed_env.sh` | Select and stamp the exact host seed without changing tape identity. | Delete when every caller executes raw tape through an equally audited interface. |
+| `conformance.sh`, `verify.sh` | Pin every opcode edge and run the canonical seed plus assembler-construction gate. | Delete a check only when a stronger checked seed admission subsumes it. |
+| `alpha_ref.py`, `diamond-py.sh` | One independent executable semantics and its bounded seed comparison. | Delete together when a stronger independent formal relation replaces the diagnostic. |
 
-The remaining root files are the selected native seeds, their audit sources and
-listings, Alpha semantics, executable conformance/reference checks, and the
-seed-selection/stamping entry point. Completed mutation scripts and historical
-forges are not retained as permanent topology.
+The duplicate random seed/reference fuzzer and its generator were deleted: the
+retained conformance suite plus one independent diamond own that failure
+surface. Completed mutation scripts and historical forges likewise remain only
+in Git history.
 
 ## Per-platform vs cross-platform
 

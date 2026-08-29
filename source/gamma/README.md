@@ -104,6 +104,10 @@ Gamma's architectural role.
 | --- | --- | --- |
 | `compiler/` | The sole owner of the future Beta-written compiler accepting Gamma and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
 | `reference/` | One independent executable Gamma meaning reference and bounded differential. | Delete when a stronger checked semantic relation subsumes every retained case. |
+| `LANGUAGE.md` | The current accepted Gamma surface pending Q14's executable-contract ruling. | Replace only atomically with the ruled contract and synchronized compiler/reference tests. |
+| `interp.beta`, `test-interp.sh`, `test-interp-arena.sh` | Candidate compiler component plus bounded execution, failure, and arena-profile discriminators. | Absorb into the standalone compiler or delete when Q14 makes the interpreter noncanonical; delete a gate when its exact failure surface is subsumed. |
+| `typeck.beta`, `test-typeck.sh` | Candidate compiler component plus bounded static-semantics discriminators. | Absorb into the standalone compiler or delete when Q14 makes it noncanonical. |
+| `.gitignore` | Excludes disposable local Gamma build products. | Delete when those products move outside this owner or cease to exist. |
 
 At the root, `interp.beta` and `typeck.beta` remain candidate implementation
 components and executable semantic oracles for the blocked compiler edge. Each

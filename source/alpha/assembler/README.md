@@ -35,7 +35,12 @@ are the maintained path.
 
 | Retained child | Direct role | Deletion condition |
 | --- | --- | --- |
-| `examples/` | Small source cases consumed by the assembler behavior and reference gates. | Delete a case when another retained case covers the same encoding boundary; delete the directory when generated discriminators fully replace it. |
+| `examples/` | `echo.alpha`, `factorial.alpha`, `fib.alpha`, `gcd.alpha`, and `multiply.alpha` are small source cases consumed by the assembler diamond and calling-convention documentation. | Delete a case when another retained case covers the same encoding boundary; delete the directory when generated discriminators fully replace it. |
+| `.gitignore` | Excludes the disposable `build/` containers produced by the local builder. | Delete with `build.sh` or when build output moves outside this owner. |
+| `assembler.alpha`, `beta_arm64_macos`, `beta_x64_windows.exe` | One authoritative Alpha assembler source and its two stamped platform realizations. | Replace only atomically with an exact reconstruction and both platform consumers. |
+| `build.sh`, `selfhost.sh` | Disposable tape stamping and exact assembler reconstruction. | Delete `build.sh` when raw-tape execution replaces stamped local builds; delete `selfhost.sh` when a stronger exact construction gate subsumes it. |
+| `asm_ref.py`, `asm-diamond.sh` | One independent assembly relation and bounded comparison. | Delete together when the checked source-to-tape relation fully subsumes their failure detection. |
+| `register-label-regression.sh` | Closed lexical/operand/width discriminator against the fresh assembler and independent relation. | Delete when the checked assembly relation covers every retained case. |
 
 The root retains one authoritative Alpha source, the two platform assembler
 realizations, exact self-host/build entry points, one independent reference,

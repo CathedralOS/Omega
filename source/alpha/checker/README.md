@@ -41,11 +41,33 @@ reduction, list membership, and product witnesses. The compact gate suite owns
 the executable rule inventory; a theorem library is deliberately not stored
 under this service.
 
+Artifact-bound callers use the binary frame below; legacy plain certificate
+input remains available for generic judgments.
+
+```text
+"OMGCHK1\n"
+u64le source_length | raw source bytes
+u64le tape_length   | raw tape bytes
+u64le cert_length   | certificate bytes
+```
+
+Lengths have zero high halves and checker-owned limits, the certificate must
+end exactly at the frame boundary, and the whole input is bounded before it can
+overlap checker tables. Within a valid frame, `source` and `tape` parse as
+immutable lists of raw bytes constructed by the checker itself. Each byte is a
+nullary constructor with identity `1024 + byte`; byte terms are interned and
+the lists share them. Those constants are unavailable to unframed input. This
+binds a derivation proposition to exact bytes without trusting a hash or a
+shell-generated literal, but a caller still needs a checked artifact-specific
+ledger proving the intended relation.
+
 ## Retention inventory
 
-Every retained child has a direct service role and an explicit deletion
-condition. Material that merely demonstrates mathematics or duplicates another
-oracle is negative value here.
+Every retained owned file must strengthen the rooted checker service or one
+exact compiler-edge consumer and must have an explicit deletion condition.
+Material that merely demonstrates mathematics, generality, historical effort,
+or another oracle is negative value here. Git history, not the live tree, owns
+discarded possibilities.
 
 | Retained child | Bounded role | Deletion condition |
 | --- | --- | --- |
