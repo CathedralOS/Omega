@@ -585,6 +585,7 @@ fn external_replay_byte_boundary_rejects_exact_duplicate_and_foreign_action() {
 #[test]
 fn external_policy_input_cannot_bypass_candidate_validation() {
     let unit = exact_add_unit();
+    let original = unit.clone();
     let registry = OrderedRuleRegistry::new([
         Arc::new(InvalidEvaluationExactRule) as Arc<dyn PsiOptimizationRule>
     ])
@@ -603,6 +604,19 @@ fn external_policy_input_cannot_bypass_candidate_validation() {
         .propose(&unit, RuleAnalysisView::new(&products))
         .unwrap()
         .remove(0);
+    let analysis_revision = analyses.revision();
+    let cached_analyses = analyses.cached_kinds().collect::<Vec<_>>();
+    assert!(matches!(
+        validate_psi_rewrite_candidate(&unit, &candidate),
+        Err(OptimizationUnitValidationError::CandidateEvaluationMismatch)
+    ));
+    assert_eq!(
+        unit, original,
+        "rejected validation cannot mutate its input"
+    );
+    assert_eq!(analyses.revision(), analysis_revision);
+    assert_eq!(analyses.cached_kinds().collect::<Vec<_>>(), cached_analyses);
+
     let rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&[InvalidEvaluationExactRule
         .contract()
         .identity()])

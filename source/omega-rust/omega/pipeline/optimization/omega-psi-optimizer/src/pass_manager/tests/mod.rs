@@ -13,7 +13,9 @@ use omega_optimization_policy::{
     external_psi_decision_schema_v1_identity, psi_target_neutral_decision_target_v1_identity,
 };
 use omega_optimization_unit::{PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger};
-use omega_optimization_validation::OptimizationUnitValidationError;
+use omega_optimization_validation::{
+    OptimizationUnitValidationError, validate_psi_rewrite_candidate,
+};
 use omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 use super::*;

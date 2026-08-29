@@ -1621,20 +1621,40 @@ alternate semantic handoff.
   Remaining here includes congruences, disjunctive nonzero facts, case domains,
   broader proof goals, and additional rules over settled range relationships.
 
-- **OPT-ORDERED-REGISTRY.** Implement explicit ordered built-in registries with
-  duplicate detection and no global singleton.
+- **OPT-ORDERED-REGISTRY — complete.** Explicit ordered built-in registries
+  have duplicate detection and no global singleton.
 
   Acceptance: insertion/iteration order is canonical, registries are immutable
   during a run, and two concurrently compiled programs cannot affect each
   other's rule sets.
 
-- **OPT-RULE-CONTRACT.** Implement immutable-input rule proposal and atomic
-  rewrite patches.
+  Each compilation owns an immutable `Arc`-backed schedule whose identity binds
+  the exact meaningful rule order. General construction rejects duplicate rule
+  identities and mixed named passes rather than sorting opaque hashes. The sole
+  built-in catalog instead sorts explicit contiguous source ordinals before
+  construction, so registration arrival cannot perturb the declared schedule.
+  Tests cover stable iteration/identity, order-sensitive identities, duplicate
+  and mixed-pass rejection, thirty-two shuffled contribution orders per
+  multi-rule family, and independent registry values used concurrently.
+
+- **OPT-RULE-CONTRACT — complete for the current candidate vocabulary.** Rules
+  propose atomic rewrite patches from immutable input.
 
   Acceptance: a candidate declares decision point, affected region, required
   analyses, invalidations, substitutions, provenance changes, witness, and
   predicted non-authoritative cost. Rejected validation leaves the unit and all
   analysis revisions unchanged.
+
+  The versioned rule contract binds pass, exact required analyses,
+  invalidations, and safety class. Every closed candidate constructor derives
+  its decision point from the typed patch, copies the contract analysis sets,
+  canonicalizes its affected region and substitutions, requires complete
+  provenance/fuel rows, binds the rule-specific witness and predicted cost, and
+  content-addresses the complete declaration. Independent validation borrows
+  both unit and candidate and returns an owning accepted rewrite only on
+  success. A focused invalid-evaluation regression now proves rejection leaves
+  the source unit, analysis-manager revision, cached-analysis roster, and
+  external-decision cursor unchanged.
 
 - **OPT-PASS-MANAGER — complete for the current registered pass vocabulary.**
   Analyze/enumerate/choose/validate/commit execution uses named versioned pass
