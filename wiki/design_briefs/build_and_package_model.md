@@ -76,7 +76,7 @@ Compiler project loading applies that shared projection to the exact retained
 bytes of the selected free `build.omg` before injecting build vocabulary or
 executing it. A companion-free focused compilation remains valid; a selected
 free build file cannot omit its role. Scoped `Owner::build` roots remain only
-in the explicitly isolated Q4 compatibility lane and are not package
+in the explicitly isolated scoped-build compatibility lane and are not package
 declarations.
 The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
@@ -93,6 +93,24 @@ symbols remain unresolved. Checked provider-adapter rows now retain a canonical
 machine-overload identity and its exact package owner, and every compiler
 consumer resolves both without falling back to a short spelling. Provider
 selection and compiler-intrinsic toolchain identities are not yet fully sealed.
+
+Packages and applications use that same `PackageKey`: both declare the same
+validated name and occupy one source lineage. Their explicit
+`BuildDeclarationKind` remains separate from the key. A selected closure root
+may be a package or application and may own dependencies; every dependency edge
+must resolve to a package. The resolver already enforces this once through its
+root/non-root admission path across local, workspace, and Git sources. It does
+not infer application role from `ProgramEntry` or from the absence of one.
+
+After admission, the root retains `{ PackageKey, BuildDeclarationKind }` through
+closure evidence, locks, review, compiler handoff, diagnostics, and audit output.
+The role is not hashed into `PackageKey`, and non-root nodes need not redundantly
+carry `Package` after edge admission has established it. Changing package to
+application breaks dependency compatibility; changing application to package
+breaks an activation that expects an executable root. Review reports the
+affected contract rather than treating every role change as symmetric or
+manufacturing a new nominal identity.
+
 `PackageInstance` additionally binds exact source content, produced artifact
 identity, each closure subject's obligation-semantics identity, locally
 re-derived verification results, and disclosed open assumptions. Exact
@@ -256,7 +274,7 @@ admission evidence nor a package instance and has no decoder or public
 constructor.
 
 The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q5. A physical-path
+the exact ordinary-package staging-authority role in OWNER Q4. A physical-path
 or spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 
@@ -1925,8 +1943,8 @@ before downloaded build code receives any provider.
 
 The unified lock artifact records the resolved closure:
 
-- package names, source-qualified `PackageKey` values, and exact
-  `PackageInstance` values;
+- package names, source-qualified `PackageKey` values, the selected root's
+  explicit package/application role, and exact `PackageInstance` values;
 - source acquisition requests, explicit `Root`/`Named` package selections,
   resolved member-path custody, and resolved commit/tree/content identities;
 - requester-local alias edges and the package's complete statically projected
@@ -2874,6 +2892,13 @@ The single lock may contain several independently resolved target-profile
 closures; their presence, absence, review state, and exact semantic profile
 identity are explicit rather than inferred from the host running the command.
 
+A workspace is a catalog of locatable members, not one combined graph and not a
+graph node with its own `PackageKey`. If it contains several applications, each
+is an independently selectable closure root; selecting one does not include the
+others or unrelated package members. A command may explicitly build or check
+several roots, but workspace membership alone never makes a member part of an
+artifact.
+
 Compilation itself does not discover or mutate that lock. A compile request
 supplies one complete in-memory admission set; the compiler independently
 reconstructs the exact required obligations and returns the consumed,
@@ -2900,7 +2925,7 @@ resolver snapshots, and retains imported std declarations under std's exact
 user-package identity. Omitting the dependency edge rejects the import rather
 than consulting bundled std. This establishes the package and compiler-handoff
 model independently of remote workspace-member selection and final application
-identity. It does not complete the production migration: legacy
+role-evidence plumbing. It does not complete the production migration: legacy
 `omega::language::std` import routing, build-filesystem seeding, macOS GUI
 injection, and core/std toolchain-source classification remain explicit seams
 to remove. Only `omega::language::core` keeps its magic toolchain mount.

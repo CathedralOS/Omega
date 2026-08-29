@@ -66,6 +66,15 @@ Three identities remain deliberately separate:
   certificate routes and compiler/toolchain identity remain derivation and
   review provenance rather than semantic authority.
 
+`PackageKey` is shared by package and application declarations because both
+supply the same name and source-lineage inputs. Importability is a role rule,
+not an identity fork: a selected root may be `Package` or `Application`, while
+every dependency edge must resolve to `Package`. One root/non-root admission
+path enforces that invariant uniformly across source kinds. The admitted root
+role remains explicit in closure evidence, the lock, review, and compiler
+handoff; it is never inferred from an entry binding and never hashed into the
+key.
+
 For Git, source lineage normalizes transport spellings only when a resolver
 adapter can establish that they designate the same repository namespace. A
 matching host/path is not universal proof that HTTPS and SSH serve the same
@@ -349,7 +358,7 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q5's exact staging-authority package role after std relocation;
+blocked on OWNER Q4's exact staging-authority package role after std relocation;
 no name/path compatibility exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
@@ -421,8 +430,9 @@ closed at package admission.
 
 `build.omg` records update intent: source locator, revision selector, explicit
 alias override, targets, roots, providers, and build orchestration. `omega.lock`
-records the accepted resolution: exact commits/trees/content, `PackageKey` and
-`PackageInstance`, dependency closure, per-subject obligation-semantics and
+records the accepted resolution: exact commits/trees/content, `PackageKey`, the
+selected root's explicit package/application role, `PackageInstance`, dependency
+closure, per-subject obligation-semantics and
 evidence-schema identity, exact certificate provenance, normalized capability
 baseline, transitive open obligations, build observations, and policy-resolution
 references. Compiler and toolchain identifiers remain separately labeled
@@ -456,12 +466,16 @@ than an alias feature. Package dependency cycles reject in v1, keeping build
 order and request-path provenance finite; supporting a cycle later requires an explicit
 semantic and custody model rather than accidental graph acceptance.
 
-The compiler handoff contains the reconciled root package, one opaque stable
-identity plus canonical source root per package, and requester-local alias
-edges between those identities. Package-aware compilation validates that
+The compiler handoff contains the reconciled root's opaque stable identity,
+explicit package/application role, one canonical source root per graph node, and
+requester-local alias edges between those identities. Package-aware compilation validates that
 closed graph again and never combines it with `build.omg` scanning. Canonical
 paths are import-custody locations only; the opaque `PackageKey` commitment is
 the semantic identity that survives source loading.
+
+An application artifact used as a build tool would be an artifact-consumption
+edge with its own provenance and authority contract. It is not a package source
+dependency and is outside this role rule.
 
 Aliases remain requester-local edges. Different packages may bind different
 aliases to one key; an ancestor cannot rename a child's internal edge. If a

@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — Q17. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — Q16. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -56,7 +56,7 @@ scanners, or receipts.
   malformed producer-selected edge rejects even when the verifier could have
   rediscovered a primitive route. Mirrored candidate selectors are test-only
   for these paths. Completion is language-design blocked on
-  [`Q17`](OWNER_QUESTIONS.md#q17--canonical-kernel-propositions-for-exact-scalar-operations):
+  [`Q16`](OWNER_QUESTIONS.md#q16--canonical-kernel-propositions-for-exact-scalar-operations):
   exact cast, exact shift-left representability, and exact add/subtract/multiply
   still have no settled canonical kernel proposition and therefore retain the
   legacy sufficient-form reducer.
@@ -585,7 +585,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q19:** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q18:** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -1866,7 +1866,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q7](OWNER_QUESTIONS.md#q7--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q6](OWNER_QUESTIONS.md#q6--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -1876,12 +1876,12 @@ Owners:
   admission and provider-content adoption. Exact interpretation mismatch
   returns the complete Extent and content grant, and withdrawal/re-admission
   retries successfully under the correct retained plan without minting a
-  placed occurrence or choosing Q9's source result schema.
+  placed occurrence or choosing the open source result schema.
   A second source-to-foundation canary takes an exact source-retained External
   plan through provider schema/device correspondence. Wrong-plan and wrong-
   profile receipt joins return the exact loan and correspondence for retry;
   the exact join then withdraws both unchanged. It likewise stops before a
-  placed view or occurrence identity and therefore does not choose Q9's ABI.
+  placed view or occurrence identity and therefore does not choose that ABI.
   Source-retained provider-profile admission also covers two exact operation
   families transactionally: Atomic `load + fetch_add` rejects load-only supply,
   and External destructive `Take` rejects Repeatable supply. Both failures
@@ -6475,7 +6475,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q8](OWNER_QUESTIONS.md#q8--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q7](OWNER_QUESTIONS.md#q7--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -9078,7 +9078,7 @@ reach or trust, and private proof improvements do not change public identity.
   and nested/dynamic/mixed projections,
   scalar/float/byte/linear/nominal/qualified/content elements, arrays with
   claims, sums, joins, and cycles remain fenced. General array cleanup order
-  remains the language-design question recorded in `OWNER_QUESTIONS.md` Q3;
+  remains the language-design question recorded in `OWNER_QUESTIONS.md` Q2;
   none of these singleton- or zero-residual rungs chooses that order.
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
   exact owner-attached `T::drop` hook is now closed for every retained source
@@ -9629,7 +9629,7 @@ Remaining N6/N8 work:
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
   open. Arithmetic `Expression` entailment is implemented; transport
   of quotient-domain membership and opaque proposition families is
-  language-design blocked on **OWNER_QUESTIONS Q6**. Q6 must settle the
+  language-design blocked on **OWNER_QUESTIONS Q5**. Q5 must settle the
   explicit selection locus, per-side transport/weakening application, and
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.
