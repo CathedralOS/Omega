@@ -23,14 +23,15 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first five semantic
+and duplicate or overlapping matches fail closed. The first six semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
-returns, scalar `Crash`, and integer and Boolean parameter returns, including
-block shape, scalar/result/value links, cleanup absence, exact provenance, and
-every candidate field. The two distinct parameter families descend through a
-shared source-envelope and ABI-replay coordinator that independently
-reconstructs the native calling convention and exact incoming register or
-stack location. Focused mutation
+returns, scalar `Crash`, direct integer and Boolean parameter returns, and
+Boolean negation of a parameter. The three distinct parameter-derived families
+descend through governed direct/Boolean-not source replay and one shared ABI
+coordinator that independently reconstructs the native calling convention and
+exact incoming register or stack location. Boolean-not replay also retains the
+distinct operand, produced value, operation provenance, and return edge.
+Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
 operation-field substitution across all five native targets.
 
@@ -581,7 +582,7 @@ parallel route or optional coordinator field.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
-  integer-parameter, and Boolean-parameter
+  integer-parameter, Boolean-parameter, and Boolean-not-parameter
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -776,3 +777,6 @@ rewrite or opt a program into lossy floating-point semantics.
 22. [x] Add the exact Boolean-parameter sibling while moving shared
     source-envelope and native-ABI replay beneath one governed
     `straight_line_parameter` coordination entrance.
+23. [x] Add exact Boolean-not-parameter replay, retaining operand/result and
+    operation/edge identities, while descending source grammar and catalog
+    adapters into explicit subfolders before either entrance could grow opaque.

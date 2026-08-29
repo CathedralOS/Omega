@@ -22,6 +22,8 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `validation/catalog/mod.rs` is the sole ordered enable/disable inventory for
   translation families. Its descriptor and dispatch leaves connect one source
   classifier to one typed validator, and ambiguous classification fails closed.
+- `validation/catalog/dispatch/mod.rs` maps that inventory through immediate,
+  parameter-derived, and terminal typed adapter leaves.
 - `validation/straight_line_integer_immediate.rs` owns the first closed
   translation family: parameterless `[IntegerConstant, Return]` to
   `ReturnIntegerImmediate`.
@@ -31,9 +33,11 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   scalar `[Crash]` to exact target `Crash` custody.
 - `validation/straight_line_parameter/mod.rs` owns the shared source-envelope
   to native-ABI replay join for nonempty scalar parameter rosters.
-- `validation/straight_line_parameter/integer.rs` and `boolean.rs` retain
-  distinct exact family identities and validate their corresponding parameter
-  return target variants after independent register or stack reconstruction.
+- `validation/straight_line_parameter/source/mod.rs` owns the common envelope,
+  then descends into direct-return or Boolean-not source grammar.
+- `validation/straight_line_parameter/{integer,boolean,boolean_not}.rs` retain
+  distinct exact family identities and validate their corresponding target
+  variants after independent register or stack reconstruction.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
   `structural_scalar.rs` own their corresponding closed operation families.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.

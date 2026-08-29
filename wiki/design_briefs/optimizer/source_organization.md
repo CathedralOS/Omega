@@ -266,16 +266,19 @@ Abstract-to-target translation validation is a parallel rung, not another
 branch inside producer lowering. Its sub-100-line `validation/mod.rs` entrance
 owns target/root/roster custody and hands each function to the sub-100-line
 ordered `catalog/mod.rs` enable/disable inventory. Descriptor model and typed
-replay adapters descend into `catalog/model.rs` and `catalog/dispatch.rs`; the
+replay adapters descend into `catalog/model.rs` and
+`catalog/dispatch/{immediate,parameter,terminal}.rs`; the
 catalog rejects duplicate or overlapping matches before dispatch. Exact replay
 then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
 `straight_line_scalar_crash.rs` and
-`straight_line_parameter/{integer,boolean}.rs`. The governed parameter
-coordinator visibly joins `source.rs` envelope reconstruction to `abi.rs`
-calling-plan and exact register/stack placement replay before the two typed
-leaves validate their distinct target variants. Immutable
+`straight_line_parameter/{integer,boolean,boolean_not}.rs`. The governed
+parameter coordinator visibly joins `source/mod.rs` envelope reconstruction
+and its `direct.rs` or `boolean_not.rs` grammar leaf to `abi.rs` calling-plan
+and exact register/stack placement replay before the typed target leaf. The
+Boolean-not path separately preserves its operand, produced value, operation,
+and edge identities. Immutable
 root, disposition, family-receipt,
 and error vocabulary descend through `model/`. The optimizer's sub-100-line
 target-operation entrance owns the visible

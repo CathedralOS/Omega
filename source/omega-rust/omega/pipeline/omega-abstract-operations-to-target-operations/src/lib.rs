@@ -20,11 +20,14 @@ pub use validation::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamily,
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
-    StraightLineBooleanImmediateTranslationReceipt, StraightLineBooleanParameterTranslationError,
-    StraightLineBooleanParameterTranslationReceipt, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationError,
-    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
-    StraightLineScalarCrashTranslationReceipt, validate_abstract_to_target_translation,
+    StraightLineBooleanImmediateTranslationReceipt,
+    StraightLineBooleanNotParameterTranslationError,
+    StraightLineBooleanNotParameterTranslationReceipt,
+    StraightLineBooleanParameterTranslationError, StraightLineBooleanParameterTranslationReceipt,
+    StraightLineIntegerImmediateTranslationError, StraightLineIntegerImmediateTranslationReceipt,
+    StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
+    StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
+    validate_abstract_to_target_translation,
 };
 
 #[cfg(test)]

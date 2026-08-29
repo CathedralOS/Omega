@@ -179,8 +179,16 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "const ENABLED_TRANSLATION_FAMILIES",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/mod.rs",
+        coordination_marker: "STRAIGHT_LINE_BOOLEAN_NOT_PARAMETER",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/mod.rs",
         coordination_marker: "fn reconstruct_parameter_return",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/mod.rs",
+        coordination_marker: "fn reconstruct_envelope",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/function/mod.rs",
