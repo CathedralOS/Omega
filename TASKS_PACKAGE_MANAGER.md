@@ -68,7 +68,8 @@ closed. Compiler-issued package review remains non-admitting.
   conformance arguments, `satisfies` coordinates, establishment routes,
   machine-parameter requirements, qualification-cast semantic domains,
   expression-embedded cast/zero-value type references, unary compiler
-  intrinsics, and supported member access. Remaining visibility-dependent
+  intrinsics, ordinary member paths, and computed nominal members in transparent
+  public propositions. Remaining visibility-dependent
   nested positions must either retain exact authored selection and source
   custody or fail before review. Toolchain-authored bodies remain outside
   ordinary package admission.
@@ -87,9 +88,10 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining projection work includes:
 
-  - advanced call-bearing domain predicates, computed/aggregate contract
-    expressions, and structural witness arguments not retained by their owning
-    typed or checked representation;
+  - advanced call-bearing domain predicates, remaining computed/aggregate
+    contract expressions beyond exact nominal-member projection, and
+    structural witness arguments not retained by their owning typed or checked
+    representation;
   - remaining semantic-role, operator, selected-provider grant, installation,
     permission-frontier, crash-refinement, and compiler-intrinsic ownership
     joins;

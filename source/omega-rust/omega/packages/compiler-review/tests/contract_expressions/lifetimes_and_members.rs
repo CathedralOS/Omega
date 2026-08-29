@@ -266,3 +266,113 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .contains("nominal member has 2 exact checked member-selection rows")
     }));
 }
+
+#[test]
+fn review_projects_computed_nominal_member_receivers() {
+    let project = |selected: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub data Pair [copy] {{
+    left: i32;
+    right: i32;
+}}
+pub proposition selects_computed_member(value: i32) =
+    (Pair {{ left: value, right: value }}).{selected} == value;
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("computed nominal-member proposition should check");
+        project_checked_package_review(&checked)
+            .expect("computed nominal-member receiver should project")
+    };
+
+    let left_review = project("left");
+    let right_review = project("right");
+    let proposition = left_review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "selects_computed_member")
+        .expect("computed-member proposition");
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { left, .. },
+    )) = proposition.body()
+    else {
+        panic!("computed-member proposition definition")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver, member, ..
+    } = left.as_ref()
+    else {
+        panic!("computed member expression")
+    };
+    assert!(matches!(
+        receiver.as_ref(),
+        PackageReviewContractExpression::Constructor { .. }
+    ));
+    assert_eq!(member.path(), "Pair::left");
+    assert_ne!(
+        left_review.canonical_review_bytes().unwrap(),
+        right_review.canonical_review_bytes().unwrap(),
+        "changing the exact member selected from an otherwise identical computed receiver must change review identity",
+    );
+
+    let case_package = TempPackage::new();
+    case_package.write(
+        "main.omg",
+        r#"pub data Outcome [copy] {
+    case Left(value: i32);
+    case Right(value: i32);
+}
+pub proposition selects_case_member(value: i32) =
+    (Outcome::Right { value: value }).value == value;
+"#,
+    );
+    case_package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &case_package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&case_package.0),
+    )
+    .expect("computed case-member proposition should check");
+    let case_review = project_checked_package_review(&checked)
+        .expect("computed case-member receiver should project");
+    let proposition = case_review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "selects_case_member")
+        .expect("computed case-member proposition");
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { left, .. },
+    )) = proposition.body()
+    else {
+        panic!("computed case-member proposition definition")
+    };
+    let PackageReviewContractExpression::Member {
+        member,
+        case_variant: Some(case_variant),
+        ..
+    } = left.as_ref()
+    else {
+        panic!("computed case member expression")
+    };
+    assert_eq!(member.path(), "Outcome::Right::value");
+    assert_eq!(case_variant.path(), "Outcome::Right");
+}
