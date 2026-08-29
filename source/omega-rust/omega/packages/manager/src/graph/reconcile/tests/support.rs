@@ -1,6 +1,6 @@
-use crate::declarations::dependencies::read::DependencySourceRequest;
-use crate::discovery::PackageSourceCustody;
-use crate::identity::{AliasName, PackageKey, PackageName};
+use crate::package::{AliasName, PackageKey, PackageName};
+use crate::project::dependencies::read::DependencySourceRequest;
+use crate::sources::PackageSourceCustody;
 use omega_package_source::{
     GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution, LocalSourceLimits,
     SourceLineage, SourceRelativePath,
@@ -60,7 +60,7 @@ pub(super) fn custody(
         repository,
         marker,
         snapshot_root,
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         dependency_requests,
     )
 }
@@ -70,20 +70,20 @@ pub(super) fn custody_with_role(
     repository: &str,
     marker: u8,
     snapshot_root: &str,
-    role: crate::declarations::BuildDeclarationKind,
+    role: crate::project::BuildDeclarationKind,
     dependency_requests: Vec<DependencySourceRequest>,
 ) -> PackageSourceCustody {
     let resolution = resolution(marker);
     let materialization =
-        crate::discovery::PackageSourceMaterialization::synthetic(resolution.content().clone());
+        crate::sources::PackageSourceMaterialization::synthetic(resolution.content().clone());
     PackageSourceCustody::from_resolved_parts(
         key(name, repository),
         role,
         resolution,
         materialization,
         PathBuf::from(snapshot_root),
-        crate::discovery::PackageSourceNavigation::Root,
-        crate::discovery::PackageSourceSelectionEvidence::Root,
+        crate::sources::PackageSourceNavigation::Root,
+        crate::sources::PackageSourceSelectionEvidence::Root,
         LocalSourceLimits::default(),
         dependency_requests,
     )
@@ -92,7 +92,7 @@ pub(super) fn custody_with_role(
 pub(super) fn git_root_request(
     root: &PackageSourceCustody,
 ) -> super::super::PackageRootSourceRequest {
-    super::super::PackageRootSourceRequest::Git(crate::discovery::GitPackageSourceRequest::root(
+    super::super::PackageRootSourceRequest::Git(crate::sources::GitPackageSourceRequest::root(
         GitSourceRequest::new(
             format!(
                 "https://github.com/CathedralOS/{}.git",

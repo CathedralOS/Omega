@@ -3,7 +3,7 @@ use super::model::{
     CanonicalPackageReconstructionQuestionLimits,
 };
 use crate::graph::CanonicalSourceClosureSubject;
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
 use omega_package_evidence::obligations::encode_ordinary_package_obligation_ledger;
 use psi_core::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};

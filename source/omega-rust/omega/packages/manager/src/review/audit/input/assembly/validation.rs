@@ -1,9 +1,9 @@
-use crate::discovery::PackageSourceCustody;
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
 use crate::review::candidate::PackageReviewEvidence;
 use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError,
 };
+use crate::sources::PackageSourceCustody;
 use std::collections::BTreeMap;
 
 use super::super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};

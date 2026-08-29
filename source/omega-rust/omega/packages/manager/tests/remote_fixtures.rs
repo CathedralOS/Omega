@@ -1,12 +1,10 @@
-use omega_package_manager::declarations::{
-    extract_dependency_projection, extract_package_declaration,
-};
-use omega_package_manager::discovery::resolve_git_package_source_with_storage;
 use omega_package_manager::graph::{
     PackageSourceClosureLimits, resolve_git_package_closure_with_storage,
 };
-use omega_package_manager::identity::{PackageKey, PackageName};
+use omega_package_manager::package::{PackageKey, PackageName};
+use omega_package_manager::project::{extract_dependency_projection, extract_package_declaration};
 use omega_package_manager::review::compile_resolved_package_reviews;
+use omega_package_manager::sources::resolve_git_package_source_with_storage;
 use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage,
     resolve_git_source_with_storage, resolve_local_source,

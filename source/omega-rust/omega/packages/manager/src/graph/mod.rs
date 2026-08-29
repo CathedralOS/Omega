@@ -2,24 +2,18 @@
 //!
 //! [`resolve`] connects declared workspace, local, and Git requests to source
 //! custody. [`reconcile`] builds the complete dependency closure, [`model`]
-//! owns its validated shape, and [`identity`] gives that exact closure a
-//! canonical review identity.
+//! owns its validated shape, and [`subject`] gives that exact closure a
+//! canonical review subject.
 
-mod identity;
 mod model;
 pub(crate) mod reconcile;
 mod resolve;
 mod root_request;
+mod subject;
 
 #[cfg(test)]
 mod model_tests;
 
-pub use identity::{
-    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
-    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
-    CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
-};
 pub use model::{
     PackageClosureValidationError, ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode,
     ResolvedSourceIdentity,
@@ -46,3 +40,9 @@ pub use resolve::{
     resolve_workspace_project_closure_with_storage,
 };
 pub use root_request::PackageRootSourceRequest;
+pub use subject::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
+    CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+};

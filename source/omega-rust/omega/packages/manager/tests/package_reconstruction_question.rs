@@ -1,4 +1,3 @@
-use omega_package_manager::discovery::ResolvePackageSourceError;
 use omega_package_manager::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_workspace_package_closure_with_storage,
@@ -7,6 +6,7 @@ use omega_package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
     compile_resolved_package_reviews,
 };
+use omega_package_manager::sources::ResolvePackageSourceError;
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };
@@ -104,21 +104,14 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
                 .map(|source| source.key()))
     );
     for entry in question.entries() {
-        assert_eq!(
-            entry.obligations().package(),
-            entry.package().identity()
-        );
+        assert_eq!(entry.obligations().package(), entry.package().identity());
         let expected_transitive_packages = match entry.package().name().as_str() {
             "graph-workbench" => 3,
             "arithmetic-kernels" | "file-journal" => 1,
             package => panic!("unexpected graph-workbench package `{package}`"),
         };
         assert_eq!(
-            entry
-                .obligations()
-                .dependency_closure()
-                .packages()
-                .len(),
+            entry.obligations().dependency_closure().packages().len(),
             expected_transitive_packages,
             "each ledger must retain its own exact transitive closure"
         );
@@ -171,10 +164,7 @@ fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh
             .entries()
             .iter()
             .map(|entry| entry.obligations())
-            .eq(alternate
-                .entries()
-                .iter()
-                .map(|entry| entry.obligations())),
+            .eq(alternate.entries().iter().map(|entry| entry.obligations())),
         "the alternate question reuses byte-identical obligation ledgers"
     );
     assert_ne!(question.canonical_bytes(), alternate.canonical_bytes());

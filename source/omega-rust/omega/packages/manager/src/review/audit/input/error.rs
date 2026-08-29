@@ -1,4 +1,4 @@
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
 use crate::review::{PackageSourcePatchError, TriageRenderError};
 use std::fmt;
 

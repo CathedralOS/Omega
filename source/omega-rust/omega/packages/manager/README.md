@@ -9,18 +9,18 @@ src/
 ├── lib.rs          public owner map
 ├── operations/     complete user-facing workflows
 │   └── audit_source/ acquire and inspect one source without admission
-├── declarations/   project package roles and dependencies from build.omg
-│   ├── project.rs  package, application, and workspace roles
+├── project/        package roles and dependencies declared by build.omg
+│   ├── roles.rs    package, application, and workspace roles
 │   └── dependencies/
-├── discovery/      bind declared sources to immutable package custody
-│   ├── git/        Git package and workspace-member discovery
-│   ├── local.rs    external-local discovery
-│   └── workspace.rs live workspace-member discovery
+├── sources/        bind declarations to immutable package source custody
+│   ├── git/        Git package and workspace-member sources
+│   ├── local.rs    external-local sources
+│   └── workspace.rs live workspace-member sources
 ├── graph/          build and identify one exact dependency closure
 │   ├── resolve/    traverse declared dependency edges
 │   ├── reconcile/  reject conflicting or incomplete closures
-│   └── identity/   canonical closure question and fingerprint
-├── identity/       names, requester aliases, and source-qualified package keys
+│   └── subject/    canonical closure question and fingerprint
+├── package/        names, requester aliases, and source-qualified package keys
 └── review/         compiler evidence, source audit, comparison, and decisions
     ├── candidate/  compile exact custody into compiler-issued evidence
     ├── compare/    compare candidate evidence with a retained baseline
@@ -37,8 +37,8 @@ transaction prerequisites are implemented. Current work is tracked in
 
 ## Ownership
 
-`declarations` reads checked `build.omg` package declarations. `discovery`
-joins those declarations to immutable source custody. `graph` follows and
+`project` reads checked `build.omg` package declarations. `sources` joins those
+declarations to immutable source custody. `graph` follows and
 reconciles dependency edges. `review` compiles the resulting closure, compares
 compiler-issued facts, prepares source audit material, and records the root
 owner's decision. `operations` composes those owners into commands.

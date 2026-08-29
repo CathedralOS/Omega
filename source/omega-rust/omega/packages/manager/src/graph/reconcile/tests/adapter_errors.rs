@@ -1,7 +1,7 @@
 use super::super::*;
 use super::support::*;
-use crate::declarations::dependencies::read::DependencySourceRequest;
-use crate::discovery::PackageSourceCustody;
+use crate::project::dependencies::read::DependencySourceRequest;
+use crate::sources::PackageSourceCustody;
 
 #[test]
 fn returns_adapter_error_with_exact_request_context() {

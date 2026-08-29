@@ -1,11 +1,9 @@
 //! Production traversal of target-conditioned dependency projections.
 
 use super::*;
-use crate::declarations::dependencies::read::{
-    ActiveDependencyAliasError, ActiveDependencyAliasScope,
-};
 use crate::graph::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits};
 use crate::graph::{PackageSourceClosureResolutionError, ResolvedPackageSourceClosure};
+use crate::project::dependencies::read::{ActiveDependencyAliasError, ActiveDependencyAliasScope};
 use omega_target::TargetProfile;
 
 fn write_source_package(root: &Path, name: &str) {

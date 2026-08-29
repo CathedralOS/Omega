@@ -38,10 +38,10 @@ machine build(builder: &mut Build) {
         .expect("create retained Git resolver storage");
     let mut acquisitions = GitAcquisitionCache::default();
     let selected = |name| {
-        crate::discovery::GitPackageSourceRequest::new(
+        crate::sources::GitPackageSourceRequest::new(
             acquisition.clone(),
-            crate::declarations::PackageSelection::Named(
-                crate::identity::PackageName::parse(name).expect("package name"),
+            crate::project::PackageSelection::Named(
+                crate::package::PackageName::parse(name).expect("package name"),
             ),
         )
     };

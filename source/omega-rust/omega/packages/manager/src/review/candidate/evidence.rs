@@ -1,6 +1,6 @@
 //! Common package-review evidence interface and live compiler adaptation.
 
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
 use crate::review::CompilerIssuedPackageReview;
 use omega_package_source::ImmutableSourceResolution;
 

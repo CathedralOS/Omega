@@ -9,11 +9,11 @@ use super::model::{
     PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
-use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::DependencySourceRequest;
-use crate::discovery::PackageSourceCustody;
 use crate::graph::PackageRootSourceRequest;
-use crate::identity::{AliasName, PackageKey};
+use crate::package::{AliasName, PackageKey};
+use crate::project::BuildDeclarationKind;
+use crate::project::dependencies::read::DependencySourceRequest;
+use crate::sources::PackageSourceCustody;
 use omega_target::TargetProfile;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};

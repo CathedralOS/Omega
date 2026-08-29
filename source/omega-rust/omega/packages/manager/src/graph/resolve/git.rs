@@ -6,9 +6,7 @@ use super::super::reconcile::{
 use super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::dependencies::{register_git_repository, resolve_registered_package_closure};
 use super::errors::ResolveGitPackageClosureError;
-use crate::discovery::{
-    GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
-};
+use crate::sources::{GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError};
 use omega_package_source::SourceLineage;
 use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
@@ -201,7 +199,7 @@ pub(crate) fn git_root_request_matches(
 
 fn git_package_root_request_matches(
     request: &GitPackageSourceRequest,
-    resolved: &crate::discovery::ResolvedPackageSource<ResolvedGitSource>,
+    resolved: &crate::sources::ResolvedPackageSource<ResolvedGitSource>,
 ) -> bool {
     if !git_root_request_matches(
         request.acquisition(),
@@ -212,11 +210,11 @@ fn git_package_root_request_matches(
     }
     match (request.selection(), resolved.navigation()) {
         (
-            crate::declarations::dependencies::read::PackageSelection::Root,
+            crate::project::dependencies::read::PackageSelection::Root,
             PackageSourceNavigation::Root,
         ) => true,
         (
-            crate::declarations::dependencies::read::PackageSelection::Named(package),
+            crate::project::dependencies::read::PackageSelection::Named(package),
             PackageSourceNavigation::Member(_),
         ) => resolved.key().name() == package,
         _ => false,

@@ -109,7 +109,7 @@ fn rejects_an_application_selected_through_a_dependency_edge() {
         "tool",
         2,
         "/snapshots/tool",
-        crate::declarations::BuildDeclarationKind::Application,
+        crate::project::BuildDeclarationKind::Application,
         vec![],
     );
     let root = custody("root", "root", 1, "/snapshots/root", vec![request("tool")]);
@@ -125,7 +125,7 @@ fn rejects_an_application_selected_through_a_dependency_edge() {
         error,
         PackageSourceClosureResolutionError::InvalidDependencyRole {
             dependency_index: 0,
-            role: crate::declarations::BuildDeclarationKind::Application,
+            role: crate::project::BuildDeclarationKind::Application,
             ..
         }
     ));

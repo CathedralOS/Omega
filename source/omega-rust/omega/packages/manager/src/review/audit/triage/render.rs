@@ -1,7 +1,7 @@
 use super::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
 };
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
 use omega_package_evidence::evidence::PackageReviewDangerousAuthorityClass;
 use std::fmt;
 

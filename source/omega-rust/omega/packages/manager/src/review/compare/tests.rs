@@ -1,11 +1,11 @@
 use super::commitments::{derive_candidate_closure_commitment, derive_candidate_graph_commitment};
 use super::*;
-use crate::declarations::BuildDeclarationKind;
 use crate::graph::{
     PackageSourceClosureLimits, ResolvedPackageClosure, ResolvedPackageSourceClosure,
     resolve_external_local_package_closure,
 };
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
+use crate::project::BuildDeclarationKind;
 use crate::review::candidate::PackageReviewEvidence;
 use crate::review::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
 use omega_package_source::{ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits};

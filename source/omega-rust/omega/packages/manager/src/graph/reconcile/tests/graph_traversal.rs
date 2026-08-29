@@ -1,6 +1,6 @@
 use super::super::*;
 use super::support::*;
-use crate::discovery::{ResolvedPackageSource, resolve_workspace_member_package_source};
+use crate::sources::{ResolvedPackageSource, resolve_workspace_member_package_source};
 use omega_package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -141,9 +141,8 @@ fn resolves_the_authored_local_graph_fixture() {
         },
         root,
         |requester, request| {
-            let crate::declarations::dependencies::read::DependencySourceRequest::Path {
-                location,
-                ..
+            let crate::project::dependencies::read::DependencySourceRequest::Path {
+                location, ..
             } = request
             else {
                 return Err("fixture unexpectedly requested a network source".to_owned());

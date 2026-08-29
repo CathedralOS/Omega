@@ -4,12 +4,12 @@ use super::format::{
     change_tag, row_kind_tag, row_risk_tag, source_location_role_tag, synthetic_source_kind_tag,
 };
 use super::model::*;
-use crate::declarations::BuildDeclarationKind;
 use crate::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, DependencyRequestPath,
     ResolvedPackageClosure, ResolvedPackageSourceClosure,
 };
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
+use crate::project::BuildDeclarationKind;
 use crate::review::candidate::PackageReviewEvidence;
 use omega_package_evidence::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
