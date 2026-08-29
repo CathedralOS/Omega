@@ -371,6 +371,7 @@ impl Lowerer<'_> {
             open_index_normalizations: _,
             evidence_forwardings,
             proof_output_calls,
+            ranking_expression_custody,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
@@ -397,6 +398,7 @@ impl Lowerer<'_> {
             })
             .collect();
         trees.proof_output_calls = proof_output_calls;
+        trees.ranking_expression_custody = ranking_expression_custody;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(&mut trees)?;
         crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(&mut trees)?;

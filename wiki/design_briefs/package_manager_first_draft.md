@@ -195,6 +195,14 @@ before the finalized ledger passes; earlier effect-free compiler evaluation
 must first admit an exact early target or fail closed unless the compiler can
 confine the complete candidate set to admitted owners.
 
+Occurrence identity belongs to the exact source token, not to a transient IR
+copy or provisional target. Compiler normalization may carry that occurrence
+onto multiple expressions, but those copies must reconcile to one declaration
+or one closed compiler intrinsic; conflicting resolved targets reject. Private
+ranking witnesses retain exact typed expression custody separately from their
+stable rendered artifact identity, so neither checking nor package review joins
+them back by text.
+
 Public/private disposition follows the declaration-owned source position.
 Public machine contracts, public data/domain predicates, and public trait
 contracts are public interface; executable states, bodies, and `terminates by`

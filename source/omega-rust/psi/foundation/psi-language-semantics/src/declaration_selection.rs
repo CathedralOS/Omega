@@ -79,6 +79,18 @@ pub enum AuthoredDeclarationSelectionTarget {
     LateBound(AuthoredDeclarationSelectionLateBinding),
 }
 
+/// One compiler-owned view operation on a collection or text carrier.
+///
+/// The operation is retained as closed semantic identity rather than
+/// reconstructed from a method spelling after checking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionViewOperation {
+    SharedSlice,
+    MutableSlice,
+    TextView,
+    Bytes,
+}
+
 /// A compiler-owned language meaning selected by authored syntax without a
 /// package declaration. Intrinsics finalize explicitly so package admission
 /// never invents a declaration symbol or leaves a successful selection
@@ -86,10 +98,16 @@ pub enum AuthoredDeclarationSelectionTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuiltinOperator,
+    /// One exact compiler-owned carry permission selected by authored domain
+    /// syntax. Carry permissions are language meanings, not declarations in
+    /// the package namespace.
+    CarryPermission(crate::CarryPermission),
     /// The `len` projection on a fixed array or slice. Collection length is
     /// compiler-owned value metadata, not a declaration selected from the
     /// package namespace.
     CollectionLength,
+    /// A checked compiler-owned collection/text view operation.
+    CollectionView(CollectionViewOperation),
     /// One exact compiler-owned byte-sequence predicate. Retaining the
     /// particular predicate prevents later evidence consumers from having to
     /// reconstruct semantic identity from the call's diagnostic spelling.

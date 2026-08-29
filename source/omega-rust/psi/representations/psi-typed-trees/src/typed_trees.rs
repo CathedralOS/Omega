@@ -65,6 +65,10 @@ pub struct TypedTrees {
     /// group itself is proof metadata; a contextual scalar `value` separately
     /// names its corresponding ordinary runtime local/call statement.
     pub proof_output_calls: Vec<ProofOutputCall>,
+    /// Exact typed roots for private ranking witnesses. The normalized
+    /// termination plan retains stable semantic text; checked consumers join
+    /// through these handles instead of rediscovering expressions by spelling.
+    pub ranking_expression_custody: Vec<crate::ranking::RankingExpressionCustody>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -504,7 +508,17 @@ impl TypedTrees {
             open_index_normalizations: Vec::new(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
+            ranking_expression_custody: Vec::new(),
         }
+    }
+
+    pub fn ranking_expression_custody_for(
+        &self,
+        machine: psi_symbols::SymbolHandle,
+    ) -> Option<&crate::ranking::RankingExpressionCustody> {
+        self.ranking_expression_custody
+            .iter()
+            .find(|custody| custody.machine == machine)
     }
 
     pub fn retain_authored_declaration_selections(

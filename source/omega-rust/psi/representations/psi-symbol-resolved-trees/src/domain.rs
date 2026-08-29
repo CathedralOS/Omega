@@ -76,6 +76,9 @@ pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
     pub domain_symbol: SymbolHandle,
+    pub authored_domain_selection: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    >,
 }
 
 impl Default for ProofMembershipFact {
@@ -84,6 +87,7 @@ impl Default for ProofMembershipFact {
             value: crate::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol: SymbolHandle::invalid(),
+            authored_domain_selection: None,
         }
     }
 }

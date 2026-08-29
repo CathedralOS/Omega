@@ -2246,19 +2246,32 @@ fn clone_specialized_machine(
         };
         program.push_machine_invoke(&mut cloned, invocation);
     }
-    if let Some(subjects) =
+    let ranking_subjects =
         psi_typed_trees::ranking::resolve_machine_witness_subjects(source, source_machine)
-    {
-        for expression in subjects {
-            let _ = copy_expression(source, program, expression, &symbol_map);
-        }
-    }
-    if let Some(arguments) =
+            .unwrap_or_default()
+            .into_iter()
+            .map(|expression| copy_expression(source, program, expression, &symbol_map))
+            .collect::<Vec<_>>();
+    let ranking_view_arguments =
         psi_typed_trees::ranking::resolve_machine_witness_view_arguments(source, source_machine)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|expression| copy_expression(source, program, expression, &symbol_map))
+            .collect::<Vec<_>>();
+    let ranking_range = source
+        .ranking_expression_custody_for(source_machine.symbol)
+        .and_then(|custody| custody.rank_range)
+        .map(|expression| copy_expression(source, program, expression, &symbol_map));
+    if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
     {
-        for expression in arguments {
-            let _ = copy_expression(source, program, expression, &symbol_map);
-        }
+        program.ranking_expression_custody.push(
+            psi_typed_trees::ranking::RankingExpressionCustody {
+                machine: machine_symbol,
+                subjects: ranking_subjects,
+                view_arguments: ranking_view_arguments,
+                rank_range: ranking_range,
+            },
+        );
     }
     cloned.contracts = HandleSpan::empty();
     cloned.states = HandleSpan::empty();
@@ -2548,6 +2561,7 @@ fn copy_signature_contract(
                                 .cloned(),
                         ),
                         domain_symbol: remapped_symbol(membership.domain_symbol, symbols),
+                        authored_domain_selection: membership.authored_domain_selection,
                     },
                 )
             }

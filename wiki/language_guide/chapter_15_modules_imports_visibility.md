@@ -303,6 +303,15 @@ compiler-internal ledger finalized from the stages that own those facts, not a
 new language-visible IR stage. An unresolved or unjoinable authored occurrence
 rejects rather than disappearing from the gate.
 
+One source token has one occurrence identity even when compiler normalization
+copies its expression. All retained copies carry that occurrence, provisional
+targets are reconciled to one exact declaration, and conflicting resolved
+targets reject. Compiler-owned vocabulary such as collection views and length
+is finalized as a closed intrinsic identity rather than by its spelling. A
+private ranking witness likewise retains its exact typed expression roots;
+termination checking and package custody do not rediscover those roots from
+rendered witness text.
+
 Expressions owned by a public declaration's published contract or predicate
 are public-interface selections. This includes public machine contracts,
 public data/domain predicates, and public trait contracts. Executable machine

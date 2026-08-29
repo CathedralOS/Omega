@@ -159,28 +159,39 @@ pub(crate) fn lower_machine(
             });
     }
 
-    for decrease in lowerer
+    let ranking_subjects = lowerer
         .source_trees
         .tables
         .bodies
         .expressions
         .expression_handles(machine.ranking_subjects)
-    {
-        let _ = lower_expression_handle(lowerer, *decrease)?;
-    }
-    // Retain typed expression nodes for normalized-witness resolution without
-    // publishing parallel authored handles on the typed machine.
-    for argument in lowerer
+        .iter()
+        .map(|decrease| lower_expression_handle(lowerer, *decrease))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ranking_view_arguments = lowerer
         .source_trees
         .tables
         .bodies
         .expressions
         .expression_handles(machine.ranking_view_arguments)
+        .iter()
+        .map(|argument| lower_expression_handle(lowerer, *argument))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ranking_range = machine
+        .ranking_range
+        .is_valid()
+        .then(|| lower_expression_handle(lowerer, machine.ranking_range))
+        .transpose()?;
+    if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
     {
-        let _ = lower_expression_handle(lowerer, *argument)?;
-    }
-    if machine.ranking_range.is_valid() {
-        let _ = lower_expression_handle(lowerer, machine.ranking_range)?;
+        lowerer.typed_trees.ranking_expression_custody.push(
+            typed::ranking::RankingExpressionCustody {
+                machine: machine.symbol,
+                subjects: ranking_subjects,
+                view_arguments: ranking_view_arguments,
+                rank_range: ranking_range,
+            },
+        );
     }
 
     let invocation_parameters = lowerer

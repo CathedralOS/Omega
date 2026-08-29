@@ -597,6 +597,7 @@ pub(crate) fn build_domain_membership_contract(
             value,
             domain,
             domain_symbol,
+            authored_domain_selection: None,
         }),
     );
 

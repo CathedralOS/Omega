@@ -283,6 +283,7 @@ pub(crate) fn lower_proof_facts(
                             value,
                             domain,
                             domain_symbol: atom.symbol,
+                            authored_domain_selection: membership.authored_domain_selection,
                         }),
                     );
                     if let Some(source_span) = source_span {

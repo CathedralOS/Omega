@@ -1866,6 +1866,57 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
 }
 
 #[test]
+fn guard_hoist_copies_share_one_authored_call_occurrence() {
+    let source = r#"
+        data Main { }
+        machine Main::value(&mut self) -> bool { true }
+        machine Main::done(&mut self) { }
+        machine Main::run(&mut self) {
+            let seed: bool = true;
+            transition self.value() == seed {
+                true -> done()
+                false -> done()
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize guard hoist");
+    let syntax = parse_syntax_trees(&tokens).expect("parse guard hoist");
+    let program = lower_syntax_trees(&syntax).expect("resolve guard hoist");
+    let target_start = source
+        .find("self.value() == seed")
+        .expect("guard call source")
+        + "self.".len();
+    let selections = program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+                && selection.source_span().span.start == target_start
+        })
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        panic!("one authored occurrence must own every compiler copy: {selections:?}");
+    };
+    assert!(matches!(
+        selection.target(),
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+    ));
+    assert!(
+        program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .any(|(expression, _)| program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(expression)
+                .any(|occurrence| occurrence == selection.occurrence_id()))
+    );
+}
+
+#[test]
 fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
     let source = r#"
         machine helper() -> bool { true }

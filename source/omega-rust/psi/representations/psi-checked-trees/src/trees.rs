@@ -20,6 +20,16 @@ pub struct CheckedFactCallProjection {
     pub field: psi_symbols::SymbolHandle,
 }
 
+/// Exact checked compiler-intrinsic use joined to its retained expression.
+/// The expression handle is custody; the closed intrinsic identity is the
+/// semantic result of checking, never a later source-text classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedIntrinsicCallFact {
+    pub expression: psi_typed_trees::expression::ExpressionHandle,
+    pub intrinsic:
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
     pub semantic: psi_facts::FactPlan,
@@ -70,6 +80,9 @@ pub struct CheckFacts {
     /// Denotational, non-executing call-result projections admitted by
     /// validation. Package review must rejoin this row exactly.
     pub fact_call_projections: Vec<CheckedFactCallProjection>,
+    /// Compiler-owned call meanings selected only after exact receiver and
+    /// owner checking.
+    pub intrinsic_calls: Vec<CheckedIntrinsicCallFact>,
 }
 
 impl CheckFacts {
@@ -118,6 +131,7 @@ impl CheckFacts {
             contract_plans,
             carry,
             fact_call_projections,
+            intrinsic_calls: Vec::new(),
         }
     }
 }

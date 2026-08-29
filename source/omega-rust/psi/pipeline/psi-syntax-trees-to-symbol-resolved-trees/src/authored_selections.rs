@@ -12,7 +12,7 @@ use psi_symbol_resolved_trees::{
 };
 use psi_symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CandidateTarget {
     Resolved(SymbolHandle),
     LateBound(LateBinding),
@@ -26,44 +26,130 @@ struct Candidate {
     target: CandidateTarget,
 }
 
+#[derive(Debug)]
+struct CandidateGroup {
+    source_span: SourceSpan,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    kind: Kind,
+    target: CandidateTarget,
+    expressions: Vec<ExpressionHandle>,
+}
+
+fn reconcile_copy_targets(
+    source_span: SourceSpan,
+    kind: Kind,
+    retained: CandidateTarget,
+    candidate: CandidateTarget,
+) -> Result<CandidateTarget, Diagnostic> {
+    match (retained, candidate) {
+        (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right)) if left == right => {
+            Ok(retained)
+        }
+        (CandidateTarget::LateBound(left), CandidateTarget::LateBound(right)) if left == right => {
+            Ok(retained)
+        }
+        (CandidateTarget::Resolved(_), CandidateTarget::LateBound(_)) => Ok(retained),
+        (CandidateTarget::LateBound(_), CandidateTarget::Resolved(_)) => Ok(candidate),
+        _ => Err(Diagnostic::error(format!(
+            "compiler-derived copies of one authored {kind:?} selection resolved inconsistently"
+        ))
+        .with_source_span(source_span)),
+    }
+}
+
 pub(crate) fn finalize_authored_expression_selections(
     program: &mut SymbolResolvedTrees,
     pending: &[PendingAuthoredExpression],
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
-    let mut seen = Vec::new();
-
     for pending_expression in pending {
-        if seen.contains(&pending_expression.expression) {
-            continue;
+        if program
+            .tables
+            .bodies
+            .expressions
+            .authored_expression_exposure(pending_expression.expression)
+            != Some(pending_expression.exposure)
+        {
+            return Err(Diagnostic::error(
+                "pending authored expression lost its declared exposure before selection finalization",
+            ));
         }
-        seen.push(pending_expression.expression);
+    }
 
-        let candidates = expression_candidates(program, pending_expression.expression);
-        for candidate in candidates {
-            let occurrence = match candidate.target {
-                CandidateTarget::Resolved(symbol) => program
-                    .record_resolved_authored_declaration_selection(
-                        candidate.source_span,
-                        pending_expression.exposure,
-                        candidate.kind,
-                        symbol,
-                    ),
-                CandidateTarget::LateBound(binding) => program
-                    .record_late_bound_authored_declaration_selection(
-                        candidate.source_span,
-                        pending_expression.exposure,
-                        candidate.kind,
-                        binding,
-                    ),
-            }
-            .map_err(record_diagnostic)?;
-
+    // Compiler rewrites may copy an authored expression before declaration
+    // selections are finalized. The expression table carries that authored
+    // provenance explicitly, so enumerate every retained copy and bind all of
+    // them to the one occurrence minted for the exact source token. This keeps
+    // later lowering free to select whichever semantically equivalent copy it
+    // owns without orphaning the source occurrence.
+    let authored_expressions = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(expression, _)| {
             program
                 .tables
                 .bodies
                 .expressions
-                .attach_authored_selection_occurrences(candidate.expression, [occurrence]);
+                .authored_expression_exposure(expression)
+                .map(|exposure| (expression, exposure))
+        })
+        .collect::<Vec<_>>();
+
+    let mut groups: Vec<CandidateGroup> = Vec::new();
+    for (expression, exposure) in authored_expressions {
+        for candidate in expression_candidates(program, expression) {
+            if let Some(group) = groups.iter_mut().find(|group| {
+                group.source_span == candidate.source_span
+                    && group.exposure == exposure
+                    && group.kind == candidate.kind
+            }) {
+                group.target = reconcile_copy_targets(
+                    candidate.source_span,
+                    candidate.kind,
+                    group.target,
+                    candidate.target,
+                )?;
+                if !group.expressions.contains(&candidate.expression) {
+                    group.expressions.push(candidate.expression);
+                }
+            } else {
+                groups.push(CandidateGroup {
+                    source_span: candidate.source_span,
+                    exposure,
+                    kind: candidate.kind,
+                    target: candidate.target,
+                    expressions: vec![candidate.expression],
+                });
+            }
+        }
+    }
+
+    for group in groups {
+        let occurrence = match group.target {
+            CandidateTarget::Resolved(symbol) => program
+                .record_resolved_authored_declaration_selection(
+                    group.source_span,
+                    group.exposure,
+                    group.kind,
+                    symbol,
+                ),
+            CandidateTarget::LateBound(binding) => program
+                .record_late_bound_authored_declaration_selection(
+                    group.source_span,
+                    group.exposure,
+                    group.kind,
+                    binding,
+                ),
+        }
+        .map_err(record_diagnostic)?;
+        for expression in group.expressions {
+            program
+                .tables
+                .bodies
+                .expressions
+                .attach_authored_selection_occurrences(expression, [occurrence]);
         }
     }
 
@@ -75,6 +161,7 @@ pub(crate) fn finalize_authored_expression_selections(
                 "authored proof-membership custody no longer identifies a membership fact",
             ));
         };
+        let membership = *membership;
         let members = program
             .tables
             .declarations
@@ -85,7 +172,7 @@ pub(crate) fn finalize_authored_expression_selections(
             membership.domain_symbol,
             LateBinding::CheckedDomainMembership,
         );
-        match target {
+        let occurrence = match target {
             CandidateTarget::Resolved(symbol) => program
                 .record_resolved_authored_declaration_selection(
                     source_span,
@@ -102,6 +189,15 @@ pub(crate) fn finalize_authored_expression_selections(
                 ),
         }
         .map_err(record_diagnostic)?;
+        let psi_symbol_resolved_trees::domain::ProofFact::Membership(membership) = program
+            .tables
+            .declarations
+            .proof_facts
+            .get_mut(pending.fact)
+        else {
+            unreachable!("validated authored proof-membership fact changed variant")
+        };
+        membership.authored_domain_selection = Some(occurrence);
     }
 
     for candidate in conformance_bound_candidates(program) {
