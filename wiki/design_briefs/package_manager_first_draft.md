@@ -288,7 +288,7 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q7's exact staging-authority package role after std relocation;
+blocked on OWNER Q6's exact staging-authority package role after std relocation;
 no name/path compatibility exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
@@ -1375,11 +1375,13 @@ boundary/capability identities. It must never be inferred from
 package-controlled strings such as `Filesystem` or `Network`.
 
 Claim-free opaque boundary data occupies a distinct representation-TCB lane.
-The compiler reports the exact package-qualified declaration, target,
-representation/ABI commitment, selected external mechanism or explicit unbound
-status, and provenance. Its initial introduction or material change strongly
-recommends code/ABI audit but does not, by opacity alone, create a blocking
-trust-claim conflict.
+For every demanded runtime by-value occurrence, the compiler reports the exact
+package-qualified declaration, named representation conformance or compiler-
+owned target-semantics source, target/version, closed shape graph or sealed ABI
+leaf, physical movement/finalization, and evidence origin. Explicit `Unbound`
+is complete only when no runtime by-value crossing demands a shape. Initial
+introduction or material change strongly recommends code/ABI audit but does
+not, by opacity alone, create a blocking trust-claim conflict.
 Unchanged rows remain visible without requiring repeated blanket approval.
 Deployment policy may elevate an exact compiler-owned mechanism to blocking
 when that mechanism is intrinsically dangerous.

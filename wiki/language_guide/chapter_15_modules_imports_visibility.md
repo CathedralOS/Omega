@@ -64,7 +64,9 @@ closure, exact commits/trees/content, source-qualified package identities,
 compiler-derived capability/API baselines, representation-TCB rows, build
 observations, and admission evidence. Claim-free opaque boundary representation
 remains visible and audit-recommended without being mislabeled as an accepted
-claim; Chapter 19 defines the distinction. The compiler consumes the lock
+claim. A demanded by-value row retains the exact selected or target-derived
+representation application; `Unbound` is complete only when no by-value use
+needs one. Chapter 19 defines the distinction. The compiler consumes the lock
 rather than silently resolving mutable selectors. The lock should normally be
 committed; source caches may be ignored. The first implementation performs no
 semantic-version solving and rejects incompatible requests for one `PackageKey`

@@ -36,7 +36,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q12 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q11 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -52,7 +52,7 @@ closed. Compiler-issued package review remains non-admitting.
 
   The detailed established floor and remaining platform gaps are maintained in
   `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
-  design-blocked on OWNER Q12; the other bullets are engineering work.
+  design-blocked on OWNER Q11; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -70,7 +70,7 @@ closed. Compiler-issued package review remains non-admitting.
   ordinary package admission.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including target-trait lifetime arguments once OWNER Q6 is
+  applications, including target-trait lifetime arguments once OWNER Q5 is
   settled. Unsupported generic, lifetime-bearing, private, or aliased forms
   must continue to fail closed rather than disappear from review.
 
@@ -121,10 +121,14 @@ closed. Compiler-issued package review remains non-admitting.
   Terminal claim.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Replace `Unbound` representation rows
-  with exact selected ABI and mechanism evidence when the package makes such a
-  claim. Opaque by-value boundary data depends on OWNER Q1. Claim-free opaque
-  data must remain review-visible and audit-recommended without fabricating a
-  trust claim.
+  with exact selected or compiler-derived ABI and mechanism evidence whenever a
+  runtime by-value use demands representation closure. Retain the exact opaque
+  declaration, named representation conformance or compiler-owned target-
+  semantics application, closed shape graph, physical movement/finalization
+  plan, target/representation version, and evidence origin. Checked carrier
+  derivation is recheckable evidence; foreign representation supply remains a
+  disclosed admission. Claim-free opaque data stays review-visible without
+  fabricating a proposition, minting authority, or service reach claim.
 
 ## P3 — Recheckable evidence and accepted lock
 
@@ -182,7 +186,7 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q7.
+  authority. Ordinary std/provider authority depends on OWNER Q6.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -217,7 +221,7 @@ closed. Compiler-issued package review remains non-admitting.
   authority flow, provider/trust/proof state, dangerous slack, build
   observations, review state, and the first failed provenance edge.
 
-- [ ] **OMEGA-FETCH-MEMBER.** After OWNER Q2, add selective authenticated Git
+- [ ] **OMEGA-FETCH-MEMBER.** After OWNER Q1, add selective authenticated Git
   acquisition for one declared workspace package without using checkout or
   lazy object fetching. Parent-authenticated materialization must prove the
   selected member subtree and every root declaration needed to authenticate
@@ -242,36 +246,68 @@ closed. Compiler-issued package review remains non-admitting.
 
 ## P7 — Owner-blocked package work
 
-- [ ] **BLOCKED — OWNER Q1: OPAQUE-BY-VALUE-BOUNDARY-ABI.** Settle how a
-  selected provider supplies the target-specific representation descriptor for
-  opaque boundary data passed by value before package review can replace its
-  `Unbound` ABI/mechanism row.
+The first task is settled cross-system implementation; the remaining named
+items are still owner-blocked.
 
-- [ ] **BLOCKED — OWNER Q2: MULTI-PACKAGE-GIT-SELECTION.** Add an explicit Git
+- [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Implement lazy representation demand for
+  runtime-relevant opaque boundary data. Add compiler-owned
+  `OpaqueRepresentation<Opaque>` with ordinary type-parameter spelling. A named
+  conformance such as `PicAckCarrier satisfies
+  OpaqueRepresentation<InterruptAcknowledgement>` declares an inert candidate;
+  typed `Build::select_representation<Opaque, Conformance>()` selects only that
+  already-authored relationship. The compiler derives the carrier's closed
+  representation rather than accepting source-authored sizes, alignments, ABI
+  classes, or numeric IDs.
+
+  Require one exact target-closed representation application before evaluating
+  any runtime by-value calling plan. References do not demand the pointee's
+  representation, and proof-erased boundary data demands none. Permit compiler-
+  sealed families such as `Ptr<T>` to resolve from target semantics without a
+  package candidate. Keep representation source, minting route, and domain
+  authority as separate evidence lanes. The opaque declaration owns semantic
+  multiplicity and terminal discharge; the carrier contributes only physical
+  movement and storage finalization, which must compose with rather than replace
+  that discharge.
+
+  Rejoin every producer and consumer to the same application. Retain its exact
+  identity in type layout, boundary signature, calling-plan application,
+  package review, artifact compatibility, and replacement-facing contracts.
+  A by-value exported descriptor is a mandatory static compatibility row:
+  independently replaceable providers must preserve it. A stable handle keeps
+  its own descriptor fixed while provider backing may vary and outstanding
+  non-copy handles pin their era; an unstable descriptor expands the replacement
+  cohort to consumers or rejects independent replacement. Missing, duplicate,
+  conflicting, stale, ambient, runtime-installation-selected, and policy-
+  invented representations reject. Add pass/fail coverage for inline interrupt
+  carriers, compiler-owned pointers, reference-only `EfiSystemTable`, proof-only
+  `Real`, wrong opaque subject, lookalike representation traits, provider drift,
+  descriptor replay drift, and illegal carrier cleanup/multiplicity changes.
+
+- [ ] **BLOCKED — OWNER Q1: MULTI-PACKAGE-GIT-SELECTION.** Add an explicit Git
   package selector for workspace repositories. The selected member's own
   `builder.package("name")` remains identity authority; the request string is
   selection intent only. This blocks remote `omega-language-std` selection and
   selective member fetch.
 
-- [ ] **BLOCKED — OWNER Q3: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
+- [ ] **BLOCKED — OWNER Q2: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction
   without rerunning `build.omg` or reopening discovery. Lower the exact frozen
   checked program after generated-source handoff, retain the unpublished native
   artifact as an exact subject, reconstruct every source/build/generated/native
-  commitment, and publish only after complete accepted comparison. Q3 must
+  commitment, and publish only after complete accepted comparison. Q2 must
   settle application-root identity; exact requested-target identity then comes
   from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`.
 
-- [ ] **BLOCKED — OWNER Q4: SCOPED-BUILD-ROOTS.** Retire the five remaining
+- [ ] **BLOCKED — OWNER Q3: SCOPED-BUILD-ROOTS.** Retire the five remaining
   `Owner::build` compatibility canaries or formally admit one shared scoped-root
   grammar. Package readers and standalone compilation may not continue assigning
   different meanings to the same `build.omg` shape.
 
-- [ ] **BLOCKED — OWNER Q6: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
+- [ ] **BLOCKED — OWNER Q5: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
   the complete target-trait lifetime application before lifetime-parameterized
   public conformances can enter canonical package identity.
 
-- [ ] **BLOCKED — OWNER Q7: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
+- [ ] **BLOCKED — OWNER Q6: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
   physical `source/library/std` routing and direct filesystem/GUI provider
   injection with exact ordinary graph nodes and explicit authenticated role
   bindings. Only core remains compiler-welded. Removing the declared std edge
@@ -295,7 +331,7 @@ closed. Compiler-issued package review remains non-admitting.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q12: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q11: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

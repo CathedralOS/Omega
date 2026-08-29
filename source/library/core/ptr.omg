@@ -8,9 +8,11 @@
 // owners. A raw pointer remains inert even when a calling plan describes its
 // native representation; it is never itself a read or write capability.
 
-// Opaque, provider-minted carriers. Their representation and construction stay
-// below the boundary: naming `Ptr<T>` or `PtrRange<T>` does not let ordinary
-// source manufacture an address, provenance, bounds, or access authority.
+// Opaque, provider-minted carriers. Representation and minting are independent:
+// target semantics supplies the compiler-sealed pointer/extent shape, while
+// only authorized compiler/provider operations mint occurrences with valid
+// provenance. Knowing the target representation never grants construction,
+// bounds, access, or other authority to ordinary source.
 boundary data Ptr<T>;
 boundary data PtrRange<T>;
 

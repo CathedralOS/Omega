@@ -86,17 +86,24 @@ symbol-resolved and typed trees contain no parallel spelling contract.
 
 ### Authority values and proof-boundary data
 
-Authority-bearing runtime values use ordinary data layout. Their normalized
-type representation derives from published fields, while domain facts carry
-authority, validation, provenance, and rights without runtime metadata.
-Provider-owned backing may be addressed by an ordinary key field whose
-operations remain behind the provider boundary.
+Authority-bearing runtime values with owner-published structure use ordinary
+data layout. Their normalized representation derives from published fields,
+while domain facts carry authority, validation, provenance, and rights without
+runtime metadata. Provider-owned backing may be addressed by an ordinary key
+field whose operations remain behind the provider boundary.
 
-`DataSupplyMode::BoundaryOpaque` remains the representation mode for
-proof-boundary data whose carrier is supplied by admission, such as abstract
-`Real`. Runtime authority declarations migrate from that mode to ordinary data
-as routed establishment, receipt-backed boundary guarantees, and
-resource-frontier transformations land.
+`DataSupplyMode::BoundaryOpaque` also has a legitimate runtime use: a value
+whose provider owns its physical carrier while the boundary declaration owns
+its semantic multiplicity and discharge. A by-value crossing lazily demands one
+exact target-closed `OpaqueRepresentation<Declaration>` application before
+calling-policy evaluation. Reference-only opaque pointees demand no by-value
+shape; proof-only denotations such as `Real` have no runtime representation.
+
+The selected carrier supplies only closed shape, movement, and physical
+finalization. It does not mint occurrences, establish domains, grant rights,
+make a linear declaration copyable, or add a semantic terminal path. Those
+facts continue to arise from routed establishment, receipt-backed boundary
+guarantees, and resource-frontier transformations.
 
 The compiler records whether each domain fact originated through checked proof,
 an authorized checked conformance, validation, resource transfer, or accepted

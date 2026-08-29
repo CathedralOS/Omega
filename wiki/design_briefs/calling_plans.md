@@ -245,6 +245,28 @@ ABI-relevant facts remain choices, the native leaf must declare the concrete
 foreign shape that supplies them. A private compiler lowering never establishes
 a public ABI merely because code generation knows its byte shape.
 
+A runtime opaque `boundary data` value crossing by value is such a choice. The
+build must close one exact representation application before any `Calling<C>`
+policy evaluates. That application contributes a compiler-derived bounded
+`ValueShape` graph or sealed ABI leaf plus the carrier's physical movement and
+finalization. The calling policy may classify and place that closed shape; it
+may not inspect private carrier fields, invent a shape, or select a
+representation.
+
+The application is lazy. An opaque pointee used only through references needs
+no by-value representation, and a proof-erased denotation contributes no
+runtime shape. Compiler-owned target families such as `Ptr<T>` close from
+`TargetSemantics`; provider-owned carriers close through the exact named
+representation conformance selected by build composition. Every producer and
+consumer of the opaque value must resolve the same application.
+
+The exact opaque declaration, representation source, target-semantics version,
+closed shape, movement/finalization plan, and evidence origin enter the
+`BoundarySignature` and `CallPlan` application fingerprints. Representation
+closure therefore precedes calling-policy evaluation whenever an opaque
+by-value demand exists; replay against another carrier rejects before placement
+or lowering.
+
 Fixed arrays and fixed records are structurally determined aggregates. Their
 element/member types, count, size, alignment, and public layout are available to
 the policy, which may classify or reject them under the target's actual

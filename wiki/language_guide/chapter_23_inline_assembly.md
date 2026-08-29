@@ -138,11 +138,13 @@ The public contract above does not make `cli` safe by hiding it. The selected
 provider's checked implementation still uses `pushfq`/`cli`; those instruction
 contracts require the appropriate authority, contribute the normalized
 interrupt-control reach, and record flag/state changes. The public
-`InterruptMaskGuard` carrier is opaque boundary data; compact settlement
-identities remain provider-owned representation. Its routed `Active`
-qualification records valid issuance and forces the caller to consume
-`restore`; package code cannot inspect or reconstruct fields, copy the linear
-value, or directly restore the saved state.
+`InterruptMaskGuard` carrier is opaque boundary data. Build composition selects
+one exact target-closed representation application before calling-plan
+evaluation; that application says how the bytes move, not who may issue a guard.
+Provider operations mint valid occurrences, while the routed `Active`
+qualification records authority and forces the caller to consume `restore`.
+Package code cannot inspect or reconstruct fields, copy the linear value, or
+directly restore the saved state.
 
 ## No quiet spelling
 
