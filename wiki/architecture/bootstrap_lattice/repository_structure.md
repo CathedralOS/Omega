@@ -59,11 +59,10 @@ File names expose both format and role. `.alpha` is Alpha assembly source,
 base names such as `beta_compiler_bytecode.tape`; target realizations
 additionally name their target and use the native container convention.
 
-The tree above shows the ratified destination. The worktree still contains the
-historical Delta `.alp`, proof `.elab`, `bc.tape`, and `check.tape` names until
-the atomic naming task updates every script, locator, and test. Audit documents
-that describe current committed bytes continue to use those physical names
-until that migration lands.
+The tree above is the committed layout. The atomic naming migration replaced
+the historical Delta `.alp`, proof `.elab`, `bc.tape`, and `check.tape` names
+across scripts, locators, tests, and current-state documentation without
+changing the canonical source or tape bytes.
 
 ## Ownership rules
 

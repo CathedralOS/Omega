@@ -92,7 +92,7 @@ raise SystemExit({status})
     def fake_build_tools(self, root: Path) -> None:
         artifacts = root / "artifacts"
         artifacts.mkdir()
-        for name in ("assembler.tape", "delta2gamma.tape", "interp.tape"):
+        for name in ("assembler.tape", "delta_to_gamma_bytecode.tape", "gamma_interpreter_bytecode.tape"):
             (artifacts / name).write_bytes(f"fixture {name}\n".encode())
         (artifacts / "delta2gamma.exe").write_bytes(b"fixture translator\n")
 

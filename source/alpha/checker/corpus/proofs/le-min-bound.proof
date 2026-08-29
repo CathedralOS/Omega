@@ -1,0 +1,22 @@
+; le-min-bound.proof — min is a LOWER BOUND of both its arguments under the decidable ≤ (the ≤-lattice MEET):
+;   ∀a ∀b.  (min(a,b) ≤ a)  ∧  (min(a,b) ≤ b)   where  x ≤ y  is the boolean  le(x,y) = True.
+; The exact DUAL of le-max-bound (max = the JOIN): together they make the decidable total order a full LATTICE
+; (max = least upper bound, min = greatest lower bound). min is defined — like max — by DUAL-DISPATCH mutual
+; recursion min/minhelp over user nats, returning a built-in-nat Bool (True=(s z)). Proof: induction on a, case
+; on b. Every 0-case reduces by le(0,·)=True; the all-successor case reduces min(s a1, s b1) -> s(min a1 b1) and
+; le(s _, s _) -> le(_, _), so both goals collapse to exactly the induction hypothesis (fst/snd of iha at b1).
+; NO le-refl needed (unlike the JOIN): the meet's successor step lands directly on the IH.
+(data 2 0 0 0) (data 3 1 1 0)
+(fun 25 2 (s z)) (fun 25 3 (f 26 (y 0) (v 0)))        ; le(0,n)=True ; le(s m,n)=lehelp(n,m)
+(fun 26 2 z) (fun 26 3 (f 25 (y 0) (v 0)))            ; lehelp(0,m)=False ; lehelp(s n,m)=le(m,n)
+(fun 43 2 (k 2)) (fun 43 3 (f 44 (y 0) (v 0)))        ; min(0,n)=0 ; min(s m,n)=minhelp(n,m)
+(fun 44 2 (k 2)) (fun 44 3 (k 3 (f 43 (y 0) (v 0))))  ; minhelp(0,m)=0 ; minhelp(s n,m)=s(min(m,n))
+
+(all a (all b (& (= (f 25 (f 43 a b) a) (s z)) (= (f 25 (f 43 a b) b) (s z)))))
+(rec 2 3 a (all b (& (= (f 25 (f 43 a b) a) (s z)) (= (f 25 (f 43 a b) b) (s z))))
+  (gen b (pair (refl (s z)) (refl (s z))))
+  (gen a1 (lam iha (all b (& (= (f 25 (f 43 a1 b) a1) (s z)) (= (f 25 (f 43 a1 b) b) (s z))))
+    (rec 2 3 b (& (= (f 25 (f 43 (k 3 a1) b) (k 3 a1)) (s z)) (= (f 25 (f 43 (k 3 a1) b) b) (s z)))
+      (pair (refl (s z)) (refl (s z)))
+      (gen b1 (lam ihb (& (= (f 25 (f 43 (k 3 a1) b1) (k 3 a1)) (s z)) (= (f 25 (f 43 (k 3 a1) b1) b1) (s z)))
+        (pair (fst (inst iha b1)) (snd (inst iha b1)))))))))

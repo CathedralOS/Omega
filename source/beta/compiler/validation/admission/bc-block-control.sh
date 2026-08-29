@@ -20,7 +20,7 @@ export OMEGA_REPO_ROOT
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 SOURCE="$OMEGA_PATH_BETA_COMPILER/bc.beta"
-ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/bc.tape"
+ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 bc_timing_start() {
@@ -93,8 +93,8 @@ require_control_bundle_unchanged() {
 # The root observable excludes invalid-opcode execution only after the exact
 # persisted artifact has passed the independent reachable-structure checker.
 # Establish the structural owner before building the canonical conjunction.
-"$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/structure-check.tape"
-stamp_seed "$T/structure-check.tape" "$SEED" "$T/structure-check" >/dev/null
+"$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/artifact_structure_checker_bytecode.tape"
+stamp_seed "$T/artifact_structure_checker_bytecode.tape" "$SEED" "$T/structure-check" >/dev/null
 set +e
 "$T/structure-check" < "$ARTIFACT" > "$T/stdout"
 artifact_structure_status=$?
@@ -148,8 +148,8 @@ build_lookup_checker() {
       "$OBLIGATION_DIR/bc-lookup-data-shape.alpha" \
       "$OBLIGATION_DIR/bc-lookup-summary.alpha"
   } > "$T/lookup-check.alpha"
-  "$ASM" < "$T/lookup-check.alpha" > "$T/lookup-check.tape"
-  stamp_seed "$T/lookup-check.tape" "$SEED" "$T/lookup-check" >/dev/null
+  "$ASM" < "$T/lookup-check.alpha" > "$T/lookup_checker_bytecode.tape"
+  stamp_seed "$T/lookup_checker_bytecode.tape" "$SEED" "$T/lookup-check" >/dev/null
 }
 
 build_bounded_emitters_checker() {
@@ -174,8 +174,8 @@ build_bounded_emitters_checker() {
       "$OBLIGATION_DIR/bc-bounded-emitters-slot-summary.alpha" \
       "$OBLIGATION_DIR/bc-bounded-emitters-publication.alpha"
   } > "$T/bounded-emitters-check.alpha"
-  "$ASM" < "$T/bounded-emitters-check.alpha" > "$T/bounded-emitters-check.tape"
-  stamp_seed "$T/bounded-emitters-check.tape" "$SEED" \
+  "$ASM" < "$T/bounded-emitters-check.alpha" > "$T/bounded_emitters_checker_bytecode.tape"
+  stamp_seed "$T/bounded_emitters_checker_bytecode.tape" "$SEED" \
     "$T/bounded-emitters-check" >/dev/null
 }
 
@@ -188,8 +188,8 @@ build_emit_dec_word_checker() {
       "$OBLIGATION_DIR/bc-emit-dec-word-summary.alpha" \
       "$OBLIGATION_DIR/bc-emit-dec-word-publication.alpha"
   } > "$T/emit-dec-word-check.alpha"
-  "$ASM" < "$T/emit-dec-word-check.alpha" > "$T/emit-dec-word-check.tape"
-  stamp_seed "$T/emit-dec-word-check.tape" "$SEED" \
+  "$ASM" < "$T/emit-dec-word-check.alpha" > "$T/emit_dec_word_checker_bytecode.tape"
+  stamp_seed "$T/emit_dec_word_checker_bytecode.tape" "$SEED" \
     "$T/emit-dec-word-check" >/dev/null
 }
 
@@ -258,14 +258,14 @@ build_label_emitters_checker() {
     echo "bc block control FAIL — Checker E source is ${label_emitters_checker_source_bytes} bytes (900KB budget)" >&2
     exit 1
   fi
-  "$ASM" < "$T/label-emitters-check.alpha" > "$T/label-emitters-check.tape"
+  "$ASM" < "$T/label-emitters-check.alpha" > "$T/label_emitters_checker_bytecode.tape"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/label-emitters-check.alpha" > "$T/label-emitters-check-ref.tape"
-  if ! cmp -s "$T/label-emitters-check.tape" "$T/label-emitters-check-ref.tape"; then
+  if ! cmp -s "$T/label_emitters_checker_bytecode.tape" "$T/label-emitters-check-ref.tape"; then
     echo "bc block control FAIL — Checker E assembler diamond disagrees" >&2
     exit 1
   fi
-  stamp_seed "$T/label-emitters-check.tape" "$SEED" \
+  stamp_seed "$T/label_emitters_checker_bytecode.tape" "$SEED" \
     "$T/label-emitters-check" >/dev/null
 }
 
@@ -1032,7 +1032,7 @@ smoke_fol_resource_cleanup_ledger() {
     exit 1
   fi
   python3 "$OMEGA_PATH_ALPHA_CHECKER/tools/elab.py" \
-    < "$GATE_DIR/fol/bc-main-resource-refinement.elab" \
+    < "$GATE_DIR/fol/bc-main-resource-refinement.proof" \
     > "$T/fol-resource-candidate.raw"
   python3 "$GATE_DIR/fol/trace_refinement_seam.py" --split \
     "$T/fol-resource-candidate.raw" \
@@ -1248,14 +1248,14 @@ if [ "$checker_a_source_bytes" -gt 1048576 ]; then
   echo "bc block control FAIL — Checker A source is ${checker_a_source_bytes} bytes (1048576-byte assembler input limit)" >&2
   exit 1
 fi
-"$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
-checker_a_tape_bytes=$(wc -c < "$T/control-check.tape" | tr -d ' ')
+"$ASM" < "$T/control-check.alpha" > "$T/checker_a_bytecode.tape"
+checker_a_tape_bytes=$(wc -c < "$T/checker_a_bytecode.tape" | tr -d ' ')
 checker_a_seed_payload_limit=$((HOLE_SIZE - 4))
 if [ "$checker_a_tape_bytes" -gt "$checker_a_seed_payload_limit" ]; then
   echo "bc block control FAIL — Checker A tape is ${checker_a_tape_bytes} bytes (${checker_a_seed_payload_limit}-byte seed payload limit)" >&2
   exit 1
 fi
-stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
+stamp_seed "$T/checker_a_bytecode.tape" "$SEED" "$T/control-check" >/dev/null
 
 # Fail fast on Checker A before composing the later canonical owners.
 set +e

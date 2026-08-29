@@ -21,8 +21,8 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 "$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/interp.asm"
-"$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" < "$T/interp.asm" > "$T/interp.tape"
-stamp_seed "$T/interp.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$T/interp.exe" >/dev/null 2>&1
+"$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" < "$T/interp.asm" > "$T/gamma_interpreter_bytecode.tape"
+stamp_seed "$T/gamma_interpreter_bytecode.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$T/interp.exe" >/dev/null 2>&1
 
 HELPERS='(def ntht (t k h) (if (eq h 0) t (match t ((Node l r) (if (lt k h) (ntht l k (/ h 2)) (ntht r (- k h) (/ h 2)))) (z 0))))
 (def nth (xs k) (match xs ((Chunks n t) (ntht t k 262144))))

@@ -27,8 +27,8 @@ stamp_proof_checker "$OMEGA_TRACE_TMP/check.exe" >/dev/null || exit $?
   > "$OMEGA_TRACE_TMP/interp.alpha" 2>/dev/null || exit $?
 "$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" \
   < "$OMEGA_TRACE_TMP/interp.alpha" \
-  > "$OMEGA_TRACE_TMP/interp.tape" 2>/dev/null || exit $?
-stamp_seed "$OMEGA_TRACE_TMP/interp.tape" \
+  > "$OMEGA_TRACE_TMP/gamma_interpreter_bytecode.tape" 2>/dev/null || exit $?
+stamp_seed "$OMEGA_TRACE_TMP/gamma_interpreter_bytecode.tape" \
   "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
   "$OMEGA_TRACE_TMP/interp.exe" >/dev/null 2>&1 || exit $?
 

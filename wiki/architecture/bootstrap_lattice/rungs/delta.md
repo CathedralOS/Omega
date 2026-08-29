@@ -45,9 +45,9 @@ accepted Omega programs retain their exact Omega meaning.
 
 ## Implementation owners
 
-- `source/delta/compiler/main.alp` is the current physical path of the
-  Delta-written compiler experiment. D10 selects `main.delta`; the queued
-  path-only migration preserves its source and closure identities.
+- `source/delta/compiler/main.delta` is the current physical path of the
+  Delta-written compiler experiment. D10's completed path-only migration
+  preserved its source and closure identities.
 - `source/delta/meaning/delta2gamma.beta` and its encoding tools provide the
   Rust-free lower-rung meaning route used to publish Delta artifacts.
 - `source/delta/compiler/artifacts/` is reserved for exact artifacts admitted

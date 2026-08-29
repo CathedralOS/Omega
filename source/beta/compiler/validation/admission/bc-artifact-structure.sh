@@ -15,12 +15,12 @@ unset OMEGA_PATH_PARENT
 
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
-ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/bc.tape"
+ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-"$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/check.tape"
-stamp_seed "$T/check.tape" "$SEED" "$T/check" >/dev/null
+"$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/artifact_structure_checker_bytecode.tape"
+stamp_seed "$T/artifact_structure_checker_bytecode.tape" "$SEED" "$T/check" >/dev/null
 
 PASS=0
 FAIL=0
@@ -121,5 +121,5 @@ cp "$T/exact" "$T/oversized"
 printf '\000' >> "$T/oversized"
 case_run "one byte over tape-hole payload" 253 "$T/oversized"
 
-echo "bc artifact structural obligations: $PASS passed, $FAIL failed ($(wc -c < "$T/check.tape" | tr -d ' ')-byte Alpha verifier tape)"
+echo "bc artifact structural obligations: $PASS passed, $FAIL failed ($(wc -c < "$T/artifact_structure_checker_bytecode.tape" | tr -d ' ')-byte Alpha verifier tape)"
 [ "$FAIL" = 0 ]

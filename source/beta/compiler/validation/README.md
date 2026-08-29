@@ -1,7 +1,7 @@
 # Beta compiler validation
 
 This directory owns validation of the exact `bc.beta` source and persisted
-`artifacts/bc.tape`. Its responsibilities are physically separate:
+`artifacts/beta_compiler_bytecode.tape`. Its responsibilities are physically separate:
 
 | path | role |
 | --- | --- |
@@ -27,7 +27,7 @@ seam and commands under `stress/` are directly runnable development evidence.
 u32_le source_length
 exact bc.beta bytes
 u32_le tape_length
-exact bc.tape bytes
+exact beta_compiler_bytecode.tape bytes
 canonical control witness
 canonical call-bounds witness
 ```
@@ -223,7 +223,7 @@ sh source/beta/compiler/validation/admission/bc-block-control.sh
 The ROOT conjunction is unique lower-rung executable evidence for exact
 maximal-observation equality over finite `B_bc1` inputs, including typed
 resource outcomes and divergent cases. It is not yet a certificate accepted by
-the universal `source/alpha/checker/artifacts/check.tape` and cannot be promoted
+the universal `source/alpha/checker/artifacts/proof_checker_bytecode.tape` and cannot be promoted
 to one by pedigree or successful execution.
 
 The first narrower universal-checker certificate is now part of that default

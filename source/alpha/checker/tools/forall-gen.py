@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # forall-gen.py — MECHANICALLY generate a ∀-input theorem + its induction proof for a member of the
-# constant-increment fold family, in elab.py's named-binder syntax. count-forall.elab (hand-authored) is
+# constant-increment fold family, in elab.py's named-binder syntax. count-forall.proof (hand-authored) is
 # the k=1 instance; this makes the whole family mechanical, proving the proof was a reusable SCHEMA, not a
 # one-off — the automation step of the ∀-input climb.
 #
@@ -14,7 +14,7 @@
 #     addk:  ∀a ∀b.  uadd(a, s^k b) = s^k (uadd(a, b))            (by induction on the user nat a)
 # All emitted terms are user nats (k2/k3) and user lists (k60/k61), matching the meaning route.
 #
-# usage: forall-gen.py K   ->  prints the .elab source for the k=K instance on stdout
+# usage: forall-gen.py K   ->  prints the .proof source for the k=K instance on stdout
 import sys
 
 FOLD, AGG, UADD = 91, 93, 21

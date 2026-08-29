@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Construct check.tape directly through Alpha assembler -> Alpha-written cold
+# Construct proof_checker_bytecode.tape directly through Alpha assembler -> Alpha-written cold
 # Beta compiler -> Alpha assembler. No accepted Beta compiler participates.
 set -eu
 
@@ -23,5 +23,5 @@ trap 'rm -rf "$TMP"' EXIT
 "$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/cold-start/bc-alpha.alpha" > "$TMP/cold.tape"
 stamp_seed "$TMP/cold.tape" "$SEED" "$TMP/cold" >/dev/null
 "$TMP/cold" < "$SCRIPT_DIR/implementations/beta/check.beta" > "$TMP/check.alpha"
-"$ASSEMBLER" < "$TMP/check.alpha" > "$TMP/check.tape"
-cp "$TMP/check.tape" "$1"
+"$ASSEMBLER" < "$TMP/check.alpha" > "$TMP/proof_checker_bytecode.tape"
+cp "$TMP/proof_checker_bytecode.tape" "$1"

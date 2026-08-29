@@ -122,8 +122,8 @@ def reconstruct_and_verify(
         driver.build_tools(root)
         artifacts = root / "artifacts"
         assembler_tape = artifacts / "assembler.tape"
-        translator_tape = artifacts / "delta2gamma.tape"
-        interpreter_tape = artifacts / "interp.tape"
+        translator_tape = artifacts / "delta_to_gamma_bytecode.tape"
+        interpreter_tape = artifacts / "gamma_interpreter_bytecode.tape"
 
         image = support.materialize_canonical_image(
             driver.MANIFEST, driver.LOCATIONS, {"delta": driver.DELTA}

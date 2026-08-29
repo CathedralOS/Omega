@@ -60,12 +60,12 @@ The artifact being checked owns its validation. Do not recreate generic
 Product compiler implementation belongs to **OMEGA-PRODUCT-COMPILER-SOURCE**
 in [`TASKS.md`](TASKS.md), not in this queue.
 
-- [ ] **NORMALIZE-BOOTSTRAP-FILE-NAMES.** Apply D10's format-and-role naming
+- [x] **NORMALIZE-BOOTSTRAP-FILE-NAMES.** Apply D10's format-and-role naming
   convention atomically across sources, scripts, locators, manifests, tests,
   and documentation:
 
   - rename the 76 Delta `*.alp` files to `*.delta`;
-  - rename the 248 proof-source `*.elab` files to `*.proof` without changing
+  - rename the 254 proof-source `*.elab` files to `*.proof` without changing
     the raw certificate format or trusting their elaborator;
   - retain `.alpha` for Alpha assembly and `.tape` for Alpha VM bytecode; and
   - replace opaque canonical artifact basenames with descriptive names such as
@@ -73,7 +73,12 @@ in [`TASKS.md`](TASKS.md), not in this queue.
     `gamma_interpreter_bytecode.tape`, and
     `delta_to_gamma_bytecode.tape`.
 
-  Verify byte identity before and after every path-only move. Delta's
+  The ratification-time proof inventory said 248; the atomic migration found
+  and moved all 254 proof sources present at D10's landing commit. All 76 Delta
+  moves and both committed tape moves were first verified byte-identical to
+  their old paths; a separate comment-only pass then corrected stale `.alp`
+  examples in 12 noncanonical Delta test sources. The canonical `main.delta`
+  bytes remain unchanged. Delta's
   path-independent content-set and closure digests must remain unchanged; only
   its locations companion changes. Do not rewrite historical receipts. Any
   in-flight attempt that pinned a changed locator, verifier, or artifact path
@@ -127,7 +132,7 @@ in [`TASKS.md`](TASKS.md), not in this queue.
 Canonical subjects:
 
 - `source/beta/compiler/bc.beta`: 32,605 bytes;
-- `source/beta/compiler/artifacts/bc.tape`: 40,693 bytes;
+- `source/beta/compiler/artifacts/beta_compiler_bytecode.tape`: 40,693 bytes;
 - exact maximal-observation ROOT: 82,660 bytes,
   `f4dde19077478e240c6aed629c1d25169d3210ad0d2ef2e3cc6a47d32a587867`.
 
@@ -214,7 +219,7 @@ Canonical subjects:
     rooted check time, and peak child storage. This is an expressiveness seam,
     not `bc.beta` admission.
   - [x] The 1,856-byte reusable
-    `source/alpha/checker/corpus/proofs/operational-refinement-core.elab`
+    `source/alpha/checker/corpus/proofs/operational-refinement-core.proof`
     theorem derives observation preservation for every finite symbolic walk
     from three owner-reconstructed premises: zero-step endpoint identity,
     successor decomposition into a shorter walk plus one unmatched step, and
@@ -234,7 +239,7 @@ Canonical subjects:
     FP kind `1`, and saved-caller-FP token `1`. This is the relative-frame
     premise for the reachability theorem; it does not yet derive absolute
     registers or hidden-stack contents from the initial state.
-  - [x] The initial 4,254-byte `bc-main-resource-refinement.elab` authoring
+  - [x] The initial 4,254-byte `bc-main-resource-refinement.proof` authoring
     candidate established a four-stage cleanup model and the proof-suffix
     custody protocol. Review found that the stages compressed seven Alpha
     instructions and that its subject/profile tokens were disconnected
@@ -316,21 +321,21 @@ Delta.
 
 ## 3. Gamma meaning route → `delta`
 
-The canonical source remains physically located at
-`source/delta/compiler/main.alp` until **NORMALIZE-BOOTSTRAP-FILE-NAMES** moves
-it to `main.delta`; the source bytes and path-independent closure identity do
-not change. The independently declared lower-rung route is
+The canonical source is `source/delta/compiler/main.delta`; its source bytes
+and path-independent closure identity did not change during D10's path-only
+migration. The independently declared lower-rung route is
 `source/delta/meaning/delta2gamma.beta` followed by the canonical Gamma
 evaluator. Publication binds the exact closure and tools, reconstructs the
 packed Gamma program, compares repeated assembly observations, and validates
 the bounded Darwin ARM64 target dialect.
 
-- [ ] Retire exact attempt
+- [x] Retire exact attempt
   `cfcaaee8786d3f12b8102140546b7520a3dd661170d50b2187a0858557cd2322`
-  from the publication path before applying D10's naming migration. It may
-  finish only as diagnostic evidence under its frozen inputs; it cannot admit
-  or install the renamed closure. Prepare a fresh exact attempt after the
-  locator, verifier, source naming, and Delta contract inputs are final.
+  from the publication path before applying D10's naming migration. Its two
+  obsolete evaluator processes were stopped after 9h16m; the partial attempt
+  remains diagnostic evidence only and cannot admit or install the renamed
+  closure. Prepare a fresh exact attempt after the locator, verifier, source
+  naming, and Delta contract inputs are final.
 - [ ] When both replacement executions agree, finalize the
   assembly-publication receipt,
   replay exact realization with the pinned compiler/linker/SDK inputs, verify

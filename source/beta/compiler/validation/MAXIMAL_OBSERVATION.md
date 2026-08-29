@@ -37,7 +37,7 @@ The exact subjects are:
 
 - `../bc.beta`: 32,605 bytes, SHA-256
   `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`;
-- `../artifacts/bc.tape`: 40,693 bytes, SHA-256
+- `../artifacts/beta_compiler_bytecode.tape`: 40,693 bytes, SHA-256
   `73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
 
 The resource profile fixes:
@@ -87,7 +87,7 @@ select the subjects, omit terminal cases, or define the proposition.
 The retained evidence is intentionally responsibility-specific:
 
 - `../cold-start/rebuild-artifact.sh --check` reconstructs the fixed-point
-  `bc.tape` through the Alpha-written cold start without changing it;
+  `beta_compiler_bytecode.tape` through the Alpha-written cold start without changing it;
 - `admission/bc-block-control.sh` reconstructs the canonical
   whole-source/artifact conjunction and its 82,660-byte ROOT maximal-observation
   checker (SHA-256

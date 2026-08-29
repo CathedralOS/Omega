@@ -104,14 +104,14 @@ class CanonicalImageTests(unittest.TestCase):
         )
         self.assertEqual(len(image), EXPECTED_IMAGE_LENGTH)
         self.assertEqual(hashlib.sha256(image).hexdigest(), EXPECTED_IMAGE_SHA256)
-        self.assertEqual(image, (DELTA / "compiler" / "main.alp").read_bytes() + b"\n")
+        self.assertEqual(image, (DELTA / "compiler" / "main.delta").read_bytes() + b"\n")
 
     def test_changed_located_source_rejects(self) -> None:
         with tempfile.TemporaryDirectory() as spelling:
             root = Path(spelling)
             (root / "compiler").mkdir()
-            source = (DELTA / "compiler" / "main.alp").read_bytes()
-            (root / "compiler" / "main.alp").write_bytes(source + b"\0")
+            source = (DELTA / "compiler" / "main.delta").read_bytes()
+            (root / "compiler" / "main.delta").write_bytes(source + b"\0")
             with self.assertRaises(support.PublicationSupportError):
                 support.materialize_canonical_image(
                     MANIFEST, LOCATIONS, {"delta": root}

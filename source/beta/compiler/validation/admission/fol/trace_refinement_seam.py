@@ -112,10 +112,10 @@ def main() -> int:
     fol_dir = Path(sys.argv[7])
 
     positives = [
-        fol_dir / "trace-refinement.elab",
-        fol_dir / "bc-main-resource-refinement.elab",
+        fol_dir / "trace-refinement.proof",
+        fol_dir / "bc-main-resource-refinement.proof",
     ]
-    negatives = sorted((fol_dir / "negative").glob("*.elab"))
+    negatives = sorted((fol_dir / "negative").glob("*.proof"))
     cases = [(path, "accept") for path in positives]
     cases += [(path, "reject") for path in negatives]
     failures = 0

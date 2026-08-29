@@ -33,10 +33,10 @@ Only checker implementations decide derivation validity. `tools/`, `corpus/`, an
 `gates/` may construct, translate, perturb, or replay evidence, but have no authority
 to make a certificate valid.
 
-D10 selects `.proof` for proof-source files. The current corpus remains
-physically named `*.elab` until the queued atomic migration updates all 248
-sources, generators, gates, and references. This is a source-file convention;
-it does not change the raw certificate format or make the elaborator trusted.
+D10 selects `.proof` for proof-source files. The atomic migration updated all
+254 sources present at its landing commit, plus their generators, gates, and
+references. This is a source-file convention; it does not change the raw
+certificate format or make the elaborator trusted.
 
 Two complementary checkers — the two faces a real proof kernel needs. `check.beta` decides
 "does this certificate *prove* this proposition?"; `eq.beta` decides "do these two
@@ -141,12 +141,12 @@ the hand-audited seed:
 hand-audited alpha seed
   runs the assembler (written in alpha)
   which lowers the cold Beta compiler (written in alpha)
-  which compiles check.beta (this checker) to artifacts/check.tape
+  which compiles check.beta (this checker) to artifacts/proof_checker_bytecode.tape
   which validates a certificate -> accept / reject
 ```
 
 `reconstruct-artifact.sh` rebuilds that tape twice and compares it byte-for-byte
-with the committed artifact. The accepted `bc.tape` may separately compile the
+with the committed artifact. The accepted `beta_compiler_bytecode.tape` may separately compile the
 same checker source as differential evidence, but that product cannot admit the
 compiler that produced it.
 

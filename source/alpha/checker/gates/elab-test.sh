@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # ELABORATOR regression — the untrusted proof elaborator (tools/elab.py) compiles named-binder
-# proof sources (corpus/proofs/*.elab) to raw certificates, which the TRUSTED implementations/beta/check.beta must
+# proof sources (corpus/proofs/*.proof) to raw certificates, which the TRUSTED implementations/beta/check.beta must
 # accept. This keeps the productivity tool honest: a bug in the elaborator that emitted a
 # malformed or wrong-indexed certificate would make implementations/beta/check.beta reject. The elaborator is
 # NOT in the trust path (it only produces certificates the minimal checker re-validates),
@@ -28,7 +28,7 @@ ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 PASS=0; FAIL=0
-for f in corpus/proofs/*.elab; do
+for f in corpus/proofs/*.proof; do
   out=$(python3 tools/elab.py --check "$T/check.exe" < "$f" 2>&1)
   if [ "$out" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL $f : $out"; fi
 done

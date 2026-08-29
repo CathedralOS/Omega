@@ -10,7 +10,7 @@ trap 'rm -rf "$TMP"' EXIT
 sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check-1.tape"
 sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check-2.tape"
 cmp "$TMP/check-1.tape" "$TMP/check-2.tape"
-cmp "$TMP/check-1.tape" "$SCRIPT_DIR/artifacts/check.tape"
+cmp "$TMP/check-1.tape" "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape"
 
 OMEGA_REPO_ROOT=$SCRIPT_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
@@ -22,4 +22,4 @@ stamp_proof_checker "$TMP/check" >/dev/null
 [ "$(printf '%s' '(-> P P) (lam P (hyp 0))' | "$TMP/check")" = accept ]
 [ "$(printf '%s' '(-> P Q) (lam P (hyp 0))' | "$TMP/check")" = reject ]
 
-echo "Alpha-rooted checker reconstruction OK ($(wc -c < "$SCRIPT_DIR/artifacts/check.tape" | tr -d ' ')-byte artifact)"
+echo "Alpha-rooted checker reconstruction OK ($(wc -c < "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape" | tr -d ' ')-byte artifact)"

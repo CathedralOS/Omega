@@ -1,0 +1,29 @@
+// Slice 8a: host byte I/O. Reads stdin one byte at a time and writes each to
+// stdout until end-of-input (read_byte returns -1 at EOF). Run as a filter:
+//   alpha echo.delta echo.exe && printf 'hello' | ./echo.exe   ->  hello
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write_line(text: &[u8] in Utf8);
+    machine write_byte(b: i32);
+    machine read_byte() -> i32;
+}
+data Main { console: Console; c: i32 }
+
+machine Main::main(&mut self) {
+    transition 0 { _ -> step() }
+
+    state step() {
+        self.c = read_byte();
+        transition self.c < 0 {
+            true  -> done()  // EOF
+            false -> emit()
+        }
+    }
+    state emit() {
+        write_byte(self.c);
+        transition 0 { _ -> step() }
+    }
+    state done() {
+        self.console.exit_process(0)
+    }
+}

@@ -1,0 +1,24 @@
+; sqsum-forall.proof — the SUM-OF-SQUARES ∀-input fold: a fold adding each element's SQUARE. Shape of
+; dual_accumulator_recursion's `sum_sq(s[1..], acc + s[0]*s[0])` machine.  ∀xs ∀n. sqfold(xs, n) = sumSq(xs) + n,
+; sumSq(Cons h t)=h*h + sumSq t. Same uadd commutative-monoid proof as sum-forall (the added value h*h is opaque to
+; the assoc/comm reasoning), so the monoid lemmas come from the shared `lib/nat-monoid.proof`; this file adds only
+; umul (fun 22) for the square. ℤ-FREE: squares are non-negative, so the NAT theorem applies to the signed sample
+; (in-range, per the meaning route's domain-erasure soundness).
+(include lib/nat-monoid.proof)
+
+(fun 22 2 (k 2)) (fun 22 3 (f 21 (y 0) (rec 0)))         ; umul(0,n)=0 ; umul(s m,n)=uadd(n, umul(m,n))
+(fun 94 60 (k 2)) (fun 94 61 (f 21 (f 22 (v 0) (v 0)) (rec 1)))   ; sumSq(Nil)=0 ; sumSq(Cons h t)=h*h + sumSq t
+(fun 95 60 (y 0)) (fun 95 61 (recx 1 (f 21 (f 22 (v 0) (v 0)) (y 0))))  ; sqfold(Nil,n)=n ; (Cons h t,n)=sqfold(t, h*h + n)
+
+(all xs (all n (= (f 95 xs n) (f 21 (f 94 xs) n))))
+(rec 60 61 xs (all n (= (f 95 xs n) (f 21 (f 94 xs) n)))
+  (gen n (refl n))
+  (gen h (gen t (lam ih (all n (= (f 95 t n) (f 21 (f 94 t) n)))
+    (gen n
+      (have s1 (= (f 21 (f 94 t) (f 21 (f 22 h h) n)) (f 21 (f 21 (f 94 t) (f 22 h h)) n))
+        (eqelim x (= x (f 21 (f 21 (f 94 t) (f 22 h h)) n)) (inst* addassoc (f 94 t) (f 22 h h) n) (refl (f 21 (f 21 (f 94 t) (f 22 h h)) n)))
+      (have s2 (= (f 21 (f 21 (f 94 t) (f 22 h h)) n) (f 21 (f 21 (f 22 h h) (f 94 t)) n))
+        (eqelim x (= (f 21 (f 21 (f 94 t) (f 22 h h)) n) (f 21 x n)) (inst* addcomm (f 94 t) (f 22 h h)) (refl (f 21 (f 21 (f 94 t) (f 22 h h)) n)))
+      (have bridge (= (f 21 (f 94 t) (f 21 (f 22 h h) n)) (f 21 (f 21 (f 22 h h) (f 94 t)) n))
+        (eqelim x (= (f 21 (f 94 t) (f 21 (f 22 h h) n)) x) s2 s1)
+        (eqelim x (= (f 95 t (f 21 (f 22 h h) n)) x) bridge (inst ih (f 21 (f 22 h h) n)))))))))))

@@ -9,7 +9,7 @@
 }
 
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
-BETA_COMPILER_TAPE="$OMEGA_PATH_BETA_COMPILER/artifacts/bc.tape"
+BETA_COMPILER_TAPE="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
 export BETA_COMPILER_TAPE
 
 stamp_beta_compiler() {

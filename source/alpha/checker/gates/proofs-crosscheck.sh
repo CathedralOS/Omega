@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # PROOF-LIBRARY CROSS-CHECK — replay the whole theorem library across implementations.
 #
-# elab-test.sh already checks that every corpus/proofs/*.elab elaborates to a certificate the trusted implementations/beta/check.beta
+# elab-test.sh already checks that every corpus/proofs/*.proof elaborates to a certificate the trusted implementations/beta/check.beta
 # accepts. Replaying the certificates through separately written checkers provides
 # regression evidence; it does not replace a soundness argument. The cross-check establishes implementations/reference/check_ref.py ==
 # implementations/beta/check.beta on a rule-coverage FUZZ corpus, but the real compositional theorems (the FTA, sqrt2
@@ -44,7 +44,7 @@ bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "proofs-crossche
 CHECK="$T/check.exe"; DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 
 PASS=0; FAIL=0; GAMMA=0; GSKIP=0
-for f in corpus/proofs/*.elab; do
+for f in corpus/proofs/*.proof; do
   cert=$(python3 tools/elab.py < "$f" 2>/dev/null)
   if [ -z "$cert" ]; then FAIL=$((FAIL+1)); echo "  FAIL $f : elaboration errored"; continue; fi
   vb=$(printf '%s' "$cert" | "$CHECK" 2>/dev/null)
@@ -80,10 +80,10 @@ ncheck() {  # $1 = cert text ; both implementations/beta/check.beta and check_re
   if [ "$vb" != accept ] && [ "$vr" != accept ]; then NEGOK=$((NEGOK+1))
   else FAIL=$((FAIL+1)); echo "  FAIL negative-control : implementations/beta/check.beta=$vb check_ref=$vr (both must reject)"; fi
 }
-badcert=$(sed 's/(= (+ x1 z) x1)/(= (+ x1 z) (s x1))/' corpus/proofs/add-zero-right.elab | python3 tools/elab.py 2>/dev/null)
+badcert=$(sed 's/(= (+ x1 z) x1)/(= (+ x1 z) (s x1))/' corpus/proofs/add-zero-right.proof | python3 tools/elab.py 2>/dev/null)
 ncheck "$badcert"
 ncheck '(= (s z) z) (refl (s z))'                                   # 1 = 0
 ncheck '(All (= (v 0) (s (v 0)))) (gen (refl (v 0)))'               # a = s a
 
-echo "proof-library cross-check (every corpus/proofs/*.elab decided identically by implementations/beta/check.beta + implementations/reference/check_ref.py, and by implementations/gamma/checker.gamma where translatable; perturbations rejected): $PASS cross-checked (beta+ref), $GAMMA also implementations/gamma/checker.gamma-verified, $GSKIP gamma-skipped (arena/untranslatable), $NEGOK/$NEG negative controls rejected"
+echo "proof-library cross-check (every corpus/proofs/*.proof decided identically by implementations/beta/check.beta + implementations/reference/check_ref.py, and by implementations/gamma/checker.gamma where translatable; perturbations rejected): $PASS cross-checked (beta+ref), $GAMMA also implementations/gamma/checker.gamma-verified, $GSKIP gamma-skipped (arena/untranslatable), $NEGOK/$NEG negative controls rejected"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ] && [ "$NEGOK" = "$NEG" ]

@@ -1,6 +1,6 @@
 ; Bounded whole-bc control/effect correspondence checker, common core.
 ;
-; Input is [u32 source length][bc.beta bytes][u32 tape length][bc.tape bytes]
+; Input is [u32 source length][bc.beta bytes][u32 tape length][beta_compiler_bytecode.tape bytes]
 ; followed by an untrusted BC11 location/bound witness.  This checker independently
 ; lexes proc/state/to/when from the source, resolves each state target by exact
 ; byte-string equality, and checks the corresponding Alpha jmp or

@@ -21,7 +21,7 @@ It binds exact bytes for:
 - the Alpha-written assembler source, committed host artifact, and supplied
   deterministic persisted assembler tape, under role
   `canonical_alpha_written_assembler_artifact`;
-- `bc.beta` and the repository's persisted fixed-point `bc.tape`, under role
+- `bc.beta` and the repository's persisted fixed-point `beta_compiler_bytecode.tape`, under role
   `persisted_alpha_rooted_beta_compiler_fixed_point`;
 - `delta2gamma.beta` and its Beta-built Alpha tape;
 - `interp.beta` and its Beta-built Alpha tape; and
@@ -90,7 +90,7 @@ the byte list structurally. Assembly retains the separate 16 MiB, 500,000-line,
 resource overflow returns 252. Rejection publishes no stdout bytes.
 
 The assembly profile is the bounded spelling emitted by the canonical
-`source/delta/compiler/main.alp`, not a general AArch64 assembler grammar. In particular, its
+`source/delta/compiler/main.delta`, not a general AArch64 assembler grammar. In particular, its
 four-operand arithmetic forms are immediate `lsl #12` and the full-width array
 address form `add Xd, Xn, Xm, lsl #3`. Standalone register shifts preserve one
 register width; the emitted sign-fill immediates are exactly `asr Wd, Wn, #31`

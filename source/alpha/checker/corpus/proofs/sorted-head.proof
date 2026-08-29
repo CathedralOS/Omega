@@ -1,0 +1,16 @@
+; sorted-head.proof — FIRST lemma of the insertion-sort correctness proof (the Lean-pole target): from a SORTED
+; list the head comparison holds — ∀x y r. sorted(Cons x (Cons y r))=True -> le(x,y)=True. Uses a recursive-boolean
+; Sorted predicate over user nats (k2/k3) and user lists (k60/k61), returning a USER Bool (True=k80, False=k81) so
+; `and` and (later) insert's `cond` can FUN-DISPATCH on the bool's constructor. sorted(Nil)=T, sortedhelp(Nil,x)=T,
+; sortedhelp(Cons y r, x)=and(le(x,y), sorted(Cons y r)) [sorted(Cons x t)=sortedhelp(t,x), dual dispatch on the
+; tail]. Proof: a helper `and-true-left` (∀a b. and(a,b)=True -> a=True, by rec on the Bool a — the True case is
+; refl, the False case's hypothesis IS the goal) instantiated at (le(x,y), sorted(Cons y r)).
+(data 2 0 0 0) (data 3 1 1 0) (data 60 0 0 0) (data 61 2 0 1) (data 80 0 0 0) (data 81 0 0 0)
+(fun 25 2 (k 80)) (fun 25 3 (f 26 (y 0) (v 0)))          ; le(0,n)=True ; le(s m,n)=lehelp(n,m)
+(fun 26 2 (k 81)) (fun 26 3 (f 25 (y 0) (v 0)))          ; lehelp(0,m)=False ; lehelp(s n,m)=le(m,n)
+(fun 27 80 (y 0)) (fun 27 81 (k 81))                     ; and(True,b)=b ; and(False,b)=False
+(fun 32 60 (k 80)) (fun 32 61 (f 33 (v 1) (v 0)))        ; sorted(Nil)=T ; sorted(Cons x t)=sortedhelp(t,x)
+(fun 33 60 (k 80)) (fun 33 61 (f 27 (f 25 (y 0) (v 0)) (f 32 (k 61 (v 0) (v 1)))))
+
+(all x (all y (all r (-> (= (f 32 (k 61 x (k 61 y r))) (k 80)) (= (f 25 x y) (k 80))))))
+(have andtrueleft (all a (all b (-> (= (f 27 a b) (k 80)) (= a (k 80))))) (rec 80 81 a (all b (-> (= (f 27 a b) (k 80)) (= a (k 80)))) (gen b (lam h (= (f 27 (k 80) b) (k 80)) (refl (k 80)))) (gen b (lam h (= (f 27 (k 81) b) (k 80)) h))) (gen x (gen y (gen r (lam h (= (f 32 (k 61 x (k 61 y r))) (k 80)) (app (inst* andtrueleft (f 25 x y) (f 32 (k 61 y r))) h))))))

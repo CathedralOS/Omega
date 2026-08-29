@@ -28,8 +28,8 @@ Surface syntax (s-expressions). Binders name their bound variable; references us
   top   : (data CID ARITY R0 R1) (fun FID CID BODY) ... (def N P PF) ... GOAL PROOF
           ; user-type/function declarations and named lemmas, then the goal and its proof
 
-Usage:  elab.py < proof.elab            # prints the raw certificate
-        elab.py --check < proof.elab    # elaborate, then run check.beta, print accept/reject
+Usage:  elab.py < proof.proof            # prints the raw certificate
+        elab.py --check < proof.proof    # elaborate, then run check.beta, print accept/reject
 """
 import sys, re, os
 

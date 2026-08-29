@@ -28,7 +28,7 @@ python3 -B "$VERIFY" mutations "$SNAPSHOT" "$LOCATIONS" "delta=$OMEGA_PATH_DELTA
 # from an unrelated cwd, and through an equivalent symlink locator.  Only the
 # uncommitted diagnostic sidecar changes.
 mkdir -p "$T/relocated/renamed" "$T/relocated/alias"
-cp "$OMEGA_PATH_DELTA/compiler/main.alp" "$T/relocated/renamed/compiler-source.bytes"
+cp "$OMEGA_PATH_DELTA/compiler/main.delta" "$T/relocated/renamed/compiler-source.bytes"
 ln -s ../renamed/compiler-source.bytes "$T/relocated/alias/compiler-source-link"
 
 write_locations() { # relative-path output
@@ -80,7 +80,7 @@ expect_reject() { # expected-status name manifest locations role
 
 # Locator spellings never create source identity: changed bytes under a valid
 # diagnostic path reject against the path-independent digest.
-cp "$OMEGA_PATH_DELTA/compiler/main.alp" "$T/relocated/renamed/wrong.bytes"
+cp "$OMEGA_PATH_DELTA/compiler/main.delta" "$T/relocated/renamed/wrong.bytes"
 printf '\000' >> "$T/relocated/renamed/wrong.bytes"
 write_locations renamed/wrong.bytes "$T/wrong.locations.json"
 expect_reject 251 wrong-content "$SNAPSHOT" "$T/wrong.locations.json" "relocated=$T/relocated"
