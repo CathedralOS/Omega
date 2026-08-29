@@ -54,6 +54,24 @@ fn write_package(root: &Path, name: &str, dependency: Option<&str>) {
     std::fs::write(root.join("main.omg"), "machine root() {}\n").expect("write source");
 }
 
+fn write_application(root: &Path, name: &str, dependency: Option<&str>) {
+    std::fs::create_dir_all(root).expect("create application");
+    let dependency = dependency
+        .map(|location| {
+            let location = location.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("    builder.depend(Source::Path {{ location: \"{location}\" }});\n")
+        })
+        .unwrap_or_default();
+    std::fs::write(
+        root.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"{name}\");\n{dependency}}}\n"
+        ),
+    )
+    .expect("write application build file");
+    std::fs::write(root.join("main.omg"), "machine root() {}\n").expect("write application source");
+}
+
 fn run_test_git<I, S>(directory: &Path, args: I)
 where
     I: IntoIterator<Item = S>,

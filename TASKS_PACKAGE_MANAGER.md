@@ -322,8 +322,6 @@ explicitly.
 
   Remaining work:
 
-  - expose application-capable selected-root entry points uniformly for Git and
-    workspace roots rather than only external-local roots;
   - retain `{ PackageKey, BuildDeclarationKind }` through compiler handoff,
     accepted lock rows, manifest review, diagnostics, and audit output;
   - compare root-role changes directionally and add package/application replay,

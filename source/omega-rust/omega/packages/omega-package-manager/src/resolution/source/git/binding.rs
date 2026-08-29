@@ -17,6 +17,7 @@ pub(super) fn bind_projected_git_package_source(
     source: ResolvedGitSource,
     limits: LocalSourceLimits,
     selection_evidence: GitWorkspaceSelectionEvidence,
+    application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let projection = source.workspace_projection().ok_or_else(|| {
         ResolvePackageSourceError::GitWorkspaceMemberNavigation {
@@ -35,7 +36,7 @@ pub(super) fn bind_projected_git_package_source(
         });
     }
     let snapshot_root = source.snapshot_root().to_path_buf();
-    let declaration = project_package_build(&snapshot_root, false)?;
+    let declaration = project_package_build(&snapshot_root, application_root_allowed)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,
@@ -66,9 +67,10 @@ pub(super) fn bind_git_root_package_source(
     lineage: SourceLineage,
     source: ResolvedGitSource,
     limits: LocalSourceLimits,
+    application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let snapshot_root = source.snapshot_root().to_path_buf();
-    let declaration = project_package_build(&snapshot_root, false)?;
+    let declaration = project_package_build(&snapshot_root, application_root_allowed)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,

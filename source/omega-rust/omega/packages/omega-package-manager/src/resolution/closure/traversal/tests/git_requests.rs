@@ -84,6 +84,53 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
 }
 
 #[test]
+fn repository_root_project_retains_application_role_and_package_entry_rejects() {
+    let repository = temp_root("git-application-root-repository");
+    let cache = temp_root("git-application-root-cache");
+    write_application(&repository, "network-console", None);
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "application"]);
+    let request = GitSourceRequest::for_local_test_repository_with_lineage(
+        &repository,
+        None,
+        "https://github.com/CathedralOS/network-console.git",
+    )
+    .expect("validated local Git application request");
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained Git resolver storage");
+
+    crate::resolution::resolve_git_package_closure_with_storage(
+        &request,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect_err("package-only Git entry rejects an application root");
+    let closure = crate::resolution::resolve_git_project_closure_with_storage(
+        &request,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("project Git entry accepts an application root");
+
+    assert_eq!(
+        closure.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+    assert_eq!(closure.graph().root().name().as_str(), "network-console");
+
+    let _ = std::fs::remove_dir_all(repository);
+    let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
 fn named_git_selection_resolves_only_the_declared_matching_member() {
     let repository = temp_root("git-named-selection-root");
     let cache = temp_root("git-named-selection-cache");
@@ -155,6 +202,81 @@ machine build(builder: &mut Build) {
         .revalidate()
         .expect("retained declaration bytes replay outside compilation root");
     assert!(!root.snapshot_root().join("packages/matrix").exists());
+
+    let _ = std::fs::remove_dir_all(repository);
+    let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
+fn named_git_project_selects_an_application_from_a_mixed_workspace() {
+    let repository = temp_root("git-named-application-root");
+    let cache = temp_root("git-named-application-cache");
+    std::fs::create_dir_all(repository.join("projects")).expect("create root repository");
+    std::fs::write(
+        repository.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.member("projects/console");
+    builder.member("projects/protocol");
+}
+"#,
+    )
+    .expect("write root build");
+    write_application(&repository.join("projects/console"), "driver-console", None);
+    write_package(
+        &repository.join("projects/protocol"),
+        "driver-protocol",
+        None,
+    );
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
+    let request = crate::resolution::GitPackageSourceRequest::new(
+        GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            None,
+            "https://github.com/CathedralOS/driver-workspace.git",
+        )
+        .expect("validated local Git workspace request"),
+        crate::manifest::PackageSelection::Named(
+            crate::identity::PackageName::parse("driver-console").expect("project name"),
+        ),
+    );
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained Git resolver storage");
+
+    let closure = crate::resolution::resolve_selected_git_project_closure_with_storage(
+        &request,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("select application member as project root");
+
+    assert_eq!(
+        closure.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+    let evidence = closure
+        .custody(closure.graph().root())
+        .expect("root custody")
+        .selection_evidence()
+        .git_workspace()
+        .expect("workspace evidence");
+    assert_eq!(evidence.members().len(), 2);
+    assert!(evidence.members().iter().any(|member| {
+        member.package_name().as_str() == "driver-console"
+            && member.role() == crate::manifest::BuildDeclarationKind::Application
+    }));
+    assert!(evidence.members().iter().any(|member| {
+        member.package_name().as_str() == "driver-protocol"
+            && member.role() == crate::manifest::BuildDeclarationKind::Package
+    }));
 
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);

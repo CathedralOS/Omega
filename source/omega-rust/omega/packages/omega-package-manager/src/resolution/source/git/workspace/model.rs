@@ -1,4 +1,5 @@
 use super::{BuildDeclarationCommitment, GitWorkspaceSelectionError};
+use omega_build_declarations::BuildDeclarationKind;
 use omega_build_declarations::{ProjectName, WorkspaceMemberPath};
 
 /// Authenticated declaration bytes associated with one declared member path.
@@ -93,6 +94,7 @@ impl BuildDeclarationEvidence {
 pub struct GitWorkspaceMemberPlan {
     member_path: WorkspaceMemberPath,
     package_name: ProjectName,
+    role: BuildDeclarationKind,
     declaration: BuildDeclarationEvidence,
 }
 
@@ -100,11 +102,13 @@ impl GitWorkspaceMemberPlan {
     pub(super) fn new(
         member_path: WorkspaceMemberPath,
         package_name: ProjectName,
+        role: BuildDeclarationKind,
         declaration: BuildDeclarationEvidence,
     ) -> Self {
         Self {
             member_path,
             package_name,
+            role,
             declaration,
         }
     }
@@ -115,6 +119,10 @@ impl GitWorkspaceMemberPlan {
 
     pub const fn package_name(&self) -> &ProjectName {
         &self.package_name
+    }
+
+    pub const fn role(&self) -> BuildDeclarationKind {
+        self.role
     }
 
     pub const fn declaration(&self) -> &BuildDeclarationEvidence {

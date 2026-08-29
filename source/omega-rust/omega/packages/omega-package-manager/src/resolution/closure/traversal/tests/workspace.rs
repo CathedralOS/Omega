@@ -50,6 +50,44 @@ fn resolves_explicit_workspace_path_closure() {
 }
 
 #[test]
+fn workspace_project_entry_retains_application_root_role() {
+    let workspace = temp_root("application-workspace");
+    let cache = temp_root("application-workspace-cache");
+    write_application(&workspace.join("projects/console"), "driver-console", None);
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained workspace resolver storage");
+
+    crate::resolution::resolve_workspace_package_closure_with_storage(
+        &fixture_lineage(),
+        SourceRelativePath::parse("projects/console").expect("root member"),
+        &workspace,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect_err("package-only workspace entry rejects an application root");
+    let closure = crate::resolution::resolve_workspace_project_closure_with_storage(
+        &fixture_lineage(),
+        SourceRelativePath::parse("projects/console").expect("root member"),
+        &workspace,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("project workspace entry accepts an application root");
+
+    assert_eq!(
+        closure.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+    assert_eq!(closure.graph().root().name().as_str(), "driver-console");
+
+    drop(storage);
+    let _ = std::fs::remove_dir_all(workspace);
+    let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
 fn resolves_nested_paths_relative_to_each_requester() {
     let workspace = temp_root("nested-workspace");
     let cache = temp_root("nested-cache");
