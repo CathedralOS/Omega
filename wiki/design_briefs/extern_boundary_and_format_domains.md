@@ -369,11 +369,20 @@ resolved owner. This carrier is deliberately non-runnable: it copies no payload
 into an image, applies no procedure or source relocation, and mutates no
 `FinalImage`.
 
-Procedure/source address-fixup application, optional `.gnu.hash`, placement of
-all payloads and fragments into one image, image mutation, and independent
-final-byte replay remain open. Validated semantic tags, absolute geometry,
-applied section-header/`.dynamic` bytes, and the file-envelope fragments still
-grant no loader, publication, or runnable-image authority. An owned
+A following non-runnable procedure-linkage rung copies the retained source
+`.text`, `.plt`, `.got.plt`, and `.rela.plt` fragments and applies every exact
+indexed procedure/source fixup from the absolute load layout. Its typed
+application ledger retains storage, coordinate, encoding kind, semantic target,
+source and target addresses, and encoded field. Independent replay rederives
+each target and encoding, checks range, alignment, mutable masks, fixed opcode
+bits, complete fixup coverage, and every unchanged byte. Rejection returns the
+complete file-envelope owner, and the retained `FinalImage` remains immutable.
+
+Optional `.gnu.hash`, placement of all payloads and fragments into one image,
+image mutation, and independent final-byte replay remain open. Validated
+semantic tags, absolute geometry, applied section-header/`.dynamic` bytes, the
+file-envelope fragments, and resolved procedure-linkage fragments still grant
+no loader, publication, or runnable-image authority. An owned
 direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte

@@ -25,6 +25,7 @@ mod load_layout;
 mod placed_section_headers;
 mod relative_section_layout;
 mod resolved_dynamic_table;
+mod resolved_procedure_linkage;
 mod section_header_bytes;
 mod section_name_table;
 mod section_payload_roster;
@@ -92,6 +93,12 @@ pub use resolved_dynamic_table::{
     ElfAppliedDynamicAddress, ElfDynamicAddressApplicationError, ElfDynamicAddressApplicationKind,
     ElfDynamicAddressApplicationTarget, ValidatedElfResolvedDynamicTable,
     apply_elf_dynamic_address_fixups,
+};
+pub use resolved_procedure_linkage::{
+    ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
+    ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
+    ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage,
+    apply_elf_procedure_linkage_fixups,
 };
 pub use section_header_bytes::{
     ElfSectionHeaderTableSerializationError, ValidatedElfSectionHeaderTableTemplate,
