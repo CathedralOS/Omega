@@ -35,12 +35,14 @@ src/
 |       |-- storage.rs     Private per-user storage and retained cache lanes.
 |       |-- local/         Local snapshot capture and authentication.
 |       |-- git/           Git request, fetch, authentication, and materialization.
+|       |   |-- cache/     Create, authenticate, invalidate, and reuse Git caches.
 |       |   |-- objects/   Authenticate commits, trees, paths, and bounded blobs.
 |       |   |-- snapshot/  Construct, validate, and atomically publish source trees.
 |       |   `-- execution/ Confine Git processes and establish executable custody.
+|       |-- observations/  Issue resolved-source, execution, and accounting records.
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- review/
-|   |-- compiler_review.rs Compile a resolved closure into compiler-issued evidence.
+|   |-- compiler_review/   Compile a closure and retain compiler-issued evidence.
 |   |-- evidence/          Bind compiler output to source and closure commitments.
 |   |-- comparison/        Compare candidate and baseline capabilities.
 |   |   |-- model.rs       Bounded conflict and error vocabulary.
@@ -51,7 +53,7 @@ src/
 |   |   |-- diff.rs        Bound line splitting, diff work, and hunk construction.
 |   |   `-- output.rs      Escape hostile bytes into a bounded output sink.
 |   |-- source_triage.rs   Derive deterministic blockers and audit recommendations.
-|   |-- source_review.rs   Assemble and invoke the advisory-review boundary.
+|   |-- source_review/     Assemble and invoke the advisory-review boundary.
 |   |-- baseline/          Capture and recover review-only comparison baselines.
 |   |   |-- capsule.rs     In-memory baseline packages and capsules.
 |   |   |-- storage.rs     Private rooted record persistence.

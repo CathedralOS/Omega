@@ -24,10 +24,9 @@ closed. Compiler-issued package review remains non-admitting.
 
 - [ ] **PACKAGE-MANAGER-SOURCE-ARCHITECTURE.** Finish replacing the iterative
   monolith layout with a source tree that exposes the package workflow and its
-  trust boundaries. Remaining work is to split the oversized source-review,
-  compiler-review, Git-cache, compiler recovery/ledger, and large behavioral
-  test modules by coherent responsibility; remove the remaining production
-  `use super::*` prelude coupling; and narrow the historical flat facade
+  trust boundaries. Remaining work is to split the large behavioral test
+  modules by coherent responsibility, remove the remaining production
+  `use super::*` prelude coupling, and narrow the historical flat facade
   without changing public behavior.
 
 ## P0 — Source resolver boundary

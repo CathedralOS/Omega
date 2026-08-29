@@ -36,6 +36,17 @@ omega-package-review             # knows compiler semantics, not package policy
 omega-resolver-execution         # knows host confinement, not package identity
 ```
 
+Source-layout rules for this subsystem:
+
+- a crate or responsibility directory has one obvious `README.md`, `lib.rs`, or
+  `mod.rs` entrance;
+- entrance modules map and reexport responsibilities rather than accumulating
+  behavior;
+- child names describe what they own (`identity`, `custody`, `comparison`,
+  `encoding`), and tests live beside the behavior they exercise;
+- production modules import their dependencies explicitly instead of inheriting
+  a parent prelude.
+
 Package-authored source never decides admission, capability classification,
 resolver policy, or accepted lock state. `omega-package-review` produces
 compiler review evidence but cannot admit it. `omega-resolver-execution`
