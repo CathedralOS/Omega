@@ -109,6 +109,9 @@ and no-selection compatibility remain enforced.
 - [x] Move the 800-line pressure-rematerialization fixture suite out of the
   production compute leaf; the exact rule entrance now descends separately to
   compute, identity, model, validation, and tests.
+- [x] Move broad liveness and pre-allocation machine-effect codec fixtures out
+  of production compute/codec leaves while preserving shared typed fixtures
+  for independent validators.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.

@@ -134,7 +134,9 @@ fixtures in separate leaves below its real compute/validate entrance. The
 optimized object-artifact boundary likewise exposes one build/replay entrance
 above separate model, reconstruction, and codec leaves. The preceding
 relocation-free object-container boundary mirrors it and keeps codec tests out
-of production leaves.
+of production leaves. Liveness computation and pre-allocation machine-effect
+encoding also keep their broad fixtures in sibling test leaves, so production
+file size measures production responsibility.
 
 Migration is not complete merely because every file is under the hard ceiling.
 Remaining flat executable-stage leaves are tracked in `TASKS_OPTIMIZER.md` and
