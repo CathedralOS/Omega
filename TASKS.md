@@ -675,11 +675,17 @@ Remaining:
   Independent replay checks target/package/entry identity, row order and
   cardinality, offsets, widths, alignments, exact prefix coverage, and
   deterministic layout identity. This proves `ConOut` at byte 64 and
-  `BootServices` at byte 96 but inspects no occurrence, signature, revision,
-  CRC, or runtime `HeaderSize`, and grants no pointer, provider, lifecycle,
-  root, shell, or execution authority. A later lifecycle-scoped provider must
-  validate the runtime header, including a `HeaderSize` covering the retained
-  prefix, plus occurrence provenance and firmware phase before projecting
+  `BootServices` at byte 96 but itself inspects no occurrence and grants no
+  pointer, provider, lifecycle, root, shell, or execution authority. A
+  separate non-authorizing occurrence gate now consumes that layout and joins
+  it to borrowed bytes only after validating the exact system-table signature,
+  a runtime `HeaderSize` covering the known prefix and no larger than the
+  supplied occurrence, zero `Reserved`, and the UEFI CRC32 over every table
+  byte in the runtime `HeaderSize` extent with the stored CRC field zeroed. It
+  retains revision for later capability-specific policy, accepts CRC-covered
+  forward-compatible suffixes, and deliberately projects no pointer field. A
+  later lifecycle-scoped provider must still join this header-integrity
+  evidence to occurrence provenance and firmware phase before projecting
   services.
 
   **Design-blocked at the next composition edge:** the target declaration does
@@ -691,9 +697,9 @@ Remaining:
 
   Remaining: keep `EfiSystemTable` private beneath lifecycle-scoped providers
   and `EfiImageHandle` as an opaque provenance-bearing input; neither is an
-  `Extent`. Validate an exact runtime table occurrence against the retained
-  native prefix before exposing provider projections. Emit the physical ABI
-  shell, call the exact target-authored
+  `Extent`. Join the validated table-header integrity carrier to exact
+  occurrence provenance and firmware phase before exposing provider
+  projections. Emit the physical ABI shell, call the exact target-authored
   bootstrap adapter, and join physical invocation, provider evidence, semantic
   root positions, continuation, and one installation receipt. Implement a
   target-bounded `GetMemoryMap`/`ExitBootServices` state cycle whose decreasing
