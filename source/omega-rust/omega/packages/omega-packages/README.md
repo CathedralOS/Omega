@@ -34,7 +34,10 @@ src/
 |   |   |-- model.rs       Bounded conflict and error vocabulary.
 |   |   |-- compare.rs     Exact row comparison and closure commitments.
 |   |   `-- format.rs      Fixed review rendering and canonical tags.
-|   |-- source_patch.rs    Produce bounded source changes for human/LLM review.
+|   |-- source_patch/      Produce bounded source changes for human/LLM review.
+|   |   |-- snapshot.rs    Capture and classify resolver-owned snapshots.
+|   |   |-- diff.rs        Bound line splitting, diff work, and hunk construction.
+|   |   `-- output.rs      Escape hostile bytes into a bounded output sink.
 |   |-- source_triage.rs   Derive deterministic blockers and audit recommendations.
 |   |-- source_review.rs   Assemble and invoke the advisory-review boundary.
 |   |-- baseline/          Capture and recover review-only comparison baselines.
