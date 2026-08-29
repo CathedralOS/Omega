@@ -1,6 +1,7 @@
 use omega_machine_optimizer::{
     ValidatedX86XorZeroMaterialization, X86XorZeroMaterializationIdentity,
-    optimize_x86_materialize_i64_zero_with_xor, validate_x86_xor_zero_materialization,
+    optimize_x86_materialize_i64_zero_with_xor, require_post_allocation_machine_rule,
+    validate_x86_xor_zero_materialization,
 };
 use omega_optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
@@ -15,7 +16,7 @@ use crate::{
     validate_optimized_post_allocation_machine_plan_custody,
 };
 
-use super::{OptimizedPostAllocationMachineOptimizationError, require_rule};
+use super::OptimizedPostAllocationMachineOptimizationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedX86XorZeroMaterialization {
@@ -204,7 +205,7 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86XorZeroMaterialization, OptimizedPostAllocationMachineOptimizationError>
 {
-    let phase = require_rule(
+    let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::X86SelectXorZeroI64MaterializationV1,
     )?;
@@ -236,7 +237,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    let phase = require_rule(
+    let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::X86SelectXorZeroI64MaterializationV1,
     )?;

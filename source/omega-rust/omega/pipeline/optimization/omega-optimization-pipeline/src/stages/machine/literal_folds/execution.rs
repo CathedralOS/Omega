@@ -178,10 +178,8 @@ pub fn validate_selected_lowering_optimization_custody(
         .optimized_target()
         .optimized();
     let expected_budget = optimized.budget_per_pass();
-    let projected = run
-        .selections
-        .for_phase(OptimizationExecutionPhase::SelectedLowering);
-    let (expected_schedule, fold_policy) = selected_lowering_contract(&projected)?;
+    let (projected, fold_policy) = selected_lowering_rule_policy(&run.selections)?;
+    let expected_schedule = selected_lowering_schedule(fold_policy);
     if run.selections != *optimized.selections()
         || run.custody.selections != optimized.selections().identity()
         || run.custody.budget != expected_budget

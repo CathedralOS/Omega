@@ -10,13 +10,9 @@ mod input;
 mod model;
 mod routes;
 
-use crate::{
-    ValidatedOptimizedTargetOperations,
-    stages::allocation::recovery_catalog::{
-        AllocationRecoveryRoute, selected_allocation_recovery_route,
-    },
-};
-use omega_optimization_core::OptimizationExecutionPhase;
+use crate::ValidatedOptimizedTargetOperations;
+use omega_optimization_core::{Optimization, OptimizationExecutionPhase};
+use omega_regalloc::selected_allocation_recovery_rule;
 
 pub use error::OptimizedVerifiedPhysicalPipelineError;
 pub(crate) use input::{
@@ -35,10 +31,10 @@ pub(super) fn stage_optimized_verified_physical_pipeline(
     optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
     let selections = optimized_target.optimized().selections();
-    let allocation_recovery = selected_allocation_recovery_route(selections)
+    let allocation_recovery = selected_allocation_recovery_rule(selections)
         .map_err(|_| OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)?;
     if allocation_recovery
-        != Some(AllocationRecoveryRoute::ActiveResidentImmediateRematerialization)
+        != Some(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
     {
         return stage_non_active_resident_rematerialization_physical_pipeline(optimized_target);
     }
