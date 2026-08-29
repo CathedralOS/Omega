@@ -3,7 +3,7 @@ use super::{
     project_signature_operational_source_locations,
     project_signature_service_reach_source_locations,
 };
-use crate::model::{PackageReviewSourceLocationRole, ProjectedNestedSourceLocation};
+use crate::evidence::{PackageReviewSourceLocationRole, ProjectedNestedSourceLocation};
 use crate::projection::evidence::project_nested_declaration_source_location;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

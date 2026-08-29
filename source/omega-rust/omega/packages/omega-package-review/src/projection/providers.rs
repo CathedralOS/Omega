@@ -1,6 +1,6 @@
 use super::exact_identity::*;
 use super::public_api::*;
-use crate::model::*;
+use crate::evidence::*;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;

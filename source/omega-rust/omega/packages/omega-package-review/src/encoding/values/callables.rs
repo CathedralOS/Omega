@@ -2,7 +2,7 @@ use crate::encoding::{
     Encoder, PackageReviewEncodingError, encode_conformance_bound, encode_type_identity,
     encode_type_parameter,
 };
-use crate::model::{
+use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewCallableConformance, PackageReviewCallableRole,
     PackageReviewCheckedServiceReach, PackageReviewExternalBinding,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,

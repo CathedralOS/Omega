@@ -10,7 +10,7 @@ use crate::encoding::values::{
     encode_external_executable_supply_key, encode_nominal, encode_operator_coordinate,
     encode_operator_shape, encode_proposition_shape, encode_provider, encode_provider_family,
 };
-use crate::model::{
+use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRow,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSyntheticSourceKind,

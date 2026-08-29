@@ -2,7 +2,7 @@ use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
-use crate::model::{
+use crate::evidence::{
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionParameterApplication,
 };

@@ -4,7 +4,7 @@ use super::codec::{RecoveryDecoder, RecoveryEncoder, clone_string};
 use super::model::{
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,
     PackageReviewToolchainSourceIdentity,

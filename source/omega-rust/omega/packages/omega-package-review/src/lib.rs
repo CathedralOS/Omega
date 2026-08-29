@@ -3,12 +3,12 @@
 //! Compiler-issued package review evidence.
 //!
 //! The crate root is intentionally only the public entrance: stable review
-//! vocabulary lives in [`model`], compiler-to-review conversion in
+//! vocabulary lives in [`evidence`], compiler-to-review conversion in
 //! [`projection`], and canonical persistence/recovery in [`encoding`]. This is
 //! a review surface, not accepted package admission evidence.
 
 mod encoding;
-mod model;
+mod evidence;
 mod projection;
 
 pub use encoding::{
@@ -27,5 +27,5 @@ pub use encoding::{
     reconstruct_ordinary_package_obligation_ledger, recover_ordinary_package_obligation_ledger,
     validate_ordinary_package_obligation_ledger,
 };
-pub use model::*;
+pub use evidence::*;
 pub use projection::project_checked_package_review;

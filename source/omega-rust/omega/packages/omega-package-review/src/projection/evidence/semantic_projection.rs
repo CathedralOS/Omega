@@ -1,5 +1,5 @@
 use super::super::exact_identity::*;
-use crate::model::*;
+use crate::evidence::*;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

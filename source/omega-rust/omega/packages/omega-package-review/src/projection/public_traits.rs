@@ -2,7 +2,7 @@ use super::contracts::*;
 use super::evidence::*;
 use super::exact_identity::*;
 use super::operational::*;
-use crate::model::*;
+use crate::evidence::*;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

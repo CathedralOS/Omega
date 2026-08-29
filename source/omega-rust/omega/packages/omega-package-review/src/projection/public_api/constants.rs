@@ -1,4 +1,4 @@
-use crate::model::{
+use crate::evidence::{
     PackageReviewConstShape, PackageReviewSourceLocationRole, ProjectedNestedSourceLocation,
     ProjectedReviewRow,
 };

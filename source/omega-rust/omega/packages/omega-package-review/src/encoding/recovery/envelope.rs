@@ -8,7 +8,7 @@ use super::source::{
     decode_location, decode_synthetic_source, encode_location, synthetic_source_tag,
     validate_source,
 };
-use crate::model::{PackageReviewCanonicalRow, PackageReviewCanonicalRowSource};
+use crate::evidence::{PackageReviewCanonicalRow, PackageReviewCanonicalRowSource};
 
 const RECOVERY_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW-RECOVERY\0";
 

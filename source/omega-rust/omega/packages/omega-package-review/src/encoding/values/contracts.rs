@@ -1,5 +1,5 @@
 use crate::encoding::{Encoder, PackageReviewEncodingError, encode_type_identity};
-use crate::model::{
+use crate::evidence::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewPropositionApplication, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence,

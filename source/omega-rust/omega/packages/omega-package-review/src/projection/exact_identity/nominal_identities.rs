@@ -1,4 +1,4 @@
-use crate::model::{
+use crate::evidence::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
 use omega_compiler::CheckedCompilation;

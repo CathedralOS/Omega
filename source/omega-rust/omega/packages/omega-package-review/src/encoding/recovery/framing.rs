@@ -8,7 +8,7 @@ use super::model::{
 use crate::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION, ROW_MAGIC,
 };
-use crate::model::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
+use crate::evidence::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 
 pub(super) struct ParsedCanonicalRow {
     pub(super) package: PackageKeyIdentity,

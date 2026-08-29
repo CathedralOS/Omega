@@ -1,5 +1,5 @@
 use crate::encoding::{Encoder, PackageReviewEncodingError};
-use crate::model::{
+use crate::evidence::{
     PackageReviewCapabilityFlow, PackageReviewInstallationReach, PackageReviewMutation,
     PackageReviewProgressSubject, PackageReviewSynchronousInvocation, PackageReviewTermination,
 };

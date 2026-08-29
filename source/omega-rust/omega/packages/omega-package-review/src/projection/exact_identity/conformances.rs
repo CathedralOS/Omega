@@ -5,7 +5,7 @@ use super::{
     lifetime_binder_ordinal, nominal_identity, review_signature_type_identity_with_binders,
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
 };
-use crate::model::{
+use crate::evidence::{
     PackageReviewConformanceBound, PackageReviewContractStaticArgument,
     PackageReviewNominalIdentity, PackageReviewTypeIdentity,
 };

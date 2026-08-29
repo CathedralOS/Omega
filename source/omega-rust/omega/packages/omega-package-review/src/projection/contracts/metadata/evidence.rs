@@ -1,5 +1,5 @@
 use super::ContractProjectionContext;
-use crate::model::{
+use crate::evidence::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
 };
 use crate::projection::contracts::portable_parameter_position;
