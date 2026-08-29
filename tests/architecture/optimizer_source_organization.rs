@@ -219,23 +219,23 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn built_in_psi_registries",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
         coordination_marker: "pub fn selected_allocation_recovery_rule",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/mod.rs",
         coordination_marker: "pub fn resolve_selected_lowering_rules",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold/mod.rs",
         coordination_marker: "compute::compute_terminal_literal_fold(",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/compute/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold/compute/mod.rs",
         coordination_marker: "derive_function_folds(selected, recovery, &rows)",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/validate/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold/validate/mod.rs",
         coordination_marker: "reconstruct_literal_fold(selected, recovery, &rows)",
     },
     RequiredCoordinationEntrance {
@@ -247,7 +247,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_x86_branch_relaxation",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/pressure_rematerialization/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/pressure_rematerialization/mod.rs",
         coordination_marker: "pub fn rematerialize_selected_active_resident",
     },
     RequiredCoordinationEntrance {
@@ -538,11 +538,11 @@ const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
         order_marker: "LEGALIZATION_FORMS",
     },
     RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/catalog.rs",
         order_marker: "ALLOCATION_RECOVERY_RULE_CATALOG",
     },
     RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/catalog.rs",
         order_marker: "SELECTED_LOWERING_RULE_CATALOG",
     },
     RequiredRuleCatalog {
