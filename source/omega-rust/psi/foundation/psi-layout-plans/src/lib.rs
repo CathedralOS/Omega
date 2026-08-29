@@ -233,6 +233,79 @@ pub fn normalized_conventional_sum_layout_fingerprint(layout: &ConventionalSumLa
     if hash == 0 { 1 } else { hash }
 }
 
+/// Exact, hash-free equality for replaying one retained conventional sum
+/// report. Numbered case and payload names are presentation-only; authored
+/// case ordinals and every geometry field remain identity-bearing.
+pub fn conventional_sum_layout_reports_match_for_replay(
+    current: &ConventionalSumLayoutReport,
+    retained: &ConventionalSumLayoutReport,
+) -> bool {
+    if !conventional_sum_member_identities_are_unambiguous(current)
+        || !conventional_sum_member_identities_are_unambiguous(retained)
+        || current.schema_identity != retained.schema_identity
+        || current.tag_offset != retained.tag_offset
+        || current.tag_size != retained.tag_size
+        || current.tag_align != retained.tag_align
+        || current.size != retained.size
+        || current.align != retained.align
+        || current.cases.len() != retained.cases.len()
+    {
+        return false;
+    }
+
+    current
+        .cases
+        .iter()
+        .zip(&retained.cases)
+        .all(|(current_case, retained_case)| {
+            current_case.member_identity == retained_case.member_identity
+                && (current_case.member_identity.is_some()
+                    || current_case.case == retained_case.case)
+                && current_case.ordinal == retained_case.ordinal
+                && current_case.payload_fields.len() == retained_case.payload_fields.len()
+                && current_case
+                    .payload_fields
+                    .iter()
+                    .zip(&retained_case.payload_fields)
+                    .all(|(current_field, retained_field)| {
+                        current_field.member_identity == retained_field.member_identity
+                            && (current_field.member_identity.is_some()
+                                || current_field.field == retained_field.field)
+                            && current_field.offset == retained_field.offset
+                            && current_field.size == retained_field.size
+                            && current_field.align == retained_field.align
+                    })
+        })
+}
+
+fn conventional_sum_member_identities_are_unambiguous(
+    layout: &ConventionalSumLayoutReport,
+) -> bool {
+    for (index, case) in layout.cases.iter().enumerate() {
+        if layout.cases[..index]
+            .iter()
+            .any(|prior| match case.member_identity {
+                Some(identity) => prior.member_identity == Some(identity),
+                None => prior.member_identity.is_none() && prior.case == case.case,
+            })
+        {
+            return false;
+        }
+        for (field_index, field) in case.payload_fields.iter().enumerate() {
+            if case.payload_fields[..field_index]
+                .iter()
+                .any(|prior| match field.member_identity {
+                    Some(identity) => prior.member_identity == Some(identity),
+                    None => prior.member_identity.is_none() && prior.field == field.field,
+                })
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 fn hash_optional_member_identity(hash: &mut u64, identity: Option<u64>, name: &str) {
     match identity {
         Some(identity) => {

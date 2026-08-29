@@ -9939,7 +9939,9 @@ checked-result arithmetic decision listed below.
   identity and target-independent geometry, then walks and writes only the
   selected payload into zero-initialized staging. The carrier retains selected
   case identity/ordinal, exact layout and fingerprint, byte order, bytes, and
-  deterministic identity; replay and short-copy failure are atomic. This does
+  deterministic identity; replay uses hash-free semantic-member equality, so
+  stable-numbered case/payload renames are presentation-only while ordinals and
+  geometry remain exact, and replay or short-copy failure is atomic. This does
   not extend programmable `Layout` with tagged case placement. Mixed
   common-field/case shapes, records or arrays containing sums, target-dependent
   inactive-case geometry, generic/opaque/quotient records, references, slices,

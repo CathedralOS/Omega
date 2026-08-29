@@ -3,7 +3,8 @@
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
     ByteOrder, ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
-    MaterializationDiagnostic, normalized_conventional_sum_layout_fingerprint,
+    MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
+    normalized_conventional_sum_layout_fingerprint,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember, DataShapeKind, DataVariant};
@@ -102,7 +103,9 @@ impl ValidatedConstSumMaterialization {
             ));
         }
         let fingerprint = normalized_conventional_sum_layout_fingerprint(layout);
-        if fingerprint != self.layout_fingerprint || layout != &self.layout {
+        if fingerprint != self.layout_fingerprint
+            || !conventional_sum_layout_reports_match_for_replay(layout, &self.layout)
+        {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable conventional sum layout drifted from retained custody".into(),
             ));

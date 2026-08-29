@@ -126,6 +126,64 @@ fn conventional_sum_identity_binds_ordinals_geometry_and_unnumbered_names() {
 }
 
 #[test]
+fn conventional_sum_replay_uses_numbered_identity_and_exact_geometry() {
+    let original = ConventionalSumLayoutReport {
+        schema_identity: 7,
+        tag_offset: 0,
+        tag_size: 4,
+        tag_align: 4,
+        cases: vec![ConventionalSumCaseLayoutReport {
+            case: "Ready".into(),
+            member_identity: Some(41),
+            ordinal: 0,
+            payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+                field: "value".into(),
+                member_identity: Some(52),
+                offset: 4,
+                size: 4,
+                align: 4,
+            }],
+        }],
+        size: 8,
+        align: 4,
+    };
+    let mut renamed = original.clone();
+    renamed.cases[0].case = "Available".into();
+    renamed.cases[0].payload_fields[0].field = "payload".into();
+    assert!(conventional_sum_layout_reports_match_for_replay(
+        &original, &renamed
+    ));
+
+    let mut shifted = renamed.clone();
+    shifted.cases[0].payload_fields[0].offset = 8;
+    assert!(!conventional_sum_layout_reports_match_for_replay(
+        &original, &shifted
+    ));
+
+    let mut changed_ordinal = renamed.clone();
+    changed_ordinal.cases[0].ordinal = 1;
+    assert!(!conventional_sum_layout_reports_match_for_replay(
+        &original,
+        &changed_ordinal
+    ));
+
+    let mut unnumbered = original.clone();
+    unnumbered.cases[0].member_identity = None;
+    let mut renamed_unnumbered = unnumbered.clone();
+    renamed_unnumbered.cases[0].case = "Available".into();
+    assert!(!conventional_sum_layout_reports_match_for_replay(
+        &unnumbered,
+        &renamed_unnumbered
+    ));
+
+    let mut aliased = original.clone();
+    aliased.cases.push(aliased.cases[0].clone());
+    assert!(!conventional_sum_layout_reports_match_for_replay(
+        &aliased, &aliased
+    ));
+}
+
+#[test]
 fn stable_member_identity_makes_source_rename_presentation_only() {
     let mut original = split_layout();
     original.schema_identity = 0x44;
