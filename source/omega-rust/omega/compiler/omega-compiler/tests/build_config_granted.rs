@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 34);
+    assert_eq!(checked_observations.schema_version(), 35);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3952,6 +3952,83 @@ fn output_sync_operations_replay_in_authored_order() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "synced-output-review"));
+}
+
+#[test]
+fn output_set_len_replays_exact_truncation() {
+    let (project, profile) = rooted_build_probe_project(
+        "resized-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("resized.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data SetLen {}\ngarbage");
+    self.code = self.filesystem.set_len(self.descriptor, 15);
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "resized-output-review")
+            .expect("successful Output set_len should receipt");
+    let summary = checked.build_observation_summary().unwrap();
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 41, 8]
+    );
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("resized.omg"))
+            .unwrap()
+            .source
+            .as_ref(),
+        "data SetLen {}\n"
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .unwrap(),
+        record
+    );
+    let package = PackageKeyIdentity::from_digest([105; 32]).unwrap();
+    set_canonical_source_tree_permissions(&project, true);
+    let source = PackageSourceBinding::new(package, "resized-output", project.clone())
+        .with_canonical_source_metadata()
+        .unwrap();
+    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    std::fs::write(
+        rooted_build_session(&project, "resized-output-review").join("output/resized.omg"),
+        "data Spoofed {}\n",
+    )
+    .unwrap();
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("set_len replay ignores physical Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("resized.omg") && source.source.as_ref() == "data SetLen {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "resized-output-review"));
 }
 
 #[test]
