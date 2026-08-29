@@ -79,8 +79,10 @@ The committed tree predates D11 in three important places:
 
 These mismatches are migration work, not alternate accepted architectures. A
 legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its
-direct adaptation into a canonical edge. Otherwise it is deleted; Git history
-is the archive.
+direct adaptation into a canonical edge, canonical owner, and deletion
+condition. Otherwise it has negative value: it enlarges the audit surface,
+creates false architectural choices, and consumes maintenance and test time.
+Delete it; Git history is the archive.
 
 ## Artifact rule
 
@@ -110,6 +112,10 @@ compiler rather than Beta, Gamma, or Delta.
   Alpha tape without invoking an older compiler or semantic host script.
 - The artifact being admitted owns its validation. Evidence stays adjacent to
   that artifact; there is no generic evidence archive.
+- Optional comparators, fuzzers, and corpora must name the exact edge property
+  and failure class they exercise. They are deleted when they duplicate a
+  cheaper gate or cease to exercise the canonical subject. “Diagnostic” is not
+  a permanent ownership category.
 - `source/alpha/checker/` owns the universal derivation checker. It is beside
   compiler edges, not another rung.
 - `source/psi/` owns target-neutral processing inside the Omega product

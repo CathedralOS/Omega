@@ -124,6 +124,17 @@ report diagnostics. It may not discover source closure, parse or lower accepted
 source, manufacture evidence, or make a trust decision. Deleting or rewriting a
 runner may change ergonomics; it must not change chain meaning.
 
+## The repository is the chain, not its history
+
+Owned machinery outside the direct chain is a liability even when it is
+technically functional. It increases the code and proof surface that must be
+understood, gives obsolete architectures apparent legitimacy, and taxes every
+future change with irrelevant tests. Retention therefore requires a current
+canonical owner, an exact edge property, and a cheaper-than-replacement way to
+detect a named failure. Migration code additionally requires a deletion
+condition. Code that cannot meet those requirements is removed rather than
+parked, generalized, or preserved as an alternate route.
+
 ## Owner escalation criteria
 
 Work stops for an owner ruling when implementation pressure indicates that the
@@ -162,8 +173,8 @@ The ordered work is in
 - turn the Beta-written Gamma implementation into the compiler artifact needed
   to consume Gamma and emit Alpha tape;
 - implement the Delta compiler in Gamma;
-- move/recast the existing Delta-written compiler work as the first Omega
-  compiler source closure `D`;
+- author the first Omega compiler source closure `D` in Delta under Omega
+  ownership, using historical prototypes only as Git-resident reference;
 - build `omega₀.tape` from `D`; and
 - compile `C` with `omega₀` into `omega.tape`.
 

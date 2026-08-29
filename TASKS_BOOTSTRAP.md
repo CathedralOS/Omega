@@ -25,10 +25,15 @@ queue.
 
 ## Retention and deletion policy
 
-Owned code remains only when it directly specifies, implements, proves, or
-efficiently tests one canonical edge. A retained migration component must have
-a named adaptation below. If adaptation fails or ceases to be economical,
-delete it. Git history is the archive; the repository is not.
+Repository-owned material starts with a maintenance liability, not a
+presumption that keeping it is harmless. It remains only when it directly
+specifies, implements, proves, or efficiently tests one canonical edge. A
+retained migration component must have a named adaptation below, a canonical
+owner, and a deletion condition. “Potentially useful,” historical continuity,
+and the cost already spent are not retention arguments. If direct adaptation
+fails, becomes uneconomical, or leaves a parallel source of truth, delete the
+component. Git history is the archive; the working repository is exclusively
+the implementation of the agreed chain.
 
 - [x] Delete the Beta-written Delta-to-Gamma translator, its host encoders and
   decoder, and the entire Darwin-native Delta publication/custody apparatus.
@@ -74,7 +79,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha-written Beta compiler | `cold-start/bc-alpha.alpha`, construction tests, tape machinery | promote one general Alpha implementation and prove its source-to-tape edge |
 | Beta-written Gamma compiler | `interp.beta`, `typeck.beta`, Gamma semantics/tests | standalone Gamma-to-Alpha compiler tape and refinement |
 | Gamma-written Delta compiler | Delta contract and test corpus | compiler source, tape, and refinement |
-| `D → omega₀` | partial Delta-written compiler work | correctly owned complete `D`, full Omega acceptance, tape, and refinement |
+| `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
 ## 0. Make the repository tell the truth
@@ -96,6 +101,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
   executable from beyond its immediate successor.
+- [ ] Make retention mechanically auditable: every non-specification subtree
+  under the six canonical owners must name its canonical edge and bounded
+  failure-detection or proof role in the adjacent README. Delete unowned
+  wrappers, comparators, corpora, reports, and generators; do not create an
+  indefinite “diagnostic” exemption.
 - [x] Make every rung/compiler README distinguish the language accepted by a compiler from
   the language in which it is implemented. The source suffix names the latter;
   the owner directory names the former. The Alpha/Beta/Gamma/Delta/Omega roots,
@@ -140,9 +150,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     direct Alpha tape emission inside the compiler. The Alpha assembler may
     construct the compiler artifact, but it cannot remain a semantic stage when
     the compiler processes Beta input.
-  - [ ] Enforce Beta definite initialization across state/transition CFGs; a
-    source-order symbol-table pass alone does not prove initialization on every
-    path.
+  - [ ] **DESIGN-BLOCKED — Q18:** Enforce Beta definite initialization across
+    state/transition CFGs after fixing the flat-block formation and guarded-edge
+    well-formedness rules. A source-order symbol-table pass alone does not prove
+    initialization on every path; the byte-vector must-analysis and bounded
+    table/worklist layout are otherwise fully specified implementation work.
   - [ ] Separate source-visible raw Beta memory from generated frame/expression
     stacks and bind the call/stack profile that proves non-aliasing.
   - [ ] Project malformed source and each private capacity failure to exact,
@@ -158,9 +170,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   The retained surface is the generic artifact-structure check, generic FOL
   trace seam, stress/refinement harness, and bounded fixed-point comparator;
   about 65,000 source-specific lines and their wrapper scripts were removed.
-- [ ] Retain `bc.beta` only as a bounded independent Beta compiler comparison
-  and Beta-language regression subject. If it does not expose failures not
-  covered more cheaply, delete it and its fixed-point gate.
+- [ ] Retain `bc.beta` only long enough to run a bounded, measured comparison
+  against the promoted Alpha compiler. Record the distinct failures it exposes
+  or delete it, its fixed-point artifact, and its gate. Reproduction by itself
+  is not a continuing role.
 - [ ] Close exact Alpha-source-to-Alpha-tape refinement with termination, trap,
   resource exhaustion, output, and divergence observations. Ordinary checked
   first-order simulation and well-founded stuttering remain the selected proof
@@ -168,11 +181,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Beta-written Gamma compiler
 
-- [ ] **DESIGN-BLOCKED — Q19: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
+- [ ] **DESIGN-BLOCKED — Q17: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
   implement `source/gamma/compiler/gamma_compiler.beta` as a standalone
   compiler from Gamma source to Alpha tape. It may reuse or reorganize
   `interp.beta` and `typeck.beta`; no external interpreter may remain part of
-  compilation. Q19 must first select one typed executable grammar, entry/stream
+  compilation. Q17 must first select one typed executable grammar, entry/stream
   ABI, outcome model, and fuel/resource meaning. The current interpreter and
   type checker implement disconnected untyped-executable and typed-nonexecuting
   languages, so choosing either in code would invent Gamma semantics.
@@ -185,14 +198,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Gamma-written Delta compiler
 
-- [ ] **DESIGN-BLOCKED — Q18: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
+- [ ] **DESIGN-BLOCKED — Q16: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
   semantics, deterministic execution model, sealed byte I/O contract, and
   resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling. Q18
+  language; it does not inherit Omega meaning merely by sharing spelling. Q16
   must close the contradictory `Incomplete` placement, exact reject/trap
   taxonomy, keyword policy, optional domains/contracts, builtin resolution,
   Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — Q18: BUILD-DELTA-COMPILER.** Implement
+- [ ] **DESIGN-BLOCKED — Q16: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
@@ -203,7 +216,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
     removed Darwin-native route rather than authoritative Delta observations.
   - [ ] Classify `contextual-state-identifiers.delta`, `fieldsat.delta`, the
-    range/contracts portion of `discharge.delta`, and `calls.delta` after Q18.
+    range/contracts portion of `discharge.delta`, and `calls.delta` after Q16.
     They currently contradict the written keyword/domain/result/builtin rules.
 - [ ] Check exact Gamma-source-to-Alpha-tape refinement, including realistic
   source closures large enough to compile `D`.
@@ -213,7 +226,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] **OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
   `source/omega/omega_compiler.delta`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of Q18. The deleted prototype remains available in Git for selectively
+  of Q16. The deleted prototype remains available in Git for selectively
   re-deriving an isolated algorithm, but it cannot be restored or copied as a
   compiler-shaped starting point.
 - [ ] Make `D` implement the complete Omega specification, including difficult

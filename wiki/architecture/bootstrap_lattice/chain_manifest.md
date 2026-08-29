@@ -24,10 +24,12 @@ Repository-owned code and evidence must directly do at least one of these:
 3. prove or reconstruct that compiler's exact source-to-tape edge; or
 4. exercise a focused semantic or performance property of that edge.
 
-Anything that cannot be adapted into one of those roles is removed. Git history
-is the archive. In particular, a lower rung parsing past its successor, a host
-script supplying compiler semantics, a native compiler artifact above Alpha,
-or a receipt ceremony without a semantic edge has negative maintenance value.
+Anything that cannot be adapted into one of those roles is removed. Retention
+is not neutral: every extra component enlarges the audit surface, consumes test
+time, and obscures the single supported architecture. Git history is the
+archive. In particular, a lower rung parsing past its successor, a host script
+supplying compiler semantics, a native compiler artifact above Alpha, or a
+receipt ceremony without a semantic edge has negative maintenance value.
 
 ## Required obligations
 
@@ -37,7 +39,7 @@ or a receipt ceremony without a semantic edge has negative maintenance value.
 | Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | Alpha cold compiler exists but must be promoted, named, and admitted as the canonical implementation |
 | Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | interpreter and type-checker components exist; standalone compiler-to-tape edge is open |
 | Delta compiler | Gamma | exact Gamma source refines the exact Delta-compiler tape | open |
-| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | partial Delta-written compiler work exists under the wrong owner; edge is open |
+| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | `D` is not yet authored; the obsolete native prototype was deleted |
 | `omega` | Omega closure `C` | exact `C`, compiled by `omega₀`, refines a full Omega compiler represented as Alpha tape | product source is incomplete; edge is open |
 
 No later fixed point repairs an open earlier row. Every row must stand on its
@@ -78,13 +80,15 @@ The former Beta-written Delta-to-Gamma bridge and Darwin-native publication
 apparatus are deleted. They crossed an immediate-predecessor boundary and
 created a noncanonical compiler identity; no successor task may recreate them.
 
-## Diagnostic-only evidence
+## Conditional diagnostics
 
 Fixed-point reproduction, Rust agreement, multiple VM agreement, fuzzing,
 viewers, timing reports, native-container reproduction, and repeated executions
 may be useful. None can replace or add a premise to the six required obligations
-above. A diagnostic remains only while it has a named owner, bounded cost, and a
-specific failure it can reveal.
+above. A diagnostic remains only while it has a canonical owner, bounded cost,
+a specific failure it reveals on the current canonical subject, and a deletion
+condition. Duplicate coverage, historical interest, or hypothetical future use
+requires deletion rather than indefinite retention.
 
 ## Owner escalation
 
