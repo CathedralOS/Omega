@@ -1,16 +1,34 @@
 use super::leaves::{derive_leaf, exact_edge_fuel, source_operations};
 use super::matchers::match_scalar_form;
 use super::shared::*;
+use crate::legalization::catalog::{
+    LegalizationFormDescriptor, LegalizationFormRecipe, LegalizationShapeConstraints,
+};
 
 pub(super) fn derive_source_unit_function(
     function: usize,
     target: &omega_target_operations::TargetFunction,
     abstracted: &omega_abstract_operations::AbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    form: &'static LegalizationFormDescriptor,
 ) -> Result<SourceUnitFunction, LegalizationError> {
+    let (LegalizationFormRecipe::Unit(recipe), LegalizationShapeConstraints::Unit(constraints)) =
+        (form.recipe, form.constraints)
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
     let TargetOperation::UnitBody(body) = &target.operation else {
         return Err(Error::UnsupportedSourceShape { function });
     };
+    if abstracted.block_entries.len() != constraints.block_count
+        || optimized.blocks.len() != constraints.block_count
+        || body.operations.len() != constraints.operation_count
+        || abstracted.operations.len() != constraints.operation_count
+        || abstracted.parameters.len() != constraints.scalar_parameter_count
+        || optimized.parameters.len() != constraints.scalar_parameter_count
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
     let [target_return] = body.operations.as_slice() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
@@ -33,6 +51,9 @@ pub(super) fn derive_source_unit_function(
     let [optimized_return] = optimized_block.nodes.as_slice() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
+    if optimized_block.nodes.len() != constraints.node_count {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
@@ -70,6 +91,7 @@ pub(super) fn derive_source_unit_function(
         machine: target.machine,
         attachment: target.attachment,
         provenance: target.provenance.clone(),
+        recipe,
         entry_block: optimized_block.id,
         return_edge: *psi_edge,
         return_fuel: optimized_return.fuel.clone(),
@@ -124,7 +146,9 @@ pub(super) fn derive_source_function(
     }
     let form = match_scalar_form(when_true.control.as_ref(), when_false.control.as_ref())
         .ok_or(Error::UnsupportedSourceShape { function })?;
-    let constraints = form.constraints;
+    let LegalizationShapeConstraints::Scalar(constraints) = form.constraints else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
     if abstracted.operations.len() != constraints.operation_count
         || abstracted.parameters.len() != constraints.parameter_count
         || optimized.parameters.len() != constraints.parameter_count
@@ -254,7 +278,10 @@ pub(super) fn derive_source_function(
         machine: target.machine,
         attachment: target.attachment,
         provenance: target.provenance.clone(),
-        recipe: form.recipe,
+        recipe: match form.recipe {
+            LegalizationFormRecipe::Scalar(recipe) => recipe,
+            _ => return Err(Error::UnsupportedSourceShape { function }),
+        },
         condition_source: *condition_source,
         condition_parameter_index: *condition_parameter_index,
         condition_register: *condition_register,

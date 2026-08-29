@@ -164,6 +164,19 @@ fn selected_structural_legalized_identity(
                 machine: function.machine,
                 attachment: function.attachment,
                 provenance: function.provenance.clone(),
+                recipe: if !function.boundary_settlements.is_empty() {
+                    omega_legalized_operations::StructuralUnitLegalizationRecipe::ClaimCompletionSettlementsThenReturnUnitV1
+                } else {
+                    match function.call.as_ref().map(|call| &call.source) {
+                        Some(omega_legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit) => {
+                            omega_legalized_operations::StructuralUnitLegalizationRecipe::AuthoredCallThenReturnUnitV1
+                        }
+                        Some(omega_legalized_operations::LegalizedCallUnitSource::InstalledProvider { .. }) => {
+                            omega_legalized_operations::StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1
+                        }
+                        None => omega_legalized_operations::StructuralUnitLegalizationRecipe::ReturnUnitV1,
+                    }
+                },
                 structural_types: function.structural_types.clone(),
                 call_plan: function.abi.call_plan.clone(),
                 parameters: function

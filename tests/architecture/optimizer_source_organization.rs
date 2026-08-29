@@ -29,6 +29,7 @@ const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[];
 /// fail this test rather than shrinking its jurisdiction.
 const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization",
+    "source/omega-rust/omega/representations/omega-legalized-operations",
     "source/omega-rust/omega/representations/omega-optimization-core",
     "source/omega-rust/omega/representations/omega-optimization-unit",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
@@ -52,16 +53,6 @@ struct EntranceException {
 /// or returns to 100 lines or fewer. Ceilings may never exceed the hard
 /// 200-line entrance limit.
 const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[
-    EntranceException {
-        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
-        ceiling: 120,
-        semantic_reason: "owns whole-plan independent replay across scalar, Unit, and structural Unit function families",
-    },
-    EntranceException {
-        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/mod.rs",
-        ceiling: 160,
-        semantic_reason: "owns the three canonical source-projection rosters and their shared custody preflight",
-    },
     EntranceException {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/mod.rs",
         ceiling: 140,
@@ -173,12 +164,32 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn legalize_target_operations",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/mod.rs",
+        coordination_marker: "pub(crate) fn derive_source_function_rosters",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/structural/mod.rs",
+        coordination_marker: "pub(super) fn derive_source_structural_unit_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
+        coordination_marker: "pub(crate) fn replay_terminal_legalized_plan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/structural/mod.rs",
+        coordination_marker: "pub(super) fn replay_structural_unit_function",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/mod.rs",
         coordination_marker: "pub(super) fn replay_leaf",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/mod.rs",
         coordination_marker: "pub fn select_instructions",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/structural_unit/mod.rs",
+        coordination_marker: "pub(super) fn reconstruct_structural_unit_contract",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/mod.rs",
@@ -441,7 +452,7 @@ struct RequiredRuleCatalog {
 const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",
-        order_marker: "SCALAR_LEGALIZATION_FORMS",
+        order_marker: "LEGALIZATION_FORMS",
     },
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
@@ -770,6 +781,53 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
                     catalog.path
                 ));
             }
+        }
+    }
+
+    let legalization_root = repository.join(
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization",
+    );
+    let mut legalization_files = Vec::new();
+    match collect_rust_files(&legalization_root, &mut legalization_files) {
+        Ok(()) => {
+            let mut catalog_declarations = Vec::new();
+            for file in legalization_files {
+                let Ok(relative) = repository_relative_path(&repository, &file) else {
+                    continue;
+                };
+                let contents = match fs::read_to_string(&file) {
+                    Ok(contents) => contents,
+                    Err(error) => {
+                        violations.insert(format!("cannot read {relative}: {error}"));
+                        continue;
+                    }
+                };
+                for _ in contents.match_indices("const LEGALIZATION_FORMS") {
+                    catalog_declarations.push(relative.clone());
+                }
+                for superseded in [
+                    "const SCALAR_LEGALIZATION_FORMS",
+                    "const UNIT_LEGALIZATION_FORMS",
+                    "const STRUCTURAL_UNIT_LEGALIZATION_FORMS",
+                ] {
+                    if contents.contains(superseded) {
+                        violations.insert(format!(
+                            "legalization retains superseded alternate catalog `{superseded}` in {relative}"
+                        ));
+                    }
+                }
+            }
+            let expected = ["source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs".to_string()];
+            if catalog_declarations != expected {
+                violations.insert(format!(
+                    "legalization must declare exactly one `LEGALIZATION_FORMS` catalog in catalog.rs; found {catalog_declarations:?}"
+                ));
+            }
+        }
+        Err(error) => {
+            violations.insert(format!(
+                "failed to inventory legalization catalogs: {error}"
+            ));
         }
     }
 

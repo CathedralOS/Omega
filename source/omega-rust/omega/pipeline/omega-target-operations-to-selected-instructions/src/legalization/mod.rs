@@ -1,6 +1,6 @@
 //! Mandatory target legalization: construct the canonical plan, then replay it independently.
 //!
-//! Start with `catalog` for admitted scalar forms, descend into `source` for
+//! Start with `catalog` for every admitted form, descend into `source` for
 //! producer projection, and into `replay` for independent acceptance.
 
 mod catalog;
@@ -21,9 +21,7 @@ use omega_optimization_unit::PsiOptimizationUnit;
 use omega_target_operations::{TargetOperation, TargetOperationPlan};
 
 use replay::replay_terminal_legalized_plan;
-use source::{
-    derive_source_functions, derive_source_structural_unit_functions, derive_source_unit_functions,
-};
+use source::derive_source_function_rosters;
 
 pub fn legalize_target_operations(
     target: &TargetOperationPlan,
@@ -31,24 +29,21 @@ pub fn legalize_target_operations(
     unit: &PsiOptimizationUnit,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     reject_ranked_countdown(target)?;
+    let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
         entry: target.entry,
-        functions: derive_source_functions(target, abstract_plan, unit)?,
-        unit_functions: derive_source_unit_functions(target, abstract_plan, unit)?,
-        structural_unit_functions: derive_source_structural_unit_functions(
-            target,
-            abstract_plan,
-            unit,
-        )?,
+        functions: rosters.functions,
+        unit_functions: rosters.unit_functions,
+        structural_unit_functions: rosters.structural_unit_functions,
     };
     validate_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V8 projection from the raw target,
+/// Independently replay the exact admitted V9 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_legalized_operations(

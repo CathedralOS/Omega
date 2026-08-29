@@ -1,7 +1,10 @@
 use super::leaf::{replay_edge_fuel, replay_leaf};
 use super::shared::*;
-use super::validators::validator_accepts;
-use crate::legalization::catalog::scalar_form_for_recipe;
+use super::validators::{scalar_validator_accepts, validate_unit_form};
+use crate::legalization::catalog::{
+    LegalizationFormRecipe, LegalizationShapeConstraints, LegalizationValidatorKind,
+    legalization_form_for_recipe,
+};
 
 pub(super) fn replay_unit_function(
     function: usize,
@@ -10,6 +13,8 @@ pub(super) fn replay_unit_function(
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
     proposed: &LegalizedUnitFunction,
 ) -> Result<usize, LegalizationError> {
+    validate_unit_form(target, abstracted, optimized, proposed.recipe)
+        .ok_or(Error::NonCanonicalLegalizedPlan)?;
     let TargetOperation::UnitBody(body) = &target.operation else {
         return Err(Error::UnsupportedSourceShape { function });
     };
@@ -141,16 +146,22 @@ pub(super) fn replay_function(
         return Err(Error::SourceCustodyMismatch);
     }
 
-    let form = scalar_form_for_recipe(proposed.recipe).ok_or(Error::NonCanonicalLegalizedPlan)?;
-    if !validator_accepts(
-        form.validator,
+    let form = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(proposed.recipe))
+        .ok_or(Error::NonCanonicalLegalizedPlan)?;
+    let LegalizationValidatorKind::Scalar(validator) = form.validator else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    if !scalar_validator_accepts(
+        validator,
         when_true.control.as_ref(),
         when_false.control.as_ref(),
     ) {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
-    let constraints = form.constraints;
+    let LegalizationShapeConstraints::Scalar(constraints) = form.constraints else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
     if abstracted.operations.len() != constraints.operation_count
         || abstracted.parameters.len() != constraints.parameter_count
         || optimized.parameters.len() != constraints.parameter_count

@@ -77,7 +77,7 @@ fn build_unit_function(
     })
 }
 
-pub(in crate::selection) fn structural_unit_layout(
+fn structural_unit_layout(
     function: usize,
     source: &SourceStructuralUnitFunction,
 ) -> Result<SelectedMicrosoftX64OwnedIndirectPairLayout, SelectedInstructionError> {
@@ -193,7 +193,7 @@ fn is_extent_structural_type(source: &SourceStructuralUnitFunction) -> bool {
     )
 }
 
-pub(in crate::selection) fn structural_call_row(
+fn structural_call_row(
     function: usize,
     keys: SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,

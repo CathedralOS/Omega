@@ -83,7 +83,7 @@ The current source-visible rule paths are:
 
 | Phase | Entrance | Catalog | Next rung |
 |---|---|---|---|
-| Mandatory scalar legalization | `omega-target-operations-to-selected-instructions/src/legalization/mod.rs` | adjacent `catalog.rs` | independent `source/matchers.rs` and `replay/validators.rs` |
+| Mandatory legalization | `omega-target-operations-to-selected-instructions/src/legalization/mod.rs` | adjacent `catalog.rs` | separate `source/` producer and `replay/` validator taxonomies |
 | Psi | `omega-psi-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/passes/<exact-pass>/catalog.rs` |
 | Selected lowering and allocation recovery | `omega-regalloc/src/rules/mod.rs` | `rules/catalog.rs` | `rules/{literal_fold,fixed_view_copy,pressure_rematerialization}/` |
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
@@ -145,21 +145,35 @@ preludes, so swapped name-to-counter mappings fail.
 
 The mandatory target-legalization and instruction-selection crate is now a
 governed reference slice as well. Its crate map points to a 66-line
-legalization join and a 30-line selection join. Legal source construction and
-independent replay each descend into structural, scalar-function, and
-leaf-expression families; selected-plan construction and validation descend
-separately through constraints, roster construction, function/block/register
-checks, integrity replay, and canonical identity. Leaf replay has a 95-line
-source-custody/return-sealing entrance over exhaustive recipe dispatch,
+legalization join and a 30-line selection join. The 92-line source entrance
+owns one target-function roster loop; the 94-line replay entrance owns its
+independent whole-plan comparison. Each descends through scalar, plain Unit,
+and structural-Unit leaves, with meaningful 90-line producer and 47-line replay
+entrances for the structural family. Selected-plan construction and validation
+descend separately through constraints, roster construction,
+function/block/register checks, integrity replay, and canonical identity.
+Structural-Unit validation independently reconstructs its ABI layout and call
+constraint instead of importing producer construction. Leaf replay has a
+95-line source-custody/return-sealing entrance over exhaustive recipe dispatch,
 exact-arithmetic validation, immediate validation, and fuel replay. The former
 1,022-line replay catch-all is gone, and no replacement exceeds 464 lines.
 
-The scalar legalization family also carries the Squalr-style registry shape
-directly: one adjacent seven-row catalog owns precedence, recipe, shape, and
-planning-cost data; producer matching and independent validation are separate
-named leaves. Costs are descriptive and cannot participate in legality. The
-architecture gate requires the catalog and prevents replay from reaching the
-producer matcher.
+Mandatory legalization carries the Squalr-style registry shape directly: one
+adjacent twelve-row `LEGALIZATION_FORMS` catalog owns precedence, typed recipe,
+shape, and descriptive planning-cost data for seven scalar, one plain Unit, and
+four structural-Unit forms. Producer matcher kinds and independent validator
+kinds are distinct closed dispatches. Removing the sole row for a recipe
+disables it, while missing and ambiguous lookup fails closed. The architecture
+gate rejects alternate family catalogs, requires the four real source/replay
+coordination entrances, and recursively prevents either side from reaching the
+other's mechanics.
+
+The legalized-operation representation follows the same downward navigation.
+Its former 2,098-line crate root is now a 17-line responsibility map over
+`model/`, `identity/`, `validation/`, and `tests/`; identity and structural
+calling mechanics descend another rung into named leaves. Typed plain-Unit and
+structural-Unit recipes participate in the V9 identity rather than being
+inferred from an untyped roster after admission.
 
 Psi SCCP constant evaluation now follows the same downward-navigation rule.
 Its 35-line entrance owns the shared SCCP rule contract and names boolean and

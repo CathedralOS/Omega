@@ -61,10 +61,17 @@ a test, not a second production registry.
 unsupported targets reject for a named reason rather than relying on leaf
 failure.
 
-[x] Mandatory scalar legalization now has one ordered seven-form catalog.
-Producer matching and independent replay descend into separate leaves and
-share only recipe, shape, and non-authoritative cost data; the former duplicate
-decision tables are gone. Unit and structural-Unit catalog coverage remains.
+[x] Mandatory legalization now has one ordered twelve-form catalog spanning
+seven scalar, plain Unit, and four structural-Unit forms. Producer matching
+and independent replay descend into separate typed leaves and share only
+recipe, shape, and non-authoritative cost data. Removing a row disables that
+form; missing and ambiguous recipe lookup fails closed.
+
+[x] The legalized-operation representation no longer hides model, identity,
+validation, and broad fixtures in a 2,098-line crate root. Its 17-line entrance
+is a responsibility map into named semantic folders. Legalization source and
+replay have separate sub-100-line roster entrances and mirrored structural
+subtrees, all pinned by the source-organization gate.
 
 [x] Layout-independent selected-form encoding now has an independent
 validation rung. Its small entrance coordinates ordinary rows, structural
@@ -394,7 +401,9 @@ selection identity.
   families. Selected-lowering incoming-u12 add/subtract folds,
   layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
-  independently; remaining lowering and publication routes still need closure.
+  independently. Structural-Unit selected validation also reconstructs ABI
+  layout and call constraints without construction helpers; remaining lowering
+  and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.
@@ -419,9 +428,10 @@ selection identity.
 
 - [x] Target/legalized operation and selected-instruction validation.
 - [x] Exact incoming u12 add/subtract immediate folds.
-- [>] Generalize legalization into ordered declarative catalogs of target
-  forms, constraints, costs, and validators. The seven scalar forms are
-  cataloged; plain Unit and structural Unit families remain.
+- [x] Generalize legalization into one ordered declarative catalog of target
+  forms, constraints, costs, producer matcher kinds, and independent validator
+  kinds. Its twelve rows cover all current scalar, plain Unit, and structural
+  Unit families; omission and ambiguity fail closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization rules one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

@@ -1,10 +1,19 @@
-//! Ordered inventory of the scalar legalization forms admitted by this stage.
+//! Sole ordered inventory of every target-legal form admitted by this stage.
 //!
-//! This is contract data, not executable validation. Producer matchers and
-//! independent replay validators use distinct dispatch kinds so sharing the
-//! inventory cannot turn producer recognition into validation evidence.
+//! Rows contain contract data only. Producer matchers and independent replay
+//! validators receive distinct dispatch kinds, so the shared inventory cannot
+//! become producer-derived validation evidence.
 
-use omega_legalized_operations::LegalizationRecipe;
+use omega_legalized_operations::{
+    LegalizationRecipe, StructuralUnitLegalizationRecipe, UnitLegalizationRecipe,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LegalizationFormRecipe {
+    Scalar(LegalizationRecipe),
+    Unit(UnitLegalizationRecipe),
+    StructuralUnit(StructuralUnitLegalizationRecipe),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarLegalizationMatcherKind {
@@ -15,6 +24,26 @@ pub(super) enum ScalarLegalizationMatcherKind {
     WidenedU8ExactAddImmediate,
     WidenedU8ExactSubtractImmediate,
     ActiveResidentExactAddChain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum UnitLegalizationMatcherKind {
+    ReturnUnit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StructuralUnitLegalizationMatcherKind {
+    ReturnUnit,
+    AuthoredCallThenReturnUnit,
+    InstalledProviderCallThenReturnUnit,
+    ClaimCompletionSettlementsThenReturnUnit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LegalizationProducerMatcherKind {
+    Scalar(ScalarLegalizationMatcherKind),
+    Unit(UnitLegalizationMatcherKind),
+    StructuralUnit(StructuralUnitLegalizationMatcherKind),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +58,26 @@ pub(super) enum ScalarLegalizationValidatorKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum UnitLegalizationValidatorKind {
+    ReturnUnit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StructuralUnitLegalizationValidatorKind {
+    ReturnUnit,
+    AuthoredCallThenReturnUnit,
+    InstalledProviderCallThenReturnUnit,
+    ClaimCompletionSettlementsThenReturnUnit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LegalizationValidatorKind {
+    Scalar(ScalarLegalizationValidatorKind),
+    Unit(UnitLegalizationValidatorKind),
+    StructuralUnit(StructuralUnitLegalizationValidatorKind),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ScalarShapeConstraints {
     pub block_offsets: [usize; 3],
     pub operation_count: usize,
@@ -36,24 +85,52 @@ pub(super) struct ScalarShapeConstraints {
     pub parameter_count: usize,
 }
 
-/// Planning metadata only. These values never participate in legality or
-/// independent replay and therefore cannot authorize a transformation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct ScalarStructuralCost {
+pub(super) struct UnitShapeConstraints {
+    pub block_count: usize,
+    pub operation_count: usize,
+    pub node_count: usize,
+    pub scalar_parameter_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StructuralUnitOperationShape {
+    ReturnOnly,
+    CallThenReturn,
+    NonEmptySettlementPrefixThenReturn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct StructuralUnitShapeConstraints {
+    pub block_count: usize,
+    pub scalar_parameter_count: usize,
+    pub operations: StructuralUnitOperationShape,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LegalizationShapeConstraints {
+    Scalar(ScalarShapeConstraints),
+    Unit(UnitShapeConstraints),
+    StructuralUnit(StructuralUnitShapeConstraints),
+}
+
+/// Planning metadata only. It never participates in legality or replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct LegalizationStructuralCost {
     pub projected_selected_instruction_count: usize,
     pub introduced_temporary_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct ScalarLegalizationFormDescriptor {
-    pub recipe: LegalizationRecipe,
-    pub producer_matcher: ScalarLegalizationMatcherKind,
-    pub constraints: ScalarShapeConstraints,
-    pub cost: ScalarStructuralCost,
-    pub validator: ScalarLegalizationValidatorKind,
+pub(super) struct LegalizationFormDescriptor {
+    pub recipe: LegalizationFormRecipe,
+    pub producer_matcher: LegalizationProducerMatcherKind,
+    pub constraints: LegalizationShapeConstraints,
+    pub cost: LegalizationStructuralCost,
+    pub validator: LegalizationValidatorKind,
 }
 
-const fn form(
+const fn scalar_form(
     recipe: LegalizationRecipe,
     producer_matcher: ScalarLegalizationMatcherKind,
     block_offsets: [usize; 3],
@@ -63,27 +140,70 @@ const fn form(
     projected_selected_instruction_count: usize,
     introduced_temporary_count: usize,
     validator: ScalarLegalizationValidatorKind,
-) -> ScalarLegalizationFormDescriptor {
-    ScalarLegalizationFormDescriptor {
-        recipe,
-        producer_matcher,
-        constraints: ScalarShapeConstraints {
+) -> LegalizationFormDescriptor {
+    LegalizationFormDescriptor {
+        recipe: LegalizationFormRecipe::Scalar(recipe),
+        producer_matcher: LegalizationProducerMatcherKind::Scalar(producer_matcher),
+        constraints: LegalizationShapeConstraints::Scalar(ScalarShapeConstraints {
             block_offsets,
             operation_count,
             leaf_node_counts,
             parameter_count,
-        },
-        cost: ScalarStructuralCost {
+        }),
+        cost: LegalizationStructuralCost {
             projected_selected_instruction_count,
             introduced_temporary_count,
         },
-        validator,
+        validator: LegalizationValidatorKind::Scalar(validator),
     }
 }
 
-/// The sole precedence, shape, and planning inventory for scalar forms.
-pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7] = [
-    form(
+const fn unit_form() -> LegalizationFormDescriptor {
+    LegalizationFormDescriptor {
+        recipe: LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
+        producer_matcher: LegalizationProducerMatcherKind::Unit(
+            UnitLegalizationMatcherKind::ReturnUnit,
+        ),
+        constraints: LegalizationShapeConstraints::Unit(UnitShapeConstraints {
+            block_count: 1,
+            operation_count: 1,
+            node_count: 1,
+            scalar_parameter_count: 0,
+        }),
+        cost: LegalizationStructuralCost {
+            projected_selected_instruction_count: 1,
+            introduced_temporary_count: 0,
+        },
+        validator: LegalizationValidatorKind::Unit(UnitLegalizationValidatorKind::ReturnUnit),
+    }
+}
+
+const fn structural_unit_form(
+    recipe: StructuralUnitLegalizationRecipe,
+    producer_matcher: StructuralUnitLegalizationMatcherKind,
+    operations: StructuralUnitOperationShape,
+    projected_selected_instruction_count: usize,
+    validator: StructuralUnitLegalizationValidatorKind,
+) -> LegalizationFormDescriptor {
+    LegalizationFormDescriptor {
+        recipe: LegalizationFormRecipe::StructuralUnit(recipe),
+        producer_matcher: LegalizationProducerMatcherKind::StructuralUnit(producer_matcher),
+        constraints: LegalizationShapeConstraints::StructuralUnit(StructuralUnitShapeConstraints {
+            block_count: 1,
+            scalar_parameter_count: 0,
+            operations,
+        }),
+        cost: LegalizationStructuralCost {
+            projected_selected_instruction_count,
+            introduced_temporary_count: 0,
+        },
+        validator: LegalizationValidatorKind::StructuralUnit(validator),
+    }
+}
+
+/// The sole precedence, shape, and planning inventory for all current forms.
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 12] = [
+    scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
         [0, 1, 3],
@@ -94,7 +214,7 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         0,
         ScalarLegalizationValidatorKind::Immediate,
     ),
-    form(
+    scalar_form(
         LegalizationRecipe::ReturnU64EntryParameterConditionalV1,
         ScalarLegalizationMatcherKind::EntryParameter,
         [0, 1, 2],
@@ -105,7 +225,7 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         0,
         ScalarLegalizationValidatorKind::EntryParameter,
     ),
-    form(
+    scalar_form(
         LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1,
         ScalarLegalizationMatcherKind::ExactAddImmediate,
         [0, 1, 5],
@@ -116,7 +236,7 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         0,
         ScalarLegalizationValidatorKind::ExactAddImmediate,
     ),
-    form(
+    scalar_form(
         LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1,
         ScalarLegalizationMatcherKind::ExactSubtractImmediate,
         [0, 1, 5],
@@ -127,7 +247,7 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         0,
         ScalarLegalizationValidatorKind::ExactSubtractImmediate,
     ),
-    form(
+    scalar_form(
         LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1,
         ScalarLegalizationMatcherKind::WidenedU8ExactAddImmediate,
         [0, 1, 6],
@@ -138,7 +258,7 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         4,
         ScalarLegalizationValidatorKind::WidenedU8ExactAddImmediate,
     ),
-    form(
+    scalar_form(
         LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1,
         ScalarLegalizationMatcherKind::WidenedU8ExactSubtractImmediate,
         [0, 1, 6],
@@ -149,7 +269,7 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         4,
         ScalarLegalizationValidatorKind::WidenedU8ExactSubtractImmediate,
     ),
-    form(
+    scalar_form(
         LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1,
         ScalarLegalizationMatcherKind::ActiveResidentExactAddChain,
         [0, 1, 8],
@@ -160,12 +280,50 @@ pub(super) const SCALAR_LEGALIZATION_FORMS: [ScalarLegalizationFormDescriptor; 7
         0,
         ScalarLegalizationValidatorKind::ActiveResidentExactAddChain,
     ),
+    unit_form(),
+    structural_unit_form(
+        StructuralUnitLegalizationRecipe::ReturnUnitV1,
+        StructuralUnitLegalizationMatcherKind::ReturnUnit,
+        StructuralUnitOperationShape::ReturnOnly,
+        1,
+        StructuralUnitLegalizationValidatorKind::ReturnUnit,
+    ),
+    structural_unit_form(
+        StructuralUnitLegalizationRecipe::AuthoredCallThenReturnUnitV1,
+        StructuralUnitLegalizationMatcherKind::AuthoredCallThenReturnUnit,
+        StructuralUnitOperationShape::CallThenReturn,
+        2,
+        StructuralUnitLegalizationValidatorKind::AuthoredCallThenReturnUnit,
+    ),
+    structural_unit_form(
+        StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1,
+        StructuralUnitLegalizationMatcherKind::InstalledProviderCallThenReturnUnit,
+        StructuralUnitOperationShape::CallThenReturn,
+        2,
+        StructuralUnitLegalizationValidatorKind::InstalledProviderCallThenReturnUnit,
+    ),
+    structural_unit_form(
+        StructuralUnitLegalizationRecipe::ClaimCompletionSettlementsThenReturnUnitV1,
+        StructuralUnitLegalizationMatcherKind::ClaimCompletionSettlementsThenReturnUnit,
+        StructuralUnitOperationShape::NonEmptySettlementPrefixThenReturn,
+        1,
+        StructuralUnitLegalizationValidatorKind::ClaimCompletionSettlementsThenReturnUnit,
+    ),
 ];
 
-pub(super) fn scalar_form_for_recipe(
-    recipe: LegalizationRecipe,
-) -> Option<&'static ScalarLegalizationFormDescriptor> {
-    SCALAR_LEGALIZATION_FORMS
+pub(super) fn legalization_form_for_recipe(
+    recipe: LegalizationFormRecipe,
+) -> Option<&'static LegalizationFormDescriptor> {
+    legalization_form_for_recipe_in(&LEGALIZATION_FORMS, recipe)
+}
+
+pub(super) fn legalization_form_for_recipe_in(
+    catalog: &[LegalizationFormDescriptor],
+    recipe: LegalizationFormRecipe,
+) -> Option<&LegalizationFormDescriptor> {
+    let mut matches = catalog
         .iter()
-        .find(|descriptor| descriptor.recipe == recipe)
+        .filter(|descriptor| descriptor.recipe == recipe);
+    let descriptor = matches.next()?;
+    matches.next().is_none().then_some(descriptor)
 }
