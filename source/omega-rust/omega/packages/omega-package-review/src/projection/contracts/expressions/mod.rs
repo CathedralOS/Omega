@@ -1,4 +1,6 @@
+pub(in crate::projection) mod atomic_loads;
 pub(in crate::projection) mod calls;
+pub(in crate::projection) mod casts;
 pub(in crate::projection) mod constructors;
 pub(in crate::projection) mod members;
 pub(in crate::projection) mod names;
