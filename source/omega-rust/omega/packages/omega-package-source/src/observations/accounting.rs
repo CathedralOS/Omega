@@ -1,3 +1,4 @@
+use super::execution::GitCommandExecutionObservation;
 use crate::SourceResolveError;
 use crate::limits::{
     GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE,
@@ -6,8 +7,6 @@ use crate::limits::{
 use omega_resolver_execution::{
     ResolverExecutionEndpointOutcome, ResolverExecutionPolicyObservation,
 };
-
-use super::execution::GitCommandExecutionObservation;
 
 /// Compiler-owned cumulative stdout/stderr accounting for one Git resolution.
 ///

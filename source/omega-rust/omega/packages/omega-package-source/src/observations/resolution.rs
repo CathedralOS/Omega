@@ -18,6 +18,7 @@ use super::accounting::{
 };
 use super::execution::GitTransportExecutableIdentity;
 use super::resolved::PendingResolvedGitSource;
+use super::storage::{GitRetainedStorageObservation, validate_git_retained_storage_observation};
 
 /// Compact canonical identity of one locally successful Git resolution.
 ///
@@ -73,7 +74,14 @@ impl GitSourceResolutionObservation {
 pub(crate) fn issue_git_source_resolution_observation(
     resolved: &PendingResolvedGitSource,
     limits: LocalSourceLimits,
+    retained_storage: &GitRetainedStorageObservation,
 ) -> Result<GitSourceResolutionObservation, SourceResolveError> {
+    if !validate_git_retained_storage_observation(retained_storage, &retained_storage.root, limits)
+    {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git retained-storage evidence is inconsistent".to_owned(),
+        });
+    }
     if resolved.execution_policy_observations.len() != resolved.command_execution_observations.len()
         || resolved.command_execution_observations.len() > GIT_FIXED_COMMAND_ALLOWANCE
     {
@@ -246,6 +254,14 @@ pub(crate) fn issue_git_source_resolution_observation(
         &mut hasher,
         resolved.network_transfer_observation.downloaded,
     );
+    hash_resolution_u64(&mut hasher, u64::from(retained_storage.schema_version));
+    hash_resolution_field(&mut hasher, retained_storage.identity.as_bytes());
+    hash_resolution_usize(&mut hasher, retained_storage.entry_ceiling);
+    hash_resolution_u64(&mut hasher, retained_storage.byte_ceiling);
+    hash_resolution_usize(&mut hasher, retained_storage.depth_ceiling);
+    hash_resolution_usize(&mut hasher, retained_storage.entry_count);
+    hash_resolution_u64(&mut hasher, retained_storage.logical_bytes);
+    hash_resolution_usize(&mut hasher, retained_storage.maximum_depth);
     hash_resolution_field(&mut hasher, b"resolved-non-admitting");
 
     Ok(GitSourceResolutionObservation {

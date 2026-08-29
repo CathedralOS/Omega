@@ -9,9 +9,11 @@ use omega_resolver_execution::{
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::fmt;
+use std::path::Path;
 
 use super::resolution::{GitSourceResolutionObservation, issue_git_source_resolution_observation};
 use super::resolved::PendingResolvedGitSource;
+use super::storage::{GitRetainedStorageObservation, validate_git_retained_storage_observation};
 use crate::git::process::identity::git_command_configuration_identity_from_resolver;
 
 /// Reserved opaque success type for evidence that one Git source resolution
@@ -67,6 +69,7 @@ impl GitSourceStrictReceiptError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitSourceStrictReceiptRequirement {
     ProductionTransport,
+    RetainedStorageCustody,
     TransportTrust,
 }
 
@@ -95,7 +98,9 @@ impl std::error::Error for GitSourceStrictReceiptError {}
 
 pub(crate) fn reconstruct_git_source_strict_receipt(
     resolved: &PendingResolvedGitSource,
+    entry_root: &Path,
     limits: LocalSourceLimits,
+    retained_storage: Option<&GitRetainedStorageObservation>,
     retained: &GitSourceResolutionObservation,
 ) -> Result<GitSourceStrictReceipt, GitSourceStrictReceiptError> {
     if resolved.execution_policy_observations.is_empty()
@@ -105,9 +110,16 @@ pub(crate) fn reconstruct_git_source_strict_receipt(
     {
         return Err(GitSourceStrictReceiptError::MissingExecutionRows);
     }
+    let retained_storage =
+        retained_storage.ok_or(GitSourceStrictReceiptError::MissingRequiredEvidence(
+            GitSourceStrictReceiptRequirement::RetainedStorageCustody,
+        ))?;
+    if !validate_git_retained_storage_observation(retained_storage, entry_root, limits) {
+        return Err(GitSourceStrictReceiptError::InvalidResolutionObservation);
+    }
     validate_execution_custody(resolved)?;
 
-    let reconstructed = issue_git_source_resolution_observation(resolved, limits)
+    let reconstructed = issue_git_source_resolution_observation(resolved, limits, retained_storage)
         .map_err(|_| GitSourceStrictReceiptError::InvalidResolutionObservation)?;
     if &reconstructed != retained {
         return Err(GitSourceStrictReceiptError::ResolutionObservationMismatch);

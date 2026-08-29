@@ -22,6 +22,22 @@ fn cache_custody_rejects_logical_resident_byte_overflow() {
 }
 
 #[test]
+fn cache_custody_walk_returns_exact_accepted_measurements() {
+    let cache = temp_root("cache-accepted-measurements");
+    std::fs::create_dir_all(cache.join("nested")).expect("create cache tree");
+    std::fs::write(cache.join("nested/payload"), b"12345").expect("write cache payload");
+
+    let measurement = verify_cache_custody(&cache, CacheCustodyKind::Git, 5)
+        .expect("measure accepted cache custody");
+
+    assert_eq!(measurement.entry_count, 3, "root, directory, and file");
+    assert_eq!(measurement.logical_bytes, 5);
+    assert_eq!(measurement.maximum_depth, 1);
+
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
 fn bounded_cache_record_read_rejects_content_above_its_exact_limit() {
     let cache = temp_root("bounded-cache-record");
     std::fs::create_dir_all(&cache).expect("create cache record root");

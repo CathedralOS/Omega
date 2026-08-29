@@ -11,6 +11,7 @@ use crate::local::capture::{SourceTreePolicy, capture_local_source};
 use crate::observations::receipt::reconstruct_git_source_strict_receipt;
 use crate::observations::resolution::issue_git_source_resolution_observation;
 use crate::observations::resolved::{PendingResolvedGitSource, ResolvedGitSource};
+use crate::observations::storage::issue_git_retained_storage_observation;
 use std::path::Path;
 
 pub(super) fn finalize_git_resolution(
@@ -31,14 +32,22 @@ pub(super) fn finalize_git_resolution(
 
     entry_lock.verify_path_identity()?;
     verify_git_cache_root_custody(cache_root)?;
-    verify_git_cache_custody(entry_root, limits)?;
+    let retained_storage_measurement = verify_git_cache_custody(entry_root, limits)?;
     executor.verify_content()?;
     executor.validate_execution_policy_observations()?;
     validate_pending_git_request(&pending, request)?;
     validate_pending_git_execution(&pending, executor)?;
-    let resolution_observation = issue_git_source_resolution_observation(&pending, limits)?;
-    let strict_receipt =
-        reconstruct_git_source_strict_receipt(&pending, limits, &resolution_observation);
+    let retained_storage_observation =
+        issue_git_retained_storage_observation(entry_root, limits, retained_storage_measurement);
+    let resolution_observation =
+        issue_git_source_resolution_observation(&pending, limits, &retained_storage_observation)?;
+    let strict_receipt = reconstruct_git_source_strict_receipt(
+        &pending,
+        entry_root,
+        limits,
+        Some(&retained_storage_observation),
+        &resolution_observation,
+    );
 
     Ok(ResolvedGitSource {
         requested_locator: pending.requested_locator,
@@ -58,6 +67,7 @@ pub(super) fn finalize_git_resolution(
         command_execution_observations: pending.command_execution_observations,
         captured_output_observation: pending.captured_output_observation,
         network_transfer_observation: pending.network_transfer_observation,
+        retained_storage_observation,
         resolution_observation,
         strict_receipt,
     })

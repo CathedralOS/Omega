@@ -17,7 +17,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved.command_execution_observations().len(),
         resolved.execution_policy_observations().len()
     );
-    assert_eq!(resolved.resolution_observation().schema_version(), 6);
+    assert_eq!(resolved.resolution_observation().schema_version(), 7);
     assert_eq!(resolved.resolution_observation().identity().len(), 64);
     assert_eq!(
         resolved.resolution_observation().command_count(),
@@ -64,6 +64,21 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             .network_transfer_downloaded(),
         resolved.network_transfer_observation().downloaded()
     );
+    assert_eq!(resolved.retained_storage_observation().schema_version(), 1);
+    assert_eq!(resolved.retained_storage_observation().identity().len(), 64);
+    assert!(resolved.retained_storage_observation().entry_count() > 0);
+    assert!(
+        resolved.retained_storage_observation().entry_count()
+            <= resolved.retained_storage_observation().entry_ceiling()
+    );
+    assert!(
+        resolved.retained_storage_observation().logical_bytes()
+            <= resolved.retained_storage_observation().byte_ceiling()
+    );
+    assert!(
+        resolved.retained_storage_observation().maximum_depth()
+            <= resolved.retained_storage_observation().depth_ceiling()
+    );
     let alternate_policy_result = PendingResolvedGitSource::from_issued(&resolved);
     let alternate_policy_observation = issue_git_source_resolution_observation(
         &alternate_policy_result,
@@ -71,6 +86,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             max_files: LocalSourceLimits::default().max_files - 1,
             ..LocalSourceLimits::default()
         },
+        resolved.retained_storage_observation(),
     )
     .expect("issue observation for an alternate source policy");
     assert_ne!(
@@ -81,8 +97,12 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
     unjoined_result.command_execution_observations.pop();
     assert!(
-        issue_git_source_resolution_observation(&unjoined_result, LocalSourceLimits::default())
-            .is_err(),
+        issue_git_source_resolution_observation(
+            &unjoined_result,
+            LocalSourceLimits::default(),
+            resolved.retained_storage_observation(),
+        )
+        .is_err(),
         "final issuance must reject missing command outcome rows"
     );
     let mut mismatched_completion = PendingResolvedGitSource::from_issued(&resolved);
@@ -93,7 +113,8 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     assert!(
         issue_git_source_resolution_observation(
             &mismatched_completion,
-            LocalSourceLimits::default()
+            LocalSourceLimits::default(),
+            resolved.retained_storage_observation(),
         )
         .is_err(),
         "final issuance must reject a completion detached from its command policy"
@@ -106,8 +127,12 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         .expect("resolved fixture retains a network command")
         .endpoint_observation = None;
     assert!(
-        issue_git_source_resolution_observation(&unjoined_endpoint, LocalSourceLimits::default())
-            .is_err(),
+        issue_git_source_resolution_observation(
+            &unjoined_endpoint,
+            LocalSourceLimits::default(),
+            resolved.retained_storage_observation(),
+        )
+        .is_err(),
         "final issuance must reject endpoint activity detached from its route policy"
     );
     let mut mismatched_output_accounting = PendingResolvedGitSource::from_issued(&resolved);
@@ -117,7 +142,8 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     assert!(
         issue_git_source_resolution_observation(
             &mismatched_output_accounting,
-            LocalSourceLimits::default()
+            LocalSourceLimits::default(),
+            resolved.retained_storage_observation(),
         )
         .is_err(),
         "final issuance must reject changed cumulative output accounting"
@@ -129,7 +155,8 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     assert!(
         issue_git_source_resolution_observation(
             &mismatched_network_accounting,
-            LocalSourceLimits::default()
+            LocalSourceLimits::default(),
+            resolved.retained_storage_observation(),
         )
         .is_err(),
         "final issuance must reject changed network-transfer accounting"
@@ -228,17 +255,43 @@ fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
     );
 
     let retained = resolved.resolution_observation().clone();
+    let retained_storage = resolved.retained_storage_observation().clone();
+    let entry_root = retained_storage.root.clone();
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(
+            &PendingResolvedGitSource::from_issued(&resolved),
+            &entry_root,
+            limits,
+            None,
+            &retained,
+        ),
+        Err(GitSourceStrictReceiptError::MissingRequiredEvidence(
+            GitSourceStrictReceiptRequirement::RetainedStorageCustody,
+        ))
+    );
     let mut missing_policy = PendingResolvedGitSource::from_issued(&resolved);
     missing_policy.execution_policy_observations.pop();
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&missing_policy, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &missing_policy,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::MissingExecutionRows)
     );
 
     let mut missing_completion = PendingResolvedGitSource::from_issued(&resolved);
     missing_completion.command_execution_observations.pop();
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&missing_completion, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &missing_completion,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::MissingExecutionRows)
     );
 
@@ -250,15 +303,62 @@ fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
         .expect("Git resolution retains one network route")
         .endpoint_observation = None;
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&missing_endpoint, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &missing_endpoint,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
     );
 
     let mut changed_accounting = PendingResolvedGitSource::from_issued(&resolved);
     changed_accounting.network_transfer_observation.uploaded += 1;
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&changed_accounting, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &changed_accounting,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
+    );
+
+    let mut changed_storage = retained_storage.clone();
+    changed_storage.logical_bytes += 1;
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(
+            &PendingResolvedGitSource::from_issued(&resolved),
+            &entry_root,
+            limits,
+            Some(&changed_storage),
+            &retained,
+        ),
+        Err(GitSourceStrictReceiptError::InvalidResolutionObservation),
+        "strict reconstruction must reject a changed retained-storage row"
+    );
+
+    let alternate_storage = issue_git_retained_storage_observation(
+        &entry_root,
+        limits,
+        CacheCustodyMeasurement {
+            entry_count: retained_storage.entry_count,
+            logical_bytes: retained_storage.logical_bytes + 1,
+            maximum_depth: retained_storage.maximum_depth,
+        },
+    );
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(
+            &PendingResolvedGitSource::from_issued(&resolved),
+            &entry_root,
+            limits,
+            Some(&alternate_storage),
+            &retained,
+        ),
+        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch),
+        "a separately valid storage row must reproduce the retained resolution identity exactly"
     );
 
     let mut changed_input = PendingResolvedGitSource::from_issued(&resolved);
@@ -267,21 +367,39 @@ fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
         identity: "00".repeat(32),
     };
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&changed_input, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &changed_input,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
     );
 
     let mut changed_executable = PendingResolvedGitSource::from_issued(&resolved);
     changed_executable.git_executable.content_identity = "00".repeat(32);
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&changed_executable, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &changed_executable,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
     );
 
     let mut changed_source = PendingResolvedGitSource::from_issued(&resolved);
     changed_source.local.file_count += 1;
     assert_eq!(
-        reconstruct_git_source_strict_receipt(&changed_source, limits, &retained),
+        reconstruct_git_source_strict_receipt(
+            &changed_source,
+            &entry_root,
+            limits,
+            Some(&retained_storage),
+            &retained,
+        ),
         Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
     );
 
@@ -292,7 +410,9 @@ fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
     assert_eq!(
         reconstruct_git_source_strict_receipt(
             &PendingResolvedGitSource::from_issued(&resolved),
+            &entry_root,
             changed_limits,
+            Some(&retained_storage),
             &retained,
         ),
         Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
@@ -303,7 +423,9 @@ fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
     assert_eq!(
         reconstruct_git_source_strict_receipt(
             &PendingResolvedGitSource::from_issued(&resolved),
+            &entry_root,
             limits,
+            Some(&retained_storage),
             &changed_retained,
         ),
         Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)

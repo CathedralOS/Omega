@@ -25,6 +25,8 @@ use crate::limits::*;
 #[allow(unused_imports)]
 use crate::local::{capture::*, model::*, operations::*, snapshot::*};
 #[allow(unused_imports)]
+use crate::observations::storage::*;
+#[allow(unused_imports)]
 use crate::observations::{accounting::*, execution::*, receipt::*, resolution::*, resolved::*};
 use cap_std::ambient_authority;
 use cap_std::fs::Dir as CapabilityDirectory;

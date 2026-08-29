@@ -47,6 +47,7 @@ pub use observations::receipt::{
 };
 pub use observations::resolution::GitSourceResolutionObservation;
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
+pub use observations::storage::GitRetainedStorageObservation;
 pub use storage::SourceResolverStorage;
 
 #[cfg(test)]
