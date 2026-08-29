@@ -285,14 +285,16 @@ then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
 `straight_line_scalar_crash.rs` and
-`straight_line_parameter/{integer,boolean,boolean_not}.rs`. The governed
-parameter coordinator visibly joins `source/mod.rs` envelope reconstruction
-and its `direct.rs` or `boolean_not.rs` grammar leaf to `abi.rs` calling-plan
-and exact register/stack placement replay before the typed target leaf. The
-Boolean-not path separately preserves its operand, produced value, operation,
-and edge identities. Immutable
-root, disposition, family-receipt,
-and error vocabulary descend through `model/`. The optimizer's sub-100-line
+`straight_line_parameter/{integer,boolean,boolean_not,boolean_equal}.rs`. The
+governed parameter coordinator visibly joins the `source/mod.rs` grammar map,
+its shared `envelope.rs`, and the `direct.rs`, `boolean_not.rs`, or
+`boolean_equal.rs` grammar leaf to whole-roster `abi.rs` calling-plan replay.
+`derived.rs` then joins derived source identity to exact register/stack
+placements and provenance before the typed target leaf. Boolean-not preserves
+its operand and Boolean equality preserves both ordered operands, including
+identity, alongside produced value, operation, and edge custody. Immutable
+root and family vocabulary descend through small `model/error/` and
+`model/receipt/` maps and semantic leaves. The optimizer's sub-100-line
 target-operation entrance owns the visible
 `lower -> independent validation -> retained carrier` join. An architecture
 gate prevents validation from importing lowering helpers, and each complete

@@ -38,6 +38,7 @@ mod scalar;
 mod structural_and_cleanup;
 mod translation_validation;
 mod translation_validation_boolean;
+mod translation_validation_boolean_equal_parameters;
 mod translation_validation_boolean_not_parameter;
 mod translation_validation_boolean_parameter;
 mod translation_validation_crash;

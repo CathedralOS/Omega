@@ -2,7 +2,7 @@ use crate::tests::*;
 use omega_abstract_operations_to_target_operations::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
 };
-use omega_target_operations::ScalarParameterLocation;
+use omega_target_operations::{ScalarParameterLocation, TargetBooleanExpression};
 
 #[test]
 fn optimized_target_lowering_retains_exact_integer_translation_custody() {
@@ -262,6 +262,50 @@ fn optimized_target_lowering_retains_exact_boolean_not_parameter_custody() {
     }
 }
 
+#[test]
+fn optimized_target_lowering_retains_exact_boolean_equality_parameter_custody() {
+    for (target_profile, registers, stack) in boolean_equal_location_cases() {
+        for (parameter_count, expected) in [(2, registers), (10, stack)] {
+            let (semantic, proof) = boolean_equal_parameters_return_artifact(parameter_count);
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+            let receipt = target.translation_validation();
+            let AbstractToTargetFunctionTranslationDisposition::Validated(
+                AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanEqualParameters(row),
+            ) = receipt.function_roster()[0].translation()
+            else {
+                panic!("optimized Boolean equality must retain its family row")
+            };
+            assert_eq!(row.equal_operation(), OperationId::new(30_005).unwrap());
+            assert_eq!(row.left_parameter_index(), parameter_count - 2);
+            assert_eq!(row.right_parameter_index(), parameter_count - 1);
+            assert_eq!(row.left_location(), expected[0]);
+            assert_eq!(row.right_location(), expected[1]);
+            assert!(matches!(
+                &target.target_operations().functions[0].operation,
+                TargetOperation::ReturnBooleanExpression {
+                    expression: TargetBooleanExpression::Equal { left, right, .. },
+                    ..
+                } if matches!(
+                    left.as_ref(),
+                    TargetBooleanExpression::Parameter { location, .. }
+                        if *location == expected[0]
+                ) && matches!(
+                    right.as_ref(),
+                    TargetBooleanExpression::Parameter { location, .. }
+                        if *location == expected[1]
+                )
+            ));
+        }
+    }
+}
+
 fn parameter_location_cases() -> [(
     NativeTarget,
     ScalarParameterLocation,
@@ -292,6 +336,70 @@ fn parameter_location_cases() -> [(
             NativeTarget::macos_arm64(),
             ScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
             ScalarParameterLocation::IncomingStack { byte_offset: 0 },
+        ),
+    ]
+}
+
+fn boolean_equal_location_cases() -> [(
+    NativeTarget,
+    [ScalarParameterLocation; 2],
+    [ScalarParameterLocation; 2],
+); 5] {
+    [
+        (
+            NativeTarget::linux_x64(),
+            [
+                ScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                ScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            ],
+            [
+                ScalarParameterLocation::IncomingStack { byte_offset: 16 },
+                ScalarParameterLocation::IncomingStack { byte_offset: 24 },
+            ],
+        ),
+        (
+            NativeTarget::windows_x64(),
+            [
+                ScalarParameterLocation::Register(MachineRegister::X86Rcx),
+                ScalarParameterLocation::Register(MachineRegister::X86Rdx),
+            ],
+            [
+                ScalarParameterLocation::IncomingStack { byte_offset: 64 },
+                ScalarParameterLocation::IncomingStack { byte_offset: 72 },
+            ],
+        ),
+        (
+            NativeTarget::uefi_x64(),
+            [
+                ScalarParameterLocation::Register(MachineRegister::X86Rcx),
+                ScalarParameterLocation::Register(MachineRegister::X86Rdx),
+            ],
+            [
+                ScalarParameterLocation::IncomingStack { byte_offset: 64 },
+                ScalarParameterLocation::IncomingStack { byte_offset: 72 },
+            ],
+        ),
+        (
+            NativeTarget::linux_arm64(),
+            [
+                ScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                ScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ],
+            [
+                ScalarParameterLocation::IncomingStack { byte_offset: 0 },
+                ScalarParameterLocation::IncomingStack { byte_offset: 8 },
+            ],
+        ),
+        (
+            NativeTarget::macos_arm64(),
+            [
+                ScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                ScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ],
+            [
+                ScalarParameterLocation::IncomingStack { byte_offset: 0 },
+                ScalarParameterLocation::IncomingStack { byte_offset: 8 },
+            ],
         ),
     ]
 }

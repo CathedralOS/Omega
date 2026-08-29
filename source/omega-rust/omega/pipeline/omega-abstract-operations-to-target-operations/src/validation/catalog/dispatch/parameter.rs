@@ -36,3 +36,13 @@ pub(super) fn straight_line_boolean_not_parameter(
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanNotParameter)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineBooleanNotParameter)
 }
+
+pub(super) fn straight_line_boolean_equal_parameters(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::boolean_equal::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanEqualParameters)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineBooleanEqualParameters)
+}

@@ -20,7 +20,7 @@ pub(crate) fn validate(
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanNotParameterTranslationError,
 > {
-    let reconstructed = super::reconstruct_boolean_not_parameter(source, expected_target, target)?;
+    let reconstructed = super::derived::reconstruct_boolean_not(source, expected_target, target)?;
     if !matches!(
         target.operation,
         TargetOperation::ReturnBooleanNotParameter {

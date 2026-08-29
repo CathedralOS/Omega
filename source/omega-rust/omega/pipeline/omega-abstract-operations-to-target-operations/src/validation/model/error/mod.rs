@@ -1,0 +1,66 @@
+//! Translation error taxonomy and exact family-to-error join.
+
+mod immediate;
+mod parameter;
+mod terminal;
+
+pub use immediate::{
+    StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
+};
+pub(in crate::validation) use parameter::StraightLineParameterReconstructionError;
+pub use parameter::{
+    StraightLineBooleanEqualParametersTranslationError,
+    StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
+    StraightLineIntegerParameterTranslationError,
+};
+pub use terminal::StraightLineScalarCrashTranslationError;
+
+use psi_core::MachineId;
+
+use super::AbstractToTargetTranslationFamily;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbstractToTargetTranslationValidationError {
+    PsiMismatch,
+    TargetMismatch,
+    EntryMismatch,
+    FunctionCountMismatch,
+    FunctionMachineMismatch {
+        position: usize,
+    },
+    FunctionAttachmentMismatch {
+        machine: MachineId,
+    },
+    AmbiguousFunctionFamily {
+        machine: MachineId,
+        first: AbstractToTargetTranslationFamily,
+        second: AbstractToTargetTranslationFamily,
+    },
+    FunctionFamily {
+        machine: MachineId,
+        family: AbstractToTargetTranslationFamily,
+        error: AbstractToTargetTranslationFamilyError,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbstractToTargetTranslationFamilyError {
+    StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
+    StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
+    StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
+    StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
+    StraightLineBooleanParameter(StraightLineBooleanParameterTranslationError),
+    StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationError),
+    StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationError),
+}
+
+impl std::fmt::Display for AbstractToTargetTranslationValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "abstract-to-target translation validation failed: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for AbstractToTargetTranslationValidationError {}

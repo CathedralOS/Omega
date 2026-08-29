@@ -10,17 +10,15 @@ use super::super::model::StraightLineParameterReconstructionError;
 
 pub(super) fn replay(
     parameters: &[AbstractParameter],
-    parameter_index: usize,
     result_type: ScalarType,
     expected_target: NativeTarget,
-) -> Result<ScalarParameterLocation, StraightLineParameterReconstructionError> {
+) -> Result<Vec<ScalarParameterLocation>, StraightLineParameterReconstructionError> {
     let parameter_shapes = parameters
         .iter()
         .map(parameter_shape)
         .collect::<Result<Vec<_>, _>>()?;
-    let expected_bytes = parameter_shapes[parameter_index].byte_size;
     let signature = CallSignature {
-        parameters: parameter_shapes,
+        parameters: parameter_shapes.clone(),
         result: Some(scalar_shape(result_type)),
     };
     let call_plan = evaluate_call_plan(
@@ -31,7 +29,12 @@ pub(super) fn replay(
     if call_plan.parameters.len() != parameters.len() {
         return Err(StraightLineParameterReconstructionError::AbiParameterCount);
     }
-    parameter_location(&call_plan.parameters[parameter_index], expected_bytes)
+    call_plan
+        .parameters
+        .iter()
+        .zip(parameter_shapes)
+        .map(|(placement, shape)| parameter_location(placement, shape.byte_size))
+        .collect()
 }
 
 fn parameter_shape(

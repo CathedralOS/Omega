@@ -4,6 +4,7 @@ mod receipt;
 pub(in crate::validation) use error::StraightLineParameterReconstructionError;
 pub use error::{
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
+    StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotParameterTranslationError,
     StraightLineBooleanParameterTranslationError, StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerParameterTranslationError, StraightLineScalarCrashTranslationError,
@@ -11,6 +12,7 @@ pub use error::{
 pub use receipt::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationValidationReceipt,
+    StraightLineBooleanEqualParametersTranslationReceipt,
     StraightLineBooleanImmediateTranslationReceipt,
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationReceipt, StraightLineIntegerImmediateTranslationReceipt,
@@ -26,4 +28,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerParameter,
     StraightLineBooleanParameter,
     StraightLineBooleanNotParameter,
+    StraightLineBooleanEqualParameters,
 }
