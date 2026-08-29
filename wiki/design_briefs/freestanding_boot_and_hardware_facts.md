@@ -93,29 +93,59 @@ then cross the semantic installation edge. That edge introduces the two
 `Granted` occurrences once; the ordinary continuation call only forwards them.
 
 The bootstrap contract states pointer provenance, alignment, lifetime, paging
-and CPU regime, stack supply, entry/exit control, bounded retry work, provider
-lifecycle, and every accepted fact the checker cannot derive. Its installation
-receipt joins the physical invocation, target schema, provider realizations,
-physical-input provenance, root geometry and evidence, semantic requirement,
-and selected continuation. Failure before semantic installation calls no source
-continuation and introduces no complete semantic roots. The target package maps
-each such failure to an exact `EfiStatus`; normal return from today's Unit
-semantic continuation maps to success. A crash remains a declared crash route,
-not a synthesized status. The compiler derives and composes the generated and
-authored bridge contracts; it never interprets a firmware handle by folklore.
+and CPU regime, stack supply, entry/exit control, provider lifecycle, and every
+accepted fact the checker cannot derive. The adapter itself is checked Omega;
+its foreign premises are exact provider postconditions. Physical arrival admits
+that the supplied system-table occurrence, machine regime, and entry stack
+satisfy the selected profile. `HandleProtocol` admits the correspondence from
+one successful Loaded Image result to this handle's real mapped image;
+`AllocatePages` admits exact exclusive page custody on success; `FreePages`
+admits its return. Layout validation and interval arithmetic derive facts above
+those claims but never replace them. The ledger retains the postconditions and
+selected bindings, not a blanket statement that firmware is trusted.
+
+The selected profile exposes its minimum entry-stack bound as a target-semantic
+observation, conceptually
+`TargetSemantics::guaranteed_entry_stack<UefiX86_64>()`. It stays symbolic until
+target closure and propagates into certificate and artifact compatibility
+identity. The physical-arrival admission separately states that the executing
+firmware conforms to that selected profile. For an adapter that remains on the
+firmware stack, the checked inequality includes generated shell usage, live
+adapter frames, maximum nested program and firmware-call WCSU, and one explicit
+target reserve. A target may instead allocate and switch to a private Omega
+stack through a checked stub, preserving the firmware return state for the
+returning profile.
+
+The installation receipt joins the physical invocation, target schema,
+provider realizations, physical-input provenance, root geometry and evidence,
+stack plan, semantic requirement, and selected continuation. Failure before
+semantic installation calls no source continuation and introduces no complete
+semantic roots. The target package maps each recoverable bootstrap failure to
+an exact `EfiStatus`; normal return from today's Unit semantic continuation maps
+to success. A crash, trap, or abort does not return through the physical result
+register and remains a declared non-returning route. The compiler derives and
+composes the generated and authored bridge contracts; it never interprets a
+firmware handle by folklore.
 
 Program storage begins from a small number of entry-provisioned content roots.
-The loader, firmware, or OS supplies the physical basis and admitted evidence;
-the semantic entry introduces the program-visible image and initial-storage
-occurrences. The compiler derives image sections as subextents of the image
-root; later frames and task stacks are checked allocations from an existing
-root. Bootstrap or receiver storage is never concealed inside an extent handed
-whole to source. A parent allocation is conserved as a partition: the active
-handoff stack or provisioned receiver remains in the target execution frontier,
-and only a disjoint residual becomes source-visible `initial_storage`. The
-target chooses geometry that leaves one contiguous residual when the semantic
-carrier is one `Extent`; it may not encode an inaccessible hole in a `Granted`
-range. A receiver-bound entry lends only its one checked `&mut self` occurrence.
+The image handle is only an identifier; the Loaded Image provider supplies its
+base, size, lifetime, and correspondence. Initial storage comes from a
+separately owned reserved region in the final image plan whose disjointness from
+the installed image root is proved, or from an admitted firmware allocation.
+`EntryStack::ProviderSelected` describes where the bootstrap executes;
+it does not transfer that live stack to the program. The semantic entry
+introduces the resulting program-visible image and initial-storage occurrences.
+
+The compiler derives image sections as subextents of the image root; later
+frames and task stacks are checked allocations from an existing root. Bootstrap
+or receiver storage is never concealed inside an extent handed whole to source.
+When a private stack and initial storage share one parent allocation, that
+parent is conserved as an exact partition: the active stack and retained
+bootstrap state remain in the target execution frontier, and only one disjoint
+residual becomes source-visible `initial_storage`. The target chooses geometry
+that leaves one contiguous residual when the semantic carrier is one `Extent`;
+it may not encode an inaccessible hole in a `Granted` range. A receiver-bound
+entry lends only its one checked `&mut self` occurrence.
 
 Those roots use the core-owned stable `ProgramStorageEntry::enter` semantic
 arrival requirement. Its two exact `Extent in Granted` parameter positions
@@ -137,6 +167,17 @@ rejection. Compiler-derived image-section
 ranges remain borrowed views under the installed image root. Initial-storage
 allocations that leave the pool's ownership use an explicit conserved
 partition retaining every remainder and can recompose the exact parent.
+
+The first implementation profile is the returning `UefiApplication`. Boot
+Services remain live, normal Unit completion returns success, and every
+adapter-owned allocation is reclaimed. A successful OS-loader handoff is a
+different lifecycle over the same physical ABI. Its bounded
+`GetMemoryMap`/`ExitBootServices` state graph threads every allocation,
+snapshot, map key, and boot-services capability linearly; stale-key rejection
+returns all live custody before retry, while success consumes boot-scoped
+authority and transfers surviving storage without returning to firmware. That
+handoff profile remains implementation work and must not be inferred from the
+returning application's Unit contract.
 
 ## Facts, authority, reach, and trust remain separate
 

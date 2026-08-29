@@ -143,6 +143,16 @@ semantic edge introduces those root occurrences after provider validation.
 Neither firmware input is silently reinterpreted as an `Extent`, and no hidden
 platform parameter is appended to the source machine.
 
+The bootstrap adapter is checked code over narrowly admitted physical-arrival
+and firmware-service postconditions. It resolves the image through the selected
+Loaded Image provider and obtains initial storage independently; the live
+provider-selected entry stack is never handed to source as that storage. Its
+shell, live frames, nested program/provider WCSU, and explicit reserve must fit
+the symbolic selected-target entry-stack guarantee, unless a checked private
+stack switch is used. Normal Unit return maps to the target success status,
+recoverable bootstrap failures use the declared status map, and a crash does
+not return a status.
+
 > **Implementation gate:** explicit `Build` root binding, exact source-entry
 > selection, target-owned `ProgramEntry` profile/schema metadata, hosted
 > free/receiver source-shape checks, exact UEFI visible-root type/arity checks

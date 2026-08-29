@@ -8,6 +8,12 @@ beside their owners. “Gate accepted” is deliberately narrower than “compil
 correct”: an open row is not laundered by a later fixed point or differential
 agreement.
 
+Artifact and source paths below are the current committed physical names. D10
+selects descriptive destination names and `.delta`/`.proof` source suffixes;
+the chain ledger changes those paths only when the atomic migration lands.
+Path-only moves preserve content identities but invalidate attempts that pinned
+the moved locator or tooling files.
+
 ## Alpha execution floor
 
 Committed native seeds:

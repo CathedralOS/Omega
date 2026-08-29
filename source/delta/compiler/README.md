@@ -1,15 +1,18 @@
 # Delta compiler
 
 This directory owns the canonical Delta-written compiler source. `main.alp` is
-the current single translation unit consumed by the lower-rung publication
-route; it is a compiler input, not a sample or a separate bootstrap bridge.
+the current physical path of the single translation unit consumed by the
+lower-rung publication route; it is a compiler input, not a sample or a
+separate bootstrap bridge.
 
-The historical `.alp` suffix is retained until Delta v1's independent source
-contract and file convention are ratified. Its spelling does not make Delta an
-Alpha or Omega subset. Splitting the translation unit into ordinary Delta
-modules is permitted once the ratified language and source-closure rules define
-that module surface; the closure manifest, rather than concatenation in a
-runner, must own the resulting source graph.
+D10 retires `.alp` for Delta and selects `.delta`. The queued atomic migration
+updates the locations companion and every consumer while preserving the exact
+source bytes and path-independent closure identity. Delta may share source
+spelling with Omega, but its meaning is self-contained and independent of both
+Alpha and Omega. Splitting the translation unit into ordinary Delta modules is
+permitted once the language and source-closure rules define that module
+surface; the closure manifest, rather than concatenation in a runner, must own
+the resulting source graph.
 
 No unbound compiler executable is checked in here. After the exact lower-rung
 producer edge and custody receipt close, the admitted Darwin ARM64 result has

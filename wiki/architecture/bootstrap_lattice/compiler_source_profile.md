@@ -33,8 +33,11 @@ designs.
 
 ## Delta v1
 
-Delta is a small deterministic systems/compiler-host language. It is not
-restricted to valid Omega and should not inherit Omega complexity merely for
+Delta is a small deterministic systems/compiler-host language. It may share
+spelling with Omega, but its grammar, static rules, elaboration, resources, and
+observations are defined without consulting Omega. A source file accepted by
+both languages receives only the meaning of the selected route. Delta is not
+restricted to valid Omega and does not inherit Omega complexity merely for
 spelling consistency. Its contract is justified by the source and safety needs
 of the canonical compiler, not by whatever a temporary implementation happens
 to accept.
@@ -45,6 +48,12 @@ Omission is not a goal by itself. Delta still needs a coherent compiler-host
 floor: structured control, scalar and aggregate data, modules, deterministic
 storage/allocation with explicit exhaustion, and sealed byte/artifact/
 diagnostic/exit boundaries.
+
+The contract fixes sealed input bytes and the admissible input profile before
+stating refinement. It classifies each fixed capacity while defining its
+resource section: source-visible bounds and explicit profile parameters are
+semantic; private implementation budgets are not. Exhausting the latter yields
+`Incomplete`, never a Delta rejection, termination result, or artifact claim.
 
 ## Compiler-source usage
 

@@ -27,8 +27,11 @@ compiler between Delta and `omega₀`.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 
-[`compiler/main.alp`](compiler/main.alp) is the current canonical Delta compiler
-source. Its fixed storage and host I/O choices are
+[`compiler/main.alp`](compiler/main.alp) is the current physical location of the
+canonical Delta compiler source. D10 retires the misleading `.alp` suffix; the
+queued path-only migration renames it and the Delta corpus to `.delta` without
+changing source bytes or path-independent closure identity. Its fixed storage
+and host I/O choices are
 implementation/resource commitments only where the Delta contract explicitly
 retains them.
 
@@ -40,10 +43,17 @@ it under `compiler/validation/`.
 
 ## Boundaries
 
-- Omega-like spelling does not make Delta an Omega subset.
+- Familiar Omega spelling does not make Delta an Omega subset. Delta's contract
+  must define every accepted form without consulting Omega documentation, and
+  Delta acceptance never proves Omega meaning.
+- Delta's observation profile starts with sealed input bytes and ends with exact
+  artifact/diagnostic bytes plus its declared terminal outcome. Private
+  producer/checker budget exhaustion is `Incomplete`, not a Delta result.
 - The Delta-produced compiler may lower conservatively, but accepted source
   retains exact ordinary Omega meaning.
-- Unsupported input and resource exhaustion reject before publication.
+- Source outside Delta rejects. Language-visible exhaustion follows the Delta
+  contract; private producer/checker exhaustion is `Incomplete`. None of these
+  outcomes publishes an artifact.
 - An ambient assembler/linker result may receive an exact custody receipt, but
   it gains no compiler authority without separately checked direct refinement.
 - Shell and Python files may drive tests or verify recorded receipts. They are
