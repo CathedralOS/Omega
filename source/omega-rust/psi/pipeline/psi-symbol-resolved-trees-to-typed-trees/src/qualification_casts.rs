@@ -1,4 +1,8 @@
 use psi_diagnostics::Diagnostic;
+use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+    AuthoredDeclarationSelectionTarget,
+};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionNode;
@@ -20,6 +24,46 @@ pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<
     let mut updates = Vec::with_capacity(sites.len());
 
     for (handle, cast) in sites {
+        let matching_occurrences = program
+            .expression_table
+            .authored_selection_occurrences(handle)
+            .filter(|occurrence| {
+                program
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .is_some_and(|selection| {
+                        selection.kind() == AuthoredDeclarationSelectionKind::DomainMembership
+                    })
+            })
+            .collect::<Vec<_>>();
+        let [authored_occurrence] = matching_occurrences.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "semantic qualification cast retains {} authored domain-selection occurrences; expected exactly one",
+                matching_occurrences.len(),
+            )));
+        };
+        let authored_occurrence = *authored_occurrence;
+        let Some(authored_selection) = program
+            .authored_declaration_selections()
+            .get(authored_occurrence)
+        else {
+            return Err(Diagnostic::error(
+                "semantic qualification cast retains an unknown authored domain-selection occurrence",
+            ));
+        };
+        if authored_selection.source_span().span.start >= authored_selection.source_span().span.end
+            || authored_selection.target()
+                != AuthoredDeclarationSelectionTarget::LateBound(
+                    AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+                )
+        {
+            return Err(
+                Diagnostic::error(
+                    "semantic qualification cast authored domain custody is empty or has the wrong binding family",
+                )
+                .with_source_span(authored_selection.source_span()),
+            );
+        }
         let name = program
             .expression_table
             .name_path_members(cast.semantic_domain)
@@ -49,6 +93,7 @@ pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<
         let [domain] = matches.as_slice() else {
             updates.push((
                 handle,
+                authored_occurrence,
                 SymbolHandle::invalid(),
                 psi_language_semantics::SemanticDomainId::NULL,
             ));
@@ -79,10 +124,29 @@ pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<
         } else {
             program.semantic_domains.intern(&instance_name)
         };
-        updates.push((handle, domain.symbol, semantic_id));
+        updates.push((handle, authored_occurrence, domain.symbol, semantic_id));
     }
 
-    for (handle, domain, semantic_id) in updates {
+    let mut selections = program.authored_declaration_selections().clone();
+    for (_, authored_occurrence, domain, _) in &updates {
+        if !domain.is_valid() {
+            continue;
+        }
+        selections
+            .finalize_late_bound(
+                *authored_occurrence,
+                AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+                *domain,
+            )
+            .map_err(|error| {
+                Diagnostic::error(format!(
+                    "failed to finalize semantic qualification-cast domain custody: {error:?}",
+                ))
+            })?;
+    }
+    program.retain_authored_declaration_selections(selections);
+
+    for (handle, _, domain, semantic_id) in updates {
         let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
             continue;
         };

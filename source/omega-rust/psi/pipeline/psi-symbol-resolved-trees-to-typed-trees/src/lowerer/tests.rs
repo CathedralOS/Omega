@@ -2891,11 +2891,11 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
     assert_eq!(return_name.as_str(), "To");
     assert_eq!(*return_symbol, parameter.symbol);
 
-    let cast = typed_trees
+    let (cast_expression, cast) = typed_trees
         .expression_table
         .iter_expressions()
-        .find_map(|(_, expression)| match expression {
-            psi_typed_trees::expression::ExpressionNode::Cast(cast) => Some(cast),
+        .find_map(|(handle, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::Cast(cast) => Some((handle, cast)),
             _ => None,
         })
         .expect("retag body should retain its qualification cast");
@@ -2917,6 +2917,26 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
     assert_eq!(cast_name.as_str(), "To");
     assert_eq!(*cast_symbol, parameter.symbol);
     assert_eq!(cast.semantic_domain_id, return_domain.semantic_id);
+    let occurrences = typed_trees
+        .expression_table
+        .authored_selection_occurrences(cast_expression)
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        panic!("qualification cast should retain one exact authored selection")
+    };
+    let selection = typed_trees
+        .authored_declaration_selections()
+        .get(*occurrence)
+        .expect("qualification-cast occurrence must rejoin its selection");
+    assert_eq!(
+        selection.kind(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::DomainMembership
+    );
+    assert!(matches!(
+        selection.target(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+            if target.selected_symbol() == cast.semantic_domain_symbol
+    ));
 
     let conversion = typed_trees.traits().first().expect("Conversion trait");
     let [requirement] = typed_trees.trait_machine_signatures(conversion) else {

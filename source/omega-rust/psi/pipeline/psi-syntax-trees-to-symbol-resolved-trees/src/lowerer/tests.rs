@@ -1898,6 +1898,84 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
 }
 
 #[test]
+fn qualification_cast_domains_retain_exact_expression_custody() {
+    let source = r#"
+        domain u16::Tagged;
+        pub machine api(value: u8)
+        requires (value as u16 in Tagged) == 1
+        { }
+        machine helper(value: u8)
+        requires (value as u16 in Tagged) == 1
+        { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize qualification casts");
+    let syntax = parse_syntax_trees(&tokens).expect("parse qualification casts");
+    let program = lower_syntax_trees(&syntax).expect("resolve qualification casts");
+
+    let casts = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(expression, node)| match node {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Cast(cast)
+                if !cast.semantic_domain.is_empty() =>
+            {
+                Some(expression)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(casts.len(), 2);
+
+    let mut exposures = casts
+        .into_iter()
+        .map(|cast| {
+            let occurrences = program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(cast)
+                .collect::<Vec<_>>();
+            let [occurrence] = occurrences.as_slice() else {
+                panic!("each qualification cast must retain one exact authored selection")
+            };
+            let selection = program
+                .authored_declaration_selections()
+                .get(*occurrence)
+                .expect("qualification-cast occurrence must rejoin its selection");
+            assert_eq!(
+                selection.kind(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::DomainMembership
+            );
+            assert_eq!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
+                    psi_symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+                )
+            );
+            let source_span = selection.source_span();
+            assert!(source_span.span.start < source_span.span.end);
+            assert_eq!(source_span.span.end - source_span.span.start, "Tagged".len());
+            selection.exposure()
+        })
+        .collect::<Vec<_>>();
+    exposures.sort_by_key(|exposure| match exposure {
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation => 0,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface => 1,
+    });
+    assert_eq!(
+        exposures,
+        [
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
+        ]
+    );
+}
+
+#[test]
 fn retains_nested_unary_operator_custody_in_public_propositions() {
     let source = "pub proposition inverted(value: u8, expected: u8) = ~value == expected;";
     let tokens = Lexer::new(source)

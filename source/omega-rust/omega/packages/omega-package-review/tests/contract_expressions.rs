@@ -987,18 +987,16 @@ requires (value as u16 in Hidden) == 1
 "#,
     );
     private.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &private.0.join("main.omg"),
         Some(target),
         package_inputs(&private.0),
     )
-    .expect("private semantic-domain cast contract should check before package review");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("a public contract must not expose a private semantic domain");
+    .expect_err("checked visibility must reject a private semantic domain in a public contract");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("exposes non-public semantic domain")
+            .contains("public interface selects private domain")
     }));
 }
 

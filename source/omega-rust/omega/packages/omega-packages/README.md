@@ -1132,7 +1132,10 @@ proposition-argument members without that join, unsupported advanced call
 forms, and aggregate expressions still fail closed. Contract casts retain the
 structural operand, alpha-normalized target, arithmetic policy, package-qualified
 semantic domain and arguments, and value/recast form. Diagnostic spellings are excluded;
-private package domains reject when exposed by a public cast.
+private package domains reject when exposed by a public cast. The semantic-domain
+path retains one exact authored-selection occurrence on the cast expression;
+typed domain resolution must finalize that same occurrence before checked
+visibility, direct-dependency admission, or review projection can accept it.
 This join does not create a nominal Chi stage.
 Ordinary standalone checked compilation still takes a caller-owned writable
 build root when build-host staging is possible. Package review instead supplies
