@@ -3,6 +3,7 @@
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_unit::TotalScalarIdentityKind;
 
+mod bitwise_absorbing;
 mod bitwise_neutral;
 mod model;
 mod saturating;
@@ -42,6 +43,12 @@ pub(super) fn independently_classify_total_scalar_identity(
         | TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft
         | TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => {
             bitwise_neutral::classify(operation, identity)
+        }
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft
+        | TotalScalarIdentityKind::IntegerBitwiseAndZeroRight
+        | TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft
+        | TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => {
+            bitwise_absorbing::classify(operation, identity)
         }
     }
 }

@@ -17,6 +17,16 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Global value numbering now keeps absorbing bitwise literals in their own
+four-row obligation-free family: `0 & x`, `x & 0`, `all_ones | x`, and
+`x | all_ones`. Candidate tags 23-26 and catalog row 15 are append-only under
+GVN v14. The rule retains only its exact-width law-literal fact, maps to a
+separate independently reconstructed validator identity, and deliberately has
+no XOR row. Signed and unsigned 1/128-bit boundaries, canonical left-literal
+ties, rule-domain isolation, fixed-point execution, and all neutral/absorbing
+AND/OR overlaps are covered; catalog order gives the earlier neutral rule the
+stable disposition where both laws apply.
+
 [x] Global value numbering now has a separate six-row obligation-free bitwise
 neutral-literal family: `all_ones & x`, `x & all_ones`, `0 | x`, `x | 0`,
 `0 ^ x`, and `x ^ 0`. Candidate tags 17-22 and catalog row 14 are append-only
@@ -24,7 +34,8 @@ under GVN v13; the rule retains only its exact-width law-literal fact and has a
 separate independently reconstructed validator identity. Signed and unsigned
 1/128-bit carrier boundaries, canonical left-literal ties, rule-domain
 isolation, disabled-by-default selection, and fixed-point execution are
-covered. Absorbing bitwise literals remain a distinct future rule.
+covered. Absorbing bitwise literals remain a distinct adjacent rule rather
+than being folded into this family.
 
 [x] Global value numbering now has a separate two-row obligation-free
 saturating multiplication annihilation family: `0 * x -> 0` and `x * 0 ->
@@ -534,12 +545,13 @@ parallel route or optional coordinator field.
 - [x] Proof-check elision and proof-certified exact integer identities.
 - [x] Extend GVN with an exhaustive five-row obligation-free wrapping neutral
   arithmetic identity partition and independent validator reconstruction.
-- [>] Extend GVN and scalar identities to further exact operation families only
+- [x] Extend GVN and scalar identities to further exact operation families only
   with exhaustive producer/validator partitions. The separate wrapping-shift
   zero-count, wrapping multiply-zero, saturating neutral-arithmetic, and
   saturating multiply-zero families and the bitwise neutral-literal family are
-  complete. A separately named bitwise absorbing-literal identity remains an
-  unselected future family.
+  complete. The separately named bitwise absorbing-literal family is also
+  complete, including deterministic overlap coverage against the earlier
+  neutral-literal family.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
   are resolved.
 - [?] Define suspension/resume edges for CFG analyses.

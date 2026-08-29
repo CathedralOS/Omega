@@ -80,7 +80,7 @@ fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
     assert_eq!(
         contract.pass(),
         OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v13",
+            b"omega.psi-pass.global-value-numbering.v14",
         )
     );
     let expected = contract.identity();
@@ -149,6 +149,18 @@ fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
         registry
             .contracts()
             .filter(|contract| contract.identity() == bitwise_neutral)
+            .count(),
+        1
+    );
+    let bitwise_absorbing = BitwiseAbsorbingLiteralIdentityRule::contract().identity();
+    assert_eq!(
+        registry.contracts().nth(15).map(|row| row.identity()),
+        Some(bitwise_absorbing)
+    );
+    assert_eq!(
+        registry
+            .contracts()
+            .filter(|contract| contract.identity() == bitwise_absorbing)
             .count(),
         1
     );

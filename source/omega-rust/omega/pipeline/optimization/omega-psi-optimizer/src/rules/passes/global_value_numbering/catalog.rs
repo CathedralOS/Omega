@@ -21,5 +21,6 @@ pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration>
         BuiltInRuleRegistration::new(12, SaturatingNeutralArithmeticIdentityRule),
         BuiltInRuleRegistration::new(13, SaturatingMultiplyZeroAnnihilationRule),
         BuiltInRuleRegistration::new(14, BitwiseNeutralLiteralIdentityRule),
+        BuiltInRuleRegistration::new(15, BitwiseAbsorbingLiteralIdentityRule),
     ]
 }

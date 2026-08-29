@@ -52,6 +52,12 @@ fn contract(identity: TotalScalarIdentityKind) -> OptimizationRuleContract {
         | TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => {
             b"omega.psi-rule.live-obligation-free-integer-bitwise-neutral-literal-elimination.v1"
         }
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft
+        | TotalScalarIdentityKind::IntegerBitwiseAndZeroRight
+        | TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft
+        | TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => {
+            b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1"
+        }
     };
     OptimizationRuleContract::new(
         OptimizationRuleIdentity::from_canonical_bytes(domain),
@@ -346,6 +352,54 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
             },
             input_value,
         ),
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseAnd {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            neutral,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroRight => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseAnd {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            neutral,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft => (
+            IntegerValue::Unsigned(u128::from(u32::MAX)),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseOr {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            neutral,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => (
+            IntegerValue::Unsigned(u128::from(u32::MAX)),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseOr {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            neutral,
+        ),
     };
     let unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
@@ -485,7 +539,7 @@ fn candidate_with_contract(
 }
 
 #[test]
-fn all_twenty_two_total_rows_replay_without_proof_custody() {
+fn all_twenty_six_total_rows_replay_without_proof_custody() {
     let identities = [
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
         TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
@@ -509,6 +563,10 @@ fn all_twenty_two_total_rows_replay_without_proof_custody() {
         TotalScalarIdentityKind::IntegerBitwiseOrZeroRight,
         TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft,
         TotalScalarIdentityKind::IntegerBitwiseXorZeroRight,
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft,
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroRight,
+        TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft,
+        TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight,
     ];
     for identity in identities {
         let (unit, patch) = fixture(identity);
@@ -805,5 +863,47 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
             ),
         ),
         Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let (absorbing_unit, absorbing_patch) =
+        fixture(TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft);
+    let neutral_contract = contract(TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &absorbing_unit,
+            &candidate_with_contract(
+                &absorbing_unit,
+                absorbing_patch,
+                false,
+                None,
+                neutral_contract,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let mut wrong_absorbing_side = absorbing_patch;
+    wrong_absorbing_side.identity = TotalScalarIdentityKind::IntegerBitwiseAndZeroRight;
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &absorbing_unit,
+            &candidate(&absorbing_unit, wrong_absorbing_side, false, None),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let mut wrong_absorbing_replacement = absorbing_patch;
+    wrong_absorbing_replacement.replacement = id(3, ValueId::new);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &absorbing_unit,
+            &candidate(
+                &absorbing_unit,
+                wrong_absorbing_replacement,
+                false,
+                None,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     );
 }
