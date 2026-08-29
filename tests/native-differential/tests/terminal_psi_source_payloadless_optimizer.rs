@@ -170,7 +170,11 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
             _ => None,
         })
         .expect("caller retains its structural call");
-    assert!(call.is_some(), "guarded source retains selected evidence");
+    assert_eq!(
+        call.len(),
+        1,
+        "guarded source retains one selected-evidence row"
+    );
     assert!(baseline.functions[callee_index].verified_contract.is_some());
     assert!(
         baseline.functions[callee_index]

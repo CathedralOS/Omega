@@ -385,7 +385,7 @@ fn lower_and_install_payloadless_guarded_call_evidence(
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
 
-    let retained_selected_rows = checked
+    let mut retained_selected_rows = checked
         .facts
         .proof
         .outcome_specific_arms
@@ -403,20 +403,25 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             })
         })
         .collect::<Vec<_>>();
-    match (&plan.selected_evidence, retained_selected_rows.as_slice()) {
-        (None, []) => {}
-        (Some(selection), [(arm, guarantee, selected_term)])
-            if u32::try_from(arm.statement_index).ok() == Some(selection.arm_statement_index)
-                && *guarantee == selection.guarantee
-                && *selected_term == selection.selected_term => {}
-        _ => {
-            return unsupported(
-                "guarded payloadless checked selection disagrees with retained arm evidence",
-            );
-        }
+    retained_selected_rows
+        .sort_by_key(|(_, guarantee, _)| (guarantee.arena_index(), guarantee.generation()));
+    if plan.selected_evidence.len() != retained_selected_rows.len()
+        || plan
+            .selected_evidence
+            .iter()
+            .zip(&retained_selected_rows)
+            .any(|(selection, (arm, guarantee, selected_term))| {
+                u32::try_from(arm.statement_index).ok() != Some(selection.arm_statement_index)
+                    || *guarantee != selection.guarantee
+                    || *selected_term != selection.selected_term
+            })
+    {
+        return unsupported(
+            "guarded payloadless checked selections disagree with retained arm evidence",
+        );
     }
 
-    if let Some(selection) = &plan.selected_evidence {
+    for selection in &plan.selected_evidence {
         let matching_arms = checked
             .facts
             .proof
@@ -550,7 +555,7 @@ fn lower_and_install_payloadless_guarded_call_evidence(
         else {
             return unsupported("guarded payloadless caller operation is not structural");
         };
-        *selected_evidence = Some(OutcomeSpecificCallEvidence {
+        selected_evidence.push(OutcomeSpecificCallEvidence {
             guard: callee_guard,
             position: callee_position,
             callee_obligation,
@@ -571,6 +576,30 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             },
         });
     }
+    let caller = &mut lowered.semantic_module.machines[0];
+    let [operation] = caller.blocks[0].operations.as_mut_slice() else {
+        return unsupported("guarded payloadless caller has no exact call");
+    };
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut operation.kind
+    else {
+        return unsupported("guarded payloadless caller operation is not structural");
+    };
+    selected_evidence.sort_by(|left, right| {
+        (
+            left.guard,
+            left.position,
+            left.output_field.as_str(),
+            left.output,
+        )
+            .cmp(&(
+                right.guard,
+                right.position,
+                right.output_field.as_str(),
+                right.output,
+            ))
+    });
     Ok(())
 }
 
@@ -589,9 +618,11 @@ fn lower_payloadless_guarded_call_term_ids(
                 .flatten()
         })
         .collect::<Vec<_>>();
-    if let Some(selection) = &plan.selected_evidence {
-        handles.push(selection.selected_term);
-    }
+    handles.extend(
+        plan.selected_evidence
+            .iter()
+            .map(|selection| selection.selected_term),
+    );
     let mut term_ids = vec![None; checked.facts.proof.evidence_terms.len()];
     for (position, handle) in handles.into_iter().enumerate() {
         let index = usize::try_from(handle.arena_index() - 1)

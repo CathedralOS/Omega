@@ -577,7 +577,7 @@ fn build_payloadless_guarded_call_return_machine(
     {
         return None;
     }
-    let mut selected = matching_arms.iter().flat_map(|(_, arm)| {
+    let selected = matching_arms.iter().flat_map(|(_, arm)| {
         arm.rows.iter().filter_map(move |row| {
             row.selected_term.map(|selected_term| {
                 (
@@ -589,28 +589,32 @@ fn build_payloadless_guarded_call_return_machine(
             })
         })
     });
-    let selected_evidence =
-        if let Some((arm_statement_index, guarantee, selected_term, validity)) = selected.next() {
-            if !expression_is_saved(validity.result_occurrence, arm_statement_index)
-                || !validity.referenced_occurrences.is_empty()
-                || validity
-                    .evidence_interface_scope
-                    .as_ref()
-                    .is_none_or(|scope| !scope.retained_occurrences.is_empty())
-            {
-                return None;
-            }
-            Some(CheckedPayloadlessGuardedCallEvidencePlan {
-                arm_statement_index: u32::try_from(arm_statement_index).ok()?,
-                guarantee,
-                selected_term,
-            })
-        } else {
-            None
-        };
-    if selected.next().is_some() {
-        return None;
-    }
+    let mut selected_evidence = selected
+        .map(
+            |(arm_statement_index, guarantee, selected_term, validity)| {
+                if !expression_is_saved(validity.result_occurrence, arm_statement_index)
+                    || !validity.referenced_occurrences.is_empty()
+                    || validity
+                        .evidence_interface_scope
+                        .as_ref()
+                        .is_none_or(|scope| !scope.retained_occurrences.is_empty())
+                {
+                    return None;
+                }
+                Some(CheckedPayloadlessGuardedCallEvidencePlan {
+                    arm_statement_index: u32::try_from(arm_statement_index).ok()?,
+                    guarantee,
+                    selected_term,
+                })
+            },
+        )
+        .collect::<Option<Vec<_>>>()?;
+    selected_evidence.sort_by_key(|selection| {
+        (
+            selection.guarantee.arena_index(),
+            selection.guarantee.generation(),
+        )
+    });
 
     Some(CheckedPayloadlessGuardedCallReturnMachinePlan {
         machine: machine.symbol,

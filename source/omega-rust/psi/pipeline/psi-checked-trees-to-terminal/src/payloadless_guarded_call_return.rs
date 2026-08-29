@@ -122,7 +122,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
                     returned_claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                    selected_evidence: None,
+                    selected_evidence: Vec::new(),
                 },
             }],
             terminator: Terminator::ReturnStructural {

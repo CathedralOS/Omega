@@ -14,7 +14,7 @@ pub(crate) fn exact_fully_consumed_affine_pair(
     cleanup: Option<&UnitAffineCleanupRecord>,
 ) -> bool {
     exact_affine_array_calls(parameter_homes, calls, cleanup, 2)
-        .is_some_and(|indexes| indexes == [0, 1] || indexes == [1, 0])
+        .is_some_and(|indexes| indexes.as_slice() == [0, 1] || indexes.as_slice() == [1, 0])
 }
 
 pub(crate) fn exact_partially_consumed_affine_triple(
@@ -23,7 +23,7 @@ pub(crate) fn exact_partially_consumed_affine_triple(
     cleanup: Option<&UnitAffineCleanupRecord>,
 ) -> bool {
     exact_affine_array_calls(parameter_homes, calls, cleanup, 3)
-        .is_some_and(|[first, second]| first != second)
+        .is_some_and(|indexes| matches!(indexes.len(), 1 | 2))
 }
 
 fn exact_affine_array_calls(
@@ -31,11 +31,12 @@ fn exact_affine_array_calls(
     calls: &[InternalUnitCallRecord],
     cleanup: Option<&UnitAffineCleanupRecord>,
     expected_length: u64,
-) -> Option<[u64; 2]> {
-    let ([home], [first, second], Some(cleanup)) = (parameter_homes, calls, cleanup) else {
+) -> Option<Vec<u64>> {
+    let ([home], Some(cleanup)) = (parameter_homes, cleanup) else {
         return None;
     };
-    if home.multiplicity != StructuralMultiplicity::Affine
+    if !matches!((expected_length, calls.len()), (2, 2) | (3, 1 | 2))
+        || home.multiplicity != StructuralMultiplicity::Affine
         || !cleanup.locals.is_empty()
         || cleanup
             .structural_types
@@ -109,19 +110,33 @@ fn exact_affine_array_calls(
             && argument.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
         .then_some((*index, argument.shape, stride))
     };
-    let Some(first_index) = moved_index(first, 0) else {
+    let moved = calls
+        .iter()
+        .enumerate()
+        .map(|(ordinal, call)| moved_index(call, ordinal))
+        .collect::<Option<Vec<_>>>()?;
+    let (first_index, first_shape, first_stride) = *moved.first()?;
+    if moved
+        .iter()
+        .any(|(_, shape, stride)| *shape != first_shape || *stride != first_stride)
+        || moved
+            .iter()
+            .map(|(index, _, _)| *index)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != moved.len()
+        || calls.windows(2).any(|pair| {
+            pair[0].owner == pair[1].owner
+                || pair[0]
+                    .code_offset
+                    .checked_add(pair[0].byte_count)
+                    .is_none_or(|end| end > pair[1].code_offset)
+        })
+    {
         return None;
-    };
-    let Some(second_index) = moved_index(second, 1) else {
-        return None;
-    };
-    ((first_index.0 != second_index.0)
-        && first.owner != second.owner
-        && first_index.1 == second_index.1
-        && first_index.2 == second_index.2
-        && first
-            .code_offset
-            .checked_add(first.byte_count)
-            .is_some_and(|end| end <= second.code_offset))
-    .then_some([first_index.0, second_index.0])
+    }
+    let mut indexes = Vec::with_capacity(moved.len());
+    indexes.push(first_index);
+    indexes.extend(moved.iter().skip(1).map(|(index, _, _)| *index));
+    Some(indexes)
 }

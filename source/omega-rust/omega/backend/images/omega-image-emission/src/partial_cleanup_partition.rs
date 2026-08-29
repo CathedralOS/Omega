@@ -62,7 +62,7 @@ fn append_expected_partial_residuals(
         let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return None;
         };
-        if !matches!((length, moved.len()), (2, 1) | (3, 2))
+        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2))
             || moved.iter().any(|(_, moved_type)| *moved_type != element)
             || !matches!(
                 declarations
@@ -83,13 +83,18 @@ fn append_expected_partial_residuals(
         if moved_indexes.len() != moved.len() {
             return None;
         }
-        let residual = (0..length)
+        let residuals = (0..length)
+            .rev()
             .filter(|index| !moved_indexes.contains(index))
             .collect::<Vec<_>>();
-        let [residual] = residual.as_slice() else {
+        if residuals.is_empty() {
             return None;
-        };
-        output.push((vec![StructuralPathSegment::FixedIndex(*residual)], element));
+        }
+        output.extend(
+            residuals
+                .into_iter()
+                .map(|residual| (vec![StructuralPathSegment::FixedIndex(residual)], element)),
+        );
         return Some(());
     }
     let declaration = declarations.get(&structural_type)?;

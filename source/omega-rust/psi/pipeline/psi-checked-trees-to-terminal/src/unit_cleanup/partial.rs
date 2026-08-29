@@ -284,51 +284,41 @@ fn checked_partial_affine_residuals(
             ) {
                 return None;
             }
-            match (*length, moved_paths) {
-                (2, [(path, moved_type)]) => {
-                    let [CheckedUnitStructuralPathSegment::FixedIndex(index @ (0 | 1))] = *path
-                    else {
-                        return None;
-                    };
-                    if *moved_type != element_type_identity {
-                        return None;
-                    }
-                    return Some(vec![CheckedUnitPartialAffineDiscardPlan {
-                        source_parameter_index: 0,
-                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(1 - index)],
-                        type_identity: element_type_identity.clone(),
-                    }]);
-                }
-                (2, moved)
+            match (*length, moved_paths.len()) {
+                (2, 2)
                     if exact_checked_fully_moved_affine_pair_residuals(
-                        moved,
+                        moved_paths,
                         element_type_identity,
                     ) =>
                 {
                     return Some(Vec::new());
                 }
-                (3, moved)
-                    if exact_checked_two_moves_from_affine_triple_residuals(
-                        moved,
+                (2, 1) | (3, 1 | 2)
+                    if exact_checked_bounded_affine_array_moves(
+                        moved_paths,
                         element_type_identity,
-                    ) =>
-                {
-                    let moved_indexes = moved
-                        .iter()
-                        .filter_map(|(path, _)| match *path {
-                            [CheckedUnitStructuralPathSegment::FixedIndex(index)] => Some(index),
-                            _ => None,
-                        })
-                        .collect::<std::collections::BTreeSet<_>>();
-                    let residual = (0_u64..3).find(|index| !moved_indexes.contains(index))?;
-                    return Some(vec![CheckedUnitPartialAffineDiscardPlan {
-                        source_parameter_index: 0,
-                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(residual)],
-                        type_identity: element_type_identity.clone(),
-                    }]);
-                }
+                        *length,
+                    ) => {}
                 _ => return None,
             }
+            let moved_indexes = moved_paths
+                .iter()
+                .filter_map(|(path, _)| match *path {
+                    [CheckedUnitStructuralPathSegment::FixedIndex(index)] => Some(index),
+                    _ => None,
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            return Some(
+                (0_u64..*length)
+                    .rev()
+                    .filter(|index| !moved_indexes.contains(index))
+                    .map(|index| CheckedUnitPartialAffineDiscardPlan {
+                        source_parameter_index: 0,
+                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(index)],
+                        type_identity: element_type_identity.clone(),
+                    })
+                    .collect(),
+            );
         }
     }
 
@@ -448,47 +438,58 @@ fn exact_checked_affine_array_move_paths(
                 && *moved_type == element_type_identity)
                 || exact_checked_fully_moved_affine_pair(moved_paths, element_type_identity)
         }
-        3 => exact_checked_two_moves_from_affine_triple(moved_paths, element_type_identity),
+        3 => {
+            matches!(moved_paths.len(), 1 | 2)
+                && exact_checked_bounded_affine_array_move_paths(
+                    moved_paths,
+                    element_type_identity,
+                    3,
+                )
+        }
         _ => false,
     }
 }
 
-fn exact_checked_two_moves_from_affine_triple_residuals(
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    element_type_identity: &str,
-) -> bool {
-    let [(first_path, first_type), (second_path, second_type)] = moved_paths else {
-        return false;
-    };
-    let (
-        [CheckedUnitStructuralPathSegment::FixedIndex(first)],
-        [CheckedUnitStructuralPathSegment::FixedIndex(second)],
-    ) = (*first_path, *second_path)
-    else {
-        return false;
-    };
-    first != second
-        && *first < 3
-        && *second < 3
-        && *first_type == element_type_identity
-        && *second_type == element_type_identity
-}
-
-fn exact_checked_two_moves_from_affine_triple(
+fn exact_checked_bounded_affine_array_move_paths(
     moved_paths: &[(
         &[CheckedUnitStructuralPathSegment],
         &str,
         psi_symbols::SymbolHandle,
     )],
     element_type_identity: &str,
+    length: u64,
 ) -> bool {
-    let [(first_path, first_type, _), (second_path, second_type, _)] = moved_paths else {
-        return false;
-    };
-    exact_checked_two_moves_from_affine_triple_residuals(
-        &[(*first_path, *first_type), (*second_path, *second_type)],
-        element_type_identity,
-    )
+    let indexes = moved_paths
+        .iter()
+        .filter_map(|(path, moved_type, _)| match *path {
+            [CheckedUnitStructuralPathSegment::FixedIndex(index)]
+                if *index < length && *moved_type == element_type_identity =>
+            {
+                Some(*index)
+            }
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    indexes.len() == moved_paths.len()
+}
+
+fn exact_checked_bounded_affine_array_moves(
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    element_type_identity: &str,
+    length: u64,
+) -> bool {
+    let indexes = moved_paths
+        .iter()
+        .filter_map(|(path, moved_type)| match *path {
+            [CheckedUnitStructuralPathSegment::FixedIndex(index)]
+                if *index < length && *moved_type == element_type_identity =>
+            {
+                Some(*index)
+            }
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    indexes.len() == moved_paths.len()
 }
 
 fn exact_checked_fully_moved_affine_pair_residuals(

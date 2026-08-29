@@ -535,7 +535,26 @@ fn three_element_affine_array_moves_two_indices_and_discards_the_sole_residual()
             [CheckedUnitStructuralPathSegment::FixedIndex(residual)]
         );
     }
-    for machine in ["one_move", "all"] {
+    let one_move = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "one_move"))
+        .expect("one triple move leaves two statically ordered residuals");
+    assert_eq!(one_move.machine.operations.len(), 2);
+    assert_eq!(
+        one_move
+            .residual_affine_discards
+            .iter()
+            .map(|discard| match discard.path.as_slice() {
+                [CheckedUnitStructuralPathSegment::FixedIndex(index)] => *index,
+                _ => panic!("array residual is one literal index"),
+            })
+            .collect::<Vec<_>>(),
+        vec![2, 1],
+        "live array siblings clean in decreasing index order",
+    );
+    for machine in ["all"] {
         assert!(
             checked
                 .facts
@@ -543,7 +562,7 @@ fn three_element_affine_array_moves_two_indices_and_discards_the_sole_residual()
                 .terminal_partial_affine_unit_cleanups
                 .for_machine(machine_named(&checked, machine))
                 .is_none(),
-            "one move exposes Q5 and three moves belong to a separate no-residual rung"
+            "three moves belong to a separate no-residual rung"
         );
     }
 }
@@ -559,16 +578,13 @@ fn affine_array_partial_cleanup_fences_other_lengths() {
         machine Root::one(values: [Token; 1]) {
             Sink::take(values[0]);
         }
-        machine Root::three(values: [Token; 3]) {
-            Sink::take(values[1]);
-        }
         machine Root::four(values: [Token; 4]) {
             Sink::take(values[0]);
             Sink::take(values[1]);
         }
         "#,
     );
-    for machine in ["one", "three", "four"] {
+    for machine in ["one", "four"] {
         assert!(
             checked
                 .facts

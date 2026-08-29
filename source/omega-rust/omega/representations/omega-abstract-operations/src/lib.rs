@@ -326,7 +326,7 @@ pub enum AbstractOperation {
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
-        selected_evidence: Option<OutcomeSpecificCallEvidence>,
+        selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     BoundaryCall {
         psi_operation: OperationId,

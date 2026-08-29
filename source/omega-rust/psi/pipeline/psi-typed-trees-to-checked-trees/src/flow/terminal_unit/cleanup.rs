@@ -1156,42 +1156,36 @@ pub(super) fn partial_affine_residuals(
             ) {
                 return None;
             }
-            match (*length, moved_paths) {
-                (2, [(path, moved_type)]) => {
-                    let [CheckedUnitStructuralPathSegment::FixedIndex(index @ (0 | 1))] =
-                        path.as_slice()
-                    else {
-                        return None;
-                    };
-                    if moved_type != element_type_identity {
-                        return None;
-                    }
-                    return Some(vec![CheckedUnitPartialAffineDiscardPlan {
-                        source_parameter_index: 0,
-                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(1 - index)],
-                        type_identity: element_type_identity.clone(),
-                    }]);
-                }
-                (2, moved) if exact_fully_moved_affine_pair(moved, element_type_identity) => {
+            match (*length, moved_paths.len()) {
+                (2, 2) if exact_fully_moved_affine_pair(moved_paths, element_type_identity) => {
                     return Some(Vec::new());
                 }
-                (3, moved) if exact_two_moves_from_affine_triple(moved, element_type_identity) => {
-                    let moved_indexes = moved
-                        .iter()
-                        .filter_map(|(path, _)| match path.as_slice() {
-                            [CheckedUnitStructuralPathSegment::FixedIndex(index)] => Some(*index),
-                            _ => None,
-                        })
-                        .collect::<BTreeSet<_>>();
-                    let residual = (0_u64..3).find(|index| !moved_indexes.contains(index))?;
-                    return Some(vec![CheckedUnitPartialAffineDiscardPlan {
-                        source_parameter_index: 0,
-                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(residual)],
-                        type_identity: element_type_identity.clone(),
-                    }]);
-                }
+                (2, 1) | (3, 1 | 2)
+                    if exact_bounded_affine_array_moves(
+                        moved_paths,
+                        element_type_identity,
+                        *length,
+                    ) => {}
                 _ => return None,
             }
+            let moved_indexes = moved_paths
+                .iter()
+                .filter_map(|(path, _)| match path.as_slice() {
+                    [CheckedUnitStructuralPathSegment::FixedIndex(index)] => Some(*index),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>();
+            return Some(
+                (0_u64..*length)
+                    .rev()
+                    .filter(|index| !moved_indexes.contains(index))
+                    .map(|index| CheckedUnitPartialAffineDiscardPlan {
+                        source_parameter_index: 0,
+                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(index)],
+                        type_identity: element_type_identity.clone(),
+                    })
+                    .collect::<Vec<_>>(),
+            );
         }
     }
 
@@ -1303,30 +1297,31 @@ fn exact_affine_array_move_paths(
                 && moved_type == element_type_identity)
                 || exact_fully_moved_affine_pair(moved_paths, element_type_identity)
         }
-        3 => exact_two_moves_from_affine_triple(moved_paths, element_type_identity),
+        3 => {
+            matches!(moved_paths.len(), 1 | 2)
+                && exact_bounded_affine_array_moves(moved_paths, element_type_identity, 3)
+        }
         _ => false,
     }
 }
 
-fn exact_two_moves_from_affine_triple(
+fn exact_bounded_affine_array_moves(
     moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
     element_type_identity: &str,
+    length: u64,
 ) -> bool {
-    let [(first_path, first_type), (second_path, second_type)] = moved_paths else {
-        return false;
-    };
-    let (
-        [CheckedUnitStructuralPathSegment::FixedIndex(first)],
-        [CheckedUnitStructuralPathSegment::FixedIndex(second)],
-    ) = (first_path.as_slice(), second_path.as_slice())
-    else {
-        return false;
-    };
-    first != second
-        && *first < 3
-        && *second < 3
-        && first_type == element_type_identity
-        && second_type == element_type_identity
+    let indexes = moved_paths
+        .iter()
+        .filter_map(|(path, moved_type)| match path.as_slice() {
+            [CheckedUnitStructuralPathSegment::FixedIndex(index)]
+                if *index < length && moved_type == element_type_identity =>
+            {
+                Some(*index)
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    indexes.len() == moved_paths.len()
 }
 
 fn exact_fully_moved_affine_pair(

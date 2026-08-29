@@ -566,14 +566,16 @@ zero-input `CallStructural` over a direct unrestricted, unqualified,
 claim-free payloadless producer imports each guarded row as a case-membership
 implication after exact result-place substitution. It imports neither a raw
 conclusion nor a case-membership fact; structural return rebases the complete
-implication to the caller result. One optional selected-evidence
-binding may now retain the exact guarded case, row position, obligation, public
-selector, atomic proposition, callee term/interface, distinct caller-local term,
-and result-root validity intersection. Format 33 / vocabulary 35 encode those
-coordinates. Validation requires the exact named callee row and producer
-provenance and rejects identity/interface/dependency drift, duplicate output,
-or unconditional/projection reuse. Omission remains fact-only, and the selected
-binding still imports no raw conclusion or case fact. The bounded call rejects
+implication to the caller result. A canonical selected-evidence vector may now
+retain any selected subset, with each row carrying the exact guarded case, row
+position, obligation, public selector, atomic proposition, callee
+term/interface, distinct caller-local term, and result-root validity
+intersection. Format 36 / vocabulary 39 encode the vector and its coordinates.
+Validation requires strict guarded-row order, each exact named callee row and
+producer provenance, and rejects duplicate rows/outputs,
+identity/interface/dependency drift, or unconditional/projection reuse.
+Omission remains fact-only, and selected bindings still import no raw
+conclusion or case fact. The bounded call rejects
 ordinary contract lanes, crash rows, custody transfers, and callee evidence
 contract lanes. Terminal interpretation transports the exact payloadless case,
 fixed fuel composes to four units, and the binding adds no operation or charge.
@@ -582,10 +584,12 @@ caller and producer over the same exact attachment. The caller captures the
 call once in an immutable local and every exhaustive payloadless case arm
 returns that saved result unchanged. Checked planning replays the exact flow
 coordinate, target/receiver, symbol-root association, case coverage, and
-result-root-only validity; at most one named row may be selected, while omission
-stays fact-only. Lowering emits the exact two-machine closure, retains sibling
-guarded rows and producer provenance on the callee, and rejoins the selected row
-to a distinct caller-local term without changing the four-unit runtime. Payload
+result-root-only validity; any subset of named rows may be selected, while
+omission stays fact-only. Lowering canonicalizes those selections by guarded
+callee-row coordinate, emits the exact two-machine closure, retains sibling
+guarded rows and producer provenance on the callee, and rejoins each selected
+row to a distinct caller-local term without changing the four-unit runtime.
+Payload
 substitution, later guarded-term use, erased proof-output linkage, wider
 structural calls, validity invalidation, and tagged-sum target lowering remain
 outside this bounded source rung.

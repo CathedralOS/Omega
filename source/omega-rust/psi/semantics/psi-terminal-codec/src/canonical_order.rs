@@ -389,16 +389,23 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     ));
                 }
                 OperationKind::CallStructural {
-                    selected_evidence: Some(binding),
-                    ..
-                } if !strictly_increasing(
-                    binding.validity.proposition_dependencies.iter().copied(),
-                ) || !strictly_increasing(
-                    binding.validity.interface_dependencies.iter().copied(),
-                ) =>
+                    selected_evidence, ..
+                } if !strictly_increasing(selected_evidence.iter().map(|binding| {
+                    (
+                        binding.guard,
+                        binding.position,
+                        binding.output_field.as_str(),
+                        binding.output,
+                    )
+                })) || selected_evidence.iter().any(|binding| {
+                    !strictly_increasing(binding.validity.proposition_dependencies.iter().copied())
+                        || !strictly_increasing(
+                            binding.validity.interface_dependencies.iter().copied(),
+                        )
+                }) =>
                 {
                     return Err(CodecError::NonCanonicalOrder(
-                        "guarded-call validity dependency roots",
+                        "guarded-call selections or validity dependency roots",
                     ));
                 }
                 OperationKind::BoundaryCall {

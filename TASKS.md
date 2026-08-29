@@ -1300,6 +1300,20 @@ Remaining:
   an address, `Extent`, service operation, provider execution, shell, or root
   authority.
 
+  The next bounded provider prerequisite now retains the complete UEFI x64
+  `EFI_BOOT_SERVICES` layout as forty-nine flattened rows over the 376-byte
+  aggregate and independently validates one runtime occurrence's signature,
+  header coverage, reserved-zero field, and CRC. The lifecycle join requires
+  that occurrence's admitted address to equal the still-private System Table
+  `BootServices` field and pins the nonzero `HandleProtocol` function row at
+  ordinal 21 / byte 152 without exposing or invoking its address. One consumed,
+  closed provider outcome for the exact Loaded Image GUID can establish only
+  non-null, nonempty, non-wrapping image base/size correspondence for the same
+  opaque image-handle occurrence. Rejection returns complete provider custody
+  for retry or release, and firmware return remains blocked until release.
+  This is not an `Extent`, a `Granted` root, a physical shell, the target
+  adapter, semantic installation, or native execution.
+
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying
   `UefiPhysicalEntry::enter`; the generated shell invokes it, while `build.omg`
@@ -9154,9 +9168,18 @@ reach or trust, and private proof improvements do not change public identity.
   increasing indices; ordinary cleanup-bearing edges emit a static decreasing-
   index sequence over the exact live residual set; nesting recurses; authored
   moves retain authored order; and trap/nuclear-abort edges clean nothing.
-  Extend the checked, Terminal, interpreter, target, machine, object/image, and
-  installation lanes to multiple residuals under that rule. Add positive
-  `[T; 3]` one-move and `[T; 4]` two-move canaries, recursive nested-array
+  The first multiple-residual rung is closed under the existing claim-free,
+  unqualified, affine record-element restrictions: `[T; 3]` may move one exact
+  literal index through one ordinary Unit call, then discard the two live
+  complement indices in decreasing order on `ReturnUnitPartialAffine`. Checked
+  production and replay, Terminal shape/frontier verification, codec and
+  interpretation, target and machine lowering, optimization replay, and
+  object/image/installation partition validation all independently reconstruct
+  the exact two-residual complement. Producer-authored increasing order rejects,
+  and interpreter fuel remains the exact three closure units.
+
+  Extend those lanes to wider and recursively nested multiple residuals under
+  the same rule. Add positive `[T; 4]` two-move canaries, recursive nested-array
   coverage, construction-prefix ordinary-failure cleanup, canonical fuel/action
   ordinals, and producer-order tampering rejection. The lowering must omit moved
   indices from one straight-line static plan rather than introduce runtime
@@ -9451,12 +9474,16 @@ Remaining N6/N8 work:
   the same exact attachment. The caller captures the call once in an immutable
   local and every exhaustive case arm returns that saved result unchanged; the
   checked plan replays the exact flow coordinate, target/receiver, symbol-root
-  association, case coverage, and result-root-only validity. At most one named
-  row may be selected, while omission remains fact-only. Terminal lowering
-  emits the exact two-machine closure, retains every sibling guarded row and
-  producer provenance on the callee, rejoins the selected row to a distinct
-  caller-local term, and preserves the four-unit call/construction/two-return
-  runtime with no selector charge. Payload substitution, later use of the bound
+  association, case coverage, and result-root-only validity. Any subset of
+  named rows may now be selected, while omission remains fact-only. Checked
+  planning and Terminal lowering canonicalize that subset by guarded callee-row
+  coordinate, reject duplicate or reordered retained rows, emit the exact
+  two-machine closure, retain every sibling guarded row and producer provenance
+  on the callee, rejoin each selected row to a distinct caller-local term, and
+  preserve the four-unit call/construction/two-return runtime with no selector
+  charge. Terminal format 36 / vocabulary 39 retain the counted selection
+  vector and verifier replay rejects row, output, interface, validity, and
+  order tampering independently. Payload substitution, later use of the bound
   guarded term, erased proof-output linkage, wider structural calls, and
   validity invalidation remain fail-closed rather than being inferred from this
   bounded source carrier.

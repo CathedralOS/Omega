@@ -445,7 +445,7 @@ pub(super) fn validate_unit_operation_static(
                     &machine.published_service_ceiling,
                     &callee.published_service_ceiling,
                 )?;
-                if selected_evidence.is_some()
+                if !selected_evidence.is_empty()
                     && callee.contract.outcome_specific_ensures.is_empty()
                 {
                     return Err(ModuleError::InvalidOutcomeSpecificCallEvidence {

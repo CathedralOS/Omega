@@ -460,7 +460,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         }],
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
-        selected_evidence: None,
+        selected_evidence: Vec::new(),
     };
     let return_result = |edge| AbstractOperation::ReturnStructural {
         psi_edge: edge,

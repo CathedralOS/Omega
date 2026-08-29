@@ -169,34 +169,31 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 }
                 encode_obligation_ids(writer, &requirement_obligations)?;
                 encode_crash_routes(writer, &crash_continuations)?;
-                match selected_evidence {
-                    None => writer.u8(0),
-                    Some(binding) => {
-                        writer.u8(1);
-                        writer.id(binding.guard.result_type);
-                        writer.id(binding.guard.result_case);
-                        writer.u32(binding.position);
-                        writer.id(binding.callee_obligation);
-                        writer.id(binding.callee_term);
-                        writer.string("guarded call output field", &binding.output_field)?;
-                        writer.id(binding.proposition);
-                        writer.id(binding.output);
-                        writer.id(binding.validity.result);
-                        writer.len(
-                            "guarded call proposition dependencies",
-                            binding.validity.proposition_dependencies.len(),
-                        )?;
-                        for dependency in &binding.validity.proposition_dependencies {
-                            writer.id(*dependency);
-                        }
-                        encode_evidence_interface(writer, &binding.validity.evidence_interface)?;
-                        writer.len(
-                            "guarded call interface dependencies",
-                            binding.validity.interface_dependencies.len(),
-                        )?;
-                        for dependency in &binding.validity.interface_dependencies {
-                            writer.id(*dependency);
-                        }
+                writer.len("guarded call selected evidence", selected_evidence.len())?;
+                for binding in selected_evidence {
+                    writer.id(binding.guard.result_type);
+                    writer.id(binding.guard.result_case);
+                    writer.u32(binding.position);
+                    writer.id(binding.callee_obligation);
+                    writer.id(binding.callee_term);
+                    writer.string("guarded call output field", &binding.output_field)?;
+                    writer.id(binding.proposition);
+                    writer.id(binding.output);
+                    writer.id(binding.validity.result);
+                    writer.len(
+                        "guarded call proposition dependencies",
+                        binding.validity.proposition_dependencies.len(),
+                    )?;
+                    for dependency in &binding.validity.proposition_dependencies {
+                        writer.id(*dependency);
+                    }
+                    encode_evidence_interface(writer, &binding.validity.evidence_interface)?;
+                    writer.len(
+                        "guarded call interface dependencies",
+                        binding.validity.interface_dependencies.len(),
+                    )?;
+                    for dependency in &binding.validity.interface_dependencies {
+                        writer.id(*dependency);
                     }
                 }
             }
@@ -858,9 +855,8 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 })?,
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
                 crash_continuations: decode_crash_routes(reader)?,
-                selected_evidence: match reader.u8()? {
-                    0 => None,
-                    1 => Some(OutcomeSpecificCallEvidence {
+                selected_evidence: decode_counted(reader, |reader| {
+                    Ok(OutcomeSpecificCallEvidence {
                         guard: OutcomeSpecificGuard {
                             result_type: reader.id("StructuralTypeId")?,
                             result_case: reader.id("StructuralCaseId")?,
@@ -877,11 +873,8 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                             evidence_interface: decode_evidence_interface(reader)?,
                             interface_dependencies: decode_ids(reader, "PlaceId")?,
                         },
-                    }),
-                    tag => {
-                        return Err(CodecError::InvalidTag("OutcomeSpecificCallEvidence", tag));
-                    }
-                },
+                    })
+                })?,
             },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
@@ -1033,7 +1026,7 @@ mod tests {
                     }],
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                    selected_evidence: None,
+                    selected_evidence: Vec::new(),
                 },
             }],
             terminator: Terminator::ReturnUnit {
@@ -1084,7 +1077,7 @@ mod tests {
         else {
             unreachable!()
         };
-        *selected_evidence = Some(OutcomeSpecificCallEvidence {
+        selected_evidence.push(OutcomeSpecificCallEvidence {
             guard: OutcomeSpecificGuard {
                 result_type: id::<StructuralTypeId>(3),
                 result_case: id::<StructuralCaseId>(8),
