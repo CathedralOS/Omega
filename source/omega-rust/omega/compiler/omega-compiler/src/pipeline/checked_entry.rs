@@ -659,6 +659,7 @@ fn compile_to_checked_inner_with_replay(
         &frontend.typed,
         frontend.build_source_id,
         &build_machine_filesystem_scope,
+        selected_target_profile,
     )?;
     let prepass_build_identity = computed_build_config
         .selected_build_machine_symbol
@@ -786,7 +787,7 @@ fn compile_to_checked_inner_with_replay(
     let selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
         &typed,
         &build_config,
-        target_name,
+        selected_target_profile,
         &boundary_calling_plan_realizations,
     )?;
     let target_provider_defaults =

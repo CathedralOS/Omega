@@ -103,7 +103,9 @@ impl CompileRequest {
         &self.optimization_rollback
     }
 
-    pub(super) fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
+    pub(super) fn validate_for_execution(
+        mut self,
+    ) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
         if !self.optimization_rollback.is_empty()
             && self.requested_product != RequestedCompileProduct::NativeArtifact
         {
@@ -119,6 +121,12 @@ impl CompileRequest {
                 "optimization rollback {names} requires NativeArtifact production; {:?} does not enter native optimizer realization",
                 self.requested_product
             ))]);
+        }
+        if self.requested_product == RequestedCompileProduct::NativeArtifact
+            && self.options.target_name.is_none()
+        {
+            self.options.target_name =
+                Some(omega_target::TargetProfile::host().target_name().to_owned());
         }
         Ok(ValidatedCompileRequest(self))
     }
@@ -205,6 +213,46 @@ mod tests {
             request(RequestedCompileProduct::NativeArtifact, rollback)
                 .validate_for_execution()
                 .is_ok()
+        );
+    }
+
+    #[test]
+    fn only_native_product_resolves_an_absent_target_to_host() {
+        for product in [
+            RequestedCompileProduct::Check,
+            RequestedCompileProduct::TerminalArtifact,
+        ] {
+            let admitted = request(product, OptimizationRollback::default())
+                .validate_for_execution()
+                .expect("target-neutral request remains valid");
+            assert_eq!(admitted.options().target_name, None);
+        }
+
+        let admitted = request(
+            RequestedCompileProduct::NativeArtifact,
+            OptimizationRollback::default(),
+        )
+        .validate_for_execution()
+        .expect("native request resolves Host convenience");
+        assert_eq!(
+            admitted.options().target_name.as_deref(),
+            Some(omega_target::TargetProfile::host().target_name())
+        );
+    }
+
+    #[test]
+    fn explicit_target_is_never_rewritten_by_request_admission() {
+        let mut request = request(
+            RequestedCompileProduct::NativeArtifact,
+            OptimizationRollback::default(),
+        );
+        request.options.target_name = Some("linux_arm64".to_owned());
+        let admitted = request
+            .validate_for_execution()
+            .expect("explicit target remains valid until exact profile parsing");
+        assert_eq!(
+            admitted.options().target_name.as_deref(),
+            Some("linux_arm64")
         );
     }
 }

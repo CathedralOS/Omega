@@ -222,6 +222,34 @@ impl TargetProfile {
         }
     }
 
+    /// Canonical source-visible case supplied through the compiler-owned
+    /// `Build.target` field. This identity is distinct from transitional CLI
+    /// spellings and target root-slot owner namespaces.
+    pub const fn build_case_name(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "LinuxArm64",
+            Self::LinuxX64 => "LinuxX86_64",
+            Self::MacosArm64 => "MacosArm64",
+            Self::WindowsX64 => "WindowsX86_64",
+            Self::UefiX64 => "UefiX86_64",
+            Self::CrossPlatformCli => "CrossPlatformCli",
+            Self::LocalUnchecked => "LocalUnchecked",
+        }
+    }
+
+    pub fn from_build_case_name(case: &str) -> Option<Self> {
+        match case {
+            "LinuxArm64" => Some(Self::LinuxArm64),
+            "LinuxX86_64" => Some(Self::LinuxX64),
+            "MacosArm64" => Some(Self::MacosArm64),
+            "WindowsX86_64" => Some(Self::WindowsX64),
+            "UefiX86_64" => Some(Self::UefiX64),
+            "CrossPlatformCli" => Some(Self::CrossPlatformCli),
+            "LocalUnchecked" => Some(Self::LocalUnchecked),
+            _ => None,
+        }
+    }
+
     pub const fn root_slot_owner_name(self) -> &'static str {
         match self {
             Self::LinuxArm64 => "linux_arm64",
@@ -506,5 +534,25 @@ mod tests {
             );
             assert_eq!(profile.required_root_slot("NotDeclared"), None);
         }
+    }
+
+    #[test]
+    fn build_target_cases_round_trip_every_exact_profile() {
+        for profile in [
+            TargetProfile::LinuxArm64,
+            TargetProfile::LinuxX64,
+            TargetProfile::MacosArm64,
+            TargetProfile::WindowsX64,
+            TargetProfile::UefiX64,
+            TargetProfile::CrossPlatformCli,
+            TargetProfile::LocalUnchecked,
+        ] {
+            assert_eq!(
+                TargetProfile::from_build_case_name(profile.build_case_name()),
+                Some(profile)
+            );
+        }
+        assert_eq!(TargetProfile::from_build_case_name("Host"), None);
+        assert_eq!(TargetProfile::from_build_case_name("WindowsX64"), None);
     }
 }
