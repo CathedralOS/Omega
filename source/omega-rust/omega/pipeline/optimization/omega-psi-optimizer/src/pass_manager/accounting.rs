@@ -82,6 +82,34 @@ pub(super) fn charge(
     Ok(())
 }
 
+pub(super) fn add_usage(
+    left: OptimizationRunUsage,
+    right: OptimizationRunUsage,
+) -> Result<OptimizationRunUsage, OptimizationRunError> {
+    Ok(OptimizationRunUsage {
+        rule_evaluations: left
+            .rule_evaluations
+            .checked_add(right.rule_evaluations)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        candidates: left
+            .candidates
+            .checked_add(right.candidates)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        validation_steps: left
+            .validation_steps
+            .checked_add(right.validation_steps)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        commits: left
+            .commits
+            .checked_add(right.commits)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        iterations: left
+            .iterations
+            .checked_add(right.iterations)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+    })
+}
+
 fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()

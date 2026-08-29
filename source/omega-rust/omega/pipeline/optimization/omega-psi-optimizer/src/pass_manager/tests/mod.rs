@@ -7,15 +7,16 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use omega_abstract_operations::AbstractOperation;
 use omega_optimization_core::{
-    Optimization, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
+    AnalysisSet, Optimization, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
     OptimizationFactReference, OptimizationPassManifestRecord, OptimizationReasonCode,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use omega_optimization_policy::{
-    BaselineDecisionOutcome, ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog,
-    ExternalDecisionPoint, ExternalDecisionSchemaError, ValidatedCandidateSummary,
-    external_psi_decision_schema_v1_identity, psi_target_neutral_decision_target_v1_identity,
+    BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionAction,
+    ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
+    ExternalDecisionSchemaError, ValidatedCandidateSummary,
+    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
 };
 use omega_optimization_unit::{PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger};
 use omega_optimization_validation::{
@@ -25,9 +26,9 @@ use omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 use super::*;
 use crate::{
-    AnalysisManager, AnalysisProduct, ExactIntegerAddConstantsRule, OrderedRuleRegistry,
-    PsiOptimizationRule, RuleAnalysisView, RuleProposalError, built_in_psi_registries,
-    built_in_psi_registry,
+    AnalysisManager, AnalysisProduct, ExactIntegerAddConstantsRule,
+    ExactIntegerSubtractConstantsRule, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView,
+    RuleProposalError, built_in_psi_registries, built_in_psi_registry,
     rules::tests::{
         SelfDividePolicy, SelfRemainderPolicy, WrappingNeutralOperation, boolean_unit,
         compatible_policy_local_cse_unit, compatible_policy_phi_translated_gvn_unit,

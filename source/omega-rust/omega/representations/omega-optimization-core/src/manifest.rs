@@ -1,9 +1,12 @@
+mod fact_reference;
+
+pub use fact_reference::{OptimizationFactReference, OptimizationFactReferenceDecodeError};
+
 use crate::{
-    AcceptedObligationFactIdentity, AnalysisSet, CoreContractDecodeError,
-    OptimizationCandidateIdentity, OptimizationCandidateVerdict, OptimizationDecisionIdentity,
-    OptimizationPassIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
-    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
+    OptimizationCandidateVerdict, OptimizationDecisionIdentity, OptimizationPassIdentity,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizationWorkBudget,
 };
 use std::collections::BTreeSet;
 use std::fmt;
@@ -13,14 +16,6 @@ const DECISION_VERSION: u32 = 5;
 const PASS_RECORD_MAGIC: &[u8; 8] = b"OMGPAR\0\0";
 const PASS_RECORD_VERSION: u32 = 1;
 const DECISION_FIXED_WIDTH: usize = 155;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum OptimizationFactReference {
-    ScalarConstant(ScalarConstantFactIdentity),
-    AcceptedObligation(AcceptedObligationFactIdentity),
-    OwnershipFrontier(OwnershipFrontierFactIdentity),
-    ValueRange(ValueRangeFactIdentity),
-}
 
 /// Actual work consumed by one pass. Zero is valid; publication separately
 /// proves that every axis stayed within the selected nonzero budget.
@@ -153,7 +148,7 @@ impl OptimizationDecisionRecord {
                 .to_le_bytes(),
         );
         for fact in &self.consumed_facts {
-            encode_fact_reference(&mut encoded, *fact);
+            encoded.extend_from_slice(&fact.encode());
         }
         match self.validator {
             None => encoded.push(0),
@@ -220,7 +215,19 @@ impl OptimizationDecisionRecord {
         }
         let mut consumed_facts = Vec::with_capacity(fact_count);
         for _ in 0..fact_count {
-            consumed_facts.push(decode_fact_reference(&mut cursor)?);
+            consumed_facts.push(
+                OptimizationFactReference::decode(
+                    cursor.take(OptimizationFactReference::ENCODED_LENGTH)?,
+                )
+                .map_err(|error| match error {
+                    OptimizationFactReferenceDecodeError::WrongLength { expected, actual } => {
+                        OptimizationManifestDecodeError::WrongLength { expected, actual }
+                    }
+                    OptimizationFactReferenceDecodeError::UnknownTag(tag) => {
+                        OptimizationManifestDecodeError::UnknownFactReference(tag)
+                    }
+                })?,
+            );
         }
         let validator = match cursor.take(1)?[0] {
             0 => None,
@@ -269,7 +276,7 @@ fn decision_identity(
             .to_le_bytes(),
     );
     for fact in consumed_facts {
-        encode_fact_reference(&mut canonical, *fact);
+        canonical.extend_from_slice(&fact.encode());
     }
     match validator {
         None => canonical.push(0),
@@ -279,47 +286,6 @@ fn decision_identity(
         }
     }
     OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
-}
-
-fn encode_fact_reference(encoded: &mut Vec<u8>, fact: OptimizationFactReference) {
-    match fact {
-        OptimizationFactReference::ScalarConstant(identity) => {
-            encoded.push(1);
-            encoded.extend_from_slice(&identity.bytes());
-        }
-        OptimizationFactReference::AcceptedObligation(identity) => {
-            encoded.push(2);
-            encoded.extend_from_slice(&identity.bytes());
-        }
-        OptimizationFactReference::OwnershipFrontier(identity) => {
-            encoded.push(3);
-            encoded.extend_from_slice(&identity.bytes());
-        }
-        OptimizationFactReference::ValueRange(identity) => {
-            encoded.push(4);
-            encoded.extend_from_slice(&identity.bytes());
-        }
-    }
-}
-
-fn decode_fact_reference(
-    cursor: &mut ManifestCursor<'_>,
-) -> Result<OptimizationFactReference, OptimizationManifestDecodeError> {
-    match cursor.take(1)?[0] {
-        1 => Ok(OptimizationFactReference::ScalarConstant(
-            ScalarConstantFactIdentity::from_bytes(cursor.array()?),
-        )),
-        2 => Ok(OptimizationFactReference::AcceptedObligation(
-            AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
-        )),
-        3 => Ok(OptimizationFactReference::OwnershipFrontier(
-            OwnershipFrontierFactIdentity::from_bytes(cursor.array()?),
-        )),
-        4 => Ok(OptimizationFactReference::ValueRange(
-            ValueRangeFactIdentity::from_bytes(cursor.array()?),
-        )),
-        tag => Err(OptimizationManifestDecodeError::UnknownFactReference(tag)),
-    }
 }
 
 /// Canonical pass-level manifest row. Rule and decision order is execution
@@ -579,7 +545,10 @@ impl std::error::Error for OptimizationManifestDecodeError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AnalysisKind, OptimizationReasonCode};
+    use crate::{
+        AcceptedObligationFactIdentity, AnalysisKind, OptimizationReasonCode,
+        OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    };
 
     fn rule(name: &[u8]) -> OptimizationRuleIdentity {
         OptimizationRuleIdentity::from_canonical_bytes(name)
@@ -620,6 +589,76 @@ mod tests {
             )),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn fact_reference_codec_round_trips_every_closed_variant_with_stable_tags() {
+        let cases = [
+            (fact(b"scalar"), 1),
+            (obligation_fact(b"obligation"), 2),
+            (ownership_fact(b"ownership"), 3),
+            (range_fact(b"range"), 4),
+        ];
+
+        for (fact, expected_tag) in cases {
+            let encoded = fact.encode();
+            assert_eq!(encoded.len(), OptimizationFactReference::ENCODED_LENGTH);
+            assert_eq!(encoded[0], expected_tag);
+            assert_eq!(OptimizationFactReference::decode(&encoded), Ok(fact));
+            assert_eq!(
+                OptimizationFactReference::decode(&fact.encode())
+                    .unwrap()
+                    .encode(),
+                encoded
+            );
+        }
+    }
+
+    #[test]
+    fn fact_reference_codec_detects_tag_and_identity_corruption_for_every_variant() {
+        let facts = [
+            fact(b"scalar"),
+            obligation_fact(b"obligation"),
+            ownership_fact(b"ownership"),
+            range_fact(b"range"),
+        ];
+
+        for fact in facts {
+            let mut unknown_tag = fact.encode();
+            unknown_tag[0] = 255;
+            assert_eq!(
+                OptimizationFactReference::decode(&unknown_tag),
+                Err(OptimizationFactReferenceDecodeError::UnknownTag(255))
+            );
+
+            let mut changed_identity = fact.encode();
+            changed_identity[1] ^= 1;
+            let decoded = OptimizationFactReference::decode(&changed_identity).unwrap();
+            assert_ne!(decoded, fact);
+            assert_eq!(decoded.encode(), changed_identity);
+        }
+    }
+
+    #[test]
+    fn fact_reference_codec_rejects_truncated_and_trailing_framing() {
+        let encoded = fact(b"framing").encode();
+        assert_eq!(
+            OptimizationFactReference::decode(&encoded[..encoded.len() - 1]),
+            Err(OptimizationFactReferenceDecodeError::WrongLength {
+                expected: OptimizationFactReference::ENCODED_LENGTH,
+                actual: OptimizationFactReference::ENCODED_LENGTH - 1,
+            })
+        );
+
+        let mut trailing = encoded.to_vec();
+        trailing.push(0);
+        assert_eq!(
+            OptimizationFactReference::decode(&trailing),
+            Err(OptimizationFactReferenceDecodeError::WrongLength {
+                expected: OptimizationFactReference::ENCODED_LENGTH,
+                actual: OptimizationFactReference::ENCODED_LENGTH + 1,
+            })
+        );
     }
 
     #[test]

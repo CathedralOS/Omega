@@ -45,6 +45,41 @@ fn external_decision_replay_preserves_the_complete_baseline_run() {
 }
 
 #[test]
+fn external_policy_features_are_exact_manifest_evidence() {
+    let selections =
+        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
+    let baseline = run_psi_pipeline(verified_exact_add_unit(), &selections, budget(8)).unwrap();
+    let [point] = baseline.external_decisions().points() else {
+        panic!("exact-add fixture has one external decision point");
+    };
+    let [features] = point.legal_candidates() else {
+        panic!("exact-add fixture has one legal candidate");
+    };
+    let manifest_decision = baseline
+        .pass_manifests()
+        .iter()
+        .flat_map(|manifest| manifest.decisions())
+        .find(|decision| decision.candidate() == features.candidate())
+        .expect("external feature row has an authoritative manifest decision");
+
+    assert_eq!(features.summary().candidate, manifest_decision.candidate());
+    assert_eq!(
+        features.summary().predicted_cost_delta,
+        baseline.decisions().records[0].considered[0].predicted_cost_delta
+    );
+    assert_eq!(
+        features.consumed_analyses(),
+        manifest_decision.consumed_analyses()
+    );
+    assert_eq!(
+        features.consumed_facts(),
+        manifest_decision.consumed_facts()
+    );
+    assert!(!features.consumed_analyses().is_empty());
+    assert!(!features.consumed_facts().is_empty());
+}
+
+#[test]
 fn external_decision_record_and_replay_preserve_self_remainder_validation() {
     let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
     let baseline =
@@ -314,7 +349,7 @@ fn external_skip_can_override_the_baseline_choice() {
     let skipped = ExternalDecisionPoint::new(
         point.input(),
         point.rule(),
-        point.legal_candidates().iter().copied(),
+        point.legal_candidates().iter().cloned(),
         ExternalDecisionAction::Skip(OptimizationReasonCode::NotProfitable),
     )
     .unwrap();
@@ -478,8 +513,16 @@ fn external_replay_rejects_missing_illegal_duplicate_and_leftover_decisions() {
         ))
     ));
 
-    let mut wrong_cost = point.legal_candidates().to_vec();
-    wrong_cost[0].predicted_cost_delta += 1;
+    let original_features = &point.legal_candidates()[0];
+    let wrong_cost = [ExternalCandidateFeatures::new(
+        ValidatedCandidateSummary {
+            candidate: original_features.candidate(),
+            predicted_cost_delta: original_features.predicted_cost_delta() + 1,
+        },
+        original_features.consumed_analyses(),
+        original_features.consumed_facts().iter().copied(),
+    )
+    .unwrap()];
     let illegal_point =
         ExternalDecisionPoint::new(point.input(), point.rule(), wrong_cost, point.action())
             .unwrap();
@@ -496,10 +539,42 @@ fn external_replay_rejects_missing_illegal_duplicate_and_leftover_decisions() {
         ))
     ));
 
+    let altered_evidence = [
+        ExternalCandidateFeatures::new(
+            original_features.summary(),
+            AnalysisSet::default(),
+            original_features.consumed_facts().iter().copied(),
+        )
+        .unwrap(),
+        ExternalCandidateFeatures::new(
+            original_features.summary(),
+            original_features.consumed_analyses(),
+            [],
+        )
+        .unwrap(),
+    ];
+    for features in altered_evidence {
+        let altered_point =
+            ExternalDecisionPoint::new(point.input(), point.rule(), [features], point.action())
+                .unwrap();
+        let altered = external_log_with(context, [altered_point]);
+        assert!(matches!(
+            replay_psi_pipeline(
+                verified_exact_add_unit(),
+                &selections,
+                budget(8),
+                &altered.encode(),
+            ),
+            Err(OptimizationRunError::ExternalDecisionReplay(
+                ExternalDecisionReplayError::IllegalDecision { .. }
+            ))
+        ));
+    }
+
     let competing = ExternalDecisionPoint::new(
         point.input(),
         point.rule(),
-        point.legal_candidates().iter().copied(),
+        point.legal_candidates().iter().cloned(),
         ExternalDecisionAction::Skip(OptimizationReasonCode::NotProfitable),
     )
     .unwrap();
@@ -525,12 +600,17 @@ fn external_replay_rejects_missing_illegal_duplicate_and_leftover_decisions() {
     let unreachable = ExternalDecisionPoint::new(
         OptimizationUnitIdentity::from_canonical_bytes(b"unreachable input"),
         OptimizationRuleIdentity::from_canonical_bytes(b"unreachable rule"),
-        [ValidatedCandidateSummary {
-            candidate: OptimizationCandidateIdentity::from_canonical_bytes(
-                b"unreachable candidate",
-            ),
-            predicted_cost_delta: -1,
-        }],
+        [ExternalCandidateFeatures::new(
+            ValidatedCandidateSummary {
+                candidate: OptimizationCandidateIdentity::from_canonical_bytes(
+                    b"unreachable candidate",
+                ),
+                predicted_cost_delta: -1,
+            },
+            AnalysisSet::default(),
+            [],
+        )
+        .unwrap()],
         ExternalDecisionAction::Skip(OptimizationReasonCode::NotProfitable),
     )
     .unwrap();
@@ -549,7 +629,7 @@ fn external_replay_rejects_missing_illegal_duplicate_and_leftover_decisions() {
 }
 
 #[test]
-fn external_replay_byte_boundary_rejects_exact_duplicate_and_foreign_action() {
+fn external_replay_byte_boundary_rejects_exact_duplicate_and_v1_log() {
     let selections =
         OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
     let baseline = run_psi_pipeline(verified_exact_add_unit(), &selections, budget(8)).unwrap();
@@ -574,20 +654,14 @@ fn external_replay_byte_boundary_rejects_exact_duplicate_and_foreign_action() {
         ))
     ));
 
-    let mut foreign_action = baseline.external_decisions().encode();
-    const POINT_BODY_OFFSET: usize = LOG_POINTS_OFFSET + 4;
-    const ACTION_CANDIDATE_OFFSET: usize = POINT_BODY_OFFSET + 8 + 4 + 32 + 32 + 32 + 4 + 40 + 1;
-    foreign_action[ACTION_CANDIDATE_OFFSET..ACTION_CANDIDATE_OFFSET + 32]
-        .copy_from_slice(&OptimizationCandidateIdentity::from_canonical_bytes(b"foreign").bytes());
+    let mut v1 = baseline.external_decisions().encode();
+    v1[8..12].copy_from_slice(&1_u32.to_le_bytes());
     assert!(matches!(
-        replay_psi_pipeline(
-            verified_exact_add_unit(),
-            &selections,
-            budget(8),
-            &foreign_action,
-        ),
+        replay_psi_pipeline(verified_exact_add_unit(), &selections, budget(8), &v1,),
         Err(OptimizationRunError::ExternalDecisionReplay(
-            ExternalDecisionReplayError::Schema(ExternalDecisionSchemaError::IllegalAction)
+            ExternalDecisionReplayError::Schema(
+                ExternalDecisionSchemaError::UnsupportedLogVersion(1)
+            )
         ))
     ));
 }
@@ -632,21 +706,26 @@ fn external_policy_input_cannot_bypass_candidate_validation() {
         .identity()])
     .unwrap();
     let context = ExternalDecisionContext::new(
-        external_psi_decision_schema_v1_identity(),
+        external_psi_decision_schema_v2_identity(),
         unit.identity,
         OptimizationSelections::default().identity(),
         OptimizationSelections::default().identity(),
-        psi_target_neutral_decision_target_v1_identity(),
+        psi_target_neutral_decision_target_v2_identity(),
         rule_set,
         baseline_psi_cost_model_identity(),
     );
     let point = ExternalDecisionPoint::new(
         unit.identity,
         candidate.rule(),
-        [ValidatedCandidateSummary {
-            candidate: candidate.identity(),
-            predicted_cost_delta: candidate.predicted_cost_delta(),
-        }],
+        [ExternalCandidateFeatures::new(
+            ValidatedCandidateSummary {
+                candidate: candidate.identity(),
+                predicted_cost_delta: candidate.predicted_cost_delta(),
+            },
+            InvalidEvaluationExactRule.contract().required_analyses(),
+            candidate.consumed_facts().iter().copied(),
+        )
+        .unwrap()],
         ExternalDecisionAction::Choose(candidate.identity()),
     )
     .unwrap();
@@ -660,9 +739,26 @@ fn external_policy_input_cannot_bypass_candidate_validation() {
         ))
     ));
     assert_eq!(
-        cursor.next, 0,
+        cursor.consumed_points(),
+        0,
         "invalid candidate did not consume policy input"
     );
+}
+
+#[test]
+fn candidate_contract_cannot_detach_policy_features_from_the_scheduled_rule() {
+    let registry = OrderedRuleRegistry::new([
+        Arc::new(DetachedCandidateContractRule) as Arc<dyn PsiOptimizationRule>
+    ])
+    .unwrap();
+
+    assert!(matches!(
+        run_unit(exact_add_unit(), &registry, budget(2)),
+        Err(OptimizationRunError::CandidateContractMismatch {
+            axis: CandidateContractAxis::Rule,
+            ..
+        })
+    ));
 }
 
 #[test]

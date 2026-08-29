@@ -17,6 +17,16 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] External Psi policy schema v2 is now a fact-complete, governed boundary.
+Its 86-line entrance owns canonical candidate-set and decision-log joins, then
+descends into `model`, `identity`, `codec`, and focused tests. The pass manager
+has a separate 30-line policy entrance over context, validated feature
+projection, independent manifest reconstruction, and exact replay. Requests
+bind candidate cost, scheduled analyses, and canonical proof/ownership facts;
+replay rejects drift before consuming a decision, and record-only execution
+cannot alter baseline output. The architecture gate pins both meaningful
+entrances and rejects restoration of the former flat schema.
+
 [x] The 954-line post-allocation manifest catch-all is now a governed
 register-allocation entrance. Its 100-line `mod.rs` owns the direct-home and
 selected-lowering projection/validation joins; record shape, errors, canonical
@@ -649,12 +659,12 @@ identities in the decision and publication chain.
 
 - [x] Identity vocabulary for workload profile, decisions, cost model, rule
   set, selections, and ledger.
-- [ ] Versioned model input schema containing source/target/rule/fact features
+- [x] Versioned model input schema containing source/target/rule/fact features
   without raw pointers or unstable insertion order.
-- [ ] Versioned output schema naming existing candidate identities plus scores
+- [x] Versioned output schema naming existing candidate identities plus scores
   or decisions.
-- [ ] Record-only mode that cannot change baseline output.
-- [ ] Deterministic replay with exact identity mismatch rejection.
+- [x] Record-only mode that cannot change baseline output.
+- [x] Deterministic replay with exact identity mismatch rejection.
 - [ ] Sandboxed external policy boundary with timeout/resource limits and an
   explicit fallback.
 - [ ] Offline corpus capture, training, evaluation, and regression tooling.

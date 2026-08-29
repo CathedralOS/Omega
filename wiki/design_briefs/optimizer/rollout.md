@@ -110,7 +110,10 @@ Even after promotion, diagnostics and manifests report exact rule names.
 
 Recording, training, and policy evaluation are outside ordinary compilation.
 Replaying a policy is explicit and identity-bound. Absence or failure of a
-model never makes the baseline compiler incomplete.
+model never makes the baseline compiler incomplete. The current Psi schema v2
+is recordable and deterministically replayable, including exact analysis and
+proof/fact evidence; sandboxing and offline corpus tooling remain experimental
+work and are not part of ordinary builds.
 
 ## Documentation
 

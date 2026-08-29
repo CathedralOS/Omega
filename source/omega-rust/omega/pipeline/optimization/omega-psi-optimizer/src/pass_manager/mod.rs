@@ -7,15 +7,16 @@
 mod accounting;
 mod entry;
 mod execution;
+mod external_policy;
 mod model;
 
 use omega_optimization_core::TargetCostModelIdentity;
 
 pub use entry::{replay_psi_pipeline, replay_psi_registry, run_psi_pipeline, run_psi_registry};
-pub use execution::validate_external_decision_recording;
+pub use external_policy::validate_external_decision_recording;
 pub use model::{
-    ExternalDecisionContextAxis, ExternalDecisionReplayError, OptimizationRun,
-    OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
+    CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
+    OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
     VerifiedPsiOptimizationSession,
 };
 
@@ -28,7 +29,9 @@ pub fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
 #[cfg(test)]
 use accounting::register_revision;
 #[cfg(test)]
-use execution::{ExternalDecisionReplayCursor, run_unit, run_unit_inner};
+use execution::{run_unit, run_unit_inner};
+#[cfg(test)]
+use external_policy::ExternalDecisionReplayCursor;
 
 #[cfg(test)]
 mod tests;
