@@ -57,7 +57,6 @@ pub(super) fn compile_retained_native(target: &str) -> RetainedNativeArtifact {
             root_path: native_canary().join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.to_owned()),
-            write_output: false,
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),

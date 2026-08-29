@@ -569,11 +569,11 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
                 hosted_main_program_entry_build(target),
             )
             .expect("write runtime line replay target manifest");
-            compile(CompileOptions {
+            compile(CanaryCompileSpec {
                 root_path: src_dir.join("main.omg"),
                 build_dir: Some(scratch.join("out")),
                 target_name: Some(target.to_owned()),
-                write_output: true,
+                product: CanaryCompileProduct::NativeArtifactAndPublish,
             })
             .unwrap_or_else(|error| {
                 panic!("runtime line replay {canary_name} must compile for {target}: {error:?}")

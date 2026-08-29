@@ -82,11 +82,11 @@ fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write runtime-text guard target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("runtime-text guard should compile for {target}: {diagnostics:?}")
@@ -138,11 +138,11 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write place-guard target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("place guard should compile for {target}: {diagnostics:?}")
@@ -229,11 +229,11 @@ fn compiler_body_from_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() 
         )
         .expect("write compiler-body from-pointee target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body from-pointee copy should compile for {target}: {diagnostics:?}")
@@ -303,11 +303,11 @@ fn compiler_body_pointee_pair_copy_footprints_reach_x86_and_aarch64_artifacts() 
         )
         .expect("write compiler-body pointee-pair target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body pointee-pair copy should compile for {target}: {diagnostics:?}")
@@ -380,11 +380,11 @@ fn compiler_body_from_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() 
         )
         .expect("write compiler-body from-indexed target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body from-indexed copy should compile for {target}: {diagnostics:?}")
@@ -443,11 +443,11 @@ fn compiler_body_to_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body to-indexed target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body to-indexed copy should compile for {target}: {diagnostics:?}")
@@ -541,11 +541,11 @@ fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifact
         )
         .expect("write compiler-body frame-base-indexed target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -613,11 +613,11 @@ fn compiler_body_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifacts
         )
         .expect("write compiler-body machine-indexed target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -672,11 +672,11 @@ fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifa
         )
         .expect("write compiler-body to-machine-indexed target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -724,11 +724,11 @@ fn compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts() {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-double-indexed target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body frame-double-indexed operations should compile for {target}: {diagnostics:?}")
@@ -780,11 +780,11 @@ fn compiler_body_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_ar
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-double-indexed target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body machine-double-indexed copy should compile for {target}: {diagnostics:?}")
@@ -824,11 +824,11 @@ fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body to-machine-double-indexed target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body to-machine-double-indexed copy should compile for {target}: {diagnostics:?}")
@@ -872,11 +872,11 @@ fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_arti
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed-pair target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body machine-indexed-pair copy should compile for {target}: {diagnostics:?}")
@@ -916,11 +916,11 @@ fn compiler_body_mixed_index_frame_pair_copy_footprints_reach_x86_and_aarch64_ar
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body mixed-index frame-pair target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -962,11 +962,11 @@ fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_arti
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body cross-region indexed-pair target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1008,11 +1008,11 @@ fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body cross-region double-indexed-pair target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1055,11 +1055,11 @@ fn compiler_body_direct_integer_write_footprints_reach_x86_and_aarch64_artifacts
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body direct integer-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1104,11 +1104,11 @@ fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts(
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body direct binary-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1181,11 +1181,11 @@ fn compiler_body_frame_indexed_binary_write_footprints_reach_x86_and_aarch64_art
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-indexed binary-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1300,11 +1300,11 @@ fn compiler_body_machine_double_indexed_binary_write_footprints_reach_x86_and_aa
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-double-indexed binary-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1360,11 +1360,11 @@ machine Main::main(&mut self) {
             hosted_main_program_entry_build("linux_x64"),
         )
         .expect("write exact compiler-body general x86 binary-write target entry");
-        production_compile(CompileOptions {
+        production_compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1406,11 +1406,11 @@ fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body bounded-buffer source-append target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1452,11 +1452,11 @@ fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body text-buffer materialize target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1529,11 +1529,11 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body text literal-append target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1606,11 +1606,11 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body stored-text suffix target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body stored-text suffix should compile for {target}: {diagnostics:?}")
@@ -1655,11 +1655,11 @@ fn compiler_body_place_address_footprints_reach_artifacts() {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body place-address target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body place-address write should compile for {target}: {diagnostics:?}")
@@ -1777,11 +1777,11 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     ));
     let _ = fs::remove_dir_all(&scratch);
     let output = scratch.join("out");
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(output.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("general double-indexed x86 text assembly should compile");
 
@@ -1829,11 +1829,11 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire scalar-append target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body wire scalar appends should compile for {target}: {diagnostics:?}")
@@ -1899,11 +1899,11 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire text-append target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body wire text appends should compile for {target}: {diagnostics:?}")
@@ -1971,11 +1971,11 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire scalar-slice target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2045,11 +2045,11 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
         )
         .expect("write compiler-body wire repeated-scalar target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2122,11 +2122,11 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire byte-slice target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2198,11 +2198,11 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire nested-bounds target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("compiler-body wire nested bounds should compile for {target}: {diagnostics:?}")
@@ -2277,11 +2277,11 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire repeated-scalar-read target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2350,11 +2350,11 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire expected-byte target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2420,11 +2420,11 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire ranged-scalar target");
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2473,11 +2473,11 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     ));
     let _ = fs::remove_dir_all(&scratch);
     let output = scratch.join("out");
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(output.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("cross-region AArch64 frame-descriptor RMW should compile");
 
@@ -2563,11 +2563,11 @@ fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifa
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body storage-bit-field-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2609,11 +2609,11 @@ fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifact
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body storage-convert-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2655,11 +2655,11 @@ fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body machine-indexed convert-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2702,11 +2702,11 @@ fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifact
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body pointee integer-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2770,11 +2770,11 @@ machine Main::main(&mut self) {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2844,11 +2844,11 @@ machine Main::main(&mut self) {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-base-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -2947,11 +2947,11 @@ machine Main::main(&mut self) {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body double-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(

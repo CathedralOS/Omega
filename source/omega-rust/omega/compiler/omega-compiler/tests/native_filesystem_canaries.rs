@@ -17,23 +17,14 @@ static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 fn compile_program(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
     let build_dir = options.build_dir();
-    let product = if publish {
-        omega_compiler::RequestedCompileProduct::NativeArtifact
-    } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
     let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(product),
+        omega_compiler::CompileRequest::new(options)
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
-    if publish {
-        report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
-    }
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
 }
 
 fn compile_exact_macos_entry(
@@ -64,7 +55,6 @@ fn compile_exact_macos_entry(
         ),
         build_dir: options.build_dir,
         target_name: Some("macos_arm64".to_owned()),
-        write_output: options.write_output,
     });
     let _ = std::fs::remove_dir_all(&stage_dir);
     result
@@ -134,7 +124,6 @@ fn compile_run(canary: &str) -> (Option<i32>, String) {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| {
         panic!("{canary} should still compile via imported FilesystemHost:\n{d:#?}")
@@ -314,7 +303,6 @@ machine Main::main(&mut self) {{
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("multifill POSIX wrappers should compile:\n{d:#?}"));
     let output = Command::new(build_dir.join("omega-program"))
@@ -588,7 +576,6 @@ fn sample_file_journal_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("file_journal sample should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -620,7 +607,6 @@ fn sample_note_vault_exits_14() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("note_vault sample should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -648,7 +634,6 @@ fn native_float_arg_exits_4() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("native_float_arg should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -675,7 +660,6 @@ fn native_float_return_exits_4() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("native_float_return should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -702,7 +686,6 @@ fn native_float_two_args_exits_5() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("native_float_two_args should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -728,7 +711,6 @@ fn returning_foreign_call_restores_canonical_float_control_state() {
         root_path: main_path.clone(),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("foreign float-control canary should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -757,7 +739,6 @@ fn objc_get_class_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("objc_get_class should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -782,7 +763,6 @@ fn objc_alloc_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("objc_alloc should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -809,7 +789,6 @@ fn objc_msgsend_scalar_exits_8() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("objc_msgsend_scalar should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -836,7 +815,6 @@ fn framework_classes_exits_9() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("framework_classes should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -861,7 +839,6 @@ fn nsstring_length_exits_5() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("nsstring_length should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -888,7 +865,6 @@ fn cgrect_hfa_exits_6() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("cgrect_hfa should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -916,7 +892,6 @@ fn nswindow_init_exits_3() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("nswindow_init should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -943,7 +918,6 @@ fn cgimage_blit_exits_4() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("cgimage_blit should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -971,7 +945,6 @@ fn present_frame_exits_5() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("present_frame should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -999,7 +972,6 @@ fn event_pump_exits_6() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("event_pump should compile:\n{d:#?}"));
     let mut child = Command::new(build_dir.join("omega-program"))
@@ -1039,7 +1011,6 @@ fn gui_backend_valuecall_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("gui_backend_valuecall should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -1068,7 +1039,6 @@ fn native_gui_loop_exits_4() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("native_gui_loop should compile:\n{d:#?}"));
     let mut child = Command::new(build_dir.join("omega-program"))
@@ -1109,7 +1079,6 @@ fn gui_impl_through_field_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("gui_impl_through_field should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -1137,7 +1106,6 @@ fn gui_window_i32_args_exits_8() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("gui_window_i32_args should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -1171,7 +1139,6 @@ fn macos_gui_module_exits_3() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("macos_gui_module should compile:\n{d:#?}"));
     let mut child = Command::new(build_dir.join("omega-program"))
@@ -1213,7 +1180,6 @@ fn clock_sleep_poll_milliseconds_exits_6() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("clock_sleep should compile:\n{d:#?}"));
     let start = std::time::Instant::now();
@@ -1247,7 +1213,6 @@ fn gui_provider_substitution_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| {
         panic!(
@@ -1295,7 +1260,6 @@ fn sample_window_demo_runs_natively_exits_0() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| {
         panic!("the untouched samples/gui/window_demo should compile to a native mach-o:\n{d:#?}")
@@ -1337,7 +1301,11 @@ fn input_provider_substitution_exits_4() {
     let main_path = repo_root().join("tests/omega/pass/objc/input_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-inputsubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile_exact_macos_entry(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+    compile_exact_macos_entry(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+    })
         .unwrap_or_else(|d| panic!("input_provider_substitution should compile via the injected MacosInput provider:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
         .output()
@@ -1365,7 +1333,6 @@ fn sample_window_app_renders_natively() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| {
         panic!("the untouched samples/gui/window_app should compile to a native mach-o:\n{d:#?}")
@@ -1416,7 +1383,6 @@ fn saturating_divide_native_exits_7() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| panic!("saturating_divide_native should compile:\n{d:#?}"));
     let out = Command::new(build_dir.join("omega-program"))
@@ -1441,7 +1407,11 @@ fn sample_windowed_calculator_renders_natively() {
     let main_path = repo_root().join("samples/gui/windowed_calculator/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-calc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
-    compile_exact_macos_entry(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+    compile_exact_macos_entry(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+    })
         .unwrap_or_else(|d| panic!("the untouched samples/gui/windowed_calculator should compile to a native mach-o:\n{d:#?}"));
     let mut child = Command::new(build_dir.join("omega-program"))
         .stdin(std::process::Stdio::null())
@@ -1488,7 +1458,6 @@ fn sample_image_viewer_renders_natively() {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
     })
     .unwrap_or_else(|d| {
         panic!("the untouched samples/gui/image_viewer should compile to a native mach-o:\n{d:#?}")

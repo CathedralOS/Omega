@@ -977,11 +977,11 @@ fn runtime_numeric_conversion_surface_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-numeric-conversion-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("unsigned numeric conversion surface should compile");
 
@@ -1034,11 +1034,11 @@ fn runtime_numeric_signed_conversion_surface_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-numeric-signed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("signed numeric conversion surface should compile");
 
@@ -1098,11 +1098,11 @@ fn runtime_numeric_cross_signed_conversion_surface_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-numeric-cross-signed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("cross-signed numeric conversion surface should compile");
 

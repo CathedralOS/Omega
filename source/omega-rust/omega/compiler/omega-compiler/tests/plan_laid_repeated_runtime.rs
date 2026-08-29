@@ -10,23 +10,14 @@ use psi_build_time_evaluation::{
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
     let build_dir = options.build_dir();
-    let product = if publish {
-        omega_compiler::RequestedCompileProduct::NativeArtifact
-    } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
     let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(product),
+        omega_compiler::CompileRequest::new(options)
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
-    if publish {
-        report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
-    }
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
 }
 use psi_checked_interpreter::interpret_entry;
 use psi_layout_plans::ByteOrder;
@@ -96,7 +87,6 @@ fn assert_runtime_canary(canary_name: &str, tag: &str) {
         root_path: canary.join("main.omg"),
         build_dir: Some(host_build.path().to_path_buf()),
         target_name: Some(host.target_name().to_owned()),
-        write_output: true,
     })
     .unwrap_or_else(|diagnostics| panic!("host compile should succeed:\n{diagnostics:#?}"));
     let executable = if cfg!(windows) {
@@ -126,7 +116,6 @@ fn assert_runtime_canary(canary_name: &str, tag: &str) {
             root_path: canary.join("main.omg"),
             build_dir: Some(cross_build.path().to_path_buf()),
             target_name: Some(target.to_owned()),
-            write_output: true,
         })
         .unwrap_or_else(|diagnostics| panic!("{target} compile should succeed:\n{diagnostics:#?}"));
         let cross_build_path = cross_build.path().to_path_buf();

@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 795;
-pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 4;
+pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 
@@ -23,7 +23,7 @@ pub(super) struct ExactTargetCanaryOwner {
 #[derive(Debug)]
 pub(super) struct ExactNativeCanaryCoverageIndex {
     rooted_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
-    legacy_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
+    direct_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
     cross_target_owners: BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>,
     rooted_target_owners: BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>,
     source_file_count: usize,
@@ -71,7 +71,7 @@ impl ExactNativeCanaryCoverageIndex {
     fn empty() -> Self {
         Self {
             rooted_owners: BTreeMap::new(),
-            legacy_owners: BTreeMap::new(),
+            direct_owners: BTreeMap::new(),
             cross_target_owners: BTreeMap::new(),
             rooted_target_owners: BTreeMap::new(),
             source_file_count: 0,
@@ -101,7 +101,7 @@ impl ExactNativeCanaryCoverageIndex {
                 self.qualifying_test_count += 1;
                 let owners = match kind {
                     ExactNativeOwnerKind::Rooted => &mut self.rooted_owners,
-                    ExactNativeOwnerKind::Legacy => &mut self.legacy_owners,
+                    ExactNativeOwnerKind::Direct => &mut self.direct_owners,
                 };
                 owners
                     .entry(canary)
@@ -133,16 +133,16 @@ impl ExactNativeCanaryCoverageIndex {
         unique_owner(&self.rooted_owners, canary)
     }
 
-    pub(super) fn unique_legacy_owner(&self, canary: &str) -> Option<&ExactNativeCanaryOwner> {
-        unique_owner(&self.legacy_owners, canary)
+    pub(super) fn unique_direct_owner(&self, canary: &str) -> Option<&ExactNativeCanaryOwner> {
+        unique_owner(&self.direct_owners, canary)
     }
 
     pub(super) fn rooted_owner_count(&self, canary: &str) -> usize {
         owner_count(&self.rooted_owners, canary)
     }
 
-    pub(super) fn legacy_owner_count(&self, canary: &str) -> usize {
-        owner_count(&self.legacy_owners, canary)
+    pub(super) fn direct_owner_count(&self, canary: &str) -> usize {
+        owner_count(&self.direct_owners, canary)
     }
 
     pub(super) fn unique_cross_target_owner(
@@ -362,7 +362,7 @@ fn character_end(bytes: &[u8], opening: usize) -> Option<usize> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExactNativeOwnerKind {
     Rooted,
-    Legacy,
+    Direct,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -382,12 +382,12 @@ fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i3
         .collect::<String>();
     let kind = if body.contains("compile_rooted_canary_for_native_host") {
         ExactNativeOwnerKind::Rooted
-    } else if compact.matches("compile(CompileOptions{").count() == 1
+    } else if compact.matches("compile(CanaryCompileSpec{").count() == 1
         && compact.contains("root_path:canary.join(\"main.omg\")")
         && compact.contains("target_name:None")
-        && compact.contains("write_output:true")
+        && compact.contains("product:CanaryCompileProduct::NativeArtifactAndPublish")
     {
-        ExactNativeOwnerKind::Legacy
+        ExactNativeOwnerKind::Direct
     } else {
         return None;
     };
@@ -617,13 +617,13 @@ fn top_level_arguments(arguments: &str) -> Vec<&str> {
 
 fn exact_compile_options_target(arguments: &str) -> Option<&str> {
     let options = arguments
-        .strip_prefix("CompileOptions{")?
+        .strip_prefix("CanaryCompileSpec{")?
         .strip_suffix('}')?;
     if options.matches("root_path:").count() != 1
         || !options.contains("root_path:canary.join(\"main.omg\")")
         || options.matches("target_name:").count() != 1
-        || options.matches("write_output:").count() != 1
-        || !options.contains("write_output:true")
+        || options.matches("product:").count() != 1
+        || !options.contains("product:CanaryCompileProduct::NativeArtifactAndPublish")
     {
         return None;
     }
@@ -762,10 +762,11 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
          assert_eq!(output.status.code(), Some(70)); }}",
         "canary"
     );
-    let legacy = format!(
-        "#[test]\nfn legacy() {{ let canary = pass_{}(\"demo/legacy\"); \
-         compile(CompileOptions {{ root_path: canary.join(\"main.omg\"), \
-         build_dir: Some(build), target_name: None, write_output: true }}).unwrap(); \
+    let direct = format!(
+        "#[test]\nfn direct() {{ let canary = pass_{}(\"demo/direct\"); \
+         compile(CanaryCompileSpec {{ root_path: canary.join(\"main.omg\"), \
+         build_dir: Some(build), target_name: None, \
+         product: CanaryCompileProduct::NativeArtifactAndPublish }}).unwrap(); \
          let output = Command::new(path).output().unwrap(); \
          assert_eq!(output.status.code(), Some(71)); }}",
         "canary"
@@ -785,26 +786,29 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         "assert_eq!(output.status.code(), Some(70));",
         "assert!(output.status.code().is_some());",
     );
-    let wrong_target = legacy.replace("target_name: None", "target_name: Some(target)");
-    let no_output = legacy.replace("write_output: true", "write_output: false");
-    let wrong_root = legacy.replace(
+    let wrong_target = direct.replace("target_name: None", "target_name: Some(target)");
+    let no_native_product = direct.replace(
+        "CanaryCompileProduct::NativeArtifactAndPublish",
+        "CanaryCompileProduct::Check",
+    );
+    let wrong_root = direct.replace(
         "root_path: canary.join(\"main.omg\")",
         "root_path: other.join(\"main.omg\")",
     );
-    let auxiliary = legacy.replace(
-        "compile(CompileOptions",
-        "compile_with_auxiliary_artifacts(CompileOptions",
+    let auxiliary = direct.replace(
+        "compile(CanaryCompileSpec",
+        "compile_with_auxiliary_artifacts(CanaryCompileSpec",
     );
-    let multiple_canaries = legacy.replace(
+    let multiple_canaries = direct.replace(
         "let canary =",
         "let other = pass_canary(\"demo/other\"); let canary =",
     );
-    let no_execution = legacy.replace(".output()", ".status()");
+    let no_execution = direct.replace(".output()", ".status()");
     let ambiguous =
-        legacy.replace("fn legacy", "fn first") + "\n" + &legacy.replace("fn legacy", "fn second");
+        direct.replace("fn direct", "fn first") + "\n" + &direct.replace("fn direct", "fn second");
     let index = ExactNativeCanaryCoverageIndex::from_sources(&[
         ("rooted.rs", &rooted),
-        ("legacy.rs", &legacy),
+        ("direct.rs", &direct),
         ("checked_report.rs", &checked_report),
         ("wrong_checked_report.rs", &wrong_checked_report),
         ("ignored.rs", &ignored),
@@ -813,7 +817,7 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         ("configured_before_blank.rs", &configured_before_blank),
         ("weak.rs", &weak_status),
         ("wrong_target.rs", &wrong_target),
-        ("no_output.rs", &no_output),
+        ("no_native_product.rs", &no_native_product),
         ("wrong_root.rs", &wrong_root),
         ("auxiliary.rs", &auxiliary),
         ("multiple_canaries.rs", &multiple_canaries),
@@ -827,13 +831,13 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         ("rooted", 70)
     );
     let owner = index
-        .unique_legacy_owner("demo/legacy")
-        .expect("one strict enabled legacy exact-native owner should qualify");
+        .unique_direct_owner("demo/direct")
+        .expect("one strict enabled direct exact-native owner should qualify");
     assert_eq!(
         (owner.test_name.as_str(), owner.expected_status),
-        ("legacy", 71)
+        ("direct", 71)
     );
-    assert_eq!(index.rooted_owner_count("demo/legacy"), 0);
+    assert_eq!(index.rooted_owner_count("demo/direct"), 0);
     let owner = index
         .unique_rooted_owner("demo/checked-report")
         .expect("one checked-report rooted exact-native owner should qualify");
@@ -841,11 +845,11 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         (owner.test_name.as_str(), owner.expected_status),
         ("checked_report", 72)
     );
-    assert_eq!(index.legacy_owner_count("demo/rooted"), 0);
+    assert_eq!(index.direct_owner_count("demo/rooted"), 0);
 
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
-    assert_eq!(ambiguous.legacy_owner_count("demo/legacy"), 2);
-    assert!(ambiguous.unique_legacy_owner("demo/legacy").is_none());
+    assert_eq!(ambiguous.direct_owner_count("demo/direct"), 2);
+    assert!(ambiguous.unique_direct_owner("demo/direct").is_none());
 }
 
 #[test]
@@ -854,11 +858,11 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
         #[test]
         fn cross() {
             let canary = pass_canary("demo/cross");
-            compile(CompileOptions {
+            compile(CanaryCompileSpec {
                 root_path: canary.join("main.omg"),
                 build_dir: Some(build),
                 target_name: Some("linux_x64".into()),
-                write_output: true,
+                product: CanaryCompileProduct::NativeArtifactAndPublish,
             }).expect("cross target should compile");
         }
     "#;
@@ -898,8 +902,8 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
         ").unwrap_or_else(|_| fallback_report);",
     );
     let production_rooted = cross.replace(
-        "compile(CompileOptions",
-        "production_compile(CompileOptions",
+        "compile(CanaryCompileSpec",
+        "production_compile(CanaryCompileSpec",
     );
     let multiple_canaries = cross.replace(
         "let canary =",
@@ -923,7 +927,7 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
 
     let owner = index
         .unique_cross_target_owner("demo/cross", "linux_x64")
-        .expect("one enabled exact legacy-entry target owner should qualify");
+        .expect("one enabled exact direct-entry target owner should qualify");
     assert_eq!(owner.test_name, "cross");
     assert!(owner.source_path.ends_with("cross.rs"));
     assert!(

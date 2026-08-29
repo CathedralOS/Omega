@@ -82,7 +82,6 @@ impl Fixture {
             root_path: self.main.clone(),
             build_dir: Some(self.root.join(format!("build-{tag}"))),
             target_name: Some("windows_x64".to_owned()),
-            write_output: false,
         })
         .with_requested_product(product)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)

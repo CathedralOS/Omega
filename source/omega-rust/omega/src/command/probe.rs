@@ -53,7 +53,6 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
             target_name: target_name.clone(),
-            write_output: false,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(artifact_policy),

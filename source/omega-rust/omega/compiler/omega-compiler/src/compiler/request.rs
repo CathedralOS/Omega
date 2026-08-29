@@ -24,10 +24,8 @@ pub struct CompileRequest {
 }
 
 impl CompileRequest {
-    /// Creates a checking request.
-    ///
-    /// Product selection is never inferred from compatibility options such as
-    /// `write_output`; callers requesting another product must name it.
+    /// Creates a checking request. Callers requesting another product must
+    /// name it explicitly.
     pub fn new(options: CompileOptions) -> Self {
         Self {
             options,
@@ -70,23 +68,5 @@ impl CompileRequest {
 
     pub const fn requested_product(&self) -> RequestedCompileProduct {
         self.requested_product
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn request_product_is_not_inferred_from_write_output() {
-        let request = CompileRequest::new(CompileOptions {
-            root_path: PathBuf::from("main.omg"),
-            build_dir: None,
-            target_name: None,
-            write_output: true,
-        });
-
-        assert_eq!(request.requested_product(), RequestedCompileProduct::Check);
     }
 }

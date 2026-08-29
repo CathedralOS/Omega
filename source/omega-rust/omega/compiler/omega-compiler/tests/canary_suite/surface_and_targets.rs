@@ -244,11 +244,11 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
     let build_dir = sample.join("build");
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Windows x64 CLI MVP should compile to a PE executable");
 
@@ -284,11 +284,11 @@ fn windows_pe_ships_base_relocations_and_dynamicbase() {
     let build_dir = std::env::temp_dir().join(format!("omega-reloc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: sample.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("cli_mvp should compile to a PE");
 
@@ -371,11 +371,11 @@ machine build(builder: &mut Build) {
             fs::write(dir.join("build.omg"), build_source).expect("write build.omg");
         }
 
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: dir.join("main.omg"),
             build_dir: Some(dir.join("build")),
             target_name: None,
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("build.omg canary should compile");
 
@@ -399,11 +399,11 @@ fn build_static_machine_selection_reaches_pe_subsystem() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("static machine selection in build.omg should compile to PE");
 
@@ -649,11 +649,11 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
         std::env::temp_dir().join(format!("omega-linux-x64-cli-mvp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("linux_x64 cli_mvp should compile to an ELF executable");
 
@@ -778,11 +778,11 @@ fn atomics_cross_platform_emits_real_atomics() {
     // --- windows_x64: compile + run ---
     let win_dir = std::env::temp_dir().join(format!("omega-atomics-win-{}", std::process::id()));
     let _ = fs::remove_dir_all(&win_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(win_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("atomics_cross should compile for windows_x64");
     let win_footprints = fs::read_to_string(win_dir.join("08_boundary_footprints.json"))
@@ -825,11 +825,11 @@ fn atomics_cross_platform_emits_real_atomics() {
     // --- linux_arm64: cross-emit + disassemble-by-bytes ---
     let arm_dir = std::env::temp_dir().join(format!("omega-atomics-arm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&arm_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(arm_dir.clone()),
         target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("atomics_cross should compile for linux_arm64");
     let arm_footprints = fs::read_to_string(arm_dir.join("08_boundary_footprints.json"))
@@ -880,11 +880,11 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
         std::env::temp_dir().join(format!("omega-linux-x64-dungeon-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("linux_x64 dungeon crawler should compile to an ELF executable");
 
@@ -939,11 +939,11 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     let build_dir = sample.join("build");
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Windows x64 dungeon crawler should compile to a PE executable");
 
@@ -1032,11 +1032,11 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     )
     .expect("write exact macOS AArch64 ProgramEntry binding");
 
-    let compilation = production_compile(CompileOptions {
+    let compilation = production_compile(CanaryCompileSpec {
         root_path: source.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("macos_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("exact-root contract canary should compile with visual artifacts");
     assert!(compilation.wrote_output());

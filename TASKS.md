@@ -2347,10 +2347,10 @@ Remaining:
 - **COMPILER-DRIVER-CLEANUP — restore `compiler.rs` as a thin pipeline
   coordinator.** The large alternate driver is gone. `compiler.rs` now declares
   only `Compiler`, delegates one typed request to `driver.rs`, and owns no
-  language or target data. The remaining work is to remove the hidden test
-  adapter, retire the stale `write_output` compatibility Boolean, and move the
-  remaining post-check settlement work into complete phase artifacts rather
-  than growing another coordinator.
+  language or target data. The hidden test product adapter and stale
+  `write_output` compatibility Boolean are now retired. The remaining work is
+  to move post-check settlement work into complete phase artifacts rather than
+  growing another coordinator.
 
   The first request-normalization rung is live. One typed `CompileRequest`
   now owns the production compile options, requested product, artifact policy,
@@ -2411,8 +2411,15 @@ Remaining:
   operation after compilation: it validates the retained native
   artifact, stages and replays exact bytes, atomically exposes the file, and
   returns a publication receipt. It is not a compiler route or request product.
-  Remaining post-check fact couriers and the stale `CompileOptions.write_output`
-  compatibility field remain open.
+  `CompileOptions` now contains only source, build-directory, and target
+  coordinates. Production callers select `RequestedCompileProduct` on the
+  request; tests use an explicit local `Check` versus
+  `NativeArtifactAndPublish` choice and publish only after retained-native
+  success. The exact-native source index recognizes that explicit product
+  choice rather than a Boolean seed, while `CompileReport::wrote_output`
+  remains solely a post-publication custody observation. Architecture tests
+  reject reintroducing output/product policy into options or request defaults.
+  Remaining post-check fact couriers remain open.
 
   Restore the driver contract:
 
@@ -8534,9 +8541,9 @@ compiler concept is introduced.
   staging/deployment custody and retains options and package inputs beside it.
   The successful source canary proves the
   checked-owned three-file count reaches report custody rather than the former
-  fixture-restated count of one. This handoff never calls legacy
-  `Compiler::compile` or `write_output` and cannot manufacture installation,
-  provider-occurrence, progress, or profile-decision authority.
+  fixture-restated count of one. This handoff never calls ordinary
+  `Compiler::compile` or a publication operation and cannot manufacture
+  installation, provider-occurrence, progress, or profile-decision authority.
 
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after a concrete non-test installation/deployment owner

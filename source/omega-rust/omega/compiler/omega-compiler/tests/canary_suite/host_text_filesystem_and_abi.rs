@@ -61,11 +61,11 @@ fn contained_loop_command_branch_carrier_canary_runs() {
         std::env::temp_dir().join(format!("omega-contained-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("carrier command-loop canary should compile");
 
@@ -807,11 +807,11 @@ fn windows_find_enumeration_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-find-enum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("find-enumeration canary should compile");
 
@@ -897,11 +897,11 @@ fn windows_set_file_time_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-win-sft-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("set_file_time canary should compile");
 
@@ -954,11 +954,11 @@ fn windows_wrapper_set_times_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-win-wrapper-times-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("windows set_times wrapper canary should compile");
 
@@ -1006,11 +1006,11 @@ fn windows_wrapper_lock_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-win-wrapper-lock-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("windows lock wrapper canary should compile");
 
@@ -1350,11 +1350,11 @@ fn cross_windows_general_imports_compile() {
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
         fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
             .expect("write windows target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some("windows_x64".to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostic| {
             panic!("{canary_name} should cross-compile for windows_x64: {diagnostic:?}")
@@ -1376,11 +1376,11 @@ fn cross_aarch64_stack_import_compiles_with_planned_layout() {
     fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
         .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("nine-argument import should compile for macos_arm64");
 
@@ -1418,11 +1418,11 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             hosted_main_program_entry_build(target),
         )
         .expect("write fixed-array target manifest");
-        let compile_result = compile_with_auxiliary_artifacts(CompileOptions {
+        let compile_result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         });
         if let Err(diagnostics) = compile_result {
             let only_unbound_elf_imports = target == "linux_x64"
@@ -1466,11 +1466,11 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
     fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
         .expect("write windows_x64 target manifest");
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("pointer/length shape canary should compile for windows_x64");
 
@@ -1529,11 +1529,11 @@ fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
     fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
         .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("by-value HFA import should compile for macos_arm64");
 
@@ -1564,11 +1564,11 @@ fn cross_aarch64_erased_hfa_import_keeps_two_vector_fragments() {
     fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
         .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("erased-stripped HFA import should compile for macos_arm64");
 

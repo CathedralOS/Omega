@@ -71,7 +71,6 @@ pub(crate) fn run() {
         build_dir: arguments.build_dir,
         root_path: arguments.root_path,
         target_name: arguments.target_name,
-        write_output: false,
     };
 
     let artifact_policy = if arguments.output_only {

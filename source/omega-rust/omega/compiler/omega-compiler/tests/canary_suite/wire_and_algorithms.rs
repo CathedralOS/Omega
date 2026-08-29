@@ -191,11 +191,11 @@ fn numbered_case_identities_compile() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-numbered-cases-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = production_compile(CompileOptions {
+    let compilation = production_compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("numbered case identities should survive the compiler pipeline");
     assert!(!compilation.wrote_output());

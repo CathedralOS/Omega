@@ -593,11 +593,11 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("primitive float arithmetic and comparisons should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -621,11 +621,11 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
             hosted_main_program_entry_build(target),
         )
         .expect("write primitive float target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("primitive float operations should compile for {target}: {diagnostics:#?}")
@@ -2560,11 +2560,11 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-directed-add-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("directed-add providers should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -2594,11 +2594,11 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
             hosted_main_program_entry_build(target),
         )
         .expect("write directed-add target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("directed-add providers should compile for {target}: {diagnostics:#?}")
@@ -2703,11 +2703,11 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
     let build_dir =
         std::env::temp_dir().join(format!("omega-directed-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("directed-subtract providers should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -2737,11 +2737,11 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
             hosted_main_program_entry_build(target),
         )
         .expect("write directed-subtract target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("directed-subtract providers should compile for {target}: {diagnostics:#?}")
@@ -2846,11 +2846,11 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
     let build_dir =
         std::env::temp_dir().join(format!("omega-directed-multiply-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("directed-multiply providers should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -2880,11 +2880,11 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
             hosted_main_program_entry_build(target),
         )
         .expect("write directed-multiply target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("directed-multiply providers should compile for {target}: {diagnostics:#?}")
@@ -2989,11 +2989,11 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
     let build_dir =
         std::env::temp_dir().join(format!("omega-directed-divide-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("directed-divide providers should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -3023,11 +3023,11 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
             hosted_main_program_entry_build(target),
         )
         .expect("write directed-divide target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("directed-divide providers should compile for {target}: {diagnostics:#?}")
@@ -3132,11 +3132,11 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
     let build_dir =
         std::env::temp_dir().join(format!("omega-directed-square-root-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("directed-square-root providers should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -3167,11 +3167,11 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
             hosted_main_program_entry_build(target),
         )
         .expect("write directed-square-root target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("directed-square-root providers should compile for {target}: {diagnostics:#?}")
@@ -3414,11 +3414,11 @@ fn float_policy_adapters_retain_differential_results() {
         ) {
             compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         } else {
-            compile(CompileOptions {
+            compile(CanaryCompileSpec {
                 root_path: main_path,
                 build_dir: Some(build_dir.clone()),
                 target_name: None,
-                write_output: true,
+                product: CanaryCompileProduct::NativeArtifactAndPublish,
             })
         };
         native_compile.unwrap_or_else(|diagnostics| {
@@ -3481,11 +3481,11 @@ fn float_policy_adapters_retain_differential_results() {
                     hosted_main_program_entry_build(target),
                 )
                 .expect("write float-policy target manifest");
-                compile(CompileOptions {
+                compile(CanaryCompileSpec {
                     root_path: source_dir.join("main.omg"),
                     build_dir: Some(scratch.join("out")),
                     target_name: Some(target.to_owned()),
-                    write_output: true,
+                    product: CanaryCompileProduct::NativeArtifactAndPublish,
                 })
             };
             cross_compile.unwrap_or_else(|diagnostics| {

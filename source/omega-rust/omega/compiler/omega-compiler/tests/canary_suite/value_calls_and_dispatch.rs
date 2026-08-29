@@ -673,11 +673,11 @@ fn runtime_exit_code_exit_canary_runs() {
             hosted_main_program_entry_build(target),
         )
         .expect("write runtime exit-code cross-target manifest");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(output_dir.clone()),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("runtime exit-code cross-compile failed for {target}: {diagnostics:#?}")
@@ -1523,11 +1523,11 @@ fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("threaded mutable receiver phase canary should compile natively");
     let executable = compilation
@@ -3113,11 +3113,11 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("slice indexed binary RMW canary should compile");
 
@@ -3163,11 +3163,11 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-mut-ref-forward-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("mut-ref forward canary should compile");
 
@@ -3211,11 +3211,11 @@ fn runtime_local_slice_forward_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-local-slice-forward-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("local-slice forward canary should compile");
 
@@ -3258,11 +3258,11 @@ fn f32_guard_const_arith_landed_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-f32-guard-landed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("f32 guard const-arith canary should compile");
 
@@ -3302,11 +3302,11 @@ fn f32_arg_const_arith_landed_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-f32-arg-landed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("f32 arg const-arith canary should compile");
 

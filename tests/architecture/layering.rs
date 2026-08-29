@@ -787,6 +787,32 @@ fn omega_product_publishes_compiler_artifacts() {
 }
 
 #[test]
+fn compiler_options_cannot_hide_product_or_publication_policy() {
+    let root = workspace_root();
+    let options_path =
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/options.rs");
+    let options = std::fs::read_to_string(&options_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", options_path.display()));
+    assert!(
+        !options.contains("write_output"),
+        "CompileOptions must contain only source, build-directory, and target coordinates"
+    );
+
+    let request_path =
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/request.rs");
+    let request = std::fs::read_to_string(&request_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
+    assert!(
+        !request.contains("write_output"),
+        "CompileRequest must select its product explicitly"
+    );
+    assert!(
+        request.contains("requested_product: RequestedCompileProduct::Check"),
+        "the default request must remain an explicit checking product"
+    );
+}
+
+#[test]
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
     let psi_checks =
