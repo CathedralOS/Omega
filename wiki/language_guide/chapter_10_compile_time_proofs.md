@@ -888,9 +888,18 @@ requires
 
 The quotient owner authors public precondition `Q`; it is never derived from
 the implementation-scoped representative precondition `P`.
-`Quotient::lift<F, Theorem>` is the wrapper form: `Q` must imply `P` for both
-representative applications, but may be stronger, and arguments may be adapted
-explicitly. `Quotient::define<F, Theorem>` is the faithful-definition form:
+`Quotient::lift<F, Congruence>` is the wrapper form when the compiler's complete
+exact/arithmetic implication judgment proves `Q -> P` for both representative
+applications. Arguments may be adapted explicitly and `Q` may be stronger.
+When that bounded judgment is insufficient, the quotient owner instead writes
+`Quotient::lift<F, Congruence, Transport>` and explicitly selects one checked
+resultless theorem proving the complete ordered `Q -> P` obligation. A supplied
+transport remains the selected proof route even if a later compiler could prove
+the implication automatically; the compiler never mixes automatic and theorem
+rows. A failed built-in implication points to the three-argument form and prints
+the unmatched public and representative fact coordinates.
+
+`Quotient::define<F, Congruence>` is the faithful-definition form:
 `Q` and `P` must be equivalent, runtime arguments correspond
 position-for-position with no constants, permutation,
 duplication, or omission, and the intrinsic result reaches every normal return
@@ -904,12 +913,19 @@ biconditional is required. Both legality premises remain in the selected
 theorem itself because its calls must denote under its own contract,
 independently of any later lift.
 
-The selected theorem is resultless proof-static authority. It must be checked,
+Each selected theorem is resultless proof-static authority. It must be checked,
 pure, crash-free, suspension-free, blocking-free, and terminating. Selecting it
 emits no theorem call, proof object, representative pair, or dictionary.
 Checked and terminal identity retain the operation, correspondence, exact
-relations, theorem application, lift/define kind, and contract/result-flow
-certificates.
+relations, lift/define kind, contract/result-flow certificates, and a canonical
+role-keyed theorem-evidence collection. Every entry retains its explicit role
+discriminant as an identity input, exact selected application, role-specific
+correspondence, and shared eligibility. `Congruence` is always present;
+`ForwardPreconditionTransport` is present exactly for the authored
+three-argument `lift`. Duplicate, missing, surplus, reordered, or unknown roles
+reject. An older verifier must reject an unknown role tag rather than skip a
+newer proof obligation. Current structural `define` has no transport role, and
+no reverse role is reserved.
 
 Implementation status: `%` formation now requires the exact proposition
 relation and explicitly named, sealed `Equivalence` conformance shown above.
@@ -934,9 +950,9 @@ identity, and normal representation validation independently reconstructs and
 replays each row. The explicit producer attachment is not an ordinary machine-
 lowering path. This is not executable admission: the rows name no Terminal
 machine or operation, normal validation still rejects the request, and no
-representative call is lowered. General `lift` implication—including the
-explicit transport authority still required for membership and opaque
-proposition families—and checked executable Terminal lowering remain open.
+representative call is lowered. General `lift` implementation—including the
+settled explicit transport lane for membership and opaque proposition
+families—and checked executable Terminal lowering remain open.
 
 A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative

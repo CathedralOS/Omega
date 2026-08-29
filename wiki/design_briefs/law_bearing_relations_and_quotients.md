@@ -501,9 +501,19 @@ content and is never derived from the selected representative implementation's
 precondition `P`; doing so would let an implementation change rewrite a public
 contract.
 
-`Quotient::lift` proves `Q -> P` for every representative application admitted
-by the selected theorem. A wrapper may therefore publish a stricter domain and
-adapt, duplicate, omit, reorder, or supplement arguments explicitly.
+`Quotient::lift<F, Congruence>` uses the compiler's complete exact/arithmetic
+judgment to prove `Q -> P` for every representative application admitted by the
+selected congruence theorem. A wrapper may therefore publish a stricter domain
+and adapt, duplicate, omit, reorder, or supplement arguments explicitly. When
+that bounded judgment cannot prove the complete implication, the owner writes
+`Quotient::lift<F, Congruence, Transport>` and selects one checked resultless
+transport theorem at the same operation request. The compiler derives the
+complete ordered public-`Q` premise and representative-`P` goal schema,
+including left, right, and shared parameter roles, and verifies the exact
+selection against it. A selected transport is authoritative even if automatic
+proof is available; there is no mixed theorem/automatic proof assembled row by
+row.
+
 `Quotient::define` is the faithful-definition form: it proves `Q <-> P`, exact
 position-preserving argument correspondence, and unchanged result flow. For a
 partial representative machine, the universally checked `Q -> P` direction
@@ -549,12 +559,26 @@ the component's well-founded ranking. Statement position, discarded result,
 and value position use the same rule; an unmeasured self-citation cannot prove
 itself.
 
-Checked and terminal identity retain the public quotient operation, normalized
+Checked, package-review, and terminal identity retain the public quotient
+operation, normalized
 representative-machine application, positional correspondence, exact input and
-result relations, selected theorem-machine application, lift/define kind, and
-the discharged contract and result-flow certificates. Proof irrelevance permits
-different quotient operations to select different valid theorems; it does not
-permit selection or provenance to vary by call site.
+result relations, lift/define kind, discharged contract/result-flow
+certificates, and one canonically role-ordered theorem-evidence collection.
+Every theorem entry carries its explicit `QuotientTheoremRole` discriminant as
+an identity input, its exact selected application, a role-specific
+correspondence payload, and the common checked-body, pure-closure,
+unconditional-termination, and crash-free eligibility. Proof irrelevance
+permits different quotient operations to select different valid theorems; it
+does not permit selection or provenance to vary by call site.
+
+The required-role set is closed by the authored operation form. Every operation
+has exactly one `Congruence`; only the three-argument `lift` has exactly one
+`ForwardPreconditionTransport`; current structural `define` has none.
+Duplicate, missing, surplus, or noncanonically ordered entries reject. An
+unknown role tag is a forward artifact-version incompatibility and always
+rejects rather than being ignored by an older verifier. No reverse-transport
+role is reserved until a theorem-mediated `define` with both implication
+directions is designed.
 
 The initial operations accept only pure, terminating representative machines
 whose observable contract consists of the semantic precondition and normal
@@ -609,7 +633,9 @@ quotient error:
 - a missing lift proof prints the expected theorem parameters, premises,
   conclusion, and exact selected theorem application;
 - failed wrapper admission distinguishes public `Q -> P` correspondence from
-  result congruence inside the selected theorem;
+  result congruence inside the selected theorem and, when the built-in complete
+  implication fails, points to
+  `Quotient::lift<F, Congruence, Transport>(...)`;
 - failed faithful definition reports the `P -> Q` direction separately, or the
   first omitted, duplicated, permuted, constant, polarity-mismatched, or
   multiplicity-mismatched argument position, and suggests `Quotient::lift`;
@@ -914,12 +940,15 @@ proposition transport, float or computed implication, a mixed premise roster,
 unresolved identity, or argument adaptation remain fail closed, while generic
 owner substitution, general adapted arguments, non-arithmetic logical
 implication, and executable canonical Terminal replay remain fail closed.
-Arithmetic `Expression` entailment is implemented; transport of quotient-domain
-membership and opaque proposition families is language-design blocked on
-**OWNER_QUESTIONS Q1 (quotient transport authority)**. Q1 must settle the explicit selection locus, per-side
-transport/weakening application, and canonical theorem identity and replay
-evidence. Ambient domain linking, visibility search, or an opaque solver
-verdict cannot supply that authority.
+Arithmetic `Expression` entailment is implemented. Transport of quotient-domain
+membership and opaque proposition families uses the settled explicit third
+static theorem application on `Quotient::lift`. The compiler must derive and
+verify the complete ordered `Q -> P` transport schema for both representative
+sides, retain the selected theorem under the
+`ForwardPreconditionTransport` role, and replay the same role-tagged evidence in
+Terminal. Ambient domain linking, visibility search, an opaque solver verdict,
+or a mixed automatic/theorem row set cannot supply that authority. This lane is
+implementation work, not an open language-design question.
 
 A proof-only Terminal preparation seam now covers only the total direct
 faithful `define` shape. Its all-or-nothing validation API produces one

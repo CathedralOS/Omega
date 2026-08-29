@@ -778,7 +778,7 @@ Remaining:
   drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
   and the complete declaration-classification migration.
 
-  **DESIGN-BLOCKED — [OWNER Q10](OWNER_QUESTIONS.md#q10--normative-identifier-and-string-literal-lexical-contract):**
+  **DESIGN-BLOCKED — [OWNER Q9](OWNER_QUESTIONS.md#q9--normative-identifier-and-string-literal-lexical-contract):**
   the lexical claim has explicit specification conflicts. The current
   Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
@@ -797,11 +797,11 @@ Remaining:
   Two broader rulings must also close before the compiler source may depend on
   them observably. Call-argument and aggregate-literal field evaluation order
   are not normative under
-  [OWNER Q11](OWNER_QUESTIONS.md#q11--evaluation-order-for-call-arguments-and-aggregate-fields);
+  [OWNER Q10](OWNER_QUESTIONS.md#q10--evaluation-order-for-call-arguments-and-aggregate-fields);
   current bridge slices therefore admit only combinations whose relative order
   cannot be observed. Explicit sum discriminants can conflict with the first-
   case/tag-zero initialization invariant under
-  [OWNER Q12](OWNER_QUESTIONS.md#q12--explicit-sum-discriminants-under-zero-initialization),
+  [OWNER Q11](OWNER_QUESTIONS.md#q11--explicit-sum-discriminants-under-zero-initialization),
   while default aggregate byte layout remains compiler-controlled. Rule these
   exact language questions before relying on effectful/trapping evaluation
   order or explicit discriminants; do not let a bootstrap-private schedule or
@@ -9516,11 +9516,15 @@ Remaining N6/N8 work:
   current fail-closed package-review rejection rather than publishing a partial
   trait contract.
 - **QUOTIENT-THEOREM-LIFT — admit explicit lifted operations.** The settled source
-  form is an ordinary quotient-owner body containing
-  `Quotient::lift<F, Theorem>(...)` or `Quotient::define<F, Theorem>(...)`.
-  Both select one exact representative machine application and one exact named,
-  resultless checked theorem machine. `lift` proves authored public-precondition
-  implication for both representative applications; `define` proves
+  forms are ordinary quotient-owner bodies containing
+  `Quotient::lift<F, Congruence>(...)`,
+  `Quotient::lift<F, Congruence, Transport>(...)`, or
+  `Quotient::define<F, Congruence>(...)`. Every form selects one exact
+  representative machine application and one exact named, resultless checked
+  congruence theorem. The three-argument `lift` additionally selects one exact
+  forward-precondition transport theorem. `lift` proves authored
+  public-precondition implication for both representative applications;
+  `define` proves
   equivalence, position-preserving runtime argument correspondence, and
   unchanged result flow. There is no `lifts` clause, operation map, visibility
   discovery, structural witness search, variadic `Respects` interface,
@@ -9701,10 +9705,35 @@ Remaining N6/N8 work:
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
   open. Arithmetic `Expression` entailment is implemented; transport
   of quotient-domain membership and opaque proposition families is
-  language-design blocked on **OWNER_QUESTIONS Q1 (quotient transport authority)**. Q1 must settle the
-  explicit selection locus, per-side transport/weakening application, and
-  canonical theorem identity and replay evidence. Ambient domain linking,
-  visibility search, or an opaque solver verdict cannot supply that authority.
+  implementation-blocked on the settled explicit transport lane. The
+  two-argument `lift` keeps the complete built-in exact/arithmetic implication
+  route. The three-argument form selects one resultless checked theorem at the
+  operation request and verifies it against the compiler-derived complete
+  ordered `Q => P` schema for both representative sides. A selected transport
+  is authoritative even when the built-in engine could prove the same
+  implication; there is no mixed per-row automatic/theorem route. Ambient
+  domain linking, visibility search, or an opaque solver verdict cannot supply
+  transport authority.
+
+  Replace the three singular congruence retention fields with one canonically
+  role-ordered theorem-evidence collection. Each entry carries an explicit
+  `QuotientTheoremRole` identity input, its exact selected application, a
+  role-specific correspondence payload, and the shared checked-body, pure-
+  closure, unconditional-termination, and crash-free eligibility. Require
+  exactly one `Congruence` entry, and zero or one
+  `ForwardPreconditionTransport` entry according to the authored `lift` arity;
+  current structural `define` admits no transport entry. Reject duplicates,
+  noncanonical order, missing or surplus required roles, and every unknown
+  role tag. Unknown tags are artifact-version incompatibilities and must never
+  be skipped by an older decoder. Do not reserve a reverse-transport role until
+  theorem-mediated `define` is separately designed.
+
+  A failed built-in implication diagnostic must print the expected public and
+  representative fact coordinates and point directly to
+  `Quotient::lift<F, Congruence, Transport>(...)`. Extend typed requests,
+  canonical correspondence identity, Terminal codec, package review, verifier
+  replay, and mutation canaries together; the role discriminant itself feeds
+  identity before the role-specific payload.
 
   The deliberately non-executable stage-4 preparation seam is now module
   canonical for the narrow total direct `define` case. A separate
@@ -9742,7 +9771,8 @@ Remaining N6/N8 work:
      omitted representatives, rebound pass-through arguments, admitted proof
      dependencies, or any runtime-result/dictionary interpretation;
   3. finish general authored `Q => P` checking for `lift` on both representative
-     applications while keeping `define` at `Q <=> P`, and retain the exact
+     applications, including the role-tagged explicit transport theorem form,
+     while keeping `define` at structural `Q <=> P`, and retain the exact
      theorem/correspondence certificate; and
   4. lower the admitted operation, representative application, theorem
      selection, positional relations, operation kind, contract correspondence,

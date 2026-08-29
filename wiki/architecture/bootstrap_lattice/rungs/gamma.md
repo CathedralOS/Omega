@@ -15,7 +15,7 @@ Beta understand Delta.
 - explicit, bounded evaluation resources.
 
 Gamma's intended source semantics must be fixed independently of every
-implementation, but OWNER Q4 has not yet selected one executable language from the
+implementation, but OWNER Q3 has not yet selected one executable language from the
 current disconnected interpreter and type-checker surfaces. The required
 compiler artifact is written in Beta and emits Alpha tape for arbitrary source
 accepted by the eventual contract. An interpreter may serve as an early
@@ -39,7 +39,7 @@ for a Beta-written translator that already parsed Delta.
 ## Current migration
 
 `source/gamma/interp.beta` and `typeck.beta` are bounded, disconnected semantic
-oracles and useful implementation material. Neither defines Gamma before OWNER Q4,
+oracles and useful implementation material. Neither defines Gamma before OWNER Q3,
 and together they do not yet constitute the standalone Gamma-to-Alpha compiler
 required by D11. The former Beta-written Delta-to-Gamma route was outside Gamma
 ownership and is deleted rather than retained as the Delta edge or a
