@@ -118,7 +118,8 @@ pub fn named_expression_call_candidates<'program>(
     } else if let crate::expression::ExpressionNode::Name(path) =
         program.expression_table.expression(call.receiver)
     {
-        let is_static_namespace = path.symbol.is_valid()
+        let receiver_members = program.expression_table.name_path_members(path.members);
+        let is_known_static_namespace = path.symbol.is_valid()
             && (program
                 .data_definitions()
                 .iter()
@@ -135,14 +136,28 @@ pub fn named_expression_call_candidates<'program>(
                     .traits()
                     .iter()
                     .any(|definition| definition.symbol == path.symbol));
+        // Named operator lowering intentionally may leave a static namespace
+        // path symbol unresolved while retaining the exact call selection.
+        // Reconstruct only the namespace/value classification from the closed
+        // operator vocabulary and complete authored path; selection itself is
+        // still finalized separately.
+        let is_operator_namespace = !path.symbol.is_valid()
+            && program.operators().iter().any(|operator| {
+                let operator_path = program.operator_path_members(operator.name);
+                operator_path
+                    .split_last()
+                    .is_some_and(|(member, namespace)| {
+                        member.as_str() == call.target.as_str()
+                            && namespace.len() == receiver_members.len()
+                            && namespace
+                                .iter()
+                                .zip(receiver_members)
+                                .all(|(expected, actual)| expected == actual)
+                    })
+            });
+        let is_static_namespace = is_known_static_namespace || is_operator_namespace;
         if is_static_namespace {
-            static_segments.extend(
-                program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .iter()
-                    .map(|segment| segment.as_str()),
-            );
+            static_segments.extend(receiver_members.iter().map(|segment| segment.as_str()));
         }
         !is_static_namespace
     } else {

@@ -809,6 +809,13 @@ whose receiving parameter already carries shared-reference identity; review
 does not invent syntax the typed expression does not contain. Operator-law
 conformance and package rederivation compare reference access as well as the
 borrowed target, preventing shared/mutable drift from satisfying the same law.
+At the same v84/row-v42 schema, named operator calls in public contracts reuse
+the structural call row. Projection invokes typed Psi's exact named-operator
+resolver, rejoins its symbol with the authored call-selection occurrence, and
+encodes the package-qualified operator target. A static namespace such as
+`Token` in `Token::ordered(left, right)` is path qualification, not a value
+receiver. Target drift and explicit reference arguments inconsistent with the
+selected callable telescope reject. No new canonical discriminant is needed.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,

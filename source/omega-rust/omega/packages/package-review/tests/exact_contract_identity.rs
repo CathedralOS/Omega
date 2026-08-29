@@ -8,5 +8,7 @@ mod compiler_and_literal_identity;
 mod constructed_values;
 #[path = "exact_contract_identity/domain_predicates.rs"]
 mod domain_predicates;
+#[path = "exact_contract_identity/named_operator_calls.rs"]
+mod named_operator_calls;
 #[path = "exact_contract_identity/references.rs"]
 mod references;

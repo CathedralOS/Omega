@@ -3,6 +3,123 @@ use crate::projection::contracts::metadata::contracts::ContractProjectionContext
 use crate::projection::exact_identity::nominal_identities::nominal_identity;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
+use psi_symbols::SymbolHandle;
+
+pub(crate) fn resolved_contract_call_symbol(
+    compilation: &CheckedCompilation,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Option<SymbolHandle> {
+    call.target_symbol
+        .is_valid()
+        .then_some(call.target_symbol)
+        .or_else(|| {
+            psi_typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
+                .map(|operator| operator.symbol)
+        })
+}
+
+pub(crate) fn contract_call_value_receiver(
+    compilation: &CheckedCompilation,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Option<psi_typed_trees::expression::ExpressionHandle> {
+    if !call.receiver.is_valid() {
+        return None;
+    }
+    if !call.target_symbol.is_valid()
+        && let Some(operator) =
+            psi_typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
+        && let psi_typed_trees::expression::ExpressionNode::Name(path) =
+            compilation.expression_table.expression(call.receiver)
+    {
+        let receiver = compilation.expression_table.name_path_members(path.members);
+        let operator_path = compilation.operator_path_members(operator.name);
+        if operator_path.split_last().is_some_and(|(_, namespace)| {
+            namespace.len() == receiver.len()
+                && namespace
+                    .iter()
+                    .zip(receiver)
+                    .all(|(expected, actual)| expected == actual)
+        }) {
+            return None;
+        }
+    }
+    Some(call.receiver)
+}
+
+pub(crate) fn require_exact_contract_call_reference_arguments(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    target: SymbolHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut candidates = compilation
+        .machines()
+        .iter()
+        .flat_map(|machine| compilation.machine_states(machine))
+        .filter(|state| state.symbol == target)
+        .map(|state| compilation.state_parameters(state))
+        .collect::<Vec<_>>();
+    if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
+        candidates.push(compilation.state_signature_parameters(signature));
+    }
+    candidates.extend(compilation.traits().iter().flat_map(|definition| {
+        compilation
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.symbol == target)
+            .map(|signature| compilation.state_signature_parameters(signature))
+    }));
+    candidates.extend(
+        compilation
+            .operators()
+            .iter()
+            .chain(
+                compilation
+                    .domain_definitions()
+                    .iter()
+                    .flat_map(|domain| compilation.domain_operators(domain)),
+            )
+            .filter(|operator| operator.symbol == target)
+            .map(|operator| compilation.operator_parameters(operator)),
+    );
+    let [parameters] = candidates.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call target rejoins {} value telescopes; expected exactly one",
+            context.subject_kind,
+            context.subject_name,
+            candidates.len()
+        ))]);
+    };
+    let arguments = compilation
+        .expression_table
+        .expression_handles(call.arguments);
+    let parameters = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if arguments.len() != parameters.len() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call has inconsistent checked value arity",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    for (argument, parameter) in arguments.iter().zip(parameters) {
+        if matches!(
+            compilation.expression_table.expression(*argument),
+            psi_typed_trees::expression::ExpressionNode::Borrow(_)
+        ) && !psi_validation::checked_argument_matches_type_reference(
+            &compilation.typed,
+            *argument,
+            parameter.type_reference,
+        ) {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` reference argument does not match its contract-call parameter type",
+                context.subject_kind, context.subject_name
+            ))]);
+        }
+    }
+    Ok(())
+}
 
 pub(crate) fn exact_fact_call_projection<'compilation>(
     compilation: &'compilation CheckedCompilation,
@@ -131,20 +248,21 @@ pub(crate) fn exact_checked_contract_call_target(
             context.subject_kind, context.subject_name
         ))]);
     }
+    let resolved_symbol = resolved_contract_call_symbol(compilation, call);
     match selection.target() {
         AuthoredDeclarationSelectionTarget::Resolved(target)
-            if target.selected_symbol() == call.target_symbol =>
+            if Some(target.selected_symbol()) == resolved_symbol =>
         {
             if let Some(function) = compilation
                 .typed
                 .symbols
-                .builtin_function_for_symbol(call.target_symbol)
+                .builtin_function_for_symbol(target.selected_symbol())
             {
                 Ok(PackageReviewContractCallTarget::BuiltinFunction(function))
             } else {
                 Ok(PackageReviewContractCallTarget::Nominal(nominal_identity(
                     compilation,
-                    call.target_symbol,
+                    target.selected_symbol(),
                 )?))
             }
         }

@@ -1,4 +1,7 @@
-use super::calls::{exact_checked_contract_call_target, exact_fact_call_projection};
+use super::calls::{
+    contract_call_value_receiver, exact_checked_contract_call_target, exact_fact_call_projection,
+    require_exact_contract_call_reference_arguments, resolved_contract_call_symbol,
+};
 use super::constructors::project_contract_constructor_expression;
 use super::members::{
     checked_contract_member_path, contract_member_has_exact_collection_length,
@@ -181,12 +184,25 @@ pub(crate) fn project_contract_expression_with_substitutions(
         ExpressionNode::Call(call) => {
             let target =
                 exact_checked_contract_call_target(compilation, context, expression, call)?;
+            let resolved_symbol = resolved_contract_call_symbol(compilation, call);
             let static_parameter_kinds = match &target {
                 PackageReviewContractCallTarget::Nominal(_) => {
+                    let target_symbol = resolved_symbol.ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "reviewed {} `{}` contract call has no exact resolved target symbol",
+                            context.subject_kind, context.subject_name
+                        ))]
+                    })?;
+                    require_exact_contract_call_reference_arguments(
+                        compilation,
+                        context,
+                        target_symbol,
+                        call,
+                    )?;
                     contract_call_static_parameter_kinds(
                         compilation,
                         context,
-                        call.target_symbol,
+                        target_symbol,
                         call.machine_arguments.len(),
                     )?
                 }
@@ -225,10 +241,8 @@ pub(crate) fn project_contract_expression_with_substitutions(
             // metadata, explicitly outside contract identity. Fact-position
             // calls have already been checked as total and pure.
             Ok(PackageReviewContractExpression::Call {
-                receiver: call
-                    .receiver
-                    .is_valid()
-                    .then(|| child(call.receiver))
+                receiver: contract_call_value_receiver(compilation, call)
+                    .map(child)
                     .transpose()?
                     .map(Box::new),
                 target,
