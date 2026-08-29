@@ -1,5 +1,5 @@
 use super::*;
-use crate::source::identity::{
+use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, SourceContentDigest,
 };
 

@@ -1,13 +1,13 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
-use crate::source::identity::{
+use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, SourceContentDigest,
     SourceLineage,
 };
-use crate::source::{
+use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
-use crate::source::{RetainedStorageLane, resolve_git_source_in_lane};
+use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane};
 #[cfg(test)]
 use std::path::Path;
 

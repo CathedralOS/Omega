@@ -1,6 +1,6 @@
 //! Typed package graph reconciliation over immutable source identities.
 
-use crate::source::identity::{AliasName, IdentityError, ImmutableSourceResolution, PackageKey};
+use omega_package_source::{AliasName, IdentityError, ImmutableSourceResolution, PackageKey};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A package's stable identity paired with one immutable source selection.

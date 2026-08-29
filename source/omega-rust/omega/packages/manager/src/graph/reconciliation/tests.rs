@@ -1,13 +1,13 @@
 use super::super::validation::PackageClosureValidationError;
 use super::*;
 use crate::manifest::dependency_projection::DependencySourceRequest;
-use crate::source::identity::{
-    AliasName, GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
-    SourceContentDigest, SourceLineage, WorkspaceMemberPath,
-};
 use crate::{
     GitSourceRequest, LocalSourceLimits, PackageSourceCustody, ResolvedPackageSource,
     resolve_workspace_member_package_source,
+};
+use omega_package_source::{
+    AliasName, GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
+    SourceContentDigest, SourceLineage, WorkspaceMemberPath,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};

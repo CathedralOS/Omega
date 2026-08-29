@@ -16,7 +16,7 @@ packages/
 The dependency direction is one-way:
 
 ```text
-manager ──→ source/execution
+manager ──→ source/acquisition ──→ source/execution
         └─→ review/evidence
 review/advisory ──→ manager
 ```

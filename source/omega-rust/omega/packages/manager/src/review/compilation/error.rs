@@ -1,8 +1,8 @@
 use super::PackageSourceVerificationPhase;
 use crate::PackageKey;
-use crate::source::SourceResolveError;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::PackageReviewEncodingError;
+use omega_package_source::SourceResolveError;
 use psi_checked_interpreter::FilesystemSponsorError;
 use psi_diagnostics::Diagnostic;
 use std::fmt;

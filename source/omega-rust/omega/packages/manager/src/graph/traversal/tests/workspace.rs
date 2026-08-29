@@ -4,7 +4,7 @@ use super::*;
 fn resolves_explicit_workspace_path_closure() {
     let cache_base = temp_root("fixture-cache");
     std::fs::create_dir_all(&cache_base).expect("create private storage base");
-    let storage = SourceResolverStorage::create_beneath(&cache_base)
+    let storage = SourceResolverStorage::for_hardened_base(&cache_base)
         .expect("create production-shaped private resolver storage");
     let closure = resolve_workspace_package_closure_with_storage(
         &fixture_lineage(),

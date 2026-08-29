@@ -3,9 +3,9 @@ use crate::package::{
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
     resolve_git_package_source_in_lane, resolve_workspace_member_package_source_in_lane,
 };
-use crate::source::RetainedStorageLane;
-use crate::source::identity::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
-use crate::source::{
+use omega_package_source::RetainedStorageLane;
+use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
 };
 use std::path::Path;

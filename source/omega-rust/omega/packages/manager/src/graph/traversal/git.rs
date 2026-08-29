@@ -7,8 +7,8 @@ use super::cache::{SourceCacheLane, resolve_git_from_cache};
 use super::dependency_resolution::{register_workspace, resolve_registered_package_closure};
 use super::errors::ResolveGitPackageClosureError;
 use crate::package::ResolvePackageSourceError;
-use crate::source::identity::SourceLineage;
-use crate::source::{
+use omega_package_source::SourceLineage;
+use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
 use std::collections::BTreeMap;

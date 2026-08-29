@@ -1,8 +1,8 @@
 //! Transport-erased custody for one declared package snapshot.
 
 use crate::manifest::dependency_projection::DependencySourceRequest;
-use crate::source::LocalSourceLimits;
-use crate::source::identity::{ImmutableSourceResolution, PackageKey};
+use omega_package_source::LocalSourceLimits;
+use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
 
 /// Immutable package source after acquisition, declaration extraction, and

@@ -1,5 +1,5 @@
 use crate::manifest::declaration::BuildDeclaration;
-use crate::source::identity::{AliasName, PackageName};
+use omega_package_source::{AliasName, PackageName};
 
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]

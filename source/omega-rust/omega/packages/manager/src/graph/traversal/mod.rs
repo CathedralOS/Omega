@@ -39,9 +39,9 @@ use super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 #[cfg(test)]
-use crate::source::identity::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
 #[cfg(test)]
-use crate::source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
+use omega_package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 #[cfg(test)]
 use std::path::{Path, PathBuf};
 

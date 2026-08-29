@@ -7,11 +7,11 @@ use super::cache::{SourceCacheLane, resolve_workspace_member_from_cache};
 use super::dependency_resolution::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::package::ResolvePackageSourceError;
-use crate::source::identity::{
+use omega_package_source::{
     ExternalSourceContext, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
     WorkspaceMemberPath,
 };
-use crate::source::{LocalSourceLimits, SourceResolverStorage};
+use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
 use std::path::Path;
 

@@ -11,10 +11,10 @@ use super::cache::{
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::package::{PackageSourceCustody, ResolvePackageSourceError};
-use crate::source::identity::{
+use omega_package_source::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };
-use crate::source::{GitSourceRequest, LocalSourceLimits};
+use omega_package_source::{GitSourceRequest, LocalSourceLimits};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
