@@ -214,6 +214,26 @@ private relocation. Retained registration provenance keeps the selected
 identity and lease disposition without making the actual envelope an ambient
 caller fact.
 
+A direct callback destination originates in an interleaved native-only
+parameter on the registrar requirement. That declaration contributes no
+semantic runtime parameter or address value. It contributes one ordered native-
+telescope entry containing a compiler-issued nominal parameter identity, exact
+binder/requirement source, and target-closed function-pointer shape. Ordinary
+entries in the same telescope originate in semantic formals. Both
+`NativePlace::Parameter` and `NativePlace::Field.parameter` index this one
+identity space; the latter's root happens to be a semantic-formal projection.
+The calling policy maps declared entries to placements and cannot create,
+reorder, or retarget them.
+
+Terminal identity retains two different hashes. The reusable physical
+`CallPlan` fingerprint describes the ABI recipe. The boundary-plan application
+fingerprint additionally covers the exact requirement, complete ordered native
+telescope, every nominal parameter-to-placement row, and callback
+materializations. This prevents an equally shaped parameter reorder from
+replaying under an unchanged register sequence. Ordinal-derived IDs and the old
+callback-placement fingerprint domain are retired through a versioned artifact
+reissue, never reinterpreted as nominal IDs.
+
 A nested layout-field place originates in one explicitly selected named
 `PrivateCallbackSlot<Requirement>` conformance retained by the evaluated
 layout plan. The conformance declaration is inert until the plan cites it; Psi
@@ -254,7 +274,8 @@ boundary lowering: every ordered demand retains the exact registrar occurrence
 handle and exact ordered native-argument handle that own its `NativePlace`
 root. Replay binds the original placement/thunk/demand evidence to the source
 host-call site, registrar target and overload, lowering and call coordinates,
-formal order, and overload-derived native parameter identity. Nested field
+authored native order, nominal parameter identity, and boundary-plan
+application fingerprint. Nested field
 destinations preserve the complete nominal layout and ordered slot path without
 deriving a byte offset; distinct fields may share one exact parameter root.
 This evidence still carries no target operation, bytes, object relocation,
@@ -266,15 +287,18 @@ current single-slot `Field` form. Layout/slot/requirement/data-symbol identity,
 offset, pointer extent, and alignment replay against the selected target and
 containing data layout. The offset is retained evidence, not source-authored
 identity. Multi-segment physical path composition rejects as an engineering
-gap, and direct-parameter construction remains synthetic-only pending Q13.
+gap, and direct-parameter construction remains synthetic-only pending the
+settled source/native-telescope implementation.
 That physical-destination recipe itself has no selected/assigned operation,
 object symbol, relocation, bytes, runtime address, registration authority, or
-lease; the exact registrar-formal-to-assigned-operand join follows separately.
+lease; the exact registrar-native-parameter-to-assigned-operand join follows
+separately.
 
 That exact assigned-operand carrier now exists for custom/unknown outbound
 registrar host operations. Selection records the exact source-call handle,
-call/operation ordinals, and formal/native-parameter-to-abstract-operand rows,
-excluding the result pseudo-argument. Target lowering resolves exactly one
+call/operation ordinals, and ordered native-parameter-to-abstract-operand rows,
+retaining semantic-formal identity only where one exists and excluding the
+result pseudo-argument. Target lowering resolves exactly one
 retained occurrence and boundary edge and preserves abstract/target operand
 handles; backend planning joins them to the assigned instruction and operand
 for the prior physical destination. Replay rejects coordinate collisions,
@@ -312,7 +336,7 @@ unrelocated/materialized bytes, and entry offset. Root installation requires
 the same installed occurrence, entry, and requirement, and pending/live/error/
 cleanup/quiescence custody never drops that attribution. The manifest exposes
 no resolved address and grants no registrar invocation, source `Registration`,
-capacity, lease, or publication authority. `DataAddress`, Q13 direct parameters,
+capacity, lease, or publication authority. `DataAddress`, direct parameters,
 and multi-segment physical paths remain fenced.
 
 The current canonical checked-to-Terminal function has no input field for the

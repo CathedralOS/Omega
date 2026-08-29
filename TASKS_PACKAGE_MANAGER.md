@@ -41,7 +41,7 @@ closed. Compiler-issued package review remains non-admitting.
     policy, native container lifecycle, termination, and cleanup;
   - seal local-source issuance behind one opaque final observation joining the
     requested and canonical source, snapshot, limits, custody, and final rehash;
-  - narrow macOS SSH discovery/fetch reads after Q14 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q12 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -57,7 +57,7 @@ closed. Compiler-issued package review remains non-admitting.
 
   The detailed established floor and remaining platform gaps are maintained in
   `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
-  design-blocked on OWNER Q13; the other bullets are engineering work.
+  design-blocked on OWNER Q12; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -300,7 +300,7 @@ closed. Compiler-issued package review remains non-admitting.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q13: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q12: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 
