@@ -2,13 +2,15 @@
 
 use super::application::independently_apply_total_scalar_identity;
 use super::classification::independently_classify_total_scalar_identity;
-use super::evidence::independently_validate_neutral_literal;
+use super::evidence::independently_validate_law_literal;
 use super::*;
 
 const NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1";
 const SHIFT_ZERO_COUNT_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1";
+const MULTIPLY_ZERO_ANNIHILATION_RULE_DOMAIN: &[u8] =
+    b"omega.psi-rule.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1";
 
 pub fn validate_total_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
@@ -102,7 +104,7 @@ pub fn validate_total_scalar_identity_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    independently_validate_neutral_literal(input, function, shape, candidate)?;
+    independently_validate_law_literal(input, function, shape, candidate)?;
     let receiver = &block.nodes[node_index + 1];
     if receiver
         .provenance
@@ -146,6 +148,12 @@ fn exact_rule_validator(
         | TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => (
             SHIFT_ZERO_COUNT_RULE_DOMAIN,
             b"omega.validator.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1"
+                .as_slice(),
+        ),
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft
+        | TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight => (
+            MULTIPLY_ZERO_ANNIHILATION_RULE_DOMAIN,
+            b"omega.validator.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1"
                 .as_slice(),
         ),
     };

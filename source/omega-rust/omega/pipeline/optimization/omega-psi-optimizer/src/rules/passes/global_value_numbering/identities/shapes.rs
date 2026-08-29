@@ -7,11 +7,11 @@ pub(in crate::rules::passes) struct TotalScalarIdentityShape {
     pub source_operation: OperationId,
     pub result: ValueId,
     pub replacement: ValueId,
-    pub identity_operand: ValueId,
+    pub law_operand: ValueId,
     pub scalar_type: IntegerType,
-    pub identity_operand_type: IntegerType,
+    pub law_operand_type: IntegerType,
     pub identity: TotalScalarIdentityKind,
-    pub expected_identity_value: IntegerValue,
+    pub expected_law_value: IntegerValue,
 }
 
 /// Return the exact semantic rows in canonical tie order.
@@ -34,21 +34,21 @@ pub(in crate::rules::passes) fn wrapping_neutral_identity_shapes(
                 source_operation: *psi_operation,
                 result: *result,
                 replacement: *right,
-                identity_operand: *left,
+                law_operand: *left,
                 scalar_type: *scalar_type,
-                identity_operand_type: *scalar_type,
+                law_operand_type: *scalar_type,
                 identity: TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
-                expected_identity_value: integer_value(*scalar_type, 0),
+                expected_law_value: integer_value(*scalar_type, 0),
             },
             TotalScalarIdentityShape {
                 source_operation: *psi_operation,
                 result: *result,
                 replacement: *left,
-                identity_operand: *right,
+                law_operand: *right,
                 scalar_type: *scalar_type,
-                identity_operand_type: *scalar_type,
+                law_operand_type: *scalar_type,
                 identity: TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
-                expected_identity_value: integer_value(*scalar_type, 0),
+                expected_law_value: integer_value(*scalar_type, 0),
             },
         ],
         O::WrappingIntegerSubtract {
@@ -61,11 +61,11 @@ pub(in crate::rules::passes) fn wrapping_neutral_identity_shapes(
             source_operation: *psi_operation,
             result: *result,
             replacement: *left,
-            identity_operand: *right,
+            law_operand: *right,
             scalar_type: *scalar_type,
-            identity_operand_type: *scalar_type,
+            law_operand_type: *scalar_type,
             identity: TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight,
-            expected_identity_value: integer_value(*scalar_type, 0),
+            expected_law_value: integer_value(*scalar_type, 0),
         }],
         O::WrappingIntegerMultiply {
             psi_operation,
@@ -78,21 +78,21 @@ pub(in crate::rules::passes) fn wrapping_neutral_identity_shapes(
                 source_operation: *psi_operation,
                 result: *result,
                 replacement: *right,
-                identity_operand: *left,
+                law_operand: *left,
                 scalar_type: *scalar_type,
-                identity_operand_type: *scalar_type,
+                law_operand_type: *scalar_type,
                 identity: TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft,
-                expected_identity_value: integer_value(*scalar_type, 1),
+                expected_law_value: integer_value(*scalar_type, 1),
             },
             TotalScalarIdentityShape {
                 source_operation: *psi_operation,
                 result: *result,
                 replacement: *left,
-                identity_operand: *right,
+                law_operand: *right,
                 scalar_type: *scalar_type,
-                identity_operand_type: *scalar_type,
+                law_operand_type: *scalar_type,
                 identity: TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight,
-                expected_identity_value: integer_value(*scalar_type, 1),
+                expected_law_value: integer_value(*scalar_type, 1),
             },
         ],
         _ => Vec::new(),
@@ -115,11 +115,11 @@ pub(in crate::rules::passes) fn wrapping_shift_zero_count_identity_shapes(
             source_operation: *psi_operation,
             result: *result,
             replacement: *value,
-            identity_operand: *count,
+            law_operand: *count,
             scalar_type: *value_type,
-            identity_operand_type: *count_type,
+            law_operand_type: *count_type,
             identity: TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
-            expected_identity_value: integer_value(*count_type, 0),
+            expected_law_value: integer_value(*count_type, 0),
         }],
         O::WrappingIntegerShiftRight {
             psi_operation,
@@ -132,14 +132,53 @@ pub(in crate::rules::passes) fn wrapping_shift_zero_count_identity_shapes(
             source_operation: *psi_operation,
             result: *result,
             replacement: *value,
-            identity_operand: *count,
+            law_operand: *count,
             scalar_type: *value_type,
-            identity_operand_type: *count_type,
+            law_operand_type: *count_type,
             identity: TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
-            expected_identity_value: integer_value(*count_type, 0),
+            expected_law_value: integer_value(*count_type, 0),
         }],
         _ => Vec::new(),
     }
+}
+
+/// Return the two wrapping multiplication annihilation laws in canonical
+/// left-zero/right-zero order. The zero operand is also the replacement.
+pub(in crate::rules::passes) fn wrapping_multiply_zero_annihilation_shapes(
+    operation: &O,
+) -> Vec<TotalScalarIdentityShape> {
+    let O::WrappingIntegerMultiply {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    } = operation
+    else {
+        return Vec::new();
+    };
+    vec![
+        TotalScalarIdentityShape {
+            source_operation: *psi_operation,
+            result: *result,
+            replacement: *left,
+            law_operand: *left,
+            scalar_type: *scalar_type,
+            law_operand_type: *scalar_type,
+            identity: TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
+            expected_law_value: integer_value(*scalar_type, 0),
+        },
+        TotalScalarIdentityShape {
+            source_operation: *psi_operation,
+            result: *result,
+            replacement: *right,
+            law_operand: *right,
+            scalar_type: *scalar_type,
+            law_operand_type: *scalar_type,
+            identity: TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight,
+            expected_law_value: integer_value(*scalar_type, 0),
+        },
+    ]
 }
 
 const fn integer_value(scalar_type: IntegerType, value: u128) -> IntegerValue {

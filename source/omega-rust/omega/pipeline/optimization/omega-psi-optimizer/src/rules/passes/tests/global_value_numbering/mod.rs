@@ -9,5 +9,6 @@ mod compatible_policy;
 mod dominating;
 mod expression_vocabulary;
 mod identities;
+mod multiply_zero;
 mod phi_translated;
 mod same_block;

@@ -521,6 +521,8 @@ pub enum TotalScalarIdentityKind {
     WrappingIntegerMultiplyOneRight,
     WrappingIntegerShiftLeftZeroCount,
     WrappingIntegerShiftRightZeroCount,
+    WrappingIntegerMultiplyZeroLeft,
+    WrappingIntegerMultiplyZeroRight,
 }
 
 /// Remove one total wrapping integer identity and replace every use of its

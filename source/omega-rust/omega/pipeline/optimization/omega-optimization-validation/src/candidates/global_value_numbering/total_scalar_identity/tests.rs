@@ -29,6 +29,10 @@ fn contract(identity: TotalScalarIdentityKind) -> OptimizationRuleContract {
         | TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => {
             b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1"
         }
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft
+        | TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight => {
+            b"omega.psi-rule.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1"
+        }
     };
     OptimizationRuleContract::new(
         OptimizationRuleIdentity::from_canonical_bytes(domain),
@@ -56,7 +60,7 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
     let return_edge = id(8, EdgeId::new);
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let count_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let (neutral_value, identity_operand_type, operation, replacement) = match identity {
+    let (law_value, law_operand_type, operation, replacement) = match identity {
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft => (
             IntegerValue::Unsigned(0),
             scalar_type,
@@ -116,6 +120,30 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
                 right: neutral,
             },
             input_value,
+        ),
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::WrappingIntegerMultiply {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            neutral,
+        ),
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::WrappingIntegerMultiply {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            neutral,
         ),
         TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount => (
             IntegerValue::Signed(0),
@@ -178,8 +206,8 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
                     AbstractOperation::IntegerConstant {
                         psi_operation: literal_operation,
                         result: neutral,
-                        scalar_type: ScalarType::Integer(identity_operand_type),
-                        value: neutral_value,
+                        scalar_type: ScalarType::Integer(law_operand_type),
+                        value: law_value,
                     },
                     operation,
                     AbstractOperation::Return {
@@ -282,7 +310,7 @@ fn candidate_with_contract(
 }
 
 #[test]
-fn all_seven_total_rows_replay_without_proof_custody() {
+fn all_nine_total_rows_replay_without_proof_custody() {
     let identities = [
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
         TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
@@ -291,6 +319,8 @@ fn all_seven_total_rows_replay_without_proof_custody() {
         TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight,
         TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
         TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight,
     ];
     for identity in identities {
         let (unit, patch) = fixture(identity);
@@ -322,7 +352,7 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
     );
 
     let foreign = omega_optimization_core::ScalarConstantFactIdentity::from_canonical_bytes(
-        b"foreign neutral literal",
+        b"foreign law literal",
     );
     assert_eq!(
         validate_total_scalar_identity_candidate(
@@ -362,6 +392,57 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
         validate_total_scalar_identity_candidate(
             &unit,
             &candidate_with_contract(&unit, patch, false, None, shift_contract),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let (annihilation_unit, annihilation_patch) =
+        fixture(TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft);
+    let shift_contract = contract(TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &annihilation_unit,
+            &candidate_with_contract(
+                &annihilation_unit,
+                annihilation_patch,
+                false,
+                None,
+                shift_contract,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let mut wrong_annihilation_side = annihilation_patch;
+    wrong_annihilation_side.identity = TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight;
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &annihilation_unit,
+            &candidate(&annihilation_unit, wrong_annihilation_side, false, None),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let mut wrong_annihilation_replacement = annihilation_patch;
+    wrong_annihilation_replacement.replacement = id(3, ValueId::new);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &annihilation_unit,
+            &candidate(
+                &annihilation_unit,
+                wrong_annihilation_replacement,
+                false,
+                None,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let annihilation_contract = contract(TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &unit,
+            &candidate_with_contract(&unit, patch, false, None, annihilation_contract),
         ),
         Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
     );
