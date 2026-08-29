@@ -17,7 +17,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved.command_execution_observations().len(),
         resolved.execution_policy_observations().len()
     );
-    assert_eq!(resolved.resolution_observation().schema_version(), 4);
+    assert_eq!(resolved.resolution_observation().schema_version(), 5);
     assert_eq!(resolved.resolution_observation().identity().len(), 64);
     assert_eq!(
         resolved.resolution_observation().command_count(),
@@ -85,6 +85,19 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             .is_err(),
         "final issuance must reject missing command outcome rows"
     );
+    let mut mismatched_completion = PendingResolvedGitSource::from_issued(&resolved);
+    let alternate_completion = mismatched_completion.command_execution_observations[1]
+        .completion
+        .clone();
+    mismatched_completion.command_execution_observations[0].completion = alternate_completion;
+    assert!(
+        issue_git_source_resolution_observation(
+            &mismatched_completion,
+            LocalSourceLimits::default()
+        )
+        .is_err(),
+        "final issuance must reject a completion detached from its command policy"
+    );
     let mut unjoined_endpoint = PendingResolvedGitSource::from_issued(&resolved);
     unjoined_endpoint
         .command_execution_observations
@@ -130,6 +143,9 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             .iter()
             .all(|observation| observation.policy_identity().len() == 64
                 && observation.command_identity().len() == 64
+                && observation.completion().policy().phase() == observation.phase()
+                && observation.completion().status().success()
+                && !observation.completion().canonical_bytes().is_empty()
                 && observation.status_code() == Some(0)
                 && observation.termination_signal().is_none()
                 && observation.stdout_identity().len() == 64

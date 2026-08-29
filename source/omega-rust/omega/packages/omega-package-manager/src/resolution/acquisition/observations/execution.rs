@@ -1,4 +1,7 @@
-use omega_resolver_execution::{ResolverExecutionEndpointObservation, ResolverExecutionPhase};
+use omega_resolver_execution::{
+    ResolverExecutionCompletionObservation, ResolverExecutionEndpointObservation,
+    ResolverExecutionPhase,
+};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +61,7 @@ pub struct GitCommandExecutionObservation {
     pub(in crate::resolution::acquisition) stderr_identity: String,
     pub(in crate::resolution::acquisition) endpoint_observation:
         Option<ResolverExecutionEndpointObservation>,
+    pub(in crate::resolution::acquisition) completion: ResolverExecutionCompletionObservation,
 }
 
 impl GitCommandExecutionObservation {
@@ -99,5 +103,9 @@ impl GitCommandExecutionObservation {
 
     pub const fn endpoint_observation(&self) -> Option<&ResolverExecutionEndpointObservation> {
         self.endpoint_observation.as_ref()
+    }
+
+    pub const fn completion(&self) -> &ResolverExecutionCompletionObservation {
+        &self.completion
     }
 }

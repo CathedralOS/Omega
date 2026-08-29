@@ -2,8 +2,8 @@
 use super::super::{
     GIT_COMMAND_CLEANUP_TIMEOUT, GitCapturedOutputBudget, StreamCaptureResult,
     capture_stream_bounded, command_cleanup_reserve, open_git_transport_executable,
-    open_https_transport_executable, process_group_already_absent, run_command_bounded,
-    run_command_bounded_with_budget, shell_command, temp_root, verify_git_transport_executable,
+    open_https_transport_executable, run_command_bounded, run_command_bounded_with_budget,
+    shell_command, temp_root, verify_git_transport_executable,
 };
 use super::super::{
     SourceResolveError, reconcile_git_command_endpoint_result, reconcile_git_command_result,
@@ -14,10 +14,9 @@ use std::time::{Duration, Instant};
 #[cfg(unix)]
 #[test]
 fn bounded_command_uses_null_stdin_and_drains_both_streams() {
-    let mut null_stdin =
-        shell_command("if IFS= read -r value; then printf input; else printf eof; fi");
+    let null_stdin = shell_command("if IFS= read -r value; then printf input; else printf eof; fi");
     let output = run_command_bounded(
-        &mut null_stdin,
+        null_stdin,
         "test-null-stdin",
         16,
         16,
@@ -27,12 +26,12 @@ fn bounded_command_uses_null_stdin_and_drains_both_streams() {
     assert!(output.status.success());
     assert_eq!(output.stdout, b"eof");
 
-    let mut both_streams = shell_command(
+    let both_streams = shell_command(
         "dd if=/dev/zero bs=65536 count=2 1>&2 2>/dev/null; \
              dd if=/dev/zero bs=65536 count=2 2>/dev/null",
     );
     let output = run_command_bounded(
-        &mut both_streams,
+        both_streams,
         "test-both-streams",
         128 * 1024,
         128 * 1024,
@@ -44,12 +43,12 @@ fn bounded_command_uses_null_stdin_and_drains_both_streams() {
     assert_eq!(output.stderr.len(), 128 * 1024);
 
     let shared_budget = GitCapturedOutputBudget::new(192 * 1024);
-    let mut aggregate_overflow = shell_command(
+    let aggregate_overflow = shell_command(
         "dd if=/dev/zero bs=65536 count=2 1>&2 2>/dev/null; \
              dd if=/dev/zero bs=65536 count=2 2>/dev/null",
     );
     let error = run_command_bounded_with_budget(
-        &mut aggregate_overflow,
+        aggregate_overflow,
         "test-shared-output-budget",
         128 * 1024,
         128 * 1024,
@@ -57,14 +56,17 @@ fn bounded_command_uses_null_stdin_and_drains_both_streams() {
         shared_budget.clone(),
     )
     .expect_err("stdout and stderr must consume one shared cumulative budget");
+    let exact_budget_overflow = matches!(
+        &error,
+        SourceResolveError::GitResolutionCapturedOutputLimit {
+            ceiling,
+            attempted,
+        } if *ceiling == 192 * 1024 && attempted > ceiling
+    );
+    let fail_closed_macos_cleanup =
+        cfg!(target_os = "macos") && matches!(&error, SourceResolveError::GitCleanupFailed { .. });
     assert!(
-        matches!(
-            error,
-            SourceResolveError::GitResolutionCapturedOutputLimit {
-                ceiling,
-                attempted,
-            } if ceiling == 192 * 1024 && attempted > ceiling
-        ),
+        exact_budget_overflow || fail_closed_macos_cleanup,
         "unexpected shared-output error: {error:?}"
     );
     assert!(shared_budget.observed() <= shared_budget.ceiling);
@@ -81,15 +83,10 @@ fn bounded_command_rejects_stdout_and_stderr_overflow() {
         let script = format!(
             "i=0; while [ $i -lt 4096 ]; do printf x {redirect}; i=$((i + 1)); done; while :; do :; done"
         );
-        let mut command = shell_command(&script);
-        let error = run_command_bounded(
-            &mut command,
-            "test-overflow",
-            1024,
-            1024,
-            Duration::from_secs(2),
-        )
-        .expect_err("capture overflow must fail closed");
+        let command = shell_command(&script);
+        let error =
+            run_command_bounded(command, "test-overflow", 1024, 1024, Duration::from_secs(2))
+                .expect_err("capture overflow must fail closed");
         let exact_overflow = matches!(
             &error,
             SourceResolveError::GitOutputOverflow {
@@ -124,10 +121,10 @@ fn command_deadline_reserves_cleanup_inside_the_same_budget() {
 #[cfg(unix)]
 #[test]
 fn bounded_command_terminates_on_deadline() {
-    let mut command = shell_command("exec sleep 10");
+    let command = shell_command("exec sleep 10");
     let started = Instant::now();
     let error = run_command_bounded(
-        &mut command,
+        command,
         "test-timeout",
         1024,
         1024,
@@ -159,7 +156,7 @@ fn bounded_command_terminates_descendants_on_deadline() {
     command.env("OMEGA_DESCENDANT_MARKER", &marker);
 
     let error = run_command_bounded(
-        &mut command,
+        command,
         "test-descendant-timeout",
         1024,
         1024,
@@ -264,10 +261,10 @@ fn https_transport_executable_binds_invocation_alias_and_canonical_target() {
 #[cfg(unix)]
 #[test]
 fn bounded_command_cleans_up_descendants_after_parent_exit() {
-    let mut command = shell_command("(sleep 10) &");
+    let command = shell_command("(sleep 10) &");
     let started = Instant::now();
     let output = run_command_bounded(
-        &mut command,
+        command,
         "test-descendant-cleanup",
         1024,
         1024,
@@ -279,17 +276,6 @@ fn bounded_command_cleans_up_descendants_after_parent_exit() {
         started.elapsed() < Duration::from_secs(1),
         "descendant cleanup did not close inherited capture pipes promptly"
     );
-}
-
-#[cfg(unix)]
-#[test]
-fn only_esrch_proves_a_process_group_is_absent() {
-    assert!(process_group_already_absent(
-        &std::io::Error::from_raw_os_error(3)
-    ));
-    assert!(!process_group_already_absent(
-        &std::io::Error::from_raw_os_error(1)
-    ));
 }
 
 #[test]

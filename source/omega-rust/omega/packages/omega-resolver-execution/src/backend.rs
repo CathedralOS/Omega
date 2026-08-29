@@ -1,3 +1,4 @@
+use crate::ResolverPreparedExecution;
 use crate::confinement;
 use crate::model::*;
 use crate::network::{
@@ -11,6 +12,7 @@ use crate::request::{
 };
 use std::io;
 use std::path::{Path, PathBuf};
+#[cfg(test)]
 use std::process::Command;
 
 #[derive(Debug)]
@@ -195,17 +197,17 @@ impl ResolverExecutionBackend {
         Ok(command)
     }
 
-    /// Construct one command and its opaque policy observation from the same
-    /// validated inputs. The observation does not state that the command ran.
-    pub fn command_with_observation(
+    /// Prepare one non-routed command with its policy retained inside the
+    /// opaque execution value. Spawning consumes that value.
+    pub fn prepare(
         &self,
         executable: &Path,
         additional_executables: &[PathBuf],
         phase: ResolverExecutionPhase,
         network_transport: Option<ResolverExecutionNetworkTransport>,
         mutable_root: Option<&Path>,
-    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
-        self.command_with_endpoint_route_observation(
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_with_endpoint_route(
             executable,
             additional_executables,
             phase,
@@ -215,15 +217,34 @@ impl ResolverExecutionBackend {
         )
     }
 
+    #[cfg(test)]
+    pub fn command_with_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
+        mutable_root: Option<&Path>,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.prepare(
+            executable,
+            additional_executables,
+            phase,
+            network_transport,
+            mutable_root,
+        )
+        .map(ResolverPreparedExecution::into_parts)
+    }
+
     /// Construct one repository-inspection command bound to the exact retained
     /// repository whose file contents may be read.
-    pub fn command_with_inspection_read_root_observation(
+    pub fn prepare_inspection(
         &self,
         executable: &Path,
         additional_executables: &[PathBuf],
         inspection_read_root: &Path,
-    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
-        self.command_with_authority_roots_observation(
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_with_authority_roots(
             executable,
             additional_executables,
             ResolverExecutionPhase::RepositoryInspection,
@@ -237,17 +258,28 @@ impl ResolverExecutionBackend {
         )
     }
 
+    #[cfg(test)]
+    pub fn command_with_inspection_read_root_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        inspection_read_root: &Path,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.prepare_inspection(executable, additional_executables, inspection_read_root)
+            .map(ResolverPreparedExecution::into_parts)
+    }
+
     /// Construct one transport-discovery command bound to the exact working
     /// root whose file contents may be read by a narrowed transport policy.
-    pub fn command_with_discovery_route_observation(
+    pub fn prepare_discovery(
         &self,
         executable: &Path,
         additional_executables: &[PathBuf],
         network_transport: ResolverExecutionNetworkTransport,
         endpoint_route: &ResolverExecutionEndpointRoute,
         discovery_read_root: &Path,
-    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
-        self.command_with_authority_roots_observation(
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_with_authority_roots(
             executable,
             additional_executables,
             ResolverExecutionPhase::TransportDiscovery,
@@ -261,10 +293,29 @@ impl ResolverExecutionBackend {
         )
     }
 
+    #[cfg(test)]
+    pub fn command_with_discovery_route_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        network_transport: ResolverExecutionNetworkTransport,
+        endpoint_route: &ResolverExecutionEndpointRoute,
+        discovery_read_root: &Path,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.prepare_discovery(
+            executable,
+            additional_executables,
+            network_transport,
+            endpoint_route,
+            discovery_read_root,
+        )
+        .map(ResolverPreparedExecution::into_parts)
+    }
+
     /// Construct one command and bind its native policy to an endpoint route.
     /// Network phases require a route; nonnetwork phases reject one. Finish the
     /// route after execution to obtain its separate endpoint observation.
-    pub fn command_with_endpoint_route_observation(
+    pub fn prepare_with_endpoint_route(
         &self,
         executable: &Path,
         additional_executables: &[PathBuf],
@@ -272,8 +323,8 @@ impl ResolverExecutionBackend {
         network_transport: Option<ResolverExecutionNetworkTransport>,
         endpoint_route: Option<&ResolverExecutionEndpointRoute>,
         mutable_root: Option<&Path>,
-    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
-        self.command_with_authority_roots_observation(
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_with_authority_roots(
             executable,
             additional_executables,
             phase,
@@ -287,7 +338,28 @@ impl ResolverExecutionBackend {
         )
     }
 
-    fn command_with_authority_roots_observation(
+    #[cfg(test)]
+    pub fn command_with_endpoint_route_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
+        endpoint_route: Option<&ResolverExecutionEndpointRoute>,
+        mutable_root: Option<&Path>,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.prepare_with_endpoint_route(
+            executable,
+            additional_executables,
+            phase,
+            network_transport,
+            endpoint_route,
+            mutable_root,
+        )
+        .map(ResolverPreparedExecution::into_parts)
+    }
+
+    fn prepare_with_authority_roots(
         &self,
         executable: &Path,
         additional_executables: &[PathBuf],
@@ -295,7 +367,7 @@ impl ResolverExecutionBackend {
         network_transport: Option<ResolverExecutionNetworkTransport>,
         endpoint_route: Option<&ResolverExecutionEndpointRoute>,
         roots: ResolverExecutionAuthorityRoots<'_>,
-    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+    ) -> io::Result<ResolverPreparedExecution> {
         self.verify()?;
         require_absolute(executable, "resolver executable")?;
         if additional_executables.len() > RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT {
@@ -425,7 +497,28 @@ impl ResolverExecutionBackend {
             inspection_read_root: roots.inspection_read_root,
             mutable_root: roots.mutable_root,
         })?;
-        Ok((command, observation))
+        Ok(ResolverPreparedExecution::new(command, observation))
+    }
+
+    #[cfg(test)]
+    fn command_with_authority_roots_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
+        endpoint_route: Option<&ResolverExecutionEndpointRoute>,
+        roots: ResolverExecutionAuthorityRoots<'_>,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.prepare_with_authority_roots(
+            executable,
+            additional_executables,
+            phase,
+            network_transport,
+            endpoint_route,
+            roots,
+        )
+        .map(ResolverPreparedExecution::into_parts)
     }
 }
 

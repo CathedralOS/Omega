@@ -1,11 +1,10 @@
 //! Stable identities for sealed Git commands and their exact standard input.
 
+use crate::resolution::acquisition::SourceResolveError;
 use crate::resolution::acquisition::git::objects::{GitTreeEntry, GitTreeEntryKind};
-use crate::resolution::acquisition::local::{hash_bytes, hash_length};
-use omega_resolver_execution::ResolverExecutionPhase;
+use crate::resolution::acquisition::local::hash_bytes;
+use omega_resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use sha2::{Digest, Sha256};
-use std::ffi::OsStr;
-use std::process::Command;
 
 pub(in crate::resolution::acquisition) enum GitCommandStdinIdentity {
     Null,
@@ -34,44 +33,24 @@ pub(in crate::resolution::acquisition) fn git_batch_stdin_identity(
 }
 
 pub(in crate::resolution::acquisition) fn git_command_configuration_identity(
-    command: &Command,
+    command: &ResolverPreparedExecution,
     phase: ResolverExecutionPhase,
     stdin: &GitCommandStdinIdentity,
-) -> String {
+) -> Result<String, SourceResolveError> {
     let mut hasher = Sha256::new();
-    hasher.update(b"omega-git-command-configuration-v1\0");
+    hasher.update(b"omega-git-command-configuration-v2\0");
     hasher.update([match phase {
         ResolverExecutionPhase::TransportDiscovery => 1,
         ResolverExecutionPhase::RepositoryInitialization => 2,
         ResolverExecutionPhase::Fetch => 3,
         ResolverExecutionPhase::RepositoryInspection => 4,
     }]);
-    hash_command_os_str(&mut hasher, command.get_program());
-    let arguments = command.get_args().collect::<Vec<_>>();
-    hash_length(&mut hasher, arguments.len() as u64);
-    for argument in arguments {
-        hash_command_os_str(&mut hasher, argument);
-    }
-    let mut environment = command.get_envs().collect::<Vec<_>>();
-    environment.sort_by(|left, right| left.0.cmp(right.0));
-    hash_length(&mut hasher, environment.len() as u64);
-    for (name, value) in environment {
-        hash_command_os_str(&mut hasher, name);
-        match value {
-            Some(value) => {
-                hasher.update([1]);
-                hash_command_os_str(&mut hasher, value);
-            }
-            None => hasher.update([0]),
+    let resolver_identity = command.command_identity().map_err(|error| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: format!("cannot identify the prepared Git command: {error}"),
         }
-    }
-    match command.get_current_dir() {
-        Some(directory) => {
-            hasher.update([1]);
-            hash_command_os_str(&mut hasher, directory.as_os_str());
-        }
-        None => hasher.update([0]),
-    }
+    })?;
+    hash_bytes(&mut hasher, resolver_identity.as_bytes());
     match stdin {
         GitCommandStdinIdentity::Null => hasher.update([1]),
         GitCommandStdinIdentity::ExactBytes { length, identity } => {
@@ -80,24 +59,7 @@ pub(in crate::resolution::acquisition) fn git_command_configuration_identity(
             hash_bytes(&mut hasher, identity.as_bytes());
         }
     }
-    format_sha256(&hasher.finalize())
-}
-
-fn hash_command_os_str(hasher: &mut Sha256, value: &OsStr) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        hash_bytes(hasher, value.as_bytes());
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        let units = value.encode_wide().collect::<Vec<_>>();
-        hash_length(hasher, units.len() as u64);
-        for unit in units {
-            hasher.update(unit.to_le_bytes());
-        }
-    }
+    Ok(format_sha256(&hasher.finalize()))
 }
 
 pub(super) fn format_sha256(bytes: &[u8]) -> String {

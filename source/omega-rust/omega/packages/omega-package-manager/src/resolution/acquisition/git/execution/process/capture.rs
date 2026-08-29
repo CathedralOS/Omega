@@ -5,9 +5,11 @@ use crate::resolution::acquisition::git::execution::executable::{
     CapturedOutputLimitExceeded, GitCapturedOutputBudget,
 };
 use crate::resolution::acquisition::limits::{GIT_COMMAND_CLEANUP_TIMEOUT, PROCESS_POLL_INTERVAL};
-use omega_resolver_execution::ResolverExecutionChild;
+use omega_resolver_execution::{
+    ResolverExecutionChild, ResolverExecutionCompletionObservation, ResolverPreparedExecution,
+};
 use std::io::Read;
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
@@ -16,6 +18,7 @@ pub(in crate::resolution::acquisition) struct BoundedCommandOutput {
     pub(in crate::resolution::acquisition) status: ExitStatus,
     pub(in crate::resolution::acquisition) stdout: Vec<u8>,
     pub(in crate::resolution::acquisition) stderr: Vec<u8>,
+    pub(in crate::resolution::acquisition) completion: ResolverExecutionCompletionObservation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,7 +50,7 @@ struct StreamCapture {
 
 #[cfg(test)]
 pub(in crate::resolution::acquisition) fn run_command_bounded(
-    command: &mut Command,
+    command: ResolverPreparedExecution,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
@@ -64,7 +67,7 @@ pub(in crate::resolution::acquisition) fn run_command_bounded(
 }
 
 pub(in crate::resolution::acquisition) fn run_command_bounded_with_budget(
-    command: &mut Command,
+    command: ResolverPreparedExecution,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
@@ -83,7 +86,7 @@ pub(in crate::resolution::acquisition) fn run_command_bounded_with_budget(
 }
 
 pub(in crate::resolution::acquisition) fn run_command_bounded_with_stdin_and_budget(
-    command: &mut Command,
+    mut command: ResolverPreparedExecution,
     stdin: Stdio,
     operation: &str,
     stdout_limit: usize,
@@ -183,10 +186,16 @@ pub(in crate::resolution::acquisition) fn run_command_bounded_with_stdin_and_bud
             };
         }
         if status.is_some() && stdout.is_some() && stderr.is_some() {
+            let completion = child.finish().map_err(|error| {
+                SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot issue resolver execution completion: {error}"),
+                }
+            })?;
             return Ok(BoundedCommandOutput {
                 status: status.expect("status was checked"),
                 stdout: stdout.expect("stdout was checked"),
                 stderr: stderr.expect("stderr was checked"),
+                completion,
             });
         }
 
@@ -355,25 +364,19 @@ fn terminate_child_before(
     operation: &str,
     command_deadline: Instant,
 ) -> Result<(), SourceResolveError> {
-    let kill_error = child.kill().err();
+    child
+        .terminate()
+        .map_err(|error| SourceResolveError::GitCleanupFailed {
+            operation: operation.to_owned(),
+            message: format!("could not terminate the process container: {error}"),
+        })?;
     let started = Instant::now();
     let cleanup_budget =
         GIT_COMMAND_CLEANUP_TIMEOUT.min(command_deadline.saturating_duration_since(started));
     let cleanup_deadline = started.checked_add(cleanup_budget).unwrap_or(started);
     loop {
         match child.try_wait() {
-            Ok(Some(_)) => {
-                if let Some(error) = kill_error
-                    .as_ref()
-                    .filter(|error| !process_group_already_absent(error))
-                {
-                    return Err(SourceResolveError::GitCleanupFailed {
-                        operation: operation.to_owned(),
-                        message: format!("could not terminate the process group: {error}"),
-                    });
-                }
-                return Ok(());
-            }
+            Ok(Some(_)) => return Ok(()),
             Ok(None) => {}
             Err(error) => {
                 return Err(SourceResolveError::GitCleanupFailed {
@@ -383,16 +386,10 @@ fn terminate_child_before(
             }
         }
         if Instant::now() >= cleanup_deadline {
-            let message = match &kill_error {
-                Some(error) => format!(
-                    "could not terminate the process group ({error}) or reap it within {} milliseconds",
-                    duration_millis(cleanup_budget)
-                ),
-                None => format!(
-                    "could not reap the terminated process within {} milliseconds",
-                    duration_millis(cleanup_budget)
-                ),
-            };
+            let message = format!(
+                "could not reap the terminated process container within {} milliseconds",
+                duration_millis(cleanup_budget)
+            );
             return Err(SourceResolveError::GitCleanupFailed {
                 operation: operation.to_owned(),
                 message,
@@ -401,21 +398,6 @@ fn terminate_child_before(
         std::thread::sleep(
             PROCESS_POLL_INTERVAL.min(cleanup_deadline.saturating_duration_since(Instant::now())),
         );
-    }
-}
-
-pub(in crate::resolution::acquisition) fn process_group_already_absent(
-    error: &std::io::Error,
-) -> bool {
-    #[cfg(unix)]
-    {
-        // POSIX ESRCH alone proves that no process group exists. EPERM proves
-        // the opposite: a group exists but this resolver cannot signal it.
-        error.raw_os_error() == Some(3)
-    }
-    #[cfg(not(unix))]
-    {
-        error.kind() == std::io::ErrorKind::InvalidInput
     }
 }
 
