@@ -1,0 +1,38 @@
+; Exact conditional main.body -> main.resource theorem.
+;
+; The Alpha owner fixes the bc/tape identities, the MFC1 relative-frame row,
+; the parse_proc call/fallthrough, the RESOURCE_FAIL guard, and its target.
+; Ret252(rho) is a premise supplied by the separately checked PPRC relation;
+; this seam does not claim that any such outcome is initially reachable.
+
+(data 10 2 0 0) ; MainBody(kappa, child_outcome)
+(data 11 1 0 0) ; Ret252(rho)
+(data 12 2 0 0) ; MainResource(kappa, rho)
+(data 13 0 0 0) ; Invalid
+
+(data 20 0 0 0) ; exact bc.beta subject
+(data 21 0 0 0) ; exact persisted Alpha tape
+(data 22 0 0 0) ; exact MFC1 relative-frame basis
+
+; Three owner-selected gates precede the body transition.  A changed identity
+; remains stuck instead of normalizing to the theorem's resource state.
+(fun 30 20 (y 0))
+(fun 31 21 (y 0))
+(fun 32 22 (f 33 (y 0)))
+(fun 33 10 (f 34 (v 1) (v 0)))
+(fun 33 11 (k 13))
+(fun 33 12 (k 13))
+(fun 33 13 (k 13))
+(fun 34 10 (k 13))
+(fun 34 11 (k 12 (y 0) (v 0)))
+(fun 34 12 (k 13))
+(fun 34 13 (k 13))
+
+(all kappa
+  (all rho
+    (= (f 30 (k 20)
+         (f 31 (k 21)
+           (f 32 (k 22)
+             (k 10 kappa (k 11 rho)))))
+       (k 12 kappa rho))))
+(gen kappa (gen rho (refl (k 12 kappa rho))))
