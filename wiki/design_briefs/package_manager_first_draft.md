@@ -1406,6 +1406,18 @@ remain outside the grammar. Handoff validation now uses each variable-length
 chain's actual close ordinal. Existing resource, tree, custody, publication,
 and final-frontend gates remain unchanged.
 
+Observation summary v32 and compiler replay-record v13 admit complete
+positioned writes in those fresh-file chains. A chain may mix sequential
+`write` and absolute-offset `write_at` calls in authored order. Positioned
+writes overwrite or extend with zero filling, do not advance the sequential
+cursor, and bind their exact nonnegative offset in the retained operation row;
+zero-length positioned writes are retained no-ops and do not extend the file.
+Final bytes are reconstructed by the same ordered cursor/extent semantics and
+must equal both fresh virtual replay and independent sponsored Output custody.
+Negative or malformed offsets, partial or failed writes, extent overflow or
+retention excess, interleaving, seek, descriptor duplication, and reopen remain
+outside the grammar. Existing handoff and frontend gates are unchanged.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

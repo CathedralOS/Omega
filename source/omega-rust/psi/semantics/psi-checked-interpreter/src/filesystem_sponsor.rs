@@ -1008,6 +1008,13 @@ impl AccountState {
         offset: u64,
         bytes: u64,
     ) -> Result<(), FilesystemSponsorError> {
+        if bytes == 0 {
+            return self
+                .objects
+                .contains_key(&object_id)
+                .then_some(())
+                .ok_or(FilesystemSponsorError::OpenDescriptorNotFound);
+        }
         let end = checked_add(offset, bytes)?;
         let object = self
             .objects
@@ -1629,6 +1636,21 @@ mod tests {
             })
         );
         assert_eq!(sponsor.snapshot().unwrap().total_logical_bytes, 5);
+
+        sponsor
+            .prepare_write(&descriptor, 9, 0)
+            .unwrap()
+            .commit_written(0)
+            .unwrap();
+        assert_eq!(
+            sponsor.entry(&object).unwrap(),
+            Some(FilesystemSponsorEntry::Object {
+                extent: 5,
+                names: 1,
+                open_descriptors: 1,
+            }),
+            "a zero-byte write beyond EOF must not extend the sponsored object"
+        );
 
         let prepared = sponsor.prepare_write(&descriptor, 5, 5).unwrap();
         assert_eq!(

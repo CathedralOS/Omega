@@ -1172,6 +1172,18 @@ writes could produce the same final bytes. Existing aggregate retention,
 staged-tree, sponsored-custody, handoff, and final-frontend gates remain
 unchanged.
 
+Summary v32 and replay-record v13 add complete positioned writes to those
+fresh direct-child file chains. Sequential `write` and absolute-offset
+`write_at` may be mixed in authored order. Each positioned row binds one exact
+nonnegative offset, overwrites or zero-fills and extends as required, and leaves
+the sequential cursor unchanged. A zero-length positioned write remains an
+observed no-op and does not change extent. Reconstructed bytes must agree with
+fresh virtual execution and independent sponsored staged-output custody.
+Malformed or negative offsets, partial or failed writes, arithmetic or
+retention overflow, interleaving, seek, descriptor duplication, and reopen
+remain non-receipted. Existing handoff, custody, resource, and final-frontend
+gates remain unchanged.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1202,8 +1214,8 @@ These summary fields are compiler-issued execution evidence kept outside
 canonical capability/API comparison bytes. In isolation they are not a receipt
 and do not claim either replay verdict; only the exact v24/v6 generated-source,
 v27/v8 empty-Output, v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff,
-and v31/v12 sequential-full-write grammars above may join them to verified
-operation replay and reproduced tree equality.
+v31/v12 sequential-full-write, and v32/v13 positioned-full-write grammars above
+may join them to verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1222,8 +1234,9 @@ before returning the same commitment. Hard-link topology is neither retained
 nor leaked through the count. In isolation this is output-tree custody and
 replay only. The exact v24/v6 generated-source, v27/v8 empty-Output, and
 v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff, and v31/v12
-sequential-full-write grammars above supply canonical operation replay and
-retained observed inputs. Generated-source cases bind the complete present
+sequential-full-write and v32/v13 positioned-full-write grammars above supply
+canonical operation replay and retained observed inputs. Generated-source cases
+bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a
 hostile same-user process racing the review session.

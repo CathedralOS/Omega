@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 12;
+const VERSION: u16 = 13;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -281,18 +281,30 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             let ShapeResult::Scalar(write_result) = write.result else {
                 unreachable!("validated receipted output write returns a scalar")
             };
-            write_records.push(
-                psi_checked_interpreter::FilesystemOutputWriteReplayRecord::new(
+            let write_record = match write.operation {
+                5 => psi_checked_interpreter::FilesystemOutputWriteReplayRecord::new(
                     clone_bytes(payload)?,
                     write_result,
                     write.post_error,
-                )
-                .map_err(|_| {
-                    BuildFilesystemReplayRecordError::new(
-                        "filesystem replay output write could not be rehydrated",
+                ),
+                7 => {
+                    let [(2, ShapeScalar::I64(offset))] = write.scalars.as_slice() else {
+                        unreachable!("validated positioned write has one i64 offset")
+                    };
+                    psi_checked_interpreter::FilesystemOutputWriteReplayRecord::positioned(
+                        *offset,
+                        clone_bytes(payload)?,
+                        write_result,
+                        write.post_error,
                     )
-                })?,
-            );
+                }
+                _ => unreachable!("validated output write has a supported operation"),
+            };
+            write_records.push(write_record.map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay output write could not be rehydrated",
+                )
+            })?);
         }
         output_records.push(
             psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::with_writes(
@@ -1177,11 +1189,22 @@ fn validate_first_rung(
                     "filesystem replay output-path allocation failed",
                 )
             })?;
+        let mut aggregate_output_extent = 0usize;
         for (start, end) in output_ranges {
             let chain = &shapes[start..end];
             let create = &chain[0];
             let close = chain.last().expect("validated output chain has a close");
-            validate_output_write_chain(create, &chain[1..chain.len() - 1], close)?;
+            let extent = validate_output_write_chain(create, &chain[1..chain.len() - 1], close)?;
+            aggregate_output_extent = aggregate_output_extent
+                .checked_add(extent)
+                .filter(|total| {
+                    *total <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES
+                })
+                .ok_or_else(|| {
+                    BuildFilesystemReplayRecordError::new(
+                        "receipted build outputs exceed the aggregate replay extent ceiling",
+                    )
+                })?;
             let output = create
                 .output
                 .expect("validated output create has a descriptor");
@@ -1221,7 +1244,7 @@ fn output_shape_chain_ranges(
         }
         cursor += 1;
         let writes_start = cursor;
-        while cursor < shapes.len() && shapes[cursor].operation == 5 {
+        while cursor < shapes.len() && matches!(shapes[cursor].operation, 5 | 7) {
             cursor += 1;
         }
         if cursor == writes_start || cursor == shapes.len() || shapes[cursor].operation != 8 {
@@ -1314,7 +1337,7 @@ fn validate_output_write_chain(
     create: &AttemptShape<'_>,
     writes: &[AttemptShape<'_>],
     close: &AttemptShape<'_>,
-) -> Result<(), BuildFilesystemReplayRecordError> {
+) -> Result<usize, BuildFilesystemReplayRecordError> {
     let Some(output) = create.output else {
         return Err(BuildFilesystemReplayRecordError::new(
             "receipted build output create has no descriptor identity",
@@ -1361,6 +1384,8 @@ fn validate_output_write_chain(
             "receipted build output has no writes",
         ));
     }
+    let mut cursor = 0usize;
+    let mut extent = 0usize;
     for write in writes {
         let [(payload_ordinal, payload)] = write.byte_operands.as_slice() else {
             return Err(BuildFilesystemReplayRecordError::new(
@@ -1377,8 +1402,36 @@ fn validate_output_write_chain(
                 "receipted build output payload exceeds this compiler host",
             )
         })?;
-        if write.operation != 5
-            || write.provider != 2
+        let start = match write.operation {
+            5 if write.scalars.is_empty() => cursor,
+            7 => {
+                let [(2, ShapeScalar::I64(offset))] = write.scalars.as_slice() else {
+                    return Err(BuildFilesystemReplayRecordError::new(
+                        "receipted positioned output write has no unique offset",
+                    ));
+                };
+                usize::try_from(*offset).map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "receipted positioned output offset exceeds this compiler host",
+                    )
+                })?
+            }
+            _ => {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output write operation is unsupported",
+                ));
+            }
+        };
+        let end = start.checked_add(payload.len()).ok_or_else(|| {
+            BuildFilesystemReplayRecordError::new("receipted build output extent overflowed")
+        })?;
+        if !payload.is_empty() {
+            extent = extent.max(end);
+        }
+        if write.operation == 5 {
+            cursor = end;
+        }
+        if write.provider != 2
             || write.result != ShapeResult::Scalar(payload_length)
             || write.post_error != 0
             || *payload_ordinal != 1
@@ -1395,13 +1448,18 @@ fn validate_output_write_chain(
             ));
         }
     }
+    if extent > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output exceeds the replay-retention ceiling",
+        ));
+    }
     validate_close_shape(close, output.identity)?;
     if close.post_error != 0 {
         return Err(BuildFilesystemReplayRecordError::new(
             "receipted build output close changed the post-operation error state",
         ));
     }
-    Ok(())
+    Ok(extent)
 }
 
 fn validate_path_metadata_shape(
@@ -1746,7 +1804,6 @@ fn only_output_write_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.mutable_i64_resolution_count == 0
         && attempt.mutable_i64_count == 0
         && attempt.refusal_count == 0
-        && attempt.scalars.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.observed_regions.is_empty()
         && attempt.mutable_byte_resolutions.is_empty()
@@ -1948,6 +2005,39 @@ mod first_rung_validation_tests {
         shapes[5].inputs[0].resolution = Some(1);
         shapes[5].retired[0] = 1;
         assert!(validate_first_rung(&shapes).is_err());
+    }
+
+    #[test]
+    fn positioned_output_write_requires_one_exact_nonnegative_offset() {
+        let mut shapes = exact_input_output_shapes();
+        shapes[4].operation = 7;
+        shapes[4].scalars = vec![(2, ShapeScalar::I64(3))];
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        for scalars in [
+            Vec::new(),
+            vec![(1, ShapeScalar::I64(3))],
+            vec![(2, ShapeScalar::I64(-1))],
+            vec![(2, ShapeScalar::I64(3)), (3, ShapeScalar::I64(4))],
+        ] {
+            let mut malformed = shapes.clone();
+            malformed[4].scalars = scalars;
+            assert!(validate_first_rung(&malformed).is_err());
+        }
+
+        let mut sequential_with_offset = exact_input_output_shapes();
+        sequential_with_offset[4].scalars = vec![(2, ShapeScalar::I64(3))];
+        assert!(validate_first_rung(&sequential_with_offset).is_err());
+
+        let mut sparse_over_ceiling = shapes;
+        sparse_over_ceiling[4].scalars = vec![(
+            2,
+            ShapeScalar::I64(
+                i64::try_from(psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES)
+                    .unwrap(),
+            ),
+        )];
+        assert!(validate_first_rung(&sparse_over_ceiling).is_err());
     }
 
     #[test]
