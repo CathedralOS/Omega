@@ -46,8 +46,10 @@ pub enum ComponentEraEntryState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentEraCandidate {
     pub era_identity: u64,
-    /// Exact installed artifact occurrence governed by this lifecycle era.
-    /// This remains distinct from the replaceable era identity.
+    /// Compact report identity for the installed artifact occurrence governed
+    /// by this lifecycle era. Runtime installation custody must retain its
+    /// exact opaque occurrence evidence separately; this number is not that
+    /// authority.
     pub artifact_instance_identity: u64,
     pub binding_contract_identity: String,
     pub entry_contract_identity: String,
@@ -80,6 +82,7 @@ pub struct ProgramLocalRootEpochLease {
     artifact_instance_identity: u64,
     entry_plan_identity: String,
     entry_plan_admission_receipt_identity: String,
+    candidate: ComponentEraCandidate,
 }
 
 impl ProgramLocalRootEpochLease {
@@ -116,6 +119,7 @@ pub struct ComponentEraPublicationReceipt {
     candidate_artifact_instance_identity: u64,
     candidate_entry_plan_identity: String,
     candidate_entry_plan_admission_receipt_identity: String,
+    candidate: ComponentEraCandidate,
     new_era_visible: bool,
     previous_era_closed: bool,
 }
@@ -139,6 +143,7 @@ impl ComponentEraPublicationReceipt {
             candidate_entry_plan_admission_receipt_identity: candidate
                 .entry_plan_admission_receipt_identity
                 .clone(),
+            candidate: candidate.clone(),
             new_era_visible,
             previous_era_closed,
         }
@@ -406,7 +411,8 @@ impl ComponentEraEntryLedger {
             && receipt.candidate_artifact_instance_identity == candidate.artifact_instance_identity
             && receipt.candidate_entry_plan_identity == candidate.entry_plan_identity
             && receipt.candidate_entry_plan_admission_receipt_identity
-                == candidate.entry_plan_admission_receipt_identity;
+                == candidate.entry_plan_admission_receipt_identity
+            && receipt.candidate == candidate;
         if !exact || !receipt.new_era_visible {
             return reject(
                 candidate,
@@ -511,6 +517,7 @@ impl ComponentEraEntryLedger {
                 .candidate
                 .entry_plan_admission_receipt_identity
                 .clone(),
+            candidate: record.candidate.clone(),
         })
     }
 
@@ -541,6 +548,7 @@ impl ComponentEraEntryLedger {
             && lease.entry_plan_identity == record.candidate.entry_plan_identity
             && lease.entry_plan_admission_receipt_identity
                 == record.candidate.entry_plan_admission_receipt_identity
+            && lease.candidate == record.candidate
             && self
                 .issued_program_local_root_epoch_leases
                 .contains(&lease.identity)
@@ -582,6 +590,7 @@ impl ComponentEraEntryLedger {
             && lease.entry_plan_identity == record.candidate.entry_plan_identity
             && lease.entry_plan_admission_receipt_identity
                 == record.candidate.entry_plan_admission_receipt_identity
+            && lease.candidate == record.candidate
             && self
                 .issued_program_local_root_epoch_leases
                 .contains(&lease.identity)
@@ -986,6 +995,21 @@ mod tests {
     }
 
     #[test]
+    fn publication_receipt_retains_the_complete_candidate_not_only_compact_ids() {
+        let mut ledger = ledger(2);
+        let mut substituted = candidate(10);
+        let receipt =
+            ComponentEraPublicationReceipt::from_runtime(100, &ledger, &substituted, true, false);
+        substituted.executable_tcb_acceptance = acceptance("substituted-era", 999);
+
+        let error = ledger
+            .publish(substituted, receipt)
+            .expect_err("candidate evidence substituted after receipt construction");
+        assert!(error.diagnostic().contains("exact candidate"));
+        assert_eq!(ledger.current_era(), None);
+    }
+
+    #[test]
     fn leave_and_retirement_receipts_cannot_drift_or_replay() {
         let mut ledger = ledger(2);
         publish(&mut ledger, 10, 100);
@@ -1028,17 +1052,29 @@ mod tests {
             ComponentEraPublicationReceipt::from_runtime(99, &ledger, &incomplete, true, false);
         assert!(ledger.publish(incomplete, receipt).is_err());
 
-        let candidate = candidate(10);
-        let mut drifted =
-            ComponentEraPublicationReceipt::from_runtime(100, &ledger, &candidate, true, false);
+        let original_candidate = candidate(10);
+        let mut drifted = ComponentEraPublicationReceipt::from_runtime(
+            100,
+            &ledger,
+            &original_candidate,
+            true,
+            false,
+        );
         drifted.candidate_artifact_instance_identity += 1;
         let error = ledger
-            .publish(candidate, drifted)
+            .publish(original_candidate, drifted)
             .expect_err("artifact-instance drift");
-        let (candidate, _) = (*error).into_parts();
-        let exact =
-            ComponentEraPublicationReceipt::from_runtime(100, &ledger, &candidate, true, false);
-        ledger.publish(candidate, exact).expect("exact publication");
+        let (published_candidate, _) = (*error).into_parts();
+        let exact = ComponentEraPublicationReceipt::from_runtime(
+            100,
+            &ledger,
+            &published_candidate,
+            true,
+            false,
+        );
+        ledger
+            .publish(published_candidate, exact)
+            .expect("exact publication");
 
         let wrong_contract = ledger
             .acquire_program_local_root_epoch_lease(lease_id(900), 10, "OtherEntry/v1")
@@ -1050,7 +1086,7 @@ mod tests {
             .expect_err("stale era");
         assert!(stale.diagnostic().contains("exact current"));
 
-        let lease = ledger
+        let mut lease = ledger
             .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
             .expect("exact current era lease");
         assert_eq!(lease.era_identity(), 10);
@@ -1059,6 +1095,23 @@ mod tests {
         ledger
             .validate_program_local_root_epoch_lease(&lease)
             .expect("issued lease is live in the current open era");
+
+        lease.candidate.executable_tcb_acceptance = acceptance("substituted-era", 999);
+        assert!(
+            ledger
+                .validate_program_local_root_epoch_lease(&lease)
+                .is_err(),
+            "a lease cannot substitute candidate evidence omitted from its compact projections"
+        );
+        let error = ledger
+            .release_program_local_root_epoch_lease(lease)
+            .expect_err("substituted candidate evidence");
+        assert_eq!(ledger.program_local_root_authority_holds(10), Some(1));
+        let mut lease = error.into_lease();
+        lease.candidate = candidate(10);
+        ledger
+            .validate_program_local_root_epoch_lease(&lease)
+            .expect("restored exact lease remains live");
 
         publish(&mut ledger, 20, 101);
         assert!(

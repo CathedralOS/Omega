@@ -1,6 +1,10 @@
-use crate::CompilerTextValidationEvidence;
+use crate::{
+    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
+    CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
+};
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use psi_diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
 
 /// Prove that final `.text` preserves every encoded bit except the exact
 /// immediate fields named by checked relocation records.
@@ -79,10 +83,25 @@ pub fn validate_final_text_relocation_envelope(
     }
 
     text_relocations.sort_unstable();
+    let encoded_text_digest = EncodedCompilerTextDigest::from_digest(digest_bytes(
+        b"omega.encoded-compiler-text.sha256.v1\0",
+        encoded_text_bytes,
+    ));
+    let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(digest_bytes(
+        b"omega.final-compiler-text.sha256.v1\0",
+        final_compiler_text,
+    ));
     let encoded_text_fingerprint = fingerprint_bytes(encoded_text_bytes);
     let final_compiler_text_fingerprint = fingerprint_bytes(final_compiler_text);
+    let mut relocation_digest = Sha256::new();
+    relocation_digest.update(b"omega.compiler-text-relocation-envelope.sha256.v1\0");
+    relocation_digest.update((text_relocations.len() as u64).to_le_bytes());
     let mut relocation_envelope_fingerprint = FNV_OFFSET;
     for (offset, width, kind, addend) in &text_relocations {
+        relocation_digest.update((*offset as u64).to_le_bytes());
+        relocation_digest.update((*width as u64).to_le_bytes());
+        relocation_digest.update([*kind]);
+        relocation_digest.update(addend.to_le_bytes());
         fingerprint_into(
             &mut relocation_envelope_fingerprint,
             &(*offset as u64).to_le_bytes(),
@@ -111,7 +130,13 @@ pub fn validate_final_text_relocation_envelope(
         &mut derivation_fingerprint,
         &(text_relocations.len() as u64).to_le_bytes(),
     );
-    Ok(CompilerTextValidationEvidence {
+    let mut evidence = CompilerTextValidationEvidence {
+        encoded_text_digest,
+        final_compiler_text_digest,
+        relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest(
+            relocation_digest.finalize().into(),
+        ),
+        derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
         encoded_text_fingerprint,
         final_compiler_text_fingerprint,
         relocation_envelope_fingerprint,
@@ -120,7 +145,9 @@ pub fn validate_final_text_relocation_envelope(
         derivation_fingerprint,
         text_relocation_count: text_relocations.len(),
         checked_instruction_validation_count: 0,
-    })
+    };
+    evidence.derivation_digest = evidence.recomputed_derivation_digest();
+    Ok(evidence)
 }
 
 fn relocation_kind_tag(kind: RelocationKind) -> u8 {
@@ -146,4 +173,12 @@ fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
         *fingerprint ^= u64::from(*byte);
         *fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
     }
+}
+
+fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(domain);
+    digest.update((bytes.len() as u64).to_le_bytes());
+    digest.update(bytes);
+    digest.finalize().into()
 }

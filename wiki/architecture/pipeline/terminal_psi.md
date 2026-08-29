@@ -2130,7 +2130,7 @@ realizes one owner-authorized boundary route and the receipt qualifies the
 exact subject occurrence. Issuer and subject need not be the same occurrence.
 Component closure checks every canonical pending row before committing and
 retains the original manifest plus exact evidence. Terminal installation
-format 36 records structural access modes plus the manifest and acceptance
+format 42 records structural access modes plus the manifest and acceptance
 report identities in the hashed installation bytes. Runnable publication
 additionally joins the complete
 terminal object and image, canonical installation record, the linear
@@ -3535,10 +3535,13 @@ differs from present-but-empty. Replacing a valid nonsemantic section preserves
 
 The canonical `PSIINST\0` installation payload binds semantic identity, target
 facts, exact profile/provider decisions, the complete emitted-image hash, and
-text-validation evidence. It is manifest metadata, not executable authority;
-installation still consumes separate admission and placement authority. Debug
-maps are replaceable presentation metadata bound to the exact semantic identity
-and never participate in semantic meaning.
+text-validation evidence. Format 42 carries separate domain-framed SHA-256
+digests for encoded compiler text, final compiler text, the canonical
+relocation envelope, and their derivation; retained compact text fingerprints
+are report compatibility only. It is manifest metadata, not executable
+authority; installation still consumes separate admission and placement
+authority. Debug maps are replaceable presentation metadata bound to the exact
+semantic identity and never participate in semantic meaning.
 
 For effectful Unit roots, the payload also retains the canonical function map,
 each privileged port effect's exact service/operation/byte range, and each

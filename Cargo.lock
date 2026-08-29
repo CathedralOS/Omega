@@ -453,7 +453,9 @@ dependencies = [
  "omega-build-evaluation",
  "omega-image",
  "omega-native-artifact",
+ "omega-target",
  "psi-terminal-codec",
+ "sha2",
 ]
 
 [[package]]
@@ -640,6 +642,7 @@ dependencies = [
  "omega-target",
  "psi-arena",
  "psi-diagnostics",
+ "sha2",
 ]
 
 [[package]]

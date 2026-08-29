@@ -466,8 +466,11 @@ than collision-resistant authority. Installation and retirement continue that ru
 their authorities and receipts retain the complete validated placement or
 installed realization, including exact bytes, Extent authority facts, scope,
 audience, validation, and W^X state. Compact lifecycle IDs never substitute for
-that evidence. The
-schema-driven native-container decoder, real PCC and final-code validators,
+that evidence. Retirement completion facts are domain-framed SHA-256
+commitments over provider-canonical bytes. Failed drain quarantine retains the
+complete installed realization and provider receipt; stale-entry evidence
+requires the exact opaque installed-code context rather than an equal compact
+ID. The schema-driven native-container decoder, real PCC and final-code validators,
 destination write/freeze and installer operations, Omega linearity, and live
 replacement remain implementation work.
 

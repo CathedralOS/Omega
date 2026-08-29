@@ -1,4 +1,26 @@
 use super::*;
+use std::sync::Arc;
+
+/// Private process-local provenance for one provider-issued capacity
+/// occurrence. The public normalized identity remains report data: only
+/// pointer identity can join a provider receipt back to the exact linear
+/// occurrence from which it was issued.
+#[derive(Debug, Clone)]
+struct OpaqueCallbackRegistrationCapacityEvidence(Arc<()>);
+
+impl OpaqueCallbackRegistrationCapacityEvidence {
+    fn issue() -> Self {
+        Self(Arc::new(()))
+    }
+}
+
+impl PartialEq for OpaqueCallbackRegistrationCapacityEvidence {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for OpaqueCallbackRegistrationCapacityEvidence {}
 
 /// Provider evidence that one opaque callback address is a process-lifetime
 /// gateway rather than an entry embedded in replaceable component code.
@@ -152,6 +174,7 @@ pub struct OpaqueCallbackRegistrationReceipt {
     registration: OpaqueCallbackRegistrationId,
     provider: OpaqueCallbackProviderId,
     capacity: OpaqueCallbackRegistrationCapacityOccurrenceId,
+    capacity_evidence: OpaqueCallbackRegistrationCapacityEvidence,
     unregistration_contract: OpaqueCallbackUnregistrationContractId,
     installed_root: InstalledRootEvidence,
     callback_registered: bool,
@@ -172,6 +195,7 @@ impl OpaqueCallbackRegistrationReceipt {
             registration,
             provider,
             capacity: capacity.identity,
+            capacity_evidence: capacity.evidence.clone(),
             unregistration_contract,
             installed_root: root.evidence.clone(),
             callback_registered,
@@ -190,14 +214,19 @@ impl OpaqueCallbackRegistrationReceipt {
 pub struct OpaqueCallbackRegistrationCapacityOccurrence {
     identity: OpaqueCallbackRegistrationCapacityOccurrenceId,
     provider: OpaqueCallbackProviderId,
+    evidence: OpaqueCallbackRegistrationCapacityEvidence,
 }
 
 impl OpaqueCallbackRegistrationCapacityOccurrence {
-    pub const fn from_provider(
+    pub fn from_provider(
         identity: OpaqueCallbackRegistrationCapacityOccurrenceId,
         provider: OpaqueCallbackProviderId,
     ) -> Self {
-        Self { identity, provider }
+        Self {
+            identity,
+            provider,
+            evidence: OpaqueCallbackRegistrationCapacityEvidence::issue(),
+        }
     }
 
     pub const fn identity(&self) -> OpaqueCallbackRegistrationCapacityOccurrenceId {
@@ -254,8 +283,9 @@ pub fn admit_reclaimable_opaque_callback<'code>(
     receipt: OpaqueCallbackRegistrationReceipt,
     capacity: OpaqueCallbackRegistrationCapacityOccurrence,
 ) -> Result<ReclaimableOpaqueCallback<'code>, Box<OpaqueCallbackRegistrationError<'code>>> {
-    let exact_capacity =
-        receipt.capacity == capacity.identity && receipt.provider == capacity.provider;
+    let exact_capacity = receipt.capacity == capacity.identity
+        && receipt.provider == capacity.provider
+        && receipt.capacity_evidence == capacity.evidence;
     if receipt.installed_root != root.evidence || !exact_capacity || !receipt.callback_registered {
         return Err(Box::new(OpaqueCallbackRegistrationError {
             root,
@@ -312,6 +342,7 @@ pub struct OpaqueCallbackUnregistrationReceipt {
     unregistration_contract: OpaqueCallbackUnregistrationContractId,
     registration_receipt: OpaqueCallbackRegistrationReceiptId,
     capacity: OpaqueCallbackRegistrationCapacityOccurrenceId,
+    capacity_evidence: OpaqueCallbackRegistrationCapacityEvidence,
     installed_root: InstalledRootEvidence,
     callback_unregistered: bool,
 }
@@ -329,9 +360,20 @@ impl OpaqueCallbackUnregistrationReceipt {
             unregistration_contract: registration.unregistration_contract,
             registration_receipt: registration.registration_receipt,
             capacity: registration.capacity.identity,
+            capacity_evidence: registration.capacity.evidence.clone(),
             installed_root: registration.root.evidence.clone(),
             callback_unregistered,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn substitute_capacity_evidence_for_test(
+        &mut self,
+        capacity: &OpaqueCallbackRegistrationCapacityOccurrence,
+    ) {
+        self.capacity = capacity.identity;
+        self.provider = capacity.provider;
+        self.capacity_evidence = capacity.evidence.clone();
     }
 }
 
@@ -385,6 +427,7 @@ impl<'code> ReclaimableOpaqueCallback<'code> {
             && provider_receipt.unregistration_contract == self.unregistration_contract
             && provider_receipt.registration_receipt == self.registration_receipt
             && provider_receipt.capacity == self.capacity.identity
+            && provider_receipt.capacity_evidence == self.capacity.evidence
             && provider_receipt.installed_root == self.root.evidence;
         if !exact_provider_receipt || !provider_receipt.callback_unregistered {
             return Err(Box::new(OpaqueCallbackUnregistrationError {

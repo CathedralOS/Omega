@@ -222,18 +222,86 @@ fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
     }
 }
 
+macro_rules! compiler_text_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
+compiler_text_digest!(EncodedCompilerTextDigest);
+compiler_text_digest!(FinalCompilerTextDigest);
+compiler_text_digest!(CompilerTextRelocationEnvelopeDigest);
+compiler_text_digest!(CompilerTextDerivationDigest);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerTextValidationEvidence {
+    /// Collision-resistant commitment to the exact compiler text before
+    /// relocation. The compact fingerprint below remains report compatibility
+    /// only.
+    pub encoded_text_digest: EncodedCompilerTextDigest,
+    /// Collision-resistant commitment to the exact compiler-owned prefix of
+    /// final text.
+    pub final_compiler_text_digest: FinalCompilerTextDigest,
+    /// Collision-resistant commitment to the canonical ordered relocation
+    /// envelope.
+    pub relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest,
+    /// Domain-separated commitment joining all strong text commitments and
+    /// the remaining imported report fields.
+    pub derivation_digest: CompilerTextDerivationDigest,
+    /// Legacy compact report fingerprint. It is not an authority key; use
+    /// `encoded_text_digest` or exact byte replay.
     pub encoded_text_fingerprint: u64,
+    /// Legacy compact report fingerprint. It is not an authority key; use
+    /// `final_compiler_text_digest` or exact byte replay.
     pub final_compiler_text_fingerprint: u64,
+    /// Legacy compact report fingerprint. It is not an authority key; use the
+    /// strong relocation-envelope digest.
     pub relocation_envelope_fingerprint: u64,
     /// Checked-assembly instructions whose fixed encoding or normalized
     /// privilege-bearing envelope was validated at retained final boundaries.
     pub checked_instruction_validation_fingerprint: u64,
     pub checked_instruction_footprint_fingerprint: u64,
+    /// Legacy compact report fingerprint retained for current report
+    /// compatibility. `derivation_digest` is the collision-resistant join.
     pub derivation_fingerprint: u64,
     pub text_relocation_count: usize,
     pub checked_instruction_validation_count: usize,
+}
+
+impl CompilerTextValidationEvidence {
+    pub fn recomputed_derivation_digest(&self) -> CompilerTextDerivationDigest {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.compiler-text-derivation.sha256.v1\0");
+        digest.update(self.encoded_text_digest.as_bytes());
+        digest.update(self.final_compiler_text_digest.as_bytes());
+        digest.update(self.relocation_envelope_digest.as_bytes());
+        digest.update(self.encoded_text_fingerprint.to_le_bytes());
+        digest.update(self.final_compiler_text_fingerprint.to_le_bytes());
+        digest.update(self.relocation_envelope_fingerprint.to_le_bytes());
+        digest.update(
+            self.checked_instruction_validation_fingerprint
+                .to_le_bytes(),
+        );
+        digest.update(self.checked_instruction_footprint_fingerprint.to_le_bytes());
+        digest.update((self.text_relocation_count as u64).to_le_bytes());
+        digest.update((self.checked_instruction_validation_count as u64).to_le_bytes());
+        CompilerTextDerivationDigest::from_digest(digest.finalize().into())
+    }
+
+    pub fn has_valid_derivation_digest(&self) -> bool {
+        self.derivation_digest == self.recomputed_derivation_digest()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -264,3 +332,51 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         compiler_entry_footprint_binding: None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_evidence(encoded_digest: [u8; 32]) -> CompilerTextValidationEvidence {
+        let mut evidence = CompilerTextValidationEvidence {
+            encoded_text_digest: EncodedCompilerTextDigest::from_digest(encoded_digest),
+            final_compiler_text_digest: FinalCompilerTextDigest::from_digest([2; 32]),
+            relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest([3; 32]),
+            derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
+            encoded_text_fingerprint: 11,
+            final_compiler_text_fingerprint: 12,
+            relocation_envelope_fingerprint: 13,
+            checked_instruction_validation_fingerprint: 14,
+            checked_instruction_footprint_fingerprint: 15,
+            derivation_fingerprint: 16,
+            text_relocation_count: 17,
+            checked_instruction_validation_count: 18,
+        };
+        evidence.derivation_digest = evidence.recomputed_derivation_digest();
+        evidence
+    }
+
+    #[test]
+    fn compact_collision_cannot_substitute_strong_compiler_text_evidence() {
+        let first = text_evidence([1; 32]);
+        let second = text_evidence([99; 32]);
+
+        assert_eq!(
+            first.encoded_text_fingerprint,
+            second.encoded_text_fingerprint
+        );
+        assert_eq!(first.derivation_fingerprint, second.derivation_fingerprint);
+        assert_ne!(first.encoded_text_digest, second.encoded_text_digest);
+        assert_ne!(first.derivation_digest, second.derivation_digest);
+        assert!(first.has_valid_derivation_digest());
+        assert!(second.has_valid_derivation_digest());
+    }
+
+    #[test]
+    fn strong_derivation_rejects_digest_substitution() {
+        let mut evidence = text_evidence([1; 32]);
+        evidence.final_compiler_text_digest = FinalCompilerTextDigest::from_digest([77; 32]);
+        assert!(!evidence.has_valid_derivation_digest());
+    }
+}
+use sha2::{Digest, Sha256};

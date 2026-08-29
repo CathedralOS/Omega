@@ -1194,7 +1194,11 @@ linear transitions return their inputs.
 Materialization resolves only sealed entry/data identities into a private copy.
 Installation separately validates W^X, cache/order visibility, and audience.
 Retirement requires exact realization identity plus quiescence, execute removal,
-restored write authority, and completion facts before returning placement.
+restored write authority, and collision-resistant provider-canonical completion
+fact digests before returning placement. Incomplete drain quarantine retains
+the complete installed realization and accepted provider receipt; a stale-entry
+fault must present that exact opaque installed-code context, not merely its
+compact report identity.
 The selected provider plan and sealed provider execution now prepare an exact
 installed-entry post-handoff writer context and join it to the matching AOT
 fragment. The context retains the full installed realization rather than only

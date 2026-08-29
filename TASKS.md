@@ -97,11 +97,27 @@ scanners, or receipts.
   installed realization, so collision-equal report IDs cannot transplant a
   context. The remaining FNV uses are named non-authoritative container/
   informational compatibility fingerprints and writer replay fingerprints,
-  with a local architecture test policing that inventory. The global item
-  remains open: imported contract, footprint, entry/data-symbol, regime, and
-  installation-scope identities still need canonical commitments and a later
-  container version; retirement-fact, quarantine, component-era journal, and
-  external-root occurrence joins still require the same audit/hardening.
+  with a local architecture test policing that inventory. Retirement facts now
+  use provider-canonical SHA-256 commitments; quarantine and stale-entry faults
+  retain exact installed/provider evidence. Component-era receipts and leases
+  retain complete candidates, while activated deployment journals rejoin exact
+  installed contexts plus canonical installation bytes and label serialized
+  installed/artifact values as report identities. Reclaimable opaque-callback
+  capacity receipts now retain private occurrence provenance through both
+  registration joins.
+
+  The first image/publication slice is also live. Encoded compiler text, final
+  compiler text, canonical relocation envelopes, and their derivation use
+  separate strong digest fields; installation format 42 serializes them and
+  rejects drift. Compiler publication uses strong certificate, publication,
+  container, compiler-text, and destination-installation digest types rather
+  than FNV-only receipt identities. The global item remains open: imported
+  contract, footprint, entry/data-symbol, regime, and installation-scope
+  identities still need canonical commitments and a later container version;
+  final executable inventories, function validation, provider plans, the
+  standalone component candidate's artifact report identity, broader
+  external-root cohort joins, Psi, and format-specific image fingerprints
+  still require the same audit/hardening.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

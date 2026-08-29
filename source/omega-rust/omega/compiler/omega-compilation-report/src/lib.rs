@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output
@@ -19,6 +20,28 @@ pub enum ExecutablePublicationDestination {
     FlatOutput,
     MacOsAppBundle,
 }
+
+macro_rules! publication_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
+publication_digest!(NativePublicationCertificateDigest);
+publication_digest!(NativePublicationEvidenceDigest);
+publication_digest!(ExecutableContainerDigest);
+publication_digest!(ExecutableInstallationEvidenceDigest);
 
 pub fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
     root_path
@@ -52,37 +75,28 @@ pub fn expected_macos_app_bundle_executable_path(
     )
 }
 
-pub fn executable_installation_evidence_fingerprint(
+pub fn executable_installation_evidence_digest(
     destination: ExecutablePublicationDestination,
-    publication_evidence_fingerprint: u64,
+    publication_evidence_digest: NativePublicationEvidenceDigest,
     callback_placement_identity_fingerprint: u64,
     output_path: &std::path::Path,
     container_byte_count: usize,
-    container_fingerprint: u64,
-) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325;
-    fingerprint_into(
-        &mut hash,
-        b"omega.installed-executable-publication-evidence.v1",
-    );
-    fingerprint_into(&mut hash, &publication_evidence_fingerprint.to_le_bytes());
-    fingerprint_into(
-        &mut hash,
-        &callback_placement_identity_fingerprint.to_le_bytes(),
-    );
-    fingerprint_into(
-        &mut hash,
-        &[match destination {
-            ExecutablePublicationDestination::FlatOutput => 0,
-            ExecutablePublicationDestination::MacOsAppBundle => 1,
-        }],
-    );
+    container_digest: ExecutableContainerDigest,
+) -> ExecutableInstallationEvidenceDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.installed-executable-publication-evidence.sha256.v1\0");
+    digest.update(publication_evidence_digest.as_bytes());
+    digest.update(callback_placement_identity_fingerprint.to_le_bytes());
+    digest.update([match destination {
+        ExecutablePublicationDestination::FlatOutput => 0,
+        ExecutablePublicationDestination::MacOsAppBundle => 1,
+    }]);
     let path = output_path.as_os_str().as_encoded_bytes();
-    fingerprint_into(&mut hash, &(path.len() as u64).to_le_bytes());
-    fingerprint_into(&mut hash, path);
-    fingerprint_into(&mut hash, &(container_byte_count as u64).to_le_bytes());
-    fingerprint_into(&mut hash, &container_fingerprint.to_le_bytes());
-    hash
+    digest.update((path.len() as u64).to_le_bytes());
+    digest.update(path);
+    digest.update((container_byte_count as u64).to_le_bytes());
+    digest.update(container_digest.as_bytes());
+    ExecutableInstallationEvidenceDigest::from_digest(digest.finalize().into())
 }
 
 pub fn executable_publication_pair_matches(
@@ -97,31 +111,18 @@ pub fn executable_publication_pair_matches(
         && bundle.has_consistent_installation_identity()
         && expected_macos_app_bundle_executable_path(root_path, &flat.output_path).as_deref()
             == Some(bundle.output_path.as_path())
-        && flat.certificate_fingerprint == bundle.certificate_fingerprint
+        && flat.certificate_digest == bundle.certificate_digest
         && flat.callback_placement_identity_fingerprint
             == bundle.callback_placement_identity_fingerprint
         && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
         && flat.inventory_fingerprint == bundle.inventory_fingerprint
-        && flat.compiler_text_validation_fingerprint == bundle.compiler_text_validation_fingerprint
+        && flat.compiler_text_validation_digest == bundle.compiler_text_validation_digest
         && flat.compiler_function_validation_fingerprint
             == bundle.compiler_function_validation_fingerprint
-        && flat.publication_evidence_fingerprint == bundle.publication_evidence_fingerprint
+        && flat.publication_evidence_digest == bundle.publication_evidence_digest
         && flat.container_byte_count == bundle.container_byte_count
-        && flat.container_fingerprint == bundle.container_fingerprint
-        && flat.installation_evidence_fingerprint != bundle.installation_evidence_fingerprint
-}
-
-fn fingerprint_into(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *hash ^= u64::from(*byte);
-        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-}
-
-fn byte_fingerprint(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325;
-    fingerprint_into(&mut hash, bytes);
-    hash
+        && flat.container_digest == bundle.container_digest
+        && flat.installation_evidence_digest != bundle.installation_evidence_digest
 }
 
 fn publication_boundary_contract_fingerprint(
@@ -140,53 +141,74 @@ fn publication_boundary_contract_fingerprint(
     }
 }
 
-fn native_publication_certificate_fingerprint(
+fn native_publication_certificate_digest(
     artifact: &RetainedNativeArtifact,
     boundary_contract_fingerprint: Option<u64>,
-    text_validation_fingerprint: u64,
+    text_validation_digest: omega_image::CompilerTextDerivationDigest,
     function_validation_fingerprint: u64,
     inventory_fingerprint: u64,
-) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325;
-    fingerprint_into(&mut hash, b"omega.native-publication-certificate.v1");
-    fingerprint_into(&mut hash, artifact.semantic_bytes());
-    fingerprint_into(&mut hash, artifact.proof_bytes());
-    fingerprint_into(&mut hash, format!("{:?}", artifact.target()).as_bytes());
-    fingerprint_into(
-        &mut hash,
-        &boundary_contract_fingerprint
+) -> NativePublicationCertificateDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-publication-certificate.sha256.v1\0");
+    digest.update((artifact.semantic_bytes().len() as u64).to_le_bytes());
+    digest.update(artifact.semantic_bytes());
+    digest.update((artifact.proof_bytes().len() as u64).to_le_bytes());
+    digest.update(artifact.proof_bytes());
+    let target = artifact.target();
+    digest.update([match target.architecture {
+        omega_target::Architecture::Aarch64 => 1,
+        omega_target::Architecture::X86_64 => 2,
+    }]);
+    digest.update([match target.object_format {
+        omega_target::ObjectFormat::Elf => 1,
+        omega_target::ObjectFormat::MachO => 2,
+        omega_target::ObjectFormat::Coff => 3,
+    }]);
+    digest.update((target.pointer_size as u64).to_le_bytes());
+    digest.update((target.pointer_alignment as u64).to_le_bytes());
+    digest.update([u8::from(boundary_contract_fingerprint.is_some())]);
+    digest.update(
+        boundary_contract_fingerprint
             .unwrap_or_default()
             .to_le_bytes(),
     );
-    fingerprint_into(&mut hash, &text_validation_fingerprint.to_le_bytes());
-    fingerprint_into(&mut hash, &function_validation_fingerprint.to_le_bytes());
-    fingerprint_into(&mut hash, &inventory_fingerprint.to_le_bytes());
-    hash
+    digest.update(text_validation_digest.as_bytes());
+    digest.update(function_validation_fingerprint.to_le_bytes());
+    digest.update(inventory_fingerprint.to_le_bytes());
+    NativePublicationCertificateDigest::from_digest(digest.finalize().into())
 }
 
-fn native_publication_evidence_fingerprint(
-    certificate_fingerprint: u64,
+fn native_publication_evidence_digest(
+    certificate_digest: NativePublicationCertificateDigest,
     callback_placement_identity_fingerprint: u64,
     inventory_fingerprint: u64,
-    text_validation_fingerprint: u64,
+    text_validation_digest: omega_image::CompilerTextDerivationDigest,
     function_validation_fingerprint: u64,
     container_byte_count: usize,
-    container_fingerprint: u64,
-) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325;
-    fingerprint_into(&mut hash, b"omega.native-publication-evidence.v1");
+    container_digest: ExecutableContainerDigest,
+) -> NativePublicationEvidenceDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-publication-evidence.sha256.v1\0");
+    digest.update(certificate_digest.as_bytes());
     for value in [
-        certificate_fingerprint,
         callback_placement_identity_fingerprint,
         inventory_fingerprint,
-        text_validation_fingerprint,
         function_validation_fingerprint,
         container_byte_count as u64,
-        container_fingerprint,
     ] {
-        fingerprint_into(&mut hash, &value.to_le_bytes());
+        digest.update(value.to_le_bytes());
     }
-    hash
+    digest.update(text_validation_digest.as_bytes());
+    digest.update(container_digest.as_bytes());
+    NativePublicationEvidenceDigest::from_digest(digest.finalize().into())
+}
+
+fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.published-executable-container.sha256.v1\0");
+    digest.update((bytes.len() as u64).to_le_bytes());
+    digest.update(bytes);
+    ExecutableContainerDigest::from_digest(digest.finalize().into())
 }
 
 fn publish_exact_executable_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
@@ -246,46 +268,46 @@ fn make_executable(_path: &std::path::Path) -> Result<(), String> {
 pub struct ExecutablePublicationReceipt {
     destination: ExecutablePublicationDestination,
     output_path: PathBuf,
-    certificate_fingerprint: u64,
+    certificate_digest: NativePublicationCertificateDigest,
     callback_placement_identity_fingerprint: u64,
     boundary_contract_fingerprint: Option<u64>,
     inventory_fingerprint: u64,
-    compiler_text_validation_fingerprint: u64,
+    compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
     compiler_function_validation_fingerprint: u64,
-    publication_evidence_fingerprint: u64,
+    publication_evidence_digest: NativePublicationEvidenceDigest,
     container_byte_count: usize,
-    container_fingerprint: u64,
-    installation_evidence_fingerprint: u64,
+    container_digest: ExecutableContainerDigest,
+    installation_evidence_digest: ExecutableInstallationEvidenceDigest,
 }
 
 impl ExecutablePublicationReceipt {
     pub fn new(
         destination: ExecutablePublicationDestination,
         output_path: PathBuf,
-        certificate_fingerprint: u64,
+        certificate_digest: NativePublicationCertificateDigest,
         callback_placement_identity_fingerprint: u64,
         boundary_contract_fingerprint: Option<u64>,
         inventory_fingerprint: u64,
-        compiler_text_validation_fingerprint: u64,
+        compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
         compiler_function_validation_fingerprint: u64,
-        publication_evidence_fingerprint: u64,
+        publication_evidence_digest: NativePublicationEvidenceDigest,
         container_byte_count: usize,
-        container_fingerprint: u64,
-        installation_evidence_fingerprint: u64,
+        container_digest: ExecutableContainerDigest,
+        installation_evidence_digest: ExecutableInstallationEvidenceDigest,
     ) -> Self {
         Self {
             destination,
             output_path,
-            certificate_fingerprint,
+            certificate_digest,
             callback_placement_identity_fingerprint,
             boundary_contract_fingerprint,
             inventory_fingerprint,
-            compiler_text_validation_fingerprint,
+            compiler_text_validation_digest,
             compiler_function_validation_fingerprint,
-            publication_evidence_fingerprint,
+            publication_evidence_digest,
             container_byte_count,
-            container_fingerprint,
-            installation_evidence_fingerprint,
+            container_digest,
+            installation_evidence_digest,
         }
     }
 
@@ -297,8 +319,8 @@ impl ExecutablePublicationReceipt {
         &self.output_path
     }
 
-    pub const fn certificate_fingerprint(&self) -> u64 {
-        self.certificate_fingerprint
+    pub const fn certificate_digest(&self) -> NativePublicationCertificateDigest {
+        self.certificate_digest
     }
 
     pub const fn callback_placement_identity_fingerprint(&self) -> u64 {
@@ -313,39 +335,41 @@ impl ExecutablePublicationReceipt {
         self.inventory_fingerprint
     }
 
-    pub const fn compiler_text_validation_fingerprint(&self) -> u64 {
-        self.compiler_text_validation_fingerprint
+    pub const fn compiler_text_validation_digest(
+        &self,
+    ) -> omega_image::CompilerTextDerivationDigest {
+        self.compiler_text_validation_digest
     }
 
     pub const fn compiler_function_validation_fingerprint(&self) -> u64 {
         self.compiler_function_validation_fingerprint
     }
 
-    pub const fn publication_evidence_fingerprint(&self) -> u64 {
-        self.publication_evidence_fingerprint
+    pub const fn publication_evidence_digest(&self) -> NativePublicationEvidenceDigest {
+        self.publication_evidence_digest
     }
 
     pub const fn container_byte_count(&self) -> usize {
         self.container_byte_count
     }
 
-    pub const fn container_fingerprint(&self) -> u64 {
-        self.container_fingerprint
+    pub const fn container_digest(&self) -> ExecutableContainerDigest {
+        self.container_digest
     }
 
-    pub const fn installation_evidence_fingerprint(&self) -> u64 {
-        self.installation_evidence_fingerprint
+    pub const fn installation_evidence_digest(&self) -> ExecutableInstallationEvidenceDigest {
+        self.installation_evidence_digest
     }
 
     pub fn has_consistent_installation_identity(&self) -> bool {
-        self.installation_evidence_fingerprint
-            == executable_installation_evidence_fingerprint(
+        self.installation_evidence_digest
+            == executable_installation_evidence_digest(
                 self.destination,
-                self.publication_evidence_fingerprint,
+                self.publication_evidence_digest,
                 self.callback_placement_identity_fingerprint,
                 &self.output_path,
                 self.container_byte_count,
-                self.container_fingerprint,
+                self.container_digest,
             )
     }
 }
@@ -471,21 +495,18 @@ impl CompileReport {
         if std::path::Path::new(&output.file_name).components().count() != 1 {
             return Err("native artifact supplied a non-local output filename".to_owned());
         }
-        let text_validation_fingerprint = output
+        let text_validation_digest = output
             .compiler_text_validation
-            .map(|validation| validation.derivation_fingerprint)
-            .unwrap_or_else(|| byte_fingerprint(&output.final_text_bytes));
+            .map(|validation| validation.derivation_digest)
+            .ok_or_else(|| {
+                "native publication requires strong compiler-text validation evidence".to_owned()
+            })?;
         let function_validation_fingerprint = output
             .compiler_function_validation
             .map(|validation| validation.evidence_fingerprint())
-            .unwrap_or_else(|| {
-                let mut hash = byte_fingerprint(&output.final_text_bytes);
-                fingerprint_into(
-                    &mut hash,
-                    &(artifact.image().functions().len() as u64).to_le_bytes(),
-                );
-                hash
-            });
+            .ok_or_else(|| {
+                "native publication requires compiler-function validation evidence".to_owned()
+            })?;
         let boundary_contract_fingerprint = output
             .compiler_function_validation
             .map(publication_boundary_contract_fingerprint)
@@ -501,44 +522,44 @@ impl CompileReport {
         let output_path = build_dir.join(&output.file_name);
         publish_exact_executable_bytes(&output_path, &output.bytes)?;
 
-        let container_fingerprint = byte_fingerprint(&output.bytes);
-        let certificate_fingerprint = native_publication_certificate_fingerprint(
+        let container_digest = executable_container_digest(&output.bytes);
+        let certificate_digest = native_publication_certificate_digest(
             artifact,
             boundary_contract_fingerprint,
-            text_validation_fingerprint,
+            text_validation_digest,
             function_validation_fingerprint,
             output.executable_regions.inventory_fingerprint,
         );
-        let publication_evidence_fingerprint = native_publication_evidence_fingerprint(
-            certificate_fingerprint,
+        let publication_evidence_digest = native_publication_evidence_digest(
+            certificate_digest,
             output.callback_placement_identity_fingerprint,
             output.executable_regions.inventory_fingerprint,
-            text_validation_fingerprint,
+            text_validation_digest,
             function_validation_fingerprint,
             output.bytes.len(),
-            container_fingerprint,
+            container_digest,
         );
-        let installation_evidence_fingerprint = executable_installation_evidence_fingerprint(
+        let installation_evidence_digest = executable_installation_evidence_digest(
             ExecutablePublicationDestination::FlatOutput,
-            publication_evidence_fingerprint,
+            publication_evidence_digest,
             output.callback_placement_identity_fingerprint,
             &output_path,
             output.bytes.len(),
-            container_fingerprint,
+            container_digest,
         );
         let receipt = ExecutablePublicationReceipt::new(
             ExecutablePublicationDestination::FlatOutput,
             output_path,
-            certificate_fingerprint,
+            certificate_digest,
             output.callback_placement_identity_fingerprint,
             boundary_contract_fingerprint,
             output.executable_regions.inventory_fingerprint,
-            text_validation_fingerprint,
+            text_validation_digest,
             function_validation_fingerprint,
-            publication_evidence_fingerprint,
+            publication_evidence_digest,
             output.bytes.len(),
-            container_fingerprint,
-            installation_evidence_fingerprint,
+            container_digest,
+            installation_evidence_digest,
         );
         if !receipt.has_consistent_installation_identity() {
             return Err("native publication produced an inconsistent installation receipt".into());
@@ -729,20 +750,30 @@ mod tests {
         path: &str,
     ) -> ExecutablePublicationReceipt {
         let path: std::path::PathBuf = path.into();
-        let installation =
-            super::executable_installation_evidence_fingerprint(destination, 5, 8, &path, 6, 7);
+        let certificate = super::NativePublicationCertificateDigest::from_digest([1; 32]);
+        let text_validation = omega_image::CompilerTextDerivationDigest::from_digest([3; 32]);
+        let publication = super::NativePublicationEvidenceDigest::from_digest([5; 32]);
+        let container = super::ExecutableContainerDigest::from_digest([7; 32]);
+        let installation = super::executable_installation_evidence_digest(
+            destination,
+            publication,
+            8,
+            &path,
+            6,
+            container,
+        );
         ExecutablePublicationReceipt::new(
             destination,
             path,
-            1,
+            certificate,
             8,
             Some(2),
             2,
-            3,
+            text_validation,
             4,
-            5,
+            publication,
             6,
-            7,
+            container,
             installation,
         )
     }
@@ -848,7 +879,8 @@ mod tests {
             .has_consistent_executable_publication_custody()
         );
         let mut changed = flat.clone();
-        changed.installation_evidence_fingerprint ^= 1;
+        changed.installation_evidence_digest =
+            super::ExecutableInstallationEvidenceDigest::from_digest([99; 32]);
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -924,7 +956,8 @@ mod tests {
         assert!(changed.checked_native_executable_path().is_none());
 
         let mut changed = bundle.clone();
-        changed.certificate_fingerprint ^= 1;
+        changed.certificate_digest =
+            super::NativePublicationCertificateDigest::from_digest([99; 32]);
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -964,7 +997,8 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
-        changed.compiler_text_validation_fingerprint ^= 1;
+        changed.compiler_text_validation_digest =
+            omega_image::CompilerTextDerivationDigest::from_digest([99; 32]);
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -985,7 +1019,8 @@ mod tests {
             .has_consistent_executable_publication_custody()
         );
         let mut changed = bundle.clone();
-        changed.publication_evidence_fingerprint ^= 1;
+        changed.publication_evidence_digest =
+            super::NativePublicationEvidenceDigest::from_digest([99; 32]);
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -1005,7 +1040,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
-        changed.container_fingerprint ^= 1;
+        changed.container_digest = super::ExecutableContainerDigest::from_digest([99; 32]);
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -1015,7 +1050,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle;
-        changed.installation_evidence_fingerprint = flat.installation_evidence_fingerprint;
+        changed.installation_evidence_digest = flat.installation_evidence_digest;
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,

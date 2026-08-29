@@ -75,7 +75,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 41;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 42;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1017,7 +1017,7 @@ pub fn encode_installation_record(
     )
     .map_err(|_| InstallationError::CountNotRepresentable("checked instructions"))?;
 
-    let mut bytes = Vec::with_capacity(166 + record.selected_provider_plans.len() * 8);
+    let mut bytes = Vec::with_capacity(294 + record.selected_provider_plans.len() * 8);
     encode_installation_header(
         &mut bytes,
         record,
@@ -1189,6 +1189,12 @@ pub fn installation_fingerprint(
 }
 
 fn validate_record_shape(record: &InstallationRecord) -> Result<(), InstallationError> {
+    if !record
+        .compiler_text_validation
+        .has_valid_derivation_digest()
+    {
+        return Err(InstallationError::InvalidCompilerTextDerivationDigest);
+    }
     if !can_emit_executable_image(record.target) {
         return Err(InstallationError::UnsupportedTarget(record.target));
     }
@@ -3223,6 +3229,7 @@ pub enum InstallationError {
     },
     CountNotRepresentable(&'static str),
     MissingCompilerTextValidation,
+    InvalidCompilerTextDerivationDigest,
     ImageBindingMismatch,
     NativeFuelImageMismatch,
     NativeFuelTransferWithoutMetering,

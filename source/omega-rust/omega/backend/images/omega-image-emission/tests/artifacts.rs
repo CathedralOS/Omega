@@ -701,8 +701,8 @@ fn native_fuel_object_translation_rebases_the_typed_call_and_function_symbols() 
             metered.semantic_end_offset
         );
     }
-    let encoded = encode_installation_record(&record).expect("encode format 36");
-    let decoded = decode_installation_record(&encoded).expect("decode format 36");
+    let encoded = encode_installation_record(&record).expect("encode format 42");
+    let decoded = decode_installation_record(&encoded).expect("decode format 42");
     assert_eq!(decoded, record);
     validate_native_fuel_installation_record(&decoded, &image)
         .expect("rejoin exact native-fuel image");
@@ -2208,6 +2208,12 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             evidence.encoded_text_fingerprint,
             evidence.final_compiler_text_fingerprint
         );
+        assert!(evidence.has_valid_derivation_digest());
+        assert_ne!(
+            evidence.encoded_text_digest.as_bytes(),
+            evidence.final_compiler_text_digest.as_bytes(),
+            "distinct digest domains remain separate even for identical bytes"
+        );
         assert_eq!(evidence.text_relocation_count, 0);
         assert_eq!(evidence.checked_instruction_validation_count, 0);
     }
@@ -2236,7 +2242,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "4ec4ba3c0319d643c36aa2c920ec548236af23341b44441e8caa63c47b51e0f5"
+        "76ee6e4ef16aff878c7f1959a23d0dc7cdf064c340ba63ee86f56e50b5e7442d"
     );
 
     let mut changed_plan = plan;
@@ -2374,6 +2380,13 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     assert_eq!(
         decode_installation_record(&zero_profile),
         Err(InstallationError::ZeroProfileDecision)
+    );
+
+    let mut changed_text_digest = bytes.clone();
+    changed_text_digest[108] ^= 1;
+    assert_eq!(
+        decode_installation_record(&changed_text_digest),
+        Err(InstallationError::InvalidCompilerTextDerivationDigest)
     );
 
     assert_eq!(
