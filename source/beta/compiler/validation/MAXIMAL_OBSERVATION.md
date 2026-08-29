@@ -86,11 +86,8 @@ select the subjects, omit terminal cases, or define the proposition.
 
 The retained evidence is intentionally responsibility-specific:
 
-- `../cold-start/full-source.sh` reconstructs `bc.tape`, checks the fixed point,
-  and runs the Beta corpus;
-- `admission/bc-artifact-structure.sh` checks reachable Alpha
-  framing, direct targets, procedure regions, and call/return structure below
-  `bc`;
+- `../cold-start/rebuild-artifact.sh --check` reconstructs the fixed-point
+  `bc.tape` through the Alpha-written cold start without changing it;
 - `admission/bc-block-control.sh` reconstructs the canonical
   whole-source/artifact conjunction and its 82,660-byte ROOT maximal-observation
   checker (SHA-256
@@ -104,7 +101,9 @@ The retained evidence is intentionally responsibility-specific:
   instruction-cutpoint proposition for `main.resource`; the rooted checker
   accepts its proof suffix and rejects subject, profile, observation, and
   declared-return-successor mutations. Reachability of its root-return-slot
-  cutpoint remains open;
+  cutpoint remains open. The gate internally requires the standalone
+  `admission/bc-artifact-structure.sh` framing/target/procedure-region check, so
+  running that script again is a focused diagnostic rather than another edge;
 - optional `stress/refinement.sh` checks proof-carrying
   equivalence for its stated symbolic program families with the below-Beta
   checker artifact;

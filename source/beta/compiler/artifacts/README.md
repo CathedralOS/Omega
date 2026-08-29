@@ -10,14 +10,16 @@ Alpha seed + Alpha-written assembler
   -> compile bc.beta again (persisted fixed-point bc.tape)
 ```
 
-`cold-start/full-source.sh` reconstructs that tape, compares it byte-for-byte,
-checks another self-build generation, and runs the complete Beta corpus through
-the persisted artifact. `artifact_env.sh` stamps it into the host's audited
-Alpha seed for downstream lattice gates. The historical Rust producer is
-retired and was never in this artifact's lineage.
+`cold-start/rebuild-artifact.sh --check` reconstructs that tape and compares it
+byte-for-byte without changing the repository. `artifact_env.sh` stamps it
+into the host's audited Alpha seed for downstream lattice gates. Fixed-point
+repetition and the complete Beta corpus remain useful focused diagnostics, not
+additional producer edges. The historical Rust producer is retired and was
+never in this artifact's lineage.
 
 Regenerate deliberately with `cold-start/rebuild-artifact.sh`; commit a changed
-tape only together with the source/compiler change and a green full-source gate.
+tape only together with the source/compiler change and a green construction
+check plus the directly relevant focused tests.
 
 The committed artifact is 40,693 bytes. Its SHA-256 digest is
 `73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.

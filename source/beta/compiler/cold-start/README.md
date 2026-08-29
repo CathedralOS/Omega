@@ -56,11 +56,14 @@ precedence-correct lowering. Generated `$L…` and `$S…$…` labels use bytes 
 Beta identifiers cannot spell, preventing collisions with source names.
 
 This now accepts the exact pinned `bc.beta` profile and closes its external-
-producer cold-start dependency. [`full-source.sh`](full-source.sh) builds `bc.beta` through the
-Alpha-written compiler, advances to the self-hosted fixed point, reconstructs
-[`../artifacts/bc.tape`](../artifacts/README.md) byte-for-byte, and runs the whole
-Beta corpus through that persisted artifact. This proves construction lineage,
-reproducibility, and retained behavior. The separate ROOT gate under
+producer cold-start dependency. [`rebuild-artifact.sh`](rebuild-artifact.sh)
+builds `bc.beta` through the Alpha-written compiler and advances to the
+self-hosted fixed point. Its `--check` mode reconstructs
+[`../artifacts/bc.tape`](../artifacts/README.md) byte-for-byte without changing
+the repository; its default mode deliberately installs that reconstruction.
+The focused [`test.sh`](test.sh) exercises the cold compiler's accepted and
+rejected Beta surface, but that regression suite is not a compiler-lattice
+edge. The separate ROOT gate under
 `source/beta/compiler/validation/` now closes lower-rooted source-to-artifact
 refinement for the exact persisted tape and `B_bc1` profile.
 
@@ -78,4 +81,10 @@ Run the focused gate with:
 
 ```sh
 sh source/beta/compiler/cold-start/test.sh
+```
+
+Recheck only the canonical construction edge with:
+
+```sh
+sh source/beta/compiler/cold-start/rebuild-artifact.sh --check
 ```

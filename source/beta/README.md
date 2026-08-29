@@ -43,7 +43,8 @@ Run the independently invocable gates with:
 
 ```sh
 sh source/beta/test.sh
-sh source/beta/compiler/cold-start/full-source.sh
+sh source/beta/compiler/cold-start/rebuild-artifact.sh --check
+sh source/beta/compiler/cold-start/test.sh
 sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
 sh source/beta/compiler/validation/admission/bc-block-control.sh
 ```

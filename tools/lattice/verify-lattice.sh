@@ -11,38 +11,32 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$OMEGA_GATE_DIR/../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_GATE_DIR/paths.sh"
 
-step() { # label owner-role script [documentary dependency roles...]
+step() { # label owner-role script [arguments...]
   label=$1
   role=$2
   script=$3
+  shift 3
   directory=$(lattice_path "$role")
   printf '\n=== %s ===\n' "$label"
-  printf 'command: (cd "%s" && sh "./%s")\n' "$directory" "$script"
-  if (cd "$directory" && sh "./$script"); then
+  printf 'command: (cd "%s" && sh "./%s"' "$directory" "$script"
+  for argument in "$@"; do
+    printf ' "%s"' "$argument"
+  done
+  printf ')\n'
+  if (cd "$directory" && sh "./$script" "$@"); then
     return 0
   else
     status=$?
   fi
-  printf 'FAILED (%s): (cd "%s" && sh "./%s")\n' \
-    "$status" "$directory" "$script" >&2
+  printf 'FAILED (%s): %s/%s\n' "$status" "$directory" "$script" >&2
   return "$status"
 }
 
-step "lattice — canonical path hygiene" lattice-tools check-path-hygiene.sh
-
 step "alpha — accepted seed and assembler reproduction" alpha verify.sh
-step "alpha — assembler fixed point" alpha-assembler selfhost.sh
-step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh alpha alpha-assembler
+step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh
 
-step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/full-source.sh alpha alpha-assembler
-step "beta — compiler artifact framing" beta-validation admission/bc-artifact-structure.sh alpha beta-compiler alpha-assembler
-step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh alpha beta-compiler alpha-assembler
-
-step "gamma — interpreter" gamma test-interp.sh beta beta-compiler
-step "gamma — type checker" gamma test-typeck.sh beta beta-compiler
-
-step "delta — exact compiler source closure" delta-validation source-closure-snapshot-v1.sh
-step "delta — lower-rooted publication model" delta-validation lower-rooted-assembly-publication-v1-test.sh alpha-assembler beta-compiler gamma
+step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/rebuild-artifact.sh --check
+step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh
 
 echo ""
-echo "DIRECT LATTICE GATES PASS — Alpha → Beta → Gamma; Delta publication and direct Omega build remain open"
+echo "DIRECT LATTICE GATES PASS — Alpha → bc; Gamma/Delta production and both Omega builds remain open"

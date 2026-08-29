@@ -78,19 +78,33 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/tools/bootstrap" ] || fail "generic bootstrap tooling bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/tools/assurance" ] || fail "generic assurance tooling bucket remains"
 
-# Keep the default Beta edge deliberately small. Stress, fuzz, alternate
-# checkers, large corpora, and reports remain independently invocable evidence;
-# adding one of them to the default lattice is a policy change, not plumbing.
+# Keep the default Beta edge to construction and one canonical admission.
+# Artifact framing is already an internal prerequisite of the admission;
+# stress, fuzz, alternate checkers, large corpora, and reports remain focused
+# diagnostics rather than compiler edges.
 beta_step_count=$(grep -c '^step "beta — ' "$OMEGA_LATTICE_RUNNER" || true)
-[ "$beta_step_count" -eq 3 ] ||
-  fail "default lattice has $beta_step_count Beta rows, expected the canonical three"
+[ "$beta_step_count" -eq 2 ] ||
+  fail "default lattice has $beta_step_count Beta rows, expected construction plus admission"
 for beta_step in \
-  'step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/full-source.sh alpha alpha-assembler' \
-  'step "beta — compiler artifact framing" beta-validation admission/bc-artifact-structure.sh alpha beta-compiler alpha-assembler' \
-  'step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh alpha beta-compiler alpha-assembler'
+  'step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/rebuild-artifact.sh --check' \
+  'step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh'
 do
   grep -Fqx "$beta_step" "$OMEGA_LATTICE_RUNNER" ||
     fail "default lattice is missing or changed Beta row: $beta_step"
+done
+
+for diagnostic in \
+  'check-path-hygiene.sh' \
+  'selfhost.sh' \
+  'admission/bc-artifact-structure.sh' \
+  'test-interp.sh' \
+  'test-typeck.sh' \
+  'source-closure-snapshot-v1.sh' \
+  'lower-rooted-assembly-publication-v1-test.sh'
+do
+  if grep -Fq "$diagnostic" "$OMEGA_LATTICE_RUNNER"; then
+    fail "diagnostic-only command returned to the default lattice: $diagnostic"
+  fi
 done
 
 echo "lattice paths: direct compiler-sequence owners verified"

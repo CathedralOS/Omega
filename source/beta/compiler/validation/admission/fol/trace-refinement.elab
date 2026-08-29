@@ -170,6 +170,35 @@
       (lam ih (= (f 44 (f 42 n)) z)
         (inst (use 8) (f 42 n))))))
 
+; Generic finite-prefix state invariant. Function 46 is an owner-selected
+; exact trace and relation 912 is an owner-selected state/property relation.
+; The proof producer cannot manufacture either premise: the machine owner must
+; reconstruct the property at trace zero and preservation by every exact
+; successor. Once those premises exist, ordinary Nat induction carries one
+; arbitrary property payload (for bc, the root return slot) to every finite
+; trace index without per-length unrolling.
+(def 10
+  (all property
+    (-> (rel 912 (f 46 z) property)
+        (-> (all n
+              (-> (rel 912 (f 46 n) property)
+                  (rel 912 (f 46 (s n)) property)))
+            (all n (rel 912 (f 46 n) property)))))
+  (gen property
+    (lam base
+      (rel 912 (f 46 z) property)
+      (lam step
+        (all n
+          (-> (rel 912 (f 46 n) property)
+              (rel 912 (f 46 (s n)) property)))
+        (natind n
+          (rel 912 (f 46 n) property)
+          base
+          (gen n
+            (lam ih
+              (rel 912 (f 46 n) property)
+              (app (inst step n) ih))))))))
+
 (& (all n (= (f 34 (f 30 n)) (f 34 (f 32 (f 33 n)))))
    (& (& (= (f 33 (k 3 (k 2))) (f 33 (k 2)))
          (& (= (f 34 (f 30 (k 2))) (f 34 (f 30 (k 3 (k 2)))))
@@ -177,9 +206,16 @@
       (& (all n (= (f 40 (f 36 n)) (f 40 (f 37 (f 39 n)))))
          (& (all n (ex d (= (+ d (f 45 n)) (f 45 (k 3 n)))))
             (& (all n (= (f 43 (f 42 n)) (s z)))
-               (all n (= (f 44 (f 42 n)) z)))))))
+               (& (all n (= (f 44 (f 42 n)) z))
+                  (all property
+                    (-> (rel 912 (f 46 z) property)
+                        (-> (all n
+                              (-> (rel 912 (f 46 n) property)
+                                  (rel 912 (f 46 (s n)) property)))
+                            (all n (rel 912 (f 46 n) property)))))))))))
 (pair (use 2)
   (pair (use 3)
     (pair (use 4)
       (pair (use 5)
-        (pair (use 7) (use 9))))))
+        (pair (use 7)
+          (pair (use 9) (use 10)))))))

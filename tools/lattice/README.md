@@ -10,14 +10,21 @@ on failure.
 sh tools/lattice/verify-lattice.sh
 ```
 
-The runner contains only bounded construction and admission gates. Expensive
-differential, mutation, fuzz, proof-corpus, and developer-tool campaigns remain
-independently executable diagnostics under their owning rung; there is no
-repository-wide stress orchestration layer.
+The runner contains only the presently closed producer spine: Alpha seed
+acceptance (which already includes assembler reproduction), construction of
+the below-Beta checker, non-mutating Alpha-rooted reconstruction of `bc.tape`,
+and the one canonical `bc` admission. The standalone assembler self-host,
+artifact-framing gate, Gamma program suites, path-policy test, source-closure
+test, and Delta publication fixtures remain directly runnable diagnostics or
+subchecks; repeating them as top-level rows would not add a compiler edge.
+
+As later artifacts become available, this runner should invoke their actual
+producer/admission commands. It must not substitute a verifier's fixture suite
+or a source snapshot for the missing artifact.
 
 Reusable Gamma program suites such as canonical-byte decoding remain locally
 testable, but are not compiler edges and therefore are not default lattice
-steps.
+steps. The Delta publication owns the actual canonical Gamma invocation.
 
 `paths.sh` only maps semantic-owner roles to repository locations. Shell and
 Python helpers may coordinate or test commands, but no lattice claim depends

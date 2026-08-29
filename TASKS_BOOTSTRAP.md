@@ -81,6 +81,18 @@ in [`TASKS.md`](TASKS.md), not in this queue.
   second execution leaves the correctness verdict unchanged; and the direct
   lattice can run without a provenance ceremony masquerading as proof.
 
+  - [x] Prune the default runner to the presently closed producer spine. Alpha
+    seed verification already contains assembler reproduction; the canonical
+    `bc` admission already reconstructs artifact framing. Gamma regression
+    suites, path policy, Delta source-snapshot checks, and publication-verifier
+    fixtures remain directly invocable but no longer appear as compiler edges.
+    The former `full-source.sh` mixed cold construction with another fixed-point
+    replay and the complete Beta corpus; `rebuild-artifact.sh --check` now does
+    only the non-mutating Alpha-rooted reconstruction required here. The stale
+    post-migration `tests/canaries/` tree contained 14,468 tracked generated
+    build/viewer files (about 738 MiB) and no source cases; the live cases were
+    already under `tests/omega/`, so the generated residue is removed.
+
 ## Edge status
 
 | Producer edge | Current state | Required result |
@@ -191,6 +203,12 @@ Canonical subjects:
     `def`/`use`; all three checker implementations accept it. This replaces
     per-length unrolling without granting a producer control over a machine,
     relation schema, or premise.
+  - [x] The architecture seam also checks one ordinary-Nat state-invariant
+    theorem. Given an owner-reconstructed exact-trace base fact and exact
+    one-successor preservation rule, it carries an arbitrary fixed payload to
+    every finite trace index. This is the reusable induction needed for the
+    root return slot; it neither chooses slot `39` nor supplies the still-open
+    exact `bc` preservation premise.
   - [x] The initial 4,254-byte `bc-main-resource-refinement.elab` authoring
     candidate established a four-stage cleanup model and the proof-suffix
     custody protocol. Review found that the stages compressed seven Alpha

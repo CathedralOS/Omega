@@ -12,7 +12,12 @@ system or coinduction rule.
 - one source transition synchronized with two Alpha transitions and an
   explicit nondecreasing synchronization witness; and
 - a primitive-recursive two-state cycle whose every indexed state remains
-  running and observationally silent.
+  running and observationally silent; and
+- a generic finite-prefix state-invariant theorem that carries an arbitrary
+  owner-selected payload through an exact trace from separately supplied base
+  and successor-preservation premises. For the `bc` reachability proof, that
+  payload is the root return slot; this lemma does not supply the exact-machine
+  premises itself.
 
 `bc-main-resource-refinement.elab` is the 7,539-byte proof-authoring form for
 the first owner-bound instruction cutpoint. Conditional on the cutpoint

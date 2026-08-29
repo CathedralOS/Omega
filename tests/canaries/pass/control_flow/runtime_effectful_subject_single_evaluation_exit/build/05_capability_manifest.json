@@ -1,7 +1,0 @@
-{
-  "entry_machine": "Main::main",
-  "entry_state": "main",
-  "effect_bits": "0x0000000000000100",
-  "effects": ["process_exit"],
-  "capability_flows": {"uses": 6, "returns": 0, "acquires": 6, "stores": 6, "derives": 0}
-}
