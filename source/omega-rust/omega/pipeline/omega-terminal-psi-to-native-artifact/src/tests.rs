@@ -118,6 +118,60 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             record.custody.fixed_fuel.ceiling_units(),
             5 + 6 * u64::from(u32::MAX)
         );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object boundary independently replays ranked custody");
+        assert_eq!(object.functions().len(), 1);
+        assert_eq!(object.functions()[0].bytes(&object), function.bytes);
+
+        let mut changed_bytes = emitted.clone();
+        changed_bytes.functions[0].bytes[0] ^= 1;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_bytes),
+            Err(omega_image_emission::ObjectError::RankedCountdownBytesMismatch(function.machine))
+        );
+
+        let mut changed_fuel = emitted.clone();
+        changed_fuel.functions[0].fuel_attribution[0].code_offset += 1;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_fuel),
+            Err(
+                omega_image_emission::ObjectError::InvalidRankedCountdownEvidence(function.machine)
+            )
+        );
+
+        let mut changed_cleanup = emitted.clone();
+        changed_cleanup.functions[0]
+            .ranked_u32_countdown
+            .as_mut()
+            .unwrap()
+            .cleanup_actions
+            .clear();
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_cleanup),
+            Err(
+                omega_image_emission::ObjectError::InvalidRankedCountdownEvidence(function.machine)
+            )
+        );
+
+        let mut conflicting = emitted.clone();
+        let structural = &record.structural_parameters[0];
+        conflicting.functions[0]
+            .unit_parameters
+            .push(omega_machine_code::UnitParameterRecord {
+                place: structural.place,
+                structural_type: structural.structural_type,
+                multiplicity: structural.multiplicity,
+                shape: structural.shape,
+            });
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&conflicting),
+            Err(
+                omega_image_emission::ObjectError::RankedCountdownEvidenceConflict(
+                    function.machine
+                )
+            )
+        );
     }
 }
 

@@ -482,11 +482,15 @@ Remaining:
   complete ABI/structural inputs, and all four operation plus five edge fuel
   sites; it does not duplicate target-constant layout as evidence. Generic
   native-fuel instrumentation rejects this carrier until it can rebase internal
-  branches, and object construction rejects both intact custody and the exact
-  ranked shape with that optional record removed. The next substep is exact
-  unmetered object replay from the disjoint carrier, followed by ranked-aware
-  native-fuel rebasing, final image/install/native-artifact custody, and native
-  rank 0, 1, and 3 schedule comparison before retrying the product build.
+  branches. Exact unmetered object replay is complete: object construction
+  independently rederives the canonical ISA bytes and ABI placement, binds the
+  verifier frontier and exit cleanup, replays all four operation plus five edge
+  fuel intervals, and rejects byte, fuel, cleanup, or conflicting-evidence
+  mutation on both Linux targets. Removing the optional ranked record still
+  hits the conservative exact-shape fence. The next substep is ranked-aware
+  native-fuel rebasing, followed by final image/install/native-artifact custody
+  and native rank 0, 1, and 3 schedule comparison before retrying the product
+  build.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

@@ -131,12 +131,13 @@ pub struct MachineCodeFunction {
 }
 
 impl MachineCodeFunction {
-    /// Conservative publication fence for the first ranked carrier.
+    /// Conservative stripped-custody fence for the first ranked carrier.
     ///
     /// The shape check prevents an optional-custody stripping mutation from
     /// reclassifying the exact emitted countdown as ordinary code. Delete this
-    /// fallback when `MachineCodeFunction` has a closed disjoint body carrier
-    /// and object replay accepts the ranked variant directly.
+    /// Object replay accepts and independently checks the intact ranked record.
+    /// Delete this fallback when `MachineCodeFunction` has a closed disjoint
+    /// body carrier whose variant cannot be stripped independently.
     pub fn requires_ranked_countdown_replay(&self) -> bool {
         if self.ranked_u32_countdown.is_some() {
             return true;
