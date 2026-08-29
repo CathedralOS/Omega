@@ -1348,6 +1348,19 @@ Remaining:
   arrival/stack evidence and the generated invocation/install producers rather
   than a caller-chosen receipt identity.
 
+  The symbolic target-semantics rung is now retained explicitly. The closed
+  compiler-owned application
+  `TargetSemantics::guaranteed_entry_stack<UefiX86_64>()` records its
+  projection, subject, semantics version, and selected `UefiX64` deployment
+  profile in exact compatibility evidence and a domain-separated commitment;
+  its compact compatibility value remains report-only. Cross-target
+  application and profile/report/commitment substitution reject, and the
+  physical-entry contract now retains and replays that exact application. This
+  first rung deliberately stays symbolic: it selects no byte bound and grants
+  no runtime environment admission, stack address, stack storage, or firmware-
+  conformance claim. Target closure must still supply the numeric guarantee
+  before the adapter WCSU inequality or private-stack plan can close.
+
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying
   `UefiPhysicalEntry::enter`; the generated shell invokes it, while `build.omg`

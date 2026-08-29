@@ -57,6 +57,7 @@ pub struct ProgramEntryPhysicalContractPlan {
     result_type_identity: String,
     calling_plan_report_fingerprint: u64,
     boundary_entry_plan: BoundaryEntryPlan,
+    guaranteed_entry_stack_application: omega_target::SymbolicTargetObservationApplication,
 }
 
 impl ProgramEntryPhysicalContractPlan {
@@ -106,6 +107,11 @@ impl ProgramEntryPhysicalContractPlan {
                     .into(),
             );
         }
+        let guaranteed_entry_stack_application =
+            omega_target::TargetSemantics::guaranteed_entry_stack::<omega_target::UefiX86_64>(
+                target_slot.owner,
+            )
+            .map_err(|error| error.to_string())?;
         Ok(Self {
             target_slot,
             requirement_identity,
@@ -116,6 +122,7 @@ impl ProgramEntryPhysicalContractPlan {
             result_type_identity,
             calling_plan_report_fingerprint,
             boundary_entry_plan,
+            guaranteed_entry_stack_application,
         })
     }
 
@@ -167,6 +174,15 @@ impl ProgramEntryPhysicalContractPlan {
 
     pub const fn boundary_entry_plan(&self) -> &BoundaryEntryPlan {
         &self.boundary_entry_plan
+    }
+
+    /// Exact symbolic target-observation application retained as part of the
+    /// physical contract's compatibility evidence. It carries no byte value,
+    /// runtime stack observation, or address authority.
+    pub const fn guaranteed_entry_stack_application(
+        &self,
+    ) -> &omega_target::SymbolicTargetObservationApplication {
+        &self.guaranteed_entry_stack_application
     }
 }
 

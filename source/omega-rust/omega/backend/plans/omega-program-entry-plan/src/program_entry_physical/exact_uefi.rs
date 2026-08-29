@@ -116,6 +116,9 @@ impl ProgramEntryPhysicalContractPlan {
             && self.result_type_identity == UEFI_X64_STATUS_TYPE_IDENTITY
             && self.calling_plan_report_fingerprint == expected.contract_report_fingerprint()
             && &self.boundary_entry_plan == expected.plan()
+            && self
+                .guaranteed_entry_stack_application
+                .matches_exact_uefi_x64_entry_stack_application()
     }
 }
 
@@ -148,6 +151,22 @@ mod tests {
     fn exact_runtime_contract_replays_all_owned_fields() {
         let exact = exact_contract();
         assert!(exact.matches_exact_uefi_x64_physical_contract());
+        assert_eq!(
+            exact
+                .guaranteed_entry_stack_application()
+                .selected_profile(),
+            omega_target::TargetProfile::UefiX64,
+        );
+        assert_eq!(
+            exact.guaranteed_entry_stack_application().subject(),
+            "UefiX86_64",
+        );
+        assert_ne!(
+            exact
+                .guaranteed_entry_stack_application()
+                .compatibility_commitment(),
+            &[0; 32],
+        );
 
         let mut requirement_drift = exact.clone();
         requirement_drift.requirement_identity =

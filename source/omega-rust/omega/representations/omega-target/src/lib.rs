@@ -2,6 +2,7 @@ use psi_diagnostics::Diagnostic;
 
 mod elf_loader;
 mod foreign_locator;
+mod target_semantics;
 mod uefi_boot_services;
 mod uefi_boot_services_occurrence;
 mod uefi_system_table;
@@ -13,6 +14,10 @@ pub use elf_loader::{
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
     normalize_foreign_locator,
+};
+pub use target_semantics::{
+    SymbolicTargetObservationApplication, TargetEntryStackSubject, TargetSemanticObservationError,
+    TargetSemantics, UefiX86_64,
 };
 pub use uefi_boot_services::{
     UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
