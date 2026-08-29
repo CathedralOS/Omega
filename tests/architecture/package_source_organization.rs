@@ -153,35 +153,19 @@ fn stable_package_evidence_excludes_compiler_private_projection_handles() {
 }
 
 #[test]
-fn stable_authority_evidence_owns_its_behavior_vocabulary() {
+fn stable_evidence_and_encoding_exclude_compiler_representations() {
     let package = package_root().join("omega-package-evidence/src");
-    let evidence_paths = [
-        package.join("evidence/authority.rs"),
-        package.join("evidence/authority_expressions.rs"),
-        package.join("encoding/values/effects.rs"),
-        package.join("encoding/values/crashes.rs"),
-    ];
-    let forbidden = [
-        "psi_facts::WriteFrameCompleteness",
-        "psi_checked_trees::CrashCause",
-        "psi_checked_trees::CheckedBooleanExpression",
-        "psi_checked_trees::CheckedScalarExpression",
-        "psi_checked_trees::CheckedIntegerBinaryKind",
-        "psi_checked_trees::CheckedIntegerComparisonKind",
-        "psi_checked_trees::CheckedIeeeFloatComparisonKind",
-        "psi_checked_trees::CheckedStructuralParameterField",
-        "psi_checked_trees::CheckedStructuralPredicatePathSegment",
-        "psi_typed_trees::types::PrimitiveType",
-    ];
-    for path in evidence_paths {
-        let source = fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-        for forbidden in forbidden {
-            assert!(
-                !source.contains(forbidden),
-                "stable behavior evidence retains compiler representation `{forbidden}` in {}",
-                path.display(),
-            );
+    for owner in ["evidence", "encoding"] {
+        for path in rust_files(&package.join(owner)) {
+            let source = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            for forbidden in ["psi_typed_trees", "psi_checked_trees", "psi_facts"] {
+                assert!(
+                    !source.contains(forbidden),
+                    "stable {owner} retains compiler representation `{forbidden}` in {}",
+                    path.display(),
+                );
+            }
         }
     }
 }
