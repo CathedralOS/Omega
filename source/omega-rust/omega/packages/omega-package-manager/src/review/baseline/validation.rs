@@ -7,8 +7,8 @@ use super::{
 };
 use crate::graph::ResolvedPackageClosure;
 use crate::identity::{AliasName, PackageKey};
-use crate::review::records::ReviewOnlyCanonicalRow;
-use crate::review::records::validation::validate_review_only_records;
+use crate::review::candidate::ReviewOnlyCanonicalRow;
+use crate::review::candidate::validation::validate_review_only_records;
 use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, recover_review_only_build_filesystem_replay_record,
 };

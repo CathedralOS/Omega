@@ -143,7 +143,7 @@ fn create_private_directory(path: &Path) -> io::Result<()> {
 mod tests {
     use super::{REVIEW_BUILD_SESSION_SEQUENCE, ReviewBuildSession};
     use crate::identity::{PackageKey, PackageName};
-    use crate::review::compilation::CompileResolvedPackageReviewsError;
+    use crate::review::candidate::CompileResolvedPackageReviewsError;
     use omega_package_source::SourceLineage;
     use std::fs;
     use std::path::PathBuf;

@@ -6,7 +6,7 @@ use super::{
     ReviewOnlyBaselineLimits,
 };
 use crate::identity::{PackageKey, PackageName};
-use crate::review::records::ReviewOnlyCanonicalRow;
+use crate::review::candidate::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::{
     ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
 };

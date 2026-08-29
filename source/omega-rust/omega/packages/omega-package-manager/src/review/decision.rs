@@ -1,11 +1,11 @@
 //! Candidate-bound root-policy decisions for blocking review conflicts.
 
-mod decision;
+mod model;
 mod record;
 mod resolution;
 mod storage;
 
-pub use decision::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
+pub use model::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
 pub use record::{
     ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
     recover_review_only_root_policy_resolution,

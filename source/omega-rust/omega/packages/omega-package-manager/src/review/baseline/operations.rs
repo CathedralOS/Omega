@@ -4,11 +4,12 @@ use super::ReviewOnlyBaselineCapsule;
 use crate::discovery::PackageSourceCustody;
 use crate::graph::ResolvedPackageSourceClosure;
 use crate::identity::PackageKey;
-use crate::review::audit_input::assemble_update_source_review_records;
-use crate::review::comparison::compare_review_only_capability_records;
-use crate::review::comparison::compare_review_only_root_role_graphs;
-use crate::review::triage::apply_root_role_change;
-use crate::review::triage::triage_review_update_records;
+use crate::review::audit::{
+    apply_root_role_change, assemble_update_source_review_records, triage_review_update_records,
+};
+use crate::review::compare::{
+    compare_review_only_capability_records, compare_review_only_root_role_graphs,
+};
 use crate::review::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageSourceReviewError,
     PackageSourceReviewInput, PackageSourceReviewLimits, ReviewOnlyCapabilityConflictError,

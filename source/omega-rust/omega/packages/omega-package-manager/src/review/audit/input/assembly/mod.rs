@@ -3,11 +3,11 @@ mod validation;
 
 use crate::discovery::PackageSourceCustody;
 use crate::graph::ResolvedPackageSourceClosure;
-use crate::review::records::PackageReviewEvidence;
-use crate::review::records::validation::{
+use crate::review::audit::triage_review_update_records;
+use crate::review::candidate::PackageReviewEvidence;
+use crate::review::candidate::validation::{
     validate_review_only_closure, validate_review_only_records,
 };
-use crate::review::triage::triage_review_update_records;
 use crate::review::{CompilerIssuedPackageReviewSet, triage_initial_install};
 
 use super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};

@@ -1,9 +1,9 @@
 //! Triage model and deterministic decision rules.
 
 use crate::identity::PackageKey;
-use crate::review::comparison::changed_review_risk;
-use crate::review::comparison::{ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract};
-use crate::review::records::PackageReviewEvidence;
+use crate::review::candidate::PackageReviewEvidence;
+use crate::review::compare::changed_review_risk;
+use crate::review::compare::{ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,

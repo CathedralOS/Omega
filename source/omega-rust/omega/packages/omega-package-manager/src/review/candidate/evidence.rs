@@ -4,8 +4,8 @@ use crate::identity::PackageKey;
 use crate::review::CompilerIssuedPackageReview;
 use omega_package_source::ImmutableSourceResolution;
 
-use super::commitments::{build_observation_commitment, whole_review_commitment};
-use super::model::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
+use super::rows::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
+use super::{build_observation_commitment, whole_review_commitment};
 
 /// The package-manager-facing evidence common to a live compiler review and a
 /// restart-stable review-only baseline record.
