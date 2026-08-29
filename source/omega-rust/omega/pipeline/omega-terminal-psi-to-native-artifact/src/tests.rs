@@ -301,14 +301,27 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
                 .as_ref(),
             Some(record)
         );
-        let metered_container = omega_image_emission::emit_native_fuel_object_container(&validated);
-        assert_eq!(metered_container.output.text_bytes, final_size);
-        assert_eq!(metered_container.output.relocations, 0);
+        let metered_canonical = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            None,
+        )
+        .expect("encode canonical ranked artifact for metered custody");
+        let self_sponsor = omega_image_emission::bind_native_fuel_transfer_runtime(
+            &validated,
+            transfer_plan.clone(),
+            validated.semantic_artifact().entry_function().symbol,
+        )
+        .expect_err("ranked entry cannot masquerade as its own fuel sponsor");
+        assert_eq!(
+            self_sponsor,
+            omega_image_emission::NativeFuelTransferRuntimeError::InvalidSponsorSymbol
+        );
         native_fuel::assert_ranked_publication_round_trips(
             &validated,
             metered,
             expected_rebase,
-            &transfer_plan,
+            metered_canonical,
         );
 
         for offset in [

@@ -3725,6 +3725,21 @@ artifact manifest derives its obligation ledger through the interpretable
 ranked validation carrier; this binds the same complete proof question without
 misrepresenting the module as accepted by ordinary acyclic execution.
 
+The directly metered variant reaches the same publication boundary without a
+parallel compiler path. Image replay rederives its five branch coordinates from
+the immutable semantic body and nine fuel rows, checks both metered and final
+text with target-owned decoders, and binds the final symbol table. Format 43
+retains the semantic ranked tag, exact source/metered spans, target policy,
+charge catalog, and image fingerprint; it does not duplicate the derivable
+rebase record. A bounded source-free ranked-native-fuel artifact joins that
+installation to canonical Terminal semantics and the exact image under a strong
+owner-derived identity. The former metered object-container publication API was
+deleted because no supported consumer ended at that weaker checkpoint.
+Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
+honest sponsor entry for this deliberately one-function artifact remains an
+owner decision (Q19), so schedule comparison does not invent a compiler-private
+helper.
+
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi
 fuel evidence carries no provider receipt.

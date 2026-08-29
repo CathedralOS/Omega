@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — Q17. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -527,12 +527,25 @@ Remaining:
   skipping equal-offset fuel rows. Independent image replay decodes every
   x86-64 and AArch64 hot charge, cold dispatch, and rebased ranked branch
   without calling producer encoders, reconstructs the rebase record, and
-  retains both semantic and metered custody. Both native-fuel executable-image
-  routes have a named ranked fence while metered object-container emission
-  remains admitted. The next substep is native-fuel final-image, installation,
-  and native-artifact custody, including exact transfer-state preservation,
-  followed by native rank 0, 1, and 3 schedule comparison before retrying the
-  product build.
+  retains both semantic and metered custody. Direct native-fuel final-image,
+  installation, and source-free ranked native-artifact custody are now complete
+  for both Linux ISAs. Final-image replay independently rederives all five
+  branch coordinates from immutable semantic bytes and the nine fuel rows,
+  decodes both metered and final text, and binds the exact final symbol table.
+  Canonical format 43 rejoins the semantic ranked tag, source/metered spans,
+  target policy, all charge rows, and exact image fingerprint without
+  duplicating the derivable rebase record. The canonical native-artifact owner
+  has one deliberately bounded ranked-native-fuel realization binding canonical
+  Terminal bytes, the validated image, and its installation record under a
+  distinct strong identity. The standalone metered object-container publication
+  API was deleted once it no longer strengthened a consumer edge. Transfer-
+  runtime replay now additionally requires its exact activation slots to
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q19:** honest ranked runtime
+  execution still needs a sponsor-ownership ruling: the binder requires an
+  already-owned in-object sponsor function, while the admitted ranked artifact
+  is exactly one countdown function and cannot use itself as sponsor. Native
+  ranks 0, 1, and 3 schedule comparison and the product-build retry follow that
+  ruling.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
@@ -5996,7 +6009,7 @@ Remaining:
   semantic/cold charge catalog. Plain images require that section to be absent.
   Native builders, codecs, and image rejoin validation reject target-policy,
   source, function-map, charge-row, or physical-coordinate drift independently.
-  A second optional format-39 section now carries the transfer runtime without
+  A second optional native-fuel section carries the transfer runtime without
   relabeling those semantic rows: it commits domain-separated fingerprints and
   lengths for the complete unrelocated/final text, the exact sponsor-call text
   coordinate, the canonical structural transfer plan, dual transfer/resume

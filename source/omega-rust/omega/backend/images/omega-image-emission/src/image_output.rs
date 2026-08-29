@@ -35,21 +35,6 @@ pub fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
     }
 }
 
-pub fn emit_native_fuel_object_container(
-    artifact: &ValidatedNativeFuelArtifact,
-) -> ObjectContainer {
-    ObjectContainer {
-        psi: artifact.semantic_artifact().psi(),
-        output: emit_omega_object_container(ObjectContainerInput {
-            target: artifact.semantic_artifact().target(),
-            object: artifact.object(),
-            relocations: artifact.relocations(),
-            text_bytes: artifact.text_bytes(),
-            data_bytes: &[],
-        }),
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectContainer {
     pub psi: TerminalPsiIdentity,
@@ -311,6 +296,7 @@ pub fn emit_native_fuel_executable_image(
         text_bytes: artifact.text_bytes(),
         data_bytes: &[],
     });
+    let final_image_symbol_digest = omega_image::final_image_symbol_digest(&image);
     let output = match (target.object_format, target.architecture) {
         (ObjectFormat::Elf, Architecture::Aarch64) => {
             omega_image_elf::emit_elf_aarch64_executable(image)
@@ -335,13 +321,14 @@ pub fn emit_native_fuel_executable_image(
     Ok(NativeFuelExecutableImage {
         artifact: artifact.clone(),
         subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
+        final_image_symbol_digest,
         output,
     })
 }
 
 /// Emit and replay-validate an image containing the exact compiler-owned
-/// transfer and resume entries. The returned runtime evidence is read-only;
-/// this operation does not grant installation or executable custody.
+/// transfer and resume entries. The returned runtime evidence remains
+/// source-free and must rejoin installation/native-artifact custody before use.
 pub fn emit_native_fuel_transfer_runtime_executable_image(
     artifact: &ValidatedNativeFuelTransferRuntimeArtifact,
     subsystem: u16,
@@ -359,6 +346,7 @@ pub fn emit_native_fuel_transfer_runtime_executable_image(
         text_bytes: artifact.text_bytes(),
         data_bytes: &[],
     });
+    let final_image_symbol_digest = omega_image::final_image_symbol_digest(&image);
     let output = match (target.object_format, target.architecture) {
         (ObjectFormat::Elf, Architecture::X86_64) => {
             omega_image_elf::emit_elf_x86_64_executable(image)
@@ -379,6 +367,7 @@ pub fn emit_native_fuel_transfer_runtime_executable_image(
     Ok(NativeFuelTransferRuntimeExecutableImage {
         artifact: artifact.clone(),
         subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
+        final_image_symbol_digest,
         output,
         transfer_runtime_evidence,
     })
@@ -388,6 +377,7 @@ pub fn emit_native_fuel_transfer_runtime_executable_image(
 pub struct NativeFuelTransferRuntimeExecutableImage {
     artifact: ValidatedNativeFuelTransferRuntimeArtifact,
     subsystem: Option<u16>,
+    final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
     output: EmittedImageOutput,
     transfer_runtime_evidence: omega_installation_evidence::NativeFuelTransferRuntimeEvidence,
 }
@@ -416,6 +406,10 @@ impl NativeFuelTransferRuntimeExecutableImage {
         &self.output
     }
 
+    pub const fn final_image_symbol_digest(&self) -> omega_image::FinalImageSymbolDigest {
+        self.final_image_symbol_digest
+    }
+
     pub const fn transfer_runtime_evidence(
         &self,
     ) -> &omega_installation_evidence::NativeFuelTransferRuntimeEvidence {
@@ -426,9 +420,42 @@ impl NativeFuelTransferRuntimeExecutableImage {
         NativeFuelExecutableImage {
             artifact: self.artifact.metered_artifact().clone(),
             subsystem: self.subsystem,
+            final_image_symbol_digest: self.final_image_symbol_digest,
             output: self.output.clone(),
         }
     }
+}
+
+/// Recheck a complete source-free transfer-runtime image against its retained
+/// metered object, ranked branch custody, relocation materialization, and
+/// exact transfer-state evidence.
+pub fn validate_native_fuel_transfer_runtime_executable_image(
+    image: &NativeFuelTransferRuntimeExecutableImage,
+) -> Result<(), Diagnostic> {
+    let replayed_final_image = omega_image::build_final_image(FinalImageInput {
+        target: image.target(),
+        object: image.artifact.object(),
+        relocations: image.artifact.relocations(),
+        text_bytes: image.artifact.text_bytes(),
+        data_bytes: &[],
+    });
+    if image.final_image_symbol_digest
+        != omega_image::final_image_symbol_digest(&replayed_final_image)
+    {
+        return Err(Diagnostic::error(
+            "native fuel transfer image symbol evidence does not match its exact object entry/data-symbol table",
+        ));
+    }
+    let (compiler_text_validation, transfer_runtime_evidence) =
+        validate_terminal_native_fuel_transfer_runtime_image(&image.artifact, &image.output)?;
+    if image.output.compiler_text_validation != Some(compiler_text_validation)
+        || image.transfer_runtime_evidence != transfer_runtime_evidence
+    {
+        return Err(Diagnostic::error(
+            "native fuel transfer image retained stale final-image evidence",
+        ));
+    }
+    Ok(())
 }
 
 impl omega_installation_evidence::NativeFuelTransferRuntimeImageEvidence
@@ -470,6 +497,7 @@ impl omega_installation_evidence::NativeFuelTransferRuntimeImageEvidence
 pub struct NativeFuelExecutableImage {
     artifact: ValidatedNativeFuelArtifact,
     subsystem: Option<u16>,
+    final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
     output: EmittedImageOutput,
 }
 
@@ -536,6 +564,43 @@ impl NativeFuelExecutableImage {
     pub const fn output(&self) -> &EmittedImageOutput {
         &self.output
     }
+
+    pub const fn artifact(&self) -> &ValidatedNativeFuelArtifact {
+        &self.artifact
+    }
+
+    pub const fn final_image_symbol_digest(&self) -> omega_image::FinalImageSymbolDigest {
+        self.final_image_symbol_digest
+    }
+}
+
+/// Recheck a complete source-free metered image against its retained semantic
+/// object, target recipe, charge catalog, ranked branch custody, and final
+/// relocation envelope.
+pub fn validate_native_fuel_executable_image(
+    image: &NativeFuelExecutableImage,
+) -> Result<(), Diagnostic> {
+    let replayed_final_image = omega_image::build_final_image(FinalImageInput {
+        target: image.target(),
+        object: image.artifact.object(),
+        relocations: image.artifact.relocations(),
+        text_bytes: image.artifact.text_bytes(),
+        data_bytes: &[],
+    });
+    if image.final_image_symbol_digest
+        != omega_image::final_image_symbol_digest(&replayed_final_image)
+    {
+        return Err(Diagnostic::error(
+            "native fuel image symbol evidence does not match its exact object entry/data-symbol table",
+        ));
+    }
+    let recomputed = validate_terminal_native_fuel_image(&image.artifact, &image.output)?;
+    if image.output.compiler_text_validation != Some(recomputed) {
+        return Err(Diagnostic::error(
+            "native fuel image retained stale final-text validation evidence",
+        ));
+    }
+    Ok(())
 }
 
 impl omega_installation_evidence::NativeFuelImageEvidence for NativeFuelExecutableImage {

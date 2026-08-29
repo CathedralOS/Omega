@@ -722,7 +722,8 @@ where
     Ok(record)
 }
 
-/// Rejoin a decoded format-39 record to the exact replayed metered image.
+/// Rejoin a decoded canonical installation record to the exact replayed
+/// metered image.
 /// The common semantic rows validate against the retained source artifact;
 /// this second half validates the independent physical coordinate map.
 pub fn validate_native_fuel_installation_record(
@@ -828,7 +829,7 @@ where
     Ok(record)
 }
 
-/// Rejoin a decoded format-39 record to both complete transfer-runtime text
+/// Rejoin a decoded canonical installation record to complete transfer-runtime text
 /// coordinates and the replayed runtime evidence. This remains report-only;
 /// installed executable custody is constructed by external-root admission.
 pub fn validate_native_fuel_transfer_runtime_installation_record(

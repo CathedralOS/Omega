@@ -36,7 +36,7 @@ pub(super) fn assert_ranked_publication_round_trips(
     validated: &omega_image_emission::ValidatedNativeFuelArtifact,
     metered: &omega_machine_code::NativeFuelInstrumentedFunction,
     expected_rebase: omega_machine_code::NativeFuelRankedU32CountdownRebaseRecord,
-    transfer_plan: &NativeFuelTransferRuntimePlanProjection,
+    canonical: psi_terminal_codec::CanonicalTerminalArtifact,
 ) {
     let metered_image = omega_image_emission::emit_native_fuel_executable_image(validated, 0)
         .expect("ranked native-fuel direct image replays final publication custody");
@@ -100,80 +100,17 @@ pub(super) fn assert_ranked_publication_round_trips(
     )
     .expect("decoded ranked native-fuel direct installation rejoins its exact image");
 
-    let sponsor_symbol = validated.semantic_artifact().entry_function().symbol;
-    let transfer_artifact = omega_image_emission::bind_native_fuel_transfer_runtime(
-        validated,
-        transfer_plan.clone(),
-        sponsor_symbol,
+    let native = omega_native_artifact::RankedNativeFuelArtifact::from_replayed_parts(
+        omega_native_artifact::RankedNativeFuelArtifactParts {
+            psi_artifact: canonical,
+            image: metered_image,
+            installation: decoded_metered_installation,
+        },
     )
-    .expect("bind ranked native-fuel sponsor, transfer, and resume entries");
-    assert_eq!(transfer_artifact.plan(), transfer_plan);
-    assert_eq!(
-        transfer_artifact.metered_artifact().functions()[0].ranked_u32_countdown,
-        Some(expected_rebase)
-    );
-    let transfer_image = omega_image_emission::emit_native_fuel_transfer_runtime_executable_image(
-        &transfer_artifact,
-        0,
-    )
-    .expect("ranked native-fuel transfer-runtime image replays final publication custody");
-    assert_eq!(
-        transfer_image
-            .artifact()
-            .metered_artifact()
-            .functions()[0]
-            .ranked_u32_countdown,
-        Some(expected_rebase)
-    );
-    assert_eq!(
-        transfer_image.transfer_runtime_evidence().plan(),
-        transfer_plan
-    );
-    assert_eq!(
-        &transfer_image.output().final_text_bytes[..validated.text_bytes().len()],
-        validated.text_bytes()
-    );
-    assert_eq!(
-        transfer_image.output().final_image_relocations,
-        match validated.semantic_artifact().target().architecture {
-            omega_target::Architecture::X86_64 => 2,
-            omega_target::Architecture::Aarch64 => 3,
-        }
-    );
-
-    let transfer_installation =
-        omega_image_emission::build_native_fuel_transfer_runtime_installation_record(
-            &transfer_image,
-            psi_core::ProfileDecisionId::new(3).expect("transfer profile decision"),
-        )
-        .expect("ranked native-fuel transfer-runtime image enters installation custody");
-    assert!(transfer_installation.functions()[0].ranked_u32_countdown);
-    assert_eq!(
-        transfer_installation
-            .native_fuel()
-            .expect("transfer native-fuel installation section")
-            .charges(),
-        charge_evidence
-    );
-    assert_eq!(
-        transfer_installation
-            .native_fuel_transfer_runtime()
-            .expect("transfer-runtime installation section")
-            .evidence(),
-        transfer_image.transfer_runtime_evidence()
-    );
-    let transfer_installation_bytes =
-        omega_image_emission::encode_installation_record(&transfer_installation)
-            .expect("encode ranked native-fuel transfer-runtime installation");
-    let decoded_transfer_installation =
-        omega_image_emission::decode_installation_record(&transfer_installation_bytes)
-            .expect("decode ranked native-fuel transfer-runtime installation");
-    assert_eq!(decoded_transfer_installation, transfer_installation);
-    omega_image_emission::validate_native_fuel_transfer_runtime_installation_record(
-        &decoded_transfer_installation,
-        &transfer_image,
-    )
-    .expect("decoded ranked native-fuel transfer installation rejoins its exact image");
+    .expect("ranked native-fuel image enters source-free native-artifact custody");
+    native
+        .validate()
+        .expect("ranked native-fuel artifact replays independently");
 }
 
 fn x86_64_transfer_runtime_plan() -> NativeFuelTransferRuntimePlanProjection {
@@ -204,7 +141,7 @@ fn x86_64_transfer_runtime_plan() -> NativeFuelTransferRuntimePlanProjection {
         },
         vec![
             NativeFuelActivationStateSlot {
-                value: NativeFuelSavedValue::Register(MachineRegister::X86Rax),
+                value: NativeFuelSavedValue::Register(MachineRegister::X86Rdi),
                 context_offset: 64,
                 byte_count: 8,
             },

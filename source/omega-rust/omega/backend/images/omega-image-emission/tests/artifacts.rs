@@ -5,9 +5,9 @@ use omega_image_emission::{
     build_native_fuel_installation_record, build_object_artifact, can_emit_executable_image,
     decode_installation_record, derive_installation_stack_demand, derive_stack_demand,
     derive_unit_stack_demand, emit_executable_image, emit_native_fuel_executable_image,
-    emit_native_fuel_object_container, emit_object_container, encode_installation_record,
-    installation_fingerprint, validate_installation_record,
-    validate_native_fuel_installation_record, validate_native_fuel_plan,
+    emit_object_container, encode_installation_record, installation_fingerprint,
+    validate_installation_record, validate_native_fuel_installation_record,
+    validate_native_fuel_plan,
 };
 use omega_installation_evidence::{
     ComponentProgressAcceptanceEvidence, NativeFuelContextLayout, NativeFuelTargetPlanProjection,
@@ -703,10 +703,6 @@ fn native_fuel_object_translation_rebases_the_typed_call_and_function_symbols() 
         assert_eq!(symbol.offset, metered_function.text_offset);
         assert_eq!(symbol.size, metered_function.byte_count);
     }
-
-    let container = emit_native_fuel_object_container(&validated);
-    assert_eq!(container.output.text_bytes, validated.text_bytes().len());
-    assert_eq!(container.output.relocations, 1);
 
     let relocation_offset = metered_relocation.offset;
     let unrelocated_field = &validated.text_bytes()[relocation_offset..relocation_offset + 4];

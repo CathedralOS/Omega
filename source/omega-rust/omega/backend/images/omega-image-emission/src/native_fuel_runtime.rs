@@ -6,7 +6,7 @@
 //! artifact evidence and grants no executable custody.
 
 use omega_installation_evidence::{
-    NativeFuelRuntimeEntryIdentity, NativeFuelRuntimeTextSpan,
+    NativeFuelRuntimeEntryIdentity, NativeFuelRuntimeTextSpan, NativeFuelSavedValue,
     NativeFuelTransferRuntimePlanProjection,
 };
 use omega_object_file::{
@@ -17,6 +17,27 @@ use omega_target::Architecture;
 use psi_diagnostics::Diagnostic;
 
 use super::ValidatedNativeFuelArtifact;
+
+fn ranked_plan_preserves_rank_carrier(
+    artifact: &ValidatedNativeFuelArtifact,
+    plan: &NativeFuelTransferRuntimePlanProjection,
+) -> bool {
+    if !artifact
+        .semantic_artifact()
+        .functions()
+        .iter()
+        .any(|function| function.ranked_u32_countdown.is_some())
+    {
+        return true;
+    }
+    let required = match artifact.semantic_artifact().target().architecture {
+        Architecture::X86_64 => omega_calling_conventions::MachineRegister::X86Rdi,
+        Architecture::Aarch64 => omega_calling_conventions::MachineRegister::Aarch64X(0),
+    };
+    plan.activation_state_slots()
+        .iter()
+        .any(|slot| slot.value == NativeFuelSavedValue::Register(required))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum NativeFuelTransferRuntimeEncoding {
@@ -237,6 +258,7 @@ pub fn bind_native_fuel_transfer_runtime(
         || plan
             .validate_target_policy(metered_artifact.target_policy())
             .is_err()
+        || !ranked_plan_preserves_rank_carrier(metered_artifact, &plan)
     {
         return Err(NativeFuelTransferRuntimeError::TargetPlanMismatch);
     }
@@ -246,6 +268,15 @@ pub fn bind_native_fuel_transfer_runtime(
 
     let mut object = metered_artifact.object().clone();
     if !object.layout.symbols.is_valid(sponsor_symbol) {
+        return Err(NativeFuelTransferRuntimeError::InvalidSponsorSymbol);
+    }
+    if metered_artifact
+        .semantic_artifact()
+        .functions()
+        .iter()
+        .any(|function| function.ranked_u32_countdown.is_some())
+        && sponsor_symbol == metered_artifact.semantic_artifact().entry_function().symbol
+    {
         return Err(NativeFuelTransferRuntimeError::InvalidSponsorSymbol);
     }
     let sponsor = object.layout.symbols.get(sponsor_symbol);
@@ -355,6 +386,11 @@ pub(super) fn replay_terminal_native_fuel_transfer_runtime_artifact(
         .map_err(|error| {
             Diagnostic::error(format!("native fuel runtime target-plan drift: {error}"))
         })?;
+    if !ranked_plan_preserves_rank_carrier(base, artifact.plan()) {
+        return Err(Diagnostic::error(
+            "ranked native fuel transfer plan does not preserve its ABI rank carrier",
+        ));
+    }
     let encoding = encode_transfer_runtime(artifact.plan())?;
     if artifact.object.target != base.object().target
         || artifact.relocations.target != base.relocations().target

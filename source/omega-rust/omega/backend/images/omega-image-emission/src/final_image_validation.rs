@@ -176,6 +176,7 @@ pub(super) fn validate_terminal_native_fuel_image(
     artifact: &ValidatedNativeFuelArtifact,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    super::native_fuel::replay_ranked_native_fuel_final_image(artifact, &output.final_text_bytes)?;
     if output.final_image_imports != 0 {
         return Err(Diagnostic::error(
             "metered terminal-Psi image unexpectedly retained imports",
@@ -249,6 +250,10 @@ pub(super) fn validate_terminal_native_fuel_transfer_runtime_image(
     ),
     Diagnostic,
 > {
+    super::native_fuel::replay_ranked_native_fuel_final_image(
+        artifact.metered_artifact(),
+        &output.final_text_bytes,
+    )?;
     let encoding = replay_terminal_native_fuel_transfer_runtime_artifact(artifact)?;
     if output.final_image_imports != 0 {
         return Err(Diagnostic::error(
