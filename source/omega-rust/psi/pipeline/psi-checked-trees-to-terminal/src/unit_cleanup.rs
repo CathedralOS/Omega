@@ -56,7 +56,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
         || cleanup.source_parameter_index != 0
         || cleanup.type_identity != parameter.type_identity
         || cleanup.cleanup_machine == plan.machine
-        || cleanup.cleanup_contract_fingerprint == 0
+        || cleanup.cleanup_contract_report_fingerprint == 0
     {
         return unsupported("nominal affine Unit cleanup signature or coordinates drifted");
     }
@@ -225,7 +225,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
             coordinate,
             target_machine,
             target_state,
-            target_contract_fingerprint,
+            target_contract_report_fingerprint,
             service_reach,
             structural_arguments,
             claim_transfers,
@@ -246,11 +246,15 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
         {
             return unsupported("nominal cleanup target operation sequence drifted");
         }
-        cleanup_helpers.push((*target_machine, *target_state, *target_contract_fingerprint));
+        cleanup_helpers.push((
+            *target_machine,
+            *target_state,
+            *target_contract_report_fingerprint,
+        ));
     }
     if cleanup_target.state != cleanup.cleanup_state
-        || cleanup_target.contract_fingerprint != cleanup.cleanup_contract_fingerprint
-        || cleanup_contract.fingerprint != cleanup.cleanup_contract_fingerprint
+        || cleanup_target.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
+        || cleanup_contract.report_fingerprint != cleanup.cleanup_contract_report_fingerprint
         || cleanup_target.attachment_type_identity != cleanup.type_identity
         || !cleanup_target.structural_parameters.is_empty()
         || !cleanup_target.trivial_affine_locals.is_empty()
@@ -284,8 +288,8 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
                 "nominal cleanup helper attachment is missing its checked shape",
             ))?;
         if helper.state != helper_state
-            || helper.contract_fingerprint != helper_fingerprint
-            || helper_contract.fingerprint != helper_fingerprint
+            || helper.contract_report_fingerprint != helper_fingerprint
+            || helper_contract.report_fingerprint != helper_fingerprint
             || !matches!(
                 &helper_shape.shape,
                 CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()

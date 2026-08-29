@@ -69,7 +69,7 @@ fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
             .contract_plans
             .for_machine(symbol)
             .expect("contract plan")
-            .fingerprint
+            .report_fingerprint
     };
 
     assert_ne!(fingerprint("baseline"), fingerprint("unconditional_abort"));
@@ -972,8 +972,8 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     };
 
     assert_eq!(
-        plan("clear_body").fingerprint,
-        plan("crashing_body").fingerprint,
+        plan("clear_body").report_fingerprint,
+        plan("crashing_body").report_fingerprint,
         "changing the checked body must not change a published contract identity"
     );
     assert!(plan("clear_body").crash.checked_sites().is_empty());
@@ -1678,7 +1678,7 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     );
     assert_eq!(
         safe_call.target_contract_fingerprint(),
-        plan("risky").fingerprint
+        plan("risky").report_fingerprint
     );
 
     let [certain_call] = plan("certain").crash.checked_calls() else {

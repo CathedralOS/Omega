@@ -198,7 +198,7 @@ machine Main::exercise(&mut self) {}
         .contract_plans
         .for_machine(accepted.symbol)
         .expect("accepted claim contract plan")
-        .fingerprint;
+        .report_fingerprint;
 
     let build_dir = project.join("build");
     compile(CompileOptions {

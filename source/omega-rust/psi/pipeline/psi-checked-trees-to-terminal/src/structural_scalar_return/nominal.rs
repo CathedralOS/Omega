@@ -174,7 +174,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         trivial_affine_locals: Vec::new(),
         entry_claims: Vec::new(),
         body_qualifications: Vec::new(),
-        contract_fingerprint: contract.fingerprint,
+        contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: checked
             .facts

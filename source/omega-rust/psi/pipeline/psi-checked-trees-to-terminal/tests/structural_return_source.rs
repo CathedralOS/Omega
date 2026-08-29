@@ -427,15 +427,19 @@ fn checked_source() -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
-#[test]
-fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
+fn checked_result_boundary_source() -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(RESULT_BOUNDARY_CUSTODY_SOURCE)
         .tokenize()
         .expect("tokenize result boundary custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse result boundary custody");
     let resolved = lower_syntax_trees(&syntax).expect("resolve result boundary custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type result boundary custody");
-    let checked = lower_typed_trees(typed).expect("check result boundary custody");
+    lower_typed_trees(typed).expect("check result boundary custody")
+}
+
+#[test]
+fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
+    let checked = checked_result_boundary_source();
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
         .expect("result-bearing boundary custody should lower");
     let module = &lowered.semantic_module;
@@ -516,6 +520,55 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     );
     assert_eq!(execution.live_claim_frontier().count(), 0);
     assert_eq!(execution.effects().len(), 1);
+}
+
+#[test]
+fn result_bearing_boundary_rejects_missing_canonical_contract_custody() {
+    let mut checked = checked_result_boundary_source();
+    let boundary = checked
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .boundary_machines[0]
+        .machine;
+    checked
+        .facts
+        .contract_plans
+        .machines
+        .retain(|contract| contract.machine != boundary);
+    checked
+        .facts
+        .contract_plans
+        .crash_capsules
+        .retain(|capsule| capsule.target_machine() != boundary);
+
+    assert_eq!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter"),
+        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+            "result-bearing boundary target is missing its canonical contract identity",
+        )),
+    );
+}
+
+#[test]
+fn result_bearing_boundary_rejects_compact_equal_commitment_substitution() {
+    let mut checked = checked_result_boundary_source();
+    let boundary = &mut checked
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .boundary_machines[0];
+    let retained_report = boundary.contract_report_fingerprint;
+    boundary.contract_commitment =
+        psi_checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+    assert_eq!(boundary.contract_report_fingerprint, retained_report);
+
+    assert_eq!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter"),
+        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+            "result-bearing boundary target contract compatibility coordinate or strong commitment drifted",
+        )),
+    );
 }
 
 #[test]

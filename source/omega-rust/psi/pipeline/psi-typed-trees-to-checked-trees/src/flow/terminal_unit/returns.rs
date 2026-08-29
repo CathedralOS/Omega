@@ -883,7 +883,7 @@ fn build_structural_call_return_machine(
             },
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
-            target_contract_fingerprint: target_contract.fingerprint,
+            target_contract_report_fingerprint: target_contract.report_fingerprint,
             service_reach: call.service_reach.clone(),
             structural_arguments,
             claim_transfers,
@@ -2044,7 +2044,7 @@ pub(super) fn build_structural_scalar_return_machine(
                     type_identity: checked_parameter.type_identity.clone(),
                     cleanup_machine: cleanup_machine.symbol,
                     cleanup_state: cleanup_target.state,
-                    cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
+                    cleanup_contract_report_fingerprint: cleanup_target.contract_report_fingerprint,
                     requirements: cleanup_requirements,
                 })
             })()?;
@@ -2120,7 +2120,7 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
             coordinate,
             target_machine,
             target_state,
-            target_contract_fingerprint,
+            target_contract_report_fingerprint,
             service_reach,
             structural_arguments,
             claim_transfers,
@@ -2140,7 +2140,11 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
         {
             return false;
         }
-        helpers.push((*target_machine, *target_state, *target_contract_fingerprint));
+        helpers.push((
+            *target_machine,
+            *target_state,
+            *target_contract_report_fingerprint,
+        ));
     }
 
     helpers
@@ -2155,7 +2159,7 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
                 .find(|shape| shape.identity == helper.attachment_type_identity);
             helper.machine != cleanup_machine
                 && helper.state == helper_state
-                && helper.contract_fingerprint == helper_fingerprint
+                && helper.contract_report_fingerprint == helper_fingerprint
                 && matches!(
                     helper_shape.map(|shape| &shape.shape),
                     Some(CheckedUnitStructuralTypeShape::Record { fields }) if fields.is_empty()

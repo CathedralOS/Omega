@@ -1218,6 +1218,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
         boundary_machines: vec![CheckedBoundaryMachinePlan {
             machine: boundary,
             state: boundary_state,
+            contract_owner: boundary,
             attachment_type_identity: Some("example::Acknowledgement".to_owned()),
             structural_parameters: vec![psi_checked_trees::CheckedUnitStructuralParameterPlan {
                 is_self: true,
@@ -1231,7 +1232,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                     domain,
                 },
             ],
-            contract_fingerprint: 0x303,
+            contract_report_fingerprint: 0x303,
             contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
                 [0x03; 32],
             ),
@@ -1248,7 +1249,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 trivial_affine_locals: Vec::new(),
                 entry_claims: vec![entry_claim(root, root_state)],
                 body_qualifications: vec![domain],
-                contract_fingerprint: 0x101,
+                contract_report_fingerprint: 0x101,
                 contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
                     [0x01; 32],
                 ),
@@ -1262,7 +1263,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                         },
                         target_machine: helper,
                         target_state: helper_state,
-                        target_contract_fingerprint: 0x202,
+                        target_contract_report_fingerprint: 0x202,
                         service_reach: reach,
                         structural_arguments: vec![
                             psi_checked_trees::CheckedUnitStructuralArgumentPlan {
@@ -1294,7 +1295,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 trivial_affine_locals: Vec::new(),
                 entry_claims: vec![entry_claim(helper, helper_state)],
                 body_qualifications: vec![domain],
-                contract_fingerprint: 0x202,
+                contract_report_fingerprint: 0x202,
                 contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
                     [0x02; 32],
                 ),
@@ -1317,7 +1318,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                         },
                         target_machine: boundary,
                         target_state: boundary_state,
-                        target_contract_fingerprint: 0x303,
+                        target_contract_report_fingerprint: 0x303,
                         service_reach: reach,
                         scalar_arguments: Vec::new(),
                         structural_arguments: vec![
@@ -1350,21 +1351,21 @@ fn hard_root_checked_fixture() -> CheckedTrees {
             machine: root,
             closed_scalar_values: Default::default(),
             crash: Default::default(),
-            fingerprint: 0x101,
+            report_fingerprint: 0x101,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([0x01; 32]),
         },
         psi_checked_trees::MachineContractPlan {
             machine: helper,
             closed_scalar_values: Default::default(),
             crash: Default::default(),
-            fingerprint: 0x202,
+            report_fingerprint: 0x202,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([0x02; 32]),
         },
         psi_checked_trees::MachineContractPlan {
             machine: boundary,
             closed_scalar_values: Default::default(),
             crash: Default::default(),
-            fingerprint: 0x303,
+            report_fingerprint: 0x303,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([0x03; 32]),
         },
     ];

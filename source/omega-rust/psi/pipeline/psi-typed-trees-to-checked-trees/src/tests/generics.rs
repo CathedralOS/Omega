@@ -308,7 +308,7 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
         .contract_plans
         .for_machine(chosen_symbol)
         .expect("selected machine contract plan")
-        .fingerprint;
+        .report_fingerprint;
     assert_eq!(
         nominal_use
             .published_requirement_envelope
@@ -645,7 +645,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         .realized_envelope(nominal_use.selected_machine)
         .expect("selected callback actual envelope");
     assert_eq!(
-        actual.contract_fingerprint,
+        actual.contract_report_fingerprint,
         nominal_use
             .selected_actual_envelope
             .contract_report_fingerprint
@@ -663,7 +663,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     assert_eq!(resources.machine(), nominal_use.selected_machine);
     assert_eq!(resources.entry(), nominal_use.selected_entry);
     assert_eq!(
-        resources.contract_fingerprint(),
+        resources.contract_report_fingerprint(),
         nominal_use
             .selected_actual_envelope
             .contract_report_fingerprint

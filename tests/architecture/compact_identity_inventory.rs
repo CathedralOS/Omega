@@ -106,26 +106,6 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     // occurrence or introduce a new unclassified exported field.
     let legacy_maximums = BTreeMap::<&str, usize>::from([
         (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/facts/contract_plans.rs:contract_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/facts/contract_plans.rs:fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/flow/terminal.rs:cleanup_contract_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/flow/terminal.rs:contract_fingerprint",
-            2,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/flow/terminal.rs:target_contract_fingerprint",
-            1,
-        ),
-        (
             "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:template_contract_fingerprint",
             1,
         ),
@@ -166,6 +146,57 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     assert!(
         stale_or_overstated.is_empty(),
         "the legacy compact-fingerprint ceiling must shrink in the same change that classifies a field; stale or overstated rows: {stale_or_overstated:#?}",
+    );
+}
+
+#[test]
+fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_authority() {
+    let root = workspace_root();
+    let plans_path = root.join(
+        "source/omega-rust/psi/representations/psi-checked-trees/src/facts/contract_plans.rs",
+    );
+    let plans = fs::read_to_string(&plans_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", plans_path.display()));
+    assert!(
+        plans.contains("pub report_fingerprint: u64")
+            && plans.contains("pub contract_report_fingerprint: u64")
+            && plans.contains("pub commitment: MachineContractCommitment")
+            && plans.contains("pub contract_commitment: MachineContractCommitment")
+            && plans.contains("contract.commitment.is_zero()")
+            && !plans.contains("pub fingerprint: u64")
+            && !plans.contains("pub contract_fingerprint: u64"),
+        "checked contract plans must label compact coordinates as reports and reject empty strong commitments",
+    );
+
+    let terminal_path =
+        root.join("source/omega-rust/psi/representations/psi-checked-trees/src/flow/terminal.rs");
+    let terminal = fs::read_to_string(&terminal_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
+    for required in [
+        "pub target_contract_report_fingerprint: u64",
+        "pub cleanup_contract_report_fingerprint: u64",
+        "pub contract_report_fingerprint: u64",
+        "pub contract_commitment: crate::MachineContractCommitment",
+        "pub contract_owner: SymbolHandle",
+    ] {
+        assert!(
+            terminal.contains(required),
+            "checked Terminal carrier is missing `{required}`"
+        );
+    }
+    assert!(!terminal.contains("pub target_contract_fingerprint: u64"));
+    assert!(!terminal.contains("pub cleanup_contract_fingerprint: u64"));
+    assert!(!terminal.contains("pub contract_fingerprint: u64"));
+
+    let attached_path = root.join(
+        "source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit.rs",
+    );
+    let attached = fs::read_to_string(&attached_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", attached_path.display()));
+    assert!(
+        attached.contains("crash_capsule(target.contract_owner, target.state)")
+            && !attached.contains("target.contract_commitment.is_zero()).then_some"),
+        "boundary lowering must rejoin exact canonical contract ownership rather than self-authenticate its stored digest",
     );
 }
 

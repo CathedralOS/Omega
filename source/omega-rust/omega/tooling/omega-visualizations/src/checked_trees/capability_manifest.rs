@@ -666,7 +666,7 @@ mod tests {
                 machine: machine_symbol,
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
-                fingerprint: 0,
+                report_fingerprint: 0,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([0; 32]),
             });
 

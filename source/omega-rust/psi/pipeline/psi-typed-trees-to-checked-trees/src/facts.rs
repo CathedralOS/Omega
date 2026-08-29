@@ -210,7 +210,7 @@ pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
             .find(|contract| contract.machine == envelope.machine)
             .expect("every realized envelope must retain its exact machine contract");
         assert_eq!(
-            envelope.contract_fingerprint, contract.fingerprint,
+            envelope.contract_report_fingerprint, contract.report_fingerprint,
             "realized envelope contract identity drifted during checked validation"
         );
         envelope.checked_crash = contract.crash.clone();
@@ -249,10 +249,10 @@ fn build_nominal_machine_use_facts(
         };
         let published_fingerprint = published.target_contract_fingerprint();
         let published_commitment = published.target_contract_commitment();
-        let actual_fingerprint = actual.fingerprint;
+        let actual_fingerprint = actual.report_fingerprint;
         if published_commitment.is_zero()
             || actual.commitment.is_zero()
-            || actual_envelope.contract_fingerprint != actual_fingerprint
+            || actual_envelope.contract_report_fingerprint != actual_fingerprint
             || actual_envelope.contract_commitment != actual.commitment
         {
             return Err(vec![psi_diagnostics::Diagnostic::error(
@@ -790,7 +790,7 @@ fn build_contract_plans(
             machine: machine.symbol,
             closed_scalar_values,
             crash,
-            fingerprint: identity.compatibility_fingerprint,
+            report_fingerprint: identity.compatibility_fingerprint,
             commitment: identity.commitment,
         });
     }
@@ -852,7 +852,7 @@ fn build_contract_plans(
                 .collect();
             psi_checked_trees::RealizedMachineContractEnvelope {
                 machine: contract.machine,
-                contract_fingerprint: contract.fingerprint,
+                contract_report_fingerprint: contract.report_fingerprint,
                 contract_commitment: contract.commitment,
                 effective_service_reach,
                 concrete_service_reach,
@@ -869,7 +869,7 @@ fn build_contract_plans(
                 resources:
                     psi_checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
                         contract.machine,
-                        contract.fingerprint,
+                        contract.report_fingerprint,
                         program.machine_states(machine).iter().map(|entry| entry.symbol),
                     ),
             }
@@ -918,7 +918,7 @@ fn validate_checked_resource_envelope_coverage(
             let replayed = psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
                 machine.symbol,
                 entry.symbol,
-                contract.fingerprint,
+                contract.report_fingerprint,
             );
             if resource != &replayed {
                 return Err(vec![psi_diagnostics::Diagnostic::error(

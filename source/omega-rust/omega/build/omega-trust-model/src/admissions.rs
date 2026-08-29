@@ -164,7 +164,7 @@ pub fn reconstruct_trust_obligations(
                         row.commitment
                     ))]);
                 }
-                plan.fingerprint
+                plan.report_fingerprint
             }
         };
         if resolved.insert(row.commitment.clone(), identity).is_some() {

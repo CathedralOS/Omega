@@ -218,7 +218,7 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
             machine: symbol,
             closed_scalar_values: Default::default(),
             crash,
-            fingerprint: 0x1234,
+            report_fingerprint: 0x1234,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
         });
     program
@@ -240,7 +240,7 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         .expect("implementation object");
     let contract = &json[contract_start..implementation_start];
 
-    assert!(contract.contains("\"fingerprint\": \"0x0000000000001234\""));
+    assert!(contract.contains("\"report_fingerprint\": \"0x0000000000001234\""));
     assert!(contract.contains("\"supply\": \"checked_body\""));
     assert!(!contract.contains("\"supply\": \"accepted\""));
     assert!(json.contains("\"machine_overload_identity\": \"named-callable(path(Worker::run)"));
@@ -363,7 +363,7 @@ fn specialization_coordinate_fixture() -> CheckedTrees {
             .machines
             .last_mut()
             .expect("specialization coordinate contract")
-            .fingerprint = fingerprint;
+            .report_fingerprint = fingerprint;
     }
     program.typed.machine_specializations = vec![
         MachineSpecialization {
@@ -531,7 +531,7 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
         .machines
         .last_mut()
         .expect("selected argument contract fixture")
-        .fingerprint = 0x2222;
+        .report_fingerprint = 0x2222;
     program
         .typed
         .machine_specializations
@@ -563,7 +563,7 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
         .machines
         .last_mut()
         .expect("specialization contract fixture")
-        .fingerprint = 0xaaaa;
+        .report_fingerprint = 0xaaaa;
 
     let json = machine_contract_manifest_json(&program);
     assert!(json.contains("\"template\": \"accepted_map\""));

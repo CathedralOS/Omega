@@ -3246,7 +3246,7 @@ fn push_carry_policy_json(output: &mut String, policy: psi_language_semantics::C
 /// Decision 20/23's externally inspectable machine-contract artifact. The
 /// object shape is the firewall: authored interface identity and checked
 /// implementation evidence are siblings, never one flattened bag. Consumers
-/// pin `contract.fingerprint`; proof/debug tooling may inspect
+/// pin `contract.report_fingerprint`; proof/debug tooling may inspect
 /// `implementation` without changing that identity.
 fn exact_manifest_machine_contract<'program>(
     program: &'program CheckedTrees,
@@ -3781,8 +3781,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         );
 
         json.push_str(",\n      \"contract\": {");
-        json.push_str("\n        \"fingerprint\": \"0x");
-        json.push_str(&format!("{:016x}", contract.fingerprint));
+        json.push_str("\n        \"report_fingerprint\": \"0x");
+        json.push_str(&format!("{:016x}", contract.report_fingerprint));
         json.push_str("\",\n        \"supply\": ");
         push_json_string(&mut json, supply_mode_name(machine.supply_mode));
         json.push_str(",\n        \"service_reach\": ");
@@ -4165,7 +4165,7 @@ fn specialization_instance_contract_report_fingerprint(
     program: &CheckedTrees,
     instance: &Machine,
 ) -> u64 {
-    exact_manifest_machine_contract(program, instance).fingerprint
+    exact_manifest_machine_contract(program, instance).report_fingerprint
 }
 
 fn supply_mode_name(mode: psi_language_semantics::MachineSupplyMode) -> &'static str {

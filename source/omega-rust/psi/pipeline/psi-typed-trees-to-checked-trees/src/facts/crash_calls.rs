@@ -641,7 +641,7 @@ pub(super) fn attach_checked_crash_calls(
                         })
                         .unwrap_or_default(),
                     target_routes,
-                    target_plan.fingerprint,
+                    target_plan.report_fingerprint,
                     target_plan.commitment,
                 )
             } else {

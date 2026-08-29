@@ -586,7 +586,10 @@ fn contract_plans_fingerprint_published_halves() {
             .expect("contract plan")
     };
     // Same declared surface (different BODIES) -> same fingerprint.
-    assert_eq!(plan(quiet_a).fingerprint, plan(quiet_b).fingerprint);
+    assert_eq!(
+        plan(quiet_a).report_fingerprint,
+        plan(quiet_b).report_fingerprint
+    );
     let frame = |symbol| {
         &checked
             .facts
@@ -682,15 +685,21 @@ fn contract_plans_fingerprint_published_halves() {
         "value calls in locals, guards, jump arguments, and terminal results compose"
     );
     // A different `reaches` clause -> a different fingerprint.
-    assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
+    assert_ne!(
+        plan(quiet_a).report_fingerprint,
+        plan(loud).report_fingerprint
+    );
     // Slice 2: REQUIRES clause ORDER never enters the identity...
     let ab = symbol_of_checked(&checked, "bounded_ab");
     let ba = symbol_of_checked(&checked, "bounded_ba");
     let wider = symbol_of_checked(&checked, "bounded_wider");
-    assert_eq!(plan(ab).fingerprint, plan(ba).fingerprint);
+    assert_eq!(plan(ab).report_fingerprint, plan(ba).report_fingerprint);
     // ...but a changed BOUND does.
-    assert_ne!(plan(ab).fingerprint, plan(wider).fingerprint);
+    assert_ne!(plan(ab).report_fingerprint, plan(wider).report_fingerprint);
     // Parameter RENAMES normalize positionally -- identical contracts.
     let renamed = symbol_of_checked(&checked, "bounded_renamed");
-    assert_eq!(plan(ab).fingerprint, plan(renamed).fingerprint);
+    assert_eq!(
+        plan(ab).report_fingerprint,
+        plan(renamed).report_fingerprint
+    );
 }

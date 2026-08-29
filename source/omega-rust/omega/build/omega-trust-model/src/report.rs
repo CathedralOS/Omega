@@ -266,7 +266,7 @@ pub fn reconstruct_trust_report(
             &format!("accepted machine `{}`", machine.name.as_str()),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        let machine_contract_report_fingerprint = contract.fingerprint;
+        let machine_contract_report_fingerprint = contract.report_fingerprint;
         let machine_template_report_fingerprint = accepted_template_classifications
             .for_machine(machine.symbol, machine.name.as_str())
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -346,7 +346,7 @@ pub fn reconstruct_trust_report(
                 template_commitment: template_commitment.clone(),
                 template_report_fingerprint: specialization.template_contract_fingerprint,
                 instance_report_fingerprint: specialization.report_fingerprint,
-                instance_contract_report_fingerprint: instance_contract.fingerprint,
+                instance_contract_report_fingerprint: instance_contract.report_fingerprint,
                 instance_contract_commitment: instance_contract.commitment,
                 type_argument_identities: specialization.type_argument_identities.clone(),
                 const_argument_identities: specialization.const_argument_identities.clone(),
@@ -782,12 +782,12 @@ mod tests {
                 machine,
                 closed_scalar_values: Default::default(),
                 crash: CrashPlan::default(),
-                fingerprint: 0x1234_5678_9abc_def0,
+                report_fingerprint: 0x1234_5678_9abc_def0,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             });
         let identity = accepted_instance_contract_plan(&checked, machine, "admitted")
             .expect("exact checked instance plan");
-        assert_eq!(identity.fingerprint, 0x1234_5678_9abc_def0);
+        assert_eq!(identity.report_fingerprint, 0x1234_5678_9abc_def0);
         assert_eq!(
             identity.commitment,
             psi_checked_trees::MachineContractCommitment::from_digest([1; 32])
@@ -835,7 +835,7 @@ mod tests {
                 machine,
                 closed_scalar_values: Default::default(),
                 crash,
-                fingerprint: 0,
+                report_fingerprint: 0,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([0; 32]),
             }],
             crash_capsules: Vec::new(),
@@ -886,7 +886,7 @@ mod tests {
                 machine,
                 closed_scalar_values: Default::default(),
                 crash: CrashPlan::published_ceiling(Vec::new()),
-                fingerprint: 0x1234,
+                report_fingerprint: 0x1234,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             });
         let empty_reach = checked.facts.service_reaches.rows.intern(Vec::new());

@@ -147,7 +147,7 @@ fn push_behavior_contract(
             machine,
             closed_scalar_values: Default::default(),
             crash: Default::default(),
-            fingerprint: 0,
+            report_fingerprint: 0,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([0; 32]),
         });
 }
@@ -212,7 +212,7 @@ fn machine_contract_exact_rows_fixture() -> (CheckedTrees, SymbolHandle) {
         .machines
         .last_mut()
         .expect("exact contract fixture")
-        .fingerprint = 0x1234;
+        .report_fingerprint = 0x1234;
     (program, machine_symbol)
 }
 

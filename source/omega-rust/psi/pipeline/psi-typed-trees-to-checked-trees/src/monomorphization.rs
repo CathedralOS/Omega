@@ -4560,7 +4560,7 @@ fn replay_machine_specialization_identity(
         machine_owner_identities.push(format!(
             "{owner_identity}|selected={selected_state_identity}"
         ));
-        machine_contract_report_fingerprints.push(contract.fingerprint);
+        machine_contract_report_fingerprints.push(contract.report_fingerprint);
         machine_contract_commitments.push(contract.commitment.as_bytes());
     }
 

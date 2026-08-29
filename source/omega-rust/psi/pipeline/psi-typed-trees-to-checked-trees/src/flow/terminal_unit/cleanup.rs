@@ -238,7 +238,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 coordinate,
                 target_machine,
                 target_state,
-                target_contract_fingerprint,
+                target_contract_report_fingerprint,
                 service_reach,
                 structural_arguments,
                 claim_transfers,
@@ -258,7 +258,11 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             {
                 return None;
             }
-            cleanup_helpers.push((*target_machine, *target_state, *target_contract_fingerprint));
+            cleanup_helpers.push((
+                *target_machine,
+                *target_state,
+                *target_contract_report_fingerprint,
+            ));
         }
         for (helper_machine, helper_state, helper_fingerprint) in cleanup_helpers {
             let helper = unit_effects.for_machine(helper_machine)?;
@@ -266,7 +270,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             if helper.machine == machine.symbol
                 || helper.machine == cleanup_machine.symbol
                 || helper.state != helper_state
-                || helper.contract_fingerprint != helper_fingerprint
+                || helper.contract_report_fingerprint != helper_fingerprint
                 || !matches!(&helper_shape.shape, CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty())
                 || !helper.structural_parameters.is_empty()
                 || !helper.trivial_affine_locals.is_empty()
@@ -284,7 +288,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             type_identity: checked_parameter.type_identity.clone(),
             cleanup_machine: cleanup_machine.symbol,
             cleanup_state: cleanup_state.symbol,
-            cleanup_contract_fingerprint: cleanup_target.contract_fingerprint,
+            cleanup_contract_report_fingerprint: cleanup_target.contract_report_fingerprint,
             requirements: cleanup_requirements,
         });
     }
@@ -299,7 +303,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             trivial_affine_locals: Vec::new(),
             entry_claims: Vec::new(),
             body_qualifications: Vec::new(),
-            contract_fingerprint: contract.fingerprint,
+            contract_report_fingerprint: contract.report_fingerprint,
             contract_commitment: contract.commitment,
             contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach.clone(),
@@ -1124,7 +1128,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             trivial_affine_locals: Vec::new(),
             entry_claims,
             body_qualifications: Vec::new(),
-            contract_fingerprint: contract.fingerprint,
+            contract_report_fingerprint: contract.report_fingerprint,
             contract_commitment: contract.commitment,
             contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach.clone(),

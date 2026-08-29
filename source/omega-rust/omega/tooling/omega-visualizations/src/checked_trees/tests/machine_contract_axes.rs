@@ -51,7 +51,7 @@ fn machine_contract_manifest_exact_rows_preserve_axis_orthogonality() {
 
     let json = machine_contract_manifest_json(&program);
 
-    assert!(json.contains("\"fingerprint\": \"0x0000000000001234\""));
+    assert!(json.contains("\"report_fingerprint\": \"0x0000000000001234\""));
     assert!(
         json.contains(
             "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": []}"
@@ -119,7 +119,7 @@ fn machine_contract_manifest_exact_rows_ignore_unrelated_duplicates() {
     let json = machine_contract_manifest_json(&program);
 
     assert!(json.contains("\"machine\": \"Exact::run\""));
-    assert!(json.contains("\"fingerprint\": \"0x0000000000001234\""));
+    assert!(json.contains("\"report_fingerprint\": \"0x0000000000001234\""));
     assert_eq!(json.matches("\"machine\": \"Exact::run\"").count(), 1);
 }
 
