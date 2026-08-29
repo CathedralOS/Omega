@@ -1,7 +1,7 @@
 use omega_psi_to_abstract_operations::{
     ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
-    lower_artifact_sections, lower_replay_artifact_sections,
-    lower_replay_artifact_sections_for_optimization,
+    admit_provider_installation_for_optimization, lower_artifact_sections,
+    lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
@@ -85,12 +85,28 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
     let installation =
         admit_provider_installation(&plan, &semantic, &proof, &profile, &selected_facts)
             .expect("Omega derives the exact selected terminal row");
+    let optimized_installation = admit_provider_installation_for_optimization(
+        replayed_optimizer_input.plan(),
+        &semantic,
+        &proof,
+        &profile,
+        &selected_facts,
+    )
+    .expect("explicit optimizer lowering replays the same selected terminal row");
     assert_eq!(installation.psi(), plan.psi);
     assert_eq!(
         installation.installed_candidates(),
         &plan.provider_candidates[1..]
     );
     assert_eq!(installation.installed_unit_calls().len(), 1);
+    assert_eq!(
+        optimized_installation.installed_candidates(),
+        installation.installed_candidates()
+    );
+    assert_eq!(
+        optimized_installation.installed_unit_calls(),
+        installation.installed_unit_calls()
+    );
     let installed_call = &installation.installed_unit_calls()[0];
     assert_eq!(installed_call.caller(), machine_id(1));
     assert_eq!(installed_call.psi_operation(), operation_id(1));

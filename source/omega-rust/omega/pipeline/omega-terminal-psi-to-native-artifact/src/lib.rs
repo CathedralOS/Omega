@@ -27,26 +27,28 @@ use omega_installation_evidence::ProviderExecutionEvidence;
 pub use omega_native_artifact::{
     NativeArtifact, NativeArtifactParts, NativeProviderExecution, NativeSelectedProviderPlan,
 };
-use omega_psi_to_abstract_operations::{SelectedProviderAdapter, admit_provider_installation};
+use omega_psi_to_abstract_operations::{
+    SelectedProviderAdapter, admit_provider_installation,
+    admit_provider_installation_for_optimization,
+};
 use omega_target_operations::BoundaryRealization;
 use psi_checked_trees_to_terminal::{
     CheckedProgramEntryTerminalReceipt, ProducedProgramEntryTerminalArtifact,
 };
 use psi_diagnostics::Diagnostic;
 
-fn lower_native_realization_input(
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &psi_proof_admission::AdmissionProfile,
-) -> Result<
-    omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    omega_psi_to_abstract_operations::ArtifactLoweringError,
-> {
-    omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        semantic_bytes,
-        proof_bytes,
-        profile,
-    )
+enum NativeRealizationInput {
+    Ordinary(omega_abstract_operations::AbstractOperationPlan),
+    ExplicitOptimization(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
+}
+
+impl NativeRealizationInput {
+    fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
+        match self {
+            Self::Ordinary(plan) => plan,
+            Self::ExplicitOptimization(input) => input.plan(),
+        }
+    }
 }
 
 /// Provider-supplied realization input for one Terminal boundary. The exact
@@ -415,9 +417,25 @@ pub fn realize_native_artifact(
         .map_err(|error| realization_error("canonical artifact replay", error))?;
     let semantic_bytes = artifact.semantic_bytes();
     let proof_bytes = artifact.proof_bytes();
-    let realization_input =
-        lower_native_realization_input(semantic_bytes, proof_bytes, request.profile)
-            .map_err(|error| realization_error("verified artifact lowering", error))?;
+    let realization_input = if request.optimization_selections.is_empty() {
+        NativeRealizationInput::Ordinary(
+            omega_psi_to_abstract_operations::lower_artifact_sections(
+                semantic_bytes,
+                proof_bytes,
+                request.profile,
+            )
+            .map_err(|error| realization_error("ordinary artifact lowering", error))?,
+        )
+    } else {
+        NativeRealizationInput::ExplicitOptimization(
+            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                semantic_bytes,
+                proof_bytes,
+                request.profile,
+            )
+            .map_err(|error| realization_error("verified optimizer artifact lowering", error))?,
+        )
+    };
 
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(request.settlements.len());
@@ -496,13 +514,24 @@ pub fn realize_native_artifact(
             None
         } else {
             Some(
-                admit_provider_installation(
-                    installation_plan,
-                    semantic_bytes,
-                    proof_bytes,
-                    request.profile,
-                    &selected,
-                )
+                match &realization_input {
+                    NativeRealizationInput::Ordinary(_) => admit_provider_installation(
+                        installation_plan,
+                        semantic_bytes,
+                        proof_bytes,
+                        request.profile,
+                        &selected,
+                    ),
+                    NativeRealizationInput::ExplicitOptimization(_) => {
+                        admit_provider_installation_for_optimization(
+                            installation_plan,
+                            semantic_bytes,
+                            proof_bytes,
+                            request.profile,
+                            &selected,
+                        )
+                    }
+                }
                 .map_err(|error| {
                     realization_error("checked-provider installation", format!("{error:?}"))
                 })?,
@@ -510,20 +539,39 @@ pub fn realize_native_artifact(
         }
     };
 
-    let optimized = if request.optimization_selections.is_empty() {
-        omega_optimization_pipeline::forward_verified_psi_input(realization_input)
-    } else {
-        let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-            request.optimization_selections,
-        )
-        .map_err(|error| realization_error("canonical optimization request", error))?;
-        omega_optimization_pipeline::optimize_verified_psi_input(
-            realization_input,
-            optimization_request,
-        )
-    }
-    .map_err(|error| realization_error("canonical optimization", error))?;
-    let continuation = match provider_installation {
+    let machine_code = match realization_input {
+        NativeRealizationInput::Ordinary(plan) => {
+            let target = match provider_installation {
+                Some(installation) => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_and_installation(
+                    &plan,
+                    request.target,
+                    &admitted,
+                    Some(&installation),
+                ),
+                None => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
+                    &plan,
+                    request.target,
+                    &admitted,
+                ),
+            }
+            .map_err(|error| realization_error("ordinary target lowering", error))?;
+            let assigned =
+                omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                    .map_err(|error| realization_error("ordinary physical assignment", error))?;
+            omega_machine_emission::emit_machine_code(&assigned)
+                .map_err(|error| realization_error("machine-code emission", error))?
+        }
+        NativeRealizationInput::ExplicitOptimization(input) => {
+            let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
+                request.optimization_selections,
+            )
+            .map_err(|error| realization_error("canonical optimization request", error))?;
+            let optimized = omega_optimization_pipeline::optimize_verified_psi_input(
+                input,
+                optimization_request,
+            )
+            .map_err(|error| realization_error("canonical optimization", error))?;
+            let continuation = match provider_installation {
                 Some(installation) => omega_optimization_pipeline::stage_optimized_native_continuation_with_provider_executions_and_installation(
                     optimized,
                     request.target,
@@ -536,15 +584,15 @@ pub fn realize_native_artifact(
                     &admitted,
                 ),
             }
-    .map_err(|error| match error {
+            .map_err(|error| match error {
                 omega_optimization_pipeline::OptimizedNativeContinuationError::CoverageFallbackAssigned(
                     error,
                 ) => realization_error("optimized physical assignment", error),
                 omega_optimization_pipeline::OptimizedNativeContinuationError::SelectedPhysical(
                     error,
                 ) => selected_physical_pipeline_failed(request.optimization_selections, error),
-    })?;
-    let assigned = match continuation {
+            })?;
+            let assigned = match continuation {
                 omega_optimization_pipeline::StagedOptimizedNativeContinuation::CoverageFallbackAssigned(
                     assigned,
                 ) => assigned,
@@ -556,9 +604,11 @@ pub fn realize_native_artifact(
                         &physical,
                     ));
                 }
+            };
+            omega_machine_emission::emit_machine_code(assigned.assigned())
+                .map_err(|error| realization_error("machine-code emission", error))?
+        }
     };
-    let machine_code = omega_machine_emission::emit_machine_code(assigned.assigned())
-        .map_err(|error| realization_error("machine-code emission", error))?;
     let object = omega_image_emission::build_object_artifact(&machine_code)
         .map_err(|error| realization_error("terminal object construction", error))?;
     let image = omega_image_emission::emit_executable_image(&object, request.subsystem)

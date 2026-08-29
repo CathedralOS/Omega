@@ -114,3 +114,8 @@ it must not encode an optimization name in top-level route variants.
 Current XOR-zero coverage proves both direct and selected-lowering routes
 through fragment, object, and callable publication. The broader target/ABI
 corruption matrix remains open coverage.
+
+The ordinary empty-selection compiler route is deliberately outside this
+optimizer custody chain. Its four-target byte and artifact-metadata baseline is
+locked by the no-selection golden compiler test; only an explicit nonempty
+selection constructs the optimizer-side prephysical carrier.

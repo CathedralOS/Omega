@@ -1,0 +1,4 @@
+// No boundary calls or optimization selections: this isolates the ordinary
+// target lowering, image construction, and retained-artifact metadata path.
+data Main { }
+machine Main::main(&mut self) { }

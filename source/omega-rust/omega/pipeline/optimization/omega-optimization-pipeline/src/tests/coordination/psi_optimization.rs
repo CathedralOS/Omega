@@ -9,21 +9,6 @@ fn empty_selection_cannot_enter_or_decode_artifacts() {
 }
 
 #[test]
-fn compiler_forwarding_path_carries_empty_selection_through_the_optimizer() {
-    let (semantic, proof) = artifact();
-    let input =
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .expect("verified Psi must enter the canonical optimizer pipeline");
-    let forwarded = forward_verified_psi_input(input)
-        .expect("an empty compiler selection must be a verified no-op");
-
-    assert!(forwarded.selections().is_empty());
-    assert!(forwarded.pass_manifests().is_empty());
-    assert!(forwarded.commits().is_empty());
-    assert!(forwarded.transformation_ledger().records().is_empty());
-}
-
-#[test]
 fn compiler_baseline_request_retains_the_selection_and_canonical_budget() {
     let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
     let request = compiler_baseline_request_v1(&selections).unwrap();

@@ -56,16 +56,23 @@ fn hosted_custody() -> (
 }
 
 #[test]
-fn every_build_constructs_the_verified_optimizer_context() {
+fn ordinary_and_explicit_optimizer_lowering_share_the_verified_entry() {
     let (artifact, _, _) = hosted_custody();
-    let input = lower_native_realization_input(
+    let ordinary = omega_psi_to_abstract_operations::lower_artifact_sections(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &psi_proof_admission::AdmissionProfile::default(),
     )
-    .expect("every native build must retain verified optimizer context");
+    .expect("ordinary native lowering produces a bare abstract plan");
+    let explicit = omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("an explicit optimizer request retains verified context");
 
-    assert_eq!(input.context().module().entry, input.plan().entry);
+    assert_eq!(ordinary.entry, explicit.plan().entry);
+    assert_eq!(explicit.context().module().entry, explicit.plan().entry);
 }
 
 fn checked_adapter_plan(

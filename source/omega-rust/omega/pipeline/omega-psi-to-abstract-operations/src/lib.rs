@@ -748,9 +748,58 @@ pub fn admit_provider_installation(
     profile: &psi_proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    let replayed = lower_artifact_sections_for_optimization(semantic_bytes, proof_bytes, profile)
+    admit_provider_installation_with_projection(
+        plan,
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        selected,
+        false,
+    )
+}
+
+/// Admit provider installation against the payload-retaining abstract plan
+/// owned by an explicit optimizer request. Ordinary compilation must use
+/// [`admit_provider_installation`] so an empty selection never constructs an
+/// optimizer-only verifier carrier.
+pub fn admit_provider_installation_for_optimization(
+    plan: &AbstractOperationPlan,
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+    selected: &[SelectedProviderAdapter],
+) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
+    admit_provider_installation_with_projection(
+        plan,
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        selected,
+        true,
+    )
+}
+
+fn admit_provider_installation_with_projection(
+    plan: &AbstractOperationPlan,
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+    selected: &[SelectedProviderAdapter],
+    retain_payloadless_for_optimization: bool,
+) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
-    if replayed.plan() != plan {
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)
+        .map_err(ProviderInstallationError::ArtifactReplay)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(ArtifactLoweringError::Verification)
+        .map_err(ProviderInstallationError::ArtifactReplay)?;
+    let replayed = lower_decoded_verified_module(&verified, retain_payloadless_for_optimization)
+        .map_err(ArtifactLoweringError::Lowering)
+        .map_err(ProviderInstallationError::ArtifactReplay)?;
+    if &replayed != plan {
         return Err(ProviderInstallationError::PlanReplayMismatch);
     }
     let mut selections = Vec::new();
@@ -812,11 +861,8 @@ pub fn admit_provider_installation(
         });
         installed_candidates.push((**candidate).clone());
     }
-    let installed_unit_calls = replay_installed_provider_unit_calls(
-        plan,
-        replayed.context().module(),
-        &installed_candidates,
-    )?;
+    let installed_unit_calls =
+        replay_installed_provider_unit_calls(plan, verified.module(), &installed_candidates)?;
     let installation = psi_terminal_interpreter::admit_provider_installation_from_artifact(
         semantic_bytes,
         proof_bytes,

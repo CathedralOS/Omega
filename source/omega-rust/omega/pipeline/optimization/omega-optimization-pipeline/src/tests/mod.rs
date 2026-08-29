@@ -11,7 +11,6 @@ use omega_optimization_core::{
 };
 use omega_optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite};
 use omega_psi_optimizer::OptimizationRunError;
-use omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization;
 use omega_regalloc::{
     AllocationLegalityError, AllocatorAvailabilityError, AllocatorAvailabilityPolicy,
     ArchitecturalUnitActionKind, FixedViewCopyError, FixedViewCopyPolicy, LiteralFoldPlan,

@@ -103,19 +103,6 @@ pub fn optimize_verified_psi_input(
     run_verified_psi_input(input, request.selections(), request.budget_per_pass())
 }
 
-/// Carry a verified Psi input through the canonical optimizer pipeline without
-/// selecting a transformation. This is the compiler's no-op forwarding path,
-/// not an alternate lowering route.
-pub fn forward_verified_psi_input(
-    input: VerifiedPsiOptimizationInput,
-) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
-    run_verified_psi_input(
-        input,
-        &OptimizationSelections::default(),
-        compiler_baseline_budget_v1(),
-    )
-}
-
 fn run_verified_psi_input(
     input: VerifiedPsiOptimizationInput,
     selections: &OptimizationSelections,
