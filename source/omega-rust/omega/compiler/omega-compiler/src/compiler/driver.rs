@@ -11,7 +11,14 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
         &request.options,
         request.package_inputs.as_ref(),
     )?;
-    let trust_settlement = settle_checked_trust(&request, &checked)?;
+    let trust_settlement = crate::pipeline::reporting::report_checked_observations(
+        crate::pipeline::reporting::CheckedObservationInput {
+            options: &request.options,
+            artifact_policy: request.artifact_policy,
+            accepted_trust_admissions: &request.accepted_trust_admissions,
+            checked: &checked,
+        },
+    )?;
     let report = match request.requested_product {
         RequestedCompileProduct::Check => checked_report(request, &checked),
         RequestedCompileProduct::TerminalArtifact => terminal_report(request, checked),
@@ -40,44 +47,6 @@ fn reject_rollback_without_native_realization(
         "optimization rollback {names} requires NativeArtifact production; {:?} does not enter native optimizer realization",
         request.requested_product
     ))])
-}
-
-fn settle_checked_trust(
-    request: &CompileRequest,
-    checked: &crate::pipeline::CheckedCompilation,
-) -> Result<omega_trust_model::TrustAdmissionSettlement, Vec<Diagnostic>> {
-    let obligations = omega_trust_model::reconstruct_trust_obligations(
-        &checked.typed,
-        checked,
-        checked.root_grants(),
-        checked.provider_plans(),
-        checked.selected_provider_plans(),
-        checked.accepted_template_classifications(),
-        checked.package_identity().is_some(),
-    )?;
-    let settlement =
-        omega_trust_model::settle_trust_admissions(obligations, &request.accepted_trust_admissions)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    omega_trust_model::write_trust_report(
-        &request.options.build_dir(),
-        checked,
-        checked.root_grants(),
-        checked.provider_plans(),
-        checked.selected_provider_plans(),
-        checked.accepted_template_classifications(),
-        request.artifact_policy.emits_auxiliary_artifacts(),
-    )?;
-    if request.artifact_policy.emits_auxiliary_artifacts() {
-        crate::pipeline::write_checked_snapshot(
-            &request.options,
-            checked,
-            checked.selected_program_entry_machine(),
-            checked.selected_provider_plans(),
-            checked.task_activations(),
-            checked.component_progress(),
-        )?;
-    }
-    Ok(settlement)
 }
 
 fn checked_report(

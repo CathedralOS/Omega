@@ -6,22 +6,19 @@
 //! semantic declarations, not grantable trust-report subjects.
 
 use omega_artifacts::{
-    ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
-    TrustGenericAcceptedInstanceRow, TrustProgressPremiseRow, TrustProgressPremiseSubject,
-    TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
-    TrustReportRow,
+    TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard, TrustGenericAcceptedInstanceRow,
+    TrustProgressPremiseRow, TrustProgressPremiseSubject, TrustProviderRealization,
+    TrustProviderRequirementRow, TrustQualificationRow, TrustReport, TrustReportRow,
 };
 use psi_diagnostics::Diagnostic;
 
-pub fn write_trust_report(
-    build_dir: &std::path::Path,
+pub fn reconstruct_trust_report(
     checked: &psi_checked_trees::CheckedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     accepted_template_classifications: &crate::AcceptedTemplateClassifications,
-    emit_auxiliary_artifacts: bool,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<TrustReport, Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut report = TrustReport::default();
     report.selected_provider_closure_report_fingerprint =
@@ -368,13 +365,7 @@ pub fn write_trust_report(
             });
     }
 
-    if emit_auxiliary_artifacts {
-        let writer = ArtifactWriter::new(build_dir).map_err(|diagnostic| vec![diagnostic])?;
-        writer
-            .write_trust_report(&report)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    }
-    Ok(())
+    Ok(report)
 }
 
 fn package_key_text(identity: Option<psi_core::PackageKeyIdentity>) -> String {

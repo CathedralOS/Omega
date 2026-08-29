@@ -9,7 +9,7 @@ pub mod frontend;
 mod package_declaration_admission;
 mod phase_transitions;
 mod project;
-mod reporting;
+pub(crate) mod reporting;
 pub(crate) use omega_provider_planning::approval as provider_approval;
 pub(crate) use omega_provider_planning::plans as provider_plans;
 pub mod source;
@@ -22,7 +22,6 @@ pub(crate) use omega_provider_planning::task_plans;
 mod timing;
 
 pub(crate) use crate::compiler::CompileOptions;
-pub(crate) use artifacts::write_checked_snapshot;
 pub(crate) use checked_entry::CheckedCompilation;
 pub(crate) use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,

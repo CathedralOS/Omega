@@ -96,6 +96,17 @@ consistency checks, trust-lock enforcement, and final executable-footprint
 certification still run. If output installation is requested, the primary
 object or executable and any installation records required by its semantics
 still exist; otherwise an output-only check need not create a build directory.
+The complete checked result enters one typed checked-observation reporter.
+That reporter always reconstructs trust obligations, settles the exact
+owner-supplied admissions, constructs the derived trust report, and validates
+its target/report joins before consulting observation policy. Its single
+policy branch creates the artifact writer only for `Full`, writes the trust
+report first, writes the ordered checked snapshots next, and writes
+`00_timings.html` last. `CheckedCompilation` retains the first-seen ordered,
+repeated-stage-aggregated timing rows needed by that final observation, but
+these nondeterministic measurements are explicitly absent from checked
+semantic equality. `OutputOnly` therefore follows the same validating path
+without a reporting filesystem effect.
 Boundary reporting captures its ordered source target, contract, and policy
 rows once, writes that initial observation at the source boundary, and later
 consumes the same carrier when checked capability facts become available. It

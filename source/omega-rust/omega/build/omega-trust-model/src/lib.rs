@@ -4,8 +4,9 @@
 //!
 //! This crate reconstructs what compilation requires and compares that exact
 //! set with admissions supplied by the build owner. Policy discovery and
-//! mutation belong to a coordinator-facing ledger crate. Optional report
-//! emission writes diagnostics only and carries no admission authority.
+//! mutation belong to a coordinator-facing ledger crate. Derived report
+//! evidence is filesystem-free; an observation coordinator may render it but
+//! rendering carries no admission authority.
 
 mod accepted_templates;
 mod admissions;
@@ -24,4 +25,4 @@ pub use grants::{
 pub use provider_grants::{
     ProviderGrantSelectorKind, ResolvedSelectedProviderGrant, resolve_selected_provider_grants,
 };
-pub use report::write_trust_report;
+pub use report::reconstruct_trust_report;
