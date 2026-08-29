@@ -17,6 +17,13 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Exact release rollback now has catalog-wide disabled-selection coverage.
+Every source-visible `Optimization::ALL` name is independently subtracted from
+the full suite, excluded from every phase projection, and reapplied to prove
+idempotence. Both build preludes prove exact enable/disable name agreement;
+the existing four-hosted-target golden test proves an empty effective suite
+rejoins the byte-identical ordinary native path.
+
 [x] Global value numbering now has a separate two-row obligation-free wrapping
 shift family: `x << 0 -> x` and `x >> 0 -> x`. Its exact rule is adjacent to,
 but not merged with, the five-row neutral-arithmetic rule. Producer and
@@ -576,8 +583,10 @@ rewrite or opt a program into lossy floating-point semantics.
   zero-dividend, `% 1`, and signed `% -1` definedness propositions from exact
   constant semantic axioms through checked integer-bound substitution; proof
   admission remains unchanged.
-- [ ] Per-rule positive, negative, boundary, disabled, budget, determinism,
-  idempotence, and corruption suites.
+- [>] Per-rule positive, negative, boundary, disabled, budget, determinism,
+  idempotence, and corruption suites. Disabled-selection coverage is complete
+  for every exact public name and phase projection; the remaining dimensions
+  still require a catalog-wide evidence matrix and focused gap closure.
 - [ ] Cross-rule phase-composition matrix, including deliberate fail-closed
   unsupported combinations.
 - [ ] Randomized valid-Psi and selected-machine differential corpus.
