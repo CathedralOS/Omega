@@ -292,11 +292,9 @@ explicitly.
 
   Remaining work:
 
-  - make closure resolution select one explicit profile without flattening the
-    complete per-package projection, and invoke the landed active-set alias
-    validator after package-authored names are known;
   - bind the condition schema, referenced profile identities, and complete
-    projected map into source-closure and package-review identity;
+    projected map, together with the explicitly selected profile, into source-
+    closure and package-review identity;
   - add independently populated per-profile accepted-lock/review sections,
     fail-closed missing-column behavior, and explicit all-column population;
   - add alias reuse/conflict, catalog-growth, stale-profile-identity, selected-

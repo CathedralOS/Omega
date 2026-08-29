@@ -165,9 +165,11 @@ occurrences reject with transition provenance.
 The current projector implements that finite-graph closure and retains one
 authoritative authored occurrence roster; common/profile columns contain only
 indices into it. It validates and retains stable identities for exactly the
-referenced profiles. A profile-less resolution caller rejects conditioned maps
-instead of flattening them. Profile-aware closure resolution, active-set alias
-checking, review identity, and lock sections remain downstream work.
+referenced profiles. Closure resolution selects one explicit profile, retains
+the complete target-independent map in source custody, and validates aliases
+over only the selected active set after package-authored names are known.
+Canonical closure/review identity and accepted-lock sections remain downstream
+work.
 
 Projection validates referenced profiles against the trusted toolchain catalog
 and remains target-independent. Resolution selects `common + by_profile[P]`.
