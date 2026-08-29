@@ -8,9 +8,12 @@ version.workspace = true
 name = "omega_image_emission"
 path = "src/lib.rs"
 
+[features]
+installed-artifact = ["dep:omega-executable-installation"]
+
 [dependencies]
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
-omega-executable-installation = { path = "../../runtime/omega-executable-installation" }
+omega-executable-installation = { path = "../../runtime/omega-executable-installation", optional = true }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
 omega-image = { path = "../omega-image" }
 omega-image-elf = { path = "../omega-image-elf" }

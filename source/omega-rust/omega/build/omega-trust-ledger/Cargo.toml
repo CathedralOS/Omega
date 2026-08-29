@@ -9,13 +9,9 @@ name = "omega_trust_ledger"
 path = "src/lib.rs"
 
 [dependencies]
-omega-artifacts = { path = "../../tooling/omega-artifacts" }
-omega-effects = { path = "../../representations/omega-effects" }
-omega-target = { path = "../../representations/omega-target" }
-psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
-psi-core = { path = "../../../psi/foundation/psi-core" }
+omega-trust-model = { path = "../omega-trust-model" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
-psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
-psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
-psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
-psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+
+[dev-dependencies]
+omega-compiler = { path = "../../compiler/omega-compiler" }
+omega-effects = { path = "../../representations/omega-effects" }

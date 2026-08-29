@@ -6,6 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
 use omega_executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 use psi_diagnostics::Diagnostic;
 
@@ -81,6 +82,10 @@ impl ArtifactWriter {
         Ok(path)
     }
 
+    /// Test-only packaging adapter for the quarantined executable-installation
+    /// experiment. Ordinary artifact/report writing accepts already-produced
+    /// bytes and has no installation-runtime dependency.
+    ///
     /// Packages one already-normalized executable artifact in Omega's
     /// canonical semantic container.
     ///
@@ -88,7 +93,8 @@ impl ArtifactWriter {
     /// of any target firmware envelope. It accepts neither a native image nor
     /// arbitrary bytes pretending to be code. The encoder revalidates its own
     /// output before this writer installs the file atomically.
-    pub fn write_executable_container(
+    #[cfg(test)]
+    pub(crate) fn write_executable_container(
         &self,
         file_name: &str,
         artifact: &Artifact,

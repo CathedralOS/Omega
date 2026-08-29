@@ -16,7 +16,7 @@ use std::sync::Arc;
 pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) accepted_template_classifications:
-        omega_trust_ledger::AcceptedTemplateClassifications,
+        omega_trust_model::AcceptedTemplateClassifications,
     pub(super) contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
 }
 
@@ -49,7 +49,7 @@ pub(super) fn typed_trees_to_checked_trees(
 ) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
         let accepted_template_classifications =
-            omega_trust_ledger::AcceptedTemplateClassifications::capture(&typed);
+            omega_trust_model::AcceptedTemplateClassifications::capture(&typed);
         let contract_entailment_stand_downs =
             psi_validation::collect_contract_entailment_stand_downs(&typed);
         let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;

@@ -7,6 +7,7 @@ mod artifact_writer;
 mod backend_surface;
 mod boundary_report;
 mod calling_plan_json;
+#[cfg(any(test, feature = "external-root-report"))]
 mod external_root_report;
 mod frontend_reports;
 mod native_output_reports;
@@ -17,6 +18,7 @@ mod wire_report;
 pub use artifact_writer::ArtifactWriter;
 pub use backend_surface::build_backend_surface_report;
 pub use calling_plan_json::value_placement_json;
+#[cfg(any(test, feature = "external-root-report"))]
 pub use external_root_report::external_root_manifest_json;
 pub use native_output_reports::{
     ExecutableFinalization, ExecutableFinalizationStatus, finalize_emitted_image_output,

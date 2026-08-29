@@ -1,22 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Trust-grant resolution, receipt custody, and disclosed trust reporting.
+//! Coordinator-facing custody for the legacy standalone trust receipt section
+//! of `omega.lock`.
 //!
-//! The compiler supplies checked semantic facts and selected provider plans;
-//! this crate owns the trust ledger derived from those facts. It neither
-//! coordinates compilation nor grants itself authority.
+//! Filesystem-free obligation reconstruction lives in `omega-trust-model`.
+//! This crate reads policy for ordinary checks and mutates it only through an
+//! explicit acceptance operation owned by command orchestration.
 
-mod accepted_templates;
-mod lockfile;
-mod provider_grants;
-mod report;
+mod custody;
 
-pub use accepted_templates::AcceptedTemplateClassifications;
-pub use lockfile::{
-    PreparedTrustLock, enforce_trust_lockfile, prepare_trust_lockfile,
-    reject_package_non_provider_grants,
-};
-pub use provider_grants::{
-    ProviderGrantSelectorKind, ResolvedSelectedProviderGrant, resolve_selected_provider_grants,
-};
-pub use report::write_trust_report;
+pub use custody::{accept_trust_admissions, read_trust_admissions};

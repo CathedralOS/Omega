@@ -1,13 +1,16 @@
 //! Canonical JSON projection for calling plans and value placements.
 
+#[cfg(any(test, feature = "external-root-report"))]
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallingPolicy, EntryControl, EntryStack, IndirectPointerLocation,
-    MachineRegime, MachineRegister, Preemption, RegisterSet, SystemVEightbyteClass, ValueClass,
-    ValueLocation, ValuePlacement, ValueShape,
+    BoundaryEntryPlan, CallingPolicy, EntryControl, EntryStack, MachineRegime, Preemption,
+    RegisterSet,
+};
+use omega_calling_conventions::{
+    IndirectPointerLocation, MachineRegister, SystemVEightbyteClass, ValueClass, ValueLocation,
+    ValuePlacement, ValueShape,
 };
 
-use super::external_root_report::push_hex_u16;
-
+#[cfg(any(test, feature = "external-root-report"))]
 pub(super) fn push_boundary_plan_json(output: &mut String, plan: &BoundaryEntryPlan) {
     output.push_str("{\"call\": {\"policy\": \"");
     output.push_str(calling_policy_name(plan.call.policy));
@@ -47,6 +50,13 @@ pub(super) fn push_boundary_plan_json(output: &mut String, plan: &BoundaryEntryP
     output.push_str(", \"preemption\": ");
     push_preemption_json(output, plan.state.preemption);
     output.push_str("}}");
+}
+
+#[cfg(any(test, feature = "external-root-report"))]
+pub(crate) fn push_hex_u16(output: &mut String, bits: u16) {
+    output.push('"');
+    output.push_str(&format!("0x{bits:04x}"));
+    output.push('"');
 }
 
 fn push_value_placement_json(output: &mut String, placement: &ValuePlacement) {
@@ -170,6 +180,7 @@ fn push_indirect_pointer_json(output: &mut String, pointer: IndirectPointerLocat
     }
 }
 
+#[cfg(any(test, feature = "external-root-report"))]
 pub(super) fn push_register_set_json(output: &mut String, registers: &RegisterSet) {
     output.push('[');
     for (index, register) in registers.as_slice().iter().enumerate() {
@@ -207,6 +218,7 @@ fn push_register_json(output: &mut String, register: MachineRegister) {
     output.push('"');
 }
 
+#[cfg(any(test, feature = "external-root-report"))]
 fn push_entry_control_json(output: &mut String, control: EntryControl) {
     match control {
         EntryControl::CallReturn => output.push_str("\"call_return\""),
@@ -224,6 +236,7 @@ fn push_entry_control_json(output: &mut String, control: EntryControl) {
     }
 }
 
+#[cfg(any(test, feature = "external-root-report"))]
 fn push_machine_regime_json(output: &mut String, regime: MachineRegime) {
     match regime {
         MachineRegime::X86Long64 => output.push_str("\"x86_long64\""),
@@ -235,6 +248,7 @@ fn push_machine_regime_json(output: &mut String, regime: MachineRegime) {
     }
 }
 
+#[cfg(any(test, feature = "external-root-report"))]
 pub(super) fn push_entry_stack_json(output: &mut String, stack: EntryStack) {
     match stack {
         EntryStack::Interrupted => output.push_str("\"interrupted\""),
@@ -247,6 +261,7 @@ pub(super) fn push_entry_stack_json(output: &mut String, stack: EntryStack) {
     }
 }
 
+#[cfg(any(test, feature = "external-root-report"))]
 fn push_preemption_json(output: &mut String, preemption: Preemption) {
     match preemption {
         Preemption::NotApplicable => output.push_str("\"not_applicable\""),
@@ -260,6 +275,7 @@ fn push_preemption_json(output: &mut String, preemption: Preemption) {
     }
 }
 
+#[cfg(any(test, feature = "external-root-report"))]
 const fn calling_policy_name(policy: CallingPolicy) -> &'static str {
     match policy {
         CallingPolicy::MicrosoftX64 => "microsoft_x64",

@@ -13,6 +13,7 @@ mod options;
 pub(crate) use omega_compilation_report as report;
 mod request;
 
+pub use omega_trust_model::{TrustAdmission, TrustAdmissionSettlement};
 pub use optimization_rollback::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
 pub use report::{

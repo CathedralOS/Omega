@@ -38,23 +38,6 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **SEPARATE-COMPILATION-FROM-ADMISSION.** Remove trust-policy discovery
-  and mutation from `omega-compiler`. Compilation may reconstruct the exact
-  obligation set, consume an explicitly supplied admission set, and return
-  unresolved obligations and evidence facts. It must not discover, create, or
-  rewrite `omega.lock`, approve drift, or make an owner-policy decision.
-
-  Give the build/package coordinator an explicit acceptance operation that
-  owns lockfile mutation. A normal check against an existing policy remains
-  fail-closed; first acceptance and changed admissions require that explicit
-  operation. Trust reports are derived diagnostics and never authority.
-
-  Acceptance: `omega-compiler` has no filesystem dependency on `omega.lock`
-  and no dependency on the legacy lockfile owner. Its request names the exact
-  accepted admissions, its result names every consumed and unresolved
-  obligation, and tests prove ordinary compilation cannot create or update
-  admission policy.
-
 - [ ] **KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
@@ -113,11 +96,17 @@ scanners, or receipts.
   container, compiler-text, and destination-installation digest types rather
   than FNV-only receipt identities. The global item remains open: imported
   contract, footprint, entry/data-symbol, regime, and installation-scope
-  identities still need canonical commitments and a later container version;
-  final executable inventories, function validation, provider plans, the
-  standalone component candidate's artifact report identity, broader
-  external-root cohort joins, Psi, and format-specific image fingerprints
-  still require the same audit/hardening.
+  identities still need canonical commitments and a later container version.
+  Final compiler text partitions now bind every region and gap, exact
+  structural state-footprint evidence, ordered executable inventory, entry
+  binding, coverage, placement, and final-footprint certificate with distinct
+  domain-separated SHA-256 types; replay rejects compact-collision
+  substitutions. Selected-provider facts and boundary calling realizations
+  now retain and rejoin the complete plan behind their compact report IDs, so
+  same-ID structural substitutes reject. Strong provider-plan identities,
+  function validation, the standalone component candidate's artifact report
+  identity, broader external-root cohort joins, Psi, and format-specific image
+  fingerprints still require the same audit/hardening.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative
@@ -135,6 +124,15 @@ scanners, or receipts.
   that separation. Experimental crates may retain focused direct tests, but
   ordinary compilation reports contain only checked/Terminal/native products
   actually produced by the compiler route.
+
+  The compilation-report, artifact-reporting, and default image-emission
+  closures now exclude executable installation, external roots, and component
+  runtime crates; installation support is an explicit image-emission feature
+  selected only by component publication/deployment. Ordinary compiler and
+  package-manager closures also exclude component candidate, publication, and
+  deployment owners. The item remains open because program-entry planning,
+  provider planning, build evaluation, and Terminal-native realization still
+  carry executable-installation or external-root experiments transitively.
 
   Acceptance: the normal compiler/package closure imports none of the
   speculative runtime deployment crates, and reintegration is driven by the

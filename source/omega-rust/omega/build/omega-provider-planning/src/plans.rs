@@ -7,8 +7,8 @@
 
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 #[cfg(test)]
-use omega_trust_ledger::ProviderGrantSelectorKind;
-use omega_trust_ledger::resolve_selected_provider_grants;
+use omega_trust_model::ProviderGrantSelectorKind;
+use omega_trust_model::resolve_selected_provider_grants;
 use psi_typed_trees::TypedTrees;
 use std::sync::Arc;
 
@@ -3890,9 +3890,15 @@ pub fn selected_provider_plan_facts_with_provenance(
         .collect::<Vec<_>>();
     let facts = omega_effects::SelectedProviderPlanFacts::from_selected_plans(plans.clone())
         .map_err(|reason| vec![psi_diagnostics::Diagnostic::error(reason)])?;
-    if facts.plans() != plans {
+    if facts.plans() != plans
+        || plans.iter().any(|plan| {
+            facts
+                .plan_by_exact_evidence(plan.identity_fingerprint(), plan)
+                .is_none()
+        })
+    {
         return Err(vec![psi_diagnostics::Diagnostic::error(
-            "selected provider semantic facts reordered independently of retained provenance",
+            "selected provider semantic facts do not retain the exact plans aligned with provenance",
         )]);
     }
     let provenance = selected

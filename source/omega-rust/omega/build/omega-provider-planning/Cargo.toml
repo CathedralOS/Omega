@@ -19,7 +19,7 @@ omega-package-compilation = { path = "../omega-package-compilation" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-target = { path = "../../representations/omega-target" }
 omega-task-plans = { path = "../../representations/omega-task-plans" }
-omega-trust-ledger = { path = "../omega-trust-ledger" }
+omega-trust-model = { path = "../omega-trust-model" }
 omega-visualizations = { path = "../../tooling/omega-visualizations" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }

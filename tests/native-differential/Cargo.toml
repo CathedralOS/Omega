@@ -31,7 +31,7 @@ psi-terminal-verifier = { path = "../../source/omega-rust/psi/semantics/psi-term
 psi-proof-admission = { path = "../../source/omega-rust/psi/semantics/psi-proof-admission" }
 psi-checked-trees-to-terminal = { path = "../../source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal" }
 omega-compiler = { path = "../../source/omega-rust/omega/compiler/omega-compiler" }
-omega-artifacts = { path = "../../source/omega-rust/omega/tooling/omega-artifacts" }
+omega-artifacts = { path = "../../source/omega-rust/omega/tooling/omega-artifacts", features = ["external-root-report"] }
 omega-component-publication = { path = "../../source/omega-rust/omega/backend/runtime/omega-component-publication" }
 omega-component-deployment = { path = "../../source/omega-rust/omega/build/omega-component-deployment" }
 omega-provider-planning = { path = "../../source/omega-rust/omega/build/omega-provider-planning" }

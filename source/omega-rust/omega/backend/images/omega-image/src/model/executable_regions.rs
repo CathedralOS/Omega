@@ -1,5 +1,30 @@
 use crate::{FinalImage, FinalImageLayout};
+use omega_calling_conventions::{MachineRegister, StateFootprintEvidence};
 use psi_diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
+
+macro_rules! executable_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
+executable_digest!(FinalExecutableTextDigest);
+executable_digest!(PlacedExecutableRegionBytesDigest);
+executable_digest!(PlacedExecutableGapBytesDigest);
+executable_digest!(StateFootprintEvidenceDigest);
+executable_digest!(PlacedExecutableRegionInventoryDigest);
 
 /// Closed origin vocabulary for executable bytes in the current image model.
 /// There is no admitted-leaf origin: adding one must also add certificate
@@ -28,6 +53,9 @@ pub struct PlacedExecutableRegion {
     pub section_offset: usize,
     pub address: u64,
     pub byte_count: usize,
+    /// Collision-resistant commitment to the exact placed region bytes.
+    pub byte_digest: PlacedExecutableRegionBytesDigest,
+    /// Compact report compatibility only. It never authorizes a region join.
     pub byte_fingerprint: u64,
     pub symbol: String,
     pub footprint: Option<omega_calling_conventions::StateFootprintEvidence>,
@@ -38,6 +66,9 @@ pub struct PlacedExecutableGap {
     pub section_offset: usize,
     pub address: u64,
     pub byte_count: usize,
+    /// Collision-resistant commitment to the exact unclassified gap bytes.
+    pub byte_digest: PlacedExecutableGapBytesDigest,
+    /// Compact report compatibility only.
     pub byte_fingerprint: u64,
 }
 
@@ -45,7 +76,14 @@ pub struct PlacedExecutableGap {
 pub struct PlacedExecutableRegionInventory {
     pub text_address: u64,
     pub text_byte_count: usize,
+    /// Collision-resistant commitment to the complete exact final text.
+    pub text_digest: FinalExecutableTextDigest,
+    /// Compact report compatibility only.
     pub text_fingerprint: u64,
+    /// Domain-separated commitment to the exact placed rows, gaps, text
+    /// commitment, and structural footprint evidence.
+    pub inventory_digest: PlacedExecutableRegionInventoryDigest,
+    /// Compact report compatibility only.
     pub inventory_fingerprint: u64,
     pub regions: Vec<PlacedExecutableRegion>,
     pub unclassified_gaps: Vec<PlacedExecutableGap>,
@@ -108,12 +146,17 @@ pub fn place_executable_regions(
             .checked_add(region.section_offset as u64)
             .ok_or_else(|| Diagnostic::error("final executable region address overflows"))?;
         cursor = end;
+        let region_bytes = &image.memory.text[region.section_offset..end];
         placed.push(PlacedExecutableRegion {
             origin: region.origin,
             section_offset: region.section_offset,
             address,
             byte_count: region.byte_count,
-            byte_fingerprint: byte_fingerprint(&image.memory.text[region.section_offset..end]),
+            byte_digest: PlacedExecutableRegionBytesDigest::from_digest(digest_bytes(
+                b"omega.placed-executable-region-bytes.sha256.v1\0",
+                region_bytes,
+            )),
+            byte_fingerprint: byte_fingerprint(region_bytes),
             symbol: region.symbol,
             footprint: region.footprint,
         });
@@ -127,6 +170,10 @@ pub fn place_executable_regions(
         )?);
     }
 
+    let text_digest = FinalExecutableTextDigest::from_digest(digest_bytes(
+        b"omega.final-executable-text.sha256.v1\0",
+        &image.memory.text,
+    ));
     let text_fingerprint = byte_fingerprint(&image.memory.text);
     let inventory_fingerprint = executable_inventory_fingerprint(
         layout.text_address,
@@ -135,10 +182,19 @@ pub fn place_executable_regions(
         &placed,
         &unclassified_gaps,
     );
+    let inventory_digest = executable_inventory_digest(
+        layout.text_address,
+        image.memory.text.len(),
+        text_digest,
+        &placed,
+        &unclassified_gaps,
+    );
     Ok(PlacedExecutableRegionInventory {
         text_address: layout.text_address,
         text_byte_count: image.memory.text.len(),
+        text_digest,
         text_fingerprint,
+        inventory_digest,
         inventory_fingerprint,
         regions: placed,
         unclassified_gaps,
@@ -159,6 +215,15 @@ pub fn validate_placed_executable_region_inventory(
             inventory.text_byte_count,
             final_text_bytes.len()
         )));
+    }
+    let text_digest = FinalExecutableTextDigest::from_digest(digest_bytes(
+        b"omega.final-executable-text.sha256.v1\0",
+        final_text_bytes,
+    ));
+    if inventory.text_digest != text_digest {
+        return Err(Diagnostic::error(
+            "final executable inventory text digest does not match final text",
+        ));
     }
     let text_fingerprint = byte_fingerprint(final_text_bytes);
     if inventory.text_fingerprint != text_fingerprint {
@@ -210,9 +275,18 @@ pub fn validate_placed_executable_region_inventory(
                 region.symbol
             )));
         }
-        if region.byte_fingerprint
-            != byte_fingerprint(&final_text_bytes[region.section_offset..end])
-        {
+        let region_bytes = &final_text_bytes[region.section_offset..end];
+        let expected_region_digest = PlacedExecutableRegionBytesDigest::from_digest(digest_bytes(
+            b"omega.placed-executable-region-bytes.sha256.v1\0",
+            region_bytes,
+        ));
+        if region.byte_digest != expected_region_digest {
+            return Err(Diagnostic::error(format!(
+                "placed executable region `{}` byte digest does not match final text",
+                region.symbol
+            )));
+        }
+        if region.byte_fingerprint != byte_fingerprint(region_bytes) {
             return Err(Diagnostic::error(format!(
                 "placed executable region `{}` byte fingerprint does not match final text",
                 region.symbol
@@ -246,6 +320,36 @@ pub fn validate_placed_executable_region_inventory(
             "final executable inventory fingerprint does not match its retained rows",
         ));
     }
+    let inventory_digest = executable_inventory_digest(
+        inventory.text_address,
+        inventory.text_byte_count,
+        inventory.text_digest,
+        &inventory.regions,
+        &inventory.unclassified_gaps,
+    );
+    if inventory.inventory_digest != inventory_digest {
+        return Err(Diagnostic::error(
+            "final executable inventory digest does not match its retained rows",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_placed_executable_region_inventory_digest(
+    inventory: &PlacedExecutableRegionInventory,
+) -> Result<(), Diagnostic> {
+    let expected = executable_inventory_digest(
+        inventory.text_address,
+        inventory.text_byte_count,
+        inventory.text_digest,
+        &inventory.regions,
+        &inventory.unclassified_gaps,
+    );
+    if inventory.inventory_digest != expected {
+        return Err(Diagnostic::error(
+            "final executable inventory digest does not match its retained rows",
+        ));
+    }
     Ok(())
 }
 
@@ -260,6 +364,8 @@ pub fn bind_compiler_entry_footprint(
 ) -> Result<crate::CompilerEntryFootprintBindingEvidence, Diagnostic> {
     if !binding.function_identity.is_valid()
         || !binding.object_symbol_handle.is_valid()
+        || !binding.has_valid_evidence_digest()
+        || binding.inventory_digest != inventory.inventory_digest
         || binding.inventory_fingerprint != inventory.inventory_fingerprint
         || binding.final_region_binding_fingerprint == 0
         || binding.final_region_binding_fingerprint != final_region_binding_fingerprint
@@ -280,6 +386,7 @@ pub fn bind_compiler_entry_footprint(
                 && region.1.section_offset == binding.section_offset
                 && region.1.address == binding.address
                 && region.1.byte_count == binding.byte_count
+                && region.1.byte_digest == binding.byte_digest
                 && region.1.byte_fingerprint == binding.byte_fingerprint
         })
         .count();
@@ -301,6 +408,7 @@ pub fn bind_compiler_entry_footprint(
                 && region.section_offset == binding.section_offset
                 && region.address == binding.address
                 && region.byte_count == binding.byte_count
+                && region.byte_digest == binding.byte_digest
                 && region.byte_fingerprint == binding.byte_fingerprint
         })
         .map(|(_, region)| region)
@@ -316,7 +424,9 @@ pub fn bind_compiler_entry_footprint(
         )));
     }
     let prior_inventory_fingerprint = inventory.inventory_fingerprint;
+    let prior_inventory_digest = inventory.inventory_digest;
     let footprint_fingerprint = footprint.evidence_fingerprint();
+    let footprint_digest = state_footprint_evidence_digest(&footprint);
     entry.footprint = Some(footprint);
     inventory.inventory_fingerprint = executable_inventory_fingerprint(
         inventory.text_address,
@@ -325,15 +435,28 @@ pub fn bind_compiler_entry_footprint(
         &inventory.regions,
         &inventory.unclassified_gaps,
     );
+    inventory.inventory_digest = executable_inventory_digest(
+        inventory.text_address,
+        inventory.text_byte_count,
+        inventory.text_digest,
+        &inventory.regions,
+        &inventory.unclassified_gaps,
+    );
     let mut evidence = crate::CompilerEntryFootprintBindingEvidence {
+        entry_region_evidence_digest: binding.evidence_digest,
         entry_region_evidence_fingerprint: binding.evidence_fingerprint,
         final_region_binding_fingerprint,
         prior_inventory_fingerprint,
+        prior_inventory_digest,
         footprint_fingerprint,
+        footprint_digest,
         resulting_inventory_fingerprint: inventory.inventory_fingerprint,
+        resulting_inventory_digest: inventory.inventory_digest,
         evidence_fingerprint: 0,
+        evidence_digest: crate::CompilerEntryFootprintBindingDigest::from_digest([0; 32]),
     };
     evidence.evidence_fingerprint = evidence.recomputed_evidence_fingerprint();
+    evidence.evidence_digest = evidence.recomputed_evidence_digest();
     Ok(evidence)
 }
 
@@ -364,10 +487,111 @@ fn placed_gap_from_bytes(
         section_offset,
         address,
         byte_count,
+        byte_digest: PlacedExecutableGapBytesDigest::from_digest(digest_bytes(
+            b"omega.placed-executable-gap-bytes.sha256.v1\0",
+            &text_bytes[section_offset..section_offset + byte_count],
+        )),
         byte_fingerprint: byte_fingerprint(
             &text_bytes[section_offset..section_offset + byte_count],
         ),
     })
+}
+
+fn executable_inventory_digest(
+    text_address: u64,
+    text_byte_count: usize,
+    text_digest: FinalExecutableTextDigest,
+    regions: &[PlacedExecutableRegion],
+    gaps: &[PlacedExecutableGap],
+) -> PlacedExecutableRegionInventoryDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.placed-executable-region-inventory.sha256.v1\0");
+    digest.update(text_address.to_le_bytes());
+    digest.update(
+        u64::try_from(text_byte_count)
+            .expect("final executable text length fits u64")
+            .to_le_bytes(),
+    );
+    digest.update(text_digest.as_bytes());
+    digest.update(
+        u64::try_from(regions.len())
+            .expect("placed executable region count fits u64")
+            .to_le_bytes(),
+    );
+    for region in regions {
+        digest.update([match region.origin {
+            FinalExecutableRegionOrigin::CompilerFunction => 1,
+            FinalExecutableRegionOrigin::ImportThunk => 2,
+        }]);
+        digest.update((region.section_offset as u64).to_le_bytes());
+        digest.update(region.address.to_le_bytes());
+        digest.update((region.byte_count as u64).to_le_bytes());
+        digest.update(region.byte_digest.as_bytes());
+        digest.update((region.symbol.len() as u64).to_le_bytes());
+        digest.update(region.symbol.as_bytes());
+        match &region.footprint {
+            Some(footprint) => {
+                digest.update([1]);
+                digest.update(state_footprint_evidence_digest(footprint).as_bytes());
+            }
+            None => digest.update([0]),
+        }
+    }
+    digest.update(
+        u64::try_from(gaps.len())
+            .expect("placed executable gap count fits u64")
+            .to_le_bytes(),
+    );
+    for gap in gaps {
+        digest.update((gap.section_offset as u64).to_le_bytes());
+        digest.update(gap.address.to_le_bytes());
+        digest.update((gap.byte_count as u64).to_le_bytes());
+        digest.update(gap.byte_digest.as_bytes());
+    }
+    PlacedExecutableRegionInventoryDigest::from_digest(digest.finalize().into())
+}
+
+pub(crate) fn state_footprint_evidence_digest(
+    footprint: &StateFootprintEvidence,
+) -> StateFootprintEvidenceDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.state-footprint-evidence.sha256.v1\0");
+    digest.update((footprint.registers().as_slice().len() as u64).to_le_bytes());
+    for register in footprint.registers().as_slice() {
+        let (class, index) = match register {
+            MachineRegister::X86Rax => (1, 0),
+            MachineRegister::X86Rcx => (1, 1),
+            MachineRegister::X86Rdx => (1, 2),
+            MachineRegister::X86Rbx => (1, 3),
+            MachineRegister::X86Rsp => (1, 4),
+            MachineRegister::X86Rbp => (1, 5),
+            MachineRegister::X86Rsi => (1, 6),
+            MachineRegister::X86Rdi => (1, 7),
+            MachineRegister::X86R8 => (1, 8),
+            MachineRegister::X86R9 => (1, 9),
+            MachineRegister::X86R10 => (1, 10),
+            MachineRegister::X86R11 => (1, 11),
+            MachineRegister::X86R12 => (1, 12),
+            MachineRegister::X86R13 => (1, 13),
+            MachineRegister::X86R14 => (1, 14),
+            MachineRegister::X86R15 => (1, 15),
+            MachineRegister::X86Xmm(index) => (2, u16::from(*index)),
+            MachineRegister::Aarch64X(index) => (3, u16::from(*index)),
+            MachineRegister::Aarch64V(index) => (4, u16::from(*index)),
+        };
+        digest.update([class]);
+        digest.update(index.to_le_bytes());
+    }
+    digest.update(footprint.machine_state().bits().to_le_bytes());
+    StateFootprintEvidenceDigest::from_digest(digest.finalize().into())
+}
+
+fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(domain);
+    digest.update((bytes.len() as u64).to_le_bytes());
+    digest.update(bytes);
+    digest.finalize().into()
 }
 
 fn byte_fingerprint(bytes: &[u8]) -> u64 {
@@ -481,6 +705,10 @@ mod tests {
                 section_offset: 4,
                 address: 0x1004,
                 byte_count: 4,
+                byte_digest: PlacedExecutableGapBytesDigest::from_digest(digest_bytes(
+                    b"omega.placed-executable-gap-bytes.sha256.v1\0",
+                    &[0; 4],
+                )),
                 byte_fingerprint: byte_fingerprint(&[0; 4]),
             }]
         );
@@ -546,6 +774,7 @@ mod tests {
         let mut inventory = place_executable_regions(&image, FinalImageLayout::default())
             .expect("entry region should place");
         let original_fingerprint = inventory.inventory_fingerprint;
+        let original_digest = inventory.inventory_digest;
         let footprint = StateFootprintEvidence::new(
             RegisterSet::new([MachineRegister::X86Rax]),
             MachineStateSet::empty(),
@@ -562,12 +791,16 @@ mod tests {
             section_offset: inventory.regions[0].section_offset,
             address: inventory.regions[0].address,
             byte_count: inventory.regions[0].byte_count,
+            byte_digest: inventory.regions[0].byte_digest,
             byte_fingerprint: inventory.regions[0].byte_fingerprint,
+            inventory_digest: inventory.inventory_digest,
             inventory_fingerprint: inventory.inventory_fingerprint,
             final_region_binding_fingerprint: 8,
+            evidence_digest: crate::CompilerEntryRegionBindingDigest::from_digest([0; 32]),
             evidence_fingerprint: 0,
         };
         let mut binding = binding;
+        binding.evidence_digest = binding.recomputed_evidence_digest();
         binding.evidence_fingerprint = binding.recomputed_evidence_fingerprint();
 
         let mut identity_drift = binding.clone();
@@ -602,13 +835,16 @@ mod tests {
 
         assert_eq!(inventory.regions[0].footprint, Some(footprint));
         assert_ne!(inventory.inventory_fingerprint, original_fingerprint);
+        assert_ne!(inventory.inventory_digest, original_digest);
         assert!(receipt.validate_identity());
+        assert_eq!(receipt.prior_inventory_digest, original_digest);
         assert_eq!(receipt.prior_inventory_fingerprint, original_fingerprint);
         assert_eq!(
             receipt.resulting_inventory_fingerprint,
             inventory.inventory_fingerprint
         );
         let mut drifted_binding = binding;
+        drifted_binding.inventory_digest = inventory.inventory_digest;
         drifted_binding.inventory_fingerprint = inventory.inventory_fingerprint;
         drifted_binding.region_index = 1;
         let diagnostic = bind_compiler_entry_footprint(
@@ -686,6 +922,20 @@ mod tests {
         corrupted.inventory_fingerprint ^= 1;
         assert!(
             validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
+        );
+        let mut strong_identity_substitution = inventory.clone();
+        strong_identity_substitution.inventory_digest =
+            PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
+        assert_eq!(
+            strong_identity_substitution.inventory_fingerprint,
+            inventory.inventory_fingerprint
+        );
+        assert!(
+            validate_placed_executable_region_inventory(
+                &strong_identity_substitution,
+                &image.memory.text,
+            )
+            .is_err()
         );
         assert!(
             validate_placed_executable_region_inventory(&inventory, &image.memory.text[..11])

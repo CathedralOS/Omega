@@ -1,6 +1,8 @@
 //! Canonical provider/runtime-owned external-root ledger presentation.
 
 use omega_external_roots::{InstalledRootLedger, InstalledRootRecord};
+
+use super::calling_plan_json::push_hex_u16;
 use psi_diagnostics::Diagnostic;
 
 use super::{ArtifactWriter, calling_plan_json};
@@ -587,11 +589,5 @@ fn push_identity_set(output: &mut String, identities: impl IntoIterator<Item = u
 fn push_hex_identity(output: &mut String, identity: u64) {
     output.push('"');
     output.push_str(&format!("0x{identity:016x}"));
-    output.push('"');
-}
-
-pub(crate) fn push_hex_u16(output: &mut String, bits: u16) {
-    output.push('"');
-    output.push_str(&format!("0x{bits:04x}"));
     output.push('"');
 }

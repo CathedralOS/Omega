@@ -37,7 +37,7 @@ pub struct CheckedCompilation {
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
     root_grants: Vec<String>,
-    accepted_template_classifications: omega_trust_ledger::AcceptedTemplateClassifications,
+    accepted_template_classifications: omega_trust_model::AcceptedTemplateClassifications,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
     task_activations: omega_task_plans::TaskActivationPlanSet,
@@ -208,7 +208,7 @@ impl CheckedCompilation {
     #[doc(hidden)]
     pub const fn accepted_template_classifications(
         &self,
-    ) -> &omega_trust_ledger::AcceptedTemplateClassifications {
+    ) -> &omega_trust_model::AcceptedTemplateClassifications {
         &self.accepted_template_classifications
     }
 
@@ -748,7 +748,7 @@ fn compile_to_checked_inner_with_replay(
             selected_provider_plans,
         )?;
     if package_inputs.is_some() {
-        omega_trust_ledger::reject_package_non_provider_grants(
+        omega_trust_model::reject_package_non_provider_grants(
             &typed,
             &build_config.grants,
             &provider_plans,

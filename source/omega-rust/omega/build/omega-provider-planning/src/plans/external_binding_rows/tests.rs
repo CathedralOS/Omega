@@ -142,6 +142,7 @@ fn fixture_with_inventory(
         requirement_machine: requirement_symbol,
         fingerprint,
         boundary_entry_plan: expected.clone(),
+        exact_boundary_entry_plan: expected.clone(),
         callback_binders: Vec::new(),
         callback_demands: Vec::new(),
         callback_context_closed: false,
@@ -614,6 +615,7 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
         Missing,
         Duplicate,
         Fingerprint,
+        CollisionEqualPlanSubstitution,
         SchemaOwner,
         Requirement,
         ZeroFingerprint,
@@ -632,6 +634,10 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
             "resolves to 0 exact calling-plan realizations",
         ),
         (
+            Drift::CollisionEqualPlanSubstitution,
+            "substituted a calling plan behind its compact report fingerprint",
+        ),
+        (
             Drift::SchemaOwner,
             "resolves to 0 exact calling-plan realizations",
         ),
@@ -647,6 +653,16 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
             Drift::Missing => fixture.realizations.clear(),
             Drift::Duplicate => fixture.realizations.push(fixture.realizations[0].clone()),
             Drift::Fingerprint => fixture.realizations[0].fingerprint ^= 1,
+            Drift::CollisionEqualPlanSubstitution => {
+                fixture.realizations[0].boundary_entry_plan =
+                    evaluate_ordinary_boundary_entry_plan(
+                        CallingPolicy::SystemVAMD64,
+                        &CallSignature::default(),
+                    )
+                    .expect("alternate valid boundary plan")
+                    .plan()
+                    .clone();
+            }
             Drift::SchemaOwner => fixture.realizations[0].boundary_trait = symbol(90),
             Drift::Requirement => fixture.realizations[0].requirement_machine = symbol(91),
             Drift::ZeroFingerprint => {
