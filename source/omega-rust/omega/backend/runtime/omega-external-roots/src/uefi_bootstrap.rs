@@ -20,6 +20,9 @@ use crate::{
     UefiSystemTableOccurrenceId,
 };
 
+mod provider_projection;
+pub use provider_projection::*;
+
 static NEXT_LEDGER_AUTHORITY: AtomicU64 = AtomicU64::new(1);
 
 fn claim_ledger_authority() -> Result<u64, ExternalRootDiagnostic> {
@@ -242,6 +245,46 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
                 .non_authoritative_layout_report_fingerprint(),
         };
         drop(scoped);
+        Ok(report)
+    }
+
+    /// Retire the exact Boot-Services field correspondence before returning
+    /// to firmware. A failed release preserves the complete physical-arrival
+    /// and field-projection custody for a corrected ledger join.
+    pub fn release_lifecycle_scoped_boot_services_projection(
+        &mut self,
+        projection: LifecycleScopedUefiBootServicesProjection<'occurrence>,
+    ) -> Result<
+        ReleasedUefiSystemTableScope,
+        Box<UefiBootServicesProjectionReleaseError<'occurrence>>,
+    > {
+        if !self.matches_image_handle(&projection.arrival.image_handle)
+            || !self.matches_provenance(&projection.arrival.system_table.provenance)
+            || !self.matches_lease(&projection.arrival.system_table.phase_lease)
+        {
+            return Err(Box::new(UefiBootServicesProjectionReleaseError {
+                projection,
+                diagnostic: ExternalRootDiagnostic(
+                    "lifecycle-scoped UEFI Boot Services projection belongs to a different firmware ledger"
+                        .into(),
+                ),
+            }));
+        }
+        self.active_lease = None;
+        let report = ReleasedUefiSystemTableScope {
+            ledger: self.ledger,
+            session: self.session,
+            invocation: self.invocation,
+            occurrence: projection.arrival.system_table.provenance.occurrence,
+            lease: projection.arrival.system_table.phase_lease.lease,
+            non_authoritative_layout_report_fingerprint: projection
+                .arrival
+                .system_table
+                .integrity
+                .layout()
+                .non_authoritative_layout_report_fingerprint(),
+        };
+        drop(projection);
         Ok(report)
     }
 
