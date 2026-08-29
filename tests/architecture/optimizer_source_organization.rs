@@ -239,6 +239,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn select_instructions",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/mod.rs",
+        coordination_marker: "pub(super) fn build_plan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/mod.rs",
+        coordination_marker: "let body = catalog::build(&context)?",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/structural_unit/mod.rs",
+        coordination_marker: "let call = call::build(function, source, plan, layout, keys, catalog)?",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/structural_unit/mod.rs",
         coordination_marker: "pub(super) fn reconstruct_structural_unit_contract",
     },
@@ -568,6 +580,10 @@ const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",
         order_marker: "LEGALIZATION_FORMS",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/catalog.rs",
+        order_marker: "SCALAR_FAMILIES",
     },
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/catalog.rs",
@@ -969,6 +985,16 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         violations.insert(format!(
             "external policy retains the mixed flat schema beside its governed entrance: {obsolete_external_policy_schema}"
         ));
+    }
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/plan.rs",
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "selected construction retains an opaque flat coordinator: {obsolete}"
+            ));
+        }
     }
     for path in source_lines.keys().filter(|path| {
         !is_test_source(path)

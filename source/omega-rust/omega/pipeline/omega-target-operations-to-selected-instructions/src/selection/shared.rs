@@ -14,8 +14,8 @@ pub(super) use omega_legalized_operations::{
 };
 pub(super) use omega_optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 pub(super) use omega_register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    RegisterClassId, RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
 };
 pub(super) use omega_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFixedInputConstraint,
