@@ -54,26 +54,19 @@ closed. Compiler-issued package review remains non-admitting.
     substitution, and hostile Unix descendants escaping their process group;
   - finish the existing locally reconstructed opaque strict receipt. The landed
     kernel exactly rejoins non-admitting resolution, native policy/completion,
-    command input, endpoint, executable-path, transfer-accounting, source, and
-    limit rows; calls `require_strict` for every command; and retains a closed
-    rejection for missing, changed, unavailable, or the first unimplemented
-    source requirement. There is deliberately no success issuer yet. Add real
-    evidence carriers and reconstruction for transport-trust, credential-custody,
-    whole-operation storage/resource, same-user mutation, and platform-native
-    rows before any success receipt can issue;
+    command input, endpoint, executable-path, transfer-accounting, source,
+    limits, and capability-rooted retained-storage counts/bytes/depth; calls
+    `require_strict` for every command; and retains a closed rejection for
+    missing, changed, unavailable, or the first unimplemented source
+    requirement. There is deliberately no success issuer yet. Add real evidence
+    carriers and reconstruction for transport-trust, credential custody,
+    whole-operation storage/resource, same-user mutation, and remaining
+    platform-native rows before any success receipt can issue;
 
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
   design-blocked on OWNER Q5 (strict SSH custody); the other bullets are engineering work.
-
-## P1 — Total package semantic identity
-
-- [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including the declaration-site target-trait lifetime mapping
-  owned by **CONFORMANCE-TARGET-LIFETIME-APPLICATION** below. Unsupported
-  generic, lifetime-bearing, private, or aliased forms must continue to fail
-  closed rather than disappear from review.
 
 ## P2 — Total compiler admission projection
 
@@ -103,8 +96,8 @@ closed. Compiler-issued package review remains non-admitting.
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the existing exact
   Source-input/empty-Output and repeated direct-child
   `create`/zero-or-more full sequential-or-positioned writes, exact successful
-  seeks, successful length changes, descriptor-scoped permission changes, and
-  successful syncs/`close` output replay lanes,
+  seeks, successful length changes, descriptor-scoped permission and timestamp
+  changes, and successful syncs/`close` output replay lanes,
   including exact cursor-independent positioned offsets and exact ordered
   generated-source subsets, into a complete receipted build-operation and
   output grammar. Add replay for every remaining admitted service and staged-
@@ -367,29 +360,6 @@ explicitly.
   called from a root without the corresponding Build-facet effect ceiling must
   reject. Project-role, workspace, and dependency declarations remain direct
   statically projected root statements and reject inside helpers.
-
-- [ ] **CONFORMANCE-TARGET-LIFETIME-APPLICATION — complete the conformance
-  header's trait application.** Add the ordered target-trait lifetime arguments
-  beside its existing type arguments in syntax, symbol-resolved, typed, checked,
-  snapshot, and semantic-identity carriers. A conformance declaration supplies
-  every target lifetime explicitly; require exact arity and resolve each source
-  name only to an in-scope conformance lifetime binder. Retain alpha-normalized
-  declaration-order ordinals through direct and inherited requirement
-  substitution, specialization, public conformance evidence, canonical encoding,
-  recovery, and compatibility comparison. Package review consumes checked
-  ordinals and never reconstructs them from spelling, subject shape, or expected
-  trait arguments.
-
-  Preserve the existing application-site rule independently: omitted generic-
-  conformance lifetimes are accepted only when ordinary call borrow constraints
-  yield one unique complete mapping, and the resolved mapping enters semantic
-  identity before review. Add positive explicit declaration and concrete-
-  substitution canaries; exact-arity and undeclared-binder failures; inherited-
-  requirement substitution; binder-rename stability; changed-ordinal identity
-  drift; and a zero-candidate application canary distinct from the existing
-  unique and conflicting-constraint cases. Exact ordinal equality remains both
-  identity and selection until Omega gains another lifetime term or lifetime
-  subtyping.
 
 - [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
   ordinary-package std migration without recreating a privileged `std` role.
