@@ -13,6 +13,9 @@ mod locks;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
+#[cfg(test)]
+mod source_read_link_tests;
+mod source_read_links;
 mod symlinks;
 
 pub use directories::{
@@ -42,6 +45,8 @@ pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{
     FilesystemInputOutputTreeReplayRecord, FilesystemOutputTreeEntryReplayRecord,
 };
+pub use source_read_links::FilesystemSourceReadLinkReplayRecord;
+pub(crate) use source_read_links::{source_read_link_attempt, source_read_link_attempt_is_exact};
 pub use symlinks::{
     FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
