@@ -121,6 +121,9 @@ and no-selection compatibility remain enforced.
 - [x] Split selected-instruction staging into retained model, construction,
   fixed-input constraint projection, and independent replay leaves; its
   entrance owns environment-to-replayed-result custody.
+- [x] Split optimized target-operation lowering into retained model and exact
+  source-route leaves; its entrance owns every lowering-to-custody join and
+  provider-installation retention.
 - [x] Split bounded target-operation assignment into retained model, source
   lowering, assignment construction, and independent custody replay leaves;
   its entrance owns the construction-to-replay admission join.
