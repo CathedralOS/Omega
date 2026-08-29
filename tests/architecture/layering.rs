@@ -2966,12 +2966,15 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::integer_less_than::validate",
         "straight_line_parameter::integer_less_or_equal::is_candidate",
         "straight_line_parameter::integer_less_or_equal::validate",
+        "straight_line_parameter::integer_bitwise_not::is_candidate",
+        "straight_line_parameter::integer_bitwise_not::validate",
         "source::reconstruct_direct",
         "source::reconstruct_boolean_not",
         "source::reconstruct_boolean_equal",
-        "source::reconstruct_integer_equal",
-        "source::reconstruct_integer_less_than",
-        "source::reconstruct_integer_less_or_equal",
+        "source::integer::reconstruct_equal",
+        "source::integer::reconstruct_less_than",
+        "source::integer::reconstruct_less_or_equal",
+        "source::integer::reconstruct_bitwise_not",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -3013,6 +3016,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "integer_equal.rs",
         "integer_less_than.rs",
         "integer_less_or_equal.rs",
+        "integer_bitwise_not.rs",
     ] {
         let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
             .expect("read typed parameter-return replay");
@@ -3053,7 +3057,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         );
     }
     let integer_equal_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer_equal.rs"))
+        std::fs::read_to_string(parameter_validation.join("source/integer/equal.rs"))
             .expect("read integer-equality parameter source replay");
     for required in [
         "AbstractOperation::IntegerEqual",
@@ -3065,7 +3069,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         );
     }
     let integer_less_than_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer_less_than.rs"))
+        std::fs::read_to_string(parameter_validation.join("source/integer/less_than.rs"))
             .expect("read integer-less-than parameter source replay");
     for required in [
         "AbstractOperation::IntegerLessThan",
@@ -3077,7 +3081,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         );
     }
     let integer_less_or_equal_source =
-        std::fs::read_to_string(parameter_validation.join("source/integer_less_or_equal.rs"))
+        std::fs::read_to_string(parameter_validation.join("source/integer/less_or_equal.rs"))
             .expect("read integer-less-or-equal parameter source replay");
     for required in [
         "AbstractOperation::IntegerLessOrEqual",
@@ -3086,6 +3090,18 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         assert!(
             integer_less_or_equal_source.contains(required),
             "integer-less-or-equal source replay must visibly own {required}",
+        );
+    }
+    let integer_bitwise_not_source =
+        std::fs::read_to_string(parameter_validation.join("source/integer/bitwise_not.rs"))
+            .expect("read integer-bitwise-not parameter source replay");
+    for required in [
+        "AbstractOperation::IntegerBitwiseNot",
+        "AbstractOperation::Return",
+    ] {
+        assert!(
+            integer_bitwise_not_source.contains(required),
+            "integer-bitwise-not source replay must visibly own {required}",
         );
     }
     let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
@@ -3105,6 +3121,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "AbstractOperation::IntegerEqual",
         "AbstractOperation::IntegerLessThan",
         "AbstractOperation::IntegerLessOrEqual",
+        "AbstractOperation::IntegerBitwiseNot",
     ] {
         assert!(
             !source_envelope.contains(forbidden),
@@ -3121,6 +3138,16 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         !parameter_validation.join("source.rs").exists(),
         "the retired flat parameter source replay must not return",
     );
+    for retired in [
+        "source/integer_equal.rs",
+        "source/integer_less_than.rs",
+        "source/integer_less_or_equal.rs",
+    ] {
+        assert!(
+            !parameter_validation.join(retired).exists(),
+            "retired flat integer grammar leaf must not return: {retired}",
+        );
+    }
     assert!(
         !parameter_validation.join("derived.rs").exists(),
         "the retired flat derived-expression replay must not return",

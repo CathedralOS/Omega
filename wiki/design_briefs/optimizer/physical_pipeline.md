@@ -15,19 +15,21 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of those
 producer routes. It first binds Psi identity, requested target, entry, function
 count/order, machine, and attachment, then descends into exact family replay.
-Its first ten families reconstruct parameterless straight-line integer and
+Its first eleven families reconstruct parameterless straight-line integer and
 Boolean literal returns, scalar `Crash`, direct integer and Boolean parameter
 returns, Boolean negation of a parameter, and equality of two Boolean
 parameters, equality of two same-type integer parameters, or strict/inclusive
-ordering of two same-type integer parameters without calling `lowering`,
-`KnownScalar`, or the scalar-return helper. The distinct parameter families
-share governed source-envelope and
+ordering of two same-type integer parameters, plus integer bitwise-not of one
+parameter, without calling `lowering`, `KnownScalar`, or the scalar-return
+helper. The distinct parameter families share governed source-envelope and
 whole-roster ABI replay rungs, which independently apply the target's calling
-policy to prove every incoming register or stack location. The derived join
-binds operand/result identity and exact operation/edge provenance; Boolean
-equality, typed integer equality, and strict or inclusive integer ordering
-retain ordered and identical operands through recursive
-`ReturnBooleanExpression` receipts.
+policy to prove every incoming register or stack location. Integer grammars
+first pass through their own small typed coordinator. The derived join binds
+operand/result identity and exact operation/edge provenance; Boolean equality,
+typed integer equality, and strict or inclusive integer ordering retain ordered
+and identical operands through recursive `ReturnBooleanExpression` receipts,
+while integer bitwise-not retains its exact-width parameter through
+`ReturnIntegerExpression`.
 Its adjacent sub-100-line ordered
 catalog is the sole enable/disable inventory. Each descriptor joins one source
 classifier to one typed replay adapter; zero matches are explicitly uncovered,

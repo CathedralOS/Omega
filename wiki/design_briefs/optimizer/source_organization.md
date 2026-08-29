@@ -285,18 +285,23 @@ then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
 `straight_line_scalar_crash.rs` and
-`straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than,integer_less_or_equal}.rs`.
-The governed parameter coordinator visibly joins the `source/mod.rs` grammar map,
-its shared `envelope.rs`, and the `direct.rs`, `boolean_not.rs`, or
-typed equality or strict/inclusive-ordering grammar leaves to whole-roster
-`abi.rs` calling-plan replay.
-`derived/mod.rs` owns the unary join and descends to `derived/equality.rs` for
+`straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than,integer_less_or_equal,integer_bitwise_not}.rs`.
+The governed parameter coordinator visibly joins the 49-line `source/mod.rs`
+cross-result grammar map and shared `envelope.rs` to whole-roster `abi.rs`
+calling-plan replay. Integer-derived grammar descends through its own 78-line
+`source/integer/mod.rs`, which owns common result-envelope reconstruction for
+integer-derived grammars and typed-parameter lookup before the named equality,
+strict/inclusive-ordering, or bitwise-not leaves. The retired flat integer
+grammar leaves are
+architecture-forbidden.
+`derived/mod.rs` owns the Boolean and integer unary joins and descends to `derived/equality.rs` for
 Boolean or integer equality and `derived/ordering.rs` for integer less-than or
 less-or-equal source identity, exact register/stack placements, and provenance
-before the typed target leaf. Boolean-not preserves its operand; each binary
+before the typed target leaf. Boolean-not and integer bitwise-not preserve
+their operands; each binary
 family preserves both ordered operands, including identity, while integer
-comparisons also retain the exact common integer type alongside produced
-value, operation, and edge custody. Immutable
+families also retain the exact common integer type alongside produced value,
+operation, and edge custody. Immutable
 root and family vocabulary descend through small `model/error/` and
 `model/receipt/` maps and semantic leaves. The optimizer's sub-100-line
 target-operation entrance owns the visible

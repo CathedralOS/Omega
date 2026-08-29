@@ -17,6 +17,19 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has an eleventh exact family
+for integer bitwise-not of one parameter. The source grammar map first descends
+through a new 78-line `source/integer/mod.rs` coordinator that owns common
+result-envelope reconstruction for integer-derived grammars and typed parameter
+lookup, then reaches named comparison and bitwise-not leaves; the cross-result
+source entrance shrank from 99 to 49 lines. Independent replay covers signed
+and unsigned 8/16/32/64-bit
+types, register and incoming-stack placement on all five native targets, mixed
+rosters, exact operand/result/type/provenance custody, and source/target
+corruption. The optimized pipeline retains the typed receipt through target
+custody, and architecture gates pin both meaningful entrances and forbid the
+retired flat integer grammar leaves.
+
 [x] Abstract-to-target translation validation now has a tenth exact family for
 typed integer less-or-equal of two parameters. Its named source and target
 leaves share only the generic binary-Boolean carrier and the governed ordering
@@ -59,16 +72,18 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first ten semantic
+and duplicate or overlapping matches fail closed. The first eleven semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
 integer equality, strict ordering, or inclusive ordering of two same-type
-integer parameters. The parameter-derived families descend through a governed
-source-grammar map,
-shared envelope, whole-roster ABI replay, and a derived-expression join.
-Boolean-not and equality replay retain their distinct operands, produced value,
-operation provenance, return edge, and exact register or stack locations.
+integer parameters, plus integer bitwise-not of one parameter. The
+parameter-derived families descend through a governed source-grammar map,
+integer-family coordinator, shared envelope, whole-roster ABI replay, and a
+derived-expression join. Boolean-not, integer bitwise-not, and equality replay
+retain their distinct operands, produced value, operation provenance, return
+edge, exact integer type where applicable, and exact register or stack
+locations.
 Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
 operation-field substitution across all five native targets.
@@ -631,7 +646,8 @@ parallel route or optional coordinator field.
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
   integer-parameter, Boolean-parameter, Boolean-not-parameter, and ordered
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
-  integer-less-than-parameters and integer-less-or-equal-parameters
+  integer-less-than-parameters, integer-less-or-equal-parameters, and
+  integer-bitwise-not-parameter
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -866,3 +882,8 @@ rewrite or opt a program into lossy floating-point semantics.
     abstract-to-target family. Retain exact signedness/width, ordered or
     identical operand identity, register/stack ABI placements, provenance, and
     optimized-target custody through named inclusive-ordering leaves.
+31. [x] Add integer-bitwise-not-of-one-parameter as the eleventh independent
+    abstract-to-target family. Descend integer source grammar through one
+    meaningful typed coordinator first, then retain exact integer type,
+    operand/result identity, register/stack ABI placement, provenance, and
+    optimized-target custody through the named unary leaf.

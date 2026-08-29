@@ -48,6 +48,16 @@ pub(crate) fn boolean_not_parameter_return_artifact(parameter_count: usize) -> (
     )
 }
 
+pub(crate) fn integer_bitwise_not_parameter_return_artifact(
+    integer_type: IntegerType,
+    parameter_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Integer(integer_type),
+        ScalarTerminal::IntegerBitwiseNotParameter { parameter_count },
+    )
+}
+
 pub(crate) fn boolean_equal_parameters_return_artifact(
     parameter_count: usize,
 ) -> (Vec<u8>, Vec<u8>) {
@@ -106,6 +116,9 @@ enum ScalarTerminal {
         parameter_count: usize,
     },
     BooleanNotParameter {
+        parameter_count: usize,
+    },
+    IntegerBitwiseNotParameter {
         parameter_count: usize,
     },
     BooleanEqualParameters {
@@ -192,6 +205,27 @@ fn scalar_terminal_artifact(
                     id: OperationId::new(30_005).unwrap(),
                     result: OperationResult::Scalar(declaration(constant_value)),
                     kind: OperationKind::BooleanNot { operand },
+                }],
+                Terminator::Return {
+                    edge,
+                    value: constant_value,
+                    cleanup_actions: Vec::new(),
+                },
+                Vec::new(),
+            )
+        }
+        ScalarTerminal::IntegerBitwiseNotParameter { parameter_count } => {
+            assert!(parameter_count > 0, "parameter fixture must be nonempty");
+            let parameters = (0..parameter_count)
+                .map(|index| declaration(ValueId::new(30_100 + index as u64).unwrap()))
+                .collect::<Vec<_>>();
+            let operand = parameters[parameter_count - 1].id;
+            (
+                parameters,
+                vec![Operation {
+                    id: OperationId::new(30_005).unwrap(),
+                    result: OperationResult::Scalar(declaration(constant_value)),
+                    kind: OperationKind::IntegerBitwiseNot { operand },
                 }],
                 Terminator::Return {
                     edge,

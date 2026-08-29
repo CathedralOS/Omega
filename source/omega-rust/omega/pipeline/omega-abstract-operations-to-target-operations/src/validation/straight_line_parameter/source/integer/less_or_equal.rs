@@ -1,21 +1,21 @@
-//! Exact `[IntegerLessThan(parameter, parameter), Return]` source replay.
+//! Exact `[IntegerLessOrEqual(parameter, parameter), Return]` source replay.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
-use super::super::model::{
+use super::super::super::model::{
     IntegerBinaryBooleanParametersSource, ParameterResultKind, ReconstructedEnvelope,
 };
-use crate::validation::model::StraightLineIntegerLessThanParametersTranslationError;
+use crate::validation::model::StraightLineIntegerLessOrEqualParametersTranslationError;
 
 pub(in crate::validation::straight_line_parameter) fn is_candidate(
     function: &AbstractFunction,
 ) -> bool {
-    super::has_candidate_envelope(function, ParameterResultKind::Boolean)
+    super::super::has_candidate_envelope(function, ParameterResultKind::Boolean)
         && matches!(
             function.operations.as_slice(),
             [
-                AbstractOperation::IntegerLessThan { .. },
+                AbstractOperation::IntegerLessOrEqual { .. },
                 AbstractOperation::Return {
                     cleanup_actions,
                     ..
@@ -29,12 +29,12 @@ pub(super) fn reconstruct(
     envelope: &ReconstructedEnvelope<'_>,
 ) -> Result<
     IntegerBinaryBooleanParametersSource,
-    StraightLineIntegerLessThanParametersTranslationError,
+    StraightLineIntegerLessOrEqualParametersTranslationError,
 > {
     let [
-        AbstractOperation::IntegerLessThan {
+        AbstractOperation::IntegerLessOrEqual {
             psi_operation,
-            result: less_than_result,
+            result: less_or_equal_result,
             left,
             right,
         },
@@ -47,39 +47,41 @@ pub(super) fn reconstruct(
         },
     ] = function.operations.as_slice()
     else {
-        return Err(StraightLineIntegerLessThanParametersTranslationError::SourceOperationRoster);
+        return Err(
+            StraightLineIntegerLessOrEqualParametersTranslationError::SourceOperationRoster,
+        );
     };
     if !cleanup_actions.is_empty() {
-        return Err(StraightLineIntegerLessThanParametersTranslationError::SourceCleanup);
+        return Err(StraightLineIntegerLessOrEqualParametersTranslationError::SourceCleanup);
     }
     if *result != envelope.function_result
         || *scalar_type != ScalarType::Boolean
-        || *value != *less_than_result
+        || *value != *less_or_equal_result
     {
-        return Err(StraightLineIntegerLessThanParametersTranslationError::SourceReturnLink);
+        return Err(StraightLineIntegerLessOrEqualParametersTranslationError::SourceReturnLink);
     }
     if envelope
         .parameters
         .iter()
-        .any(|parameter| parameter.value == *less_than_result)
+        .any(|parameter| parameter.value == *less_or_equal_result)
     {
         return Err(
-            StraightLineIntegerLessThanParametersTranslationError::SourceLessThanResultRoster,
+            StraightLineIntegerLessOrEqualParametersTranslationError::SourceLessOrEqualResultRoster,
         );
     }
-    let (left_parameter_index, left_type) = super::integer_parameter(envelope, *left)
-        .ok_or(StraightLineIntegerLessThanParametersTranslationError::SourceLeftOperandLink)?;
-    let (right_parameter_index, right_type) = super::integer_parameter(envelope, *right)
-        .ok_or(StraightLineIntegerLessThanParametersTranslationError::SourceRightOperandLink)?;
+    let (left_parameter_index, left_type) = super::parameter(envelope, *left)
+        .ok_or(StraightLineIntegerLessOrEqualParametersTranslationError::SourceLeftOperandLink)?;
+    let (right_parameter_index, right_type) = super::parameter(envelope, *right)
+        .ok_or(StraightLineIntegerLessOrEqualParametersTranslationError::SourceRightOperandLink)?;
     if left_type != right_type {
         return Err(
-            StraightLineIntegerLessThanParametersTranslationError::SourceOperandTypeMismatch,
+            StraightLineIntegerLessOrEqualParametersTranslationError::SourceOperandTypeMismatch,
         );
     }
     Ok(IntegerBinaryBooleanParametersSource {
         operation: *psi_operation,
         return_edge: *psi_edge,
-        source_value: *less_than_result,
+        source_value: *less_or_equal_result,
         scalar_type: left_type,
         left_value: *left,
         right_value: *right,
