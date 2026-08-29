@@ -164,6 +164,12 @@ same exact provider-plan machinery as a trait requirement.
 vocabulary rejects at that boundary. The former checked-tree, StateGraph, and
 control-flow backend route has been deleted.
 
+That consumer exposes four explicit entrances rather than one lowering
+monolith: canonical artifact admission/replay, verified optimizer-unit
+construction, provider-installation custody, and verified-machine lowering.
+Machine lowering descends separately through payloadless recognition,
+ordinary scalar/Unit lowering, and the bounded structural-result family.
+
 Build orchestration may separately retain source-declaration receipts needed to
 prove author intent, ProgramEntry identity, provider selection, and target
 closure. Those receipts rejoin the canonical artifact in

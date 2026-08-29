@@ -1,0 +1,172 @@
+use super::error::ProviderInstallationError;
+use super::model::AdmittedInstalledProviderUnitCall;
+use crate::shared::*;
+
+pub(super) fn replay_installed_provider_unit_calls(
+    plan: &AbstractOperationPlan,
+    module: &psi_terminal::TerminalModule,
+    installed: &[ProviderCandidateConformance],
+) -> Result<Vec<AdmittedInstalledProviderUnitCall>, ProviderInstallationError> {
+    let mut calls = Vec::new();
+    for caller in &plan.functions {
+        for operation in &caller.operations {
+            let AbstractOperation::BoundaryCall {
+                psi_operation,
+                result,
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+            } = operation
+            else {
+                continue;
+            };
+            let Some(provider) = installed.iter().find(|row| row.boundary == *boundary) else {
+                continue;
+            };
+            let malformed = || ProviderInstallationError::InstalledUnitCallReplayMismatch {
+                caller: caller.machine,
+                operation: *psi_operation,
+                boundary: *boundary,
+            };
+            let boundary_declaration = plan
+                .boundary_machines
+                .iter()
+                .find(|row| row.id == *boundary)
+                .ok_or_else(malformed)?;
+            let candidate = plan
+                .functions
+                .iter()
+                .find(|function| function.machine == provider.candidate)
+                .ok_or_else(malformed)?;
+            let terminal_candidate = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == provider.candidate)
+                .ok_or_else(malformed)?;
+            if result.is_some()
+                || !arguments.is_empty()
+                || boundary_declaration.identity != provider.requirement_identity
+                || !boundary_declaration.scalar_parameters.is_empty()
+                || boundary_declaration.result.is_some()
+                || !candidate.parameters.is_empty()
+                || !matches!(&candidate.result, AbstractFunctionResult::Unit)
+                || structural_arguments.len() != provider.signature.parameters.len()
+                || boundary_declaration.structural_parameters.len() != structural_arguments.len()
+                || candidate.structural_parameters.len() != structural_arguments.len()
+            {
+                return Err(malformed());
+            }
+            for (index, (((argument, signature), boundary_parameter), candidate_parameter)) in
+                structural_arguments
+                    .iter()
+                    .zip(&provider.signature.parameters)
+                    .zip(&boundary_declaration.structural_parameters)
+                    .zip(&candidate.structural_parameters)
+                    .enumerate()
+            {
+                let Some(caller_parameter) = caller
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == argument.place)
+                else {
+                    return Err(malformed());
+                };
+                if !argument.path.is_empty()
+                    || signature.position as usize != index
+                    || argument.access != signature.access
+                    || boundary_parameter.position != signature.position
+                    || boundary_parameter.is_self != signature.is_self
+                    || boundary_parameter.structural_type != signature.structural_type
+                    || boundary_parameter.multiplicity != signature.multiplicity
+                    || boundary_parameter.access != signature.access
+                    || boundary_parameter.qualifications != signature.qualifications
+                    || candidate_parameter.position != signature.position
+                    || candidate_parameter.is_self != signature.is_self
+                    || candidate_parameter.structural_type != signature.structural_type
+                    || candidate_parameter.multiplicity != signature.multiplicity
+                    || candidate_parameter.access != signature.access
+                    || candidate_parameter.qualifications != signature.qualifications
+                    || caller_parameter.structural_type != signature.structural_type
+                    || caller_parameter.multiplicity != signature.multiplicity
+                    || caller_parameter.access != signature.access
+                    || caller_parameter.qualifications != signature.qualifications
+                {
+                    return Err(malformed());
+                }
+            }
+
+            let mut expected_claims = Vec::new();
+            for claim in &terminal_candidate.entry_claims {
+                if !claim.path.is_empty() {
+                    return Err(malformed());
+                }
+                let argument_index = terminal_candidate
+                    .structural_parameters
+                    .iter()
+                    .position(|parameter| parameter.place == claim.input)
+                    .ok_or_else(malformed)? as u32;
+                expected_claims.push((argument_index, claim.claim));
+            }
+            if completion_receipts.len() != expected_claims.len() {
+                return Err(malformed());
+            }
+            for (receipt, (argument_index, candidate_claim)) in
+                completion_receipts.iter().zip(&expected_claims)
+            {
+                let argument = structural_arguments
+                    .get(*argument_index as usize)
+                    .ok_or_else(malformed)?;
+                let source = completion_claim_sources
+                    .iter()
+                    .find(|source| source.claim == receipt.claim)
+                    .ok_or_else(malformed)?;
+                let entry = source.entry.as_ref().ok_or_else(malformed)?;
+                if receipt.argument_index != *argument_index
+                    || entry.input != argument.place
+                    || !entry.path.is_empty()
+                {
+                    return Err(malformed());
+                }
+                if let Some(candidate_content) = terminal_candidate
+                    .content_entry_claims
+                    .iter()
+                    .find(|content| content.claim == *candidate_claim)
+                {
+                    let caller_content = source.content.as_ref().ok_or_else(malformed)?;
+                    if caller_content.input.root != argument.place
+                        || caller_content.input.segments != candidate_content.input.segments
+                        || caller_content.projections != candidate_content.projections
+                    {
+                        return Err(malformed());
+                    }
+                } else if source.content.is_some() {
+                    return Err(malformed());
+                }
+            }
+            if terminal_candidate
+                .content_entry_claims
+                .iter()
+                .any(|content| {
+                    !terminal_candidate
+                        .entry_claims
+                        .iter()
+                        .any(|entry| entry.claim == content.claim)
+                })
+            {
+                return Err(malformed());
+            }
+            calls.push(AdmittedInstalledProviderUnitCall {
+                caller: caller.machine,
+                psi_operation: *psi_operation,
+                boundary: *boundary,
+                provider: provider.clone(),
+                structural_arguments: structural_arguments.clone(),
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: completion_receipts.clone(),
+            });
+        }
+    }
+    Ok(calls)
+}

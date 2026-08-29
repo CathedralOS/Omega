@@ -1,0 +1,59 @@
+use crate::shared::*;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoweringError {
+    SemanticIdentity(CodecError),
+    /// Terminal preserves the exact payloadless sum case, but Omega has no
+    /// target-neutral abstract operation for realizing that structural value.
+    UnsupportedPayloadlessCase(psi_core::OperationId),
+    /// Psi preserves exact byte-sequence literals, but native realization is
+    /// deliberately fenced until the selected boundary has a byte-view ABI.
+    UnsupportedByteSequenceLiteral(psi_core::OperationId),
+    ScalarReturnFromUnitMachine(MachineId),
+    UnitReturnFromScalarMachine(MachineId),
+    /// The verified structural-result machine is wider than the exact
+    /// singleton whole-root passthrough currently carried into Omega.
+    UnsupportedStructuralResult(MachineId),
+    /// A structural return appeared on a non-structural-result machine.
+    UnsupportedStructuralReturn {
+        machine: MachineId,
+        edge: psi_core::EdgeId,
+    },
+    VerifiedEntryMachineMissing(MachineId),
+    VerifiedBlockMissing {
+        machine: MachineId,
+        block: BlockId,
+    },
+    VerifiedControlCycle {
+        machine: MachineId,
+        block: BlockId,
+    },
+    VerifiedJumpArityMismatch {
+        edge: psi_core::EdgeId,
+    },
+    VerifiedWrappingAddMalformed(psi_core::OperationId),
+    VerifiedSaturatingAddMalformed(psi_core::OperationId),
+    VerifiedWrappingSubtractMalformed(psi_core::OperationId),
+    VerifiedSaturatingSubtractMalformed(psi_core::OperationId),
+    VerifiedWrappingMultiplyMalformed(psi_core::OperationId),
+    VerifiedExactDivideMalformed(psi_core::OperationId),
+    VerifiedExactRemainderMalformed(psi_core::OperationId),
+    VerifiedWrappingDivideMalformed(psi_core::OperationId),
+    VerifiedWrappingRemainderMalformed(psi_core::OperationId),
+    VerifiedSaturatingDivideMalformed(psi_core::OperationId),
+    VerifiedSaturatingRemainderMalformed(psi_core::OperationId),
+    VerifiedSaturatingMultiplyMalformed(psi_core::OperationId),
+    VerifiedIntegerBitwiseMalformed(psi_core::OperationId),
+    VerifiedIntegerWidenMalformed(psi_core::OperationId),
+    VerifiedIntegerExactCastMalformed(psi_core::OperationId),
+    VerifiedWrappingShiftMalformed(psi_core::OperationId),
+    VerifiedExactShiftMalformed(psi_core::OperationId),
+}
+
+impl std::fmt::Display for LoweringError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for LoweringError {}

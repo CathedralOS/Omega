@@ -142,6 +142,15 @@ expression-frame, typed-expression, and parameter-discovery mechanics descend
 into named leaves. No production leaf exceeds 554 lines, so its temporary
 status no longer excuses an opaque assignment monolith.
 
+The Terminal-to-abstract boundary is likewise governed as four distinct
+responsibilities. Artifact admission owns canonical decode/verify and replay;
+optimizer-unit construction owns structural catalog retention followed by
+accepted facts, proof questions, ownership frontiers, and sealing; provider
+installation owns selection policy followed by exact plan and call replay;
+machine lowering owns entry-roster coordination over payloadless, ordinary,
+and structural families. Their entrances are 48, 65, 53, and 57 lines, and no
+production leaf exceeds 1,058 lines.
+
 Psi, selected-lowering, allocation-recovery, post-allocation, and
 function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and
