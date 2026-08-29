@@ -171,6 +171,9 @@ Structural-Unit function-relative realization separates its retained model,
 physical-stage construction, independent replay, source-shape admission,
 manifest reconstruction, and custody projection below one replay-gated
 entrance.
+Active-resident function-relative realization follows the same structure and
+keeps corruption helpers in a test-support leaf rather than production
+mechanics.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.

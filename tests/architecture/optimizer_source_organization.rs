@@ -159,6 +159,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/structural_unit_function_relative_realization/mod.rs",
         coordination_marker: "pub fn stage_optimized_structural_unit_function_relative_realization",
     },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/active_resident_function_relative_realization/mod.rs",
+        coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_function_relative_realization",
+    },
 ];
 
 /// Every Psi pass owns its rule order immediately below its named folder.
