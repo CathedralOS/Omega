@@ -67,3 +67,61 @@ fn resolves_external_local_closure_across_directory_boundaries_in_one_context() 
     let _ = std::fs::remove_dir_all(first_cache);
     let _ = std::fs::remove_dir_all(second_cache);
 }
+
+#[test]
+fn project_resolution_retains_an_application_root_role() {
+    let source = temp_root("application-root");
+    let cache = temp_root("application-root-cache");
+    std::fs::create_dir_all(&source).expect("create application root");
+    std::fs::write(
+        source.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.application(\"driver-console\");\n}\n",
+    )
+    .expect("write application declaration");
+    std::fs::write(source.join("main.omg"), "machine root() {}\n")
+        .expect("write application source");
+    let storage = SourceResolverStorage::for_hardened_base(&cache).expect("resolver storage");
+
+    let closure = resolve_external_local_project_closure_with_storage(
+        &source,
+        ExternalSourceContext::derive(b"application-root-lock"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve application root");
+
+    assert_eq!(
+        closure.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+    assert_eq!(
+        closure
+            .custody(closure.graph().root())
+            .expect("root custody")
+            .role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+
+    let subject = crate::resolution::CanonicalSourceClosureSubject::from_resolved(
+        &closure,
+        crate::resolution::CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("encode source closure");
+    assert_eq!(
+        subject.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+    let recovered = crate::resolution::CanonicalSourceClosureSubject::recover(
+        subject.canonical_bytes(),
+        crate::resolution::CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("recover source closure");
+    assert_eq!(
+        recovered.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(cache);
+}

@@ -311,15 +311,19 @@ items are still owner-blocked.
   profile identity, and missing locked columns.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role after resolution.**
-  Keep the existing single root/non-root admission flag: roots may be packages
-  or applications, while every dependency edge remains package-only. Remove the
-  subsequent `ApplicationDeclaration` to `PackageDeclaration` coercion and
-  retain `{ PackageKey, BuildDeclarationKind }` for the selected root through
-  closure reconciliation, lock rows, manifest review, compiler handoff,
-  diagnostics, and audit output. Non-root nodes need no redundant role field
-  because their package role is already enforced. Retain the existing
-  Git/workspace/local dependency-rejection tests and add evidence/replay tests
-  for application and package roots, role tampering, and role-change reporting.
+  Source projection no longer coerces `ApplicationDeclaration` into a package.
+  Source custody and reconciliation retain the exact root role, reject an
+  application behind every dependency edge, and bind the role into canonical
+  source-closure v4 and review-baseline v4 recovery.
+
+  Remaining work:
+
+  - expose application-capable selected-root entry points uniformly for Git and
+    workspace roots rather than only external-local roots;
+  - retain `{ PackageKey, BuildDeclarationKind }` through compiler handoff,
+    accepted lock rows, manifest review, diagnostics, and audit output;
+  - compare root-role changes directionally and add package/application replay,
+    tampering, and role-change fixtures at each downstream boundary.
 
 - [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction

@@ -155,7 +155,7 @@ pub(super) fn validate_subject(
             )
         })
         .collect();
-    ResolvedPackageClosure::new(root.selected.key().clone(), nodes).map_err(|_| {
+    ResolvedPackageClosure::new(root.selected.key().clone(), root.role(), nodes).map_err(|_| {
         CanonicalSourceClosureSubjectError::new(
             "source-closure subject does not form one closed reachable acyclic graph",
         )

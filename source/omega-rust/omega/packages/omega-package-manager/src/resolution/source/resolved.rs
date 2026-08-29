@@ -1,4 +1,5 @@
 use crate::identity::PackageKey;
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
@@ -17,6 +18,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageSource<S> {
     key: PackageKey,
+    role: BuildDeclarationKind,
     resolution: ImmutableSourceResolution,
     materialization: PackageSourceMaterialization,
     snapshot_root: PathBuf,
@@ -30,6 +32,7 @@ pub struct ResolvedPackageSource<S> {
 impl<S> ResolvedPackageSource<S> {
     pub(super) fn from_resolved_parts(
         key: PackageKey,
+        role: BuildDeclarationKind,
         resolution: ImmutableSourceResolution,
         materialization: PackageSourceMaterialization,
         snapshot_root: PathBuf,
@@ -41,6 +44,7 @@ impl<S> ResolvedPackageSource<S> {
     ) -> Self {
         Self {
             key,
+            role,
             resolution,
             materialization,
             snapshot_root,
@@ -54,6 +58,10 @@ impl<S> ResolvedPackageSource<S> {
 
     pub fn key(&self) -> &PackageKey {
         &self.key
+    }
+
+    pub const fn role(&self) -> BuildDeclarationKind {
+        self.role
     }
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
@@ -97,6 +105,7 @@ impl<S> ResolvedPackageSource<S> {
     pub fn into_custody(self) -> PackageSourceCustody {
         PackageSourceCustody::from_resolved_parts(
             self.key,
+            self.role,
             self.resolution,
             self.materialization,
             self.snapshot_root,

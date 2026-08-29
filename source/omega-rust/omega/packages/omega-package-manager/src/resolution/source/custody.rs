@@ -1,6 +1,7 @@
 //! Transport-erased custody for one declared package snapshot.
 
 use crate::identity::PackageKey;
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::{
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
@@ -14,6 +15,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 pub struct PackageSourceCustody {
     key: PackageKey,
+    role: BuildDeclarationKind,
     resolution: ImmutableSourceResolution,
     materialization: PackageSourceMaterialization,
     pub(crate) snapshot_root: PathBuf,
@@ -26,6 +28,7 @@ pub struct PackageSourceCustody {
 impl PartialEq for PackageSourceCustody {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
+            && self.role == other.role
             && self.resolution == other.resolution
             && self.materialization == other.materialization
             && self.snapshot_root == other.snapshot_root
@@ -40,6 +43,7 @@ impl Eq for PackageSourceCustody {}
 impl PackageSourceCustody {
     pub(crate) fn from_resolved_parts(
         key: PackageKey,
+        role: BuildDeclarationKind,
         resolution: ImmutableSourceResolution,
         materialization: PackageSourceMaterialization,
         snapshot_root: PathBuf,
@@ -51,6 +55,7 @@ impl PackageSourceCustody {
         debug_assert!(resolution.matches_lineage(key.source_lineage()));
         Self {
             key,
+            role,
             resolution,
             materialization,
             snapshot_root,
@@ -63,6 +68,10 @@ impl PackageSourceCustody {
 
     pub fn key(&self) -> &PackageKey {
         &self.key
+    }
+
+    pub const fn role(&self) -> BuildDeclarationKind {
+        self.role
     }
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
@@ -95,6 +104,7 @@ impl PackageSourceCustody {
 
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
         self.key == other.key
+            && self.role == other.role
             && self.resolution == other.resolution
             && self.materialization == other.materialization
             && self.navigation == other.navigation

@@ -1,5 +1,6 @@
 use super::super::super::ResolvedSourceIdentity;
 use crate::identity::{AliasName, PackageKey, PackageName};
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
 use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 
@@ -29,6 +30,7 @@ pub enum CanonicalRootSourceRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalRootSourceSelection {
     pub(in super::super) request: CanonicalRootSourceRequest,
+    pub(in super::super) role: BuildDeclarationKind,
     pub(in super::super) selected: ResolvedSourceIdentity,
 }
 
@@ -39,6 +41,10 @@ impl CanonicalRootSourceSelection {
 
     pub const fn selected(&self) -> &ResolvedSourceIdentity {
         &self.selected
+    }
+
+    pub const fn role(&self) -> BuildDeclarationKind {
+        self.role
     }
 }
 

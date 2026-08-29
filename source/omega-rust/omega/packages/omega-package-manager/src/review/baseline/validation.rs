@@ -22,7 +22,7 @@ pub(super) fn canonical_graph(
 ) -> Result<ResolvedPackageClosure, ReviewOnlyBaselineError> {
     let mut packages = graph.packages().to_vec();
     packages.sort_by(|left, right| left.source().key().cmp(right.source().key()));
-    ResolvedPackageClosure::new(graph.root().clone(), packages)
+    ResolvedPackageClosure::new(graph.root().clone(), graph.root_role(), packages)
         .map_err(|_| ReviewOnlyBaselineError::new("source closure cannot be canonicalized"))
 }
 

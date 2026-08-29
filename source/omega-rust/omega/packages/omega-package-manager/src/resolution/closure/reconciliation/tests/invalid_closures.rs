@@ -100,3 +100,32 @@ fn enforces_package_request_and_depth_ceilings() {
         ));
     }
 }
+
+#[test]
+fn rejects_an_application_selected_through_a_dependency_edge() {
+    let dependency = custody_with_role(
+        "tool",
+        "tool",
+        2,
+        "/snapshots/tool",
+        crate::manifest::BuildDeclarationKind::Application,
+        vec![],
+    );
+    let root = custody("root", "root", 1, "/snapshots/root", vec![request("tool")]);
+
+    let error = resolve_package_source_closure(
+        git_root_request(&root),
+        root,
+        fake_adapter(BTreeMap::from([("tool", dependency)])),
+    )
+    .expect_err("applications are not importable dependencies");
+
+    assert!(matches!(
+        error,
+        PackageSourceClosureResolutionError::InvalidDependencyRole {
+            dependency_index: 0,
+            role: crate::manifest::BuildDeclarationKind::Application,
+            ..
+        }
+    ));
+}

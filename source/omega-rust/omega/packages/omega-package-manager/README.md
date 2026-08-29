@@ -114,7 +114,8 @@ Static role/member/dependency projection stays direct and root-owned. Evaluated
 composition may use ordinary helpers borrowing `&mut Build`, with their complete
 transitive contracts retained against the root.
 
-Canonical source-closure encoding v3 binds root and dependency selectors plus
+Canonical source-closure encoding v4 binds the selected root's explicit role,
+root and dependency selectors, plus
 one stable navigation value for every package. Review revalidates the complete
 authenticated repository commitment before opening a selected member subtree;
 it never compares a member-only digest to the repository digest.

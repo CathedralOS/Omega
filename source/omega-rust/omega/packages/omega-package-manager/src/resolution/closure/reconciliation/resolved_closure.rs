@@ -3,6 +3,7 @@
 use super::super::{ResolvedPackageClosure, ResolvedSourceIdentity};
 use super::model::{DependencyRequestPath, DependencyRequestPathStep};
 use crate::identity::{AliasName, PackageKey};
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::closure::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
@@ -135,6 +136,11 @@ impl ResolvedPackageSourceClosure {
 
     pub fn graph(&self) -> &ResolvedPackageClosure {
         &self.graph
+    }
+
+    /// Exact role authored by the selected closure root.
+    pub const fn root_role(&self) -> BuildDeclarationKind {
+        self.graph.root_role()
     }
 
     pub fn custodies(&self) -> &[PackageSourceCustody] {

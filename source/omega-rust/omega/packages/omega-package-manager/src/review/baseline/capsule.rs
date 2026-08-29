@@ -14,6 +14,7 @@ use super::{
     ReviewOnlyBaselineLimits, VERSION,
 };
 use crate::identity::{AliasName, PackageKey};
+use crate::manifest::BuildDeclarationKind;
 use crate::resolution::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
     ResolvedSourceIdentity,
@@ -284,6 +285,7 @@ impl ReviewOnlyBaselineCapsule {
                 "review baseline root index is out of range",
             ));
         }
+        let root_role = decode_root_role(&mut decoder)?;
 
         let mut pending = Vec::new();
         pending
@@ -451,7 +453,7 @@ impl ReviewOnlyBaselineCapsule {
             nodes.push(ResolvedPackageNode::new(source, dependencies));
             packages.push(package.review);
         }
-        let graph = ResolvedPackageClosure::new(keys[root_index].clone(), nodes)
+        let graph = ResolvedPackageClosure::new(keys[root_index].clone(), root_role, nodes)
             .map_err(|_| ReviewOnlyBaselineError::new("invalid review baseline source graph"))?;
         let capsule = Self { graph, packages };
         capsule.validate(limits)?;
@@ -501,6 +503,7 @@ impl ReviewOnlyBaselineCapsule {
             })?)
             .map_err(|_| ReviewOnlyBaselineError::new("baseline root index exceeds u32"))?,
         );
+        encode_root_role(&mut encoder, self.graph.root_role());
         for package in &self.packages {
             let node = self.graph.package(&package.key).ok_or_else(|| {
                 ReviewOnlyBaselineError::new("review baseline package has no graph node")
@@ -674,5 +677,28 @@ impl ReviewOnlyBaselineCapsule {
             ));
         }
         Ok(())
+    }
+}
+
+fn encode_root_role(encoder: &mut Encoder, role: BuildDeclarationKind) {
+    encoder.byte(match role {
+        BuildDeclarationKind::Package => 0,
+        BuildDeclarationKind::Application => 1,
+        BuildDeclarationKind::Workspace => 2,
+    });
+}
+
+fn decode_root_role(
+    decoder: &mut Decoder<'_>,
+) -> Result<BuildDeclarationKind, ReviewOnlyBaselineError> {
+    match decoder.byte()? {
+        0 => Ok(BuildDeclarationKind::Package),
+        1 => Ok(BuildDeclarationKind::Application),
+        2 => Err(ReviewOnlyBaselineError::new(
+            "review baseline root cannot have workspace role",
+        )),
+        _ => Err(ReviewOnlyBaselineError::new(
+            "invalid review baseline root-role tag",
+        )),
     }
 }

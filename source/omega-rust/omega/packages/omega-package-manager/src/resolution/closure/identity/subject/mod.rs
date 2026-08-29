@@ -20,13 +20,14 @@ use super::codec::{
 };
 use super::validation::{canonical_root_request, validate_subject};
 use crate::identity::PackageKey;
+use crate::manifest::BuildDeclarationKind;
 use crate::resolution::source::PackageSourceNavigation;
 
 #[cfg(test)]
 mod tests;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 3;
+pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 4;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -54,6 +55,7 @@ impl CanonicalSourceClosureSubject {
         let root_view = closure.source_requests().root();
         let root = CanonicalRootSourceSelection {
             request: canonical_root_request(root_view.request()),
+            role: closure.root_role(),
             selected: root_view.selected().clone(),
         };
         let mut packages = closure
@@ -152,6 +154,10 @@ impl CanonicalSourceClosureSubject {
 
     pub const fn root(&self) -> &CanonicalRootSourceSelection {
         &self.root
+    }
+
+    pub const fn root_role(&self) -> BuildDeclarationKind {
+        self.root.role()
     }
 
     pub fn packages(&self) -> &[ResolvedSourceIdentity] {
