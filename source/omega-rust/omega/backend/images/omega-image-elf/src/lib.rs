@@ -6,6 +6,7 @@ use psi_diagnostics::Diagnostic;
 
 mod bytes;
 mod constants;
+mod dynamic_file_envelope;
 mod dynamic_import_relocations;
 mod dynamic_link;
 mod dynamic_linkage_descriptors;
@@ -32,6 +33,10 @@ mod sections;
 #[cfg(test)]
 mod tests;
 
+pub use dynamic_file_envelope::{
+    ElfDynamicFileEnvelopeSerializationError, ValidatedElfDynamicFileEnvelope,
+    serialize_elf_dynamic_file_envelope,
+};
 pub use dynamic_import_relocations::{
     ElfProcedureLinkageRelocationPlanningError, ValidatedElfProcedureLinkageRelocationPlan,
     plan_elf_procedure_linkage_relocations,

@@ -9880,13 +9880,22 @@ boundary without its corresponding checked law.
   zero `d_un` fields as little-endian `u64` values. Independent replay rejoins
   the semantic tag plan, serialized fixups, indexed storage, target section
   identities, every literal/null and unchanged byte, deterministic identity,
-  and the complete placed-header/load-layout custody chain.
-  Runnable ELF emission remains fail closed before image mutation: ELF/program
-  header serialization and final section-header placement, optional `.gnu.hash`,
-  procedure/source address-fixup application, image mutation, and independent
-  final-byte replay remain unimplemented. Validated semantic tags, absolute
-  geometry, and applied section-header/`.dynamic` bytes do not constitute a
-  dynamic image.
+  and the complete placed-header/load-layout custody chain. A dynamic file-
+  envelope rung now consumes that resolved owner and serializes the exact
+  64-byte ELF64-LSB header plus the five already-planned 56-byte program-header
+  rows. It binds `e_entry`, `e_shoff`, target machine, fixed table geometry,
+  every program-header field, and the exact applied 768-byte section-header
+  table retained as a file fragment at that offset. An independent bounded
+  decoder replays both fragments against the entry symbol, absolute load
+  layout, and placed-header owner; rejection returns the complete upstream
+  owner. The carrier remains explicitly non-runnable and performs no payload
+  copying, relocation application, or image mutation.
+  Runnable ELF emission remains fail closed before image mutation: optional
+  `.gnu.hash`, procedure/source address-fixup application, payload and fragment
+  placement into one image, image mutation, and independent final-byte replay
+  remain unimplemented. Validated semantic tags, absolute geometry, applied
+  section-header/`.dynamic` bytes, and the file-envelope fragments do not
+  constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
