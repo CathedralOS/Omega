@@ -14,9 +14,11 @@ pub(super) fn validate_authored_declaration_selections_before_build(
     // authority. Check the frozen ordinary source graph first; the ordinary
     // final checked pass repeats this gate after any explicit generated-source
     // handoff.
-    let checked =
-        crate::pipeline::phase_transitions::typed_trees_to_checked_trees(typed.clone(), timings)?;
-    validate_authored_declaration_selections(&checked.program, packages)
+    let checked = crate::pipeline::phase_transitions::typed_trees_to_preliminary_checked_trees(
+        typed.clone(),
+        timings,
+    )?;
+    validate_authored_declaration_selections(&checked, packages)
 }
 
 pub(super) fn validate_authored_declaration_selections(
