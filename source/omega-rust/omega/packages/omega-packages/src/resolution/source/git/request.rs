@@ -1,6 +1,17 @@
 //! Validated Git locators, revisions, transports, and endpoint identity.
 
-use super::*;
+use crate::resolution::identity::{
+    GitRequestedNetworkEndpoint, GitTransport, IdentityError, SourceLineage,
+};
+#[cfg(test)]
+use crate::resolution::source::git::execution::format_sha256;
+use crate::resolution::source::limits::{GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT};
+use omega_resolver_execution::ResolverExecutionNetworkTransport;
+#[cfg(test)]
+use sha2::{Digest, Sha256};
+use std::fmt;
+#[cfg(test)]
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitSourceRequest {

@@ -1,6 +1,8 @@
 //! Closed failure vocabulary for local and Git source resolution.
 
-use super::*;
+use crate::resolution::identity::SourceContentDigest;
+use std::fmt;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceResolveError {

@@ -16,6 +16,8 @@ for the detailed implemented security floor.
 src/
 |-- lib.rs                 Public facade; no package behavior lives here.
 |-- declarations/          Read and conservatively edit build.omg.
+|   |-- dependency_projection/ Extract and validate checked dependency requests.
+|   `-- dependency_edit/   Plan and render conservative declaration patches.
 |-- resolution/
 |   |-- identity/          Stable package and source identity facade.
 |   |   |-- names.rs       Package names, aliases, and source-bound keys.
@@ -23,6 +25,7 @@ src/
 |   |   |-- locator.rs     Strict Git locator parsing and normalization.
 |   |   |-- local.rs       Workspace and external-local lineages and digests.
 |   |   `-- resolution.rs  Immutable source pins and typed Git object IDs.
+|   |-- package_source/    Resolve Git, workspace, and local package requests.
 |   |-- closure/           Resolve and identify one complete package closure.
 |   |   |-- sources.rs     Connect declarations to workspace, local, and Git sources.
 |   |   |-- reconcile.rs   Reconcile the complete dependency closure.
@@ -38,6 +41,7 @@ src/
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- review/
 |   |-- compiler_review.rs Compile a resolved closure into compiler-issued evidence.
+|   |-- evidence/          Bind compiler output to source and closure commitments.
 |   |-- comparison/        Compare candidate and baseline capabilities.
 |   |   |-- model.rs       Bounded conflict and error vocabulary.
 |   |   |-- compare.rs     Exact row comparison and closure commitments.
@@ -53,7 +57,7 @@ src/
 |   |   |-- storage.rs     Private rooted record persistence.
 |   |   |-- validation.rs  Canonical graph and resource checks.
 |   |   `-- encoding.rs    Canonical binary codec and identity encoding.
-|   `-- policy.rs          Resolve root-owned review policy.
+|   `-- policy/            Resolve, encode, and store root-owned review policy.
 `-- storage/               Bounded internal record persistence.
 ```
 

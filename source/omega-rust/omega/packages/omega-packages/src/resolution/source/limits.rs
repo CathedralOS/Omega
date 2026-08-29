@@ -1,6 +1,7 @@
 //! Compiler-owned source, cache, process, and observation ceilings.
 
-use super::*;
+use std::sync::atomic::AtomicU64;
+use std::time::Duration;
 
 pub(in crate::resolution::source) const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v28";
 pub(in crate::resolution::source) const GIT_CACHE_METADATA: &str = "source.identity";

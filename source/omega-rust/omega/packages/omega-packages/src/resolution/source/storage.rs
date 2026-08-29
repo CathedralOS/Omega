@@ -1,6 +1,15 @@
 //! Resolver-owned private storage for ordinary source acquisition.
 
-use super::*;
+use super::SourceResolveError;
+use super::custody::{
+    CacheCustodyKind, cache_custody_invalid, create_private_cache_directory,
+    retain_private_cache_directory, same_capability_file_identity, verify_cache_custody_root,
+    verify_git_cache_root_custody,
+};
+use super::local::{io_error, open_absolute_directory_nofollow};
+use cap_std::fs::Dir as CapabilityDirectory;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 
 const STORAGE_COMPONENTS: &[&str] = &["CathedralOS", "Omega", "source", "v1"];
 const GIT_SOURCES: &str = "git-sources";
