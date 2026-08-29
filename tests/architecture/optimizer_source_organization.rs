@@ -22,10 +22,7 @@ const MAX_ENTRANCE_LINES: usize = 200;
 /// Each ceiling is pinned to the current file size. An exception cannot grow,
 /// and becomes stale as soon as the file is split below the default. New files
 /// never enter this table.
-const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[(
-    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/validate.rs",
-    1_021,
-)];
+const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[];
 
 /// The optimizer surfaces whose source organization is architecture-governed.
 /// Keep these roots explicit: silently losing a moved or renamed tree must
@@ -110,6 +107,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/compute.rs",
         coordination_marker: "pub(crate) fn compute_terminal_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/validate/mod.rs",
+        coordination_marker: "pub fn validate_liveness",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/artifact/mod.rs",

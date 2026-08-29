@@ -12,13 +12,9 @@ join. It must not contain rule mechanics, codecs, broad fixtures, or hundreds
 of accessors. A pure re-export wall is also insufficient.
 
 Preferred entrance size is below 100 lines. Crossing 200 lines requires a
-specific reason in review. New production files have a 1,000-line hard
-ceiling; dedicated test fixtures retain a 1,500-line ceiling. The remaining
-pre-ratchet production leaves between 1,001 and 1,300 lines are named in the
-architecture test with ceilings pinned to their current sizes. They cannot
-grow, new exceptions are forbidden, and an exception becomes stale as soon as
-its file is split below 1,001 lines. These are migration debts, not acceptable
-target sizes.
+specific reason in review. Production files have a 1,000-line hard ceiling;
+dedicated test fixtures retain a 1,500-line ceiling. The architecture guard's
+legacy exception table is empty and new exceptions are forbidden.
 
 ## Taxonomy
 
@@ -413,7 +409,11 @@ Edge-cleanup and hidden-establishment transition mechanics descend into the
 affine-authority leaf.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
-production responsibility.
+production responsibility. Independent liveness validation has a 48-line
+root-custody/replay/comparison/receipt entrance above structural replay,
+scalar/block replay, supported operand constraints, exact function comparison,
+receipt projection, canonical collection helpers, and focused tests. The
+former 1,021-line validator is gone and no replacement exceeds 225 lines.
 
 When fixtures legitimately need a production module's private helpers, keep
 the logical child module and use an explicit sibling `#[path]`; do not retain
