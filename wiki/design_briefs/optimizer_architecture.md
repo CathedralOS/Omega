@@ -134,7 +134,7 @@ source/omega-rust/omega/
     omega-target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
     omega-terminal-psi-to-native-artifact/
-                                      # semantic-wrapper stage, validation, object, codec, custody
+                                      # settlement, realization, providers, wrapper encoding/object
     optimization/
       omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
       omega-optimization-validation/  # independent Psi and unit validation

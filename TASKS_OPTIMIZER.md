@@ -246,6 +246,11 @@ and no-selection compatibility remain enforced.
   validation, object composition/validation/manifest construction, custody,
   codecs, and focused fixtures. The architecture gate governs this slice and
   requires each real coordination seam to remain visible.
+- [x] Replace the 775-line Terminal-Psi-to-native crate entrance and adjacent
+  flat wrapper-encoding stage with a crate responsibility map plus source-entry
+  settlement, native realization, provider admission, machine emission,
+  artifact assembly, diagnostics, encoding projection, and replay leaves. The
+  architecture gate now governs the entire crate and its real stage joins.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

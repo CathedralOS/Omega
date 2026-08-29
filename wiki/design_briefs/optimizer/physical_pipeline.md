@@ -105,13 +105,16 @@ function-relative realization is v9, while fragment emission and fragment text
 placement are v7. Their records retain the exact post-allocation optimization,
 not a broad optimization level.
 
-The optimized ProgramStorage semantic-wrapper object boundary now exposes one
-small owning entrance for the real settlement-to-custody join. Below it,
-semantic replay separates installed-provider continuation evidence from entry
-contract shape, and object work separates composition, independent object
-validation, and manifest construction. Models, canonical codecs, and custody
-are named sibling leaves, so the physical join remains obvious without
-accumulating lower-level mechanics.
+The Terminal-Psi-to-native stage now exposes its full physical composition as
+small owning entrances. Source-entry settlement replays declaration and
+calling-plan custody. Native realization then chooses the ordinary or exact
+selected input, admits provider executions/installations, emits machine code,
+and replays object/image assembly. The optimized ProgramStorage encoding and
+wrapper-object boundaries remain separate joins: encoding projects and replays
+the target template; object construction joins settlement, semantic contract,
+composite object, manifest, and custody. Provider projection, machine routes,
+artifact assembly, semantic replay, object validation, models, codecs, and
+diagnostics descend into named leaves.
 
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;

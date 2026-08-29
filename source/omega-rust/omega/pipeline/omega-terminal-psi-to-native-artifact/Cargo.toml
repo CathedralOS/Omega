@@ -21,6 +21,7 @@ omega-abstract-operations-to-target-operations = { path = "../omega-abstract-ope
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
+omega-machine-code = { path = "../../representations/omega-machine-code" }
 omega-machine-emission = { path = "../../backend/omega-machine-emission" }
 omega-native-artifact = { path = "../../backend/artifacts/omega-native-artifact" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
