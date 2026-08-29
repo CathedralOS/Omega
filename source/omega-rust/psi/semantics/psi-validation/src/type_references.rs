@@ -75,6 +75,9 @@ impl TypeReferenceOwner<'_> {
                 owner: StateSignatureOwner::Machine(_),
                 generic_depth: 0,
                 ..
+            } | Self::StateLocalData {
+                generic_depth: 0,
+                ..
             }
         )
     }
@@ -325,7 +328,7 @@ fn validate_type_reference_handle_with_context(
                 && !owner.allows_checked_write_only_parameter()
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses `&write` outside the checked whole-scalar parameter slice; write-only fields, locals, returns, operators, traits, and nested generic arguments are not implemented yet"
+                    "{owner} uses `&write` outside the checked whole-scalar parameter slice; only an explicit direct-reborrow local is additionally admitted, while write-only fields, returns, operators, traits, and nested generic arguments are not implemented yet"
                 )));
             }
             if let Some(lifetime) = lifetime

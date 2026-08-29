@@ -437,10 +437,10 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             input = input.take_keyword(KeywordKind::As, "as")?;
             // §5b RECAST: `&x as &T` / `&mut x as &mut T` -- the borrow
             // re-viewed under a second stated shape. The SOURCE borrow's `&`
-            // is the ordinary borrow spelling (a shared `&` vanishes in the
-            // unary parser; `&mut` wraps Mutable), so recast-ness rides the
-            // cast node itself: an `&` after `as` selects the form here and
-            // the resolved->typed lowering judges it (size/align/facts).
+            // is the ordinary borrow spelling, so the unary parser wraps the
+            // recast in a Borrow carrying the authored access. Recast-ness
+            // rides the cast node itself: an `&` after `as` selects the form
+            // here and resolved->typed lowering judges it (size/align/facts).
             let mut form = psi_language_core::cast_form::CastForm::Value;
             if input.at_punctuation(PunctuationKind::Ampersand) {
                 input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;

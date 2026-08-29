@@ -119,10 +119,12 @@ fn instantiate_domain_expression_label(
             member.member
         ),
         psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
-            format!(
-                "mut {}",
-                instantiate_domain_expression_label(program, inner.target, base_label)
-            )
+            let target = instantiate_domain_expression_label(program, inner.target, base_label);
+            match inner.access {
+                psi_language_semantics::ReferenceAccess::Shared => target,
+                psi_language_semantics::ReferenceAccess::Mutable => format!("mut {target}"),
+                psi_language_semantics::ReferenceAccess::WriteOnly => format!("write {target}"),
+            }
         }
         psi_typed_trees::expression::ExpressionNode::Unary(unary) => format!(
             "{}{}",

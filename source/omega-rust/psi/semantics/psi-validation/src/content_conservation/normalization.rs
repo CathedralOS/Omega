@@ -154,16 +154,21 @@ fn normalize_projection_subject(
         _ => (ContentPlaceVersion::Current, expression),
     };
 
-    // The parser intentionally erases the ordinary shared-borrow `&` marker;
-    // the exact projection machine's `&Self` parameter carries that typing
-    // obligation. `Mutable` is retained only for `&mut` and is not a valid
-    // proof observation.
-    if matches!(
-        context.program.expression_table.expression(borrowed),
-        ExpressionNode::Borrow(_)
-    ) {
-        return Err("content projection subjects must use a shared borrow (`&place`), not a mutable borrow, so the proof observation never mutates authority".to_owned());
-    }
+    // Content projection observes through the authored shared borrow. Mutable
+    // and write-only borrows cannot become proof observations. Retain the
+    // access judgment here, then normalize the shared wrapper to its exact
+    // structural place.
+    let borrowed = match context.program.expression_table.expression(borrowed) {
+        ExpressionNode::Borrow(inner)
+            if inner.access == psi_language_semantics::ReferenceAccess::Shared =>
+        {
+            inner.target
+        }
+        ExpressionNode::Borrow(_) => {
+            return Err("content projection subjects must use a shared borrow (`&place`), not a mutable borrow, so the proof observation never mutates authority".to_owned());
+        }
+        _ => borrowed,
+    };
     let (root_name, root_symbol, mut segments) =
         collect_structural_place(context.program, borrowed)?;
     let (root, root_type) = if root_name == "result" {

@@ -31,11 +31,12 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
         |child| expression_reborrows_transparent_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            let reborrows_binding =
-                matches!(
+            let reborrows_binding = inner.access.is_exclusive()
+                && matches!(
                     program.expression_table.expression(inner.target),
                     ExpressionNode::Name(_)
-                ) && frame_place_path(program, inner.target).is_some_and(|place| {
+                )
+                && frame_place_path(program, inner.target).is_some_and(|place| {
                     let (root, suffix) = split_place_root(&place.path);
                     if !suffix.is_empty() {
                         return false;

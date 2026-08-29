@@ -22,6 +22,201 @@ fn lower(source: &str) -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check borrow resources")
 }
 
+fn try_lower(
+    source: &str,
+) -> Result<psi_checked_trees::CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize borrow resources");
+    let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve borrow resources");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
+    lower_typed_trees(typed)
+}
+
+fn reborrow_access_source(parent: &str, child: &str) -> String {
+    let (parent_type, parent_borrow, prefix) = match parent {
+        "Read" => ("&Cell", "&self.cell", ""),
+        "Mutable" => ("&mut Cell", "&mut self.cell", ""),
+        "WriteOnly" => (
+            "&write Cell",
+            "&write root",
+            "let root: &mut Cell = &mut self.cell;",
+        ),
+        _ => unreachable!(),
+    };
+    let (child_type, child_borrow, use_child) = match child {
+        "Read" => ("&Cell", "&parent", "observe(child);"),
+        "Mutable" => ("&mut Cell", "&mut parent", "mutate(child);"),
+        "WriteOnly" => ("&write Cell", "&write parent", "replace(&write child);"),
+        _ => unreachable!(),
+    };
+    format!(
+        r#"
+        data Cell {{ value: i32; }}
+        data Main {{ cell: Cell; }}
+        machine observe(value: &Cell) {{}}
+        machine mutate(value: &mut Cell) {{ value.value = 1; }}
+        machine replace(value: &write Cell) {{ value.value = 1; }}
+        machine Main::exercise(&mut self) {{
+            {prefix}
+            let parent: {parent_type} = {parent_borrow};
+            let child: {child_type} = {child_borrow};
+            {use_child}
+        }}
+        "#,
+    )
+}
+
+#[test]
+fn direct_reborrow_access_classifier_covers_all_nine_cells() {
+    use psi_checked_trees::{BorrowAccessKind as Access, CheckedReborrowAccessEffect as Effect};
+
+    let cells = [
+        (Access::Read, Access::Read, Some(Effect::SharedRelease)),
+        (Access::Read, Access::Mutable, None),
+        (Access::Read, Access::WriteOnly, None),
+        (Access::Mutable, Access::Read, Some(Effect::SharedFreeze)),
+        (
+            Access::Mutable,
+            Access::Mutable,
+            Some(Effect::ExclusiveSuspension),
+        ),
+        (
+            Access::Mutable,
+            Access::WriteOnly,
+            Some(Effect::ExclusiveSuspension),
+        ),
+        (Access::WriteOnly, Access::Read, None),
+        (Access::WriteOnly, Access::Mutable, None),
+        (
+            Access::WriteOnly,
+            Access::WriteOnly,
+            Some(Effect::ExclusiveSuspension),
+        ),
+    ];
+    for (parent, child, expected) in cells {
+        assert_eq!(parent.direct_reborrow_effect(&child), expected);
+    }
+}
+
+#[test]
+fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
+    let cells = [
+        ("Read", "Read", true),
+        ("Read", "Mutable", false),
+        ("Read", "WriteOnly", false),
+        ("Mutable", "Read", true),
+        ("Mutable", "Mutable", true),
+        ("Mutable", "WriteOnly", true),
+        ("WriteOnly", "Read", false),
+        ("WriteOnly", "Mutable", false),
+        ("WriteOnly", "WriteOnly", true),
+    ];
+    for (parent, child, accepted) in cells {
+        match (try_lower(&reborrow_access_source(parent, child)), accepted) {
+            (Ok(checked), true) => {
+                assert!(
+                    checked
+                        .facts
+                        .borrow
+                        .reborrow_loan_resources
+                        .iter()
+                        .any(|(_, resource)| {
+                        let actual_parent = match &resource.parent_access {
+                            psi_checked_trees::BorrowAccessKind::Read => "Read",
+                            psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
+                            psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+                        };
+                        let actual_child = match &resource.access {
+                            psi_checked_trees::BorrowAccessKind::Read => "Read",
+                            psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
+                            psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+                        };
+                            actual_parent == parent && actual_child == child
+                        }),
+                    "{parent}->{child} accepted without retained exact reborrow resource",
+                );
+            }
+            (Err(diagnostics), false) => {
+                let rendered = diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(
+                    (rendered.contains("cannot derive")
+                        && rendered.contains("reborrow authority")
+                        || rendered.contains("reads write-only")
+                        || rendered.contains("widens write-only"))
+                        && !rendered.contains("resource-lifecycle disposition drifted"),
+                    "{parent}->{child} produced the wrong diagnostic: {rendered}"
+                );
+            }
+            (Ok(_), false) => panic!("forbidden {parent}->{child} reborrow was accepted"),
+            (Err(diagnostics), true) => {
+                panic!("allowed {parent}->{child} reborrow rejected: {diagnostics:#?}")
+            }
+        }
+    }
+}
+
+#[test]
+fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine observe(value: &Cell) {}
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let first: &Cell = &parent;
+            let second: &Cell = &parent;
+            observe(first);
+            observe(second);
+            mutate(parent);
+        }
+        "#,
+    );
+    let shared = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .filter(|(_, resource)| {
+            resource.access_effect
+                == psi_checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(shared.len(), 2);
+    assert!(shared.iter().all(|(_, resource)| {
+        resource.parent_access == psi_checked_trees::BorrowAccessKind::Mutable
+            && resource.access == psi_checked_trees::BorrowAccessKind::Read
+            && resource.parent_resource == shared[0].1.parent_resource
+    }));
+    let events = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .filter(|(_, event)| shared.iter().any(|(handle, _)| *handle == event.child_resource))
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| {
+                event.disposition
+                    == psi_checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+            })
+            .count(),
+        1,
+    );
+    assert!(events.iter().all(|event| !event.shared_cohort.is_empty()));
+}
+
 fn symbolic_adjacency() -> psi_checked_trees::CheckedTrees {
     lower(SYMBOLIC_ADJACENCY)
 }
@@ -207,7 +402,7 @@ fn retains_source_direct_modes_and_rejects_sibling_state_substitution() {
 }
 
 #[test]
-fn keeps_write_only_local_loan_outside_this_checked_only_carrier() {
+fn keeps_direct_root_write_only_local_outside_the_reborrow_carrier() {
     let source = r#"
         data Main { writable: i32; }
         machine fill(value: &write i32) { value = 2; }
@@ -223,11 +418,11 @@ fn keeps_write_only_local_loan_outside_this_checked_only_carrier() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve fenced write-only local");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fenced write-only local");
     let diagnostics = lower_typed_trees(typed)
-        .expect_err("write-only locals are not an admitted direct-loan source");
+        .expect_err("write-only locals are admitted only as exact direct reborrows");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("local data `write` uses `&write` outside the checked whole-scalar parameter")
+            .contains("forms `&write` from an unsupported projection or computed expression")
     }));
 }
 
@@ -973,7 +1168,7 @@ fn sequential_children_reactivate_then_resuspend_the_exact_parent() {
 
 #[test]
 fn rejects_each_disposition_axis_transactionally() {
-    for axis in 0..13 {
+    for axis in 0..14 {
         let mut checked = direct_reborrow_chain();
         let direct_before = checked.facts.borrow.direct_loan_resources.clone();
         let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
@@ -1023,6 +1218,7 @@ fn rejects_each_disposition_axis_transactionally() {
                 event.disposition =
                     psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
             }
+            13 => event.shared_cohort.push(psi_arena::Handle::invalid()),
             _ => unreachable!(),
         }
         let events_tampered = checked.facts.borrow.reborrow_disposition_events.clone();
@@ -1112,7 +1308,7 @@ fn rejects_missing_duplicate_and_reordered_disposition_events() {
 
 #[test]
 fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transactionally() {
-    for axis in 0..32 {
+    for axis in 0..34 {
         let mut checked = direct_reborrow_chain();
         let direct_before = checked.facts.borrow.direct_loan_resources.clone();
         let wrong_direct = checked
@@ -1250,6 +1446,11 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
             31 => {
                 resource.parent_end_status.status =
                     psi_checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+            }
+            32 => resource.parent_access = psi_checked_trees::BorrowAccessKind::Read,
+            33 => {
+                resource.access_effect =
+                    psi_checked_trees::CheckedReborrowAccessEffect::SharedRelease
             }
             _ => unreachable!(),
         }

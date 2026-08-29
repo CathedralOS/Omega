@@ -2017,11 +2017,20 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         })
         .collect::<Vec<_>>();
 
-    let psi_typed_trees::expression::ExpressionNode::Cast(fixed) = typed_trees
+    let psi_typed_trees::expression::ExpressionNode::Borrow(fixed_borrow) = typed_trees
         .expression_table
         .expression(locals[0].initial_value)
     else {
-        panic!("fixed-array initializer should remain a cast");
+        panic!("fixed-array initializer should retain its shared borrow");
+    };
+    assert_eq!(
+        fixed_borrow.access,
+        psi_language_semantics::ReferenceAccess::Shared
+    );
+    let psi_typed_trees::expression::ExpressionNode::Cast(fixed) =
+        typed_trees.expression_table.expression(fixed_borrow.target)
+    else {
+        panic!("fixed-array shared-borrow target should remain a cast");
     };
     assert!(matches!(
         typed_trees
@@ -2033,11 +2042,20 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         }
     ));
 
-    let psi_typed_trees::expression::ExpressionNode::Cast(slice) = typed_trees
+    let psi_typed_trees::expression::ExpressionNode::Borrow(slice_borrow) = typed_trees
         .expression_table
         .expression(locals[1].initial_value)
     else {
-        panic!("slice initializer should remain a cast");
+        panic!("slice initializer should retain its shared borrow");
+    };
+    assert_eq!(
+        slice_borrow.access,
+        psi_language_semantics::ReferenceAccess::Shared
+    );
+    let psi_typed_trees::expression::ExpressionNode::Cast(slice) =
+        typed_trees.expression_table.expression(slice_borrow.target)
+    else {
+        panic!("slice shared-borrow target should remain a cast");
     };
     assert!(matches!(
         typed_trees

@@ -162,6 +162,46 @@ impl BorrowAccessKind {
     pub fn is_exclusive(&self) -> bool {
         matches!(self, Self::Mutable | Self::WriteOnly)
     }
+
+    /// Classify the exact checked-only lifecycle effect of a direct reborrow.
+    ///
+    /// This is deliberately distinct from [`Self::is_exclusive`]: mutable
+    /// authority may attenuate to write-only authority, while write-only
+    /// authority may never acquire observation. The result records resource
+    /// bookkeeping only and grants no restored-use or Terminal authority.
+    pub fn direct_reborrow_effect(
+        &self,
+        child: &Self,
+    ) -> Option<CheckedReborrowAccessEffect> {
+        match (self, child) {
+            (Self::Read, Self::Read) => Some(CheckedReborrowAccessEffect::SharedRelease),
+            (Self::Mutable, Self::Read) => Some(CheckedReborrowAccessEffect::SharedFreeze),
+            (Self::Mutable, Self::Mutable)
+            | (Self::Mutable, Self::WriteOnly)
+            | (Self::WriteOnly, Self::WriteOnly) => {
+                Some(CheckedReborrowAccessEffect::ExclusiveSuspension)
+            }
+            (Self::Read, Self::Mutable)
+            | (Self::Read, Self::WriteOnly)
+            | (Self::WriteOnly, Self::Read)
+            | (Self::WriteOnly, Self::Mutable) => None,
+        }
+    }
+}
+
+/// Exact non-authorizing lifecycle class for one retained direct reborrow.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedReborrowAccessEffect {
+    /// A shared child of shared authority releases independently; the parent
+    /// was never suspended and requires no restoration event.
+    #[default]
+    SharedRelease,
+    /// Shared descendants freeze a mutable parent as one finite cohort. The
+    /// original mutable access is classified for restoration only after the
+    /// final member ends.
+    SharedFreeze,
+    /// One exclusive descendant suspends its exact parent occurrence.
+    ExclusiveSuspension,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -383,6 +423,13 @@ impl Default for CheckedBorrowResourceDispositionTarget {
 /// cleanup, or Terminal authority.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CheckedReborrowResourceDisposition {
+    /// One shared descendant ended without restoring parent authority. For a
+    /// `Read` parent no restoration is required; for a mutable parent this is
+    /// a non-final shared-cohort release.
+    SharedRelease,
+    /// The final member of one exact shared cohort ended and the checked
+    /// classifier restored its still-live mutable parent in replay state only.
+    RestoreSharedCohort,
     #[default]
     Reactivate,
     CascadeThroughRetiredParent,
@@ -413,6 +460,9 @@ pub struct CheckedReborrowResourceDispositionEvent {
     pub parent_resource: CheckedParentBorrowResource,
     pub boundary_source: crate::FlowInvalidationSource,
     pub boundary_phase: CheckedBorrowResourceLifecyclePhase,
+    /// Exact shared cohort observed at this boundary. Exclusive events retain
+    /// an empty roster; shared-release events keep at least their child.
+    pub shared_cohort: Vec<Handle<CheckedReborrowLoanResource>>,
     pub retired_parent_path: Vec<CheckedRetiredParentResourceDispositionStep>,
     pub final_target: CheckedBorrowResourceDispositionTarget,
     pub disposition: CheckedReborrowResourceDisposition,
@@ -434,6 +484,8 @@ pub struct CheckedReborrowLoanResource {
     pub owner_path: Vec<BorrowLoanOwnerSegment>,
     pub captured_place: CapturedPlace,
     pub access: BorrowAccessKind,
+    pub parent_access: BorrowAccessKind,
+    pub access_effect: CheckedReborrowAccessEffect,
     pub activation_source: crate::FlowInvalidationSource,
     pub weakening_source: crate::FlowInvalidationSource,
     pub weakening_reason: crate::FlowBorrowWeakeningReason,

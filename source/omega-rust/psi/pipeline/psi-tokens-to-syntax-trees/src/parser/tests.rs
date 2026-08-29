@@ -3328,8 +3328,14 @@ fn parses_structural_recast_targets_as_type_references() {
         })
         .collect::<Vec<_>>();
 
-    let ExpressionNode::Cast(fixed) = parsed.expressions.expression(locals[0].initial_value) else {
-        panic!("fixed-array initializer should be a recast");
+    let ExpressionNode::Borrow(fixed_borrow) =
+        parsed.expressions.expression(locals[0].initial_value)
+    else {
+        panic!("fixed-array initializer should retain its shared borrow");
+    };
+    assert_eq!(fixed_borrow.access, ReferenceAccess::Shared);
+    let ExpressionNode::Cast(fixed) = parsed.expressions.expression(fixed_borrow.target) else {
+        panic!("fixed-array borrow target should be a recast");
     };
     let TypeReferenceNode::FixedArray {
         element_type,
@@ -3343,8 +3349,14 @@ fn parses_structural_recast_targets_as_type_references() {
         TypeReferenceNode::Named(name) if name.as_str() == "u8"
     ));
 
-    let ExpressionNode::Cast(slice) = parsed.expressions.expression(locals[1].initial_value) else {
-        panic!("slice initializer should be a recast");
+    let ExpressionNode::Borrow(slice_borrow) =
+        parsed.expressions.expression(locals[1].initial_value)
+    else {
+        panic!("slice initializer should retain its shared borrow");
+    };
+    assert_eq!(slice_borrow.access, ReferenceAccess::Shared);
+    let ExpressionNode::Cast(slice) = parsed.expressions.expression(slice_borrow.target) else {
+        panic!("slice borrow target should be a recast");
     };
     let TypeReferenceNode::Slice { element_type } =
         parsed.type_references.type_reference(slice.target_type)
@@ -4971,6 +4983,49 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
         parsed.expressions.display_name(argument),
         "&write destination"
     );
+}
+
+#[test]
+fn parses_explicit_shared_borrow_with_exact_access_mode() {
+    let source = r#"
+        machine observe(value: &bool) {}
+
+        machine caller(source: &bool) {
+            observe(&source);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let caller = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .find(|machine| machine.name.as_str() == "caller")
+        .expect("caller machine");
+    let state = parsed.items.state(
+        *parsed
+            .items
+            .state_handles(caller.states)
+            .first()
+            .expect("caller entry state"),
+    );
+    let StatementNode::Call(call) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("caller statement should be a call");
+    };
+    let argument = parsed.statements.expression_handles(call.arguments)[0];
+    let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
+        panic!("argument should retain one closed shared-borrow expression node");
+    };
+    assert_eq!(borrow.access, ReferenceAccess::Shared);
+    assert_eq!(parsed.expressions.display_name(argument), "&source");
 }
 
 #[test]

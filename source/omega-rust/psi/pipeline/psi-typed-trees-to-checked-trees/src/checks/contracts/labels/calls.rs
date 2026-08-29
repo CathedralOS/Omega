@@ -272,17 +272,19 @@ pub(crate) fn instantiate_call_contract_expression_label(
             member.member
         ),
         psi_typed_trees::expression::ExpressionNode::Borrow(inner) => {
-            format!(
-                "mut {}",
-                instantiate_call_contract_expression_label(
-                    program,
-                    caller_state_symbol,
-                    statement_index,
-                    call_site,
-                    target_state,
-                    inner.target,
-                )
-            )
+            let target = instantiate_call_contract_expression_label(
+                program,
+                caller_state_symbol,
+                statement_index,
+                call_site,
+                target_state,
+                inner.target,
+            );
+            match inner.access {
+                psi_language_semantics::ReferenceAccess::Shared => target,
+                psi_language_semantics::ReferenceAccess::Mutable => format!("mut {target}"),
+                psi_language_semantics::ReferenceAccess::WriteOnly => format!("write {target}"),
+            }
         }
         psi_typed_trees::expression::ExpressionNode::Unary(unary) => format!(
             "{}{}",
