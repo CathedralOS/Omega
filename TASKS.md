@@ -9932,12 +9932,22 @@ checked-result arithmetic decision listed below.
   format bits; binary32 custody rejects a retained binary64 snapshot that would
   require narrowing. Signed zero and infinity remain exact. Every NaN still
   rejects until canonicalization or an exact raw-NaN realization fixes its
-  representation. Sums, generic/opaque/quotient records, references, slices,
-  Text, dynamic values, atomics, non-copy records, and malformed shapes reject
-  on this path without narrowing the legacy materialization API. This custody
-  is not evaluator admission, a target capsule, quotient
-  canonicalization, an origin-chain proof, or proof authority. Quotient
-  snapshots/materialization, realized sum cases, target capsules/observations,
+  representation. The first pure-sum rung is now live separately over the
+  compiler-owned conventional runtime representation. `omega-layout` projects
+  the authoritative four-byte authored-order tag and complete all-case payload
+  overlay into an exact report; Psi independently rejoins every case/payload
+  identity and target-independent geometry, then walks and writes only the
+  selected payload into zero-initialized staging. The carrier retains selected
+  case identity/ordinal, exact layout and fingerprint, byte order, bytes, and
+  deterministic identity; replay and short-copy failure are atomic. This does
+  not extend programmable `Layout` with tagged case placement. Mixed
+  common-field/case shapes, records or arrays containing sums, target-dependent
+  inactive-case geometry, generic/opaque/quotient records, references, slices,
+  Text, dynamic values, atomics, non-copy data, and malformed shapes remain
+  rejected without narrowing the legacy materialization API. This custody is
+  not evaluator admission, a target capsule, quotient canonicalization, an
+  origin-chain proof, or proof authority. Quotient snapshots/materialization,
+  sums nested in aggregates, mixed shapes, target capsules/observations,
   complete origin diagnostics, and broader representation bytes remain
   subsequent.
 

@@ -752,6 +752,7 @@ dependencies = [
  "omega-runtime-abi",
  "omega-target",
  "psi-arena",
+ "psi-build-time-evaluation",
  "psi-checked-trees",
  "psi-diagnostics",
  "psi-language-semantics",

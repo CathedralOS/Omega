@@ -313,11 +313,23 @@ replay succeeds, so malformed evidence or a short destination leaves the
 destination unchanged.
 
 This slice deliberately rejects every NaN without canonical or selected exact
-raw-representation evidence, plus every sum, generic/opaque/quotient record,
-reference, slice, Text, dynamic value, atomic, non-copy record, and malformed
-shape. It does not narrow the legacy typed-owned materialization API and
-establishes no evaluator admission, target capsule, quotient canonicalization,
-producer-origin chain, or proof authority. Realized sum cases, carried quotient
+raw-representation evidence, plus generic/opaque/quotient records, references,
+slices, Text, dynamic values, atomics, non-copy records, and malformed shapes.
+A separate first pure-sum rung consumes the compiler-owned conventional runtime
+layout rather than weakening programmable `LayoutPlan`: `omega-layout` reports
+the fixed four-byte tag, authored-order case ordinals, complete all-case payload
+overlay, and total extent/alignment. Psi independently rejoins every reported
+case and relevant payload field to the typed schema, recomputes the supported
+target-independent geometry, and validates only the selected value payload.
+It emits the selected ordinal and payload into fresh zero-initialized staging,
+so inactive overlay bytes, intra-payload gaps, and tail padding remain zero.
+The non-clone carrier retains the selected case identity/ordinal, exact report
+and fingerprint, byte order, bytes, and deterministic identity; replay and
+short-destination rejection leave the destination unchanged. Mixed shapes,
+sums nested in records or arrays, and sums whose all-case geometry requires a
+target capsule remain later rungs. Neither slice narrows the legacy typed-owned
+materialization API or establishes evaluator admission, quotient
+canonicalization, producer-origin chains, or proof authority. Carried quotient
 representatives, richer origin diagnostics, and target-dependent const
 application remain later slices.
 

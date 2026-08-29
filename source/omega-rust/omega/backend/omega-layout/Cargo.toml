@@ -22,6 +22,7 @@ omega-target = { path = "../../representations/omega-target" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 
 [dev-dependencies]
+psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
