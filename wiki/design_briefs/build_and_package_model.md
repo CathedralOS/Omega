@@ -1348,6 +1348,27 @@ carriers, malformed lanes, and wrong or closed descriptors remain
 non-receipted. Existing evidence, replay-retention, and session ceilings charge
 every retained carrier copy; no separate timestamp quota is introduced.
 
+Summary v39 and replay-record v20 admit a successful `duplicate(original)`
+immediately followed by successful `close(duplicate)` between one fresh Output
+file's create and final close. Both rows bind exact original/fresh descriptor
+lineage, successful results, zero post-error state, and immediate retirement;
+only the original descriptor remains eligible for the other admitted Output
+operations. Duplicate identities are globally distinct and at most 1,024 are
+retained per replay. Delayed retirement, use through a duplicate,
+duplicate-of-duplicate graphs, failures, and descriptor reuse remain
+non-receipted.
+
+Summary v40 and replay-record v21 admit an adjacent successful
+`lock_file(original, 6)` / `lock_file(original, 8)` pair between one fresh
+Output file's create and final close. The exact scalars are
+`LOCK_EX | LOCK_NB` followed by `LOCK_UN`; both calls bind the same resolved
+original descriptor, scalar result zero, and zero post-error state. The
+non-blocking acquire is the minimal provider-safe lane and provider-free replay
+executes both operations in order against its fresh virtual namespace. At most
+1,024 pairs are retained per replay. Shared or blocking modes, delayed release,
+locks through duplicates, failures, contention histories, and Win32 ranged
+locks remain non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1380,8 +1401,9 @@ and do not claim either replay verdict; only the exact v24/v6 generated-source,
 v27/v8 empty-Output, v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff,
 v31/v12 sequential-full-write, v32/v13 positioned-full-write, v33/v14
 empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
-successful-seek, v37/v18 successful-descriptor-permission, and v38/v19
-successful-descriptor-time grammars above may join them to
+successful-seek, v37/v18 successful-descriptor-permission, v38/v19
+successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, and v40/v21
+successful-descriptor-lock grammars above may join them to
 verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1403,8 +1425,9 @@ replay only. The exact v24/v6 generated-source, v27/v8 empty-Output, and
 v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff, v31/v12
 sequential-full-write, v32/v13 positioned-full-write, v33/v14 empty-file, and
 v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
-successful-seek, v37/v18 successful-descriptor-permission, and v38/v19
-successful-descriptor-time grammars above supply canonical
+successful-seek, v37/v18 successful-descriptor-permission, v38/v19
+successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, and v40/v21
+successful-descriptor-lock grammars above supply canonical
 operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

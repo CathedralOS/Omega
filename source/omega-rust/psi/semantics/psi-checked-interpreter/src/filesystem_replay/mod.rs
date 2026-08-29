@@ -5,6 +5,7 @@
 //! that legacy monolith.
 
 mod duplicates;
+mod locks;
 
 pub use duplicates::{
     FilesystemOutputDuplicateReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES,
@@ -12,4 +13,8 @@ pub use duplicates::{
 pub(crate) use duplicates::{
     output_duplicate_attempts, output_duplicate_record_from_attempts,
     output_logical_handle_identities, validate_output_duplicate_replay,
+};
+pub use locks::{FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS};
+pub(crate) use locks::{
+    output_lock_attempts, output_lock_record_from_attempts, validate_output_lock_replay,
 };

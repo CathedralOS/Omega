@@ -11,12 +11,16 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 mod duplicates;
+#[cfg(test)]
+mod lock_tests;
+mod locks;
 
 use duplicates::validate_output_duplicate_shapes;
+use locks::validate_output_lock_shapes;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 20;
+const VERSION: u16 = 21;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -295,6 +299,41 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         .map_err(|_| {
                             BuildFilesystemReplayRecordError::new(
                                 "filesystem replay Output duplicate could not be rehydrated",
+                            )
+                        })?,
+                    ),
+                );
+                operation_cursor += 2;
+                continue;
+            }
+            if operation.operation == 46 {
+                let release = &operations[operation_cursor + 1];
+                let [(1, ShapeScalar::I32(acquire_operation))] = operation.scalars.as_slice()
+                else {
+                    unreachable!("validated Output lock acquire has one i32 scalar")
+                };
+                let [(1, ShapeScalar::I32(release_operation))] = release.scalars.as_slice() else {
+                    unreachable!("validated Output lock release has one i32 scalar")
+                };
+                let ShapeResult::Scalar(acquire_result) = operation.result else {
+                    unreachable!("validated Output lock acquire has one scalar result")
+                };
+                let ShapeResult::Scalar(release_result) = release.result else {
+                    unreachable!("validated Output lock release has one scalar result")
+                };
+                operation_records.push(
+                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::LockAndUnlock(
+                        psi_checked_interpreter::FilesystemOutputLockReplayRecord::new(
+                            *acquire_operation,
+                            acquire_result,
+                            operation.post_error,
+                            *release_operation,
+                            release_result,
+                            release.post_error,
+                        )
+                        .map_err(|_| {
+                            BuildFilesystemReplayRecordError::new(
+                                "filesystem replay Output lock could not be rehydrated",
                             )
                         })?,
                     ),
@@ -1288,6 +1327,7 @@ fn validate_first_rung(
             })?;
         let mut aggregate_output_extent = 0usize;
         let mut aggregate_output_duplicates = 0usize;
+        let mut aggregate_output_lock_pairs = 0usize;
         for (start, end) in output_ranges {
             let chain = &shapes[start..end];
             let create = &chain[0];
@@ -1338,6 +1378,24 @@ fn validate_first_rung(
                         "receipted build outputs exceed the duplicate-descriptor ceiling",
                     )
                 })?;
+            aggregate_output_lock_pairs = aggregate_output_lock_pairs
+                .checked_add(
+                    chain[1..chain.len() - 1]
+                        .iter()
+                        .filter(|operation| {
+                            operation.operation == 46
+                                && operation.scalars.as_slice() == [(1, ShapeScalar::I32(6))]
+                        })
+                        .count(),
+                )
+                .filter(|count| {
+                    *count <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS
+                })
+                .ok_or_else(|| {
+                    BuildFilesystemReplayRecordError::new(
+                        "receipted build outputs exceed the descriptor-lock-pair ceiling",
+                    )
+                })?;
             if output_paths.contains(&rooted.bytes) {
                 return Err(BuildFilesystemReplayRecordError::new(
                     "filesystem replay Output path appears more than once",
@@ -1385,6 +1443,15 @@ fn output_file_ranges(
                 if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 8 {
                     return Err(BuildFilesystemReplayRecordError::new(
                         "receipted build output duplicate must be immediately retired",
+                    ));
+                }
+                cursor += 2;
+                continue;
+            }
+            if shapes[cursor].operation == 46 {
+                if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 46 {
+                    return Err(BuildFilesystemReplayRecordError::new(
+                        "receipted build output lock must be immediately released",
                     ));
                 }
                 cursor += 2;
@@ -1563,6 +1630,16 @@ fn validate_output_file(
                     "receipted build output exceeds its duplicate-descriptor ceiling",
                 ));
             }
+            operation_cursor += 2;
+            continue;
+        }
+        if operation.operation == 46 {
+            let release = operations.get(operation_cursor + 1).ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "receipted build output lock is not immediately released",
+                )
+            })?;
+            validate_output_lock_shapes(operation, release, output.identity)?;
             operation_cursor += 2;
             continue;
         }
