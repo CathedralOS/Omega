@@ -3,7 +3,7 @@ use omega_register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnviro
 use omega_selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use psi_core::MachineId;
 
-use crate::spill_choice_identity::encode_terminal_spill_choice_content;
+use crate::allocation::spill_choice::identity::encode_terminal_spill_choice_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
 };

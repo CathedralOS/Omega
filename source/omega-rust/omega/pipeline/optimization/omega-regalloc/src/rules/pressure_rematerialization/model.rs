@@ -10,7 +10,7 @@ use omega_selected_instructions::{
 };
 use psi_core::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
 
-use crate::pressure_rematerialization_identity::encode_terminal_pressure_rematerialization_content;
+use crate::rules::pressure_rematerialization::identity::encode_terminal_pressure_rematerialization_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
     RecoveryClassificationIdentity, SpillChoiceIdentity,

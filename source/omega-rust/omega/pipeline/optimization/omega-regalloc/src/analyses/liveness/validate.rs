@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::identity::liveness_identity;
-use crate::model::{
+use crate::analyses::liveness::identity::liveness_identity;
+use crate::analyses::liveness::model::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessError,
     LivenessPlan, LivenessPosition, LivenessValidationReceipt, OperandPosition, SuccessorLiveness,
     ValidatedLiveness,
@@ -896,8 +896,8 @@ mod tests {
 
     #[test]
     fn independent_liveness_replay_accepts_exact_distinct_tie() {
-        let function = crate::compute::tests::supported_tied_function();
-        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let function = crate::analyses::liveness::compute::tests::supported_tied_function();
+        let computed = crate::analyses::liveness::compute::compute_function(0, &function).unwrap();
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(computed.operand_positions[1].tied_to, Some(0));
@@ -905,8 +905,9 @@ mod tests {
 
     #[test]
     fn independent_liveness_replay_accepts_transitive_tied_component() {
-        let function = crate::compute::tests::supported_tied_component_function();
-        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let function =
+            crate::analyses::liveness::compute::tests::supported_tied_component_function();
+        let computed = crate::analyses::liveness::compute::compute_function(0, &function).unwrap();
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(
@@ -921,8 +922,9 @@ mod tests {
 
     #[test]
     fn independent_liveness_replay_accepts_exact_early_clobber() {
-        let function = crate::compute::tests::supported_early_clobber_function();
-        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let function =
+            crate::analyses::liveness::compute::tests::supported_early_clobber_function();
+        let computed = crate::analyses::liveness::compute::compute_function(0, &function).unwrap();
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert!(!computed.operand_positions[0].early_clobber);
@@ -933,8 +935,9 @@ mod tests {
 
     #[test]
     fn independent_liveness_replay_accepts_multiple_early_clobber_rows() {
-        let function = crate::compute::tests::supported_multiple_early_clobber_function();
-        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let function =
+            crate::analyses::liveness::compute::tests::supported_multiple_early_clobber_function();
+        let computed = crate::analyses::liveness::compute::compute_function(0, &function).unwrap();
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(
@@ -952,8 +955,8 @@ mod tests {
     #[test]
     fn independent_liveness_replay_accepts_multiple_isolated_tied_early_clobbers() {
         let function =
-            crate::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
-        let computed = crate::compute::compute_function(0, &function).unwrap();
+            crate::analyses::liveness::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
+        let computed = crate::analyses::liveness::compute::compute_function(0, &function).unwrap();
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(
@@ -970,8 +973,8 @@ mod tests {
 
     #[test]
     fn independent_liveness_replay_accepts_one_early_def_in_a_larger_tied_component() {
-        let function = crate::compute::tests::supported_component_tied_early_clobber_function();
-        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let function = crate::analyses::liveness::compute::tests::supported_component_tied_early_clobber_function();
+        let computed = crate::analyses::liveness::compute::compute_function(0, &function).unwrap();
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(
@@ -992,9 +995,9 @@ mod tests {
         );
 
         let multiple =
-            crate::compute::tests::supported_multiple_component_tied_early_clobber_function();
+            crate::analyses::liveness::compute::tests::supported_multiple_component_tied_early_clobber_function();
         assert_eq!(
-            crate::compute::compute_function(0, &multiple).unwrap(),
+            crate::analyses::liveness::compute::compute_function(0, &multiple).unwrap(),
             replay_function(0, &multiple).unwrap()
         );
 

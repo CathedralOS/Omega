@@ -557,7 +557,7 @@ mod tests {
             .virtual_registers
             .iter()
             .map(|register| {
-                crate::allocation_legality_validate::replay_register_for_test(
+                crate::analyses::allocation_legality::validate::replay_register_for_test(
                     0,
                     &ranges,
                     register,
@@ -659,7 +659,7 @@ mod tests {
         };
         let legality =
             compute_function(0, &ranges, &availability, &physical, &reservations).unwrap();
-        let replayed = crate::allocation_legality_validate::replay_register_for_test(
+        let replayed = crate::analyses::allocation_legality::validate::replay_register_for_test(
             0,
             &ranges,
             &ranges.virtual_registers[3],

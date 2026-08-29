@@ -727,7 +727,7 @@ mod tests {
         let physical = physical();
         let mut work = WorkCounter::default();
         let result = compute_function(0, &legality, &ranges, &physical, &mut work).unwrap();
-        let replay = crate::spill_choice_validate::replay_function_for_test(
+        let replay = crate::allocation::spill_choice::validate::replay_function_for_test(
             0, &legality, &ranges, &physical,
         )
         .unwrap();

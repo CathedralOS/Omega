@@ -598,7 +598,7 @@ mod tests {
             vec![RegisterViewId(0), RegisterViewId(1), RegisterViewId(0)]
         );
         assert_eq!(
-            crate::home_assignment_validate::replay_function(
+            crate::allocation::home_assignment::validate::replay_function(
                 0,
                 &legality(&[(0, 2), (1, 2), (3, 4)]),
                 &ranges(&[(0, 1)]),
@@ -619,7 +619,7 @@ mod tests {
             expected_pressure
         );
         assert_eq!(
-            crate::home_assignment_validate::replay_function(
+            crate::allocation::home_assignment::validate::replay_function(
                 0,
                 &pressure_legality,
                 &pressure_ranges,
@@ -714,8 +714,10 @@ mod tests {
             vec![RegisterViewId(0), RegisterViewId(0), RegisterViewId(1)]
         );
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
-                .unwrap(),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            )
+            .unwrap(),
             homes
         );
 
@@ -733,7 +735,9 @@ mod tests {
         });
         assert_eq!(compute_function(0, &legality, &ranges, &physical), expected);
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            ),
             expected
         );
     }
@@ -784,8 +788,10 @@ mod tests {
         assert_eq!(homes.assignments[0].view, homes.assignments[2].view);
         assert_ne!(homes.assignments[1].view, homes.assignments[2].view);
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
-                .unwrap(),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            )
+            .unwrap(),
             homes
         );
 
@@ -803,7 +809,9 @@ mod tests {
         });
         assert_eq!(compute_function(0, &legality, &ranges, &physical), expected);
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            ),
             expected
         );
     }
@@ -818,8 +826,10 @@ mod tests {
         assert_eq!(homes.assignments[1].view, RegisterViewId(1));
         assert_eq!(homes.assignments[2].view, RegisterViewId(0));
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
-                .unwrap(),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            )
+            .unwrap(),
             homes
         );
 
@@ -863,8 +873,10 @@ mod tests {
             vec![RegisterViewId(0), RegisterViewId(0), RegisterViewId(0)]
         );
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
-                .unwrap(),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            )
+            .unwrap(),
             homes
         );
 
@@ -879,7 +891,12 @@ mod tests {
             expected
         );
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &interfering, &physical),
+            crate::allocation::home_assignment::validate::replay_function(
+                0,
+                &legality,
+                &interfering,
+                &physical
+            ),
             expected
         );
 
@@ -899,7 +916,9 @@ mod tests {
             })
         ));
         assert!(matches!(
-            crate::home_assignment_validate::replay_function(0, &disjoint, &ranges, &physical),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &disjoint, &ranges, &physical
+            ),
             Err(RegisterHomeError::NoCommonTiedComponent {
                 leader: 0,
                 member_count: 3,
@@ -952,8 +971,10 @@ mod tests {
         assert_eq!(homes.assignments[1].view, homes.assignments[2].view);
         assert_ne!(homes.assignments[2].view, homes.assignments[3].view);
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
-                .unwrap(),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            )
+            .unwrap(),
             homes
         );
 
@@ -971,7 +992,9 @@ mod tests {
         });
         assert_eq!(compute_function(0, &legality, &ranges, &physical), expected);
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            ),
             expected
         );
     }
@@ -1058,8 +1081,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
-                .unwrap(),
+            crate::allocation::home_assignment::validate::replay_function(
+                0, &legality, &ranges, &physical
+            )
+            .unwrap(),
             homes
         );
     }

@@ -1139,14 +1139,14 @@ pub(crate) mod tests {
                 })
                 .collect(),
         };
-        let homes = crate::home_assignment_compute::compute_function(
+        let homes = crate::allocation::home_assignment::compute::compute_function(
             0,
             &legality,
             &post_ranges.plan().functions[0],
             &physical,
         )
         .unwrap();
-        let replayed_homes = crate::home_assignment_validate::replay_function(
+        let replayed_homes = crate::allocation::home_assignment::validate::replay_function(
             0,
             &legality,
             &post_ranges.plan().functions[0],
@@ -1319,7 +1319,7 @@ pub(crate) mod tests {
                 })
                 .collect(),
         };
-        let homes = crate::home_assignment_compute::compute_function(
+        let homes = crate::allocation::home_assignment::compute::compute_function(
             0,
             &legality,
             &post_ranges.plan().functions[0],
@@ -1328,7 +1328,7 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(
             homes,
-            crate::home_assignment_validate::replay_function(
+            crate::allocation::home_assignment::validate::replay_function(
                 0,
                 &legality,
                 &post_ranges.plan().functions[0],

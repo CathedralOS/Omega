@@ -672,10 +672,11 @@ mod tests {
     fn incoming_literal_is_classified_identically_by_compute_and_replay() {
         let (selected, ranges, legality, choices) = fixture();
         let computed = classify_function(0, &selected, &ranges, &legality, &choices).unwrap();
-        let replayed = crate::recovery_classification_validate::replay_function_for_test(
-            0, &selected, &ranges, &legality, &choices,
-        )
-        .unwrap();
+        let replayed =
+            crate::analyses::recovery_classification::validate::replay_function_for_test(
+                0, &selected, &ranges, &legality, &choices,
+            )
+            .unwrap();
         assert_eq!(computed, replayed);
         let row = computed.classification.unwrap();
         assert_eq!(row.role, RecoveryVictimRole::Incoming);
@@ -712,7 +713,7 @@ mod tests {
             expected
         );
         assert_eq!(
-            crate::recovery_classification_validate::replay_function_for_test(
+            crate::analyses::recovery_classification::validate::replay_function_for_test(
                 0, &selected, &ranges, &legality, &choices,
             ),
             expected

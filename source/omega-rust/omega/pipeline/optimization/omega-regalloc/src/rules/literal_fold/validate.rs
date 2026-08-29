@@ -10,9 +10,10 @@ use crate::{
     ValidatedAllocatorAvailability, ValidatedLiteralFold, ValidatedLiveRanges,
     ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
     literal_fold_identity,
-    literal_fold_transform::{
-        ensure_budget, fold_usage, immediate_rows, replay_actions, validate_literal_fold_roots,
-    },
+};
+
+use super::transform::{
+    ensure_budget, fold_usage, immediate_rows, replay_actions, validate_literal_fold_roots,
 };
 
 #[allow(clippy::too_many_arguments)]

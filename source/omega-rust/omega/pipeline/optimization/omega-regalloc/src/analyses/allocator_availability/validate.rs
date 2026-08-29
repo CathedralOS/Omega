@@ -36,15 +36,16 @@ pub fn validate_allocator_availability(
     {
         return Err(AllocatorAvailabilityError::NonCanonicalPlan);
     }
-    let expected = crate::allocator_availability_compute::compute_terminal_allocator_availability(
-        register_environment,
-        target,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan.policy.clone(),
-    )?;
+    let expected =
+        crate::analyses::allocator_availability::compute::compute_terminal_allocator_availability(
+            register_environment,
+            target,
+            physical,
+            constraints,
+            reservations,
+            selected_keys,
+            plan.policy.clone(),
+        )?;
     if plan != expected {
         return Err(AllocatorAvailabilityError::PlanMismatch);
     }

@@ -2,7 +2,7 @@ use omega_register_model::RegisterOperandAccess;
 use omega_target::{Architecture, ObjectFormat};
 use sha2::{Digest, Sha256};
 
-use crate::model::{FunctionLiveness, LivenessIdentity, LivenessPlan};
+use crate::analyses::liveness::model::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
 pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     let mut bytes = Vec::new();
