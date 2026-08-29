@@ -1,8 +1,10 @@
 //! Canonical, recoverable identity of one complete resolved source closure.
 
-mod model;
+mod encoding;
+mod subject;
+mod validation;
 
-pub use model::{
+pub use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,

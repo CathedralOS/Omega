@@ -1,4 +1,4 @@
-//! Canonical closure-identity model and construction.
+//! Canonical source-closure subject model and construction.
 
 use super::super::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
 use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
@@ -7,21 +7,19 @@ use omega_package_source::{
 };
 use std::fmt;
 
-#[path = "encoding.rs"]
-mod encoding;
-#[path = "validation.rs"]
-mod validation;
-
-use crate::resolution::source::PackageSourceNavigation;
-use encoding::{
+use super::encoding::{
     Decoder, decode_dependency_selection, decode_root_selection, decode_source_identity,
     encode_hex, encode_subject, fingerprint,
 };
-use validation::{canonical_root_request, validate_subject};
+use super::validation::{canonical_root_request, validate_subject};
+use crate::resolution::source::PackageSourceNavigation;
 
-const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
+#[cfg(test)]
+mod tests;
+
+pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
 pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 3;
-const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
+pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 64 * 1024 * 1024;
 const ABSOLUTE_PACKAGE_LIMIT: usize = 16 * 1024;
@@ -39,10 +37,6 @@ pub struct CanonicalSourceClosureSubjectLimits {
     pub maximum_request_bytes: usize,
 }
 
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;
-
 impl Default for CanonicalSourceClosureSubjectLimits {
     fn default() -> Self {
         Self {
@@ -56,7 +50,7 @@ impl Default for CanonicalSourceClosureSubjectLimits {
 }
 
 impl CanonicalSourceClosureSubjectLimits {
-    fn compiler_bounded(self) -> Self {
+    pub(super) fn compiler_bounded(self) -> Self {
         Self {
             maximum_record_bytes: self.maximum_record_bytes.min(ABSOLUTE_RECORD_BYTE_LIMIT),
             maximum_packages: self.maximum_packages.min(ABSOLUTE_PACKAGE_LIMIT),
@@ -78,7 +72,7 @@ pub struct CanonicalSourceClosureSubjectError {
 }
 
 impl CanonicalSourceClosureSubjectError {
-    fn new(message: &'static str) -> Self {
+    pub(super) fn new(message: &'static str) -> Self {
         Self { message }
     }
 
@@ -100,7 +94,7 @@ impl std::error::Error for CanonicalSourceClosureSubjectError {}
 /// This identifies the question only. It is not source authenticity, package
 /// admission, a compiler result, or a package instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CanonicalSourceClosureSubjectFingerprint([u8; 32]);
+pub struct CanonicalSourceClosureSubjectFingerprint(pub(super) [u8; 32]);
 
 impl CanonicalSourceClosureSubjectFingerprint {
     pub fn to_hex(&self) -> String {
@@ -133,8 +127,8 @@ pub enum CanonicalRootSourceRequest {
 /// One exact root request joined directly to the immutable source it selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalRootSourceSelection {
-    request: CanonicalRootSourceRequest,
-    selected: ResolvedSourceIdentity,
+    pub(super) request: CanonicalRootSourceRequest,
+    pub(super) selected: ResolvedSourceIdentity,
 }
 
 impl CanonicalRootSourceSelection {
@@ -171,7 +165,7 @@ impl CanonicalDependencySourceRequest {
         }
     }
 
-    fn resolved_alias(&self, selected: &PackageName) -> AliasName {
+    pub(super) fn resolved_alias(&self, selected: &PackageName) -> AliasName {
         self.explicit_alias()
             .cloned()
             .unwrap_or_else(|| selected.default_alias())
@@ -207,11 +201,11 @@ impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
 /// immutable selection. Distinct diamond occurrences remain distinct rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalDependencySourceSelection {
-    requester: PackageKey,
-    dependency_index: usize,
-    request: CanonicalDependencySourceRequest,
-    alias: AliasName,
-    selected: ResolvedSourceIdentity,
+    pub(super) requester: PackageKey,
+    pub(super) dependency_index: usize,
+    pub(super) request: CanonicalDependencySourceRequest,
+    pub(super) alias: AliasName,
+    pub(super) selected: ResolvedSourceIdentity,
 }
 
 impl CanonicalDependencySourceSelection {
@@ -244,12 +238,12 @@ impl CanonicalDependencySourceSelection {
 /// certificates, decisions, and artifacts are intentionally absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalSourceClosureSubject {
-    root: CanonicalRootSourceSelection,
-    packages: Vec<ResolvedSourceIdentity>,
-    package_navigations: Vec<PackageSourceNavigation>,
-    dependency_requests: Vec<CanonicalDependencySourceSelection>,
-    canonical_bytes: Vec<u8>,
-    fingerprint: CanonicalSourceClosureSubjectFingerprint,
+    pub(super) root: CanonicalRootSourceSelection,
+    pub(super) packages: Vec<ResolvedSourceIdentity>,
+    pub(super) package_navigations: Vec<PackageSourceNavigation>,
+    pub(super) dependency_requests: Vec<CanonicalDependencySourceSelection>,
+    pub(super) canonical_bytes: Vec<u8>,
+    pub(super) fingerprint: CanonicalSourceClosureSubjectFingerprint,
 }
 
 impl CanonicalSourceClosureSubject {
@@ -330,7 +324,7 @@ impl CanonicalSourceClosureSubject {
                 &mut decoder,
                 limits.maximum_identity_bytes,
             )?);
-            package_navigations.push(encoding::decode_package_navigation(
+            package_navigations.push(super::encoding::decode_package_navigation(
                 &mut decoder,
                 limits.maximum_request_bytes,
             )?);
