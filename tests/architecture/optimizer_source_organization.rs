@@ -204,7 +204,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/mod.rs",
-        coordination_marker: "STRAIGHT_LINE_INTEGER_LESS_THAN_PARAMETERS",
+        coordination_marker: "STRAIGHT_LINE_INTEGER_LESS_OR_EQUAL_PARAMETERS",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/mod.rs",
@@ -212,7 +212,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/mod.rs",
-        coordination_marker: "fn reconstruct_integer_less_than",
+        coordination_marker: "fn reconstruct_integer_less_or_equal",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/mod.rs",
@@ -224,7 +224,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/ordering.rs",
-        coordination_marker: "fn reconstruct_integer_less_than",
+        coordination_marker: "fn reconstruct_integer_less_or_equal",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/mod.rs",

@@ -85,6 +85,20 @@ pub(crate) fn integer_less_than_parameters_return_artifact(
     )
 }
 
+pub(crate) fn integer_less_or_equal_parameters_return_artifact(
+    integer_type: IntegerType,
+    parameter_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Boolean,
+        ScalarTerminal::IntegerComparisonParameters {
+            kind: IntegerParameterComparison::LessOrEqual,
+            integer_type,
+            parameter_count,
+        },
+    )
+}
+
 enum ScalarTerminal {
     Literal(OperationKind),
     Crash(CrashCause),
@@ -107,6 +121,7 @@ enum ScalarTerminal {
 enum IntegerParameterComparison {
     Equal,
     LessThan,
+    LessOrEqual,
 }
 
 fn scalar_terminal_artifact(
@@ -239,6 +254,9 @@ fn scalar_terminal_artifact(
                         }
                         IntegerParameterComparison::LessThan => {
                             OperationKind::IntegerLessThan { left, right }
+                        }
+                        IntegerParameterComparison::LessOrEqual => {
+                            OperationKind::IntegerLessOrEqual { left, right }
                         }
                     },
                 }],

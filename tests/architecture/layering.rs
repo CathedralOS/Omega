@@ -2964,11 +2964,14 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::integer_equal::validate",
         "straight_line_parameter::integer_less_than::is_candidate",
         "straight_line_parameter::integer_less_than::validate",
+        "straight_line_parameter::integer_less_or_equal::is_candidate",
+        "straight_line_parameter::integer_less_or_equal::validate",
         "source::reconstruct_direct",
         "source::reconstruct_boolean_not",
         "source::reconstruct_boolean_equal",
         "source::reconstruct_integer_equal",
         "source::reconstruct_integer_less_than",
+        "source::reconstruct_integer_less_or_equal",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -3009,6 +3012,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "boolean_equal.rs",
         "integer_equal.rs",
         "integer_less_than.rs",
+        "integer_less_or_equal.rs",
     ] {
         let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
             .expect("read typed parameter-return replay");
@@ -3072,6 +3076,18 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "integer-less-than source replay must visibly own {required}",
         );
     }
+    let integer_less_or_equal_source =
+        std::fs::read_to_string(parameter_validation.join("source/integer_less_or_equal.rs"))
+            .expect("read integer-less-or-equal parameter source replay");
+    for required in [
+        "AbstractOperation::IntegerLessOrEqual",
+        "AbstractOperation::Return",
+    ] {
+        assert!(
+            integer_less_or_equal_source.contains(required),
+            "integer-less-or-equal source replay must visibly own {required}",
+        );
+    }
     let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
         .expect("read common parameter source envelope");
     for required in [
@@ -3088,6 +3104,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "AbstractOperation::BooleanEqual",
         "AbstractOperation::IntegerEqual",
         "AbstractOperation::IntegerLessThan",
+        "AbstractOperation::IntegerLessOrEqual",
     ] {
         assert!(
             !source_envelope.contains(forbidden),

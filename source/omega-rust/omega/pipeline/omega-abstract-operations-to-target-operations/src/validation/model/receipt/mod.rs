@@ -13,6 +13,7 @@ pub use parameter::{
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationReceipt,
     StraightLineIntegerEqualParametersTranslationReceipt,
+    StraightLineIntegerLessOrEqualParametersTranslationReceipt,
     StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationReceipt,
 };
@@ -35,6 +36,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationReceipt),
     StraightLineIntegerEqualParameters(StraightLineIntegerEqualParametersTranslationReceipt),
     StraightLineIntegerLessThanParameters(StraightLineIntegerLessThanParametersTranslationReceipt),
+    StraightLineIntegerLessOrEqualParameters(
+        StraightLineIntegerLessOrEqualParametersTranslationReceipt,
+    ),
 }
 
 impl AbstractToTargetFunctionTranslationReceipt {
@@ -66,6 +70,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             Self::StraightLineIntegerLessThanParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerLessThanParameters
+            }
+            Self::StraightLineIntegerLessOrEqualParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualParameters
             }
         }
     }

@@ -5,6 +5,7 @@ pub(super) mod boolean_not;
 pub(super) mod direct;
 mod envelope;
 pub(super) mod integer_equal;
+pub(super) mod integer_less_or_equal;
 pub(super) mod integer_less_than;
 
 use omega_abstract_operations::AbstractFunction;
@@ -13,6 +14,7 @@ use psi_core::{IntegerType, ScalarType, ValueId};
 use super::super::StraightLineBooleanEqualParametersTranslationError;
 use super::super::StraightLineBooleanNotParameterTranslationError;
 use super::super::StraightLineIntegerEqualParametersTranslationError;
+use super::super::StraightLineIntegerLessOrEqualParametersTranslationError;
 use super::super::StraightLineIntegerLessThanParametersTranslationError;
 use super::{
     StraightLineParameterReconstructionError,
@@ -68,6 +70,16 @@ pub(super) fn reconstruct_integer_less_than(
 > {
     let envelope = envelope::reconstruct(function, ScalarType::Boolean)?;
     integer_less_than::reconstruct(function, &envelope)
+}
+
+pub(super) fn reconstruct_integer_less_or_equal(
+    function: &AbstractFunction,
+) -> Result<
+    IntegerBinaryBooleanParametersSource,
+    StraightLineIntegerLessOrEqualParametersTranslationError,
+> {
+    let envelope = envelope::reconstruct(function, ScalarType::Boolean)?;
+    integer_less_or_equal::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter::source) fn integer_parameter(

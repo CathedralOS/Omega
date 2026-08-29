@@ -6,9 +6,15 @@ use omega_target_operations::TargetFunction;
 use psi_core::ScalarType;
 
 use super::super::abi;
-use super::super::model::ReconstructedIntegerBinaryBooleanParameters;
+use super::super::model::{
+    IntegerBinaryBooleanParametersSource, ReconstructedIntegerBinaryBooleanParameters,
+};
 use super::super::source;
-use crate::validation::model::StraightLineIntegerLessThanParametersTranslationError;
+use crate::validation::model::{
+    StraightLineIntegerLessOrEqualParametersTranslationError,
+    StraightLineIntegerLessThanParametersTranslationError,
+    StraightLineParameterReconstructionError,
+};
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_less_than(
     function: &AbstractFunction,
@@ -18,12 +24,50 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_less_t
     ReconstructedIntegerBinaryBooleanParameters,
     StraightLineIntegerLessThanParametersTranslationError,
 > {
-    let source = source::reconstruct_integer_less_than(function)?;
+    reconstruct(
+        function,
+        expected_target,
+        target,
+        source::reconstruct_integer_less_than,
+        StraightLineIntegerLessThanParametersTranslationError::TargetProvenance,
+    )
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_less_or_equal(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedIntegerBinaryBooleanParameters,
+    StraightLineIntegerLessOrEqualParametersTranslationError,
+> {
+    reconstruct(
+        function,
+        expected_target,
+        target,
+        source::reconstruct_integer_less_or_equal,
+        StraightLineIntegerLessOrEqualParametersTranslationError::TargetProvenance,
+    )
+}
+
+fn reconstruct<Error>(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+    reconstruct_source: fn(
+        &AbstractFunction,
+    ) -> Result<IntegerBinaryBooleanParametersSource, Error>,
+    target_provenance_error: Error,
+) -> Result<ReconstructedIntegerBinaryBooleanParameters, Error>
+where
+    Error: From<StraightLineParameterReconstructionError>,
+{
+    let source = reconstruct_source(function)?;
     let locations = abi::replay(&function.parameters, ScalarType::Boolean, expected_target)?;
     if target.provenance.operations.as_slice() != [source.operation]
         || target.provenance.edges.as_slice() != [source.return_edge]
     {
-        return Err(StraightLineIntegerLessThanParametersTranslationError::TargetProvenance);
+        return Err(target_provenance_error);
     }
     Ok(ReconstructedIntegerBinaryBooleanParameters {
         operation: source.operation,
