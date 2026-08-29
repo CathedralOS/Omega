@@ -140,9 +140,12 @@ model, validation mechanics, and tests; the target/ABI matrix is therefore
 visible without burying the stage join in that catalog. Post-allocation
 machine analysis likewise separates source-route construction from replay
 validation and the sealed model, while its entrance owns the common
-effects-plus-machine custody join. Liveness computation and pre-allocation
-machine-effect encoding also keep their broad fixtures in sibling test leaves,
-so production file size measures production responsibility.
+effects-plus-machine custody join. Active-resident rematerialization now keeps
+producer computation and independent replay validation in separate leaves;
+its entrance alone grants stage custody after that reconstruction succeeds.
+Liveness computation and pre-allocation machine-effect encoding also keep
+their broad fixtures in sibling test leaves, so production file size measures
+production responsibility.
 
 When fixtures legitimately need a production module's private helpers, keep
 the logical child module and use an explicit sibling `#[path]`; do not retain
