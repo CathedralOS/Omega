@@ -182,6 +182,9 @@ and no-selection compatibility remain enforced.
 - [x] Split complete-unit operation contracts into value flow, ordered node
   contracts, service/call, structural-access, claim-transfer, payloadless-case,
   boundary, and scalar-type leaves below one per-node validation entrance.
+- [x] Split current-ownership validation into entry model, ordered CFG replay,
+  frontier mutation, cleanup, structural-placement, and residual-affine leaves
+  below one current-entry reconstruction-to-replay entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

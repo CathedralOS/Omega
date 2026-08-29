@@ -76,6 +76,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn validate_values_and_bindings",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/current_ownership/mod.rs",
+        coordination_marker: "fn validate_current_ownership_frontier",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_environment/mod.rs",
         coordination_marker: "pub fn baseline_target_register_environment",
     },
