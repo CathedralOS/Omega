@@ -1,5 +1,5 @@
 use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
-use super::super::dependency_resolution::register_git_repository;
+use super::super::dependencies::register_git_repository;
 use super::*;
 use std::collections::BTreeMap;
 

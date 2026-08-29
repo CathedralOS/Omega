@@ -4,7 +4,7 @@ use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
 use super::cache::{GitAcquisitionCache, SourceCacheLane};
-use super::dependency_resolution::{register_git_repository, resolve_registered_package_closure};
+use super::dependencies::{register_git_repository, resolve_registered_package_closure};
 use super::errors::ResolveGitPackageClosureError;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,

@@ -34,10 +34,8 @@ closed. Compiler-issued package review remains non-admitting.
     out of `omega-package-source`; source custody should expose only neutral
     source lineages, immutable resolutions, object identities, commitments, and
     validated relative paths;
-  - split manager closure dependency resolution, workspace context, canonical
-    source-closure identity, validation, and codecs by semantic owner; move
-    large source-binding and reconciliation test bodies into behavior-named
-    suites;
+  - move the remaining large source-binding and reconciliation tests into
+    behavior-named suites;
   - split package-review orchestration, callable effects, public traits versus
     conformances, and misleading evidence/projection modules without changing
     canonical rows or encodings;
