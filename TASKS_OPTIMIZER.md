@@ -153,6 +153,10 @@ selection identity.
   ordered evaluation and terminal sealing, then descends into exhaustive
   routing, integer arithmetic, integer conversion, and exit leaves; the former
   1,238-line file is gone and the largest replacement is below 600 lines.
+  Shared conditional-scalar lowering is complete too: its 37-line entrance
+  orders direct scalar handling before exhaustive integer routing, with binary
+  semantics and shift semantics in separate shared leaves; the former
+  1,111-line file is gone and the largest replacement is below 600 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
