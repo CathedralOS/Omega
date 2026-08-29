@@ -169,6 +169,28 @@ Canonical subjects:
   state, swapped subject, and a certificate valid only under a weaker input or
   observation profile. ROOT and the Gamma checker remain differential evidence,
   never premises or alternate authorities.
+
+  - [x] The first ordinary-FOL architecture seam lives under
+    `source/beta/compiler/validation/admission/fol/`. One 3,588-byte checked
+    certificate proves a finite erased source step with silent observation and
+    strict rank decrease, a two-Alpha-step lowering with explicit
+    nondecreasing synchronization, and a primitive-recursive two-state cycle
+    that remains running with an unchanged output observation at every index.
+    It also checks one reusable opaque-schema trace induction lemma. The rooted
+    Beta checker, reference checker, and Gamma checker agree on the positive
+    certificate and reject constant-rank stuttering, a non-silent unmatched
+    step, and a missing successor. The focused gate reports certificate bytes,
+    rooted check time, and peak child storage. This is an expressiveness seam,
+    not `bc.beta` admission.
+  - [ ] Bind the first exact-subject theorem tranche to `bc.beta`'s
+    `main.resource` cleanup: one Beta return maps to the independently decoded
+    Alpha load/epilogue/root-halt sequence, preserves empty stdout and the
+    sticky resource identity, projects the exact typed exhaustion outcome,
+    keeps invalid states unreachable, and decreases an instruction-debt rank.
+    The artifact-aware owner must construct the declarations and goal from the
+    canonical source, tape, and `B_bc1`; an untrusted producer supplies only a
+    proof term. Existing ROOT resource-join cells are an implementation map and
+    differential evidence, never theorem premises.
 - [x] Keep the default edge bounded to cold construction, artifact framing,
   and exact maximal-observation reconstruction. Alternate checkers, fuzzing,
   exhaustive mutations, and developer reports remain optional. The copied

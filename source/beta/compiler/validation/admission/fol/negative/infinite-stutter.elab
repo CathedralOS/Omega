@@ -1,0 +1,5 @@
+; A constant rank cannot justify an unmatched transition.  This is the exact
+; strict-decrease shape used by the positive erased-step seam, with both ranks
+; fixed to zero.
+(ex d (= (+ z (s d)) z))
+(wit d (= (+ z (s d)) z) z (refl z))

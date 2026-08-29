@@ -7,6 +7,7 @@ This directory owns validation of the exact `bc.beta` source and persisted
 | --- | --- |
 | `admission/bc-artifact-structure.sh` | Alpha-rooted instruction framing, reachable direct targets, procedure regions, call/return shape, and seed payload bounds |
 | `admission/bc-block-control.sh` | canonical whole-source/artifact maximal-observation reconstruction for `B_bc1` |
+| `admission/fol/trace-refinement-seam.sh` | focused rooted-FOL development seam for constructive traces, non-lockstep synchronization, rank, and cyclic execution; not yet exact `bc.beta` admission |
 | `admission/obligations/` | Alpha modules used to assemble the bounded exact-subject checkers |
 | `admission/witnesses/` | untrusted witness producers; these cannot select or replace either admitted subject |
 | `selfhost.sh` | fixed-point reconstruction from the persisted Alpha-rooted compiler artifact |
@@ -14,8 +15,9 @@ This directory owns validation of the exact `bc.beta` source and persisted
 | `malformed-progress.sh` | bounded fail-closed progress for unsupported tokens in persisted and self-built compilers |
 | `stress/` | curated/generated instruction-refinement and differential suites; useful evidence, never another lattice rung |
 
-Only the two commands under `admission/` run on the default Beta lattice edge.
-The commands under `stress/` are directly runnable optional cross-checks.
+Only `admission/bc-artifact-structure.sh` and
+`admission/bc-block-control.sh` run on the default Beta lattice edge. The FOL
+seam and commands under `stress/` are directly runnable development evidence.
 
 ## Canonical whole-compiler obligation
 
