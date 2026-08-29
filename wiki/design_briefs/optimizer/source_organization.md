@@ -222,6 +222,12 @@ Independent redundant-parameter validation likewise keeps candidate custody
 and its structural-identity analysis contract in one entrance, then descends
 through witness validation, closed-region observation normalization,
 outside-region comparison, and exhaustive operation rewriting.
+Per-function complete-unit validation now exposes its exact acceptance order in
+one entrance, then descends through CFG indexing and totality, entry/parameter
+metadata, result signatures, structural roots, fact reconstruction, and
+provenance/fuel/effect replay. The entrance retains the joins to value,
+ownership, service, and structural-catalog validation rather than becoming a
+re-export wall.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.

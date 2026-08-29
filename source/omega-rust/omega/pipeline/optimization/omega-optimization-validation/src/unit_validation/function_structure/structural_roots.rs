@@ -1,0 +1,340 @@
+//! Structural-root uniqueness, availability, observation, and return contracts.
+
+use super::super::derived_metadata::dominators;
+use super::*;
+
+pub(crate) fn validate_structural_root_uniqueness(
+    function: &PsiOptimizationFunction,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut roots = BTreeSet::new();
+    for place in &function.structural_places {
+        if !roots.insert(structural_root_key(place.kind)) {
+            return Err(
+                OptimizationUnitValidationError::DuplicateStructuralPlaceRoot {
+                    machine: function.machine,
+                    kind: place.kind,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_structural_place_availability(
+    function: &PsiOptimizationFunction,
+    blocks: &BTreeMap<BlockId, &omega_optimization_unit::OptimizationBlock>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut producers = BTreeMap::<PlaceId, (BlockId, u32)>::new();
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let place = match &node.operation {
+                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
+                    Some(result.place)
+                }
+                O::EstablishByteSequenceLiteral { place, .. }
+                | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
+                _ => None,
+            };
+            if let Some(place) = place {
+                producers.insert(
+                    place,
+                    (
+                        block.id,
+                        u32::try_from(node_index).expect("unit node index fits u32"),
+                    ),
+                );
+            }
+        }
+    }
+    let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            for place in operation_place_inputs(&node.operation) {
+                let Some((producer_block, producer_node)) = producers.get(&place) else {
+                    continue;
+                };
+                let available = (*producer_block == block.id && *producer_node < node_index)
+                    || (*producer_block != block.id
+                        && dominators
+                            .get(&block.id)
+                            .is_some_and(|set| set.contains(producer_block)));
+                if !available {
+                    return Err(
+                        OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                            machine: function.machine,
+                            block: block.id,
+                            node: node_index,
+                            place,
+                        },
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
+    let mut inputs = match operation {
+        O::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments
+            .iter()
+            .map(|argument| argument.place)
+            .collect(),
+        O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
+            vec![*source]
+        }
+        _ => Vec::new(),
+    };
+    match operation {
+        O::Return {
+            cleanup_actions, ..
+        }
+        | O::ReturnUnit {
+            cleanup_actions, ..
+        } => inputs.extend(cleanup_actions.iter().map(|cleanup| match cleanup {
+            psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
+            psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+        })),
+        O::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } => inputs.extend(trivial_affine_discards.iter().copied()),
+        _ => {}
+    }
+    inputs
+}
+
+/// Validate the closed root roles of structural observations and structural
+/// returns. This is deliberately independent of the later full ownership walk:
+/// it establishes which catalog roots may participate and replays every
+/// observation invariant still representable after Terminal-to-Omega lowering.
+pub(crate) fn validate_structural_root_operations(
+    function: &PsiOptimizationFunction,
+    unit_entry: MachineId,
+    structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let place_kinds = function
+        .structural_places
+        .iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    let observations = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match node.operation {
+            O::BooleanStructuralField { source, field, .. } => Some((source, field)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            match &node.operation {
+                O::BooleanStructuralField { source, field, .. } => {
+                    let valid = function.machine == unit_entry
+                        && observations
+                            .iter()
+                            .all(|candidate| candidate == &(*source, *field))
+                        && function.content_entry_claims.is_empty()
+                        && function
+                            .parameters
+                            .iter()
+                            .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
+                        && function
+                            .entry_claim_declarations
+                            .iter()
+                            .all(|claim| claim.input != *source)
+                        && matches!(
+                            place_kinds.get(source),
+                            Some(StructuralPlaceKind::Parameter { .. })
+                        )
+                        && function
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == *source)
+                            .is_some_and(|parameter| {
+                                parameter.multiplicity
+                                    == psi_terminal::StructuralMultiplicity::Affine
+                                    && parameter.qualifications.is_empty()
+                                    && parameter.access
+                                        != psi_terminal::StructuralAccess::WriteOnlyBorrow
+                                    && function.structural_places.iter().any(|place| {
+                                        place.id == parameter.place
+                                            && matches!(
+                                                place.kind,
+                                                StructuralPlaceKind::Parameter {
+                                                    position,
+                                                    is_self,
+                                                } if position == parameter.position
+                                                    && is_self == parameter.is_self
+                                            )
+                                    })
+                                    && structural_types
+                                        .get(&parameter.structural_type)
+                                        .is_some_and(|declaration| {
+                                            let psi_terminal::StructuralTypeShape::Record {
+                                                fields,
+                                            } = &declaration.shape
+                                            else {
+                                                return false;
+                                            };
+                                            fields.iter().any(|candidate| {
+                                                candidate.id == *field
+                                                    && !candidate.relevance.is_erased()
+                                                    && candidate.field_type
+                                                        == psi_terminal::StructuralFieldType::Scalar(
+                                                            ScalarType::Boolean,
+                                                        )
+                                            })
+                                        })
+                            })
+                        && every_scalar_return_nominally_cleans(function, *source);
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidBooleanStructuralField {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
+                O::ReturnStructural { source, .. } => {
+                    let Some(signature) = function.result.structural() else {
+                        return Err(
+                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    };
+                    let source_contract = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| {
+                            parameter.place == *source
+                                && matches!(
+                                    place_kinds.get(source),
+                                    Some(StructuralPlaceKind::Parameter { position, is_self })
+                                        if *position == parameter.position
+                                            && *is_self == parameter.is_self
+                                )
+                        })
+                        .map(|parameter| {
+                            (
+                                parameter.structural_type,
+                                parameter.multiplicity,
+                                parameter.qualifications.as_slice(),
+                            )
+                        })
+                        .or_else(|| {
+                            let Some(StructuralPlaceKind::OperationResult {
+                                producer,
+                                structural_type,
+                            }) = place_kinds.get(source).copied()
+                            else {
+                                return None;
+                            };
+                            function
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.nodes)
+                                .find_map(|node| match &node.operation {
+                                    O::EstablishPayloadlessCase {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    }
+                                    | O::CallStructural {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    } if *psi_operation == producer
+                                        && result.place == *source
+                                        && result.structural_type == structural_type =>
+                                    {
+                                        Some((
+                                            result.structural_type,
+                                            result.multiplicity,
+                                            result.qualifications.as_slice(),
+                                        ))
+                                    }
+                                    _ => None,
+                                })
+                        });
+                    if source_contract.is_none_or(
+                        |(structural_type, multiplicity, qualifications)| {
+                            structural_type != signature.structural_type
+                                || multiplicity != signature.multiplicity
+                                || qualifications != signature.qualifications.as_slice()
+                        },
+                    ) {
+                        return Err(
+                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn every_scalar_return_nominally_cleans(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+) -> bool {
+    let mut saw_return = false;
+    for operation in function
+        .blocks
+        .iter()
+        .filter_map(|block| block.nodes.last().map(|node| &node.operation))
+    {
+        match operation {
+            O::Return {
+                cleanup_actions, ..
+            } => {
+                saw_return = true;
+                if !cleanup_actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                            if cleanup.place == source
+                    )
+                }) {
+                    return false;
+                }
+            }
+            O::ReturnUnit { .. } | O::ReturnStructural { .. } => return false,
+            O::Jump { .. } | O::Conditional { .. } | O::Crash { .. } => {}
+            _ => return false,
+        }
+    }
+    saw_return
+}
