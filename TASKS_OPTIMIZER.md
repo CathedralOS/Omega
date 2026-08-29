@@ -128,6 +128,9 @@ and no-selection compatibility remain enforced.
 - [x] Split exact fixed-view-copy recovery into model, materialization,
   independent replay, and custody projection leaves below a source-validated
   and replay-gated entrance.
+- [x] Split transformed-selected reanalysis into complete recomputation,
+  independent replay, transition invariant, custody, and model leaves below
+  one source-validated entrance.
 - [x] Split allocation-legality staging into explicit availability policies,
   analysis, independent replay, custody projection, and model leaves; its
   entrance owns policy selection and the shared replay-gated stage join.
