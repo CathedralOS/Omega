@@ -119,8 +119,9 @@ function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and
 rewrite machinery, projection tests, and physical custody tests descend through
 small named entrances rather than monoliths. The repository architecture test
-enforces the 1,500-line file ceiling and the entrance exception contract over
-the governed optimizer roots. It additionally names the coordination marker
+enforces separate 1,300-line production and 1,500-line dedicated-test ceilings
+plus the entrance exception contract over the governed optimizer roots. It
+additionally names the coordination marker
 that must remain in each migrated executable-stage entrance and requires one
 local rule catalog for every Psi pass; a small re-export wall no longer passes
 that check. The optimized ordinary-callable-entry stage is a physical example:
@@ -204,6 +205,10 @@ Complete-unit structural catalogs expose one ordered type-index to
 domain-index join, then descend into content projection, type declarations,
 function-local catalogs, witnesses, provider specialization, and path
 resolution.
+Independent rewrite accounting keeps common edge-custody preservation and
+scalar-substitution contracts in one entrance, with adjacent/non-adjacent
+merge, terminal fusion, dead scalar, proof identity, common-subexpression,
+substitution, and threading mechanics in exact family leaves.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
