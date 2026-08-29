@@ -12,6 +12,7 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
 pub(super) use metadata::{macos_confined_metadata_paths, macos_helper_metadata_roots};
 
 pub(super) const MACOS_CONFINED_METADATA_PATH_LIMIT: usize = 1024;
