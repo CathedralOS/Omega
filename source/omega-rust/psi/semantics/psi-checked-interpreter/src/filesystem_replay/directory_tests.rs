@@ -4,6 +4,7 @@ use crate::{
     FilesystemReplayReadRecord, FilesystemSourceInputReplayEventRecord,
     FilesystemSourceInputReplayRecord, FilesystemSourceReadChainReplayRecord,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
 };
 
 fn root(value: u32) -> FilesystemGrantRootIdentity {
@@ -37,11 +38,18 @@ fn source_input() -> FilesystemSourceInputReplayRecord {
 }
 
 #[test]
-fn typed_record_retains_one_exact_directory_attempt() {
-    assert_eq!(MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, 1);
-    let directory = FilesystemOutputDirectoryReplayRecord::new(root(2), b"generated".to_vec())
-        .expect("direct-child directory");
-    let record = FilesystemInputOutputDirectoryReplayRecord::new(source_input(), directory)
+fn typed_record_retains_an_ordered_exact_directory_tree() {
+    assert_eq!(MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, 4_096);
+    assert_eq!(
+        MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
+        16 * 1024 * 1024
+    );
+    let directories = [b"generated".as_slice(), b"generated/nested", b"sibling"]
+        .into_iter()
+        .map(|path| FilesystemOutputDirectoryReplayRecord::new(root(2), path.to_vec()))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("canonical directory paths");
+    let record = FilesystemInputOutputDirectoryReplayRecord::new(source_input(), directories)
         .expect("distinct Source and Output roots");
     let replay = FilesystemReplay::from_input_output_directory_record(record)
         .expect("typed directory replay");
@@ -51,22 +59,46 @@ fn typed_record_retains_one_exact_directory_attempt() {
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![2, 4, 8, 11]
+        vec![2, 4, 8, 11, 11, 11]
     );
     assert_eq!(
         replay
-            .output_directory()
-            .expect("directory record")
-            .output_relative_path(),
-        b"generated"
+            .output_directories()
+            .iter()
+            .map(FilesystemOutputDirectoryReplayRecord::output_relative_path)
+            .collect::<Vec<_>>(),
+        vec![b"generated".as_slice(), b"generated/nested", b"sibling"]
     );
 }
 
 #[test]
-fn typed_record_rejects_non_direct_or_overlong_paths() {
+fn typed_record_rejects_missing_or_late_parents_and_duplicate_paths() {
+    let nested = FilesystemOutputDirectoryReplayRecord::new(root(2), b"generated/nested".to_vec())
+        .expect("nested path is individually canonical");
+    assert!(FilesystemInputOutputDirectoryReplayRecord::new(source_input(), vec![nested]).is_err());
+
+    let parent = FilesystemOutputDirectoryReplayRecord::new(root(2), b"generated".to_vec())
+        .expect("parent path");
+    let child = FilesystemOutputDirectoryReplayRecord::new(root(2), b"generated/nested".to_vec())
+        .expect("child path");
     assert!(
-        FilesystemOutputDirectoryReplayRecord::new(root(2), b"nested/generated".to_vec()).is_err()
+        FilesystemInputOutputDirectoryReplayRecord::new(
+            source_input(),
+            vec![child, parent.clone()]
+        )
+        .is_err()
     );
+    assert!(
+        FilesystemInputOutputDirectoryReplayRecord::new(
+            source_input(),
+            vec![parent.clone(), parent]
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn typed_record_rejects_overlong_paths() {
     assert!(
         FilesystemOutputDirectoryReplayRecord::new(
             root(2),
@@ -80,5 +112,22 @@ fn typed_record_rejects_non_direct_or_overlong_paths() {
 fn typed_record_rejects_source_output_root_alias() {
     let directory = FilesystemOutputDirectoryReplayRecord::new(root(1), b"generated".to_vec())
         .expect("directory path");
-    assert!(FilesystemInputOutputDirectoryReplayRecord::new(source_input(), directory).is_err());
+    assert!(
+        FilesystemInputOutputDirectoryReplayRecord::new(source_input(), vec![directory]).is_err()
+    );
+}
+
+#[test]
+fn typed_record_rejects_empty_or_mixed_root_directory_trees() {
+    assert!(
+        FilesystemInputOutputDirectoryReplayRecord::new(source_input(), Vec::new()).is_err()
+    );
+    let first = FilesystemOutputDirectoryReplayRecord::new(root(2), b"first".to_vec())
+        .expect("first directory");
+    let second = FilesystemOutputDirectoryReplayRecord::new(root(3), b"second".to_vec())
+        .expect("second directory");
+    assert!(
+        FilesystemInputOutputDirectoryReplayRecord::new(source_input(), vec![first, second])
+            .is_err()
+    );
 }

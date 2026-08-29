@@ -24,7 +24,6 @@ pub(super) fn validate_output_directory_shape(
         || rooted.root != 1
         || rooted.bytes.len()
             > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES
-        || rooted.bytes.contains(&b'/')
         || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(rooted.bytes, false)
         || authorized.ordinal != 0
         || authorized.access != 1
@@ -33,6 +32,44 @@ pub(super) fn validate_output_directory_shape(
         || !only_directory_lanes(attempt)
     {
         return Err(directory_shape_error());
+    }
+    Ok(())
+}
+
+pub(super) fn validate_output_directory_shapes(
+    attempts: &[AttemptShape<'_>],
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if attempts.is_empty()
+        || attempts.len() > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES
+    {
+        return Err(directory_tree_error());
+    }
+    let mut retained_path_bytes = 0usize;
+    for (index, attempt) in attempts.iter().enumerate() {
+        validate_output_directory_shape(attempt)?;
+        let rooted = &attempt.rooted_paths[0];
+        retained_path_bytes = retained_path_bytes
+            .checked_add(rooted.bytes.len())
+            .filter(|bytes| {
+                *bytes
+                    <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+            })
+            .ok_or_else(directory_tree_error)?;
+        if attempts[..index]
+            .iter()
+            .any(|prior| prior.rooted_paths[0].bytes == rooted.bytes)
+        {
+            return Err(directory_tree_error());
+        }
+        if let Some(separator) = rooted.bytes.iter().rposition(|byte| *byte == b'/') {
+            let parent = &rooted.bytes[..separator];
+            if !attempts[..index]
+                .iter()
+                .any(|prior| prior.rooted_paths[0].bytes == parent)
+            {
+                return Err(directory_tree_error());
+            }
+        }
     }
     Ok(())
 }
@@ -56,5 +93,11 @@ fn only_directory_lanes(attempt: &AttemptShape<'_>) -> bool {
 fn directory_shape_error() -> BuildFilesystemReplayRecordError {
     BuildFilesystemReplayRecordError::new(
         "receipted build output directory creation is internally inconsistent",
+    )
+}
+
+fn directory_tree_error() -> BuildFilesystemReplayRecordError {
+    BuildFilesystemReplayRecordError::new(
+        "receipted build output directory tree is internally inconsistent",
     )
 }
