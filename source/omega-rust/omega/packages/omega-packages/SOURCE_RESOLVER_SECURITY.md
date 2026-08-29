@@ -653,5 +653,5 @@ enforcement supply real evidence for a later strict receipt but do not by
 themselves make the resolver admissible. Linux/Windows strict isolation,
 hostile same-user mutation, non-Windows aggregate and all during-write resource
 ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
-custody (OWNER Q16),
+custody (OWNER Q15),
 and the opaque receipt remain open.

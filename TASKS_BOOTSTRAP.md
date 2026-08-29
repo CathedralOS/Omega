@@ -435,9 +435,13 @@ meaning and unsupported forms reject deterministically.
 - [ ] Consume the deterministic transitive compiler manifest published by
   **OMEGA-PRODUCT-COMPILER-SOURCE**. Maintain no bootstrap-private source list,
   AST profile, feature list, or checkpoint tree.
-- [ ] **BLOCKED — OWNER Q8:** settle requested-target versus source-selected
-  target semantics, finalize the durable product build entry, and bind the
-  package-resolved manifest for `C`.
+- [ ] Consume **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** from
+  `TASKS.md`: the invocation supplies one exact immutable target, the product
+  build authors target-qualified roots/providers and one complete runtime-reach
+  ceiling, and successful role-specific closure validation establishes target
+  admissibility. Then finalize the durable product build entry and bind the
+  package-resolved manifest for `C`; bootstrap owns no parallel target list or
+  `Host` interpretation.
 - [ ] Derive the exact ordinary-Omega surface used by the resolved closure and
   implement it in Delta with checked semantics, conservative lowering, target
   realization, explicit resource ceilings, and deterministic rejection outside

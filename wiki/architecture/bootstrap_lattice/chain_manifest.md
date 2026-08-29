@@ -144,6 +144,7 @@ No Delta compiler output is admitted by this manifest.
 The exact transitive compiler closure `C`, `omega₀`, and `omega` do not yet
 exist as closed subjects, so they have no hashes here. The package/security
 accepted-lock projection remains an external authority dependency. The product
-build entry is design-blocked on `OWNER_QUESTIONS.md` Q8; implementation of
-ordinary source modules not exercising that target-selection question remains
-unblocked.
+build entry awaits the settled immutable target-activation and complete
+runtime-reach closure work tracked by
+**IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`; ordinary source
+modules not exercising that build surface remain unblocked.

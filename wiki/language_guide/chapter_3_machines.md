@@ -102,7 +102,6 @@ machine Application::start(&mut self) {
 }
 
 machine build(builder: &mut Build) {
-    builder.target = windows_x86_64;
     builder.roots.bind(
         windows_x86_64::ProgramEntry,
         Application::start

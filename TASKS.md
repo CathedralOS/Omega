@@ -307,15 +307,19 @@ Remaining:
   The product build directly selects the complete `ConsoleNativeProvider`
   through the normative
   `Build::select_provider<Console, ConsoleNativeProvider>` surface rather than
-  the Rust-recognized `Owner::provider_defaults` suffix convention. Replacing
-  `source/omega/build.omg`'s legacy `target ... {}` blocks is
-  design-blocked on **OWNER_QUESTIONS Q8**. The file currently declares four
-  selectable targets while the normative durable `Build` projection owns one
-  selected target and the current build source exposes no
-  requested-target input, target field, or selection operation. Settle how the
-  external request becomes an exact Omega value and how ordinary build source
-  accepts it without collapsing cross-target availability or inventing ambient
-  `Host` semantics; then migrate the live closure.
+  the Rust-recognized `Owner::provider_defaults` suffix convention.
+  **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** must now implement the
+  settled build model before deleting `source/omega/build.omg`'s four legacy
+  `target ... {}` blocks: resolve an optional CLI `Host` convenience to one
+  exact profile before evaluation; inject that immutable request as
+  `Build.target`; validate the role-specific target closure; retain the exact
+  target identity; and add one explicit complete runtime-reach ceiling whose
+  transitive-demand failures carry a provenance path. Migrate legacy host rows
+  into target-owned nominal provider realizations and the complete reach
+  ceiling, then retire `target ... {}` and source assignment to `builder.target`
+  across the corpus, normalizing the legacy `windows_x64` spelling to the
+  canonical `windows_x86_64` profile identity. Do not remove the live
+  declarations before the activation, provider, and denial destinations exist.
   Target-package defaults outside this explicitly selected product closure
   still require either that same ordinary build surface or exact declaration,
   receiver, target-scope, and duplicate/default precedence rules;
@@ -1404,7 +1408,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q12](OWNER_QUESTIONS.md#q12--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q11](OWNER_QUESTIONS.md#q11--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -5963,7 +5967,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q14](OWNER_QUESTIONS.md#q14--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q13](OWNER_QUESTIONS.md#q13--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -7953,7 +7957,7 @@ Owners:
   required named slot conformance. Two distinct cited slots at one physical
   extent also reject as overlapping supply. The direct-parameter pass canary is
   design-blocked on
-  [OWNER_QUESTIONS.md Q13](OWNER_QUESTIONS.md#q13--declaring-a-direct-native-parameter-callback-destination):
+  [OWNER_QUESTIONS.md Q12](OWNER_QUESTIONS.md#q12--declaring-a-direct-native-parameter-callback-destination):
   normalized `NativePlace::Parameter` exists, but the source model has no
   declaration that marks one already-declared runtime native parameter as the
   callback destination and binds its exact callback requirement. Settle that
@@ -8134,7 +8138,7 @@ state through a raw address.
     producers contain no service-bearing boundary operation, so there is no
     additional producer row to populate today; verifier reconstruction remains
     the fail-closed fence if one gains such an operation.
-    **Design-blocked on `OWNER_QUESTIONS.md` Q11:** settle how a realization
+    **Design-blocked on `OWNER_QUESTIONS.md` Q10:** settle how a realization
     supplies one exact top-level bodyless boundary requirement. The existing
     `satisfies Trait::requirement` surface selects trait/operator requirements;
     no approved source form yet binds a provider to a top-level requirement

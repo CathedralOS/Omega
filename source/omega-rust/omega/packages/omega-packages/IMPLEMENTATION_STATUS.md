@@ -1130,7 +1130,7 @@ identifies the active plan and rejoins its exact requirement and realizing
 machine. Projection repeats the exact symbol, slot, checked-adapter binding,
 package, and machine join. A named-boundary canary covers unique selection.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
-dispatch exists. Authored same-path overload-family override remains OWNER Q10.
+dispatch exists. Authored same-path overload-family override remains OWNER Q9.
 Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
