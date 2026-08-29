@@ -3,6 +3,16 @@
 use super::*;
 
 const STORAGE_COMPONENTS: &[&str] = &["CathedralOS", "Omega", "source", "v1"];
+const GIT_SOURCES: &str = "git-sources";
+const WORKSPACE_MEMBERS: &str = "workspace-members";
+const EXTERNAL_LOCAL_SOURCES: &str = "external-local-sources";
+
+#[derive(Debug)]
+struct RetainedStorageLane {
+    path: PathBuf,
+    directory: CapabilityDirectory,
+    kind: CacheCustodyKind,
+}
 
 /// Retained private per-user storage for source acquisition.
 ///
@@ -13,6 +23,9 @@ const STORAGE_COMPONENTS: &[&str] = &["CathedralOS", "Omega", "source", "v1"];
 pub struct SourceResolverStorage {
     root: PathBuf,
     directory: CapabilityDirectory,
+    git_sources: RetainedStorageLane,
+    workspace_members: RetainedStorageLane,
+    external_local_sources: RetainedStorageLane,
 }
 
 impl SourceResolverStorage {
@@ -25,8 +38,21 @@ impl SourceResolverStorage {
         Self::create_beneath(&base)
     }
 
+    #[cfg(test)]
     pub(crate) fn root(&self) -> &Path {
         &self.root
+    }
+
+    pub(crate) fn git_sources(&self) -> &Path {
+        &self.git_sources.path
+    }
+
+    pub(crate) fn workspace_members(&self) -> &Path {
+        &self.workspace_members.path
+    }
+
+    pub(crate) fn external_local_sources(&self) -> &Path {
+        &self.external_local_sources.path
     }
 
     pub(crate) fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
@@ -46,6 +72,13 @@ impl SourceResolverStorage {
                 &self.root,
                 "private resolver root pathname no longer identifies its retained directory",
             ));
+        }
+        for lane in [
+            &self.git_sources,
+            &self.workspace_members,
+            &self.external_local_sources,
+        ] {
+            lane.verify_path_identity()?;
         }
         Ok(())
     }
@@ -77,9 +110,75 @@ impl SourceResolverStorage {
             )?;
         }
 
-        let storage = Self { root, directory };
+        let git_sources =
+            RetainedStorageLane::create(&root, &directory, GIT_SOURCES, CacheCustodyKind::Git)?;
+        let workspace_members = RetainedStorageLane::create(
+            &root,
+            &directory,
+            WORKSPACE_MEMBERS,
+            CacheCustodyKind::LocalSnapshot,
+        )?;
+        let external_local_sources = RetainedStorageLane::create(
+            &root,
+            &directory,
+            EXTERNAL_LOCAL_SOURCES,
+            CacheCustodyKind::LocalSnapshot,
+        )?;
+        let storage = Self {
+            root,
+            directory,
+            git_sources,
+            workspace_members,
+            external_local_sources,
+        };
         storage.verify_path_identity()?;
         Ok(storage)
+    }
+}
+
+impl RetainedStorageLane {
+    fn create(
+        root: &Path,
+        root_directory: &CapabilityDirectory,
+        name: &str,
+        kind: CacheCustodyKind,
+    ) -> Result<Self, SourceResolveError> {
+        let path = root.join(name);
+        match create_private_cache_directory(root_directory, name) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(io_error(&path, error)),
+        }
+        let directory =
+            retain_private_cache_directory(kind, root_directory, OsStr::new(name), &path)?;
+        let lane = Self {
+            path,
+            directory,
+            kind,
+        };
+        lane.verify_path_identity()?;
+        Ok(lane)
+    }
+
+    fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
+        verify_cache_custody_root(&self.path, self.kind)?;
+        let retained = self
+            .directory
+            .dir_metadata()
+            .map_err(|error| io_error(&self.path, error))?;
+        let named_directory = open_absolute_directory_nofollow(&self.path)
+            .map_err(|error| io_error(&self.path, error))?;
+        let named = named_directory
+            .dir_metadata()
+            .map_err(|error| io_error(&self.path, error))?;
+        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
+            return Err(cache_custody_invalid(
+                self.kind,
+                &self.path,
+                "private resolver lane pathname no longer identifies its retained directory",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -171,6 +270,16 @@ mod tests {
                     0o700,
                 );
             }
+            for lane in [
+                storage.git_sources(),
+                storage.workspace_members(),
+                storage.external_local_sources(),
+            ] {
+                assert_eq!(
+                    std::fs::metadata(lane).unwrap().permissions().mode() & 0o777,
+                    0o700,
+                );
+            }
         }
 
         drop(storage);
@@ -192,6 +301,25 @@ mod tests {
         assert!(error.to_string().contains("no longer identifies"));
 
         let _ = std::fs::remove_dir_all(storage.root());
+        drop(storage);
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn retained_private_lane_rejects_path_replacement() {
+        let base = isolated_base("lane-replacement");
+        std::fs::create_dir_all(&base).expect("create isolated cache base");
+        let storage = SourceResolverStorage::create_beneath(&base)
+            .expect("production private-root constructor");
+        let lane = storage.git_sources().to_path_buf();
+        let retained = lane.with_extension("retained");
+        std::fs::rename(&lane, &retained).expect("move retained lane");
+        std::fs::create_dir(&lane).expect("replace lane pathname");
+        let error = storage
+            .verify_path_identity()
+            .expect_err("replacement must not satisfy retained lane custody");
+        assert!(error.to_string().contains("no longer identifies"));
+
         drop(storage);
         let _ = std::fs::remove_dir_all(base);
     }

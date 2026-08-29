@@ -41,7 +41,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
             std::process::exit(1);
         }
     };
-    match omega_packages::audit_package_source_locator_with_storage(
+    match omega_packages::audit_package_source_locator(
         adapter,
         arguments.locator,
         arguments.rev,

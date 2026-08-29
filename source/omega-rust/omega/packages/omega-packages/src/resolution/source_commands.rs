@@ -169,7 +169,7 @@ fn reject_local_rev(
     Ok(())
 }
 
-pub fn audit_package_source(
+pub(crate) fn audit_package_source_in_cache(
     request: PackageSourceRequest,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
@@ -214,18 +214,19 @@ pub fn audit_package_source(
 }
 
 /// Audit one source using manager-owned private resolver storage.
-pub fn audit_package_source_with_storage(
+pub fn audit_package_source(
     request: PackageSourceRequest,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceAudit, SourceResolveError> {
     storage.verify_path_identity()?;
-    let result = audit_package_source(request, storage.root(), limits);
+    let result = audit_package_source_in_cache(request, storage.git_sources(), limits);
     storage.verify_path_identity()?;
     result
 }
 
-pub fn audit_package_source_locator(
+#[cfg(test)]
+pub(crate) fn audit_package_source_locator_in_cache(
     adapter: SourceAdapter,
     locator: impl Into<String>,
     rev: Option<String>,
@@ -234,11 +235,12 @@ pub fn audit_package_source_locator(
 ) -> Result<PackageSourceAudit, PackageSourceAuditCommandError> {
     let request = PackageSourceRequest::parse(adapter, locator, rev)
         .map_err(PackageSourceAuditCommandError::Parse)?;
-    audit_package_source(request, cache_dir, limits)
+    audit_package_source_in_cache(request, cache_dir, limits)
         .map_err(PackageSourceAuditCommandError::Resolve)
 }
 
-pub fn audit_package_source_locator_with_storage(
+/// Parse and audit one source using manager-owned private resolver storage.
+pub fn audit_package_source_locator(
     adapter: SourceAdapter,
     locator: impl Into<String>,
     rev: Option<String>,
@@ -247,8 +249,7 @@ pub fn audit_package_source_locator_with_storage(
 ) -> Result<PackageSourceAudit, PackageSourceAuditCommandError> {
     let request = PackageSourceRequest::parse(adapter, locator, rev)
         .map_err(PackageSourceAuditCommandError::Parse)?;
-    audit_package_source_with_storage(request, storage, limits)
-        .map_err(PackageSourceAuditCommandError::Resolve)
+    audit_package_source(request, storage, limits).map_err(PackageSourceAuditCommandError::Resolve)
 }
 
 #[cfg(test)]
@@ -354,7 +355,7 @@ mod tests {
         }
 
         assert!(matches!(
-            audit_package_source_locator(
+            audit_package_source_locator_in_cache(
                 SourceAdapter::Git,
                 "http://github.com/CathedralOS/tool.git",
                 None,
@@ -370,40 +371,56 @@ mod tests {
     #[test]
     fn local_source_audit_and_locator_wrapper_report_resolved_identity() {
         let root = temp_root("local-audit");
-        let cache = temp_root("local-audit-cache");
+        let cache_base = temp_root("local-audit-cache");
         std::fs::create_dir_all(&root).expect("create local package");
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+        let storage = SourceResolverStorage::create_beneath(&cache_base)
+            .expect("create private resolver storage");
+        storage
+            .verify_path_identity()
+            .expect("storage identity before source audit");
 
-        let direct = audit_package_source(
+        let low_level = audit_package_source_in_cache(
             PackageSourceRequest::LocalPath(root.clone()),
-            &cache,
+            storage.git_sources(),
             LocalSourceLimits::default(),
         )
-        .expect("audit local source");
+        .expect("audit local source in explicit cache");
+        let direct = audit_package_source(
+            PackageSourceRequest::LocalPath(root.clone()),
+            &storage,
+            LocalSourceLimits::default(),
+        )
+        .expect("audit local source through managed storage");
         let wrapped = audit_package_source_locator(
             SourceAdapter::Local,
             root.display().to_string(),
             None,
-            &cache,
+            &storage,
             LocalSourceLimits::default(),
         )
         .expect("audit local locator");
+        storage
+            .verify_path_identity()
+            .expect("storage identity after source audit");
 
         assert_eq!(direct.source_kind, "local-path");
         assert_eq!(direct.file_count, 1);
         assert_eq!(direct.content_identity.len(), 64);
         assert!(direct.to_text().contains("package source audit"));
         assert!(direct.network_transfer_ceiling.is_none());
+        assert_eq!(low_level.content_identity, direct.content_identity);
         assert_eq!(wrapped.content_identity, direct.content_identity);
 
+        drop(storage);
         let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&cache_base);
     }
 
     #[test]
     fn git_source_audit_reports_commit_and_tree() {
         let repository = temp_root("git-audit");
-        let cache = temp_root("git-audit-cache");
+        let cache_base = temp_root("git-audit-cache");
         std::fs::create_dir_all(&repository).expect("create git package");
         run_test_git(&repository, ["init", "--quiet"]);
         run_test_git(
@@ -415,16 +432,24 @@ mod tests {
             .expect("write source");
         run_test_git(&repository, ["add", "main.omg"]);
         run_test_git(&repository, ["commit", "--quiet", "-m", "initial"]);
+        let storage = SourceResolverStorage::create_beneath(&cache_base)
+            .expect("create private resolver storage");
+        storage
+            .verify_path_identity()
+            .expect("storage identity before Git source audit");
 
         let audit = audit_package_source(
             PackageSourceRequest::Git(
                 GitSourceRequest::for_local_test_repository(&repository, Some("HEAD".to_owned()))
                     .expect("local Git fixture request"),
             ),
-            &cache,
+            &storage,
             LocalSourceLimits::default(),
         )
         .expect("audit git source");
+        storage
+            .verify_path_identity()
+            .expect("storage identity after Git source audit");
 
         assert_eq!(audit.source_kind, "git");
         assert_eq!(audit.file_count, 1);
@@ -435,7 +460,8 @@ mod tests {
         assert_eq!(audit.network_downloaded_bytes, Some(0));
         assert!(audit.to_text().contains("broker transfer ceiling: "));
 
+        drop(storage);
         let _ = std::fs::remove_dir_all(&repository);
-        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&cache_base);
     }
 }
