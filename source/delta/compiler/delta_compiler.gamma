@@ -2,8 +2,8 @@
 ;
 ; These retained components belong to the final compiler. They validate and
 ; parse the complete Delta surface and provide the final pure symbolic-Alpha
-; encoder. D22 fixes the still-unimplemented semantic identity census;
-; checking and AST-to-Alpha lowering also remain incomplete. This source
+; encoder. The D22/D24 source-shaped semantic identity census is implemented;
+; type/body checking and AST-to-Alpha lowering remain incomplete. This source
 ; intentionally exposes no `main` and emits no
 ; placeholder artifact until those intervening phases exist.
 
@@ -331,6 +331,48 @@
 (data DeltaProgramParseOutcome
   (DeltaProgramParsed DeltaProgram)
   (DeltaProgramParseRejected DeltaRejectReason Int))
+
+; Declaration collection returns the original native syntax value after one
+; complete D22/D24 census. Candidates are accumulated rather than returned at
+; first traversal sight so source order of the collector cannot choose between
+; scoped DuplicateName and InvalidBoundary failures.
+(data DeltaCensusCandidate
+  (NoDeltaCensusCandidate)
+  (DeltaCensusCandidateAt DeltaRejectReason Int))
+
+(data DeltaOwnerKind
+  (DeltaBoundaryOwnerKind)
+  (DeltaDataOwnerKind))
+
+(data DeltaOwnerRow
+  (DeltaOwnerRowSyntax Int DeltaName DeltaOwnerKind))
+
+(data DeltaOwnerRowList
+  (NoDeltaOwnerRows)
+  (MoreDeltaOwnerRows DeltaOwnerRow DeltaOwnerRowList))
+
+(data DeltaMachineRow
+  (DeltaMachineRowSyntax Int DeltaQualifiedName))
+
+(data DeltaMachineRowList
+  (NoDeltaMachineRows)
+  (MoreDeltaMachineRows DeltaMachineRow DeltaMachineRowList))
+
+(data DeltaCollectedProgram
+  (DeltaCollectedProgramSyntax DeltaProgram DeltaOwnerRowList DeltaMachineRowList))
+
+(data DeltaCensusOutcome
+  (DeltaCensusAccepted DeltaCollectedProgram)
+  (DeltaCensusRejected DeltaRejectReason Int))
+
+(data DeltaCensusLocalScan
+  (DeltaCensusLocalScanResult DeltaCensusCandidate DeltaNameList))
+
+(data DeltaOwnerIdentity
+  (NoDeltaOwnerIdentity)
+  (OneDeltaBoundaryOwner)
+  (OneDeltaDataOwner)
+  (AmbiguousDeltaOwnerIdentity))
 
 ; The direct backend keeps Alpha construction symbolic until every label has an
 ; exact payload offset.  Label ids are dense in `0 .. label_count`; the private
@@ -2521,6 +2563,647 @@
               programStart NoDeltaDeclarations))))
       ((LexicallyRejected reasonValue errorOffset)
         (DeltaProgramParseRejected reasonValue errorOffset)))))
+
+; ---- D22/D24 declaration census ---------------------------------------
+
+(def delta_census_min_present ((leftReason DeltaRejectReason)
+  (leftOffset Int) (right DeltaCensusCandidate)) DeltaCensusCandidate
+  (match right
+    (NoDeltaCensusCandidate
+      (DeltaCensusCandidateAt leftReason leftOffset))
+    ((DeltaCensusCandidateAt rightReason rightOffset)
+      (if (lt rightOffset leftOffset)
+        (DeltaCensusCandidateAt rightReason rightOffset)
+        (DeltaCensusCandidateAt leftReason leftOffset)))))
+
+(def delta_census_min ((left DeltaCensusCandidate)
+  (right DeltaCensusCandidate)) DeltaCensusCandidate
+  (match left
+    (NoDeltaCensusCandidate right)
+    ((DeltaCensusCandidateAt leftReason leftOffset)
+      (delta_census_min_present leftReason leftOffset right))))
+
+(def delta_census_duplicate ((offset Int)) DeltaCensusCandidate
+  (DeltaCensusCandidateAt DuplicateName offset))
+
+(def delta_name_start ((nameValue DeltaName)) Int
+  (match nameValue ((DeltaNameSpan start end) start)))
+
+(def delta_name_end ((nameValue DeltaName)) Int
+  (match nameValue ((DeltaNameSpan start end) end)))
+
+(def delta_name_bytes_equal ((source Bytes) (left Int) (right Int)
+  (remaining Int)) Int
+  (if (eq remaining 0)
+    1
+    (if (eq (bytes_get source left) (bytes_get source right))
+      (delta_name_bytes_equal source (+ left 1) (+ right 1)
+        (- remaining 1))
+      0)))
+
+(def delta_names_equal ((source Bytes) (left DeltaName)
+  (right DeltaName)) Int
+  (let leftStart (delta_name_start left)
+    (let rightStart (delta_name_start right)
+      (let leftLength (- (delta_name_end left) leftStart)
+        (let rightLength (- (delta_name_end right) rightStart)
+          (if (eq leftLength rightLength)
+            (delta_name_bytes_equal source leftStart rightStart leftLength)
+            0))))))
+
+(def delta_census_name_in_list ((source Bytes) (nameValue DeltaName)
+  (names DeltaNameList)) Int
+  (match names
+    (NoDeltaNames 0)
+    ((MoreDeltaNames item rest)
+      (if (delta_names_equal source nameValue item)
+        1
+        (delta_census_name_in_list source nameValue rest)))))
+
+(def delta_census_name_against_names ((source Bytes)
+  (nameValue DeltaName) (names DeltaNameList)) DeltaCensusCandidate
+  (match names
+    (NoDeltaNames NoDeltaCensusCandidate)
+    ((MoreDeltaNames item rest)
+      (let current
+        (if (delta_names_equal source nameValue item)
+          (delta_census_duplicate (delta_name_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_name_against_names source nameValue rest))))))
+
+(def delta_census_name_list_duplicates ((source Bytes)
+  (names DeltaNameList)) DeltaCensusCandidate
+  (match names
+    (NoDeltaNames NoDeltaCensusCandidate)
+    ((MoreDeltaNames item rest)
+      (delta_census_min
+        (delta_census_name_against_names source item rest)
+        (delta_census_name_list_duplicates source rest)))))
+
+(def delta_parameter_start ((parameterValue DeltaParameter)) Int
+  (match parameterValue
+    ((DeltaParameterSyntax start end name typeValue) start)))
+
+(def delta_parameter_name ((parameterValue DeltaParameter)) DeltaName
+  (match parameterValue
+    ((DeltaParameterSyntax start end name typeValue) name)))
+
+(def delta_census_parameter_against ((source Bytes) (nameValue DeltaName)
+  (parameters DeltaParameterList)) DeltaCensusCandidate
+  (match parameters
+    (NoDeltaParameters NoDeltaCensusCandidate)
+    ((MoreDeltaParameters item rest)
+      (let current
+        (if (delta_names_equal source nameValue (delta_parameter_name item))
+          (delta_census_duplicate (delta_parameter_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_parameter_against source nameValue rest))))))
+
+(def delta_census_parameter_duplicates ((source Bytes)
+  (parameters DeltaParameterList)) DeltaCensusCandidate
+  (match parameters
+    (NoDeltaParameters NoDeltaCensusCandidate)
+    ((MoreDeltaParameters item rest)
+      (delta_census_min
+        (delta_census_parameter_against source (delta_parameter_name item) rest)
+        (delta_census_parameter_duplicates source rest)))))
+
+(def delta_census_parameter_outer_collisions ((source Bytes)
+  (parameters DeltaParameterList)
+  (environment DeltaNameList)) DeltaCensusCandidate
+  (match parameters
+    (NoDeltaParameters NoDeltaCensusCandidate)
+    ((MoreDeltaParameters item rest)
+      (let current
+        (if (delta_census_name_in_list source (delta_parameter_name item)
+          environment)
+          (delta_census_duplicate (delta_parameter_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_parameter_outer_collisions source rest environment))))))
+
+(def delta_census_prepend_parameters ((parameters DeltaParameterList)
+  (environment DeltaNameList)) DeltaNameList
+  (match parameters
+    (NoDeltaParameters environment)
+    ((MoreDeltaParameters item rest)
+      (MoreDeltaNames (delta_parameter_name item)
+        (delta_census_prepend_parameters rest environment)))))
+
+(def delta_census_inputs_parameters ((inputs DeltaMachineInputs)) DeltaParameterList
+  (match inputs
+    ((NoDeltaMachineInputs start end) NoDeltaParameters)
+    ((DeltaPlainMachineInputs start end parameters) parameters)
+    ((DeltaReceiverMachineInputs start end receiverStart receiverEnd parameters)
+      parameters)))
+
+(def delta_census_scan_statements ((source Bytes)
+  (statements DeltaStatementList)
+  (environment DeltaNameList)) DeltaCensusLocalScan
+  (match statements
+    (NoDeltaStatements
+      (DeltaCensusLocalScanResult NoDeltaCensusCandidate environment))
+    ((MoreDeltaStatements item rest)
+      (match item
+        ((DeltaLetStatement start end name typeValue expressionValue)
+          (let current
+            (if (delta_census_name_in_list source name environment)
+              (delta_census_duplicate start)
+              NoDeltaCensusCandidate)
+            (let tailScan
+              (delta_census_scan_statements source rest
+                (MoreDeltaNames name environment))
+              (match tailScan
+                ((DeltaCensusLocalScanResult tailCandidate tailEnvironment)
+                  (DeltaCensusLocalScanResult
+                    (delta_census_min current tailCandidate)
+                    tailEnvironment))))))
+        ((DeltaAssignmentStatement start end placeValue expressionValue)
+          (delta_census_scan_statements source rest environment))
+        ((DeltaPostfixStatement start end expressionValue)
+          (delta_census_scan_statements source rest environment))
+        ((DeltaAssertStatement start end expressionValue)
+          (delta_census_scan_statements source rest environment))))))
+
+(def delta_census_binder_outer_collisions ((source Bytes)
+  (names DeltaNameList) (environment DeltaNameList)) DeltaCensusCandidate
+  (match names
+    (NoDeltaNames NoDeltaCensusCandidate)
+    ((MoreDeltaNames item rest)
+      (let current
+        (if (delta_census_name_in_list source item environment)
+          (delta_census_duplicate (delta_name_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_binder_outer_collisions source rest environment))))))
+
+(def delta_census_optional_binder ((source Bytes)
+  (binder DeltaOptionalBinder)
+  (environment DeltaNameList)) DeltaCensusCandidate
+  (match binder
+    (NoDeltaBinder NoDeltaCensusCandidate)
+    ((SomeDeltaBinder start end names)
+      (delta_census_min
+        (delta_census_name_list_duplicates source names)
+        (delta_census_binder_outer_collisions source names environment)))))
+
+(def delta_census_pattern_binder ((source Bytes) (patternValue DeltaPattern)
+  (environment DeltaNameList)) DeltaCensusCandidate
+  (match patternValue
+    ((DeltaIntegerPattern start end literal) NoDeltaCensusCandidate)
+    ((DeltaTruePattern start end) NoDeltaCensusCandidate)
+    ((DeltaFalsePattern start end) NoDeltaCensusCandidate)
+    ((DeltaWildcardPattern start end) NoDeltaCensusCandidate)
+    ((DeltaCasePattern start end owner name binder)
+      (delta_census_optional_binder source binder environment))))
+
+(def delta_census_arms ((source Bytes) (arms DeltaArmList)
+  (environment DeltaNameList)) DeltaCensusCandidate
+  (match arms
+    (NoDeltaArms NoDeltaCensusCandidate)
+    ((MoreDeltaArms item rest)
+      (match item
+        ((DeltaArmSyntax start end patternValue continuationValue)
+          (delta_census_min
+            (delta_census_pattern_binder source patternValue environment)
+            (delta_census_arms source rest environment)))))))
+
+(def delta_census_optional_terminal ((source Bytes)
+  (terminalValue DeltaOptionalTerminal)
+  (environment DeltaNameList)) DeltaCensusCandidate
+  (match terminalValue
+    (NoDeltaTerminal NoDeltaCensusCandidate)
+    ((SomeDeltaTerminal terminal)
+      (match terminal
+        ((DeltaTransitionTerminal start end subject arms)
+          (delta_census_arms source arms environment))
+        ((DeltaReturnTerminal start end expressionValue)
+          NoDeltaCensusCandidate)))))
+
+(def delta_census_block ((source Bytes) (statements DeltaStatementList)
+  (terminalValue DeltaOptionalTerminal)
+  (environment DeltaNameList)) DeltaCensusCandidate
+  (let localScan (delta_census_scan_statements source statements environment)
+    (match localScan
+      ((DeltaCensusLocalScanResult localCandidate finalEnvironment)
+        (delta_census_min localCandidate
+          (delta_census_optional_terminal source terminalValue
+            finalEnvironment))))))
+
+(def delta_state_start ((stateValue DeltaState)) Int
+  (match stateValue
+    ((DeltaStateSyntax start end name parameters bodyValue) start)))
+
+(def delta_state_name ((stateValue DeltaState)) DeltaName
+  (match stateValue
+    ((DeltaStateSyntax start end name parameters bodyValue) name)))
+
+(def delta_census_state_against ((source Bytes) (nameValue DeltaName)
+  (states DeltaStateList)) DeltaCensusCandidate
+  (match states
+    (NoDeltaStates NoDeltaCensusCandidate)
+    ((MoreDeltaStates item rest)
+      (let current
+        (if (delta_names_equal source nameValue (delta_state_name item))
+          (delta_census_duplicate (delta_state_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_state_against source nameValue rest))))))
+
+(def delta_census_state_duplicates ((source Bytes)
+  (states DeltaStateList)) DeltaCensusCandidate
+  (match states
+    (NoDeltaStates NoDeltaCensusCandidate)
+    ((MoreDeltaStates item rest)
+      (delta_census_min
+        (delta_census_state_against source (delta_state_name item) rest)
+        (delta_census_state_duplicates source rest)))))
+
+(def delta_census_state_scope ((source Bytes) (stateValue DeltaState)
+  (machineEnvironment DeltaNameList)) DeltaCensusCandidate
+  (match stateValue
+    ((DeltaStateSyntax start end name parameters bodyValue)
+      (let parameterCandidates
+        (delta_census_min
+          (delta_census_parameter_duplicates source parameters)
+          (delta_census_parameter_outer_collisions source parameters
+            machineEnvironment))
+        (let stateEnvironment
+          (delta_census_prepend_parameters parameters machineEnvironment)
+          (match bodyValue
+            ((DeltaStateBodySyntax bodyStart bodyEnd statements terminalValue)
+              (delta_census_min parameterCandidates
+                (delta_census_block source statements terminalValue
+                  stateEnvironment)))))))))
+
+(def delta_census_state_scopes ((source Bytes) (states DeltaStateList)
+  (machineEnvironment DeltaNameList)) DeltaCensusCandidate
+  (match states
+    (NoDeltaStates NoDeltaCensusCandidate)
+    ((MoreDeltaStates item rest)
+      (delta_census_min
+        (delta_census_state_scope source item machineEnvironment)
+        (delta_census_state_scopes source rest machineEnvironment)))))
+
+(def delta_census_machine_scope ((source Bytes) (inputs DeltaMachineInputs)
+  (bodyValue DeltaMachineBody)) DeltaCensusCandidate
+  (let parameters (delta_census_inputs_parameters inputs)
+    (let parameterCandidates
+      (delta_census_parameter_duplicates source parameters)
+      (let machineEnvironment
+        (delta_census_prepend_parameters parameters NoDeltaNames)
+        (match bodyValue
+          ((DeltaMachineBodySyntax start end statements terminalValue states)
+            (delta_census_min parameterCandidates
+              (delta_census_min
+                (delta_census_block source statements terminalValue
+                  machineEnvironment)
+                (delta_census_min
+                  (delta_census_state_duplicates source states)
+                  (delta_census_state_scopes source states
+                    machineEnvironment))))))))))
+
+(def delta_boundary_machine_start ((machineValue DeltaBoundaryMachine)) Int
+  (match machineValue
+    ((DeltaBoundaryMachineSyntax start end name parameters returnType) start)))
+
+(def delta_boundary_machine_name ((machineValue DeltaBoundaryMachine)) DeltaName
+  (match machineValue
+    ((DeltaBoundaryMachineSyntax start end name parameters returnType) name)))
+
+(def delta_census_boundary_machine_against ((source Bytes)
+  (nameValue DeltaName)
+  (machines DeltaBoundaryMachineList)) DeltaCensusCandidate
+  (match machines
+    (NoDeltaBoundaryMachines NoDeltaCensusCandidate)
+    ((MoreDeltaBoundaryMachines item rest)
+      (let current
+        (if (delta_names_equal source nameValue
+          (delta_boundary_machine_name item))
+          (delta_census_duplicate (delta_boundary_machine_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_boundary_machine_against source nameValue rest))))))
+
+(def delta_census_boundary_machine_duplicates ((source Bytes)
+  (machines DeltaBoundaryMachineList)) DeltaCensusCandidate
+  (match machines
+    (NoDeltaBoundaryMachines NoDeltaCensusCandidate)
+    ((MoreDeltaBoundaryMachines item rest)
+      (delta_census_min
+        (delta_census_boundary_machine_against source
+          (delta_boundary_machine_name item) rest)
+        (delta_census_boundary_machine_duplicates source rest)))))
+
+(def delta_census_boundary_machine_parameters ((source Bytes)
+  (machines DeltaBoundaryMachineList)) DeltaCensusCandidate
+  (match machines
+    (NoDeltaBoundaryMachines NoDeltaCensusCandidate)
+    ((MoreDeltaBoundaryMachines item rest)
+      (match item
+        ((DeltaBoundaryMachineSyntax start end name parameters returnType)
+          (delta_census_min
+            (delta_census_parameter_duplicates source parameters)
+            (delta_census_boundary_machine_parameters source rest)))))))
+
+(def delta_data_member_start ((memberValue DeltaDataMember)) Int
+  (match memberValue
+    ((DeltaFieldMember start end name typeValue) start)
+    ((DeltaCaseMember start end name payload) start)))
+
+(def delta_data_member_name ((memberValue DeltaDataMember)) DeltaName
+  (match memberValue
+    ((DeltaFieldMember start end name typeValue) name)
+    ((DeltaCaseMember start end name payload) name)))
+
+(def delta_census_data_member_against ((source Bytes) (nameValue DeltaName)
+  (members DeltaDataMemberList)) DeltaCensusCandidate
+  (match members
+    (NoDeltaDataMembers NoDeltaCensusCandidate)
+    ((MoreDeltaDataMembers item rest)
+      (let current
+        (if (delta_names_equal source nameValue (delta_data_member_name item))
+          (delta_census_duplicate (delta_data_member_start item))
+          NoDeltaCensusCandidate)
+        (delta_census_min current
+          (delta_census_data_member_against source nameValue rest))))))
+
+(def delta_census_data_member_duplicates ((source Bytes)
+  (members DeltaDataMemberList)) DeltaCensusCandidate
+  (match members
+    (NoDeltaDataMembers NoDeltaCensusCandidate)
+    ((MoreDeltaDataMembers item rest)
+      (delta_census_min
+        (delta_census_data_member_against source
+          (delta_data_member_name item) rest)
+        (delta_census_data_member_duplicates source rest)))))
+
+(def delta_census_data_payload_parameters ((source Bytes)
+  (members DeltaDataMemberList)) DeltaCensusCandidate
+  (match members
+    (NoDeltaDataMembers NoDeltaCensusCandidate)
+    ((MoreDeltaDataMembers item rest)
+      (match item
+        ((DeltaFieldMember start end name typeValue)
+          (delta_census_data_payload_parameters source rest))
+        ((DeltaCaseMember start end name payload)
+          (let current
+            (match payload
+              (NoDeltaPayload NoDeltaCensusCandidate)
+              ((SomeDeltaPayload payloadStart payloadEnd parameters)
+                (delta_census_parameter_duplicates source parameters)))
+            (delta_census_min current
+              (delta_census_data_payload_parameters source rest))))))))
+
+(def delta_unqualified_name_equal_right ((source Bytes) (leftName DeltaName)
+  (right DeltaQualifiedName)) Int
+  (match right
+    ((DeltaUnqualifiedName rightStart rightEnd rightName)
+      (delta_names_equal source leftName rightName))
+    ((DeltaQualifiedNameSyntax rightStart rightEnd rightOwner rightName) 0)))
+
+(def delta_qualified_name_equal_right ((source Bytes) (leftOwner DeltaName)
+  (leftName DeltaName) (right DeltaQualifiedName)) Int
+  (match right
+    ((DeltaUnqualifiedName rightStart rightEnd rightName) 0)
+    ((DeltaQualifiedNameSyntax rightStart rightEnd rightOwner rightName)
+      (if (delta_names_equal source leftOwner rightOwner)
+        (delta_names_equal source leftName rightName)
+        0))))
+
+(def delta_qualified_names_equal ((source Bytes)
+  (left DeltaQualifiedName) (right DeltaQualifiedName)) Int
+  (match left
+    ((DeltaUnqualifiedName leftStart leftEnd leftName)
+      (delta_unqualified_name_equal_right source leftName right))
+    ((DeltaQualifiedNameSyntax leftStart leftEnd leftOwner leftName)
+      (delta_qualified_name_equal_right source leftOwner leftName right))))
+
+(def delta_owner_identity_merge_present ((left DeltaOwnerIdentity)
+  (right DeltaOwnerIdentity)) DeltaOwnerIdentity
+  (match right
+    (NoDeltaOwnerIdentity left)
+    (OneDeltaBoundaryOwner AmbiguousDeltaOwnerIdentity)
+    (OneDeltaDataOwner AmbiguousDeltaOwnerIdentity)
+    (AmbiguousDeltaOwnerIdentity AmbiguousDeltaOwnerIdentity)))
+
+(def delta_owner_identity_merge ((left DeltaOwnerIdentity)
+  (right DeltaOwnerIdentity)) DeltaOwnerIdentity
+  (match left
+    (NoDeltaOwnerIdentity right)
+    (OneDeltaBoundaryOwner
+      (delta_owner_identity_merge_present OneDeltaBoundaryOwner right))
+    (OneDeltaDataOwner
+      (delta_owner_identity_merge_present OneDeltaDataOwner right))
+    (AmbiguousDeltaOwnerIdentity AmbiguousDeltaOwnerIdentity)))
+
+(def delta_owner_identity_for_rows ((source Bytes) (owner DeltaName)
+  (rows DeltaOwnerRowList)) DeltaOwnerIdentity
+  (match rows
+    (NoDeltaOwnerRows NoDeltaOwnerIdentity)
+    ((MoreDeltaOwnerRows item rest)
+      (match item
+        ((DeltaOwnerRowSyntax declarationStart rowName kind)
+          (let current
+            (if (delta_names_equal source owner rowName)
+              (match kind
+                (DeltaBoundaryOwnerKind OneDeltaBoundaryOwner)
+                (DeltaDataOwnerKind OneDeltaDataOwner))
+              NoDeltaOwnerIdentity)
+            (delta_owner_identity_merge current
+              (delta_owner_identity_for_rows source owner rest))))))))
+
+(def delta_reverse_owner_rows ((input DeltaOwnerRowList)
+  (output DeltaOwnerRowList)) DeltaOwnerRowList
+  (match input
+    (NoDeltaOwnerRows output)
+    ((MoreDeltaOwnerRows item rest)
+      (delta_reverse_owner_rows rest (MoreDeltaOwnerRows item output)))))
+
+(def delta_collect_owner_rows_acc ((declarations DeltaDeclarationList)
+  (accumulator DeltaOwnerRowList)) DeltaOwnerRowList
+  (match declarations
+    (NoDeltaDeclarations
+      (delta_reverse_owner_rows accumulator NoDeltaOwnerRows))
+    ((MoreDeltaDeclarations item rest)
+      (match item
+        ((DeltaBoundaryDeclaration start end name machines)
+          (delta_collect_owner_rows_acc rest
+            (MoreDeltaOwnerRows
+              (DeltaOwnerRowSyntax start name DeltaBoundaryOwnerKind)
+              accumulator)))
+        ((DeltaDataDeclaration start end name members)
+          (delta_collect_owner_rows_acc rest
+            (MoreDeltaOwnerRows
+              (DeltaOwnerRowSyntax start name DeltaDataOwnerKind)
+              accumulator)))
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          (delta_collect_owner_rows_acc rest accumulator))))))
+
+(def delta_reverse_machine_rows ((input DeltaMachineRowList)
+  (output DeltaMachineRowList)) DeltaMachineRowList
+  (match input
+    (NoDeltaMachineRows output)
+    ((MoreDeltaMachineRows item rest)
+      (delta_reverse_machine_rows rest (MoreDeltaMachineRows item output)))))
+
+(def delta_collect_machine_rows_acc ((declarations DeltaDeclarationList)
+  (accumulator DeltaMachineRowList)) DeltaMachineRowList
+  (match declarations
+    (NoDeltaDeclarations
+      (delta_reverse_machine_rows accumulator NoDeltaMachineRows))
+    ((MoreDeltaDeclarations item rest)
+      (match item
+        ((DeltaBoundaryDeclaration start end name machines)
+          (delta_collect_machine_rows_acc rest accumulator))
+        ((DeltaDataDeclaration start end name members)
+          (delta_collect_machine_rows_acc rest accumulator))
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          (delta_collect_machine_rows_acc rest
+            (MoreDeltaMachineRows (DeltaMachineRowSyntax start name)
+              accumulator)))))))
+
+(def delta_census_owner_name_against ((source Bytes) (nameValue DeltaName)
+  (declarations DeltaDeclarationList)) DeltaCensusCandidate
+  (match declarations
+    (NoDeltaDeclarations NoDeltaCensusCandidate)
+    ((MoreDeltaDeclarations item rest)
+      (match item
+        ((DeltaBoundaryDeclaration start end name machines)
+          (let current
+            (if (delta_names_equal source nameValue name)
+              (delta_census_duplicate start)
+              NoDeltaCensusCandidate)
+            (delta_census_min current
+              (delta_census_owner_name_against source nameValue rest))))
+        ((DeltaDataDeclaration start end name members)
+          (let current
+            (if (delta_names_equal source nameValue name)
+              (delta_census_duplicate start)
+              NoDeltaCensusCandidate)
+            (delta_census_min current
+              (delta_census_owner_name_against source nameValue rest))))
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          (delta_census_owner_name_against source nameValue rest))))))
+
+(def delta_census_owner_against ((source Bytes)
+  (declarationValue DeltaDeclaration)
+  (rest DeltaDeclarationList)) DeltaCensusCandidate
+  (match declarationValue
+    ((DeltaBoundaryDeclaration start end name machines)
+      (delta_census_owner_name_against source name rest))
+    ((DeltaDataDeclaration start end name members)
+      (delta_census_owner_name_against source name rest))
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      NoDeltaCensusCandidate)))
+
+(def delta_census_machine_name_against ((source Bytes)
+  (nameValue DeltaQualifiedName)
+  (declarations DeltaDeclarationList)) DeltaCensusCandidate
+  (match declarations
+    (NoDeltaDeclarations NoDeltaCensusCandidate)
+    ((MoreDeltaDeclarations item rest)
+      (match item
+        ((DeltaBoundaryDeclaration start end name machines)
+          (delta_census_machine_name_against source nameValue rest))
+        ((DeltaDataDeclaration start end name members)
+          (delta_census_machine_name_against source nameValue rest))
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          (let current
+            (if (delta_qualified_names_equal source nameValue name)
+              (delta_census_duplicate start)
+              NoDeltaCensusCandidate)
+            (delta_census_min current
+              (delta_census_machine_name_against source nameValue rest))))))))
+
+(def delta_census_machine_against ((source Bytes)
+  (declarationValue DeltaDeclaration)
+  (rest DeltaDeclarationList)) DeltaCensusCandidate
+  (match declarationValue
+    ((DeltaBoundaryDeclaration start end name machines)
+      NoDeltaCensusCandidate)
+    ((DeltaDataDeclaration start end name members)
+      NoDeltaCensusCandidate)
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      (delta_census_machine_name_against source name rest))))
+
+(def delta_census_invalid_boundary ((source Bytes)
+  (declarationValue DeltaDeclaration)
+  (owners DeltaOwnerRowList)) DeltaCensusCandidate
+  (match declarationValue
+    ((DeltaBoundaryDeclaration start end name machines)
+      NoDeltaCensusCandidate)
+    ((DeltaDataDeclaration start end name members)
+      NoDeltaCensusCandidate)
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      (match name
+        ((DeltaUnqualifiedName nameStart nameEnd machineName)
+          NoDeltaCensusCandidate)
+        ((DeltaQualifiedNameSyntax nameStart nameEnd owner machineName)
+          (match (delta_owner_identity_for_rows source owner owners)
+            (NoDeltaOwnerIdentity NoDeltaCensusCandidate)
+            (OneDeltaBoundaryOwner
+              (DeltaCensusCandidateAt InvalidBoundary start))
+            (OneDeltaDataOwner NoDeltaCensusCandidate)
+            (AmbiguousDeltaOwnerIdentity NoDeltaCensusCandidate)))))))
+
+(def delta_census_declaration_contents ((source Bytes)
+  (declarationValue DeltaDeclaration)) DeltaCensusCandidate
+  (match declarationValue
+    ((DeltaBoundaryDeclaration start end name machines)
+      (delta_census_min
+        (delta_census_boundary_machine_duplicates source machines)
+        (delta_census_boundary_machine_parameters source machines)))
+    ((DeltaDataDeclaration start end name members)
+      (delta_census_min
+        (delta_census_data_member_duplicates source members)
+        (delta_census_data_payload_parameters source members)))
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      (delta_census_machine_scope source inputs bodyValue))))
+
+(def delta_census_declarations ((source Bytes)
+  (declarations DeltaDeclarationList)
+  (owners DeltaOwnerRowList)) DeltaCensusCandidate
+  (match declarations
+    (NoDeltaDeclarations NoDeltaCensusCandidate)
+    ((MoreDeltaDeclarations item rest)
+      (delta_census_min
+        (delta_census_owner_against source item rest)
+        (delta_census_min
+          (delta_census_machine_against source item rest)
+          (delta_census_min
+            (delta_census_invalid_boundary source item owners)
+            (delta_census_min
+              (delta_census_declaration_contents source item)
+              (delta_census_declarations source rest owners))))))))
+
+(def delta_collect_program_identities ((source Bytes)
+  (program DeltaProgram)) DeltaCensusOutcome
+  (match program
+    ((DeltaSyntaxProgram start end declarations)
+      ; Owner rows are complete before any authored qualified body is
+      ; classified. Duplicate owners of either kind therefore yield Ambiguous,
+      ; never a first-row boundary decision.
+      (let owners (delta_collect_owner_rows_acc declarations NoDeltaOwnerRows)
+        (let machines
+          (delta_collect_machine_rows_acc declarations NoDeltaMachineRows)
+          (let candidate
+            (delta_census_declarations source declarations owners)
+            (match candidate
+              (NoDeltaCensusCandidate
+                (DeltaCensusAccepted
+                  (DeltaCollectedProgramSyntax program owners machines)))
+              ((DeltaCensusCandidateAt reasonValue errorOffset)
+                (DeltaCensusRejected reasonValue errorOffset)))))))))
+
+(def delta_parse_and_collect_program ((source Bytes)) DeltaCensusOutcome
+  (match (delta_parse_program_syntax source)
+    ((DeltaProgramParseRejected reasonValue errorOffset)
+      (DeltaCensusRejected reasonValue errorOffset))
+    ((DeltaProgramParsed program)
+      (delta_collect_program_identities source program))))
 
 ; ---- direct symbolic Alpha encoding ----------------------------------------
 

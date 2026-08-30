@@ -11,9 +11,9 @@ The source now exists as an incomplete implementation. Its retained milestones
 own the exact D17 rejection/outcome sums, complete lexical phase, native syntax
 representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
-top-level declaration/program parser, and pure final symbolic-Alpha encoder. It
-validates every source byte before
-scanning all tokens and literals, returns the exact lexical reason and packed
+top-level declaration/program parser, complete D22/D24 source-shaped identity
+census, and pure final symbolic-Alpha encoder. It validates every source byte
+before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
 Gamma values with exact source spans rather than byte-rope records or numeric
 arena references. The scanner rescans one token at a time only after the
@@ -37,15 +37,22 @@ through the current Gamma frontend gate.
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
-Whole-closure collection, type/control checking, AST-to-symbolic-Alpha lowering,
-`main`, and final publication remain implementation gaps. The existing source
-is therefore not yet a compiler edge and no validation may describe it as one.
+Type/control checking, AST-to-symbolic-Alpha lowering, `main`, and final
+publication remain implementation gaps. The existing source is therefore not
+yet a compiler edge and no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
 completes the collector contract for transition-arm binders and exact
-same-phase `InvalidBoundary`/`DuplicateName` ordering. The implementation must
-collect all syntactic binders before type checking and may not infer an owner
-kind from an ambiguous owner table.
+same-phase `InvalidBoundary`/`DuplicateName` ordering. The implemented census
+first collects every owner row and exact qualified machine identity from source
+spans, then scans member, parameter, state, let, and transition-binder scopes.
+It compares authored bytes exactly, keeps local identities source-shaped,
+collects transition binders independently of later case and arity validity,
+and returns the globally earliest declaration-start failure. Any duplicate
+owner row is ambiguous, including same-kind duplication, so it contributes no
+inferred boundary kind and suppresses `InvalidBoundary` until repaired. The
+current source type-checks through the Gamma frontend; no census behavior is
+claimed as executed while the canonical Gamma compiler edge is incomplete.
 
 ## Contract-derived conformance plan
 
@@ -85,9 +92,11 @@ while one arm cannot reference another arm's binder (`UnknownName`); duplicate
 binders within one arm and collisions with each active outer-local class are
 `DuplicateName`. An unknown case or wrong payload arity does not suppress that
 earlier census, so the suite also pins the two-round
-`DuplicateName`-then-`ArityMismatch` result. Mixed collection controls cover
-both source orderings of unrelated `DuplicateName` and `InvalidBoundary`, plus
-a boundary/data-ambiguous owner that produces only its duplicate until repaired.
+`DuplicateName`-then-`UnknownName` result for an unknown case and the
+`DuplicateName`-then-`ArityMismatch` result for a known case with the wrong
+payload arity. Mixed collection controls cover both source orderings of
+unrelated `DuplicateName` and `InvalidBoundary`, plus a boundary/data-ambiguous
+owner that produces only its duplicate until repaired.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
