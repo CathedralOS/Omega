@@ -142,14 +142,16 @@ def gterm(n):
     return t
 
 def verdict_beta(cert):                                # cert = full input: <decls> <goal> <proof>
-    return subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip()
+    payload = cert.encode() if isinstance(cert, str) else cert
+    return subprocess.run([CHECK], input=payload, capture_output=True).stdout.decode().strip()
 
 def verdict_ref(cert):
-    forms = check_ref.register(check_ref.parse_all(cert))   # register clears FUNS/DATA/LEMMAS and verifies (def ..)
-    if not check_ref.DEFS_OK or len(forms) != 2:       # a declaration or named-lemma proof failed
-        return 'reject'
-    r = check_ref.infer(forms[-1], [], 0)              # conversion-aware, matching check_ref's own main()
-    return 'accept' if r is not None and check_ref.prop_eq(r, forms[-2]) else 'reject'
+    return check_ref.check_input(cert)
+
+def framed(source, tape, certificate):
+    return (b'OMGCHK1\n' + len(source).to_bytes(8, 'little') + source +
+            len(tape).to_bytes(8, 'little') + tape +
+            len(certificate).to_bytes(8, 'little') + certificate)
 
 # ---- user-function certificates (the translation-validation cert language) --------------------------
 # user-Nat Z=(k 2), S x=(k 3 x), over uadd(21)/umul(23)/usub(22, monus)/upred(20) as delta user functions.
@@ -253,8 +255,16 @@ DECL_CORPUS = [
     ("(-> P P) (lam P (hyp 0)) P", "reject"),
 ]
 
+FRAME_CORPUS = [
+    (framed(b'abc', b'abc', b'(= source tape) (refl source)'), 'accept'),
+    (framed(b'abc', b'abd', b'(= source tape) (refl source)'), 'reject'),
+    (framed(b'abc', b'x', b'(fun 100 61 z) (fun 100 62 (s z)) (fun 100 63 (p (rec 0) (rec 1))) (= (f 100 source) (s (s (s z)))) (refl (s (s (s z))))'), 'accept'),
+    (framed(b'abc', b'abc', b'(data 60 2 0 0) (= source tape) (refl source)'), 'reject'),
+    (b'(= source source) (refl source)', 'reject'),
+]
+
 fails = 0; n = 0
-for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS + DECL_CORPUS:
+for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS + DECL_CORPUS + FRAME_CORPUS:
     n += 1
     vb, vr = verdict_beta(cert), verdict_ref(cert)
     if not (vb == vr == expect):

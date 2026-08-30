@@ -13,7 +13,9 @@
 # check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and curated
 # induction + predicate + lemma corpora, requiring identical accept/reject. UNTRUSTED and checked, like the other
 # *_ref tools; a bug here (or in check.beta) surfaces as a disagreement — the trust anchor's one fully independent,
-# auditable second implementation.
+# auditable second implementation. It also decodes the generic OMGCHK1 frame
+# and constructs the same raw source/tape trees for artifact-proof diagnostics;
+# it does not reproduce the authoritative checker's runtime resource profile.
 #
 # Proof := (hyp i) | (lam PROP p) | (app f x) | (pair a b) | (fst p) | (snd p)
 #        | (inl PROP p) | (inr PROP p) | (case s l r) | (absurd PROP p)
@@ -29,19 +31,74 @@ import sys
 def tokens(s):
     return s.replace('(', ' ( ').replace(')', ' ) ').split()
 
-def parse(ts, i):
+def parse(ts, i, raw_terms=None):
     if ts[i] == '(':
         out = []; i += 1
         while ts[i] != ')':
-            node, i = parse(ts, i); out.append(node)
+            node, i = parse(ts, i, raw_terms); out.append(node)
         return out, i + 1
-    return ts[i], i + 1
+    token = ts[i]
+    if token in ('source', 'tape'):
+        if raw_terms is None:
+            raise ValueError('raw subject constant requires OMGCHK1 framing')
+        return raw_terms[token], i + 1
+    return token, i + 1
 
-def parse_all(s):
+def parse_all(s, raw_terms=None):
     ts = tokens(s); i = 0; out = []
     while i < len(ts):
-        node, i = parse(ts, i); out.append(node)
+        node, i = parse(ts, i, raw_terms); out.append(node)
     return out
+
+def raw_tree(payload):
+    """Mirror the authoritative checker's fixed byte/empty/leaf/node tree."""
+    con = {cid: ['k', str(cid)] for cid in list(range(16)) + [60, 61, 62, 63]}
+    byte_terms = [
+        ['k', '60', con[value // 16], con[value % 16]]
+        for value in range(256)
+    ]
+    span = 1
+    while span < len(payload):
+        span *= 2
+
+    def build(start, count, width):
+        if count == 0:
+            return con[61]
+        if width == 1:
+            return ['k', '62', byte_terms[payload[start]]]
+        half = width // 2
+        left_count = min(count, half)
+        return ['k', '63', build(start, left_count, half),
+                build(start + half, count - left_count, half)]
+
+    return build(0, len(payload), span)
+
+def decode_input(data):
+    """Return certificate text, framed raw terms, and frame identity."""
+    if isinstance(data, str):
+        data = data.encode('ascii')
+    if len(data) > 2024316:
+        raise ValueError('input extent')
+    if not data.startswith(b'OMGCHK1\n'):
+        return data.decode('ascii'), None, False
+
+    pos = 8
+    fields = []
+    maxima = (262144, 262140, 1500000)
+    for field, maximum in enumerate(maxima):
+        if pos + 8 > len(data) or any(data[pos + 4:pos + 8]):
+            raise ValueError('frame length')
+        extent = int.from_bytes(data[pos:pos + 4], 'little')
+        pos += 8
+        if (field == 2 and extent < 1) or extent > maximum or extent > len(data) - pos:
+            raise ValueError('frame extent')
+        fields.append(data[pos:pos + extent])
+        pos += extent
+    if pos != len(data):
+        raise ValueError('frame suffix')
+    source_bytes, tape_bytes, certificate = fields
+    raw_terms = {'source': raw_tree(source_bytes), 'tape': raw_tree(tape_bytes)}
+    return certificate.decode('ascii'), raw_terms, True
 
 # ---- definitional equality: normalize (Peano + USER FUNCTIONS), then compare --------------------
 # Terms:  z | (s t) | (p a b)=plus | (m a b)=times | (v i)=Ivar/pattern-var | (k cid arg..)=constructor
@@ -500,12 +557,17 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         return ['All', motive]
     return None
 
-def register(forms):
+def register(forms, framed=False):
     """Populate FUNS (rewrite rules), DATA (constructor shapes), and LEMMAS (named (def N type proof), each
     VERIFIED against its stated type in source order before it is citable). Sets DEFS_OK=False if any def fails
     to verify — the whole cert then rejects, matching check.beta. Returns the non-declaration forms (goal, proof)."""
     global DEFS_OK
     FUNS.clear(); DATA.clear(); LEMMAS.clear(); PRODUCTS.clear(); DEFS_OK = True
+    if framed:
+        for cid in range(16):
+            DATA[str(cid)] = (0, 0, 0)
+        DATA.update({'60': (2, 0, 0), '61': (0, 0, 0),
+                     '62': (1, 0, 0), '63': (2, 1, 1)})
     rest = []
     theory_frozen = False
     for f in forms:
@@ -542,15 +604,20 @@ def register(forms):
             rest.append(f)
     return rest
 
+def check_input(data):
+    try:
+        certificate, raw_terms, framed = decode_input(data)
+        forms = register(parse_all(certificate, raw_terms), framed)
+        if not DEFS_OK or len(forms) != 2:
+            return 'reject'
+        goal, proof = forms                            # <decls> <goal> <proof>
+        r = infer(proof, [], 0)
+        return 'accept' if r is not None and prop_eq(r, goal) else 'reject'
+    except (IndexError, KeyError, TypeError, UnicodeDecodeError, ValueError):
+        return 'reject'
+
 def main():
-    forms = register(parse_all(sys.stdin.read()))
-    if not DEFS_OK:                                     # a named-lemma proof failed its stated type
-        print('reject'); return
-    if len(forms) != 2:
-        print('reject'); return
-    goal, proof = forms                                # a cert is <decls> <goal> <proof(refl ..)>
-    r = infer(proof, [], 0)
-    print('accept' if r is not None and prop_eq(r, goal) else 'reject')
+    print(check_input(sys.stdin.buffer.read()))
 
 if __name__ == '__main__':                             # importable (check-ref-fuzz.py reuses parse_all/infer)
     main()
