@@ -1226,13 +1226,14 @@ Borrow checking retains the source loan for validated whole-name and
 whole-member recasts, with the authored shared or mutable polarity. An indexed
 recast may cover a wider byte footprint than its syntactic source element. The
 first precise indexed rungs therefore admit only an exact literal offset into a
-fixed byte array with either a fact-free primitive target or one nonzero closed
-acyclic tree of nongeneric, quotient-free, all-relevant fact-free records. The
-validated complete half-open target footprint, including normalized record
-padding, rather than the selected byte alone, enters overlap facts with the
-authored shared or mutable polarity. Runtime or merely bounded offsets, slices,
-array targets, generic/invariant-bearing/erased/cased records, and other indexed
-forms remain conservative.
+fixed byte array with a fact-free primitive target, a recursively nonzero
+literal-array target, a nonzero closed acyclic tree of quotient-free,
+all-relevant fact-free records, or the one direct phantom-lifetime application
+described below. The validated complete half-open target footprint, including
+normalized record padding, rather than the selected byte alone, enters overlap
+facts with the authored shared or mutable polarity. Runtime or merely bounded
+offsets, slices, nested lifetime applications, invariant-bearing/erased/cased
+records, and other indexed forms remain conservative.
 
 The source and target must cover the same bytes under their normalized layout
 plans. A shared recast may only weaken facts (source implies target). A mutable
@@ -1291,9 +1292,16 @@ byte/depth/node bounds, then its ordered fields, selected pure-sum case and
 payload, nested literal arrays/records/sums, and integer/Boolean leaves are
 replayed against the exact resolved monomorphic carrier. Layout comes only from
 the substituted instance field types, never the encoded value or rendered
-name. Open or unresolved applications and mixed, recursive, or custom-
-canonical structured-const, lifetime, machine, or proposition generic
-instances remain conservative.
+name. A direct lifetime-only application of an otherwise eligible synthesized
+record instance also participates when the application has the exact nonempty
+declared lifetime arity, no residual runtime arguments, and no recursively
+lifetime-bearing field. Checked trees retain the authored lifetime spelling,
+while erased physical representation comes only from the exact synthesized
+symbol. This root-only exception is shared by ordinary recast validation and
+precise loan sizing; lifetime applications nested in records or arrays remain
+fenced. Open or unresolved applications and mixed, recursive, custom-canonical
+structured-const, malformed/nonphantom lifetime, machine, or proposition
+generic instances remain conservative.
 
 An interior slice recast starts at a proven index in a fixed byte array and
 consumes the complete remaining region. Its descriptor is

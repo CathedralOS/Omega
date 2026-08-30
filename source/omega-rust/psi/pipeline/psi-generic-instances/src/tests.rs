@@ -54,6 +54,233 @@ fn fixed_range_loans(
 }
 
 #[test]
+fn direct_phantom_lifetime_generic_recasts_retain_exact_ranges_for_both_polarities() {
+    let source = r#"
+        data Phantom<'region, T> {
+            tag: u8;
+            value: T;
+        }
+
+        data Cell { bytes: [u8; 32]; }
+
+        machine observe<'region>(value: &'region Phantom<'region, u32>) {}
+
+        machine Cell::exercise<'region>(&mut self) {
+            let shared: &Phantom<'region, u32> =
+                &self.bytes[2] as &Phantom<'region, u32>;
+            observe(shared);
+            let mutable: &mut Phantom<'region, u32> =
+                &mut self.bytes[12] as &mut Phantom<'region, u32>;
+            mutable.value = 1;
+        }
+    "#;
+
+    let checked = checked(source).expect("direct phantom-lifetime recasts should check");
+    let instance = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Phantom<u32>")
+        .expect("exact synthesized Type instance");
+    assert_eq!(instance.lifetime_parameters.len(), 1);
+    assert!(instance.generic_instance.is_some());
+    assert!(checked.data_type_parameters(instance).is_empty());
+
+    let loans = fixed_range_loans(&checked);
+    assert_eq!(loans.len(), 2, "one exact loan per direct lifetime shell");
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 10)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 20)));
+}
+
+#[test]
+fn direct_phantom_lifetime_shell_retains_checked_lifetime_identity() {
+    let checked = checked(
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 32]; }
+            machine observe_left<'left>(value: &'left Phantom<'left, u32>) {}
+            machine observe_right<'right>(value: &'right Phantom<'right, u32>) {}
+            machine Cell::left<'left>(&mut self) {
+                let view: &Phantom<'left, u32> =
+                    &self.bytes[2] as &Phantom<'left, u32>;
+                observe_left(view);
+            }
+            machine Cell::right<'right>(&mut self) {
+                let view: &Phantom<'right, u32> =
+                    &self.bytes[12] as &Phantom<'right, u32>;
+                observe_right(view);
+            }
+        "#,
+    )
+    .expect("distinct erased lifetime spellings retain one shared physical instance");
+    let instance_symbol = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Phantom<u32>")
+        .expect("synthesized Phantom<u32>")
+        .symbol;
+    let mut shells = checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, expression)| {
+            let psi_checked_trees::expression::ExpressionNode::Cast(cast) = expression else {
+                return None;
+            };
+            let psi_checked_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } = checked
+                .type_reference_table
+                .type_reference(cast.target_type)
+            else {
+                return None;
+            };
+            assert_eq!(*base_symbol, instance_symbol);
+            assert!(
+                checked
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .is_empty()
+            );
+            Some((
+                cast.target_type,
+                lifetime_arguments
+                    .iter()
+                    .map(|lifetime| lifetime.as_str().to_string())
+                    .collect::<Vec<_>>(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    shells.sort_by(|left, right| left.1.cmp(&right.1));
+    assert_eq!(shells.len(), 2);
+    assert_eq!(shells[0].1, ["left"]);
+    assert_eq!(shells[1].1, ["right"]);
+    assert_ne!(
+        shells[0].0, shells[1].0,
+        "checked trees retain distinct raw lifetime applications"
+    );
+    assert_eq!(
+        checked.normalized_type_identity(shells[0].0),
+        checked.normalized_type_identity(shells[1].0),
+        "erased lifetime applications share physical normalized identity"
+    );
+    assert_eq!(fixed_range_loans(&checked).len(), 2);
+}
+
+#[test]
+fn direct_phantom_lifetime_generic_recast_protects_edges_but_not_siblings() {
+    for index in [3, 5, 10] {
+        rejected(
+            &format!(
+                r#"
+                    data Phantom<'region, T> {{ tag: u8; value: T; }}
+                    data Cell {{ bytes: [u8; 16]; }}
+                    machine observe<'region>(value: &'region Phantom<'region, u32>) {{}}
+                    machine exercise<'region>(cell: &'region mut Cell) {{
+                        let view: &Phantom<'region, u32> =
+                            &cell.bytes[3] as &Phantom<'region, u32>;
+                        cell.bytes[{index}] = 1;
+                        observe(view);
+                    }}
+                "#
+            ),
+            &format!("mutates `cell.bytes[{index}]` while local borrow `view` is still active"),
+        );
+    }
+
+    rejected(
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise<'region>(&mut self) {
+                let view: &mut Phantom<'region, u32> =
+                    &mut self.bytes[3] as &mut Phantom<'region, u32>;
+                self.bytes[5] = 1;
+                view.value = 2;
+            }
+        "#,
+        "mutates `self.bytes[5]` while local borrow `view` is still active",
+    );
+
+    checked(
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &mut Phantom<'region, u32> =
+                    &mut cell.bytes[3] as &mut Phantom<'region, u32>;
+                cell.bytes[2] = 1;
+                cell.bytes[11] = 1;
+                view.value = 2;
+            }
+        "#,
+    )
+    .expect("the immediate siblings of [3, 11) remain disjoint");
+}
+
+#[test]
+fn lifetime_bearing_and_nested_lifetime_generic_recast_targets_remain_fenced() {
+    for source in [
+        r#"
+            data Borrowed<'region, T> { source: &'region u32; value: T; }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Borrowed<'region, u32> =
+                    &cell.bytes[2] as &Borrowed<'region, u32>;
+            }
+        "#,
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Holder<'region> { nested: Phantom<'region, u32>; }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Holder<'region> = &cell.bytes[2] as &Holder<'region>;
+            }
+        "#,
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &[Phantom<'region, u32>; 1] =
+                    &cell.bytes[2] as &[Phantom<'region, u32>; 1];
+            }
+        "#,
+        r#"
+            data Empty<'region, T> { bytes: [u8; 0]; }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Empty<'region, u32> =
+                    &cell.bytes[2] as &Empty<'region, u32>;
+            }
+        "#,
+        r#"
+            data Evidence { case Only; }
+            data Erased<'region, T> { value: T; proof [erased]: Evidence; }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Erased<'region, u32> =
+                    &cell.bytes[2] as &Erased<'region, u32>;
+            }
+        "#,
+    ] {
+        let diagnostics = checked(source).expect_err(
+            "nonphantom, nested, and array lifetime-generic targets must remain fenced",
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("recast")),
+            "expected the ordinary recast diagnostic, got {:?}",
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
 fn closed_generic_pair_recasts_retain_padded_ranges_for_both_polarities() {
     let source = r#"
         data Pair<T> {

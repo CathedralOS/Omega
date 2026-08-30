@@ -80,7 +80,7 @@ pub(super) fn interior_byte_region_source(
         return InteriorByteRegion::NotInteriorShape;
     };
     let element_is_byte = crate::places::unwrapped_type_reference(program, *element_type)
-        .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+        .and_then(|unwrapped| super::exact_scalar_representation_type(program, unwrapped))
         == Some(PrimitiveType::U8);
     if !element_is_byte {
         return InteriorByteRegion::NotInteriorShape;
