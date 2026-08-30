@@ -534,10 +534,12 @@ carrier and caps packed dirent bytes at 16 MiB per operation before retaining
 each snapshot name and before allocating the packed buffer. Packed extent
 strictly dominates the complete retained source-name payload, so no duplicate
 name account is added. Each find-cursor snapshot has a separate 16-MiB
-retained-name ceiling, but retained find-cursor names remain a distinct
-closure-wide live-account task because multiple cursors can coexist. Partial
-instrumentation is not described as generic filesystem scratch or memory
-containment.
+retained-name ceiling in the ambient/differential interpreter. Rooted package-
+build evaluation rejects the unrooted find trio before operand evaluation or
+provider service, so no package sponsor, usage, or manifest lane is added for
+it. A root-aware Build-facet protocol must be admitted before that decision is
+revisited. Partial instrumentation is not described as generic filesystem
+scratch or memory containment.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete
