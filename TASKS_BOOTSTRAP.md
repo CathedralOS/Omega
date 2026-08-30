@@ -529,9 +529,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 84
-    procedures; with the frontend gate entry, the gate uses 85 of Beta's 128
-    procedure slots and compiles to 167,458 bytes, leaving 94,682 bytes below
+    and retains no alternate compiler or tape. The retained source declares 90
+    procedures; with the frontend gate entry, the gate uses 91 of Beta's 128
+    procedure slots and compiles to 203,815 bytes, leaving 58,325 bytes below
     Alpha's runnable payload ceiling for
     lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
@@ -563,6 +563,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     contained failures. Recompile one nested source twice and require identical
     raw payloads. This is general-pipeline material and publishes no subset
     compiler or tape.
+  - [x] Establish the compact immutable `Bytes` runtime representation and its
+    private helper ABI without selecting Q2's application adapter. Reserve one
+    canonical zeroed `EMPTY` descriptor, allocate fixed 32-byte `LEAF`,
+    `CONCAT`, and `SLICE` rows, preserve empty/full identities, and traverse
+    ropes and nested slices iteratively. Validate every descriptor before a
+    load; route invalid authored bytes, indices, and ranges to the supplied trap
+    label, malformed private descriptors to the supplied internal-failure
+    label, and actual allocation exhaustion to the supplied resource label.
+    Execute all six operations, cross-boundary and nested slices, a 1,024-node
+    rope, 12 invalid/malformed cases, and exact-last-row versus adjacent
+    allocation exhaustion. The generated adapter still owns sealed flat input
+    and result publication after Q2.
+    **OWNER-BLOCKED — Q6:** classify `bytes_concat` when its compact logical
+    length exceeds signed `Int`; the helper accepts a separately selected
+    checked-add terminal and otherwise remains complete.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
