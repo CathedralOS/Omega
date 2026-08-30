@@ -10790,16 +10790,28 @@ checked-result arithmetic decision listed below.
   alignment from one runtime plan and rejects fragment, stored-integer, or
   target-dependent repeated placement on every outer field. Replay reconstructs
   every indexed sum and the zero-padded outer image before one atomic copy.
-  Zero/multiple/nested sum arrays, direct-sum coexistence, sums behind another
-  record, mixed common-field/case shapes, target-dependent inactive-case geometry,
-  generic/opaque/quotient records, references, slices, Text, dynamic values,
-  atomics, non-copy data, and malformed shapes remain rejected without
-  narrowing the legacy materialization API. This custody is not evaluator
-  admission, a target capsule, quotient canonicalization, an origin-chain
-  proof, or proof authority. Quotient snapshots/materialization, sums nested
-  through deeper aggregates, mixed shapes, target capsules/observations,
-  complete origin diagnostics, and broader representation bytes remain
-  subsequent.
+  The first one-level record-path rung is now live separately for exactly one
+  direct outer field naming a closed non-generic `[copy]` record with a complete
+  nonempty authored-order set of direct conventional pure-sum fields. A compact
+  path report retains the exact outer occurrence, both whole-record layouts,
+  and the inner direct-sum rows projected from the same target plan. A distinct
+  non-clone carrier retains the existing validated inner carrier as one field,
+  reconstructs both zero-padded record images, replays every report hash-free,
+  and performs one atomic outer copy. Stable-numbered field/case/payload renames
+  remain presentation-only while identities, order, geometry, selected values,
+  and bytes remain exact. Projection and replay use a fallible memoized bounded
+  graph walk so recursive or oversized aggregate paths reject without host
+  recursion or shared-subgraph amplification. Zero/multiple/nested sum arrays,
+  direct-sum coexistence, multiple qualifying inner-record occurrences, paths
+  deeper than one record, mixed common-field/case shapes, target-dependent
+  inactive-case geometry, generic/opaque/quotient records, references, slices,
+  Text, dynamic values, atomics, non-copy data, and malformed shapes remain
+  rejected without narrowing the legacy materialization API. This custody is
+  not evaluator admission, a target capsule, quotient canonicalization, an
+  origin-chain proof, or proof authority. Quotient snapshots/materialization,
+  sums nested through multiple occurrences or deeper aggregates, mixed shapes,
+  target capsules/observations, complete origin diagnostics, and broader
+  representation bytes remain subsequent.
 
   Materialize one compiler-owned versioned typed capsule shared by evaluator and
   backend. Expose only its closed subject-qualified observation vocabulary; do

@@ -38,15 +38,17 @@ pub use const_lengths::{
 pub use layout_plans::{
     BuildTimeValue, ValidatedConstMaterialization,
     ValidatedConstRecordSumArrayElementMaterialization,
-    ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumArrayMaterialization,
-    ValidatedConstRecordWithSumMaterialization, ValidatedConstSumMaterialization,
-    compute_layout_plan, compute_layout_plan_with_authority, compute_native_layout_plan,
-    compute_native_layout_plan_with_authority, evaluate_and_materialize_typed_owned_layout_into,
-    materialize_typed_owned_layout_into, normalized_schema_report_fingerprint,
-    validate_const_materializable_conventional_sum,
+    ValidatedConstRecordSumFieldMaterialization,
+    ValidatedConstRecordWithNestedSumRecordMaterialization,
+    ValidatedConstRecordWithSumArrayMaterialization, ValidatedConstRecordWithSumMaterialization,
+    ValidatedConstSumMaterialization, compute_layout_plan, compute_layout_plan_with_authority,
+    compute_native_layout_plan, compute_native_layout_plan_with_authority,
+    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
+    normalized_schema_report_fingerprint, validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sum,
     validate_const_materializable_record_with_conventional_sum_array,
     validate_const_materializable_record_with_conventional_sums,
+    validate_const_materializable_record_with_nested_sum_record,
     validate_const_materializable_typed_owned_layout,
 };
 pub use placed_views::{

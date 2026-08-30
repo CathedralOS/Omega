@@ -543,13 +543,13 @@ struct DerivedRecordWithSumArrayMaterialization {
     bytes: Vec<u8>,
 }
 
-struct EncodedOuterField {
-    name: String,
-    identity: Option<u64>,
-    size: u64,
-    align: u64,
-    repeated: Option<RepeatedFieldInfo>,
-    bytes: Vec<u8>,
+pub(super) struct EncodedOuterField {
+    pub(super) name: String,
+    pub(super) identity: Option<u64>,
+    pub(super) size: u64,
+    pub(super) align: u64,
+    pub(super) repeated: Option<RepeatedFieldInfo>,
+    pub(super) bytes: Vec<u8>,
 }
 
 fn derive_record_with_sum_bytes(
@@ -1127,7 +1127,7 @@ fn derive_record_with_sum_array_bytes(
     })
 }
 
-fn validate_outer_record_owner(
+pub(super) fn validate_outer_record_owner(
     typed: &TypedTrees,
     data: &DataDefinition,
 ) -> Result<(), MaterializationDiagnostic> {
@@ -1158,7 +1158,7 @@ fn validate_outer_record_owner(
     Ok(())
 }
 
-fn exact_named_data<'a>(
+pub(super) fn exact_named_data<'a>(
     typed: &'a TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
 ) -> Result<Option<&'a DataDefinition>, MaterializationDiagnostic> {
@@ -1190,7 +1190,7 @@ fn exact_named_data<'a>(
     Ok(Some(data))
 }
 
-fn validate_outer_layout(
+pub(super) fn validate_outer_layout(
     layout: &LayoutPlanReport,
     fields: &[EncodedOuterField],
 ) -> Result<(), MaterializationDiagnostic> {
@@ -1329,7 +1329,7 @@ fn nested_sum_fields_match(
         })
 }
 
-fn field_occurrence_matches(
+pub(super) fn field_occurrence_matches(
     left_name: &str,
     left_identity: Option<u64>,
     right_name: &str,

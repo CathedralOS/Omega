@@ -133,6 +133,21 @@ pub struct ConventionalSumArrayFieldLayoutReport {
     pub element_layout: ConventionalSumLayoutReport,
 }
 
+/// One bounded two-segment path from an outer record field to the complete
+/// direct conventional pure-sum occurrences of the record stored there.
+///
+/// Both record layouts and every child sum row are projected from one target
+/// runtime plan. The outer occurrence remains explicit so consumers never
+/// flatten the child rows into the outer schema or infer custody from names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalNestedRecordSumPathLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub inner_layout: LayoutPlanReport,
+    pub child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns

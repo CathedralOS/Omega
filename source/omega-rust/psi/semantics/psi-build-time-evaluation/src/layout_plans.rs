@@ -19,6 +19,7 @@ use psi_typed_trees::TypedTrees;
 use crate::BuildTimeAdmissionPlan;
 
 mod const_materializable;
+mod const_record_with_nested_sum_materializable;
 mod const_record_with_sum_materializable;
 mod const_sum_materializable;
 mod owned_value_encoding;
@@ -28,6 +29,10 @@ mod schema_value;
 
 pub use const_materializable::{
     ValidatedConstMaterialization, validate_const_materializable_typed_owned_layout,
+};
+pub use const_record_with_nested_sum_materializable::{
+    ValidatedConstRecordWithNestedSumRecordMaterialization,
+    validate_const_materializable_record_with_nested_sum_record,
 };
 pub use const_record_with_sum_materializable::{
     ValidatedConstRecordSumArrayElementMaterialization,

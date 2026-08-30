@@ -79,9 +79,15 @@ retains the outer field identity, count, stride, and one complete element
 layout while value custody remains distinct per literal index. Outer reports
 place both direct sums and the whole array only as opaque aggregate `At` fields;
 tag, case, and payload-overlay geometry remains exclusively in conventional
-read-only reports. Psi rejoins and replays the exact reports. Deeper nesting,
-multiple or nested sum arrays, mixed common-field/case shapes, and target-
-dependent sum geometry remain excluded.
+read-only reports. Psi rejoins and replays the exact reports. A separate first
+one-level record-path report retains exactly one outer field occurrence, both
+whole-record plans, and the complete direct conventional-sum rows of the inner
+record, all projected from the same target plan. The outer carrier reuses the
+validated inner direct-sum carrier as one opaque field and reconstructs both
+zero-padded images before one atomic copy; it does not flatten child placement
+into the outer schema or expose programmable tag placement. Multiple qualifying
+inner-record occurrences, deeper paths, multiple or nested sum arrays, mixed
+common-field/case shapes, and target-dependent sum geometry remain excluded.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
