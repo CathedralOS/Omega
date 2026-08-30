@@ -7,16 +7,21 @@ emits platform-independent Alpha tape:
 delta_compiler.gamma → delta_compiler_bytecode.tape
 ```
 
-The source now exists as an incomplete implementation. Its retained first
-milestone owns the exact D17 rejection/outcome sums and complete lexical phase:
-it validates every source byte before scanning all tokens and literals, returns
-the exact lexical reason and packed offset, and retains no host-generated token
-ledger. It type-checks through the current Gamma frontend gate.
+The source now exists as an incomplete implementation. Its retained milestones
+own the exact D17 rejection/outcome sums, complete lexical phase, native syntax
+representation, and transient syntax-token scanner. It validates every source
+byte before scanning all tokens and literals, returns the exact lexical reason
+and packed offset, and retains no host-generated token ledger. Syntax nodes are
+recursive Gamma values with exact source spans rather than byte-rope records or
+numeric arena references. The scanner rescans one token at a time only after
+the complete lexical phase succeeds. This foundation type-checks through the
+current Gamma frontend gate.
 
-It deliberately has no `main`, emitted placeholder, or canonical tape. Parsing,
-whole-closure collection, type/control checking, direct Alpha lowering, and
-final publication remain implementation gaps. The existing source is therefore
-not yet a compiler edge and no validation may describe it as one.
+It deliberately has no `main`, emitted placeholder, or canonical tape. The
+native values can represent every D17 grammar form, but parsing, whole-closure
+collection, type/control checking, direct Alpha lowering, and final publication
+remain implementation gaps. The existing source is therefore not yet a
+compiler edge and no validation may describe it as one.
 
 The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
 restricted Delta-written native compiler prototype are deleted rather than

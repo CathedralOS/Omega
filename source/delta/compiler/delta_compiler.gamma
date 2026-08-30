@@ -42,6 +42,212 @@
   (LexicallyValid)
   (LexicallyRejected DeltaRejectReason Int))
 
+; Native syntax values retain packed-source coordinates directly. Lists and
+; optionals are recursive Gamma values; no syntax node is a Bytes record or a
+; numeric arena reference.
+(data DeltaName
+  (DeltaNameSpan Int Int))
+
+(data DeltaIntegerLiteral
+  (DeltaIntegerSpan Int Int Int))
+
+(data DeltaCharacterLiteral
+  (DeltaCharacterSpan Int Int Int))
+
+(data DeltaStringLiteral
+  (DeltaStringSpan Int Int))
+
+(data DeltaDeclarationList
+  (NoDeltaDeclarations)
+  (MoreDeltaDeclarations DeltaDeclaration DeltaDeclarationList))
+
+(data DeltaBoundaryMachineList
+  (NoDeltaBoundaryMachines)
+  (MoreDeltaBoundaryMachines DeltaBoundaryMachine DeltaBoundaryMachineList))
+
+(data DeltaDataMemberList
+  (NoDeltaDataMembers)
+  (MoreDeltaDataMembers DeltaDataMember DeltaDataMemberList))
+
+(data DeltaParameterList
+  (NoDeltaParameters)
+  (MoreDeltaParameters DeltaParameter DeltaParameterList))
+
+(data DeltaStatementList
+  (NoDeltaStatements)
+  (MoreDeltaStatements DeltaStatement DeltaStatementList))
+
+(data DeltaStateList
+  (NoDeltaStates)
+  (MoreDeltaStates DeltaState DeltaStateList))
+
+(data DeltaArmList
+  (NoDeltaArms)
+  (MoreDeltaArms DeltaArm DeltaArmList))
+
+(data DeltaNameList
+  (NoDeltaNames)
+  (MoreDeltaNames DeltaName DeltaNameList))
+
+(data DeltaExpressionList
+  (NoDeltaExpressions)
+  (MoreDeltaExpressions DeltaExpression DeltaExpressionList))
+
+(data DeltaOptionalType
+  (NoDeltaType)
+  (SomeDeltaType DeltaType))
+
+(data DeltaOptionalExpression
+  (NoDeltaExpression)
+  (SomeDeltaExpression DeltaExpression))
+
+(data DeltaOptionalTerminal
+  (NoDeltaTerminal)
+  (SomeDeltaTerminal DeltaTerminal))
+
+(data DeltaOptionalBinder
+  (NoDeltaBinder)
+  (SomeDeltaBinder Int Int DeltaNameList))
+
+(data DeltaOptionalPayload
+  (NoDeltaPayload)
+  (SomeDeltaPayload Int Int DeltaParameterList))
+
+; This optional preserves the syntactic distinction between a qualified name
+; and the same name followed by an empty argument list.
+(data DeltaOptionalArguments
+  (NoDeltaArguments)
+  (SomeDeltaArguments Int Int DeltaExpressionList))
+
+(data DeltaProgram
+  (DeltaSyntaxProgram Int Int DeltaDeclarationList))
+
+(data DeltaDeclaration
+  (DeltaBoundaryDeclaration Int Int DeltaName DeltaBoundaryMachineList)
+  (DeltaDataDeclaration Int Int DeltaName DeltaDataMemberList)
+  (DeltaMachineDeclaration Int Int DeltaQualifiedName DeltaMachineInputs DeltaOptionalType DeltaMachineBody))
+
+(data DeltaBoundaryMachine
+  (DeltaBoundaryMachineSyntax Int Int DeltaName DeltaParameterList DeltaOptionalType))
+
+(data DeltaDataMember
+  (DeltaFieldMember Int Int DeltaName DeltaType)
+  (DeltaCaseMember Int Int DeltaName DeltaOptionalPayload))
+
+(data DeltaQualifiedName
+  (DeltaUnqualifiedName Int Int DeltaName)
+  (DeltaQualifiedNameSyntax Int Int DeltaName DeltaName))
+
+(data DeltaMachineInputs
+  (NoDeltaMachineInputs)
+  (DeltaPlainMachineInputs DeltaParameterList)
+  (DeltaReceiverMachineInputs Int Int DeltaParameterList))
+
+(data DeltaParameter
+  (DeltaParameterSyntax Int Int DeltaName DeltaType))
+
+(data DeltaType
+  (DeltaI32Type Int Int)
+  (DeltaU8Type Int Int)
+  (DeltaNeverType Int Int)
+  (DeltaNamedType Int Int DeltaName)
+  (DeltaArrayType Int Int DeltaType DeltaIntegerLiteral)
+  (DeltaViewType Int Int DeltaType))
+
+(data DeltaMachineBody
+  (DeltaMachineBodySyntax Int Int DeltaStatementList DeltaOptionalTerminal DeltaStateList))
+
+(data DeltaStateBody
+  (DeltaStateBodySyntax Int Int DeltaStatementList DeltaOptionalTerminal))
+
+(data DeltaState
+  (DeltaStateSyntax Int Int DeltaName DeltaParameterList DeltaStateBody))
+
+(data DeltaStatement
+  (DeltaLetStatement Int Int DeltaName DeltaType DeltaExpression)
+  (DeltaAssignmentStatement Int Int DeltaExpression DeltaExpression)
+  ; Resolution later classifies a semicolon-terminated postfix form as an
+  ; ordinary call statement or, only in final body position, a never terminal.
+  (DeltaPostfixStatement Int Int DeltaExpression)
+  (DeltaAssertStatement Int Int DeltaExpression))
+
+(data DeltaTerminal
+  (DeltaTransitionTerminal Int Int DeltaExpression DeltaArmList)
+  (DeltaReturnTerminal Int Int DeltaOptionalExpression))
+
+(data DeltaArm
+  (DeltaArmSyntax Int Int DeltaPattern DeltaContinuation))
+
+(data DeltaPattern
+  (DeltaIntegerPattern Int Int DeltaIntegerLiteral)
+  (DeltaTruePattern Int Int)
+  (DeltaFalsePattern Int Int)
+  (DeltaWildcardPattern Int Int)
+  (DeltaCasePattern Int Int DeltaName DeltaName DeltaOptionalBinder))
+
+(data DeltaContinuation
+  (DeltaExpressionContinuation Int Int DeltaExpression)
+  (DeltaReturnContinuation Int Int DeltaOptionalExpression))
+
+(data DeltaBinaryOperator
+  (DeltaLogicalOr)
+  (DeltaLogicalAnd)
+  (DeltaBitOr)
+  (DeltaBitXor)
+  (DeltaBitAnd)
+  (DeltaEqual)
+  (DeltaNotEqual)
+  (DeltaLess)
+  (DeltaLessEqual)
+  (DeltaGreater)
+  (DeltaGreaterEqual)
+  (DeltaShiftLeft)
+  (DeltaShiftRight)
+  (DeltaAdd)
+  (DeltaSubtract)
+  (DeltaMultiply)
+  (DeltaDivide)
+  (DeltaRemainder))
+
+(data DeltaExpression
+  (DeltaIntegerExpression Int Int DeltaIntegerLiteral)
+  (DeltaCharacterExpression Int Int DeltaCharacterLiteral)
+  (DeltaStringExpression Int Int DeltaStringLiteral)
+  (DeltaTrueExpression Int Int)
+  (DeltaFalseExpression Int Int)
+  (DeltaSelfExpression Int Int)
+  (DeltaNameExpression Int Int DeltaName)
+  (DeltaQualifiedExpression Int Int DeltaName DeltaName DeltaOptionalArguments)
+  (DeltaGroupedExpression Int Int DeltaExpression)
+  (DeltaFieldExpression Int Int DeltaExpression DeltaName)
+  (DeltaCallExpression Int Int DeltaExpression DeltaExpressionList)
+  (DeltaIndexExpression Int Int DeltaExpression DeltaExpression)
+  (DeltaSliceExpression Int Int DeltaExpression DeltaOptionalExpression DeltaOptionalExpression)
+  (DeltaNegateExpression Int Int DeltaExpression)
+  (DeltaBinaryExpression Int Int DeltaBinaryOperator Int Int DeltaExpression DeltaExpression))
+
+; Token values are transient. The four literal/name kinds carry their source
+; spans in DeltaToken; integer and character kinds additionally use value.
+(data DeltaTokenKind
+  (TkIdentifier) (TkInteger) (TkCharacter) (TkString)
+  (TkBoundary) (TkTrait) (TkData) (TkCase) (TkMachine) (TkState)
+  (TkTransition) (TkLet) (TkReturn) (TkAssert) (TkTrue) (TkFalse)
+  (TkSelf) (TkMut) (TkI32) (TkU8) (TkNever)
+  (TkLeftBrace) (TkRightBrace) (TkLeftParen) (TkRightParen)
+  (TkLeftBracket) (TkRightBracket) (TkSemicolon) (TkColon) (TkComma)
+  (TkDot) (TkAmpersand) (TkAssign) (TkArrow) (TkScope) (TkRange)
+  (TkLogicalOr) (TkLogicalAnd) (TkBitOr) (TkBitXor)
+  (TkEqualEqual) (TkBangEqual) (TkLess) (TkLessEqual)
+  (TkGreater) (TkGreaterEqual) (TkShiftLeft) (TkShiftRight)
+  (TkPlus) (TkMinus) (TkStar) (TkSlash) (TkPercent))
+
+(data DeltaToken
+  (ScannedDeltaToken DeltaTokenKind Int Int Int))
+
+(data DeltaScanOutcome
+  (DeltaScanEnd Int)
+  (DeltaScanToken DeltaToken))
+
 (def ascii_between ((c Int) (low Int) (high Int)) Int
   (if (lt c low) 0 (if (lt high c) 0 1)))
 
@@ -273,3 +479,207 @@
 
 (def check_lexical ((source Bytes)) DeltaLexicalOutcome
   (check_source_bytes source 0 (bytes_length source)))
+
+; ---- transient syntax-token rescan -------------------------------------
+;
+; These procedures are called only after LexicallyValid. Each call returns
+; one exact token span or source end; callers retain syntax values, never a
+; whole-source token ledger.
+
+(def delta_span_is_1 ((source Bytes) (start Int) (end Int) (a Int)) Int
+  (if (eq (- end start) 1) (eq (bytes_get source start) a) 0))
+
+(def delta_span_is_2 ((source Bytes) (start Int) (end Int) (a Int) (b Int)) Int
+  (if (eq (- end start) 2)
+    (if (eq (bytes_get source start) a) (eq (bytes_get source (+ start 1)) b) 0)
+    0))
+
+(def delta_span_is_3 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int)) Int
+  (if (eq (- end start) 3)
+    (if (delta_span_is_2 source start (+ start 2) a b) (eq (bytes_get source (+ start 2)) c) 0)
+    0))
+
+(def delta_span_is_4 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int)) Int
+  (if (eq (- end start) 4)
+    (if (delta_span_is_3 source start (+ start 3) a b c) (eq (bytes_get source (+ start 3)) d) 0)
+    0))
+
+(def delta_span_is_5 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int)) Int
+  (if (eq (- end start) 5)
+    (if (delta_span_is_4 source start (+ start 4) a b c d) (eq (bytes_get source (+ start 4)) e) 0)
+    0))
+
+(def delta_span_is_6 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int)) Int
+  (if (eq (- end start) 6)
+    (if (delta_span_is_5 source start (+ start 5) a b c d e) (eq (bytes_get source (+ start 5)) f) 0)
+    0))
+
+(def delta_span_is_7 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int)) Int
+  (if (eq (- end start) 7)
+    (if (delta_span_is_6 source start (+ start 6) a b c d e f) (eq (bytes_get source (+ start 6)) g) 0)
+    0))
+
+(def delta_span_is_8 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int) (h Int)) Int
+  (if (eq (- end start) 8)
+    (if (delta_span_is_7 source start (+ start 7) a b c d e f g) (eq (bytes_get source (+ start 7)) h) 0)
+    0))
+
+(def delta_span_is_10 ((source Bytes) (start Int) (end Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int) (h Int) (i Int) (j Int)) Int
+  (if (eq (- end start) 10)
+    (if (delta_span_is_8 source start (+ start 8) a b c d e f g h)
+      (if (eq (bytes_get source (+ start 8)) i) (eq (bytes_get source (+ start 9)) j) 0)
+      0)
+    0))
+
+(def delta_keyword_kind ((source Bytes) (start Int) (end Int)) DeltaTokenKind
+  (if (delta_span_is_8 source start end 98 111 117 110 100 97 114 121) TkBoundary
+    (if (delta_span_is_5 source start end 116 114 97 105 116) TkTrait
+      (if (delta_span_is_4 source start end 100 97 116 97) TkData
+        (if (delta_span_is_4 source start end 99 97 115 101) TkCase
+          (if (delta_span_is_7 source start end 109 97 99 104 105 110 101) TkMachine
+            (if (delta_span_is_5 source start end 115 116 97 116 101) TkState
+              (if (delta_span_is_10 source start end 116 114 97 110 115 105 116 105 111 110) TkTransition
+                (if (delta_span_is_3 source start end 108 101 116) TkLet
+                  (if (delta_span_is_6 source start end 114 101 116 117 114 110) TkReturn
+                    (if (delta_span_is_6 source start end 97 115 115 101 114 116) TkAssert
+                      (if (delta_span_is_4 source start end 116 114 117 101) TkTrue
+                        (if (delta_span_is_5 source start end 102 97 108 115 101) TkFalse
+                          (if (delta_span_is_4 source start end 115 101 108 102) TkSelf
+                            (if (delta_span_is_3 source start end 109 117 116) TkMut
+                              (if (delta_span_is_3 source start end 105 51 50) TkI32
+                                (if (delta_span_is_2 source start end 117 56) TkU8
+                                  (if (delta_span_is_5 source start end 110 101 118 101 114) TkNever TkIdentifier))))))))))))))))))
+
+(def delta_rescan_identifier ((source Bytes) (start Int) (index Int) (length Int)) DeltaScanOutcome
+  (if (eq index length)
+    (DeltaScanToken (ScannedDeltaToken (delta_keyword_kind source start index) start index 0))
+    (if (is_ident_continue (bytes_get source index))
+      (delta_rescan_identifier source start (+ index 1) length)
+      (DeltaScanToken (ScannedDeltaToken (delta_keyword_kind source start index) start index 0)))))
+
+(def delta_rescan_number ((source Bytes) (start Int) (index Int) (length Int) (value Int)) DeltaScanOutcome
+  (if (eq index length)
+    (DeltaScanToken (ScannedDeltaToken TkInteger start index value))
+    (let numberByte (bytes_get source index)
+      (if (is_digit numberByte)
+        (delta_rescan_number source start (+ index 1) length (+ (* value 10) (- numberByte 48)))
+        (DeltaScanToken (ScannedDeltaToken TkInteger start index value))))))
+
+(def delta_hex_value ((c Int)) Int
+  (if (is_digit c) (- c 48)
+    (if (ascii_between c 65 70) (+ (- c 65) 10) (+ (- c 97) 10))))
+
+(def delta_escape_value ((c Int)) Int
+  (if (eq c 110) 10 (if (eq c 114) 13 (if (eq c 116) 9 c))))
+
+(def delta_character_value ((source Bytes) (opening Int)) Int
+  (let characterByte (bytes_get source (+ opening 1))
+    (if (eq characterByte 92)
+      (let escapeByte (bytes_get source (+ opening 2))
+        (if (eq escapeByte 120)
+          (+ (* (delta_hex_value (bytes_get source (+ opening 3))) 16)
+             (delta_hex_value (bytes_get source (+ opening 4))))
+          (delta_escape_value escapeByte)))
+      characterByte)))
+
+(def delta_rescan_character ((source Bytes) (start Int)) DeltaScanOutcome
+  (if (eq (bytes_get source (+ start 1)) 92)
+    (if (eq (bytes_get source (+ start 2)) 120)
+      (DeltaScanToken (ScannedDeltaToken TkCharacter start (+ start 6) (delta_character_value source start)))
+      (DeltaScanToken (ScannedDeltaToken TkCharacter start (+ start 4) (delta_character_value source start))))
+    (DeltaScanToken (ScannedDeltaToken TkCharacter start (+ start 3) (delta_character_value source start)))))
+
+(def delta_rescan_string ((source Bytes) (start Int) (index Int)) DeltaScanOutcome
+  (let stringByte (bytes_get source index)
+    (if (eq stringByte 34)
+      (DeltaScanToken (ScannedDeltaToken TkString start (+ index 1) 0))
+      (if (eq stringByte 92)
+        (if (eq (bytes_get source (+ index 1)) 120)
+          (delta_rescan_string source start (+ index 4))
+          (delta_rescan_string source start (+ index 2)))
+        (delta_rescan_string source start (+ index 1))))))
+
+(def delta_rescan_operator ((source Bytes) (index Int) (length Int) (operatorByte Int)) DeltaScanOutcome
+  (if (eq operatorByte 123) (DeltaScanToken (ScannedDeltaToken TkLeftBrace index (+ index 1) 0))
+    (if (eq operatorByte 125) (DeltaScanToken (ScannedDeltaToken TkRightBrace index (+ index 1) 0))
+      (if (eq operatorByte 40) (DeltaScanToken (ScannedDeltaToken TkLeftParen index (+ index 1) 0))
+        (if (eq operatorByte 41) (DeltaScanToken (ScannedDeltaToken TkRightParen index (+ index 1) 0))
+          (if (eq operatorByte 91) (DeltaScanToken (ScannedDeltaToken TkLeftBracket index (+ index 1) 0))
+            (if (eq operatorByte 93) (DeltaScanToken (ScannedDeltaToken TkRightBracket index (+ index 1) 0))
+              (if (eq operatorByte 59) (DeltaScanToken (ScannedDeltaToken TkSemicolon index (+ index 1) 0))
+                (if (eq operatorByte 58)
+                  (if (next_is source index length 58)
+                    (DeltaScanToken (ScannedDeltaToken TkScope index (+ index 2) 0))
+                    (DeltaScanToken (ScannedDeltaToken TkColon index (+ index 1) 0)))
+                  (if (eq operatorByte 44) (DeltaScanToken (ScannedDeltaToken TkComma index (+ index 1) 0))
+                    (if (eq operatorByte 46)
+                      (if (next_is source index length 46)
+                        (DeltaScanToken (ScannedDeltaToken TkRange index (+ index 2) 0))
+                        (DeltaScanToken (ScannedDeltaToken TkDot index (+ index 1) 0)))
+                      (if (eq operatorByte 38)
+                        (if (next_is source index length 38)
+                          (DeltaScanToken (ScannedDeltaToken TkLogicalAnd index (+ index 2) 0))
+                          (DeltaScanToken (ScannedDeltaToken TkAmpersand index (+ index 1) 0)))
+                        (if (eq operatorByte 61)
+                          (if (next_is source index length 61)
+                            (DeltaScanToken (ScannedDeltaToken TkEqualEqual index (+ index 2) 0))
+                            (DeltaScanToken (ScannedDeltaToken TkAssign index (+ index 1) 0)))
+                          (if (eq operatorByte 45)
+                            (if (next_is source index length 62)
+                              (DeltaScanToken (ScannedDeltaToken TkArrow index (+ index 2) 0))
+                              (DeltaScanToken (ScannedDeltaToken TkMinus index (+ index 1) 0)))
+                            (if (eq operatorByte 124)
+                              (if (next_is source index length 124)
+                                (DeltaScanToken (ScannedDeltaToken TkLogicalOr index (+ index 2) 0))
+                                (DeltaScanToken (ScannedDeltaToken TkBitOr index (+ index 1) 0)))
+                              (if (eq operatorByte 94) (DeltaScanToken (ScannedDeltaToken TkBitXor index (+ index 1) 0))
+                                (if (eq operatorByte 33) (DeltaScanToken (ScannedDeltaToken TkBangEqual index (+ index 2) 0))
+                                  (if (eq operatorByte 60)
+                                    (if (next_is source index length 61)
+                                      (DeltaScanToken (ScannedDeltaToken TkLessEqual index (+ index 2) 0))
+                                      (if (next_is source index length 60)
+                                        (DeltaScanToken (ScannedDeltaToken TkShiftLeft index (+ index 2) 0))
+                                        (DeltaScanToken (ScannedDeltaToken TkLess index (+ index 1) 0))))
+                                    (if (eq operatorByte 62)
+                                      (if (next_is source index length 61)
+                                        (DeltaScanToken (ScannedDeltaToken TkGreaterEqual index (+ index 2) 0))
+                                        (if (next_is source index length 62)
+                                          (DeltaScanToken (ScannedDeltaToken TkShiftRight index (+ index 2) 0))
+                                          (DeltaScanToken (ScannedDeltaToken TkGreater index (+ index 1) 0))))
+                                      (if (eq operatorByte 43) (DeltaScanToken (ScannedDeltaToken TkPlus index (+ index 1) 0))
+                                        (if (eq operatorByte 42) (DeltaScanToken (ScannedDeltaToken TkStar index (+ index 1) 0))
+                                          (if (eq operatorByte 47) (DeltaScanToken (ScannedDeltaToken TkSlash index (+ index 1) 0))
+                                            (DeltaScanToken (ScannedDeltaToken TkPercent index (+ index 1) 0))))))))))))))))))))))))
+
+(def delta_rescan_comment ((source Bytes) (index Int) (length Int)) DeltaScanOutcome
+  (if (eq index length)
+    (DeltaScanEnd length)
+    (let commentByte (bytes_get source index)
+      (if (eq commentByte 10)
+        (delta_rescan_trivia source index length)
+        (if (eq commentByte 13)
+          (delta_rescan_trivia source index length)
+          (delta_rescan_comment source (+ index 1) length))))))
+
+(def delta_rescan_trivia ((source Bytes) (index Int) (length Int)) DeltaScanOutcome
+  (if (eq index length)
+    (DeltaScanEnd length)
+    (let triviaByte (bytes_get source index)
+      (if (is_space triviaByte)
+        (delta_rescan_trivia source (+ index 1) length)
+        (if (eq triviaByte 47)
+          (if (next_is source index length 47)
+            (delta_rescan_comment source (+ index 2) length)
+            (delta_rescan_operator source index length triviaByte))
+          (if (is_ident_start triviaByte)
+            (delta_rescan_identifier source index (+ index 1) length)
+            (if (is_digit triviaByte)
+              (delta_rescan_number source index index length 0)
+              (if (eq triviaByte 34)
+                (delta_rescan_string source index (+ index 1))
+                (if (eq triviaByte 39)
+                  (delta_rescan_character source index)
+                  (delta_rescan_operator source index length triviaByte))))))))))
+
+(def delta_token_at ((source Bytes) (index Int)) DeltaScanOutcome
+  (delta_rescan_trivia source index (bytes_length source)))

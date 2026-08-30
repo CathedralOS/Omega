@@ -99,7 +99,7 @@ awk 'BEGIN {
   print ") x599)))"
 }' > "$T/wide-constructor.gamma"
 accept_source wide-constructor "$T/wide-constructor.gamma"
-accept_source delta-compiler-lexical "$OMEGA_REPO_ROOT/source/delta/compiler/delta_compiler.gamma"
+accept_source delta-compiler-foundation "$OMEGA_REPO_ROOT/source/delta/compiler/delta_compiler.gamma"
 awk 'BEGIN {
   for (i = 0; i <= 32768; i++) printf "(def f%d () Int 0)\n", i
 }' > "$T/function-capacity.gamma"
