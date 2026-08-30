@@ -86,9 +86,12 @@ decision. Only true language-semantic questions belong in
 - [x] Split the pre-allocation machine-effect codec into a versioned V6 group
   over framing, instruction, structural, ownership, value, cursor, and error
   leaves; its largest leaf is 260 lines.
+- [x] Split AArch64 MOVN proposal computation into a 95-line meaningful join
+  over source admission, bounded selection, recipe, materialization, budget,
+  and focused test leaves; its largest leaf is 328 lines.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 6 production-classified leaves at 750+ lines. Continue with MOVN, spill
-  choice, selected validation, rewrite, and remaining lowering leaves.
+  has 5 production-classified leaves at 750+ lines. Continue with spill choice,
+  selected validation, rewrite, and remaining lowering leaves.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
   register-allocation, and selected-lowering matrices now mirror their

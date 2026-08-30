@@ -816,3 +816,13 @@ pub(super) const REQUIRED_PRE_ALLOCATION_EFFECT_CODEC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/structural.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/values.rs",
 ];
+
+pub(super) const REQUIRED_MOVN_COMPUTE_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/budget.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/materialization.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/recipe.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/selection.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/source.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/tests.rs",
+];
