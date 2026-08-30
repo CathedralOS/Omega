@@ -1,769 +1,150 @@
 # Source resolver security boundary
 
-Status: engineering contract, revised 2026-08-29. This document refines
-`HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
+Status: engineering contract, revised 2026-08-29. This document describes the
+security properties that Omega's package-source resolver actually enforces. It
+does not define package or language syntax.
 
-## Boundary
+## Trust boundary
 
-Source resolution is a privileged supply-chain operation. Downloaded package
-code receives none of the resolver's transport, cache, credential, project, or
-acceptance authority. Compilation consumes a resolver-owned immutable snapshot,
-never a live local tree, Git working tree, or helper-produced claim.
+The resolver is trusted application code running with the invoking user's host
+authority. Git, HTTPS, and SSH authentication use the host tooling and
+credentials selected for that user. Omega does not claim to remove ambient
+authority from an ordinary desktop operating system, protect the user from
+another hostile process running as that user, or repair a compromised Git, SSH,
+kernel, credential store, or operating system.
 
-The intended strict production path has three custody stages. The current
-macOS floor now confines repository-initialization, inspection, and HTTPS
-discovery/fetch content and metadata, but does not yet enforce read separation
-for SSH:
+Downloaded source is outside the trust boundary. It receives none of the
+resolver's process, transport, cache, environment, credential, project, review,
+or lock authority. Resolution executes no code from the fetched repository.
+Compilation consumes a resolver-published snapshot rather than a live working
+tree or helper-produced claim.
 
-1. A fetch helper resolves transport into a fresh quarantined object store. In
-   the strict boundary it has the selected transport authority and no access to
-   project state or final snapshots.
-2. A no-network materializer reads only validated objects and writes ordinary
-   files and symlinks into a fresh snapshot stage. It never runs checkout
-   filters, hooks, submodules, or package executables.
-3. The trusted parent independently validates the resolved object identities,
-   hashes the materialized tree, atomically publishes it, and issues the source
-   receipt. Helper output is observation, not evidence.
+## Threats Omega owns
 
-Repository inspection independently reconstructs the complete Git
-mode/name/object-ID tree graph back to the selected root-tree ID before opening
-blob payloads. Root-package resolution authenticates every blob and publishes
-the complete tree. Named workspace-member resolution instead opens the exact
-authenticated root declaration, asks a manager-owned syntax planner for the
-declared member paths, batch-opens only those exact member declarations, and
-then authenticates and publishes only the selected member subtree. The source
-layer never parses Omega declarations or chooses a package; it owns the hostile
-object/session boundary while the manager owns declaration meaning. Raw
-authenticated declarations remain replay custody outside the selected
-compilation root. An unselected payload may remain only as an authenticated
-Merkle edge. This grants no lazy-fetch or path-selective network claim.
+The resolver is responsible for:
 
-Local sources skip transport but still pass through snapshot staging. A hash of
-a live local directory is diagnostic only. Successful snapshot resolution now
-keeps the entry lock while it reconciles the exact requested path with the
-canonical live root, verifies retained storage and immutable publication
-custody, rechecks the live tree, and performs one final exact-tree rehash. Only
-that path can construct the read-only `ResolvedLocalSnapshot` and its opaque
-`LocalSourceResolutionObservation`. The observation binds both source
-spellings, publication and snapshot paths, content/counts, compiler-bounded
-limits, custody identity, and the fixed `resolved-non-admitting` outcome. It has
-no public constructor or decoder and remains below the future strict receipt;
-in particular, it does not solve hostile same-user mutation between later
-compiler reads.
+- validating source locators and rejecting embedded credentials and secrets;
+- preventing source-controlled protocol, redirect, hook, filter, submodule,
+  and repository-configuration substitution during a fetch;
+- binding the requested locator and revision to the resolved commit, root tree,
+  selected workspace member, and materialized content;
+- rejecting malformed Git objects, path escapes, unsafe links, unsupported
+  filesystem objects, and source trees outside compiler-owned entry, byte, and
+  depth ceilings;
+- preventing fetched source and `build.omg` from receiving resolver
+  credentials, environment, or transport handles;
+- bounding captured helper output, brokered network transfer, command duration,
+  command count, and accepted source/cache size; and
+- recording the endpoint, transport, executable identities, command outcomes,
+  source identities, limits, and observed resource use that produced a
+  successful result.
 
-Ordinary `omega` source resolution now opens one versioned per-user
-`CathedralOS/Omega/source/v1` storage capability under the platform cache
-location. The manager creates every owned component with private permissions,
-retains the final directory, and rejects pathname replacement before and after
-closure operations. Dedicated Git, workspace-member, and external-local lanes
-are likewise created privately, retained, and reconciled; ordinary closure and
-audit entry points carry their handles through package binding and closure
-traversal into Git locking/cache acquisition and local locking/staging.
-Pathname reconciliation detects replacement but is not reacquired as ordinary
-operation authority. Compile
-dependency resolution, source inspection, and source audit no longer select a
-project-local cache, honor an ambient cache override, or fall back to the host
-temporary directory. Production resolver, package-source, and closure APIs do
-not accept cache paths. CI and bootstrap infrastructure may explicitly select
-a private base through `SourceResolverStorage::for_hardened_base`; that
-constructor creates and retains the same production-shaped tree. Tests use
-those storage-backed APIs. Only crate-internal topology probes retain direct
-path helpers for validating overlap rejection, and they do not enter the
-production facade.
+Secrets never enter source declarations, `omega.lock`, source receipts, review
+evidence, or build inputs.
 
-## Portable executor floor
+## Transport and credentials
 
-Every helper launch must use:
+Public requests admit HTTPS, SSH URLs, and SCP-like SSH locators. HTTP,
+unauthenticated `git://`, redirects, unselected protocols, hooks, submodules,
+and credential-bearing locators reject. The test-only local-repository adapter
+is not a production transport.
 
-- an absolute pre-resolved executable with retained content identity;
-- no package-controlled shell interpolation, compiler-owned null-or-pipe
-  standard streams, bounded output, and a deadline;
-- `env_clear` followed by an explicit adapter-specific environment;
-- an explicit working directory and exclusive staging roots;
-- adapter-specific protocols with no ambient protocol helper;
-- disabled prompts, hooks, filters, submodules, replacement objects, and
-  user/system configuration; and
-- file, byte, depth, object, process-output, and elapsed-time ceilings.
+HTTPS and SSH use the invoking environment's system authentication facilities.
+That is an operational input, not package identity and not authority granted by
+the dependency. An SSH server receives the ordinary SSH proof of possession;
+the private key is not serialized into Omega evidence or exposed to package
+source. A missing, rejected, or unusable credential produces an ordinary fetch
+failure.
 
-These controls do not constitute an OS sandbox. Strict admission also requires
-a platform backend that can confine descendant processes, filesystem access,
-network destinations, executable selection, and CPU/memory/process resources.
-Linux may use namespaces/Landlock/seccomp/cgroups, macOS an available Seatbelt
-launcher plus resource/process controls, and Windows a restricted token or
-AppContainer plus a kill-on-close Job Object. If the selected backend cannot
-establish a required guarantee, strict resolution rejects; it never degrades to
-"best effort."
+Omega constrains the command surface it owns: protocols and redirects are
+closed, hooks, checkout filters, and submodules are disabled, and the selected
+transport executable is invoked explicitly. User and system Git/SSH
+configuration and the invoking environment remain host inputs so ordinary
+credential helpers, agents, identity files, known-host policy, and proxies work
+normally. These inputs never become package identity or package authority.
+Platform or CI integrations may provide stronger credential isolation, but
+that is optional host policy rather than a prerequisite for resolving a
+package.
 
-The current macOS engineering floor now selects a fixed Seatbelt launcher and
-closed resolver phase; it is described below. Every phase uses a self-contained
-compiler-generated policy with no host-profile import and confines writes and
-executable paths; the nonnetwork phases also deny network. SSH discovery/fetch
-reads remain broad. Initialization, inspection, and HTTPS discovery/fetch
-confine metadata and content to their phase root plus exact executable/runtime
-paths and the literal ancestors needed to reach them. HTTPS discovery/fetch
-additionally admit metadata-only lookup within the compiler-selected Git helper
-directory and `/etc/ssl` alias. HTTPS
-discovery/fetch also admit the fixed `/private/etc/ssl` system TLS configuration
-root. Each network phase confines its child to one compiler-owned
-loopback broker port. The broker accepts only the normalized host and port derived from the
-validated locator and records the effective connected peer. Linux and Windows
-route selected helpers through the same broker but do not yet deny direct
-egress, so their endpoint-confinement row remains unavailable.
+## Successful receipt
 
-SSH additionally
-requires a pinned client, explicit known-host evidence, empty user
-configuration, and an explicit credential-provider class. Ambient agent use is
-a distinct trust class, not the default.
+Every successful Git resolution issues one opaque `GitSourceReceipt`. It has no
+public constructor or decoder. Its canonical identity binds:
 
-## Resolver-owned receipt
+- the requested and normalized locator, transport, and requested revision;
+- the selected object format, commit, root tree, materialized tree, and
+  workspace-member projection;
+- the published snapshot path, content identity, entry count, logical bytes,
+  depth, and compiler-owned limits;
+- the selected Git and transport executable observations;
+- every prepared-policy and completed-command observation;
+- the requested endpoint route and observed connection outcomes;
+- captured-output and network-transfer ceilings and observed counts; and
+- the retained cache-storage measurement accepted before publication.
 
-Git resolution now performs a local strict-receipt reconstruction attempt
-immediately after final cache, executable, command, endpoint, accounting, and
-snapshot revalidation. `ResolvedGitSource` retains either an opaque
-`GitSourceStrictReceipt` or one closed `GitSourceStrictReceiptError`. The
-reconstructor first reproduces the complete non-admitting resolution
-observation exactly, requires the opaque retained-storage row issued by the
-final capability-rooted cache traversal, rejoins each package command identity
-to its native completion and exact null-or-byte input commitment, verifies
-executable path and endpoint custody, and calls `require_strict` on every native
-policy. Missing or changed policy, completion, input, endpoint, executable,
-accounting, source, or limit rows reject. A missing, changed, differently
-rooted, or differently bounded retained-storage row rejects too. Persisted
-strings cannot construct or decode the receipt.
+The receipt records what happened. It does not assert that host credentials,
+same-user authority, or every operating-system capability was excluded.
+Platform hardening rows remain part of the observation so consumers can see
+which controls were enforced, unavailable, or inapplicable; an unavailable
+optional hardening row does not invalidate an otherwise successful resolution.
 
-No success issuer exists yet. The current native backends still expose
-unavailable guarantees; after those pass, the reconstruction attempt rejects
-the test-only transport or the first still-unimplemented transport-trust row.
-Credential custody, whole-operation storage/resource ceilings, and same-user
-mutation isolation do not yet have evidence carriers and therefore are not
-represented as if checked. The retained-storage row is deliberately narrower:
-it records only the exact resident entry count, logical bytes, and maximum depth
-accepted after the helper exits. Each missing whole-operation requirement must
-acquire a real locally reconstructed row before the success type gains an
-issuer.
+Changing a receipt input changes its identity. Persisted bytes cannot mint a
+live resolver result or bypass source, object, snapshot, and command
+revalidation.
 
-The complete `SourceResolutionReceiptV1` target is an opaque, canonical value
-issued by the trusted resolver path. Parsing a persisted receipt never mints
-authority.
-It binds:
+## Git acquisition
 
-- schema, canonical encoding, resolver, adapter, and helper identities;
-- canonical source lineage, sanitized locator identity, selector, and transport
-  profile;
-- isolation backend and the required/enforced guarantee set;
-- filesystem, executable, environment, endpoint, deadline, and resource policy;
-- requested/effective endpoint, redirect policy, TLS or SSH host trust,
-  credential-provider class, and transferred-byte observations;
-- object format, commit, tree, object-integrity, submodule, and gitlink verdicts;
-- snapshot policy, content identity, entry counts/bytes/depth, mode/symlink
-  policy, and immutable publication identity; and
-- phase results, resource observations, bounded diagnostic digests, truncation
-  flags, and one closed accepted/rejected reason code.
+The resolver uses a fresh quarantine repository, authenticates the selected
+commit and tree through Git's object graph, and materializes source without
+checkout filters, hooks, submodules, or package execution. Repository
+inspection reconstructs modes, names, object IDs, and payloads from the
+selected tree. Workspace selection reads only compiler-authorized declaration
+paths and publishes only the authenticated selected member.
 
-Containment facts are closed rows such as
-`FilesystemDeniedOutsideScopes`, `NetworkDeniedOutsideEndpoints`,
-`DescendantsContained`, `ExecDeniedOutsideToolSet`,
-`AmbientConfigurationDenied`, `ResourceCeilingsEnforced`, and
-`ImmutableSnapshotPublished`. Each is either backed by exact enforcement
-evidence or marked unavailable. An accepted strict receipt has no unavailable
-required row.
+The trusted parent independently revalidates executable observations, command
+outcomes, object identities, the materialized tree, cache custody, and source
+limits before publishing `ResolvedGitSource`. Helper output alone never issues
+a result.
 
-The former JSON `SourceCachePolicyRecord` diagnostic and its CLI persistence
-surface are deleted. They duplicated a subset of live resolver state through
-free strings and mutable paths but could never become this receipt. `omega
-audit source` prints a bounded human diagnostic from a fresh live resolution;
-it cannot be recovered or promoted into an accepted lock. Authoritative source
-persistence must begin with the future opaque receipt rather than a caller-
-readable intermediate record.
+## Local sources
 
-The native execution crate now returns an opaque prepared execution which owns
-its policy observation. It binds the verified backend, closed phase,
-generated policy hash, numeric compiler ceilings, primary executable path,
-normalized bounded descendant-executable path set, mutable root, sealed
-endpoint route where applicable, exact discovery/inspection content-read roots
-where applicable, and a complete ordered guarantee vocabulary.
-Required guarantees are either `Enforced` or
-`Unavailable`; phase-inapplicable rows are `NotRequired`. There is no public
-constructor or decoder, path and helper counts are bounded, and
-`require_strict` rejects any unavailable row. Callers can append arguments,
-explicit environment, working directory, and choose only compiler-owned null or
-piped standard streams; they cannot inherit ambient streams, inject arbitrary
-pre-opened handles, extract the command, or replace its executable. Spawn
-consumes the prepared value. Completion is issued only after the native container was explicitly
-terminated or confirmed absent and its child status reaped; it binds the policy
-to a bounded identity of the exact program, ordered arguments, explicit
-environment plus inheritance disposition, and working directory. Git retains
-policy only through that completion, rather than when configuration is merely
-attempted. This is execution-lifecycle provenance, not a
-`SourceResolutionReceiptV1`. The complete receipt must join the
-package layer's exact executable content observations, environment/protocol
-sealing, endpoint and credential trust, bounded command result, object
-authentication, snapshot identity, and final publication verdict.
+Local sources skip transport but still pass through bounded snapshot staging.
+The resolver captures the requested tree, validates entries and links, publishes
+a read-only snapshot under resolver-owned storage, and rechecks the live tree
+and snapshot before returning. Ordinary concurrent drift rejects. The snapshot
+does not claim protection from a process that already possesses the same user
+authority after resolution completes.
 
-Every macOS phase uses a compiler-generated default-deny profile with no import.
-All grant exact selected executables and write-data to `/dev/null`. SSH
-discovery/fetch grant broad reads. Initialization, inspection, and HTTPS
-discovery/fetch grant both metadata and content reads only beneath their phase
-root and at exact executable/runtime paths and compiler-derived literal
-ancestors. HTTPS discovery/fetch additionally grant metadata-only lookup beneath
-their compiler-selected Git helper directory and fixed `/etc/ssl` alias. They
-admit content beneath `/private/etc/ssl`; that fixed path is not evidence that
-TLS trust or custody was established.
-Initialization and fetch additionally grant writes only beneath the exact
-mutable quarantine root. Discovery and fetch require the already-validated
-closed HTTPS or SSH transport authority and grant outbound network. Only SSH
-receives the exact OpenDirectory libinfo lookup, `kern.hostname`, and
-`hw.pagesize_compat` reads needed by the pinned client and compiler-owned Rust
-connector; HTTPS receives none of them. Each network child may connect only to
-its exact loopback broker port, so macOS endpoint confinement is `Enforced`.
-Initialization and inspection deny network and reject a
-transport authority. They also omit process-fork authority entirely, so an
-allowlisted executable still cannot become a descendant in either nonnetwork
-phase. Filesystem-write and executable-path rows are
-`Enforced` for every phase, network denial is `Enforced` where applicable, and
-descendant containment is `Enforced` for initialization and inspection. The
-exact compiler-owned rlimit rows are `Enforced` throughout macOS.
-`FilesystemReadsConfined` is `Enforced` for initialization, inspection, and
-HTTPS discovery/fetch. It remains `Unavailable` for SSH discovery/fetch because
-their content and metadata remain broad.
-Before a successful Git result is issued, the package layer also requires the
-number of completion-derived policy observations to equal the bounded launch count and
-requires every observation's executable path set to equal the paths backed by
-the still-verified Git, selected transport, and fixed platform-helper content
-identities for that phase. The result now retains those fixed helper identities
-instead of dropping them. This closes configuration-to-content association for
-successful resolution; it still is not an execution-result receipt.
+## Resource handling
 
-Each completed Git command now also contributes one bounded package-layer
-execution observation after output capture, native completion,
-executable/backend revalidation,
-and budget reconciliation succeed. A domain-separated command commitment binds
-the closed phase, actual native program and ordered arguments, complete explicit
-environment and inheritance disposition, working directory, and either null
-stdin or the exact object-batch stdin length and digest. The outcome binds exit
-code or Unix signal plus exact bounded stdout/stderr lengths and digests. It
-retains the resolver-issued completion and requires its policy and status to
-match, eliminating the former positional construction-time join. Network
-commands additionally retain the
-sealed route, bounded CONNECT outcomes, and effective peers; successful remote
-issuance requires at least one connected event and exact route-policy equality.
-Successful resolution requires outcome,
-policy, and launch counts to agree. Both capture threads and every command also
-charge one overflow-safe whole-resolution counter. Its compiler-owned ceiling
-is `min(source-byte ceiling + 64 MiB, 576 MiB)`. Exhaustion terminates and reaps
-the command container with a distinct error. Successful issuance requires the
-counter to equal the sum of every retained stdout/stderr length and binds both
-ceiling and observed count into the final observation. Output text and package-
-controlled arguments are not rendered into this fixed record. This establishes
-completed-command provenance and cumulative parent-captured-output accounting.
+The resolver enforces compiler-owned ceilings on source entries, source bytes,
+depth, command count, captured output, brokered transfer, and retained cache
+state. Commands have deadlines and platform-appropriate process cleanup. Native
+backends may additionally provide filesystem, network, executable, descendant,
+CPU, memory, file-size, descriptor, or process-count controls; their exact
+dispositions are recorded rather than promoted into universal package
+semantics.
 
-Every discovery/fetch route additionally shares one compiler-owned
-bidirectional broker-transfer counter across all commands, routes, and
-connections. Its separately derived ceiling is
-`min(source-byte ceiling + 64 MiB, 576 MiB)`. Counts cover tunnel payload bytes
-accepted by the broker in both directions, including encrypted transport
-overhead, but exclude loopback CONNECT framing and DNS. Endpoint events retain
-uploaded/downloaded counts and a closed `TransferCeilingReached` outcome. An
-over-ceiling read is neither charged nor forwarded. Successful issuance rejects
-that outcome and requires the checked sum of every retained endpoint event to
-equal the live shared counter. The package layer reports a typed transfer-
-ceiling failure before an ordinary Git connection error can obscure it, while
-cleanup failure retains highest precedence.
+These controls substantially bound hostile input, but an ordinary user-mode
+package manager cannot promise that the host filesystem will never report disk
+exhaustion. A quota-backed cache or stronger host sandbox may add that property
+without changing source identity. Disk-full, process-launch, network, and host
+credential failures remain ordinary resolution failures.
 
-After the outer resolver has additionally reconciled cache namespace/custody
-and final executable content, it physically reopens and re-hashes the published
-snapshot under the original exact-tree policy while the cache lock remains
-held. Only then is a private pending result converted into the sealed public
-`ResolvedGitSource` and one compact `GitSourceResolutionObservation` issued.
-The public result fields are not mutable. The observation's canonical identity
-binds the exact source policy ceilings, request and normalized locator,
-transport and object format, selected commit/tree, immutable snapshot
-path/content/counts, Git and helper content identities, every native policy row,
-every completed-command row, the cumulative captured-output ceiling/count, and
-the directional broker-transfer ceiling/counts. It also binds the opaque
-retained-storage identity and its exact entry, byte, and depth ceilings and
-observations.
-The observation has no public constructor or decoder and is issued with the
-fixed outcome `resolved-non-admitting`; changing even a source ceiling changes
-its identity. This closes the successful-result join that the narrower rows
-could not express. It deliberately remains below `SourceResolutionReceiptV1`:
-unavailable containment rows remain unavailable. Linux/Windows endpoint
-confinement, TLS/SSH trust, credential custody, object-store/during-write quotas,
-non-Windows descendant aggregate resources, and strict acceptance are still
-absent. The
-transfer observation is universal for broker-routed bytes, but only macOS
-currently prevents the child from opening a direct connection around it.
+## Platform hardening
 
-Local resolution now has the corresponding successful-result join without the
-Git execution rows. Under the retained local-snapshot lane and entry lock, the
-outer resolver repeats requested-to-canonical path reconciliation, live-source
-comparison, publication custody checks, and an exact published-tree rehash.
-The resulting `LocalSourceResolutionObservation` is inseparable from the
-read-only public result and changes with the request spelling, canonical live
-root, publication, final content/counts, accepted source ceilings, or custody
-identity. Like the Git observation, it is locally successful non-admitting
-provenance rather than `SourceResolutionReceiptV1` or proof against a hostile
-same-user process.
+The existing macOS Seatbelt, Linux Landlock/resource-limit, Windows Job Object,
+endpoint-broker, executable-custody, and process-lifecycle code is defense in
+depth. It narrows what trusted helpers can do and records the controls that were
+active. Cross-platform parity is not required before a successful source
+receipt may issue, and those mechanisms do not claim to solve hostile same-user
+replacement or remove ambient host authority.
 
-Resolved package custody now also projects a bounded
-`CanonicalSourceClosureSubject`: the exact root request and every authored
-dependency request occurrence joined to its alias, selected package key, and
-immutable resolution/content identity. This is a canonical question for later
-independent reconstruction, not the resolver receipt described above. It omits
-cache/snapshot paths, execution-transport observations, isolation claims,
-compiler consumption, and phase verdicts. Decode and fingerprinting grant no
-authority; a consumer must independently resolve and snapshot the source and
-require complete subject equality.
+## Package and build separation
 
-## Current engineering delta
-
-Git resolution now treats helper-reported IDs, listings, and framing only as
-inputs to parent-owned verification. An exact requested object ID must equal the
-selected commit. The parent hashes the raw selected commit, parses and compares
-its root-tree edge, collision-checks every SHA-1 object hash, hashes every
-returned blob, retains every explicit child-tree edge, reconstructs each
-canonical recursive Git tree object including empty trees, and compares the
-resulting Merkle root with the selected tree. SHA-1 compatibility rejects known
-collision attacks but does not restore theoretical SHA-1 collision resistance;
-SHA-256 uses its ordinary full digest and remains preferred. Fixed object vectors,
-real repositories, and mismatch tests cover object bytes, exact-pin binding,
-commit identity, commit-to-tree and tree-to-child edges, empty trees, canonical
-Git ordering, and destination containment. All authentication and destination
-preflight completes before a snapshot staging path can be created. The
-authenticated bytes and explicit directories are then materialized into a
-staged, read-only, atomically published snapshot without invoking checkout,
-filters, hooks, submodules, or package code; the published source is re-hashed
-and compared directly with the identity derived from freshly authenticated Git
-entries before every reuse. Snapshot metadata must agree too, but is descriptive
-and cannot authorize replacement bytes even when rewritten to match them. This
-establishes the selected-object-graph to snapshot shape, not the complete
-production boundary.
-
-Local sources now use a bounded in-memory capture, content-addressed staging,
-read-only atomic publication, and revalidation before reuse. Physical
-publication is additionally namespaced by the canonical live-source lineage,
-so byte-identical packages from distinct paths retain distinct compiler custody
-roots while keeping the same content identity. The resolver
-rejects source/cache overlap and ordinary mutation observed between capture and
-publication; compilation-facing diagnostics expose the published snapshot, not
-the live tree. Empty directories participate in identity while directory
-permissions normalize to the canonical snapshot policy. Local package capture
-excludes only repository metadata and the compiler-reserved root `build/`
-output directory; it does not trust package-authored ignore files. Nested
-`build` directories remain ordinary source, and a symlink into excluded output
-rejects. Each directory listing is bounded before it is retained and sorted by
-the remaining source-entry allowance plus only the toolchain-reserved names
-that may be excluded at that level. Resolver-owned materializations are checked
-under an exact-tree policy, so immutable Git snapshots still preserve every
-selected tree entry.
-
-Capture acquires the canonical source root by walking from its filesystem
-anchor and opening every directory component no-follow, then traverses relative
-to retained directory capabilities. Child directories and regular files open
-without following their final path component, and file bytes are read
-immediately from the retained handle rather than from a pathname saved during
-classification.
-Replacing a classified leaf with a symlink therefore cannot redirect capture;
-replacing the root pathname after it is opened does not redirect the open
-session either. Symlink spelling and target validation remain rooted in the
-same capability. Absolute local-link spellings reject because copying them
-would preserve authority to the mutable live pathname rather than the published
-snapshot. This narrows pathname substitution but does not make a
-multi-file capture atomic or defeat a hostile same-user process that mutates
-ordinary files and directories through its own credentials.
-
-Cache-tree custody is now walked from a retained canonical-root capability.
-Root acquisition opens each absolute path component no-follow; directory
-enumeration and metadata classification remain relative to retained parents;
-and every queued child directory is reacquired component-by-component from the
-retained root, opened no-follow, and checked for stable file identity before
-descent. The queue retains paths and classified metadata rather than one open
-descriptor per sibling; a fixed 260-level ceiling bounds reacquisition work.
-The same bounded walk serves Git cache entries and local snapshot publications.
-This prevents a directory leaf reclassified as a symlink or different concrete
-directory from redirecting the later traversal and keeps a walk bound to an
-already-opened root if its pathname is replaced. Git cache-entry, Git snapshot,
-and local snapshot publication additionally open the canonical publication
-parent component-by-component no-follow, reduce both operands to validated
-direct-child names, and rename through that retained directory capability.
-The parent then confirms the published directory has the staged directory's
-file identity and synchronizes the retained parent handle. A replaced parent
-pathname therefore cannot redirect the publication operation. Git and local
-publication locks likewise open a validated direct-child name no-follow through
-a retained parent capability. Lock acquisition confirms leaf identity relative
-to that parent after waiting and requires the canonical parent pathname still
-to identify the retained directory; the parent capability remains alive for
-the lock lifetime. Git invalidation opens the entry as a stable direct child
-through the retained cache parent and removes resolver metadata relative to the
-retained entry directory; a substituted entry symlink cannot redirect that
-deletion. Resolver-owned control records—Git configuration, Git source identity,
-and Git/local snapshot identity—are read through retained no-follow directory
-and file capabilities with per-record byte ceilings, repeated handle reads, and
-leaf/handle identity confirmation. Immutable Git-tree and local-source snapshot
-stages are also rooted in retained snapshots-parent and exact stage-directory
-capabilities. Directory, create-new file, symlink, identity-record, permission,
-recapture, publication, and failure-cleanup operations remain beneath those
-handles. Source identity is recaptured again after read-only finalization, whose
-child opens must preserve their classified identities. Publication rejects if
-the stage name no longer identifies the retained stage, and cleanup begins from
-the retained stage handle. The host
-cleanup primitive is not atomic against concurrent rename and is pathname-
-based on Windows, so cleanup remains best-effort under a hostile same-user
-process. Mutable Git object-cache staging now retains the lock-acquired cache
-parent and exact stage directory across creation, resolver-metadata emission,
-publication, invalidation, and cleanup. The stage has exact Unix mode `0700`,
-its resolver metadata has exact mode `0600`, setup-time native Git calls are
-bracketed by parent/stage pathname-identity checks on success and failure,
-publication requires the retained stage identity, and invalidation plus parent
-synchronization remain relative to that same parent. Namespace and
-invalidation failures outrank ordinary operation errors. A provisional
-parent-relative guard covers the interval before the new stage is retained;
-after retention, cleanup starts from the open stage and does not delete a
-replacement at its former name. Native Git still consumes the stage
-and repository through pathnames; a rename race during a launch and strict
-mutation confinement therefore remain native-isolation work. Native Git
-repository verification now retains the exact cache entry, Omega-created bare
-repository, and object-store directories for the complete resolution.
-Control-record reads/restoration, recursive repository shape, and
-forbidden-indirection absence checks derive from those capabilities; only exact
-`NotFound` proves absence. The Omega-owned repository policy rejects all
-symlinks and, on Unix, multiply-linked regular files while allowing ordinary
-fetch products such as shallow state, refs, loose objects, and packs. Every
-repository-bound Git launch, including the bespoke blob batch, reconciles the
-retained entry/repository/object identities after success or failure, and full
-static shape is checked after fetch and before acceptance. This is not a claim
-that arbitrary bare Git repositories have that stricter shape. The blob-batch
-request is now an exact-mode `0600`, create-new file beneath the retained cache
-entry. Its handle/name identity is checked around use, explicit cleanup is
-parent-relative and synchronized, and an already observed replacement name is
-preserved. The final check/unlink pair is not atomic against an active same-user
-rename race. The Git snapshot collection is classified through that same
-retained entry; only exact `NotFound` permits private `0700` creation, and later
-publication lookup and materialization staging use the retained collection. Git still receives the
-repository as a pathname, so launch-race confinement remains open. Published
-Git/local snapshot mode and shape verification opens the publication and Source
-roots no-follow, traverses retained child handles with
-identity checks, and captures content from that same open Source root.
-Authenticated Git paths, kinds, and
-executable bits are compared with the captured tree rather than ambient
-metadata. On macOS, retained cache directories, regular files, and locks are
-queried for extended ACL allow entries through their descriptors. Concrete
-selected executable nodes are descriptor-queried as well. Cache
-root/ancestry ACL facts likewise follow no-follow directory acquisition and
-identity reconciliation; only symlink ACL observations remain path-based.
-Destination exclusion is cooperative rather than an atomic hostile-same-user
-no-replace primitive, so this still does not claim exclusion of an actively
-hostile same-user process.
-
-Compilation handoff now captures and revalidates the root package of each
-package compilation again, then asks the compiler to independently recapture
-that same root into one closed canonical Source-metadata index bound to its
-compiler-owned full-content commitment.
-Indexes for reachable dependencies are not retained in that compilation; when
-review re-roots to a dependency, it receives its own freshly derived root
-index. The index
-contains raw root-relative paths, directory/file/symlink kind, executable bits,
-ordinary-file lengths, symlink-target spelling lengths, and an implicit root
-directory. It is bounded to 65,537 rows including the root and 16 MiB of
-aggregate path bytes. Build-time `stat`, `lstat`, and `fstat` on Source obtain
-mode, length, and a fixed timestamp from this index; followed `stat` selects the
-resolved target row, `lstat` selects the authored leaf, and an open handle keeps
-its selected row for `fstat`. A path absent from the complete index rejects
-rather than falling back to physical checkout metadata. Source directories are
-`040555`, files are `100444` or `100555`, symlinks are `120777`, directory size
-is zero, and the canonical timestamp is exactly 1,000,000,000 seconds after the
-Unix epoch. The writable Output grant continues to expose physical staging
-metadata. Package-aware filesystem execution rejects an absent root index and
-anchors Source to the exact package root, not the selected entry file's parent.
-Callers cannot supply package index rows or their commitment. The compiler
-captures canonical shape, mode, length, and full file/symlink content itself
-under a 512 MiB aggregate-content ceiling; input construction independently
-recaptures the complete physical root and requires exact index equality. The
-compiler repeats the content check at compilation entry and immediately before
-returning checked evidence or publishing a legacy result.
-Non-root dependency indexes reject rather than accumulating across the closure.
-The package layer still performs its stronger resolver-policy revalidation and
-source-resolution binding immediately before compiler capture. Replay records
-bind the metadata policy version and compiler-owned full-content commitment,
-and package-aware no-host replay rejects a mismatch with the current root
-index. The provider also checks that the host object kind agrees with the
-indexed kind;
-this detects ordinary drift but does not defeat the same-user race described
-above. The index is compiler sponsorship, not a source-resolution receipt and
-does not add authority to persisted metadata.
-
-Transport erasure now retains the original file, byte, and depth limits beside
-each package snapshot. Review orchestration checks canonical read-only modes
-and re-hashes every transitive snapshot under those limits immediately before
-and after each package compilation. Any mismatch rejects the review set. This
-is joined to a compiler-issued, domain-separated commitment over the canonical
-reconciled input graph and every exact source path and byte sequence retained by
-the frontend. The compiler re-reads each physical source before returning;
-orchestration repeats that comparison after its whole-snapshot post-check.
-Together these bind review rows to compiler-consumed bytes and detect ordinary
-custody drift, but they are not an atomic filesystem snapshot: a hostile
-same-user process may still race every observation.
-
-Review-time source patching reuses that custody boundary. It captures the
-verified bytes once under the exact-materialized policy and diffs that private
-capture; it never reopens a live checkout, asks Git for a patch, or reapplies
-mutable-local `.git`/root-`build/` exclusions to a published snapshot. A second
-whole-snapshot verification after rendering detects ordinary intervening
-mutation under the same documented same-user race limitation.
-
-Git subprocesses now select the parent Git binary only from a closed platform
-list of absolute concrete paths; they never search ambient `PATH`. macOS does
-not select Apple's `/usr/bin/git` dispatcher. The resolver canonicalizes the
-selected regular file and, on Unix, requires root/resolver ownership and a
-non-writable/non-set-id executable mode. Those direct-file custody conditions
-are rechecked around every launch. The resolver hashes the file
-under a 256 MiB ceiling, retains that observation on `ResolvedGitSource`, checks
-stable file identity before and after every launch, and re-hashes the bytes when
-the complete resolution returns. HTTPS requests select `git-remote-https` from
-a closed install-relative candidate set, retain its invocation entry and
-canonical target, and apply the same observation and Unix custody checks to
-both identities. `GIT_EXEC_PATH` and `PATH` expose only that observed helper
-directory. SSH requests apply the same observation and Unix custody checks to
-one exact client. On macOS the fixed shell executables required to realize the
-sealed SSH command receive the same identity, hash, custody, and ACL treatment;
-they do not grant execution of any unlisted descendant. Both transports recheck
-their executable identity around every Git launch, re-hash the canonical target
-at completion, and retain it separately. Drift rejects. The Git cache policy is
-v28, so a cache fetched before these executable-custody, cumulative-output,
-transport-authority, endpoint-brokerage, nonnetwork descendant-denial, and
-Windows owner/DACL floors is not silently reused.
-This identifies observed parent bytes and closes ordinary cross-user path
-ownership on Unix. On Windows, each invocation entry and canonical target is
-opened no-follow and queried by handle; its owner must be the current user,
-LocalSystem, or BUILTIN Administrators, while a null DACL,
-unknown granting ACE, or mutation grant to another SID rejects. Inherit-only
-ACEs do not apply to the current object; other inheritable ACEs do. This does not
-certify Git, the HTTPS helper, or SSH, bind other executable components, protect
-against trusted-principal replacement, bind TLS or SSH host trust, or
-prove that an observed file equals an already loaded image. On macOS, every
-concrete selected executable, transport invocation entry, and canonical
-transport target is opened no-follow, required to preserve its
-classified file identity, and read through the descriptor form of the native
-extended-ACL surface. Symlink invocation entries use the path-oriented native
-link ACL interface. The narrow platform wrapper classifies only native
-allow/deny tags and does not resolve ACL principals through ambient identity
-services. Any allow entry rejects; deny-only entries cannot broaden custody.
-Failure to inspect an ACL rejects rather than degrading to mode-only checks.
-These ACL checks run at the same repeated custody points as owner, mode, and
-executable identity checks. They close ordinary extended-ACL
-grant substitution, not hostile same-user replacement or loaded-image
-identity.
-Each launch clears the complete inherited environment, installs only the fixed
-Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
-or repository working directory. It also receives resolver-owned stdin,
-concurrent bounded stdout/stderr capture, and a deadline. Stdin is null except
-for `cat-file --batch`, where the manager copies the exact object-ID request
-through a child pipe rather than handing the writable request-file descriptor to
-the resolver process. Per-command
-stream ceilings remain independent of the whole-resolution captured-output
-ceiling described above.
-
-`omega-resolver-execution` derives native policy from one of four closed phases:
-transport discovery, repository initialization, fetch, or repository
-inspection. On macOS it verifies `/usr/bin/sandbox-exec` as a root-owned,
-non-writable, non-set-id executable beneath root-owned ancestry, rejects native
-extended-ACL allow entries, binds its content hash and file identity, and
-rechecks that identity before constructing each command. Compiler-fixed policy
-adds outbound network only during discovery and fetch, quarantine mutation
-during initialization and fetch, and exact process-exec paths for the verified
-  Git/helper chain. No phase imports a host profile; initialization and fetch
-  confine mutation to the exact quarantine root while discovery and inspection
-  admit write-data only to `/dev/null`. Real Git resolution and native canaries
-  exercise those policies. Network phases permit only the exact loopback broker
-  port; the parent broker resolves and admits only the validated requested host
-  and port and records the actual connected peer.
-`/usr/bin/sandbox-exec` is deprecated, so this is a concrete current-host floor,
-not a durable macOS backend promise. Failure to establish or revalidate the
-launcher rejects on macOS.
-
-Every Unix resolver child inherits at most 120 CPU seconds, a zero core-file
-limit, a 1 GiB file-size ceiling, and at most 256 descriptors. Linux/Android
-also receive an 8 GiB address-space limit; Darwin does not expose a usable
-equivalent through this rlimit path. Each compiler ceiling intersects the
-inherited soft and hard limits and therefore never loosens a stricter host
-limit. These Unix limits are inherited per process, not an aggregate descendant,
-process-count, or object-store budget. The separate broker transfer budget spans
-the whole resolution. Linux atomically marks all non-standard ambient
-descriptors close-on-exec before package code runs. Other Unix hosts mark the
-descriptor set observed through `/dev/fd`; a hostile concurrent opener remains
-outside their incomplete strict boundary. On Linux, a fully available Landlock
-ABI-v5 backend handles every ABI-v5 filesystem right before spawning the child
-from a dedicated restricted thread. It grants broad reads, handled content and
-namespace mutation only beneath the exact mutable root, device writes only to
-`/dev/null`, and path-based execution only for verified regular files in the
-exact primary and bounded helper set. The backend requires `FullyEnforced` plus
-`no_new_privs`. Landlock does not mediate mode, owner, timestamp, xattr, and
-other metadata mutations, nor executable memfds or anonymous executable code.
-The complete filesystem-write and executable-path rows therefore remain
-unavailable despite those narrower controls. Package resolution rejects Linux
-hosts that would otherwise fall back to resource limits alone. Landlock also
-does not mediate every metadata read or bind network connections to an exact
-destination address, so filesystem-read, network-denial, and endpoint rows
-remain unavailable. Windows creates each command suspended and assigns it
-to a resolver-owned Job Object before resume. That job kills on close and
-enforces 16 active processes, 2 GiB committed memory per process, 4 GiB aggregate committed memory,
-and 120 aggregate user-CPU seconds. It still lacks filesystem, executable, and
-network confinement. Windows-native reduced-limit canaries pair below-limit
-controls with active-process, per-process memory, aggregate descendant memory,
-and aggregate CPU exhaustion and require the exact Job completion-port event
-plus active-process zero; they are cross-target checked but still await
-execution on a Windows worker. macOS native canaries exercise denied
-writes, denied unlisted descendant execution, denied inspection networking,
-and admitted discovery networking. Hermetic loopback canaries also exercise the
-selected production HTTPS helper and fixed shell/SSH executable chains through
-the same allowlist. Linux has handled-write, inherited-descriptor, and path-
-based executable control canaries that cross-compile but still require
-execution on a native ABI-v5 worker; they do not upgrade the unavailable
-complete guarantees. The full Git source suite runs through this boundary.
-
-Before initializing a cache for a symbolic selector, one bounded `ls-remote`
-request asks only for `HEAD` and that selector and rejects absent, malformed,
-or mixed object formats. The discovered SHA-1/SHA-256 format controls quarantine setup
-but is not evidence; parent-owned object authentication still decides whether
-the selected graph is coherent. Fetch requests only the selected revision at
-depth one, disables automatic maintenance and garbage collection, and requests
-`blob:limit=<source-byte-ceiling + 1>`. Lazy object fetching is disabled during
-all later Git commands, and the parent restores its byte-exact canonical bare
-configuration after a successful filtered fetch before authenticating objects.
-A required individual blob above the accepted source ceiling therefore remains
-absent and causes fail-closed tree authentication. Exact object-ID pins reuse
-and re-authenticate existing cache custody without transport; an
-operation-local acquisition pin also keeps several named members on one exact
-commit/root tree while sharing the same locked cache entry. Unpinned symbolic
-selectors still refetch. This bounds unrelated history and individually
-impossible blobs, not the admissible bytes held in the quarantined object
-store. Named member resolution reads only authenticated declarations and the
-selected member payload, but portable Git may still transfer other admissible
-objects from the selected root. A whole-resolution budget now caps
-launches at 64, independent of package file count, and limits ordinary elapsed execution to ten
-minutes; each command receives only the smaller remaining interval. One exactly
-framed `cat-file --batch` launch reads all validated blobs in tree order. Each
-subprocess starts in a fresh Unix process group or
-Windows Job Object. Completion and rejection paths attempt to terminate that
-container before returning; ordinary helper and SSH descendants therefore do
-not survive or hold capture pipes open in the tested cases. On Windows the
-resolver owns the Job handle, assignment occurs while the primary child is
-suspended, and completion requires an active-process-zero notification. Each
-command
-reserves cleanup/reaping inside its existing deadline, capped at two seconds and
-at one quarter of a smaller budget, and fails closed if portable process APIs do
-not finish within that reserve. A descendant escaping its Unix session remains
-outside this portable guarantee, and host scheduling or uninterruptible kernel
-work is not a hard wall-clock guarantee. Overflow and timeout reject explicitly
-once cleanup returns, including for blob reads. On Linux the Landlock layer
-continues to constrain handled filesystem rights after a descendant changes its
-session, but the process-group lifecycle floor still cannot contain or reap a
-hostile descendant that deliberately escapes into another session. Reads,
-network, and aggregate resources also remain outside the Landlock claim. The
-macOS Seatbelt floor adds phase-specific native
-confinement, including endpoint confinement and phase-specific read scope for
-initialization, inspection, and HTTPS discovery/fetch. SSH read scope remains
-broad pending explicit host-trust and credential custody, and aggregate-resource
-custody remains incomplete.
-Depth-one fetch limits history amplification but does not enforce an object-
-store quota. The broker enforces its whole-resolution transfer ceiling on all
-routed traffic; Linux/Windows cannot yet prevent direct helper egress around
-that route. The launch ceiling and inherited Unix rlimits are not aggregate CPU,
-memory, process-count, or object-store budgets; Windows has the separate Job
-CPU/memory/process limits above.
-Materialization remains trusted parent code rooted in retained filesystem
-capabilities rather than a separate sandboxed helper. A deliberately hostile
-same-user process can race
-cooperative locks and validation, including the local before/after observation.
-Git no longer stores a cache-local remote origin. Fetch receives the exact
-resolver request directly, and the parent overwrites local repository config
-with one byte-exact SHA-1 or SHA-256 bare-repository file. Replacement uses a
-synchronized stage held open across a handle-relative atomic rename, then
-checks the published pathname, file identity, exact bytes, and parent-directory
-synchronization; the repository record root itself is acquired
-component-by-component no-follow, and there is no delete/recreate gap. Before every use the parent
-reads and compares those bytes itself; added settings, includes, remotes, or
-spelling drift reject without asking Git to report its own configuration.
-Git and local cache custody also receive a separately bounded 65,536-node
-parent traversal before and after use. That traversal sums regular-file and
-symlink logical lengths. Git entries reject above
-`min(3 * source-byte-limit + 64 MiB, 1 GiB)`; local publications reject above
-`min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
-ceilings for resident cache state, not during-write disk quotas. The final Git
-walk now returns its exact entry count, logical-byte count, and maximum depth;
-the resolver seals those measurements with the private cache root and policy
-ceilings into `GitRetainedStorageObservation`, binds that row into the final
-resolution identity, and requires it during strict-receipt reconstruction. It
-has no public constructor or decoder. These measurements are
-independent from the broker's transfer measurements: a helper without an
-aggregate disk quota may still exhaust
-storage before the parent can reject its output. Every Git or local publication lock opens
-no-follow relative to a retained canonical-parent capability. After waiting,
-the resolver compares the locked handle with that parent's current leaf and
-compares the retained parent with the current canonical parent pathname using
-platform file identity. A symlink leaf or replaced parent therefore rejects
-rather than selecting a different cooperative lock namespace. Git waits
-consume the whole-resolution deadline, while
-local publication waits use a separate two-minute compiler-owned deadline and
-reject explicitly on expiry. On Unix each cache entry and lock must be owned by
-the resolver's effective user and not group- or other-writable;
-canonical ancestry must be root/resolver-owned and cannot be replaceable
-through a non-sticky writable directory; unsupported filesystem kinds reject.
-On macOS the same custody walk inspects native extended ACLs on every ancestor,
-cache, publication, staging, and lock node. Each already-open cache directory,
-regular file, and lock is queried through its descriptor; regular files first
-open no-follow beneath their retained parent and preserve classified identity.
-Any allow entry rejects even when mode bits appear private; deny-only ACLs do
-not broaden custody, and an unreadable ACL fails closed. Root and ancestry
-owner/mode classification remains path-based, but each ACL fact follows a
-no-follow directory open and identity reconciliation. Symlinks are inspected
-as links rather than following their targets because the native link ACL
-interface is path-oriented.
-On Windows, cache roots and every retained directory, regular file, reparse
-point, and lock receive the analogous handle-bound owner/DACL check. Cache
-objects require current-user ownership; ancestry may also be owned by
-LocalSystem or BUILTIN Administrators. No account-name service is consulted.
-This closes ordinary cross-user ownership/configuration substitution on Unix
-and Windows. It does not prevent a trusted owner from replacing a path after an
-observation or establish strict native isolation on every platform.
-Git path and symlink preflight rejects Windows
-drive/alternate-stream colons, forbidden characters and controls, trailing
-dots/spaces, and reserved device names independently of the host path parser.
-HTTPS Git commands can select only the observed install-relative
-`git-remote-https` invocation entry and its retained canonical target. Other
-executable components beneath Git remain outside retained identity and the
-macOS backend's execution allowlist. SSH is forced through its content-observed
-absolute client and the separately custodied `omega-resolver-connect`
-companion. The fixed ProxyCommand receives the broker and target only through
-compiler-authored environment fields; no locator string enters shell syntax.
-User configuration is disabled with `-F none`, with `BatchMode`, zero password
-prompts, and strict host-key checking. It still
-consults the user's default known-host and key files, so host and credential
-custody remain ambient and unsuitable for strict admission. Those conditions
-keep the resolver diagnostic-only until strict native confinement on every
-supported platform, hostile-process custody, during-write resource ceilings,
-and opaque-receipt work land.
-
-Public requests admit only HTTPS and SSH transports. The validated request
-retains an execution profile distinct from transport-neutral hosted-repository
-lineage: an HTTPS request permits only Git's `https` protocol, and either SSH
-locator spelling permits only `ssh`. The cache key and exact metadata bind that
-profile, so normalized HTTPS and SSH spellings cannot reuse custody established
-under the other's authority. Resolved-source observations and human source-audit
-output retain the selected
-profile separately from normalized lineage. HTTP, unauthenticated `git://`, every unselected
-protocol, and HTTP redirects remain disabled; `file` exists solely in the
-explicit test-only local-repository adapter. This prevents a validated HTTPS
-request from silently acquiring SSH/file authority or a redirect-selected
-endpoint. The broker observation retains the requested endpoint, every bounded
-CONNECT outcome, and each actual connected peer. On macOS the child cannot
-bypass that route; Linux and Windows still can until their native backends deny
-direct egress. None of this pins TLS or SSH host trust.
-
-Parent-owned selected-object-graph authentication and the current macOS and
-Linux native enforcement supply real inputs to strict-receipt reconstruction
-but do not by themselves make the resolver admissible. Complete Linux/Windows strict
-isolation, hostile same-user mutation, non-Windows aggregate and all during-write resource
-ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
-custody (OWNER Q1, strict SSH custody),
-and the remaining closed receipt rows remain open.
+A dependency declaration chooses source location and revision only. It cannot
+embed secrets or choose which secret store, key, agent, or credential broker the
+host uses. `build.omg` receives compiler-owned build facets, not resolver
+environment, credentials, transport handles, or an ambient filesystem. Package
+review and lock admission remain separate decisions over the exact resolved
+source and receipt.

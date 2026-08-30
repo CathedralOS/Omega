@@ -54,26 +54,19 @@ Structural selection separately joins ABI layout, optional whole-root call,
 and return. Catalog omission rejects and ambiguity names both conflicting
 families; neither path falls back to transitional assignment.
 
-The disjoint unoptimized ranked-`u32` lane now reaches unmetered object custody
+The disjoint unoptimized ranked-`u32` lane now reaches ordinary object custody
 without borrowing its machine-code producer as a validator. Each ISA owns an
 opaque decoder result for its exact countdown body; the image boundary joins
 that decoded layout to independent rank, fixed-fuel, ABI, affine-frontier,
 cleanup, provenance, and nine-row fuel replay. The complete ranked record is
 retained on the object function.
 
-The adjacent native-fuel transform has matching small producer and replay
-entrances. Producer classification joins generic charge insertion to one ranked
-branch-rebase leaf and retains the five physical coordinates that determine the
-three control fragments. Independent image replay reconstructs those
-coordinates and consumes target-owned decoders for every hot charge, cold
-dispatch, and rebased branch. Destination branches enter charge-group starts;
-they never target a relocated semantic instruction after its charges.
-At executable-image publication, one shared ranked replay runs after the
-final-text relocation envelope for both direct and transfer-runtime images. It
-replays semantic proof/rank/ABI/frontier/fuel custody, reconstructs the exact
-nine-row source-to-charge mapping, excludes relocations from the ranked
-function, and decodes every final hot, cold, and branch fragment. Runtime
-relocations remain confined to the appended transfer/resume suffix.
+Semantic-code attribution is emitted and replayed with the ordinary function
+body. It maps semantic operations and edges to exact byte intervals without
+inserting instructions or rebasing control flow.
+At executable-image publication, ranked replay checks the ordinary final text,
+semantic proof, rank, ABI, frontier, and semantic-code attribution without a
+parallel runtime image.
 
 The mandatory lowering crate has two explicit entrances. `legalization/mod.rs`
 joins canonical source projection to independent whole-plan replay;
@@ -219,11 +212,6 @@ function-relative realization is v9, while fragment emission and fragment text
 placement are v8. Their records retain the exact selected-lowering selection
 or post-allocation optimization, not a broad optimization level.
 
-Ranked native-fuel images use the same direct and transfer-runtime carriers as
-ordinary metered functions. The ranked leaf adds validation, not a parallel
-route: both Linux x64 and Linux Arm64 images retain the five-coordinate rebase
-record through final-byte replay and canonical installation encoding.
-
 The Terminal-Psi-to-native stage now exposes its full physical composition as
 small owning entrances. Source-entry settlement replays declaration and
 calling-plan custody. Native realization then chooses the ordinary or exact
@@ -297,10 +285,9 @@ Microsoft structural-Unit call row. This does not claim general call-crossing
 allocation coverage: general scalar calls are not yet represented in the
 selected CFG.
 
-Ranked native-fuel coverage proves direct and transfer-runtime executable-image
-and installation custody on Linux x64 and Linux Arm64. It checks exact final
-metered bytes, nine charge coordinates, two x86 or three AArch64 runtime
-relocations, runtime evidence, and installation encode/decode/rejoin.
+Ranked countdown coverage proves ordinary executable-image and installation
+custody on Linux x64 and Linux Arm64, including exact final bytes and semantic-
+code attribution.
 
 The ordinary empty-selection compiler route is deliberately outside this
 optimizer custody chain. Its four-target byte and artifact-metadata baseline is

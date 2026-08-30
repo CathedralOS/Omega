@@ -6,7 +6,7 @@ mod policy;
 
 pub use guarantees::{
     ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
-    ResolverExecutionGuaranteeRow, ResolverStrictExecutionUnavailable,
+    ResolverExecutionGuaranteeRow,
 };
 pub use phase::{ResolverExecutionNetworkTransport, ResolverExecutionPhase};
 pub use policy::{

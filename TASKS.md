@@ -270,9 +270,7 @@ scanners, or receipts.
   name their FNV values as non-authoritative report/cache fingerprints while
   retaining complete provider graphs, nesting relations, arithmetic inputs,
   and admitted evidence; compact-equal graph substitutions remain structurally
-  distinct. Native-fuel transfer-runtime evidence applies the same
-  classification to its aggregate FNV beside the exact plan, unrelocated/final
-  byte rows, physical footprint, and sponsor-stack peak.
+  distinct.
   Fixed-record, conventional-sum, and first direct record-with-sum
   `ConstMaterializable` carriers now also name their layout and materialization
   FNV values as non-authoritative report fingerprints. Replay retains and
@@ -328,11 +326,7 @@ scanners, or receipts.
   requirement, operation, target/entry signature, and target machine-contract
   commitment through provider planning and runtime receipt validation.
   Compact-equal exact-target substitution changes the
-  authoritative runtime binding. Native-fuel sponsor routes now retain exact
-  transfer-code custody—plan, Psi, installed occurrence, runtime evidence, and
-  sponsor coordinate—rather than rejoining executable runtime authority by the
-  aggregate FNV; that compact value remains report-only and a compact-equal Psi
-  substitution rejects. Generic machine specializations now retain the exact
+  authoritative runtime binding. Generic machine specializations now retain the exact
   pre-substitution template encoding, normalized template and instance
   identities, exact type/const arguments, selected machine-contract
   commitments, closed-conformance commitments, and any accepted-template
@@ -364,7 +358,7 @@ scanners, or receipts.
   compatibility always compares retained exact fields/cases even when compact
   schema reports match. Build-time fixed-record and conventional-sum carriers
   have removed their remaining ambiguous compact accessor aliases.
-  Provider-execution, external-root, native-fuel, target-locator, relocation,
+  Provider-execution, external-root, target-locator, relocation,
   executable-fragment, layout-plan, typed-boundary, and generic-test compact
   accessors now likewise use explicit report or compatibility vocabulary.
   Closed conformance application SHA-256 authority now binds the complete
@@ -372,10 +366,7 @@ scanners, or receipts.
   architecture inventory scans compact-returning fingerprint accessors and
   rejects every ambiguous compact accessor; executable-fragment,
   calling-plan, state-footprint-evidence, and provider-plan accessors have now
-  cleared the migration ceiling. Native-fuel target policy also carries a
-  domain-separated SHA-256 commitment to the complete canonical transfer plan;
-  its historical plan `u64` is a report identity and cannot admit a compact-
-  equal substituted plan. Selected-provider closure/application/coverage,
+  cleared the migration ceiling. Selected-provider closure/application/coverage,
   component-progress demand, executable-TCB, and ELF dynamic-import compact
   identity fields now use explicit report vocabulary. Component-progress and
   executable-TCB admission also retain and replay `ProviderPlanDigest`; a
@@ -397,7 +388,7 @@ scanners, or receipts.
   certificate, provider plan, or installed image.
 
 - [x] **QUARANTINE-SPECULATIVE-COMPONENT-RUNTIME.** Keep component deployment,
-  executable installation, external-root, era, and native-fuel experiments
+  executable installation, external-root, and era experiments
   outside the ordinary compiler and package-manager production dependency
   graph until one real checked Omega provider is independently emitted,
   verified, installed, invoked through its boundary contract, replaced, and
@@ -543,7 +534,7 @@ Remaining:
   verified rank bound and exact exit/cycle costs. Preserve the same identity
   through Terminal encoding, abstract/target operations, selection, allocation,
   both supported ISA encoders, backward-edge relocation, object/image checks,
-  installation, and native fuel custody. Interpreter execution at an exact
+  installation, and native artifact custody. Interpreter execution at an exact
   initial value must agree with native execution and the derived schedule. A
   mutation that forwards the original rank instead of the subtraction result
   must reject as a non-decreasing ranked edge; removing rank evidence must
@@ -575,9 +566,7 @@ Remaining:
   taken positive-guard fact as the exact `1 <= remaining` subtraction premise,
   and requires producer evidence for that reconstructed site. Canonical
   semantic/proof sections execute ranks 0, 1, and 3 with exact measured costs
-  5, 11, and 23 respectively;
-  mid-cycle sponsor exhaustion resumes without replay, while the preserved
-  affine frontier remains live until the exit cleanup. A distinct opaque
+  5, 11, and 23 respectively. A distinct opaque
   interpreter verifier carrier grants no fixed-fuel, Omega, native, provider-
   installation, or mixed-operation authority; ordinary execution validation
   still returns `NonExecutableRankedScc`. Derived fixed fuel is now complete
@@ -609,55 +598,12 @@ Remaining:
   ranked authority through assignment and emits the fixed relocation-free
   countdown body for both Linux ISAs, including the one-time preheader and the
   header-targeting backward branch. Machine code retains semantic custody,
-  complete ABI/structural inputs, and all four operation plus five edge fuel
-  sites; it does not duplicate target-constant layout as evidence. Generic
-  native-fuel instrumentation now rebases this carrier's internal branches as
-  described below. Exact unmetered object replay is complete for the disjoint
-  carrier. Target-owned x86-64 and AArch64 validators independently decode the
-  rank register width, opcodes, immediates, and all three branch destinations;
-  the object boundary separately reconstructs Psi/entry identity, fixed-fuel
-  custody, the ranked graph, ABI call plan, affine frontier and cleanup, exact
-  provenance, and all nine fuel rows. It rejoins those public projections to
-  the verifier-owned semantic module, so coherent operation renumbering or an
-  extra structural-type row cannot substitute a different self-consistent
-  record. The complete ranked record survives on `ObjectFunction`, while
-  stripping that optional record still rejects. Final-image, installation, and
-  native-artifact custody are now complete for the unmetered carrier. Final-image
-  emission and source-free native-artifact validation independently replay the
-  ranked contract, target decoding, and all nine object fuel rows. Canonical
-  installation format 44 retains an explicit disjoint ranked-body tag, rejects
-  mixed body custody, round-trips it, and binds it back to the exact emitted
-  image. The canonical Terminal artifact ledger now reconstructs the complete
-  interpretable proof question for ranked modules rather than incorrectly
-  requiring the ordinary acyclic execution carrier; native and fixed-fuel
-  admission remain separate mandatory replays. The resulting native artifact
-  validates for both Linux ISAs. Ranked-aware native-fuel
-  rebasing and metered-object replay are complete. The producer retains a typed
-  five-coordinate rebase record and patches only the three target-relative
-  semantic branches; header and false-exit targets enter the first hot charge
-  at their destination site rather than
-  skipping equal-offset fuel rows. Independent image replay decodes every
-  x86-64 and AArch64 hot charge, cold dispatch, and rebased ranked branch
-  without calling producer encoders, reconstructs the rebase record, and
-  retains both semantic and metered custody. Direct native-fuel final-image,
-  installation, and source-free ranked native-artifact custody are now complete
-  for both Linux ISAs. Final-image replay independently rederives all five
-  branch coordinates from immutable semantic bytes and the nine fuel rows,
-  decodes both metered and final text, and binds the exact final symbol table.
-  Canonical format 44 rejoins the semantic ranked tag, source/metered spans,
-  target policy, all charge rows, and exact image fingerprint without
-  duplicating the derivable rebase record. The canonical native-artifact owner
-  has one deliberately bounded ranked-native-fuel realization binding canonical
-  Terminal bytes, the validated image, and its installation record under a
-  distinct strong identity. The standalone metered object-container publication
-  API was deleted once it no longer strengthened a consumer edge. Transfer-
-  runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q2 (ranked native-fuel sponsor):** honest ranked runtime
-  execution still needs a sponsor-ownership ruling: the binder requires an
-  already-owned in-object sponsor function, while the admitted ranked artifact
-  is exactly one countdown function and cannot use itself as sponsor. Native
-  ranks 0, 1, and 3 schedule comparison and the product-build retry follow that
-  ruling.
+  complete ABI/structural inputs, and exact semantic-code attribution. Target-
+  owned x86-64 and AArch64 validators independently decode the rank register,
+  opcodes, immediates, and all branch destinations. Object, final-image,
+  installation, and native-artifact replay retain the ordinary unchanged body.
+  The fixed-work theorem remains separate non-authorizing analysis evidence.
+  The resulting native artifact validates for both Linux ISAs.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
@@ -1620,13 +1566,12 @@ Remaining:
   including count bytes and decode allocation guards. The parent retains upfront
   count conversion and global collection order; exact row bytes, literal
   diagnostics, the internal-call minimum-row capacity guard, validation, and
-  admission replay remain unchanged. The ordered native fuel-
-  attribution collection now lives in a private 110-line codec. Schedule and
-  operation/edge site identities, units, ordinals, text/code spans, reserved
-  fields, count/capacity guards, literal diagnostics, and offset errors preserve
-  exact bytes and precedence; the parent retains upfront count conversion,
-  canonicality, function association, schedule validation, and admission
-  replay. The ordered privileged port-effect collection now lives in a private
+  admission replay remain unchanged. The ordered semantic-code-attribution
+  collection now lives in a private codec. Operation/edge site identities,
+  ordinals, text/code spans, reserved fields, count/capacity guards, literal
+  diagnostics, and offset errors preserve exact bytes and precedence; the
+  parent retains upfront count conversion, canonicality, function association,
+  and admission replay. The ordered privileged port-effect collection now lives in a private
   98-line codec. Machine/operation/service identities, port/value facts,
   ordinals, text/code spans, reserved bytes, count/capacity guards, literal
   diagnostics, and offset errors preserve exact bytes and precedence; the
@@ -6135,194 +6080,13 @@ Remaining:
   implementation/row and cannot appear fully derived until both applicable row
   proofs and the relevant global composition bridge are accepted. A Psi-hosted
   kernel port alone emits no ledger and supplies no reconstruction assurance.
-- **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
-  the generic terminal inspection path now independently verifies a selected
-  source closure and publishes its recomputed acyclic entry certificate, with
-  Cathedral's first timer root pinning that evidence. Installed segment
-  certificates now have the same borrowed exact-occurrence replay boundary:
-  installed-code context, artifact, and selected entry stub must still match,
-  while the retained machine/start-block/end-edge remain segment evidence and
-  cannot authorize a whole root. Whole-entry fixed-fuel composition also now
-  rejects a `TerminalSegment` row at any reachable graph position before
-  summing or fingerprinting, so an opaque or entry root cannot absorb a
-  conservative path ceiling as complete provider work. The complete canonical
-  safe-point partition now also has a non-clonable Psi carrier that independently
-  replays exact order and completeness before installation binds the whole
-  catalog to one code/artifact/entry occurrence. It remains borrowed segment
-  evidence only and grants no whole-entry, composition, bulk-charge, native-meter,
-  or publication authority. Add attributed response outcomes only when terminal
-  wait/foreign edges can derive them. Inserted native
-  metering must consume the installed exact-site attribution rows. Implement the
-  settled per-sponsor-region realization: fixed provision elides the meter only
-  when the exact installed maximum logical work fits the grant; dynamic
-  metering keeps its private per-activation context behind a target-selected
-  transport, compares before subtracting, and transfers opaque native state to
-  an independently provisioned sponsor path on insufficiency. Add transparent
-  and admitted-opaque `FuelSuspensionFree` composition, reject dynamic regions
-  without an executable exhaustion-transfer plan, and keep conservative segment
-  ceilings from replacing exact path charging. Hosted targets may interpret an
-  unavailable realization; freestanding targets reject it. Keep WCET and
-  wall-clock conversion separate. The exact sponsor-graph owner now derives a
-  sealed `FuelSuspensionFree` proof independently from numeric work: transparent
-  terminal summaries compose directly, while every opaque provider requires a
-  separate admitted suspension receipt bound to its exact provider, schedule,
-  work summary, and work-validation receipt. Missing, duplicate, stale,
-  terminal-attached, or unreachable evidence rejects. A focused native-fuel
-  owner now also validates the three settled realization outcomes. Fixed
-  provision requires the exact composed maximum logical work to fit the grant;
-  dynamic metering pins a target and schedule and requires a disjoint,
-  independently provisioned exhaustion sponsor path with both fixed provision
-  and `FuelSuspensionFree`; unavailable realization falls back only to an
-  explicitly interpreter-enabled hosted environment and rejects for hosted
-  native-only or freestanding installation. Omega object evidence now also
-  exposes a normalized read-only projection of its already byte-validated fuel
-  attribution rows and complete target. The backend now retains the exact
-  `TargetProfile` as well as its native tuple, preventing Windows and UEFI
-  policy from becoming interchangeable. A dependency-light target recipe names
-  that profile, reserved nonvolatile `RBX`/`X28` context transport, exact aligned
-  and nonoverlapping allowance/site/transfer/retry/sponsor-stack slots, opaque
-  activation save area, and transfer-plan identity; malformed layouts,
-  architecture/register mismatches, and profile drift reject. Dynamic
-  attribution validation now correctly produces a pre-install basis bound to
-  exact source bytes, terminal identity, schedule, target recipe, and ordered
-  semantic rows. Empty, noncanonical, wrong-schedule, zero-unit, out-of-range,
-  unknown-function, or duplicate semantic sites reject; zero-byte semantic
-  sites remain valid insertion points. The prior path that mislabeled an
-  already-installed unmetered artifact as dynamic evidence is removed: no
-  constructor for final installed dynamic evidence exists until charge/stub
-  insertion and independent final-byte replay land. Compact fingerprints remain
-  summary identities only. Focused x86-64 and AArch64 ISA owners now encode the
-  admitted hot charge shape directly from that recipe: `RBX` with `R10/R11` or
-  `X28` with `X16/X17`, full-width required units, unsigned strict-less-than
-  failure branch, then subtraction and allowance store only on the payable arm.
-  Equality therefore pays and leaves zero; the sequence touches no activation
-  stack. Matching per-site cold dispatch sequences now record exact operation/
-  edge kind and identity, required units, and retry code offset before loading
-  the admitted transfer entry and tail-jumping/branching without stack access.
-  This is only the site dispatcher, not the still-missing opaque-state save,
-  sponsor-stack switch, or sponsor-policy stub. Wrong transport/profile,
-  zero-unit, out-of-range displacement, and branch-range inputs reject. These
-  encoders now feed a two-pass terminal-machine transform which retains the
-  original semantic plan unchanged, inserts one hot charge before every
-  attributed site (including ordinal-distinguished zero-byte sites), and
-  appends one cold dispatcher per site after the semantic function end. Exact
-  x86 relative and AArch64 PC-relative failure targets and absolute cross-
-  function `.text` retry offsets are derived with checked arithmetic. A
-  separate terminal-object owner first validates the immutable semantic object,
-  then reconstructs every hot/cold byte and charge record independently;
-  producer byte, offset, size, function-order, and record drift reject. This
-  replay-validated carrier now owns a distinct executable object view: function
-  symbols cover the full metered spans, and typed internal-call relocation
-  fields move through one checked source-to-metered offset map while retaining
-  their exact symbol handles and semantic owners. Object-container and direct-
-  image emission consume only those replayed bytes; x86-64 and AArch64 final
-  images require complete compiler-function region classification and the exact
-  final relocation envelope. The carrier deliberately does not masquerade as
-  the existing semantic `ObjectArtifact`: effect, settlement, stack,
-  cleanup, return, and installation offsets still name the immutable source
-  evidence. A dependency-light final-image projection now rejoins the exact
-  source attribution, target recipe, replayed hot/semantic/cold intervals,
-  unrelocated metered text, and relocation-materialized final text with one
-  exact installed-code receipt. This is the sole constructor for installed
-  dynamic attribution; missing/reordered rows, source drift, overlapping or
-  out-of-range charge intervals, target/profile drift, and either side of an
-  installed byte mismatch reject. Installed dynamic-meter attribution now
-  retains the exact source-basis fingerprint beside its source-text identity
-  and exposes an independent replay boundary. Replay rederives the admitted
-  target-profile plan and ordered semantic site rows, checks source, metered,
-  and final bytes plus hot/cold intervals against the exact installed-code
-  occurrence, and reconstructs both basis and installed fingerprints. Source,
-  policy, site/order, charge, final-text, or occurrence drift rejects. This
-  remains attribution equality only and grants no meter insertion, transfer,
-  root, lease, or publication authority. Linux x86-64 now also has a separately
-  replayed transfer-runtime artifact: the target encoder emits the exact
-  opaque-state save/restore, sponsor-stack switch/call, and `.text`-relative
-  retry jump; the image owner appends exactly two compiler-function symbols and
-  two typed `rel32` relocations, replays the complete object extension, verifies
-  both resolved targets in final text, and publishes distinct unrelocated/final
-  byte evidence plus the physical state footprint and 24-byte sponsor-stack
-  peak. Byte, symbol, span, relocation, target-policy, and encoder drift reject.
-  A dependency-light full-image view now lets external-root installation bind
-  that exact plan, both complete unrelocated/final text coordinates, both
-  replayed runtime intervals, terminal identity, `InstalledCodeContext`, and
-  artifact into sealed `InstalledNativeFuelTransferCode` custody. Wrong profile,
-  interval bytes, complete image bytes, or installed occurrence reject. A
-  separate installed sponsor-route owner now rejoins the replayed sponsor-call
-  coordinate to the exact selected root/provider entry and installed-code
-  context, then verifies that root's native-fuel column is the identical fixed
-  provision retained by the independently derived `FuelSuspensionFree` proof.
-  Only exact transfer-code custody plus that exact route can construct
-  `InstalledNativeFuelTransferRuntime`; adjacent plan fields, compact provider
-  identities, wrong entry coordinates, and alternate provisions reject.
-  Root admission now retains the selected native realization against the exact
-  logical-fuel demand, provision, grant, installed-code context, and artifact.
-  Existing fixed roots automatically produce the exact fixed realization;
-  dynamic plan construction now rejects transfer identities that differ from
-  the admitted target recipe. Dynamic admission requires both final
-  metered-artifact attribution and sealed installed executable-transfer custody;
-  its constructor is now reachable only through the independently sealed byte
-  and sponsor-route joins, so opaque validation receipt identifiers still cannot
-  admit an incomplete dynamic path. Dynamic attribution identity also binds the
-  exact fixed sponsor provision and `FuelSuspensionFree` composition, so a
-  different sponsor path cannot retain the same published summary.
-  Fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
-  retains the exact sealed value, while the address-free installed root manifest
-  publishes its kind and replay-bound fingerprint. Terminal installation format
-  39 takes the explicit dual-coordinate route: ordinary function, effect,
-  settlement, and fuel rows retain immutable semantic/source coordinates, while
-  an optional native-fuel section commits the exact target recipe and source
-  fingerprint, one source-to-metered function-span map, and the ordered hot/
-  semantic/cold charge catalog. Plain images require that section to be absent.
-  Native builders, codecs, and image rejoin validation reject target-policy,
-  source, function-map, charge-row, or physical-coordinate drift independently.
-  A second optional native-fuel section carries the transfer runtime without
-  relabeling those semantic rows: it commits domain-separated fingerprints and
-  lengths for the complete unrelocated/final text, the exact sponsor-call text
-  coordinate, the canonical structural transfer plan, dual transfer/resume
-  bytes, physical state footprint, and realized sponsor-stack peak. Decode
-  reconstructs the sealed plan/evidence and rejects derived-identity drift;
-  installation replay rejoins both full-text coordinates to the exact image.
-  Plain and metered-only validators reject the section, and the report grants no
-  executable authority.
-  A dependency-light transfer-runtime owner now defines and validates the exact
-  profile/target/context projection, complete naturally aligned activation save
-  slots, interrupted/saved/restored state sets, independent sponsor-stack
-  ceiling, distinct transfer/resume section-symbol identities, dual
-  unrelocated/final text spans and bytes, physical state footprint, and realized
-  stack peak. Canonical fingerprints change under every valid structural or
-  evidence mutation, while malformed recipes, gaps, overlaps, duplicate saved
-  values, state drift, entry substitution, byte/span drift, and resource
-  overruns reject. These values remain dependency-light plan/report evidence
-  rather than installation authority. External-root planning now admits that
-  structural projection only through a sealed value joined to the exact
-  admitted target policy; arbitrary transfer-plan and validation-receipt
-  identities no longer select dynamic metering. The Linux x86-64 target owner
-  now encodes the plan's exact activation save, sponsor-stack switch and call,
-  restore, `.text`-base retry, and tail jump. Its product exposes the two typed
-  relocation fields, exact state footprint, and 24-byte realized sponsor-stack
-  peak; profile, transport, reserved-register, displacement, alignment, and
-  ceiling drift reject. These remain unrelocated target bytes, not executable
-  custody. The AArch64 target owner now supplies the corresponding Linux X28
-  transfer/resume encoder with exact `BL` and paired `ADRP`/`ADD` relocation
-  sites, physical state evidence, and a 16-byte sponsor-stack peak; scratch,
-  transport, profile, slot, alignment, and immediate drift reject. The remaining
-  AArch64 object/image join is now live: it appends and independently replays
-  exact `Aarch64Branch26`, `Aarch64Page21`, and `Aarch64PageOffset12`
-  relocations, emits through the ELF AArch64 path, and decodes final `BL` plus
-  `ADRP`/`ADD` instructions to require the exact sponsor target and `.text`
-  base. An explicit deployed dynamic-root constructor now selects the dynamic
-  realization from the exact root fuel column and execution environment, binds
-  the sealed attribution and transfer runtime against the exact installed-code
-  occurrence, and then reuses root/provider/slot/trust admission; the ordinary
-  constructor remains fixed-only and substituted installed halves reject. The
-  deployment coordinator now carries both sealed installed halves into that
-  constructor and the exact claimed root ledger. Rejection returns the complete
-  non-clonable input for retry without consuming the session. Success retains
-  the live `InstalledExternalRoot` plus disjoint ledger access in one
-  non-self-referential carrier, and explicit removal transactionally returns
-  slot authority or the carrier and receipt for retry. A relocation-free native
-  canary covers wrong-profile rejection, exact retry, observable installation,
-  and teardown without weakening relocatable terminal theorem binding.
+- **IRFUEL.** Keep logical fuel at evaluator and analysis boundaries.
+  Entry/segment certificates may cover loops, build-time evaluation, static
+  work reports, and WCET inputs. Installed-code correspondence may bind such
+  a theorem to exact bytes as non-authorizing PCC evidence. Native lowering
+  inserts no charges, allowance context, exhaustion dispatcher, transfer or
+  resume stub, and no sponsor route. Failure to derive a finite bound reports
+  `Unknown` or `NoFiniteGuarantee`; it does not change runtime execution.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
@@ -10142,7 +9906,7 @@ Remaining N6/N8 work:
   evidence. Runtime Booleans, machine operations/contracts, native lowering,
   and proof-kernel discharge remain open under
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
-  Proof-kernel discharge is now **OWNER-BLOCKED — Q4 (proof-only FloatMeaning
+  Proof-kernel discharge is now **OWNER-BLOCKED — Q2 (proof-only FloatMeaning
   equality ownership)** rather than an implementation task: the kernel accepts only scalar-term equality, with
   no proof-only `FloatMeaning`/`ProofValueId` term; independently authored
   projection invocations do not retain a shared landed-source identity; and

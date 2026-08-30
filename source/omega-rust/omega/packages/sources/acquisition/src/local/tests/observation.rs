@@ -50,7 +50,7 @@ fn local_resolution_observation_binds_request_spelling_and_limits() {
         tighter.resolution_observation().identity(),
         "accepted source ceilings must remain in final provenance"
     );
-    assert_eq!(ordinary.resolution_observation().schema_version(), 1);
+    assert_eq!(ordinary.resolution_observation().schema_version(), 2);
     assert_eq!(ordinary.resolution_observation().identity().len(), 64);
 
     make_tree_owner_writable(&cache);

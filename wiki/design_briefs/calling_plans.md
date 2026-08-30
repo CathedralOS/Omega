@@ -1549,66 +1549,11 @@ terminal-Psi maximum-logical-work and safe-point checking in
 not a general symbolic cost model. Migration of the remaining
 provider-authored hard-root rows remains.
 
-The normalized native fuel realization is likewise plan data, not Omega source
-syntax. For each dynamically metered sponsor region, a `NativeFuelPlan` binds:
-
-- the exact fuel schedule and installed attribution rows;
-- one sponsor-owned per-activation context slot;
-- the target transport used to reach it;
-- the cold exhaustion-transfer entry and its stack/state plan; and
-- the installed root and provider closure to which the plan applies.
-
-The context is the semantic home of the mutable allowance. A target may keep a
-pointer to it in a reserved non-volatile register, pass it through a hidden
-root ABI position, or use another validated target mechanism. The selected
-transport is fingerprinted target policy, not part of ordinary machine
-signatures. If a non-volatile register is selected, allocation reserves it and
-every emitted internal call, boundary adapter, context switch, callback entry,
-and interrupt entry must preserve, spill, restore, or replace it according to
-the active sponsor region. A foreign ABI's preservation rule protects the
-register value; it does not authorize foreign code to mutate the pointed-to
-context.
-
-Each dynamic charge compares `remaining` with the site's required units before
-performing either the subtraction or the semantic work. `remaining == required`
-is payable and leaves zero. Insufficiency performs neither action. The cold
-path identifies the exact unpaid `OperationId` or `EdgeId` directly or through
-the validated installed site map and preserves the complete opaque native
-activation. Restoring that state at the same pre-charge check is the only fuel
-resume operation; no source-visible continuation or raw code address exists.
-
-Installed transfer-code custody and installed sponsor-route authority are
-separate joins. The former binds the complete compiler-authored and
-relocation-materialized image, the replayed transfer/resume intervals, and the
-exact installed-code context. The latter must bind the resolved sponsor call
-target to the selected root/provider entry and its fixed,
-`FuelSuspensionFree` provision. Possessing the bytes, an arena-local sponsor
-symbol, or compact provider receipt identities alone grants no executable
-transfer authority. The external-root implementation preserves those as two
-sealed values and constructs installed transfer-runtime custody only after the
-entry coordinate, code context, artifact, provision, and suspension proof all
-rejoin exactly.
-The component-deployment owner now consumes that runtime together with the
-separately installed attribution plan when admitting a dynamic root. Failure
-returns the complete input for retry; success returns a live-root carrier that
-keeps the exact root and ledger together until consuming teardown returns its
-slot authority.
-
-The exhaustion-transfer plan must be executable without scheduling machinery,
-stack, locks, or authority held by the suspended activation. Its minimal
-compiler/target stub is outside logical-fuel charging and has separately
-admitted physical resources. An authored sponsor policy uses another sponsor
-region whose complete maximum logical work is fixed-provisioned and whose
-closure is `FuelSuspensionFree`; it never consumes the empty activation meter.
-An interrupt or critical root therefore normally selects fixed provision, but
-a target may admit dynamic metering when this stronger transfer plan is proved.
-
-Provider work and suspension are independent columns. A transparent provider
-derives both from its closure. An opaque provider publishes an admitted work
-summary under the exact fuel schedule and separately publishes whether it is
-fuel-suspension-free. The summary may be charged at the boundary, but it cannot
-establish the suspension fact. A root requiring `FuelSuspensionFree` rejects an
-opaque edge without the latter guarantee.
+Maximum-logical-work summaries and installed-code correspondence are evidence,
+not calling-plan inputs. They may support build-time bounds, reports, or WCET
+analysis, but they reserve no register, add no hidden ABI position, select no
+sponsor, and authorize no transfer or resume path. Calling plans describe the
+program's real machine-state and boundary behavior only.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C, Policy>` policy may publish `InterruptReturn`, a stack class,
@@ -1734,19 +1679,9 @@ no-plan paths exist only as differential oracles.
 
 Remaining work is to derive inbound and outbound machinery from the same plan,
 add state-ceiling-aware selection/allocation, and validate composed footprints
-at the final artifact. Native fuel target policy, reserved context-register
-transport, independently replayed hot charges/cold dispatchers, installed
-`FuelSuspensionFree` composition, and canonical format-44 installation evidence
-are live. The installation record keeps semantic/source rows unchanged and
-adds an optional target recipe, source fingerprint, source-to-metered function
-map, and exact hot/semantic/cold charge catalog; plain-image records require the
-section to be absent. Linux x86-64 also has a compiler-owned transfer/resume
-encoder and a distinct replayed image product: it saves and restores the exact
-admitted opaque state, switches to the sponsor stack, calls one typed sponsor
-symbol, reconstructs the retry address from its `.text` offset, and retains
-unrelocated/final entry bytes, physical footprint, and sponsor-stack peak.
-Installed transfer custody, the exact authored sponsor-policy join, and the
-other target-runtime encoders remain open.
+at the final artifact. Logical-work reports and installed-code correspondence
+remain non-authorizing evidence outside calling-plan and native-runtime
+semantics.
 
 ## Still open
 

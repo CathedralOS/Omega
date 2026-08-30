@@ -251,10 +251,10 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
         &[0x0f, 0x0b]
     );
     assert!(matches!(
-        x86.functions[0].fuel_attribution[2].site,
-        NativeFuelSite::Edge(edge) if edge == nominal_return_edge
+        x86.functions[0].semantic_code_attribution[2].site,
+        SemanticCodeSite::Edge(edge) if edge == nominal_return_edge
     ));
-    assert_eq!(x86.functions[0].fuel_attribution[2].byte_count, 0);
+    assert_eq!(x86.functions[0].semantic_code_attribution[2].byte_count, 0);
 
     let arm_plan = plan_for(NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0));
     let arm = emit_machine_code(&arm_plan).expect("AArch64 exit_group emission");
@@ -432,7 +432,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
             psi_core::IntegerValue::Signed(37)
         );
         assert!(exit.byte_sequence_arguments.is_empty());
-        assert_eq!(function.fuel_attribution.len(), 5);
+        assert_eq!(function.semantic_code_attribution.len(), 5);
     }
 
     for (target, destination) in [
@@ -924,7 +924,7 @@ fn bounded_boolean_control_duplicates_edge_owned_cleanup_at_all_three_leaves() {
         assert_eq!(root.scalar_control_affine_cleanups.len(), 3);
         assert_eq!(root.internal_calls.len(), 3);
         assert_eq!(root.internal_unit_calls.len(), 3);
-        assert_eq!(root.fuel_attribution.len(), 3);
+        assert_eq!(root.semantic_code_attribution.len(), 3);
         assert_eq!(
             root.scalar_control_affine_cleanups
                 .iter()
@@ -960,16 +960,19 @@ fn bounded_boolean_control_duplicates_edge_owned_cleanup_at_all_three_leaves() {
                 } if edge == cleanup.psi_edge
             ));
             assert_eq!(
-                root.fuel_attribution[ordinal].site,
-                NativeFuelSite::Edge(cleanup.psi_edge)
+                root.semantic_code_attribution[ordinal].site,
+                SemanticCodeSite::Edge(cleanup.psi_edge)
             );
-            assert_eq!(root.fuel_attribution[ordinal].operation_ordinal, ordinal);
             assert_eq!(
-                root.fuel_attribution[ordinal].code_offset,
+                root.semantic_code_attribution[ordinal].operation_ordinal,
+                ordinal
+            );
+            assert_eq!(
+                root.semantic_code_attribution[ordinal].code_offset,
                 cleanup.code_offset
             );
             assert_eq!(
-                root.fuel_attribution[ordinal].byte_count,
+                root.semantic_code_attribution[ordinal].byte_count,
                 cleanup.byte_count
             );
             match target.architecture {
@@ -1900,21 +1903,18 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
     assert_eq!(leaf.boundary_settlements[0].arguments, settlement_arguments);
     assert_eq!(leaf.port_effects.len(), 1);
     assert_eq!(leaf.port_effects[0].service, realization.service);
-    assert_eq!(leaf.fuel_attribution.len(), 3);
+    assert_eq!(leaf.semantic_code_attribution.len(), 3);
     assert_eq!(
-        leaf.fuel_attribution
+        leaf.semantic_code_attribution
             .iter()
-            .map(|row| (row.site, row.units, row.code_offset, row.byte_count))
+            .map(|row| (row.site, row.code_offset, row.byte_count))
             .collect::<Vec<_>>(),
         [
-            (NativeFuelSite::Operation(port_operation), 1, 0, 27,),
-            (NativeFuelSite::Operation(settlement_operation), 1, 27, 0,),
-            (NativeFuelSite::Edge(leaf_return), 1, 27, 1),
+            (SemanticCodeSite::Operation(port_operation), 0, 27),
+            (SemanticCodeSite::Operation(settlement_operation), 27, 0),
+            (SemanticCodeSite::Edge(leaf_return), 27, 1),
         ]
     );
-    assert!(leaf.fuel_attribution.iter().all(|row| {
-        row.schedule == psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity()
-    }));
 }
 
 #[test]
@@ -2267,10 +2267,10 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
     assert_eq!(instructions[7], 0xf940_0bfe); // ldr x30, [sp, #16]
     assert_eq!(instructions[8], 0x9100_83ff); // add sp, sp, #32
     assert_eq!(instructions[9], 0xd65f_03c0); // ret x30
-    assert_eq!(caller.fuel_attribution[0].code_offset, 16);
-    assert_eq!(caller.fuel_attribution[0].byte_count, 12);
-    assert_eq!(caller.fuel_attribution[1].code_offset, 28);
-    assert_eq!(caller.fuel_attribution[1].byte_count, 12);
+    assert_eq!(caller.semantic_code_attribution[0].code_offset, 16);
+    assert_eq!(caller.semantic_code_attribution[0].byte_count, 12);
+    assert_eq!(caller.semantic_code_attribution[1].code_offset, 28);
+    assert_eq!(caller.semantic_code_attribution[1].byte_count, 12);
 }
 
 #[test]

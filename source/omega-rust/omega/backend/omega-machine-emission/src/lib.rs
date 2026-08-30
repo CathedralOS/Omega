@@ -18,7 +18,7 @@ use omega_machine_code::{
 };
 use omega_machine_code::{
     BoundaryResultRecord, BoundarySettlementRecord, MachineCodeFunction, MachineCodePlan,
-    NativeFuelAttribution, NativeFuelSite, ScalarControlFlowEvidence, StructuralReturnRecord,
+    ScalarControlFlowEvidence, SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord,
     derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
@@ -34,9 +34,6 @@ use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 
 mod x86_fma;
 pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};
-
-mod native_fuel;
-pub use native_fuel::{NativeFuelInstrumentationError, instrument_native_fuel};
 
 mod ranked_countdown;
 
@@ -149,7 +146,7 @@ fn emit_function(
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut unit_affine_cleanup = None;
-    let mut fuel_attribution = Vec::new();
+    let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut structural_return = None;
@@ -175,7 +172,7 @@ fn emit_function(
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
-            fuel_attribution = emitted.fuel_attribution;
+            semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
             unit_stack = Some(emitted.stack);
@@ -189,7 +186,7 @@ fn emit_function(
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
-            fuel_attribution = emitted.fuel_attribution;
+            semantic_code_attribution = emitted.semantic_code_attribution;
             unit_stack = Some(emitted.stack);
             unit_parameter_homes = emitted.parameter_homes;
             unit_parameters = emitted.parameters;
@@ -225,18 +222,14 @@ fn emit_function(
                 omega_x86_encoding::encode_immediate_port_read_u8(realization.port).to_vec();
             let read_byte_count = bytes.len();
             bytes.push(0xc3);
-            fuel_attribution.push(NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Operation(*psi_operation),
-                units: 1,
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(*psi_operation),
                 operation_ordinal: 0,
                 code_offset: 0,
                 byte_count: read_byte_count,
             });
-            fuel_attribution.push(NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Edge(*psi_edge),
-                units: 1,
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(*psi_edge),
                 operation_ordinal: 1,
                 code_offset: read_byte_count,
                 byte_count: 1,
@@ -335,26 +328,20 @@ fn emit_function(
                 Architecture::Aarch64 => omega_isa_aarch64::encode_linux_exit_group_i32(value)
                     .map_err(|_| EmissionError::LinuxExitGroupEncoding)?,
             };
-            fuel_attribution.push(NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Operation(*constant_operation),
-                units: 1,
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(*constant_operation),
                 operation_ordinal: 0,
                 code_offset: 0,
                 byte_count: 0,
             });
-            fuel_attribution.push(NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Operation(*psi_operation),
-                units: 1,
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(*psi_operation),
                 operation_ordinal: 1,
                 code_offset: 0,
                 byte_count: bytes.len(),
             });
-            fuel_attribution.push(NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Edge(*nominal_return_edge),
-                units: 1,
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(*nominal_return_edge),
                 operation_ordinal: 2,
                 code_offset: bytes.len(),
                 byte_count: 0,
@@ -391,7 +378,7 @@ fn emit_function(
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
-            fuel_attribution = emitted.fuel_attribution;
+            semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
             unit_stack = Some(emitted.stack);
@@ -420,19 +407,15 @@ fn emit_function(
                 target.architecture,
             )?;
             for (operation_ordinal, (operation, _, _)) in trivial_affine_locals.iter().enumerate() {
-                fuel_attribution.push(NativeFuelAttribution {
-                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                    site: NativeFuelSite::Operation(*operation),
-                    units: 1,
+                semantic_code_attribution.push(SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(*operation),
                     operation_ordinal,
                     code_offset: 0,
                     byte_count: 0,
                 });
             }
-            fuel_attribution.push(NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Edge(*psi_edge),
-                units: 1,
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(*psi_edge),
                 operation_ordinal: trivial_affine_locals.len(),
                 code_offset: 0,
                 byte_count: bytes.len(),
@@ -779,7 +762,7 @@ fn emit_function(
         scalar_structural_parameters,
         scalar_structural_parameter_homes,
         ranked_u32_countdown: None,
-        fuel_attribution,
+        semantic_code_attribution,
         port_effects,
         boundary_settlements,
         structural_return,

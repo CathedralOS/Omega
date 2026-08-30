@@ -2,27 +2,21 @@ use omega_image_emission::{
     INSTALLATION_FORMAT_MARKER, InstallationError, ObjectError,
     build_feature_required_x86_fma_object_artifact, build_installation_record,
     build_installation_record_with_evidence, build_installation_record_with_provider_executions,
-    build_installation_record_with_selected_provider_plans_and_evidence,
-    build_native_fuel_installation_record, build_object_artifact, can_emit_executable_image,
-    decode_installation_record, derive_installation_stack_demand, derive_stack_demand,
-    derive_unit_stack_demand, emit_executable_image, emit_native_fuel_executable_image,
-    emit_object_container, encode_installation_record, installation_fingerprint,
-    validate_installation_record, validate_native_fuel_installation_record,
-    validate_native_fuel_plan,
+    build_installation_record_with_selected_provider_plans_and_evidence, build_object_artifact,
+    can_emit_executable_image, decode_installation_record, derive_installation_stack_demand,
+    derive_stack_demand, derive_unit_stack_demand, emit_executable_image, emit_object_container,
+    encode_installation_record, installation_fingerprint, validate_installation_record,
 };
-use omega_installation_evidence::{
-    ComponentProgressAcceptanceEvidence, NativeFuelContextLayout, NativeFuelTargetPlanProjection,
-    ProviderExecutionEvidence, SponsorContextTransport,
-};
+use omega_installation_evidence::{ComponentProgressAcceptanceEvidence, ProviderExecutionEvidence};
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, BoundarySettlementRecord, InternalCallRelocation,
-    InternalUnitCallRecord, MachineCodeFunction, MachineCodePlan, NativeFuelAttribution,
-    NativeFuelSite, PortEffectRecord, ScalarCallStackEvidence, ScalarCleanupPreservationEvidence,
-    ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlAffineCleanupRecord,
-    ScalarControlFlowEvidence, ScalarDivisionBranchEvidence, ScalarStackEvidence,
-    ScalarStackMutation, ScalarStackMutationKind, StackAdjustmentPair, UnitAffineCleanupRecord,
-    UnitCallStackEvidence, UnitParameterHomeRecord, UnitParameterRecord, UnitStackEvidence,
-    X86ScalarFmaFormat,
+    InternalUnitCallRecord, MachineCodeFunction, MachineCodePlan, PortEffectRecord,
+    ScalarCallStackEvidence, ScalarCleanupPreservationEvidence, ScalarConditionalBranchEvidence,
+    ScalarConditionalCondition, ScalarControlAffineCleanupRecord, ScalarControlFlowEvidence,
+    ScalarDivisionBranchEvidence, ScalarStackEvidence, ScalarStackMutation,
+    ScalarStackMutationKind, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
+    UnitAffineCleanupRecord, UnitCallStackEvidence, UnitParameterHomeRecord, UnitParameterRecord,
+    UnitStackEvidence, X86ScalarFmaFormat,
 };
 use omega_object_file::{
     RelocationKind, RelocationOrigin, SectionKind, SymbolKind, object_symbol_name,
@@ -306,27 +300,21 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
-                fuel_attribution: vec![
-                    NativeFuelAttribution {
-                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                        site: NativeFuelSite::Operation(constant),
-                        units: 1,
+                semantic_code_attribution: vec![
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(constant),
                         operation_ordinal: 0,
                         code_offset: 0,
                         byte_count: 0,
                     },
-                    NativeFuelAttribution {
-                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                        site: NativeFuelSite::Operation(settlement_operation),
-                        units: 1,
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(settlement_operation),
                         operation_ordinal: 1,
                         code_offset: 0,
                         byte_count: bytes.len(),
                     },
-                    NativeFuelAttribution {
-                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                        site: NativeFuelSite::Edge(nominal_return),
-                        units: 1,
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Edge(nominal_return),
                         operation_ordinal: 2,
                         code_offset: bytes.len(),
                         byte_count: 0,
@@ -479,7 +467,6 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         immediate: psi_core::IntegerValue::Signed(37),
         destination: omega_calling_conventions::MachineRegister::X86Rdi,
     };
-    let schedule = psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity();
     let plan = MachineCodePlan {
         psi: identity(),
         target,
@@ -517,43 +504,33 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                 code_offset: return_offset,
                 byte_count: 1,
             }),
-            fuel_attribution: vec![
-                NativeFuelAttribution {
-                    schedule,
-                    site: NativeFuelSite::Operation(literal_operation),
-                    units: 1,
+            semantic_code_attribution: vec![
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(literal_operation),
                     operation_ordinal: 0,
                     code_offset: 0,
                     byte_count: 0,
                 },
-                NativeFuelAttribution {
-                    schedule,
-                    site: NativeFuelSite::Operation(write_operation),
-                    units: 1,
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(write_operation),
                     operation_ordinal: 1,
                     code_offset: 0,
                     byte_count: write_bytes.len(),
                 },
-                NativeFuelAttribution {
-                    schedule,
-                    site: NativeFuelSite::Operation(constant_operation),
-                    units: 1,
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(constant_operation),
                     operation_ordinal: 2,
                     code_offset: exit_offset,
                     byte_count: 0,
                 },
-                NativeFuelAttribution {
-                    schedule,
-                    site: NativeFuelSite::Operation(exit_operation),
-                    units: 1,
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(exit_operation),
                     operation_ordinal: 3,
                     code_offset: exit_offset,
                     byte_count: exit_bytes.len(),
                 },
-                NativeFuelAttribution {
-                    schedule,
-                    site: NativeFuelSite::Edge(return_edge),
-                    units: 1,
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(return_edge),
                     operation_ordinal: 4,
                     code_offset: return_offset,
                     byte_count: 1,
@@ -660,55 +637,6 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
         build_object_artifact(&empty_function),
         Err(ObjectError::EmptyFunction(machine_id(1)))
     );
-
-    let mut stripped_ranked_custody = two_function_plan();
-    let function = &mut stripped_ranked_custody.functions[0];
-    let operations = [
-        operation_id(11),
-        operation_id(12),
-        operation_id(13),
-        operation_id(14),
-    ];
-    let edges = [
-        edge_id(11),
-        edge_id(12),
-        edge_id(13),
-        edge_id(14),
-        edge_id(15),
-    ];
-    function.provenance = TerminalPsiProvenance {
-        operations: operations.to_vec(),
-        edges: edges.to_vec(),
-    };
-    function.bytes = omega_isa_x86_64::encode_ranked_u32_countdown_in_edi().to_vec();
-    function.ranked_u32_countdown = None;
-    let schedule = psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity();
-    function.fuel_attribution = [
-        NativeFuelSite::Edge(edges[0]),
-        NativeFuelSite::Operation(operations[0]),
-        NativeFuelSite::Operation(operations[1]),
-        NativeFuelSite::Edge(edges[1]),
-        NativeFuelSite::Operation(operations[2]),
-        NativeFuelSite::Operation(operations[3]),
-        NativeFuelSite::Edge(edges[3]),
-        NativeFuelSite::Edge(edges[2]),
-        NativeFuelSite::Edge(edges[4]),
-    ]
-    .into_iter()
-    .enumerate()
-    .map(|(operation_ordinal, site)| NativeFuelAttribution {
-        schedule,
-        site,
-        units: 1,
-        operation_ordinal,
-        code_offset: 0,
-        byte_count: 0,
-    })
-    .collect();
-    assert_eq!(
-        build_object_artifact(&stripped_ranked_custody),
-        Err(ObjectError::MissingRankedCountdownCustody(machine_id(1)))
-    );
 }
 
 #[test]
@@ -721,7 +649,9 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
         omega_target_operations::CallSiteOwner::Operation(full_width_operation);
     plan.functions[1].internal_unit_calls[0].owner =
         omega_target_operations::CallSiteOwner::Operation(full_width_operation);
-    if let NativeFuelSite::Operation(operation) = &mut plan.functions[1].fuel_attribution[0].site {
+    if let SemanticCodeSite::Operation(operation) =
+        &mut plan.functions[1].semantic_code_attribution[0].site
+    {
         *operation = full_width_operation;
     }
     let artifact = build_object_artifact(&plan).expect("terminal object artifact");
@@ -772,154 +702,7 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
 
     let record = build_installation_record(&image, ProfileDecisionId::new(1).unwrap())
         .expect("installation record");
-    assert!(
-        record.native_fuel().is_none(),
-        "plain images keep the native-fuel carrier canonically absent"
-    );
     validate_installation_record(&record, &image).expect("image binding");
-}
-
-#[test]
-fn native_fuel_object_translation_rebases_the_typed_call_and_function_symbols() {
-    let profile = TargetProfile::LinuxX64;
-    let mut plan = internal_call_plan(profile.native_target());
-    account_x86_unit_call(&mut plan);
-    let instrumented =
-        omega_machine_emission::instrument_native_fuel(plan, native_fuel_policy(profile))
-            .expect("native fuel instrumentation");
-    let validated = validate_native_fuel_plan(&instrumented).expect("native fuel object replay");
-
-    let semantic = validated.semantic_artifact();
-    let (_, source_relocation) = semantic.relocations().records().next().unwrap();
-    let (_, metered_relocation) = validated.relocations().records().next().unwrap();
-    let source_caller = &instrumented.source.functions[1];
-    let semantic_caller = &semantic.functions()[1];
-    let metered_caller = &validated.functions()[1];
-    let source_local_offset = source_relocation.offset - semantic_caller.text_offset;
-    let preceding_charges = source_caller
-        .fuel_attribution
-        .partition_point(|row| row.code_offset <= source_local_offset);
-    assert_eq!(
-        metered_relocation.offset,
-        metered_caller.text_offset
-            + source_local_offset
-            + preceding_charges * omega_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT
-    );
-    assert_eq!(metered_relocation.origin, source_relocation.origin);
-    assert_eq!(
-        metered_relocation.symbol_handle,
-        source_relocation.symbol_handle
-    );
-
-    for (semantic_function, metered_function) in
-        semantic.functions().iter().zip(validated.functions())
-    {
-        let symbol = validated
-            .object()
-            .layout
-            .symbols
-            .get(semantic_function.symbol);
-        assert_eq!(symbol.offset, metered_function.text_offset);
-        assert_eq!(symbol.size, metered_function.byte_count);
-    }
-
-    let relocation_offset = metered_relocation.offset;
-    let unrelocated_field = &validated.text_bytes()[relocation_offset..relocation_offset + 4];
-    let image =
-        emit_native_fuel_executable_image(&validated, 3).expect("metered Linux x86-64 image");
-    assert_eq!(image.target_policy(), native_fuel_policy(profile));
-    assert_eq!(image.functions(), validated.functions());
-    assert_ne!(
-        &image.output().final_text_bytes[relocation_offset..relocation_offset + 4],
-        unrelocated_field
-    );
-    assert_eq!(image.output().final_image_relocations, 1);
-    assert_eq!(
-        image
-            .output()
-            .compiler_text_validation
-            .expect("metered relocation envelope")
-            .text_relocation_count,
-        1
-    );
-
-    let record = build_native_fuel_installation_record(&image, ProfileDecisionId::new(1).unwrap())
-        .expect("native-fuel installation record");
-    let installed = record
-        .native_fuel()
-        .expect("metered image retains dual-coordinate evidence");
-    assert_eq!(installed.target_policy(), image.target_policy());
-    assert_eq!(installed.functions().len(), semantic.functions().len());
-    assert_eq!(installed.charges().len(), semantic.fuel_attribution().len());
-    for ((coordinates, source), metered) in installed
-        .functions()
-        .iter()
-        .zip(semantic.functions())
-        .zip(image.functions())
-    {
-        assert_eq!(coordinates.machine, source.machine);
-        assert_eq!(coordinates.source_text_offset, source.text_offset);
-        assert_eq!(coordinates.source_byte_count, source.byte_count);
-        assert_eq!(coordinates.metered_text_offset, metered.text_offset);
-        assert_eq!(coordinates.metered_byte_count, metered.byte_count);
-        assert_eq!(
-            coordinates.metered_semantic_end_offset,
-            metered.semantic_end_offset
-        );
-    }
-    let encoded = encode_installation_record(&record).expect("encode format 42");
-    let decoded = decode_installation_record(&encoded).expect("decode format 42");
-    assert_eq!(decoded, record);
-    validate_native_fuel_installation_record(&decoded, &image)
-        .expect("rejoin exact native-fuel image");
-
-    let fingerprint_offset = encoded
-        .windows(installed.source_text_fingerprint().as_bytes().len())
-        .position(|window| window == installed.source_text_fingerprint().as_bytes())
-        .expect("source fingerprint in canonical row");
-    assert_eq!(
-        encoded
-            .windows(installed.source_text_fingerprint().as_bytes().len())
-            .filter(|window| *window == installed.source_text_fingerprint().as_bytes())
-            .count(),
-        1
-    );
-
-    let mut changed_source = encoded.clone();
-    changed_source[fingerprint_offset] ^= 1;
-    let changed_source =
-        decode_installation_record(&changed_source).expect("canonical changed fingerprint");
-    assert_eq!(
-        validate_native_fuel_installation_record(&changed_source, &image),
-        Err(InstallationError::NativeFuelImageMismatch)
-    );
-
-    let mut changed_target_recipe = encoded.clone();
-    changed_target_recipe[fingerprint_offset - 1] ^= 1;
-    let changed_target_recipe = decode_installation_record(&changed_target_recipe)
-        .expect("canonical changed target recipe");
-    assert_eq!(
-        validate_native_fuel_installation_record(&changed_target_recipe, &image),
-        Err(InstallationError::NativeFuelImageMismatch)
-    );
-
-    let first_function = fingerprint_offset + 32 + 4;
-    let first_metered_offset = first_function + 8 + 8 + 8;
-    let mut changed_metered_coordinates = encoded.clone();
-    changed_metered_coordinates[first_metered_offset] ^= 1;
-    assert_eq!(
-        decode_installation_record(&changed_metered_coordinates),
-        Err(InstallationError::NonCanonicalNativeFuelFunctions)
-    );
-
-    let charge_count = first_function + installed.functions().len() * 48;
-    let first_charge_units = charge_count + 4 + 8 + 4 + 4 + 8;
-    let mut changed_charge = encoded;
-    changed_charge[first_charge_units] ^= 1;
-    assert_eq!(
-        decode_installation_record(&changed_charge),
-        Err(InstallationError::NativeFuelAttributionClosureMismatch)
-    );
 }
 
 #[test]
@@ -1073,7 +856,7 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
         .as_mut()
         .unwrap();
     cleanup.code_offset = return_offset;
-    unclaimed_adjustment.functions[1].fuel_attribution[1].code_offset = return_offset;
+    unclaimed_adjustment.functions[1].semantic_code_attribution[1].code_offset = return_offset;
     assert_eq!(
         build_object_artifact(&unclaimed_adjustment),
         Err(ObjectError::UnclaimedUnitStackAdjustment {
@@ -1097,8 +880,8 @@ fn object_boundary_rejects_drifted_unit_stack_evidence() {
     let caller = &mut unclaimed_aarch64_adjustment.functions[1];
     caller.internal_calls[0].offset = 16;
     caller.internal_unit_calls[0].byte_count = 12;
-    caller.fuel_attribution[0].byte_count = 12;
-    caller.fuel_attribution[1].code_offset = 20;
+    caller.semantic_code_attribution[0].byte_count = 12;
+    caller.semantic_code_attribution[1].code_offset = 20;
     let cleanup = caller.unit_affine_cleanup.as_mut().unwrap();
     cleanup.code_offset = 20;
     cleanup.byte_count = 12;
@@ -2329,7 +2112,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
-                fuel_attribution: Vec::new(),
+                semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
@@ -2411,7 +2194,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "9af33f97b4ae96accbb61179446ea2950989f591facc599f51afb40e313884b3"
+        "b3710cf922e8fb465ee48ffafc0b9c3d8b29fa3fa8d2ac6b812173bdad3c6184"
     );
 
     let mut changed_plan = plan;
@@ -2609,27 +2392,21 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
             unit_affine_cleanup: None,
-            fuel_attribution: vec![
-                NativeFuelAttribution {
-                    schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
-                    site: NativeFuelSite::Operation(port_operation),
-                    units: 1,
+            semantic_code_attribution: vec![
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(port_operation),
                     operation_ordinal: 0,
                     code_offset: 0,
                     byte_count: 27,
                 },
-                NativeFuelAttribution {
-                    schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
-                    site: NativeFuelSite::Operation(settlement_operation),
-                    units: 1,
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(settlement_operation),
                     operation_ordinal: 1,
                     code_offset: 27,
                     byte_count: 0,
                 },
-                NativeFuelAttribution {
-                    schedule: psi_core::FuelScheduleIdentity::new(1).unwrap(),
-                    site: NativeFuelSite::Edge(edge_id(1)),
-                    units: 1,
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(edge_id(1)),
                     operation_ordinal: 2,
                     code_offset: 27,
                     byte_count: 1,
@@ -2669,15 +2446,23 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         }],
     };
     let artifact = build_object_artifact(&plan).expect("effect artifact");
-    assert_eq!(artifact.fuel_attribution().len(), 3);
-    assert_eq!(artifact.fuel_attribution()[1].attribution.byte_count, 0);
+    assert_eq!(artifact.semantic_code_attribution().len(), 3);
+    assert_eq!(
+        artifact.semantic_code_attribution()[1]
+            .attribution
+            .byte_count,
+        0
+    );
     assert_eq!(artifact.port_effects()[0].effect.service, service);
     assert_eq!(
         artifact.boundary_settlements()[0].settlement.realization,
         realization.into()
     );
     let image = emit_executable_image(&artifact, 3).expect("effect image");
-    assert_eq!(image.fuel_attribution(), artifact.fuel_attribution());
+    assert_eq!(
+        image.semantic_code_attribution(),
+        artifact.semantic_code_attribution()
+    );
     assert_eq!(
         build_installation_record(&image, ProfileDecisionId::new(1).unwrap()),
         Err(InstallationError::ProviderExecutionClosureMismatch)
@@ -2689,13 +2474,6 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         build_object_artifact(&wrong_bytes),
         Err(ObjectError::PortEffectBytesMismatch { .. })
     ));
-    let mut wrong_schedule = plan.clone();
-    wrong_schedule.functions[0].fuel_attribution[0].schedule =
-        psi_core::FuelScheduleIdentity::new(2).unwrap();
-    assert_eq!(
-        build_object_artifact(&wrong_schedule),
-        Err(ObjectError::InvalidFuelAttribution(machine_id(1)))
-    );
     let mut duplicate_completion_claim = plan.clone();
     duplicate_completion_claim.functions[0].boundary_settlements[0].arguments = vec![
         StructuralArgument {
@@ -2785,7 +2563,7 @@ fn two_function_plan() -> MachineCodePlan {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
-                fuel_attribution: Vec::new(),
+                semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
@@ -2812,7 +2590,7 @@ fn two_function_plan() -> MachineCodePlan {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
-                fuel_attribution: Vec::new(),
+                semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
@@ -2884,7 +2662,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
-                fuel_attribution: Vec::new(),
+                semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
@@ -2917,7 +2695,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
-                fuel_attribution: Vec::new(),
+                semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
                 boundary_settlements: Vec::new(),
                 scalar_affine_cleanup: None,
@@ -3095,14 +2873,12 @@ fn scalar_three_leaf_cleanup_plan() -> MachineCodePlan {
         byte_offset: 0,
         indirect: false,
     }];
-    function.fuel_attribution = [(10, 21, 19), (11, 45, 19), (12, 69, 19)]
+    function.semantic_code_attribution = [(10, 21, 19), (11, 45, 19), (12, 69, 19)]
         .into_iter()
         .enumerate()
         .map(
-            |(ordinal, (edge, code_offset, byte_count))| NativeFuelAttribution {
-                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                site: NativeFuelSite::Edge(edge_id(edge)),
-                units: 1,
+            |(ordinal, (edge, code_offset, byte_count))| SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(edge_id(edge)),
                 operation_ordinal: ordinal,
                 code_offset,
                 byte_count,
@@ -3522,24 +3298,20 @@ fn account_x86_unit_call(plan: &mut MachineCodePlan) {
         code_offset: 0,
         byte_count: 13,
     }];
-    caller.fuel_attribution = vec![
-        NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Operation(
+    caller.semantic_code_attribution = vec![
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(
                 caller.internal_calls[0]
                     .owner
                     .operation()
                     .expect("ordinary call owner"),
             ),
-            units: 1,
             operation_ordinal: 0,
             code_offset: 0,
             byte_count: 13,
         },
-        NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Edge(caller.provenance.edges[0]),
-            units: 1,
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(caller.provenance.edges[0]),
             operation_ordinal: 1,
             code_offset: 13,
             byte_count: 1,
@@ -3670,10 +3442,10 @@ fn promote_x86_cleanup_to_scalar(caller: &mut MachineCodeFunction) {
     });
     caller.scalar_structural_parameters = std::mem::take(&mut caller.unit_parameters);
     caller.scalar_structural_parameter_homes = std::mem::take(&mut caller.unit_parameter_homes);
-    caller.fuel_attribution[0].code_offset += inserted_prefix;
-    caller.fuel_attribution[0].byte_count += 9;
+    caller.semantic_code_attribution[0].code_offset += inserted_prefix;
+    caller.semantic_code_attribution[0].byte_count += 9;
     let cleanup_fuel = caller
-        .fuel_attribution
+        .semantic_code_attribution
         .last_mut()
         .expect("cleanup edge fuel");
     cleanup_fuel.code_offset = cleanup_start;
@@ -3741,24 +3513,20 @@ fn account_aarch64_unit_call(plan: &mut MachineCodePlan) {
         code_offset: 8,
         byte_count: 4,
     }];
-    caller.fuel_attribution = vec![
-        NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Operation(
+    caller.semantic_code_attribution = vec![
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(
                 caller.internal_calls[0]
                     .owner
                     .operation()
                     .expect("ordinary call owner"),
             ),
-            units: 1,
             operation_ordinal: 0,
             code_offset: 8,
             byte_count: 4,
         },
-        NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Edge(caller.provenance.edges[0]),
-            units: 1,
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(caller.provenance.edges[0]),
             operation_ordinal: 1,
             code_offset: 12,
             byte_count: 12,
@@ -3851,19 +3619,15 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 foreign_calls: Vec::new(),
                 internal_unit_calls: vec![operation_custody(operation_id(1), machine_id(2))],
                 unit_affine_cleanup: Some(empty_return(edge_id(1))),
-                fuel_attribution: vec![
-                    NativeFuelAttribution {
-                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                        site: NativeFuelSite::Operation(operation_id(1)),
-                        units: 1,
+                semantic_code_attribution: vec![
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(operation_id(1)),
                         operation_ordinal: 0,
                         code_offset: 0,
                         byte_count: 13,
                     },
-                    NativeFuelAttribution {
-                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                        site: NativeFuelSite::Edge(edge_id(1)),
-                        units: 1,
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Edge(edge_id(1)),
                         operation_ordinal: 1,
                         code_offset: 13,
                         byte_count: 1,
@@ -3900,10 +3664,8 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     byte_count: 1,
                     ..empty_return(edge_id(2))
                 }),
-                fuel_attribution: vec![NativeFuelAttribution {
-                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                    site: NativeFuelSite::Edge(edge_id(2)),
-                    units: 1,
+                semantic_code_attribution: vec![SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(edge_id(2)),
                     operation_ordinal: 0,
                     code_offset: 0,
                     byte_count: 1,
@@ -3986,10 +3748,8 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     code_offset: 0,
                     byte_count: 14,
                 }),
-                fuel_attribution: vec![NativeFuelAttribution {
-                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                    site: NativeFuelSite::Edge(edge_id(3)),
-                    units: 1,
+                semantic_code_attribution: vec![SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(edge_id(3)),
                     operation_ordinal: 0,
                     code_offset: 0,
                     byte_count: 14,
@@ -4071,19 +3831,17 @@ fn two_call_edge_owned_cleanup_plan() -> MachineCodePlan {
         code_offset: 13,
         byte_count: 13,
     });
-    drop.fuel_attribution.insert(
+    drop.semantic_code_attribution.insert(
         1,
-        NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Operation(second_operation),
-            units: 1,
+        SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(second_operation),
             operation_ordinal: 1,
             code_offset: 13,
             byte_count: 13,
         },
     );
-    drop.fuel_attribution[2].operation_ordinal = 2;
-    drop.fuel_attribution[2].code_offset = 26;
+    drop.semantic_code_attribution[2].operation_ordinal = 2;
+    drop.semantic_code_attribution[2].code_offset = 26;
     let drop_return = drop.unit_affine_cleanup.as_mut().expect("drop return");
     drop_return.code_offset = 26;
 
@@ -4093,7 +3851,7 @@ fn two_call_edge_owned_cleanup_plan() -> MachineCodePlan {
     helper.provenance.edges = vec![second_edge];
     let helper_return = helper.unit_affine_cleanup.as_mut().expect("helper return");
     helper_return.psi_edge = second_edge;
-    helper.fuel_attribution[0].site = NativeFuelSite::Edge(second_edge);
+    helper.semantic_code_attribution[0].site = SemanticCodeSite::Edge(second_edge);
     plan.functions.push(helper);
     plan
 }
@@ -4113,45 +3871,15 @@ fn add_empty_unit_cleanup(function: &mut MachineCodeFunction) {
         code_offset,
         byte_count,
     });
-    if function.fuel_attribution.is_empty() {
-        function.fuel_attribution.push(NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Edge(function.provenance.edges[0]),
-            units: 1,
-            operation_ordinal: 0,
-            code_offset,
-            byte_count,
-        });
-    }
-}
-
-fn native_fuel_policy(profile: TargetProfile) -> NativeFuelTargetPlanProjection {
-    let register = match profile.native_target().architecture {
-        omega_target::Architecture::X86_64 => omega_calling_conventions::MachineRegister::X86Rbx,
-        omega_target::Architecture::Aarch64 => {
-            omega_calling_conventions::MachineRegister::Aarch64X(28)
-        }
-    };
-    NativeFuelTargetPlanProjection {
-        profile,
-        target: profile.native_target(),
-        transport: SponsorContextTransport::ReservedNonvolatileRegister { register },
-        context: NativeFuelContextLayout {
-            byte_size: 256,
-            alignment: 16,
-            remaining_units_offset: 24,
-            unpaid_site_kind_offset: 32,
-            unpaid_site_identity_offset: 40,
-            required_units_offset: 48,
-            transfer_entry_offset: 56,
-            retry_code_offset_offset: 64,
-            sponsor_stack_top_offset: 72,
-            activation_state_offset: 80,
-            activation_state_byte_count: 176,
-        },
-        transfer_plan_report_identity: 10,
-        transfer_plan_commitment:
-            omega_installation_evidence::NativeFuelTransferPlanCommitment::from_bytes([10; 32]),
+    if function.semantic_code_attribution.is_empty() {
+        function
+            .semantic_code_attribution
+            .push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(function.provenance.edges[0]),
+                operation_ordinal: 0,
+                code_offset,
+                byte_count,
+            });
     }
 }
 

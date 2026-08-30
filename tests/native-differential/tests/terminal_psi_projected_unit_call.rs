@@ -1372,25 +1372,25 @@ fn partial_affine_triple_retains_two_calls_and_one_installed_residual_on_all_tar
             .expect("partial affine return retains its edge record");
         assert_eq!(
             emitted
-                .fuel_attribution
+                .semantic_code_attribution
                 .iter()
                 .map(|attribution| attribution.operation_ordinal)
                 .collect::<Vec<_>>(),
             [0, 1, 2]
         );
         assert!(matches!(
-            emitted.fuel_attribution.as_slice(),
+            emitted.semantic_code_attribution.as_slice(),
             [
-                omega_machine_code::NativeFuelAttribution {
-                    site: omega_machine_code::NativeFuelSite::Operation(first_site),
+                omega_machine_code::SemanticCodeAttribution {
+                    site: omega_machine_code::SemanticCodeSite::Operation(first_site),
                     ..
                 },
-                omega_machine_code::NativeFuelAttribution {
-                    site: omega_machine_code::NativeFuelSite::Operation(second_site),
+                omega_machine_code::SemanticCodeAttribution {
+                    site: omega_machine_code::SemanticCodeSite::Operation(second_site),
                     ..
                 },
-                omega_machine_code::NativeFuelAttribution {
-                    site: omega_machine_code::NativeFuelSite::Edge(return_edge),
+                omega_machine_code::SemanticCodeAttribution {
+                    site: omega_machine_code::SemanticCodeSite::Edge(return_edge),
                     ..
                 },
             ] if first.owner.operation() == Some(*first_site)
@@ -1734,7 +1734,7 @@ fn partial_affine_quartet_retains_two_calls_and_decreasing_cleanup_on_all_target
         }
         assert_eq!(
             emitted
-                .fuel_attribution
+                .semantic_code_attribution
                 .iter()
                 .map(|attribution| attribution.operation_ordinal)
                 .collect::<Vec<_>>(),
@@ -1978,7 +1978,7 @@ fn nested_affine_arrays_retain_exact_offsets_and_decreasing_cleanup_on_all_targe
             .unwrap();
         assert_eq!(
             emitted
-                .fuel_attribution
+                .semantic_code_attribution
                 .iter()
                 .map(|attribution| attribution.operation_ordinal)
                 .collect::<Vec<_>>(),
@@ -2134,25 +2134,25 @@ fn fully_consumed_affine_pair_retains_two_native_calls_and_empty_installed_clean
             .expect("ordinary return retains its edge record");
         assert_eq!(
             emitted
-                .fuel_attribution
+                .semantic_code_attribution
                 .iter()
                 .map(|attribution| attribution.operation_ordinal)
                 .collect::<Vec<_>>(),
             [0, 1, 2]
         );
         assert!(matches!(
-            emitted.fuel_attribution.as_slice(),
+            emitted.semantic_code_attribution.as_slice(),
             [
-                omega_machine_code::NativeFuelAttribution {
-                    site: omega_machine_code::NativeFuelSite::Operation(first_site),
+                omega_machine_code::SemanticCodeAttribution {
+                    site: omega_machine_code::SemanticCodeSite::Operation(first_site),
                     ..
                 },
-                omega_machine_code::NativeFuelAttribution {
-                    site: omega_machine_code::NativeFuelSite::Operation(second_site),
+                omega_machine_code::SemanticCodeAttribution {
+                    site: omega_machine_code::SemanticCodeSite::Operation(second_site),
                     ..
                 },
-                omega_machine_code::NativeFuelAttribution {
-                    site: omega_machine_code::NativeFuelSite::Edge(return_edge),
+                omega_machine_code::SemanticCodeAttribution {
+                    site: omega_machine_code::SemanticCodeSite::Edge(return_edge),
                     ..
                 },
             ] if first.owner.operation() == Some(*first_site)

@@ -1016,7 +1016,7 @@ premise, and requires the exact-subtract evidence before constructing resumable
   path stays closed, while a disjoint unoptimized route emits the exact Linux
   x86-64 and AArch64 countdown bodies from assigned custody. The machine-code
   carrier retains the semantic custody, complete ABI/structural inputs, and
-  canonical four-operation/five-edge logical-fuel attribution. Unmetered object
+  canonical four-operation/five-edge logical-fuel attribution. Ordinary object
   replay independently decodes each target body and reconstructs the exact
   Psi/entry, rank, fixed-fuel, ABI, structural-frontier, cleanup, provenance,
   and nine-row attribution contract. It also rejoins the projected graph,
@@ -1024,18 +1024,9 @@ premise, and requires the exact-subtract evidence before constructing resumable
   module, rejecting coherent coordinate substitution rather than accepting a
   merely self-consistent record. Its object function retains the complete
   ranked record, and a stripped record remains a hard failure. Ranked-aware
-  native-fuel instrumentation retains an explicit coordinate record while
-  rebasing the preheader, false-exit, and backedge branches around inserted hot
-  charges. A branch enters the first charge at its destination site, so repeated
-  header visits and the terminal false exit cannot skip equal-offset logical
-  work.
-  Metered-object replay independently decodes both targets' charge, cold-
-  dispatch, and rebased-branch bytes and reconstructs that record without
-  producer encoders. Metered object containers are admitted, while both ranked
-  native-fuel executable-image routes retain a named rejection until final-byte,
-  transfer-state, installation, and native-artifact custody land. This authority
-  is not a general cyclic-control exception and cannot be obtained by converting
-  either the interpreter carrier or ordinary acyclic verification.
+  semantic-code attribution records the exact operation/edge-to-byte
+  correspondence without changing the emitted control flow. It is provenance
+  for replay and analysis, never authority to insert runtime accounting.
 
 General cyclic control is nevertheless part of Terminal Psi's durable semantic
 model rather than a second loop language. `Jump` and `Conditional` form the
@@ -3791,9 +3782,9 @@ progress / total correctness
     => every published termination guarantee holds
 ```
 
-Logical fuel discharges neither theorem. Exhaustion is sponsor-owned suspension
-at the unpaid site followed by resume; it is scheduling and attribution, not a
-termination argument.
+Logical fuel discharges neither theorem. A compiler service exhausting its
+budget reports an incomplete evaluation; this is not a termination argument or
+native runtime behavior.
 
 Each schema soundness theorem is universally quantified metatheory proved once
 in the low-rung calculus, not a quantified proposition repeated in an artifact
@@ -3949,14 +3940,12 @@ calls preserve `x30`, keep `sp` 16-byte aligned, marshal direct register and
 stack fragments, and create the normalized caller copy for indirect by-value
 aggregates before passing its address.
 
-Native Unit artifacts and the canonical installation payload retain one
-logical-fuel attribution row for every emitted operation and return edge:
-exact current schedule, semantic site, units, operation ordinal,
-function-relative byte offset, and byte count.
+Native Unit artifacts and the canonical installation payload retain semantic-
+code attribution for emitted operations and return edges: semantic site,
+operation ordinal, function-relative byte offset, and byte count.
 Metadata-only settlement rows deliberately have a zero-byte interval. This is
-the provenance input to sponsor-owned inserted metering when installation
-selects a dynamic native realization; the row is not evidence that runtime
-charging already occurs and is not a native instruction-cost model.
+provenance for replay and analysis; it is not runtime charging or a native
+instruction-cost model.
 
 ## Logical fuel
 
@@ -3966,10 +3955,9 @@ operation and terminator variant, so extending the vocabulary requires an
 explicit accounting decision. A schedule change never changes program identity.
 
 The interpreter charges before each semantic site and reports deterministic
-total and per-`OperationId`/`EdgeId` usage. Fuel is sponsor-owned: exhaustion
-is not visible or catchable by the Psi machine. Resumption continues at the
-unpaid site without replay or double charging; a completed crash edge is not
-charged again.
+total and per-`OperationId`/`EdgeId` usage. Exhaustion is not visible or
+catchable by the Psi machine; it is an incomplete evaluator outcome controlled
+outside program semantics.
 
 The maximum logical work of an entry or segment is the greatest sum of charged
 units along any one admitted path. Sequential operations and calls add; mutually
@@ -3977,27 +3965,10 @@ exclusive branches take their maximum. This differs from simultaneous stack
 use, where sequential callees normally compose by maximum. Certificates and
 reports use fuel units and do not claim native instruction count or time.
 
-Native fuel is accounted per sponsor region. Same-sponsor calls share one
-private activation context; a separately sponsored edge begins another region.
-Fixed provision suppresses the meter only when the exact installed certificate
-fits the region's grant. Dynamic lowering compares the remaining allowance
-with the site's required units before subtracting or executing. Paying exactly
-to zero succeeds. A failed comparison changes nothing and transfers the exact
-schedule, unpaid site, required units, and remaining units to the sponsor.
-
-That transfer is architectural suspension, not a Psi safe point. Opaque native
-register/stack/program-counter state is the only continuation and is never a
-Psi or Omega value. Resume restores it at the failed pre-charge check; fuel
-exhaustion alone authorizes no semantic cleanup, cancellation, migration, or
-replacement. The target transfer stub is unmetered compiler/runtime machinery;
-authored sponsor policy, when present, executes in a separately and completely
-fixed-provisioned region.
-
-`FuelSuspensionFree` is a transitive installed-root fact rather than a property
-of one local certificate. Transparent closures derive it only when every
-reachable sponsor region is non-exhausting. Opaque provider summaries publish
-work units and suspension behavior as independent admitted facts; absent
-suspension evidence fails the derivation.
+Logical fuel stops at evaluator and analysis boundaries. Native emission does
+not charge it and has no sponsor region, hidden allowance, exhaustion transfer,
+or fuel-induced suspension. Suspension facts describe source/runtime operations
+that can actually suspend; they are not inferred from accounting machinery.
 
 `psi-terminal-fixed-fuel` derives certificates from verified terminal control.
 For acyclic control and call graphs it computes the greatest entry-to-exit path,
@@ -4025,34 +3996,16 @@ still rejects when it cannot construct a numeric certificate, but reports that
 same component and cause instead of whichever block a traversal happened to
 revisit first. A well-founded ranking proves eventual exit; only a separately
 checked quantitative bound proves finite provision. Unranked cycles remain
-chargeable under dynamic sponsor control, and exhaustion remains an incomplete
-execution rather than evidence about termination or divergence.
+legal when separately admitted, but publish no finite-work guarantee. Runtime
+execution does not acquire a meter merely because a static bound is unavailable.
 
-The same exact ranked countdown has a disjoint unmetered native carrier.
-Object admission reconstructs its proof/fixed-fuel identity, graph, ABI,
-structural frontier and cleanup, target instructions, and nine logical fuel
-rows. Final-image emission and source-free native-artifact validation replay
-those facts again before accepting the object/image join. Canonical
-installation format 44 retains a ranked-body tag and rejects combining it with
-ordinary Unit, scalar, boundary, or port custody. The canonical Terminal
-artifact manifest derives its obligation ledger through the interpretable
-ranked validation carrier; this binds the same complete proof question without
-misrepresenting the module as accepted by ordinary acyclic execution.
-
-The directly metered variant reaches the same publication boundary without a
-parallel compiler path. Image replay rederives its five branch coordinates from
-the immutable semantic body and nine fuel rows, checks both metered and final
-text with target-owned decoders, and binds the final symbol table. Format 44
-retains the semantic ranked tag, exact source/metered spans, target policy,
-charge catalog, and image fingerprint; it does not duplicate the derivable
-rebase record. A bounded source-free ranked-native-fuel artifact joins that
-installation to canonical Terminal semantics and the exact image under a strong
-owner-derived identity. The former metered object-container publication API was
-deleted because no supported consumer ended at that weaker checkpoint.
-Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
-honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q2, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
-helper.
+The exact ranked countdown also has an ordinary native carrier. Object
+admission reconstructs its graph, ABI, structural frontier and cleanup, target
+instructions, and semantic-code attribution. Final-image emission and
+source-free native-artifact validation replay those facts before accepting the
+object/image join. The fixed-work theorem may accompany that artifact as
+non-authorizing PCC/report evidence; native execution remains the unchanged
+countdown body.
 
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi

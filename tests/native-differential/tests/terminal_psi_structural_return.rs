@@ -11,7 +11,7 @@ use omega_image_emission::{
     decode_installation_record, emit_executable_image, emit_object_container,
     encode_installation_record, validate_installation_record,
 };
-use omega_machine_code::{NativeFuelSite, ScalarControlFlowEvidence};
+use omega_machine_code::{ScalarControlFlowEvidence, SemanticCodeSite};
 use omega_machine_emission::emit_machine_code;
 use omega_optimization_validation::validate_verified_psi_optimization_unit;
 use omega_psi_to_abstract_operations::{
@@ -5460,21 +5460,21 @@ fn assert_source_structural_return(
                 .collect::<Vec<_>>()
         );
         assert_eq!(
-            machine_function.fuel_attribution.len(),
+            machine_function.semantic_code_attribution.len(),
             trivial_affine_locals.len() + 1
         );
         for (ordinal, (operation, _, _)) in trivial_affine_locals.iter().enumerate() {
-            let attribution = &machine_function.fuel_attribution[ordinal];
-            assert_eq!(attribution.site, NativeFuelSite::Operation(*operation));
+            let attribution = &machine_function.semantic_code_attribution[ordinal];
+            assert_eq!(attribution.site, SemanticCodeSite::Operation(*operation));
             assert_eq!(attribution.operation_ordinal, ordinal);
             assert_eq!(attribution.code_offset, 0);
             assert_eq!(attribution.byte_count, 0);
         }
         let return_attribution = machine_function
-            .fuel_attribution
+            .semantic_code_attribution
             .last()
             .expect("structural return has edge fuel attribution");
-        assert_eq!(return_attribution.site, NativeFuelSite::Edge(return_edge));
+        assert_eq!(return_attribution.site, SemanticCodeSite::Edge(return_edge));
         assert_eq!(
             return_attribution.operation_ordinal,
             trivial_affine_locals.len()
@@ -5571,7 +5571,7 @@ fn assert_source_structural_return(
 
             let mut missing_establishment_fuel = machine_code.clone();
             missing_establishment_fuel.functions[0]
-                .fuel_attribution
+                .semantic_code_attribution
                 .remove(0);
             assert!(
                 build_object_artifact(&missing_establishment_fuel).is_err(),
@@ -5624,7 +5624,9 @@ fn assert_source_structural_return(
                 );
 
                 let mut missing_second_fuel = machine_code.clone();
-                missing_second_fuel.functions[0].fuel_attribution.remove(1);
+                missing_second_fuel.functions[0]
+                    .semantic_code_attribution
+                    .remove(1);
                 assert!(
                     build_object_artifact(&missing_second_fuel).is_err(),
                     "object validation must reject missing second-local fuel evidence"

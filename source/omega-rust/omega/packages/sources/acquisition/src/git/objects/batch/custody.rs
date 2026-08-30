@@ -16,7 +16,7 @@ use cap_std::fs::{
 use crate::custody::lock::same_std_and_capability_file_identity;
 use crate::custody::platform::{
     same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
-    verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
+    verify_macos_open_cache_extended_acl_custody,
 };
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::{SourceResolveError, cache_invalid};
@@ -195,7 +195,7 @@ fn verify_git_batch_request_identity(
         }
     }
     verify_macos_open_cache_extended_acl_custody(CacheCustodyKind::Git, path, file)?;
-    verify_windows_open_cache_custody(CacheCustodyKind::Git, path, file)
+    Ok(())
 }
 
 impl Drop for PendingGitBatchRequest {

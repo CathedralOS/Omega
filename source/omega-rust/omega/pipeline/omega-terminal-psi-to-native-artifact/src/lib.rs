@@ -18,7 +18,6 @@ pub use entry_settlement::{
 };
 pub use omega_native_artifact::{
     NativeArtifact, NativeArtifactParts, NativeProviderExecution, NativeSelectedProviderPlan,
-    RankedNativeFuelArtifact, RankedNativeFuelArtifactParts,
 };
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,

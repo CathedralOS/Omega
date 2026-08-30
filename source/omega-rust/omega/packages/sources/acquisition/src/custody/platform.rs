@@ -90,73 +90,14 @@ pub(super) fn verify_cache_node_owner_and_mode(
     _path: &Path,
     _metadata: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    // Windows owner/DACL custody is verified through retained handles at each
-    // concrete call site. Other non-Unix targets retain only the portable
-    // kind and bounded-topology floor.
+    // Non-Unix targets retain the portable kind, identity, and bounded-topology
+    // checks. Ordinary host ACLs are not promoted into resolver isolation
+    // evidence.
     Ok(())
 }
 
 #[cfg(windows)]
-pub(crate) fn verify_windows_open_cache_custody(
-    kind: CacheCustodyKind,
-    path: &Path,
-    file: &File,
-) -> Result<(), SourceResolveError> {
-    verify_windows_open_cache_custody_with_owner_policy(
-        kind,
-        path,
-        file,
-        omega_platform_custody::WindowsFileOwnerPolicy::CurrentUserOnly,
-    )
-}
-
-#[cfg(windows)]
-fn verify_windows_open_cache_custody_with_owner_policy(
-    kind: CacheCustodyKind,
-    path: &Path,
-    file: &File,
-    owner_policy: omega_platform_custody::WindowsFileOwnerPolicy,
-) -> Result<(), SourceResolveError> {
-    use omega_platform_custody::{WindowsFileCustodyViolation, inspect_open_windows_file_custody};
-
-    let violation = inspect_open_windows_file_custody(file, owner_policy).map_err(|error| {
-        cache_custody_invalid(
-            kind,
-            path,
-            format!("could not inspect retained Windows cache custody: {error}"),
-        )
-    })?;
-    if let Some(violation) = violation {
-        let message = match violation {
-            WindowsFileCustodyViolation::UntrustedOwner => {
-                "cache entry is not owned by the resolver's current Windows user"
-            }
-            WindowsFileCustodyViolation::NullDacl => {
-                "cache entry has a null DACL granting unrestricted access"
-            }
-            WindowsFileCustodyViolation::UntrustedMutationAuthority => {
-                "cache entry grants mutation authority to an untrusted Windows principal"
-            }
-            WindowsFileCustodyViolation::UnsupportedAllowAce => {
-                "cache entry contains an unsupported access-allowing Windows ACE"
-            }
-        };
-        return Err(cache_custody_invalid(kind, path, message));
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-pub(crate) fn verify_windows_open_cache_custody(
-    _kind: CacheCustodyKind,
-    _path: &Path,
-    _file: &File,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
-#[cfg(windows)]
-pub(super) fn verify_windows_open_cache_directory_custody(
+pub(super) fn verify_windows_open_cache_directory_identity(
     kind: CacheCustodyKind,
     path: &Path,
     classified: &std::fs::Metadata,
@@ -178,18 +119,11 @@ pub(super) fn verify_windows_open_cache_directory_custody(
             "cache custody directory changed between classification and no-follow open",
         ));
     }
-    verify_windows_open_cache_custody(
-        kind,
-        path,
-        &directory
-            .try_clone()
-            .map_err(|error| io_error(path, error))?
-            .into_std_file(),
-    )
+    Ok(())
 }
 
 #[cfg(windows)]
-pub(super) fn verify_windows_open_cache_ancestry_custody(
+pub(super) fn verify_windows_open_cache_ancestry_identity(
     kind: CacheCustodyKind,
     path: &Path,
     classified: &std::fs::Metadata,
@@ -211,19 +145,11 @@ pub(super) fn verify_windows_open_cache_ancestry_custody(
             "cache ancestry changed between classification and no-follow open",
         ));
     }
-    verify_windows_open_cache_custody_with_owner_policy(
-        kind,
-        path,
-        &directory
-            .try_clone()
-            .map_err(|error| io_error(path, error))?
-            .into_std_file(),
-        omega_platform_custody::WindowsFileOwnerPolicy::CurrentUserSystemOrAdministrators,
-    )
+    Ok(())
 }
 
 #[cfg(not(windows))]
-pub(super) fn verify_windows_open_cache_directory_custody(
+pub(super) fn verify_windows_open_cache_directory_identity(
     _kind: CacheCustodyKind,
     _path: &Path,
     _classified: &std::fs::Metadata,
@@ -232,7 +158,7 @@ pub(super) fn verify_windows_open_cache_directory_custody(
 }
 
 #[cfg(windows)]
-pub(super) fn verify_windows_open_cache_regular_file_custody(
+pub(super) fn verify_windows_open_cache_regular_file_identity(
     kind: CacheCustodyKind,
     path: &Path,
     parent: &CapabilityDirectory,
@@ -256,11 +182,11 @@ pub(super) fn verify_windows_open_cache_regular_file_custody(
             "cache file changed between classification and no-follow open",
         ));
     }
-    verify_windows_open_cache_custody(kind, path, &file.into_std())
+    Ok(())
 }
 
 #[cfg(not(windows))]
-pub(super) fn verify_windows_open_cache_regular_file_custody(
+pub(super) fn verify_windows_open_cache_regular_file_identity(
     _kind: CacheCustodyKind,
     _path: &Path,
     _parent: &CapabilityDirectory,
@@ -271,7 +197,7 @@ pub(super) fn verify_windows_open_cache_regular_file_custody(
 }
 
 #[cfg(windows)]
-pub(super) fn verify_windows_open_cache_link_custody(
+pub(super) fn verify_windows_open_cache_link_identity(
     kind: CacheCustodyKind,
     path: &Path,
     parent: &CapabilityDirectory,
@@ -295,11 +221,11 @@ pub(super) fn verify_windows_open_cache_link_custody(
             "cache reparse point changed between classification and no-follow open",
         ));
     }
-    verify_windows_open_cache_custody(kind, path, &file.into_std())
+    Ok(())
 }
 
 #[cfg(not(windows))]
-pub(super) fn verify_windows_open_cache_link_custody(
+pub(super) fn verify_windows_open_cache_link_identity(
     _kind: CacheCustodyKind,
     _path: &Path,
     _parent: &CapabilityDirectory,

@@ -2,7 +2,7 @@
 
 This crate turns hostile local or Git input into an immutable, authenticated
 source tree. It owns source identity, bounded tree capture, snapshot
-publication, cache custody, and successful non-admitting observations.
+publication, cache custody, and successful source receipts.
 
 Start at `src/lib.rs`, then follow the source lifecycle:
 

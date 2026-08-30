@@ -195,7 +195,7 @@ impl GitSourceRequest {
             ),
             revision,
         )?;
-        request.fetch_locator = repository.display().to_string();
+        request.fetch_locator = local_test_fetch_locator(repository);
         request.execution_transport = GitExecutionTransport::File;
         Ok(request)
     }
@@ -208,10 +208,24 @@ impl GitSourceRequest {
         remote_locator: &str,
     ) -> Result<Self, GitSourceRequestError> {
         let mut request = Self::new(remote_locator, revision)?;
-        request.fetch_locator = repository.display().to_string();
+        request.fetch_locator = local_test_fetch_locator(repository);
         request.execution_transport = GitExecutionTransport::File;
         Ok(request)
     }
+}
+
+#[cfg(all(any(test, feature = "test-fixtures"), windows))]
+fn local_test_fetch_locator(repository: &Path) -> String {
+    let path = repository.display().to_string();
+    if let Some(path) = path.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{path}");
+    }
+    path.strip_prefix(r"\\?\").unwrap_or(&path).to_owned()
+}
+
+#[cfg(all(any(test, feature = "test-fixtures"), not(windows)))]
+fn local_test_fetch_locator(repository: &Path) -> String {
+    repository.display().to_string()
 }
 
 impl fmt::Display for GitSourceRequestError {

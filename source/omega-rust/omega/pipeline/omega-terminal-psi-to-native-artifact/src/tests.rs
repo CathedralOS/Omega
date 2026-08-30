@@ -2,8 +2,6 @@ use super::*;
 use std::collections::BTreeSet;
 
 mod callback_custody;
-mod native_fuel;
-
 use crate::realization::project_selected_provider_adapters_for_requirements;
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -73,7 +71,7 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
 "#;
 
 #[test]
-fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
+fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution() {
     let checked = checked(RANKED_COUNTDOWN_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::countdown")
         .expect("lower ranked Terminal Psi");
@@ -133,23 +131,22 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
         } = covered.guard;
         assert_eq!(
             function
-                .fuel_attribution
+                .semantic_code_attribution
                 .iter()
                 .map(|row| row.site)
                 .collect::<Vec<_>>(),
             vec![
-                omega_machine_code::NativeFuelSite::Edge(graph.preheader_edge),
-                omega_machine_code::NativeFuelSite::Operation(graph.zero_operation),
-                omega_machine_code::NativeFuelSite::Operation(graph.compare_operation),
-                omega_machine_code::NativeFuelSite::Edge(guard_edge),
-                omega_machine_code::NativeFuelSite::Operation(graph.one_operation),
-                omega_machine_code::NativeFuelSite::Operation(graph.subtract_operation),
-                omega_machine_code::NativeFuelSite::Edge(covered.edge),
-                omega_machine_code::NativeFuelSite::Edge(graph.false_exit_edge),
-                omega_machine_code::NativeFuelSite::Edge(graph.return_edge),
+                omega_machine_code::SemanticCodeSite::Edge(graph.preheader_edge),
+                omega_machine_code::SemanticCodeSite::Operation(graph.zero_operation),
+                omega_machine_code::SemanticCodeSite::Operation(graph.compare_operation),
+                omega_machine_code::SemanticCodeSite::Edge(guard_edge),
+                omega_machine_code::SemanticCodeSite::Operation(graph.one_operation),
+                omega_machine_code::SemanticCodeSite::Operation(graph.subtract_operation),
+                omega_machine_code::SemanticCodeSite::Edge(covered.edge),
+                omega_machine_code::SemanticCodeSite::Edge(graph.false_exit_edge),
+                omega_machine_code::SemanticCodeSite::Edge(graph.return_edge),
             ]
         );
-        assert!(function.fuel_attribution.iter().all(|row| row.units == 1));
         assert_eq!(
             record.custody.fixed_fuel.ceiling_units(),
             5 + 6 * u64::from(u32::MAX)
@@ -170,12 +167,12 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             record
         );
         assert_eq!(object.relocations().record_count(), 0);
-        assert_eq!(object.fuel_attribution().len(), 9);
+        assert_eq!(object.semantic_code_attribution().len(), 9);
         assert!(
             object
-                .fuel_attribution()
+                .semantic_code_attribution()
                 .iter()
-                .zip(&function.fuel_attribution)
+                .zip(&function.semantic_code_attribution)
                 .all(|(object, machine)| {
                     object.machine == function.machine
                         && object.attribution == *machine
@@ -233,199 +230,6 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             .validate()
             .expect("ranked native artifact should replay independently");
 
-        let transfer_plan = native_fuel::transfer_runtime_plan(target);
-        let target_policy = native_fuel::target_policy(&transfer_plan);
-        assert_eq!(
-            target_policy.transfer_plan_report_identity,
-            transfer_plan.report_identity()
-        );
-        let instrumented =
-            omega_machine_emission::instrument_native_fuel(emitted.clone(), target_policy)
-                .expect("rebase ranked branches around exact native-fuel charges");
-        assert_eq!(instrumented.source, emitted);
-        let metered = &instrumented.functions[0];
-        let rebased = metered
-            .ranked_u32_countdown
-            .expect("retain explicit ranked branch-rebase coordinates");
-        let (charge_offsets, semantic_offsets, semantic_end, final_size, expected_rebase) =
-            match target.architecture {
-                omega_target::Architecture::X86_64 => (
-                    [0, 41, 77, 121, 157, 193, 231, 272, 308],
-                    [36, 77, 113, 157, 193, 229, 267, 308, 344],
-                    345,
-                    1047,
-                    omega_machine_code::NativeFuelRankedU32CountdownRebaseRecord {
-                        preheader_branch_code_offset: 36,
-                        header_charge_code_offset: 41,
-                        exit_branch_code_offset: 115,
-                        exit_charge_code_offset: 272,
-                        backward_branch_code_offset: 267,
-                    },
-                ),
-                omega_target::Architecture::Aarch64 => (
-                    [0, 40, 76, 120, 156, 192, 232, 272, 308],
-                    [36, 76, 112, 156, 192, 228, 268, 308, 344],
-                    348,
-                    1140,
-                    omega_machine_code::NativeFuelRankedU32CountdownRebaseRecord {
-                        preheader_branch_code_offset: 36,
-                        header_charge_code_offset: 40,
-                        exit_branch_code_offset: 116,
-                        exit_charge_code_offset: 272,
-                        backward_branch_code_offset: 268,
-                    },
-                ),
-            };
-        assert_eq!(rebased, expected_rebase);
-        assert_eq!(metered.semantic_end_offset, semantic_end);
-        assert_eq!(metered.bytes.len(), final_size);
-        assert_eq!(
-            metered
-                .charges
-                .iter()
-                .map(|charge| charge.charge_code_offset)
-                .collect::<Vec<_>>(),
-            charge_offsets
-        );
-        assert_eq!(
-            metered
-                .charges
-                .iter()
-                .map(|charge| charge.semantic_code_offset)
-                .collect::<Vec<_>>(),
-            semantic_offsets
-        );
-        match target.architecture {
-            omega_target::Architecture::X86_64 => {
-                omega_isa_x86_64::validate_x86_64_rebased_ranked_u32_countdown_branches(
-                    &metered.bytes,
-                    omega_isa_x86_64::X86_64RankedU32CountdownRebasedBranchLayout {
-                        preheader_branch_offset: rebased.preheader_branch_code_offset,
-                        header_charge_offset: rebased.header_charge_code_offset,
-                        exit_branch_offset: rebased.exit_branch_code_offset,
-                        exit_charge_offset: rebased.exit_charge_code_offset,
-                        backward_branch_offset: rebased.backward_branch_code_offset,
-                    },
-                )
-                .expect("decode exact x86-64 metered branch targets");
-            }
-            omega_target::Architecture::Aarch64 => {
-                omega_isa_aarch64::validate_aarch64_rebased_ranked_u32_countdown_branches(
-                    &metered.bytes,
-                    omega_isa_aarch64::Aarch64RankedU32CountdownRebasedBranchLayout {
-                        preheader_branch_offset: rebased.preheader_branch_code_offset,
-                        header_charge_offset: rebased.header_charge_code_offset,
-                        exit_branch_offset: rebased.exit_branch_code_offset,
-                        exit_charge_offset: rebased.exit_charge_code_offset,
-                        backward_branch_offset: rebased.backward_branch_code_offset,
-                    },
-                )
-                .expect("decode exact AArch64 metered branch targets");
-            }
-        }
-        let validated = omega_image_emission::validate_native_fuel_plan(&instrumented)
-            .expect("independently replay ranked metered object custody");
-        assert_eq!(
-            validated.functions()[0].ranked_u32_countdown,
-            Some(expected_rebase)
-        );
-        assert_eq!(
-            validated.semantic_artifact().functions()[0]
-                .ranked_u32_countdown
-                .as_ref(),
-            Some(record)
-        );
-        let metered_canonical = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            None,
-        )
-        .expect("encode canonical ranked artifact for metered custody");
-        let self_sponsor = omega_image_emission::bind_native_fuel_transfer_runtime(
-            &validated,
-            transfer_plan.clone(),
-            validated.semantic_artifact().entry_function().symbol,
-        )
-        .expect_err("ranked entry cannot masquerade as its own fuel sponsor");
-        assert_eq!(
-            self_sponsor,
-            omega_image_emission::NativeFuelTransferRuntimeError::InvalidSponsorSymbol
-        );
-        native_fuel::assert_ranked_publication_round_trips(
-            &validated,
-            metered,
-            expected_rebase,
-            metered_canonical,
-        );
-
-        for offset in [
-            rebased.preheader_branch_code_offset,
-            rebased.exit_branch_code_offset,
-            rebased.backward_branch_code_offset,
-        ] {
-            let mut corrupted = instrumented.clone();
-            corrupted.functions[0].bytes[offset] ^= 1;
-            assert!(matches!(
-                omega_image_emission::validate_native_fuel_plan(&corrupted),
-                Err(
-                    omega_image_emission::NativeFuelValidationError::InvalidRankedCountdownRebasing(
-                        machine
-                    )
-                ) if machine == function.machine
-            ));
-        }
-        let mut corrupted = instrumented.clone();
-        corrupted.functions[0].bytes[344] ^= 1;
-        assert!(matches!(
-            omega_image_emission::validate_native_fuel_plan(&corrupted),
-            Err(omega_image_emission::NativeFuelValidationError::ByteMismatch(machine))
-                if machine == function.machine
-        ));
-        let mut corrupted = instrumented.clone();
-        corrupted.functions[0]
-            .ranked_u32_countdown
-            .as_mut()
-            .unwrap()
-            .header_charge_code_offset += 1;
-        assert!(matches!(
-            omega_image_emission::validate_native_fuel_plan(&corrupted),
-            Err(omega_image_emission::NativeFuelValidationError::RecordMismatch(machine))
-                if machine == function.machine
-        ));
-        let mut stale = instrumented.clone();
-        match target.architecture {
-            omega_target::Architecture::X86_64 => {
-                stale.functions[0].bytes[115..121].copy_from_slice(&function.bytes[7..13]);
-                stale.functions[0].bytes[267..272].copy_from_slice(&function.bytes[15..20]);
-            }
-            omega_target::Architecture::Aarch64 => {
-                stale.functions[0].bytes[116..120].copy_from_slice(&function.bytes[8..12]);
-                stale.functions[0].bytes[268..272].copy_from_slice(&function.bytes[16..20]);
-            }
-        }
-        assert!(matches!(
-            omega_image_emission::validate_native_fuel_plan(&stale),
-            Err(
-                omega_image_emission::NativeFuelValidationError::InvalidRankedCountdownRebasing(
-                    machine
-                )
-            ) if machine == function.machine
-        ));
-
-        let mut stripped_metering_source = emitted.clone();
-        stripped_metering_source.functions[0].ranked_u32_countdown = None;
-        assert!(matches!(
-            omega_machine_emission::instrument_native_fuel(
-                stripped_metering_source,
-                target_policy,
-            ),
-            Err(
-                omega_machine_emission::NativeFuelInstrumentationError::MissingRankedCountdownCustody(
-                    machine
-                )
-            ) if machine == function.machine
-        ));
-
         let assert_invalid = |candidate: &omega_machine_code::MachineCodePlan| {
             assert!(matches!(
                 omega_image_emission::build_object_artifact(candidate),
@@ -440,14 +244,6 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
 
         let mut corrupted = emitted.clone();
         corrupted.functions[0].provenance.operations.swap(0, 1);
-        assert_invalid(&corrupted);
-
-        let mut corrupted = emitted.clone();
-        corrupted.functions[0].fuel_attribution[0].units = 2;
-        assert_invalid(&corrupted);
-
-        let mut corrupted = emitted.clone();
-        corrupted.functions[0].fuel_attribution[6].code_offset += 1;
         assert_invalid(&corrupted);
 
         let mut corrupted = emitted.clone();
@@ -498,11 +294,11 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             .zero_operation = replacement;
         corrupted.functions[0].provenance.operations[0] = replacement;
         corrupted.functions[0]
-            .fuel_attribution
+            .semantic_code_attribution
             .iter_mut()
-            .find(|row| row.site == omega_machine_code::NativeFuelSite::Operation(original))
+            .find(|row| row.site == omega_machine_code::SemanticCodeSite::Operation(original))
             .unwrap()
-            .site = omega_machine_code::NativeFuelSite::Operation(replacement);
+            .site = omega_machine_code::SemanticCodeSite::Operation(replacement);
         assert_invalid(&corrupted);
 
         let mut corrupted = emitted.clone();
@@ -606,21 +402,13 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             edges: Vec::new(),
         };
         extra.ranked_u32_countdown = None;
-        extra.fuel_attribution.clear();
+        extra.semantic_code_attribution.clear();
         extra.bytes = match target.architecture {
             omega_target::Architecture::X86_64 => vec![0xc3],
             omega_target::Architecture::Aarch64 => 0xd65f03c0_u32.to_le_bytes().to_vec(),
         };
         corrupted.functions.push(extra);
         assert_invalid(&corrupted);
-
-        let mut stripped = emitted.clone();
-        stripped.functions[0].ranked_u32_countdown = None;
-        assert!(matches!(
-            omega_image_emission::build_object_artifact(&stripped),
-            Err(omega_image_emission::ObjectError::MissingRankedCountdownCustody(machine))
-                if machine == function.machine
-        ));
     }
 }
 
@@ -767,8 +555,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                     })
                     .collect::<Vec<_>>()
             );
-            assert_eq!(function.fuel_attribution.len(), prefix_length + 1);
-            assert!(function.fuel_attribution.iter().all(|row| row.units == 1));
+            assert_eq!(function.semantic_code_attribution.len(), prefix_length + 1);
 
             let object = omega_image_emission::build_object_artifact(&emitted)
                 .expect("object validation reconstructs construction cleanup");

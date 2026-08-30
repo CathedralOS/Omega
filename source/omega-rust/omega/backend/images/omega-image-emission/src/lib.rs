@@ -24,8 +24,6 @@ mod installation;
 #[cfg(feature = "installed-artifact")]
 mod installed_artifact;
 mod instruction_loads;
-mod native_fuel;
-mod native_fuel_runtime;
 mod partial_cleanup_partition;
 mod ranked_u32_countdown;
 mod scalar_call_stack;
@@ -52,25 +50,14 @@ pub use dynamic_elf::{
     emit_admitted_dynamic_elf_image, emit_dynamic_elf_image, validate_dynamic_elf_image_emission,
 };
 pub use image_output::{
-    ExecutableImage, NativeFuelExecutableImage, NativeFuelTransferRuntimeExecutableImage,
-    ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image, emit_executable_image,
-    emit_native_fuel_executable_image, emit_native_fuel_transfer_runtime_executable_image,
-    emit_object_container, emit_scalar_call_reference_linux_x86_64_image,
-    validate_executable_image, validate_native_fuel_executable_image,
-    validate_native_fuel_transfer_runtime_executable_image,
+    ExecutableImage, ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image,
+    emit_executable_image, emit_object_container, emit_scalar_call_reference_linux_x86_64_image,
+    validate_executable_image,
 };
 pub use installation::*;
 #[cfg(feature = "installed-artifact")]
 pub use installed_artifact::{
     InstalledArtifact, InstalledArtifactBindingError, bind_installed_artifact,
-};
-pub use native_fuel::{
-    NativeFuelValidationError, ValidatedNativeFuelArtifact, ValidatedNativeFuelFunction,
-    validate_native_fuel_plan,
-};
-pub use native_fuel_runtime::{
-    NativeFuelRuntimeEntryBinding, NativeFuelTransferRuntimeError,
-    ValidatedNativeFuelTransferRuntimeArtifact, bind_native_fuel_transfer_runtime,
 };
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
@@ -94,8 +81,8 @@ use unit_stack::{
 };
 
 use omega_machine_code::{
-    BoundarySettlementRecord, MachineCodePlan, NativeFuelAttribution, NativeFuelSite,
-    PortEffectRecord, ScalarControlAffineCleanupRecord, StructuralReturnRecord,
+    BoundarySettlementRecord, MachineCodePlan, PortEffectRecord, ScalarControlAffineCleanupRecord,
+    SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord,
 };
 use omega_object_file::{
     NormalizedImportPlan, ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin,
@@ -106,7 +93,6 @@ use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{BoundaryRealization, CallSiteOwner, TerminalPsiProvenance};
 use psi_core::MachineId;
 use psi_terminal::TerminalPsiIdentity;
-use psi_terminal_fuel::TerminalFuelSchedule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectArtifact {
@@ -120,7 +106,7 @@ pub struct ObjectArtifact {
     relocations: RelocationPlan,
     text_bytes: Vec<u8>,
     functions: Vec<ObjectFunction>,
-    fuel_attribution: Vec<ObjectFuelAttribution>,
+    semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
 }
@@ -173,8 +159,8 @@ impl ObjectArtifact {
         &self.port_effects
     }
 
-    pub fn fuel_attribution(&self) -> &[ObjectFuelAttribution] {
-        &self.fuel_attribution
+    pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
+        &self.semantic_code_attribution
     }
 }
 
@@ -196,28 +182,6 @@ impl omega_installation_evidence::ObjectEvidence for ObjectArtifact {
             .iter()
             .find(|function| function.machine == machine)
             .map(|function| function.text_offset)
-    }
-
-    fn fuel_attribution(&self) -> Vec<omega_installation_evidence::FuelAttributionEvidence> {
-        self.fuel_attribution
-            .iter()
-            .map(|row| omega_installation_evidence::FuelAttributionEvidence {
-                machine: row.machine,
-                schedule: row.attribution.schedule,
-                site: match row.attribution.site {
-                    NativeFuelSite::Operation(operation) => {
-                        omega_installation_evidence::FuelAttributionSite::Operation(operation)
-                    }
-                    NativeFuelSite::Edge(edge) => {
-                        omega_installation_evidence::FuelAttributionSite::Edge(edge)
-                    }
-                },
-                units: row.attribution.units,
-                operation_ordinal: row.attribution.operation_ordinal,
-                text_offset: row.text_offset,
-                byte_count: row.attribution.byte_count,
-            })
-            .collect()
     }
 }
 
@@ -384,9 +348,9 @@ pub struct ObjectPortEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectFuelAttribution {
+pub struct ObjectCodeAttribution {
     pub machine: MachineId,
-    pub attribution: NativeFuelAttribution,
+    pub attribution: SemanticCodeAttribution,
     pub text_offset: usize,
 }
 
@@ -576,7 +540,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 function.machine,
                 &function.provenance,
                 &function.bytes,
-                &function.fuel_attribution,
+                &function.semantic_code_attribution,
                 returned,
             )?;
             if function.unit_stack.is_some()
@@ -874,7 +838,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 function.machine,
                 &function.provenance,
                 &function.bytes,
-                &function.fuel_attribution,
+                &function.semantic_code_attribution,
                 &function.internal_calls,
                 parameter_homes,
                 validated_function_stack.as_ref(),
@@ -890,7 +854,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 function.machine,
                 &function.provenance,
                 &function.bytes,
-                &function.fuel_attribution,
+                &function.semantic_code_attribution,
                 &function.unit_parameter_homes,
                 &function.internal_unit_calls,
                 &attachments,
@@ -917,7 +881,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 function.machine,
                 &function.provenance,
                 &function.bytes,
-                &function.fuel_attribution,
+                &function.semantic_code_attribution,
                 &function.scalar_structural_parameter_homes,
                 &function.internal_unit_calls,
                 &attachments,
@@ -951,7 +915,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     function.bytes.get(..cleanup_end).ok_or(
                         ObjectError::InvalidUnitAffineCleanupEvidence(function.machine),
                     )?,
-                    &function.fuel_attribution,
+                    &function.semantic_code_attribution,
                     &function.scalar_structural_parameter_homes,
                     &function.internal_unit_calls,
                     &attachments,
@@ -1031,35 +995,32 @@ fn build_object_artifact_with_x86_feature_profile(
         if let Some(stack) = validated_function_stack {
             validated_unit_stacks.insert(function.machine, (stack, validated_call_stacks));
         }
-        if function.fuel_attribution.windows(2).any(|pair| {
+        if function.semantic_code_attribution.windows(2).any(|pair| {
             (pair[0].operation_ordinal, pair[0].code_offset)
                 >= (pair[1].operation_ordinal, pair[1].code_offset)
         }) {
-            return Err(ObjectError::NonCanonicalFuelAttributionOrder(
+            return Err(ObjectError::NonCanonicalSemanticCodeAttributionOrder(
                 function.machine,
             ));
         }
-        let mut fuel_sites = std::collections::BTreeSet::new();
-        for attribution in &function.fuel_attribution {
+        let mut attribution_sites = std::collections::BTreeSet::new();
+        for attribution in &function.semantic_code_attribution {
             let end = attribution
                 .code_offset
                 .checked_add(attribution.byte_count)
-                .ok_or(ObjectError::FuelAttributionOutsideFunction(
+                .ok_or(ObjectError::SemanticCodeAttributionOutsideFunction(
                     function.machine,
                 ))?;
             let known = match attribution.site {
-                NativeFuelSite::Operation(operation) => {
+                SemanticCodeSite::Operation(operation) => {
                     function.provenance.operations.contains(&operation)
                 }
-                NativeFuelSite::Edge(edge) => function.provenance.edges.contains(&edge),
+                SemanticCodeSite::Edge(edge) => function.provenance.edges.contains(&edge),
             };
-            if attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
-                || attribution.units == 0
-                || end > function.bytes.len()
-                || !known
-                || !fuel_sites.insert(attribution.site)
-            {
-                return Err(ObjectError::InvalidFuelAttribution(function.machine));
+            if end > function.bytes.len() || !known || !attribution_sites.insert(attribution.site) {
+                return Err(ObjectError::InvalidSemanticCodeAttribution(
+                    function.machine,
+                ));
             }
         }
         if function.port_effects.windows(2).any(|pair| {
@@ -1210,11 +1171,10 @@ fn build_object_artifact_with_x86_feature_profile(
                                 return false;
                             };
                             function
-                                .fuel_attribution
+                                .semantic_code_attribution
                                 .iter()
                                 .filter(|attribution| {
-                                    attribution.site == NativeFuelSite::Edge(result.return_edge)
-                                        && attribution.units == 1
+                                    attribution.site == SemanticCodeSite::Edge(result.return_edge)
                                         && attribution.operation_ordinal == return_ordinal
                                         && attribution.code_offset == return_offset
                                         && attribution.byte_count == 1
@@ -1290,11 +1250,10 @@ fn build_object_artifact_with_x86_feature_profile(
                         .checked_add(1)
                         .is_some_and(|tail_ordinal| {
                             function
-                                .fuel_attribution
+                                .semantic_code_attribution
                                 .iter()
                                 .filter(|attribution| {
-                                    matches!(attribution.site, NativeFuelSite::Edge(_))
-                                        && attribution.units == 1
+                                    matches!(attribution.site, SemanticCodeSite::Edge(_))
                                         && attribution.operation_ordinal == tail_ordinal
                                         && attribution.code_offset
                                             == settlement
@@ -1367,7 +1326,7 @@ fn build_object_artifact_with_x86_feature_profile(
 
     let mut text_bytes = Vec::with_capacity(text_size);
     let mut functions = Vec::with_capacity(plan.functions.len());
-    let mut fuel_attribution = Vec::new();
+    let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut symbols_by_machine = std::collections::BTreeMap::new();
@@ -1391,8 +1350,8 @@ fn build_object_artifact_with_x86_feature_profile(
             object.layout.entry_symbol = symbol;
         }
         symbols_by_machine.insert(function.machine, symbol);
-        for attribution in &function.fuel_attribution {
-            fuel_attribution.push(ObjectFuelAttribution {
+        for attribution in &function.semantic_code_attribution {
+            semantic_code_attribution.push(ObjectCodeAttribution {
                 machine: function.machine,
                 attribution: *attribution,
                 text_offset: text_offset
@@ -1588,7 +1547,7 @@ fn build_object_artifact_with_x86_feature_profile(
         relocations,
         text_bytes,
         functions,
-        fuel_attribution,
+        semantic_code_attribution,
         port_effects,
         boundary_settlements,
     })
@@ -1684,13 +1643,12 @@ pub enum ObjectError {
         machine: MachineId,
         offset: usize,
     },
-    MissingRankedCountdownCustody(MachineId),
     InvalidRankedCountdown(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
     NonCanonicalForeignCallOrder(MachineId),
-    NonCanonicalFuelAttributionOrder(MachineId),
-    FuelAttributionOutsideFunction(MachineId),
-    InvalidFuelAttribution(MachineId),
+    NonCanonicalSemanticCodeAttributionOrder(MachineId),
+    SemanticCodeAttributionOutsideFunction(MachineId),
+    InvalidSemanticCodeAttribution(MachineId),
     NonCanonicalPortEffectOrder(MachineId),
     NonCanonicalBoundarySettlementOrder(MachineId),
     InvalidStructuralReturnEvidence(MachineId),

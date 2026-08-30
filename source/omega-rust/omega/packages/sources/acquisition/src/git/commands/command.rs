@@ -10,7 +10,7 @@ use omega_resolver_execution::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_TARGET_ENVIRONMENT,
     ResolverExecutionEndpointRoute, ResolverExecutionPhase, ResolverPreparedExecution,
 };
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::path::Path;
 
 pub(crate) fn sealed_git_command_with_route(
@@ -97,18 +97,14 @@ pub(crate) fn sealed_git_command_with_route(
             message: error.to_string(),
         })?;
     command
-        .env_clear()
         .current_dir(working_directory)
         .env("LANG", "C")
         .env("LC_ALL", "C")
-        .env("PATH", git_helper_path(executor))
         .env(
             "GIT_ALLOW_PROTOCOL",
             executor.execution_transport.allowed_protocol(),
         )
         .env("GIT_ATTR_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", null_device())
-        .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
         .env("GIT_NO_LAZY_FETCH", "1")
         .env("GIT_PROTOCOL_FROM_USER", "0")
@@ -206,7 +202,7 @@ pub(crate) fn sealed_git_command_with_route(
                     sealed_ssh_command(&transport_executable.identity.path),
                 )
                 .env("GIT_SSH_VARIANT", "ssh")
-                .env("PATH", connector_directory)
+                .env("PATH", prepend_to_search_path(connector_directory))
                 .env(
                     RESOLVER_CONNECT_BROKER_ENVIRONMENT,
                     route.policy().broker_endpoint().to_string(),
@@ -248,23 +244,9 @@ pub(crate) fn sealed_git_command(
 }
 
 #[cfg(unix)]
-pub(crate) fn git_helper_path(executor: &GitExecutor) -> OsString {
-    if executor.execution_transport == GitExecutionTransport::Https {
-        return executor
-            .transport_executable
-            .as_ref()
-            .and_then(|helper| helper.identity.invocation_path.parent())
-            .map(Path::as_os_str)
-            .map(OsStr::to_os_string)
-            .unwrap_or_default();
-    }
-    OsString::from("/usr/bin:/bin")
-}
-
-#[cfg(unix)]
 pub(crate) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
-        "{} -F none -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes -oProxyUseFdpass=no -oProxyCommand={}",
+        "{} -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes -oProxyUseFdpass=no -oProxyCommand={}",
         ssh_executable.display(),
         resolver_connect_helper_command_name(),
     ))
@@ -280,33 +262,19 @@ fn resolver_connect_helper_command_name() -> String {
 }
 
 #[cfg(windows)]
-pub(crate) fn git_helper_path(executor: &GitExecutor) -> OsString {
-    if executor.execution_transport == GitExecutionTransport::Https {
-        return executor
-            .transport_executable
-            .as_ref()
-            .and_then(|helper| helper.identity.invocation_path.parent())
-            .map(Path::as_os_str)
-            .map(OsStr::to_os_string)
-            .unwrap_or_default();
-    }
-    let mut directories = Vec::new();
-    if let Some(parent) = executor.identity.path.parent() {
-        directories.push(parent.to_path_buf());
-        if let Some(root) = parent.parent() {
-            directories.push(root.join("bin"));
-            directories.push(root.join("usr/bin"));
-        }
-    }
-    std::env::join_paths(directories).unwrap_or_default()
-}
-
-#[cfg(windows)]
 pub(crate) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
-        "\"{}\" -F NUL -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
+        "\"{}\" -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
         ssh_executable.display()
     ))
+}
+
+fn prepend_to_search_path(directory: &Path) -> OsString {
+    let mut directories = vec![directory.to_path_buf()];
+    if let Some(path) = std::env::var_os("PATH") {
+        directories.extend(std::env::split_paths(&path));
+    }
+    std::env::join_paths(directories).unwrap_or_else(|_| directory.as_os_str().to_owned())
 }
 
 #[cfg(unix)]

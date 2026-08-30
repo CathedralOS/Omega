@@ -10,17 +10,12 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_diagnostics::Diagnostic;
 use psi_terminal::TerminalPsiIdentity;
 
-use super::final_image_validation::{
-    validate_terminal_image, validate_terminal_native_fuel_image,
-    validate_terminal_native_fuel_transfer_runtime_image,
-};
+use super::final_image_validation::validate_terminal_image;
 use super::{
     LINUX_X86_SCALAR_EXIT_SHIM_BYTES, LinuxX86ScalarExitShim, ObjectArtifact,
-    ObjectBoundarySettlement, ObjectFuelAttribution, ObjectFunction, ObjectPortEffect,
-    SCALAR_CALL_REFERENCE_FINGERPRINT, ValidatedNativeFuelArtifact, ValidatedNativeFuelFunction,
-    ValidatedNativeFuelTransferRuntimeArtifact,
+    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectFunction, ObjectPortEffect,
+    SCALAR_CALL_REFERENCE_FINGERPRINT,
 };
-use omega_installation_evidence::NativeFuelTargetPlanProjection;
 
 pub fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
     ObjectContainer {
@@ -121,7 +116,7 @@ pub fn emit_executable_image(
         target: artifact.target,
         subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
         functions: artifact.functions.clone(),
-        fuel_attribution: artifact.fuel_attribution.clone(),
+        semantic_code_attribution: artifact.semantic_code_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
         final_image_symbol_digest,
@@ -151,7 +146,7 @@ pub fn validate_executable_image(
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()
         || artifact.functions() != image.functions()
-        || artifact.fuel_attribution() != image.fuel_attribution()
+        || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
         || artifact.boundary_settlements() != image.boundary_settlements()
     {
@@ -297,414 +292,13 @@ pub fn emit_scalar_call_reference_linux_x86_64_image(
     })
 }
 
-pub fn emit_native_fuel_executable_image(
-    artifact: &ValidatedNativeFuelArtifact,
-    subsystem: u16,
-) -> Result<NativeFuelExecutableImage, Diagnostic> {
-    let target = artifact.semantic_artifact().target();
-    if !can_emit_executable_image(target) {
-        return Err(Diagnostic::error(format!(
-            "cannot emit metered terminal-Psi executable image for {target:?}"
-        )));
-    }
-    let image = omega_image::build_final_image(FinalImageInput {
-        target,
-        object: artifact.object(),
-        relocations: artifact.relocations(),
-        text_bytes: artifact.text_bytes(),
-        data_bytes: &[],
-    });
-    let final_image_symbol_digest = omega_image::final_image_symbol_digest(&image);
-    let output = match (target.object_format, target.architecture) {
-        (ObjectFormat::Elf, Architecture::Aarch64) => {
-            omega_image_elf::emit_elf_aarch64_executable(image)
-        }
-        (ObjectFormat::Elf, Architecture::X86_64) => {
-            omega_image_elf::emit_elf_x86_64_executable(image)
-        }
-        (ObjectFormat::MachO, Architecture::Aarch64) => {
-            omega_image_macho::emit_macho_aarch64_executable(image)
-        }
-        (ObjectFormat::Coff, Architecture::X86_64) => {
-            omega_image_pe::emit_pe_x86_64_executable(image, subsystem)
-        }
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "cannot emit metered terminal-Psi executable image for {target:?}"
-            )));
-        }
-    }?;
-    let mut output = emitted_direct_executable_output(output);
-    output.compiler_text_validation = Some(validate_terminal_native_fuel_image(artifact, &output)?);
-    Ok(NativeFuelExecutableImage {
-        artifact: artifact.clone(),
-        subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
-        final_image_symbol_digest,
-        output,
-    })
-}
-
-/// Emit and replay-validate an image containing the exact compiler-owned
-/// transfer and resume entries. The returned runtime evidence remains
-/// source-free and must rejoin installation/native-artifact custody before use.
-pub fn emit_native_fuel_transfer_runtime_executable_image(
-    artifact: &ValidatedNativeFuelTransferRuntimeArtifact,
-    subsystem: u16,
-) -> Result<NativeFuelTransferRuntimeExecutableImage, Diagnostic> {
-    let target = artifact.metered_artifact().semantic_artifact().target();
-    if !can_emit_executable_image(target) {
-        return Err(Diagnostic::error(format!(
-            "cannot emit native fuel transfer image for {target:?}"
-        )));
-    }
-    let image = omega_image::build_final_image(FinalImageInput {
-        target,
-        object: artifact.object(),
-        relocations: artifact.relocations(),
-        text_bytes: artifact.text_bytes(),
-        data_bytes: &[],
-    });
-    let final_image_symbol_digest = omega_image::final_image_symbol_digest(&image);
-    let output = match (target.object_format, target.architecture) {
-        (ObjectFormat::Elf, Architecture::X86_64) => {
-            omega_image_elf::emit_elf_x86_64_executable(image)
-        }
-        (ObjectFormat::Elf, Architecture::Aarch64) => {
-            omega_image_elf::emit_elf_aarch64_executable(image)
-        }
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "native fuel transfer runtime has no terminal image emitter for {target:?}"
-            )));
-        }
-    }?;
-    let mut output = emitted_direct_executable_output(output);
-    let (compiler_text_validation, transfer_runtime_evidence) =
-        validate_terminal_native_fuel_transfer_runtime_image(artifact, &output)?;
-    output.compiler_text_validation = Some(compiler_text_validation);
-    Ok(NativeFuelTransferRuntimeExecutableImage {
-        artifact: artifact.clone(),
-        subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
-        final_image_symbol_digest,
-        output,
-        transfer_runtime_evidence,
-    })
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeFuelTransferRuntimeExecutableImage {
-    artifact: ValidatedNativeFuelTransferRuntimeArtifact,
-    subsystem: Option<u16>,
-    final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
-    output: EmittedImageOutput,
-    transfer_runtime_evidence: omega_installation_evidence::NativeFuelTransferRuntimeEvidence,
-}
-
-impl NativeFuelTransferRuntimeExecutableImage {
-    pub const fn psi(&self) -> TerminalPsiIdentity {
-        self.artifact.metered_artifact().semantic_artifact().psi()
-    }
-
-    pub const fn target(&self) -> NativeTarget {
-        self.artifact
-            .metered_artifact()
-            .semantic_artifact()
-            .target()
-    }
-
-    pub const fn subsystem(&self) -> Option<u16> {
-        self.subsystem
-    }
-
-    pub const fn artifact(&self) -> &ValidatedNativeFuelTransferRuntimeArtifact {
-        &self.artifact
-    }
-
-    pub const fn output(&self) -> &EmittedImageOutput {
-        &self.output
-    }
-
-    pub const fn final_image_symbol_digest(&self) -> omega_image::FinalImageSymbolDigest {
-        self.final_image_symbol_digest
-    }
-
-    pub const fn transfer_runtime_evidence(
-        &self,
-    ) -> &omega_installation_evidence::NativeFuelTransferRuntimeEvidence {
-        &self.transfer_runtime_evidence
-    }
-
-    pub(crate) fn metered_installation_view(&self) -> NativeFuelExecutableImage {
-        NativeFuelExecutableImage {
-            artifact: self.artifact.metered_artifact().clone(),
-            subsystem: self.subsystem,
-            final_image_symbol_digest: self.final_image_symbol_digest,
-            output: self.output.clone(),
-        }
-    }
-}
-
-/// Recheck a complete source-free transfer-runtime image against its retained
-/// metered object, ranked branch custody, relocation materialization, and
-/// exact transfer-state evidence.
-pub fn validate_native_fuel_transfer_runtime_executable_image(
-    image: &NativeFuelTransferRuntimeExecutableImage,
-) -> Result<(), Diagnostic> {
-    let replayed_final_image = omega_image::build_final_image(FinalImageInput {
-        target: image.target(),
-        object: image.artifact.object(),
-        relocations: image.artifact.relocations(),
-        text_bytes: image.artifact.text_bytes(),
-        data_bytes: &[],
-    });
-    if image.final_image_symbol_digest
-        != omega_image::final_image_symbol_digest(&replayed_final_image)
-    {
-        return Err(Diagnostic::error(
-            "native fuel transfer image symbol evidence does not match its exact object entry/data-symbol table",
-        ));
-    }
-    let (compiler_text_validation, transfer_runtime_evidence) =
-        validate_terminal_native_fuel_transfer_runtime_image(&image.artifact, &image.output)?;
-    if image.output.compiler_text_validation != Some(compiler_text_validation)
-        || image.transfer_runtime_evidence != transfer_runtime_evidence
-    {
-        return Err(Diagnostic::error(
-            "native fuel transfer image retained stale final-image evidence",
-        ));
-    }
-    Ok(())
-}
-
-impl omega_installation_evidence::NativeFuelTransferRuntimeImageEvidence
-    for NativeFuelTransferRuntimeExecutableImage
-{
-    fn psi(&self) -> TerminalPsiIdentity {
-        self.psi()
-    }
-
-    fn target(&self) -> NativeTarget {
-        self.target()
-    }
-
-    fn unrelocated_text_bytes(&self) -> &[u8] {
-        self.artifact.text_bytes()
-    }
-
-    fn final_text_bytes(&self) -> &[u8] {
-        &self.output.final_text_bytes
-    }
-
-    fn sponsor_text_offset(&self) -> usize {
-        self.artifact
-            .object()
-            .layout
-            .symbols
-            .get(self.artifact.sponsor_symbol())
-            .offset
-    }
-
-    fn transfer_runtime_evidence(
-        &self,
-    ) -> &omega_installation_evidence::NativeFuelTransferRuntimeEvidence {
-        &self.transfer_runtime_evidence
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeFuelExecutableImage {
-    artifact: ValidatedNativeFuelArtifact,
-    subsystem: Option<u16>,
-    final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
-    output: EmittedImageOutput,
-}
-
-impl NativeFuelExecutableImage {
-    pub const fn psi(&self) -> TerminalPsiIdentity {
-        self.artifact.semantic_artifact().psi()
-    }
-
-    pub const fn target(&self) -> NativeTarget {
-        self.artifact.semantic_artifact().target()
-    }
-
-    pub const fn subsystem(&self) -> Option<u16> {
-        self.subsystem
-    }
-
-    pub const fn target_policy(&self) -> NativeFuelTargetPlanProjection {
-        self.artifact.target_policy()
-    }
-
-    pub fn functions(&self) -> &[ValidatedNativeFuelFunction] {
-        self.artifact.functions()
-    }
-
-    /// Immutable semantic/source evidence retained beside the metered
-    /// realization. Installation records keep its coordinates distinct from
-    /// the executable metered coordinates.
-    pub const fn semantic_artifact(&self) -> &ObjectArtifact {
-        self.artifact.semantic_artifact()
-    }
-
-    pub fn metered_text_bytes(&self) -> &[u8] {
-        self.artifact.text_bytes()
-    }
-
-    pub fn charges(&self) -> Vec<omega_installation_evidence::NativeFuelChargeEvidence> {
-        omega_installation_evidence::NativeFuelImageEvidence::charges(self)
-    }
-
-    pub(crate) fn semantic_installation_view(&self) -> ExecutableImage {
-        let semantic = self.artifact.semantic_artifact();
-        let semantic_final_image = omega_image::build_final_image(FinalImageInput {
-            target: semantic.target(),
-            object: semantic.object(),
-            relocations: semantic.relocations(),
-            text_bytes: semantic.text_bytes(),
-            data_bytes: &[],
-        });
-        ExecutableImage {
-            psi: semantic.psi(),
-            target: semantic.target(),
-            subsystem: self.subsystem,
-            functions: semantic.functions().to_vec(),
-            fuel_attribution: semantic.fuel_attribution().to_vec(),
-            port_effects: semantic.port_effects().to_vec(),
-            boundary_settlements: semantic.boundary_settlements().to_vec(),
-            final_image_symbol_digest: omega_image::final_image_symbol_digest(
-                &semantic_final_image,
-            ),
-            output: self.output.clone(),
-        }
-    }
-
-    pub const fn output(&self) -> &EmittedImageOutput {
-        &self.output
-    }
-
-    pub const fn artifact(&self) -> &ValidatedNativeFuelArtifact {
-        &self.artifact
-    }
-
-    pub const fn final_image_symbol_digest(&self) -> omega_image::FinalImageSymbolDigest {
-        self.final_image_symbol_digest
-    }
-}
-
-/// Recheck a complete source-free metered image against its retained semantic
-/// object, target recipe, charge catalog, ranked branch custody, and final
-/// relocation envelope.
-pub fn validate_native_fuel_executable_image(
-    image: &NativeFuelExecutableImage,
-) -> Result<(), Diagnostic> {
-    let replayed_final_image = omega_image::build_final_image(FinalImageInput {
-        target: image.target(),
-        object: image.artifact.object(),
-        relocations: image.artifact.relocations(),
-        text_bytes: image.artifact.text_bytes(),
-        data_bytes: &[],
-    });
-    if image.final_image_symbol_digest
-        != omega_image::final_image_symbol_digest(&replayed_final_image)
-    {
-        return Err(Diagnostic::error(
-            "native fuel image symbol evidence does not match its exact object entry/data-symbol table",
-        ));
-    }
-    let recomputed = validate_terminal_native_fuel_image(&image.artifact, &image.output)?;
-    if image.output.compiler_text_validation != Some(recomputed) {
-        return Err(Diagnostic::error(
-            "native fuel image retained stale final-text validation evidence",
-        ));
-    }
-    Ok(())
-}
-
-impl omega_installation_evidence::NativeFuelImageEvidence for NativeFuelExecutableImage {
-    fn psi(&self) -> TerminalPsiIdentity {
-        self.psi()
-    }
-
-    fn target(&self) -> NativeTarget {
-        self.target()
-    }
-
-    fn target_policy(&self) -> NativeFuelTargetPlanProjection {
-        self.target_policy()
-    }
-
-    fn source_text_bytes(&self) -> &[u8] {
-        self.artifact.semantic_artifact().text_bytes()
-    }
-
-    fn metered_text_bytes(&self) -> &[u8] {
-        self.artifact.text_bytes()
-    }
-
-    fn final_text_bytes(&self) -> &[u8] {
-        &self.output.final_text_bytes
-    }
-
-    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
-        self.artifact
-            .functions()
-            .iter()
-            .find(|function| function.machine == machine)
-            .map(|function| function.text_offset)
-    }
-
-    fn charges(&self) -> Vec<omega_installation_evidence::NativeFuelChargeEvidence> {
-        self.artifact
-            .functions()
-            .iter()
-            .flat_map(|metered| {
-                let source = self
-                    .artifact
-                    .semantic_artifact()
-                    .functions()
-                    .iter()
-                    .find(|function| function.machine == metered.machine)
-                    .expect("validated metered function retains its semantic source");
-                metered.charges.iter().map(move |charge| {
-                    let site = match charge.attribution.site {
-                        omega_machine_code::NativeFuelSite::Operation(operation) => {
-                            omega_installation_evidence::FuelAttributionSite::Operation(operation)
-                        }
-                        omega_machine_code::NativeFuelSite::Edge(edge) => {
-                            omega_installation_evidence::FuelAttributionSite::Edge(edge)
-                        }
-                    };
-                    omega_installation_evidence::NativeFuelChargeEvidence {
-                        attribution: omega_installation_evidence::FuelAttributionEvidence {
-                            machine: metered.machine,
-                            schedule: charge.attribution.schedule,
-                            site,
-                            units: charge.attribution.units,
-                            operation_ordinal: charge.attribution.operation_ordinal,
-                            text_offset: source.text_offset + charge.attribution.code_offset,
-                            byte_count: charge.attribution.byte_count,
-                        },
-                        charge_text_offset: metered.text_offset + charge.charge_code_offset,
-                        charge_byte_count: charge.charge_byte_count,
-                        semantic_text_offset: metered.text_offset + charge.semantic_code_offset,
-                        cold_dispatch_text_offset: metered.text_offset
-                            + charge.cold_dispatch_code_offset,
-                        cold_dispatch_byte_count: charge.cold_dispatch_byte_count,
-                    }
-                })
-            })
-            .collect()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImage {
     psi: TerminalPsiIdentity,
     target: NativeTarget,
     subsystem: Option<u16>,
     functions: Vec<ObjectFunction>,
-    fuel_attribution: Vec<ObjectFuelAttribution>,
+    semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
     final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
@@ -742,8 +336,8 @@ impl ExecutableImage {
         &self.port_effects
     }
 
-    pub fn fuel_attribution(&self) -> &[ObjectFuelAttribution] {
-        &self.fuel_attribution
+    pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
+        &self.semantic_code_attribution
     }
 
     pub const fn final_image_symbol_digest(&self) -> omega_image::FinalImageSymbolDigest {

@@ -4,8 +4,8 @@ use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
 use crate::identity::GitObjectIdAlgorithm;
 use crate::identity::digest::format_sha256;
 use crate::limits::{
-    GIT_CACHE_POLICY, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_OBSERVATION_DOMAIN,
-    GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION, GIT_SNAPSHOT_POLICY, LocalSourceLimits,
+    GIT_CACHE_POLICY, GIT_FIXED_COMMAND_ALLOWANCE, GIT_SNAPSHOT_POLICY, GIT_SOURCE_RECEIPT_DOMAIN,
+    GIT_SOURCE_RECEIPT_SCHEMA_VERSION, LocalSourceLimits,
 };
 use omega_resolver_execution::ResolverExecutionPhase;
 use sha2::{Digest, Sha256};
@@ -19,13 +19,14 @@ use super::execution::GitTransportExecutableIdentity;
 use super::resolved::PendingResolvedGitSource;
 use super::storage::{GitRetainedStorageObservation, validate_git_retained_storage_observation};
 
-/// Compact canonical identity of one locally successful Git resolution.
+/// Compact canonical receipt of one locally successful Git resolution.
 ///
 /// The observation is issued by the resolver and has no public constructor or
-/// decoder. It binds the complete successful result and all retained native
-/// execution provenance, but it does not claim strict isolation or admission.
+/// decoder. It binds the complete successful result and all retained execution
+/// provenance. Platform hardening rows report what was enforced; they do not
+/// claim that the host's ordinary user authority was excluded.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitSourceResolutionObservation {
+pub struct GitSourceReceipt {
     pub(crate) schema_version: u32,
     pub(crate) identity: String,
     pub(crate) command_count: usize,
@@ -36,7 +37,7 @@ pub struct GitSourceResolutionObservation {
     pub(crate) network_transfer_downloaded: u64,
 }
 
-impl GitSourceResolutionObservation {
+impl GitSourceReceipt {
     pub const fn schema_version(&self) -> u32 {
         self.schema_version
     }
@@ -70,11 +71,11 @@ impl GitSourceResolutionObservation {
     }
 }
 
-pub(crate) fn issue_git_source_resolution_observation(
+pub(crate) fn issue_git_source_receipt(
     resolved: &PendingResolvedGitSource,
     limits: LocalSourceLimits,
     retained_storage: &GitRetainedStorageObservation,
-) -> Result<GitSourceResolutionObservation, SourceResolveError> {
+) -> Result<GitSourceReceipt, SourceResolveError> {
     if !validate_git_retained_storage_observation(retained_storage, &retained_storage.root, limits)
     {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
@@ -150,11 +151,8 @@ pub(crate) fn issue_git_source_resolution_observation(
     }
 
     let mut hasher = Sha256::new();
-    hash_resolution_field(&mut hasher, GIT_RESOLUTION_OBSERVATION_DOMAIN);
-    hash_resolution_u64(
-        &mut hasher,
-        u64::from(GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION),
-    );
+    hash_resolution_field(&mut hasher, GIT_SOURCE_RECEIPT_DOMAIN);
+    hash_resolution_u64(&mut hasher, u64::from(GIT_SOURCE_RECEIPT_SCHEMA_VERSION));
     hash_resolution_field(&mut hasher, GIT_CACHE_POLICY);
     hash_resolution_field(&mut hasher, GIT_SNAPSHOT_POLICY);
     hash_resolution_field(&mut hasher, resolved.requested_locator.as_bytes());
@@ -261,10 +259,10 @@ pub(crate) fn issue_git_source_resolution_observation(
     hash_resolution_usize(&mut hasher, retained_storage.entry_count);
     hash_resolution_u64(&mut hasher, retained_storage.logical_bytes);
     hash_resolution_usize(&mut hasher, retained_storage.maximum_depth);
-    hash_resolution_field(&mut hasher, b"resolved-non-admitting");
+    hash_resolution_field(&mut hasher, b"resolved");
 
-    Ok(GitSourceResolutionObservation {
-        schema_version: GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
+    Ok(GitSourceReceipt {
+        schema_version: GIT_SOURCE_RECEIPT_SCHEMA_VERSION,
         identity: format_sha256(&hasher.finalize()),
         command_count: resolved.command_execution_observations.len(),
         captured_output_ceiling: resolved.captured_output_observation.ceiling,

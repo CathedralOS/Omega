@@ -908,17 +908,6 @@ only as an explicitly non-authoritative compatibility fingerprint while
 independently replaying the exact owned carrier; final-image and installation
 authority cannot be reconstructed from that compact value.
 
-Native-fuel sponsor-route admission applies this rule after installation as
-well as during image replay. The route retains exact transfer-code custody over
-the admitted plan, terminal Psi identity, opaque installed occurrence, runtime
-evidence, and sponsor coordinate. Its compact transfer-code and route FNVs are
-report coordinates only; executable runtime binding compares the exact custody
-and rejects compact-equal substitution. Target policy independently carries a
-domain-separated SHA-256 commitment to the complete canonical transfer plan,
-including target/context shape, activation slots, machine-state sets, sponsor
-stack, and entry identities. Plan admission requires that commitment even when
-the historical compact plan report identity matches.
-
 Target-owned physical-entry package provenance follows the same rule. Build
 evaluation first validates exact toolchain origin and canonical source
 membership, then commits the package identity, package-relative source path,
@@ -937,7 +926,7 @@ replay compares those exact strings before comparing the compact report rows.
 Consequently a report-equal execution cannot be substituted for another exact
 requirement, and decoding an installation record cannot recreate admission.
 The evidence interface names each compact projection as a report identity or
-report fingerprint; fixed-fuel, stack-demand, progress-profile, and native-fuel
+report fingerprint; logical-work, stack-demand, and progress-profile
 composition expose no shorter authority-looking aliases.
 
 Provider service schemas preserve the boundary-plan authority split before

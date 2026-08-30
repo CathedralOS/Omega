@@ -11,12 +11,3 @@ path = "src/lib.rs"
 [dependencies]
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = [
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_Security_Authorization",
-    "Win32_System_SystemServices",
-    "Win32_System_Threading",
-] }

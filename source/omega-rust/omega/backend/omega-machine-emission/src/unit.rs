@@ -7,7 +7,7 @@ use omega_calling_conventions::{
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord,
     ForeignCallRelocation, InternalCallRelocation, InternalUnitCallArgumentRecord,
-    InternalUnitCallRecord, NativeFuelAttribution, NativeFuelSite, PortEffectRecord,
+    InternalUnitCallRecord, PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite,
     StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
     derive_completion_provider_custody,
 };
@@ -29,7 +29,7 @@ pub(super) struct UnitEmission {
     pub(super) internal_calls: Vec<InternalCallRelocation>,
     pub(super) foreign_calls: Vec<ForeignCallRelocation>,
     pub(super) internal_unit_calls: Vec<InternalUnitCallRecord>,
-    pub(super) fuel_attribution: Vec<NativeFuelAttribution>,
+    pub(super) semantic_code_attribution: Vec<SemanticCodeAttribution>,
     pub(super) port_effects: Vec<PortEffectRecord>,
     pub(super) boundary_settlements: Vec<BoundarySettlementRecord>,
     pub(super) stack: UnitStackEvidence,
@@ -345,7 +345,7 @@ pub(super) fn emit_unit_body(
     let mut internal_calls = Vec::new();
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
-    let mut fuel_attribution = Vec::new();
+    let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
     let mut x86_homes = Vec::new();
@@ -1054,14 +1054,12 @@ pub(super) fn emit_unit_body(
             }
         }
         let site = match (operation_site, edge_site) {
-            (Some(operation), None) => NativeFuelSite::Operation(operation),
-            (None, Some(edge)) => NativeFuelSite::Edge(edge),
+            (Some(operation), None) => SemanticCodeSite::Operation(operation),
+            (None, Some(edge)) => SemanticCodeSite::Edge(edge),
             _ => unreachable!("one Unit operation owns exactly one fuel site"),
         };
-        fuel_attribution.push(NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        semantic_code_attribution.push(SemanticCodeAttribution {
             site,
-            units: 1,
             operation_ordinal,
             code_offset,
             byte_count: bytes.len() - code_offset,
@@ -1075,7 +1073,7 @@ pub(super) fn emit_unit_body(
         internal_calls,
         foreign_calls,
         internal_unit_calls,
-        fuel_attribution,
+        semantic_code_attribution,
         port_effects,
         boundary_settlements,
         stack: UnitStackEvidence {

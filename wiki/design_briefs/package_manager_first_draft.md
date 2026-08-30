@@ -116,8 +116,8 @@ resolver reconciles the exact request with its canonical live root, verifies
 the retained storage and immutable publication, rechecks the live source, and
 rehashes the published exact tree. The resulting read-only snapshot carries an
 opaque observation binding those facts plus the compiler-bounded source limits
-and custody identity. This is successful non-admitting provenance, not a strict
-source receipt or protection from a later hostile same-user race.
+and custody identity. This is the successful local-source receipt. Package
+review and lock admission remain separate decisions over that exact source.
 
 The implementation normalizes GitHub's and hosted GitLab's established HTTPS
 and SSH repository namespaces. GitLab nested namespace paths remain exact and

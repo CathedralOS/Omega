@@ -17,10 +17,10 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved.command_execution_observations().len(),
         resolved.execution_policy_observations().len()
     );
-    assert_eq!(resolved.resolution_observation().schema_version(), 7);
-    assert_eq!(resolved.resolution_observation().identity().len(), 64);
+    assert_eq!(resolved.receipt().schema_version(), 8);
+    assert_eq!(resolved.receipt().identity().len(), 64);
     assert_eq!(
-        resolved.resolution_observation().command_count(),
+        resolved.receipt().command_count(),
         resolved.command_execution_observations().len()
     );
     assert_eq!(
@@ -36,11 +36,11 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             .sum::<u64>()
     );
     assert_eq!(
-        resolved.resolution_observation().captured_output_ceiling(),
+        resolved.receipt().captured_output_ceiling(),
         resolved.captured_output_observation().ceiling()
     );
     assert_eq!(
-        resolved.resolution_observation().captured_output_observed(),
+        resolved.receipt().captured_output_observed(),
         resolved.captured_output_observation().observed()
     );
     assert_eq!(
@@ -49,19 +49,15 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     );
     assert_eq!(resolved.network_transfer_observation().observed(), 0);
     assert_eq!(
-        resolved.resolution_observation().network_transfer_ceiling(),
+        resolved.receipt().network_transfer_ceiling(),
         resolved.network_transfer_observation().ceiling()
     );
     assert_eq!(
-        resolved
-            .resolution_observation()
-            .network_transfer_uploaded(),
+        resolved.receipt().network_transfer_uploaded(),
         resolved.network_transfer_observation().uploaded()
     );
     assert_eq!(
-        resolved
-            .resolution_observation()
-            .network_transfer_downloaded(),
+        resolved.receipt().network_transfer_downloaded(),
         resolved.network_transfer_observation().downloaded()
     );
     assert_eq!(resolved.retained_storage_observation().schema_version(), 1);
@@ -80,7 +76,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             <= resolved.retained_storage_observation().depth_ceiling()
     );
     let alternate_policy_result = PendingResolvedGitSource::from_issued(&resolved);
-    let alternate_policy_observation = issue_git_source_resolution_observation(
+    let alternate_policy_observation = issue_git_source_receipt(
         &alternate_policy_result,
         LocalSourceLimits {
             max_entries: LocalSourceLimits::default().max_entries - 1,
@@ -91,13 +87,13 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     .expect("issue observation for an alternate source policy");
     assert_ne!(
         alternate_policy_observation.identity(),
-        resolved.resolution_observation().identity(),
+        resolved.receipt().identity(),
         "the final observation must bind compiler source ceilings"
     );
     let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
     unjoined_result.command_execution_observations.pop();
     assert!(
-        issue_git_source_resolution_observation(
+        issue_git_source_receipt(
             &unjoined_result,
             LocalSourceLimits::default(),
             resolved.retained_storage_observation(),
@@ -111,7 +107,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         .clone();
     mismatched_completion.command_execution_observations[0].completion = alternate_completion;
     assert!(
-        issue_git_source_resolution_observation(
+        issue_git_source_receipt(
             &mismatched_completion,
             LocalSourceLimits::default(),
             resolved.retained_storage_observation(),
@@ -127,7 +123,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         .expect("resolved fixture retains a network command")
         .endpoint_observation = None;
     assert!(
-        issue_git_source_resolution_observation(
+        issue_git_source_receipt(
             &unjoined_endpoint,
             LocalSourceLimits::default(),
             resolved.retained_storage_observation(),
@@ -140,7 +136,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         .captured_output_observation
         .observed += 1;
     assert!(
-        issue_git_source_resolution_observation(
+        issue_git_source_receipt(
             &mismatched_output_accounting,
             LocalSourceLimits::default(),
             resolved.retained_storage_observation(),
@@ -153,7 +149,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         .network_transfer_observation
         .uploaded += 1;
     assert!(
-        issue_git_source_resolution_observation(
+        issue_git_source_receipt(
             &mismatched_network_accounting,
             LocalSourceLimits::default(),
             resolved.retained_storage_observation(),
@@ -198,13 +194,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved
             .execution_policy_observations()
             .iter()
-            .all(|observation| observation.require_strict().is_err()),
-        "the current native backend must not overstate strict resolution"
-    );
-    assert!(
-        resolved
-            .execution_policy_observations()
-            .iter()
             .any(
                 |observation| observation.phase() == ResolverExecutionPhase::Fetch
                     && observation.mutable_root().is_some()
@@ -229,207 +218,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
                 .all(|executable| executable.content_identity().len() == 64)
         );
     }
-
-    let _ = std::fs::remove_dir_all(&repo);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
-    let (repo, commit) = create_git_source("git-strict-receipt");
-    let cache = temp_root("git-strict-receipt-cache");
-    let limits = LocalSourceLimits::default();
-    let resolved = resolve_git_source(&local_git_request(&repo, &commit), &cache, limits)
-        .expect("resolve source before strict reconstruction");
-    let expected_unavailable = resolved
-        .execution_policy_observations()
-        .iter()
-        .find_map(|policy| policy.require_strict().err())
-        .expect("current native backend reports an unavailable strict guarantee");
-    assert_eq!(
-        resolved.strict_receipt(),
-        Err(&GitSourceStrictReceiptError::ExecutionUnavailable(
-            expected_unavailable
-        )),
-        "ordinary successful resolution must retain an exact strict-reconstruction rejection"
-    );
-
-    let retained = resolved.resolution_observation().clone();
-    let retained_storage = resolved.retained_storage_observation().clone();
-    let entry_root = retained_storage.root.clone();
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &PendingResolvedGitSource::from_issued(&resolved),
-            &entry_root,
-            limits,
-            None,
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::MissingRequiredEvidence(
-            GitSourceStrictReceiptRequirement::RetainedStorageCustody,
-        ))
-    );
-    let mut missing_policy = PendingResolvedGitSource::from_issued(&resolved);
-    missing_policy.execution_policy_observations.pop();
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &missing_policy,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::MissingExecutionRows)
-    );
-
-    let mut missing_completion = PendingResolvedGitSource::from_issued(&resolved);
-    missing_completion.command_execution_observations.pop();
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &missing_completion,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::MissingExecutionRows)
-    );
-
-    let mut missing_endpoint = PendingResolvedGitSource::from_issued(&resolved);
-    missing_endpoint
-        .command_execution_observations
-        .iter_mut()
-        .find(|command| command.endpoint_observation.is_some())
-        .expect("Git resolution retains one network route")
-        .endpoint_observation = None;
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &missing_endpoint,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
-    );
-
-    let mut changed_accounting = PendingResolvedGitSource::from_issued(&resolved);
-    changed_accounting.network_transfer_observation.uploaded += 1;
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &changed_accounting,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
-    );
-
-    let mut changed_storage = retained_storage.clone();
-    changed_storage.logical_bytes += 1;
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &PendingResolvedGitSource::from_issued(&resolved),
-            &entry_root,
-            limits,
-            Some(&changed_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::InvalidResolutionObservation),
-        "strict reconstruction must reject a changed retained-storage row"
-    );
-
-    let alternate_storage = issue_git_retained_storage_observation(
-        &entry_root,
-        limits,
-        CacheCustodyMeasurement {
-            entry_count: retained_storage.entry_count,
-            logical_bytes: retained_storage.logical_bytes + 1,
-            maximum_depth: retained_storage.maximum_depth,
-        },
-    );
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &PendingResolvedGitSource::from_issued(&resolved),
-            &entry_root,
-            limits,
-            Some(&alternate_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch),
-        "a separately valid storage row must reproduce the retained resolution identity exactly"
-    );
-
-    let mut changed_input = PendingResolvedGitSource::from_issued(&resolved);
-    changed_input.command_execution_observations[0].input = GitCommandInputCommitment::ExactBytes {
-        length: 1,
-        identity: "00".repeat(32),
-    };
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &changed_input,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
-    );
-
-    let mut changed_executable = PendingResolvedGitSource::from_issued(&resolved);
-    changed_executable.git_executable.content_identity = "00".repeat(32);
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &changed_executable,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
-    );
-
-    let mut changed_source = PendingResolvedGitSource::from_issued(&resolved);
-    changed_source.local.file_count += 1;
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &changed_source,
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
-    );
-
-    let changed_limits = LocalSourceLimits {
-        max_entries: limits.max_entries - 1,
-        ..limits
-    };
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &PendingResolvedGitSource::from_issued(&resolved),
-            &entry_root,
-            changed_limits,
-            Some(&retained_storage),
-            &retained,
-        ),
-        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
-    );
-
-    let mut changed_retained = retained.clone();
-    changed_retained.identity = "00".repeat(32);
-    assert_eq!(
-        reconstruct_git_source_strict_receipt(
-            &PendingResolvedGitSource::from_issued(&resolved),
-            &entry_root,
-            limits,
-            Some(&retained_storage),
-            &changed_retained,
-        ),
-        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
-    );
 
     let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);

@@ -1,15 +1,14 @@
 //! Exact structural-return evidence and byte replay.
 //!
 //! This module independently validates the retained native ABI placements,
-//! terminal-Psi provenance, fuel attribution, affine-place/discard custody, and
+//! terminal-Psi provenance, affine-place/discard custody, and
 //! final architecture return bytes for the bounded whole-root structural-return
 //! lane. It does not construct object functions or installation records.
 
-use omega_machine_code::{NativeFuelAttribution, NativeFuelSite, StructuralReturnRecord};
+use omega_machine_code::{SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord};
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
-use psi_terminal_fuel::TerminalFuelSchedule;
 
 use super::{
     ObjectError,
@@ -21,7 +20,7 @@ pub(super) fn validate_structural_return_record(
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
     bytes: &[u8],
-    fuel_attribution: &[NativeFuelAttribution],
+    semantic_code_attribution: &[SemanticCodeAttribution],
     returned: &StructuralReturnRecord,
 ) -> Result<(), ObjectError> {
     let architecture = target.architecture;
@@ -45,25 +44,21 @@ pub(super) fn validate_structural_return_record(
     if returned.code_offset != 0
         || end != bytes.len()
         || returned.byte_count == 0
-        || fuel_attribution.len() != returned.trivial_affine_locals.len() + 1
+        || semantic_code_attribution.len() != returned.trivial_affine_locals.len() + 1
         || returned
             .trivial_affine_locals
             .iter()
             .enumerate()
             .any(|(ordinal, (operation, _, _))| {
-                fuel_attribution.get(ordinal).is_none_or(|attribution| {
-                    attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
-                        || attribution.site != NativeFuelSite::Operation(*operation)
-                        || attribution.units != 1
+                semantic_code_attribution.get(ordinal).is_none_or(|attribution| {
+                    attribution.site != SemanticCodeSite::Operation(*operation)
                         || attribution.operation_ordinal != ordinal
                         || attribution.code_offset != 0
                         || attribution.byte_count != 0
                 })
             })
-        || fuel_attribution.last().is_none_or(|attribution| {
-            attribution.schedule != TerminalFuelSchedule::CURRENT.identity()
-                || attribution.site != NativeFuelSite::Edge(returned.psi_edge)
-                || attribution.units != 1
+        || semantic_code_attribution.last().is_none_or(|attribution| {
+            attribution.site != SemanticCodeSite::Edge(returned.psi_edge)
                 || attribution.operation_ordinal != returned.trivial_affine_locals.len()
                 || attribution.code_offset != 0
                 || attribution.byte_count != returned.byte_count

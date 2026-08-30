@@ -60,9 +60,9 @@ An interpreter similarly returns `OutOfFuel`; a bounded search returns
 `Exhausted`. The bound makes that invocation total without pretending the
 unbounded mathematical process is known to terminate.
 
-This algorithm-visible budget is distinct from terminal-Psi sponsor fuel.
-Sponsor fuel meters already-admitted execution, is not observable or catchable
-by the program, and may pause, cancel, or terminate the execution externally.
+This algorithm-visible budget is distinct from Terminal-Psi logical-work
+accounting used by compiler services and static analysis. Neither creates a
+native runtime meter.
 See
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
 
@@ -94,8 +94,8 @@ likewise belong to the resource algebra rather than a single `budget` clause
 or qualitative reach-row member.
 
 Hard external roots expose the intermediate structural tier explicitly.
-Admission may require a fixed-work certificate denominated in terminal-Psi
-fuel and compare it with the sponsor provision, while `terminates by` rankings,
+Admission may require a fixed-work certificate denominated in Terminal-Psi
+logical units and compare it with an authored profile ceiling, while `terminates by` rankings,
 acyclic control flow, callee summaries, and proof internals remain private
 evidence. The same restricted checker can analyze a segment ending at the next
 semantic safe point. A compile-time ranking range can bound cyclic edges; it

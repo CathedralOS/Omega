@@ -203,15 +203,6 @@ consume no accepted obligation. Candidate tags 6/7 are append-only, the GVN
 pass identity is v9, and the rule remains disabled with an empty exact-name
 selection.
 
-[x] Ranked-`u32` native-fuel custody now crosses both direct and
-transfer-runtime executable-image boundaries on Linux x64 and Linux Arm64.
-One 45-line replay entrance joins target-decoded coordinate reconstruction to
-object admission and independently rejoins semantic proof/rank/ABI/fuel
-custody to final bytes. Final replay reconstructs all five branch coordinates,
-all nine source-to-charge rows, all hot and cold fragments, relocation
-isolation, and all three rebased branches before either image is admitted;
-both routes then round-trip canonical installation custody.
-
 [x] Global value numbering now includes one closed obligation-free wrapping
 neutral-arithmetic family: `0 + x`, `x + 0`, `x - 0`, `1 * x`, and `x * 1`.
 The ordered producer leaf admits only those five typed rows; a separate
@@ -277,22 +268,12 @@ is a responsibility map into named semantic folders. Legalization source and
 replay have separate sub-100-line roster entrances and mirrored structural
 subtrees, all pinned by the source-organization gate.
 
-[x] The exact unmetered ranked-`u32` countdown now crosses the object boundary
+[x] The exact ranked-`u32` countdown now crosses the ordinary object boundary
 through target-owned x86-64/AArch64 decoders and independent image-owned
 contract/fuel replay. Object custody retains the full ranked record; missing
 custody, corrupted bytes/ABI/frontier/provenance/fuel, and mixed body evidence
-reject. Unmetered final-image, installation, native-artifact, and callable
+reject. Final-image, installation, native-artifact, and callable
 publication custody now replay that record independently.
-
-[x] Ranked native-fuel instrumentation now rebases the preheader, false-exit,
-and backedge branches to the first charge in each destination-site group and
-retains a typed coordinate record. Metered-object replay independently decodes
-both ISA charge/cold fragments and the three rebased branches, reconstructs the
-record, and admits direct final-image, format-43 installation, and source-free
-ranked native-artifact custody on both Linux ISAs. The obsolete metered object-
-container publication API is deleted. Transfer-runtime replay requires the
-activation record to preserve the ABI rank carrier; honest ranked execution is
-owner-blocked on “Own the ranked native-fuel sponsor entry.”
 
 [x] Layout-independent selected-form encoding now has an independent
 validation rung. Its small entrance coordinates ordinary rows, structural
@@ -652,13 +633,10 @@ parallel route or optional coordinator field.
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently. Structural-Unit selected validation also reconstructs ABI
-  layout and call constraints without construction helpers. The unmetered
-  ranked-`u32` machine carrier now has target-decoder-led unmetered and
-  native-fuel object replay, and both unmetered and directly metered ranked
-  routes reach final-image, installation, and native-artifact custody. Ranked
-  transfer execution remains owner-blocked on “Own the ranked native-fuel
-  sponsor entry”; other
-  lowering and publication routes still need closure.
+  layout and call constraints without construction helpers. The ordinary
+  ranked-`u32` machine carrier now has target-decoder-led ordinary object,
+  final-image, installation, and native-artifact replay. Other lowering and
+  publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.

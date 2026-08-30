@@ -15,9 +15,9 @@ pub(crate) const LOCAL_SNAPSHOT_METADATA: &str = "snapshot.identity";
 pub(crate) const LOCAL_SNAPSHOT_SOURCE: &str = "source";
 pub(crate) const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v2";
 pub(crate) const LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] = b"omega-local-source-snapshot-custody-v1";
-pub(crate) const LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 1;
+pub(crate) const LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 2;
 pub(crate) const LOCAL_RESOLUTION_OBSERVATION_DOMAIN: &[u8] =
-    b"omega-local-source-resolution-observation-v1";
+    b"omega-local-source-resolution-observation-v2";
 pub(crate) const DEFAULT_BUILD_OUTPUT_DIRECTORY: &str = "build";
 pub(crate) const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 pub(crate) const GIT_CONFIG_SHA1: &[u8] =
@@ -46,8 +46,8 @@ pub(crate) const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 pub(crate) const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 pub(crate) const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
-pub(crate) const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 7;
-pub(crate) const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v6";
+pub(crate) const GIT_SOURCE_RECEIPT_SCHEMA_VERSION: u32 = 8;
+pub(crate) const GIT_SOURCE_RECEIPT_DOMAIN: &[u8] = b"omega-git-source-receipt-v8";
 pub(crate) const GIT_RETAINED_STORAGE_OBSERVATION_SCHEMA_VERSION: u32 = 1;
 pub(crate) const GIT_RETAINED_STORAGE_OBSERVATION_DOMAIN: &[u8] =
     b"omega-git-retained-storage-observation-v1";

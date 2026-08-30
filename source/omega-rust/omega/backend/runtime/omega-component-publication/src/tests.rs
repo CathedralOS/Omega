@@ -33,8 +33,8 @@ use omega_image_emission::{
 };
 use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_machine_code::{
-    BoundarySettlementRecord, MachineCodeFunction, MachineCodePlan, NativeFuelAttribution,
-    NativeFuelSite,
+    BoundarySettlementRecord, MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution,
+    SemanticCodeSite,
 };
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, LinuxExitGroupI32Realization,
@@ -307,18 +307,18 @@ fn terminal_image(
             foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
             unit_affine_cleanup: None,
-            fuel_attribution: vec![
-                NativeFuelAttribution {
+            semantic_code_attribution: vec![
+                SemanticCodeAttribution {
                     schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                    site: NativeFuelSite::Operation(operation),
+                    site: SemanticCodeSite::Operation(operation),
                     units: 1,
                     operation_ordinal: 0,
                     code_offset: 0,
                     byte_count: bytes.len(),
                 },
-                NativeFuelAttribution {
+                SemanticCodeAttribution {
                     schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-                    site: NativeFuelSite::Edge(edge),
+                    site: SemanticCodeSite::Edge(edge),
                     units: 1,
                     operation_ordinal: 1,
                     code_offset: bytes.len(),

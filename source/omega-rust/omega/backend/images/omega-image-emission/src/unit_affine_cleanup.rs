@@ -1,11 +1,11 @@
 //! Exact Unit-affine cleanup evidence replay.
 //!
 //! This module validates root, residual, and nominal cleanup actions against
-//! retained places, structural paths, provenance, fuel, and cleanup targets.
+//! retained places, structural paths, provenance, code attribution, and cleanup targets.
 //! It does not choose cleanup actions, infer layouts, or emit instructions.
 
 use omega_machine_code::{
-    InternalUnitCallRecord, MachineCodeFunction, NativeFuelAttribution, NativeFuelSite,
+    InternalUnitCallRecord, MachineCodeFunction, SemanticCodeAttribution, SemanticCodeSite,
     UnitAffineCleanupRecord, UnitParameterHomeRecord,
 };
 use omega_target_operations::{CallSiteOwner, TerminalPsiProvenance};
@@ -73,7 +73,7 @@ pub(super) fn validate_unit_affine_cleanup(
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
     bytes: &[u8],
-    fuel: &[NativeFuelAttribution],
+    attribution: &[SemanticCodeAttribution],
     parameter_homes: &[UnitParameterHomeRecord],
     internal_unit_calls: &[InternalUnitCallRecord],
     attachments: &std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
@@ -429,10 +429,10 @@ pub(super) fn validate_unit_affine_cleanup(
                         psi_terminal::StructuralTypeShape::Record { ref fields }
                             if fields.is_empty()
                     )
-                    || fuel
+                    || attribution
                         .iter()
                         .filter(|attribution| {
-                            attribution.site == NativeFuelSite::Operation(*operation)
+                            attribution.site == SemanticCodeSite::Operation(*operation)
                                 && attribution.byte_count == 0
                         })
                         .count()
@@ -440,10 +440,10 @@ pub(super) fn validate_unit_affine_cleanup(
             },
         )
         || action_shape_invalid
-        || fuel
+        || attribution
             .iter()
             .filter(|attribution| {
-                attribution.site == NativeFuelSite::Edge(cleanup.psi_edge)
+                attribution.site == SemanticCodeSite::Edge(cleanup.psi_edge)
                     && attribution.code_offset == cleanup.code_offset
                     && attribution.byte_count == cleanup.byte_count
             })

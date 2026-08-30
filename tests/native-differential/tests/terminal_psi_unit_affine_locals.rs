@@ -82,7 +82,7 @@ fn unit_affine_local_cleanup_survives_all_native_artifacts() {
         );
         assert_eq!(
             machine.functions[0]
-                .fuel_attribution
+                .semantic_code_attribution
                 .iter()
                 .filter(|row| row.byte_count == 0)
                 .count(),

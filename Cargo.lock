@@ -741,7 +741,6 @@ name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-installation-evidence",
  "omega-optimization-core",
  "omega-register-model",
  "omega-selected-instructions",
@@ -756,7 +755,6 @@ name = "omega-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-installation-evidence",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-register-model",
@@ -1149,7 +1147,6 @@ version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
- "windows-sys 0.61.2",
 ]
 
 [[package]]

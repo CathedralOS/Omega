@@ -40,7 +40,7 @@ pub(super) fn issue_local_source_resolution_observation(
     hash_usize(&mut hasher, limits.max_depth);
     hash_field(&mut hasher, custody_identity.as_bytes());
     hash_field(&mut hasher, b"final-exact-tree-rehash-complete");
-    hash_field(&mut hasher, b"resolved-non-admitting");
+    hash_field(&mut hasher, b"resolved");
 
     LocalSourceResolutionObservation {
         schema_version: LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION,

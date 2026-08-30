@@ -16,57 +16,9 @@ Governing documents:
 - `source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`
 - `OWNER_QUESTIONS.md`
 
-Do not wire mutating `omega install` or `omega update` until the P0 source
-boundary, recheckable evidence, accepted lock, and transaction gates below are
-closed. Compiler-issued package review remains non-admitting.
-
-## P0 — Source resolver boundary
-
-- [ ] **HARDEN-SOURCE-RESOLVER.** Finish the hostile-process boundary around
-  local and Git resolution.
-
-  Remaining work:
-
-  - complete Linux metadata/read, direct-egress, and endpoint confinement.
-    Landlock ABI v5 already constrains handled content/namespace mutation and
-    path-based execution when fully available, but the complete write and
-    executable rows remain unavailable: metadata operations such as mode/time
-    changes are unmediated, and executable memfds or anonymous executable code
-    require an additional mechanism such as seccomp. Package resolution rejects
-    the resource-limit-only Linux fallback;
-  - run the Linux Landlock write, inherited-descriptor, and exact-executable
-    canaries on a native ABI-v5 worker; cross-compilation is not execution
-    evidence;
-  - provide the corresponding Windows filesystem, network, and executable
-    confinement, plus the still-unavailable address-space, file-size,
-    descriptor, and core-dump guarantees;
-  - run the existing Windows Job Object process-count, per-process memory,
-    aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
-    worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after OWNER Q1 settles explicit host-key,
-    key, credential-provider, and credential-file custody;
-  - make the existing broker transfer ceiling complete by denying direct helper
-    egress on Linux and Windows; separately enforce whole-operation object-store,
-    temporary-disk, descendant CPU/memory/process, and during-write quotas
-    rather than only rejecting oversized retained state after the helper exits;
-  - decide and implement the stronger isolation needed against hostile
-    same-user cache/source mutation, executable replacement, loaded-image
-    substitution, and hostile Unix descendants escaping their process group;
-  - finish the existing locally reconstructed opaque strict receipt. The landed
-    kernel exactly rejoins non-admitting resolution, native policy/completion,
-    command input, endpoint, executable-path, transfer-accounting, source,
-    limits, and capability-rooted retained-storage counts/bytes/depth; calls
-    `require_strict` for every command; and retains a closed rejection for
-    missing, changed, unavailable, or the first unimplemented source
-    requirement. There is deliberately no success issuer yet. Add real evidence
-    carriers and reconstruction for transport-trust, credential custody,
-    whole-operation storage/resource, same-user mutation, and remaining
-    platform-native rows before any success receipt can issue;
-
-  The detailed established floor and remaining platform gaps are maintained in
-  `source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`.
-  Strict SSH trust and credential authority is
-  design-blocked on OWNER Q1 (strict SSH custody); the other bullets are engineering work.
+Do not wire mutating `omega install` or `omega update` until recheckable
+evidence, accepted lock, and transaction gates below are closed. Compiler-issued
+package review remains non-admitting.
 
 ## P2 — Total compiler admission projection
 
@@ -198,7 +150,7 @@ closed. Compiler-issued package review remains non-admitting.
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
 
-- [ ] **DESIGN-BLOCKED — OWNER Q3: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
+- [ ] **DESIGN-BLOCKED — OWNER Q1: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
   existing compiler-owned catalog exactly classifies every currently declared
   authority surface. Select semantic loci for network, dynamic loading,
   signing, secrets, executable installation, DMA/IOMMU, and future surfaces
@@ -247,7 +199,7 @@ closed. Compiler-issued package review remains non-admitting.
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
   accepted-lock absence and recovery, sealed representation mechanism/ABI,
   canonical network authority, broader receipted build operations and outputs,
-  final native transaction publication, and credential-gated remote mirrors.
+  final native transaction publication, and authenticated remote mirrors.
   Synthetic end-to-end security artifacts are not permitted.
 
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
@@ -257,7 +209,7 @@ closed. Compiler-issued package review remains non-admitting.
 - [ ] **PRIVATE-REMOTE-FIXTURES.** Run the exact pinned CathedralOS SSH/HTTPS
   mirror tests in credentialed infrastructure. Unavailable credentials must
   remain an explicit ignored/blocked environment condition, never a fallback
-  to fabricated or ambient evidence.
+  to a different transport or fabricated success.
 
 ## P7 — Cross-system package work
 
@@ -395,10 +347,6 @@ explicitly.
   installed execution and era, and disclosed admissions. Neither equal reach,
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
-
-- [ ] **BLOCKED — OWNER Q1: STRICT-SSH-CUSTODY.** Settle host-key, key,
-  credential-provider, and credential-file authority before narrowing the
-  remaining SSH read surface or treating SSH resolution as strict evidence.
 
 ## P8 — Final release gate
 

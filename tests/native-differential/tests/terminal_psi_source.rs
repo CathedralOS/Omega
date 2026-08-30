@@ -7,26 +7,18 @@ use omega_abstract_operations::{
     AbstractParameter, ValueBinding,
 };
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_artifacts::external_root_manifest_json;
 use omega_assigned_target_operations::{
     AssignedBooleanControl, AssignedIntegerControl, AssignedOperation,
 };
-use omega_calling_conventions::{
-    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, CallSignature,
-    CallingPolicy, EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegister,
-    MachineState, MachineStateSet, RegisterSet, StackDomainRef, StateFootprintEvidence,
-    evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
-    validate_entry_stack_realization,
-};
+use omega_calling_conventions::CallSignature;
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
     RequestedCompileProduct, compile_to_checked,
 };
 use omega_component_candidate::{ComponentCandidate, ComponentCandidateParts};
 use omega_component_deployment::{
-    ComponentProgressAttestationBinding, DynamicNativeFuelRootDeployment,
-    begin_component_deployment, begin_component_deployment_with_claimed_registry,
-    publish_component_flat_output,
+    ComponentProgressAttestationBinding, begin_component_deployment,
+    begin_component_deployment_with_claimed_registry, publish_component_flat_output,
 };
 use omega_component_publication::{
     InstalledRunnableComponent, RunnableComponentEraLedger, bind_installed_runnable_component,
@@ -46,49 +38,22 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_external_roots::{
-    AdapterStackRealizationOrigin, AdmittedOpaqueFuelSuspensionFree, ArrivalStackRealizationOrigin,
-    ComponentProgressDemandIdentity, DynamicNativeFuelMeterPlan, ExternalRootCandidate,
-    ExternalRootId, FixedFuelProviderSummary, FuelProvisionId, FuelSuspensionValidationReceiptId,
-    FuelValidationReceiptId, InstalledProviderOccurrenceId, InstalledRootLedger,
-    LogicalFuelResourceColumn, MachineStateResourceColumn, NativeFuelActivationStateSlot,
-    NativeFuelContextLayout, NativeFuelExecutionEnvironment, NativeFuelMeterPlanId,
-    NativeFuelRuntimeEntryIdentity, NativeFuelSavedValue, NativeFuelSponsorStackPlan,
-    NativeFuelTargetPlanProjection, NativeFuelTransferRuntimePlanProjection, NestingRelationId,
-    OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
-    ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
-    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
-    ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
-    ProviderOccurrencePlanBinding, ProviderPlanId, ProviderStackSummary, RootAdmission,
-    RootAdmissionId, RootProviderId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority,
-    RootSlotId, RootSlotOwnerId, SponsorContextTransport, StackNestingRelation,
-    StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
-    admit_fixed_native_fuel, admit_native_fuel_target_policy, admit_native_fuel_transfer_plan,
-    admit_opaque_arrival_context_set, bind_direct_generated_entry_stack_realization,
-    bind_installed_dynamic_fuel_attribution, bind_installed_entry_fuel, bind_installed_entry_stack,
-    bind_installed_native_fuel_sponsor_route, bind_installed_native_fuel_transfer_code,
-    bind_installed_native_fuel_transfer_runtime, bind_opaque_adapter_stack_realization,
-    bind_suspension_free_fixed_fuel, compose_bound_entry_stack_epochs, compose_fixed_fuel,
-    derive_fuel_suspension_free, validate_dynamic_fuel_attribution_basis, validate_external_root,
-    validate_installed_entry_fuel, validate_installed_entry_stack,
+    ComponentProgressDemandIdentity, InstalledProviderOccurrenceId, InstalledRootLedger,
+    ProgressProfileEstablishmentAttestation, ProgressProfileEstablishmentReceiptId,
+    ProgressProfileGrantInvocationId, ProviderOccurrenceInstallationReceipt,
+    ProviderOccurrenceInstallationReceiptId, ProviderOccurrencePlanBinding,
 };
 use omega_image_emission::{
     ObjectArtifact, bind_installed_artifact, build_installation_record, build_object_artifact,
-    decode_installation_record, derive_installation_stack_demand, derive_stack_demand,
-    emit_executable_image, emit_object_container, encode_installation_record,
-    installation_fingerprint, validate_installation_record,
-};
-use omega_installation_evidence::{
-    FuelAttributionEvidence, FuelAttributionSite, NativeFuelChargeEvidence,
-    NativeFuelImageEvidence, NativeFuelRuntimeTextEvidence, NativeFuelRuntimeTextSpan,
-    NativeFuelTransferRuntimeEvidence, NativeFuelTransferRuntimeImageEvidence, ObjectEvidence,
+    decode_installation_record, derive_stack_demand, emit_executable_image,
+    encode_installation_record,
 };
 use omega_machine_emission::emit_machine_code;
-use omega_native_artifact::{NativeArtifact, NativeArtifactParts};
 use omega_native_differential_test::{
     admit_native_provider, admit_native_provider_for_selected_plan,
 };
 use omega_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
-use omega_target::{NativeTarget, TargetProfile};
+use omega_target::NativeTarget;
 use omega_target_operations::{
     LinuxExitGroupI32Realization, TargetBooleanControl, TargetBooleanExpression,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation,
@@ -119,14 +84,13 @@ use psi_terminal_codec::{
     validate_artifact_manifest,
 };
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
-use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use psi_terminal_fuel::{FuelChargeSite, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{VerifiedTerminalModule, verify_module};
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]

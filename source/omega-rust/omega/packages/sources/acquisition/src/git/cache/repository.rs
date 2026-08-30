@@ -10,7 +10,6 @@ use crate::SourceResolveError;
 use crate::custody::lock::verify_retained_cache_parent_path;
 use crate::custody::platform::{
     verify_capability_cache_node_owner_and_mode, verify_macos_open_cache_extended_acl_custody,
-    verify_windows_open_cache_custody,
 };
 use crate::custody::publication::{
     ProvisionalCacheDirectory, create_private_cache_directory, retain_private_cache_directory,
@@ -287,14 +286,6 @@ impl VerifiedGitRepository {
                     &identity,
                 )?;
                 verify_macos_open_cache_extended_acl_custody(
-                    CacheCustodyKind::Git,
-                    &path,
-                    &directory
-                        .try_clone()
-                        .map_err(|error| io_error(&path, error))?
-                        .into_std_file(),
-                )?;
-                verify_windows_open_cache_custody(
                     CacheCustodyKind::Git,
                     &path,
                     &directory

@@ -551,7 +551,7 @@ guarantee. Blocking creates no safe point.
   crossing evidence.
 - `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
   start outcome, task/provider provenance, and child-lease accounting.
-- Canonical-IR fuel metering and restricted fixed-work safe-point segments.
+- Compiler-service logical-work metering and restricted fixed-work safe-point segments.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
 - `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general

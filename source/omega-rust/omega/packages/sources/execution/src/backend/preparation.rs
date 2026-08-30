@@ -1,13 +1,14 @@
 use super::observation::ResolverExecutionPolicyInputs;
 use super::request::validate_launch_request;
 use super::{ResolverExecutionAuthorityRoots, ResolverExecutionBackend};
+use crate::ResolverPreparedExecution;
+#[cfg(target_os = "macos")]
 use crate::confinement;
 #[cfg(test)]
 use crate::model::ResolverExecutionPolicyObservation;
 use crate::model::{ResolverExecutionNetworkTransport, ResolverExecutionPhase};
 use crate::network::ResolverExecutionEndpointRoute;
 use crate::process::limits;
-use crate::ResolverPreparedExecution;
 use std::io;
 use std::path::{Path, PathBuf};
 #[cfg(any(test, not(target_os = "macos")))]

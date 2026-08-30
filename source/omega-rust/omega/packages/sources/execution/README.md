@@ -62,7 +62,8 @@ The model and request vocabulary do not depend on command construction.
 Platform modules never broaden caller input or mint package acceptance; they
 only realize and classify the compiler-owned launch policy. Unsupported native
 guarantees remain `Unavailable` rather than acquiring placeholder modules or
-best-effort claims.
+best-effort claims. These rows report optional platform hardening; they are not
+universal prerequisites for successful source resolution.
 
 ## Current enforcement
 
@@ -94,8 +95,7 @@ best-effort claims.
 - Unix children mark the non-standard ambient descriptors observed at launch
   close-on-exec, then intersect compiler CPU, core-file, single-file, and
   descriptor ceilings with stricter inherited limits. Linux uses atomic
-  `close_range`; other Unix hosts snapshot `/dev/fd`, so a hostile concurrent
-  opener remains outside their incomplete strict boundary. Linux and Android
+  `close_range`; other Unix hosts snapshot `/dev/fd`. Linux and Android
   additionally apply an address-space ceiling.
 - Linux kernels with fully available Landlock ABI v5 handle every ABI-v5
   filesystem right. A dedicated restricted thread launches the child so Omega's
@@ -108,10 +108,9 @@ best-effort claims.
   `ExecutablePathsConfined` guarantees: Landlock does not mediate several
   metadata mutations and cannot prevent executable memfds or anonymous
   executable code. Both rows therefore remain unavailable. The package manager
-  rejects Linux package resolution when Landlock ABI v5 is unavailable instead
-  of running with the resource-limit backend alone. Landlock also does not yet
-  establish endpoint confinement, direct-egress denial, aggregate descendant
-  custody, or protection against a hostile same-user process.
+  falls back to the ordinary Unix resource-limit backend when Landlock ABI v5
+  is unavailable. Landlock also does not establish endpoint confinement,
+  direct-egress denial, or aggregate descendant custody.
 - Other Unix hosts currently receive limits without strict filesystem/network
   confinement. Windows commands are created suspended, assigned to a resolver-
   owned kill-on-close Job Object, and resumed only after assignment. The job
@@ -135,9 +134,9 @@ best-effort claims.
   and cleanup disposition. Each standard stream must explicitly be null or a
   compiler-owned pipe before spawn; arbitrary pre-opened handles and ambient
   inheritance are not representable. Piped standard-input content remains
-  separately bound by the protocol owner. This is lifecycle provenance, not
-  executable-content identity or a source receipt; `require_strict` rejects the
-  current backends.
+  separately bound by the protocol owner. These rows are lifecycle provenance
+  retained by the package-source receipt, not claims that the host operating
+  system excluded all ambient authority.
 
 The broker bounds CONNECT request bytes and headers, the complete DNS result
 set collected before any upstream connection, accepted connections, buffers,
@@ -146,25 +145,25 @@ source resolution shares one compiler-owned bidirectional transfer budget;
 CONNECT framing and DNS traffic are excluded. Endpoint observations retain
 closed outcomes, effective socket peers, and exact uploaded/downloaded counts.
 An over-ceiling read is not forwarded or charged, closes the tunnel, and emits
-`TransferCeilingReached`. This does not establish TLS or SSH host trust,
-credential custody, package acceptance, or a receipt, and it cannot prevent a
-helper from bypassing the broker on a backend without endpoint confinement.
+`TransferCeilingReached`. This bounds the brokered route and records its actual
+peer; it does not replace the transport's normal TLS or SSH authentication and
+cannot prevent a helper from bypassing the broker on a backend without endpoint
+confinement.
 
 The installed `omega` package includes `omega-resolver-connect` beside the main
 binary. HTTPS uses Git's command-scoped proxy configuration. SSH invokes the
-companion through a fixed ProxyCommand name and a sealed helper-only `PATH`;
+companion through a fixed ProxyCommand name and prepends its directory to the
+host `PATH`;
 the exact system command shell and current login shell needed by Git and
 OpenSSH are independently verified and included in the native executable set;
 compiler-authored environment fields carry the broker and target authorities,
-so package locator text never becomes shell syntax.
+so package locator text never becomes shell syntax. User and system Git/SSH
+configuration and the inherited host environment remain available for ordinary
+credential helpers, agents, identity files, known-host policy, and proxies.
 
-This is engineering enforcement and one input to a future package-source
-receipt, not that accepted receipt. macOS initialization, inspection, and HTTPS
-discovery/fetch now mark `FilesystemReadsConfined` enforced, but SSH discovery/
-fetch still permit broad reads, so complete resolver-wide filesystem-read
-confinement remains unavailable. The fixed TLS root
-is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
-and process-count confinement remains unavailable on Unix; during-write object-
-store quotas, Linux/Windows endpoint confinement, native Linux Landlock canary
-execution, and complete strict backends remain package-manager tasks. See
+This engineering enforcement is recorded in each successful package-source
+receipt. macOS initialization, inspection, and HTTPS discovery/fetch mark
+`FilesystemReadsConfined` enforced, while SSH discovery/fetch report broad
+reads. Other unavailable rows remain visible as platform-hardening facts and do
+not prevent resolution. See
 [`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).

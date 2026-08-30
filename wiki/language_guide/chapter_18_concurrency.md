@@ -281,14 +281,11 @@ requires a separate target timing model and retains that model's trust
 provenance. See
 [`canonical_ir_fuel_and_resource_provisioning.md`](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
-Installation may reserve a complete certified maximum and emit no native
-meter, or select a target-supported dynamic meter for sponsor-driven slicing.
-Dynamic exhaustion preserves opaque machine state and resumes at the unpaid
-charge; it is architectural suspension, not a semantic safe point. It therefore
-does not make structured cancellation, migration, or replacement legal at
-ordinary operations. A root requiring freedom from fuel suspension needs the
-transitive installed `FuelSuspensionFree` fact, including admitted guarantees
-for opaque providers and separately sponsored callees.
+Maximum-logical-work evidence supports compiler-service budgets, static
+reports, and target timing analysis. Native execution has no logical-fuel
+meter, sponsor-driven slicing, exhaustion transfer, or fuel-induced
+suspension. Installing such evidence therefore changes neither the program's
+control flow nor its suspension interface.
 
 A hard-control profile that requires bounded response rejects both
 `Unknown(reason)` and `NoFiniteGuarantee(subject, cause)`. It does not make an

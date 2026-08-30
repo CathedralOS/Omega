@@ -641,7 +641,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .unwrap()
         ]
     );
-    assert_eq!(installation.fuel_attribution(), image.fuel_attribution());
+    assert_eq!(
+        installation.semantic_code_attribution(),
+        image.semantic_code_attribution()
+    );
     validate_installation_record(&installation, &image).expect("image binding");
     let encoded = encode_installation_record(&installation).expect("installation bytes");
     let decoded = decode_installation_record(&encoded).expect("installation decoding");
