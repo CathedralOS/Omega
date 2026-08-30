@@ -12,9 +12,7 @@ use psi_proof_admission::{
 use super::super::affine_custody::DefinitionIndex;
 use super::super::integer_evidence::{cited_facts, closed_integer_relation};
 use super::super::{cast_custody, cast_selection};
-use super::dispatch::{
-    add_endpoint_candidates, lower_add_math_leaf, prove_add_operand_endpoint, relax_math_bound,
-};
+use super::dispatch::{add_endpoint_candidates, lower_add_math_leaf, relax_math_bound};
 use super::{bound, range};
 
 pub(super) fn prove(
@@ -351,23 +349,10 @@ fn multiply_operand_endpoints(
         definitions,
     );
     if proofs.is_empty() {
-        let carrier = if lower {
-            integer_type.minimum_value()
-        } else {
-            integer_type.maximum_value()
-        };
-        if let Some(proof) = prove_add_operand_endpoint(
-            context,
-            integer_type,
-            operand,
-            carrier,
-            lower,
-            assumptions,
-            semantic_axioms,
-            definitions,
-        ) {
-            proofs.push(proof);
-        }
+        proofs.push(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Primitive(psi_proof_admission::PrimitiveJudgment::Truth),
+        });
     }
     proofs
 }
@@ -508,66 +493,103 @@ fn prove_targeted_cast_prefix_endpoints(
     };
     let mut proofs = Vec::new();
     for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        let endpoint = match fact {
-            Proposition::LessOrEqual(endpoint, actual_source)
-                if lower && actual_source == &source =>
+        let Proposition::LessOrEqual(left, right) = fact else {
+            continue;
+        };
+        for root in [left, right] {
+            if !matches!(root, ScalarTerm::Value { .. })
+                || root.scalar_type() != ScalarType::Integer(source_type)
             {
-                endpoint
+                continue;
             }
-            Proposition::LessOrEqual(actual_source, endpoint)
-                if !lower && actual_source == &source =>
+            let root_proof = citation.proof(fact);
+            let source_proof = if root == &source {
+                root_proof
+            } else {
+                let Some(source_witness) =
+                    targeted_multiply_operand_witness(context, semantic_axioms, root, &source)
+                else {
+                    continue;
+                };
+                let Ok(checked_source) =
+                    check_integer_affine_witness(context, semantic_axioms, &source_witness)
+                else {
+                    continue;
+                };
+                let Ok(mapped_source) =
+                    map_integer_affine_bound(&checked_source, &root_proof.conclusion)
+                else {
+                    continue;
+                };
+                ProofNode {
+                    conclusion: mapped_source,
+                    rule: ProofRule::IntegerAffineBound {
+                        root_bound: Box::new(root_proof),
+                        witness: source_witness,
+                    },
+                }
+            };
+            let endpoint = match &source_proof.conclusion {
+                Proposition::LessOrEqual(endpoint, actual_source)
+                    if lower && actual_source == &source =>
+                {
+                    endpoint
+                }
+                Proposition::LessOrEqual(actual_source, endpoint)
+                    if !lower && actual_source == &source =>
+                {
+                    endpoint
+                }
+                _ => continue,
+            };
+            let Some((actual_type, value)) = endpoint.integer_value() else {
+                continue;
+            };
+            if actual_type != source_type {
+                continue;
+            }
+            let Some(value) = source_type.exact_cast_value_to(cast_type, value) else {
+                continue;
+            };
+            let Ok(endpoint) = ScalarTerm::integer(cast_type, value) else {
+                continue;
+            };
+            let cast_goal = if lower {
+                Proposition::LessOrEqual(endpoint, witness.root.clone())
+            } else {
+                Proposition::LessOrEqual(witness.root.clone(), endpoint)
+            };
+            let Some(cast_proof) = cast_custody::prove_from_root(
+                context,
+                &cast_goal,
+                assumptions,
+                semantic_axioms,
+                &source,
+                source_proof,
+            ) else {
+                continue;
+            };
+            let Ok(mapped) = map_integer_affine_bound(&checked, &cast_proof.conclusion) else {
+                continue;
+            };
+            let same_oriented_operand = match &mapped {
+                Proposition::LessOrEqual(_, actual_operand) if lower => actual_operand == operand,
+                Proposition::LessOrEqual(actual_operand, _) if !lower => actual_operand == operand,
+                _ => false,
+            };
+            if same_oriented_operand
+                && !proofs
+                    .iter()
+                    .any(|proof: &ProofNode| proof.conclusion == mapped)
             {
-                endpoint
+                proofs.push(ProofNode {
+                    conclusion: mapped,
+                    rule: ProofRule::IntegerAffineBound {
+                        root_bound: Box::new(cast_proof),
+                        witness: witness.clone(),
+                    },
+                });
             }
-            _ => continue,
-        };
-        let Some((actual_type, value)) = endpoint.integer_value() else {
-            continue;
-        };
-        if actual_type != source_type {
-            continue;
-        }
-        let Some(value) = source_type.exact_cast_value_to(cast_type, value) else {
-            continue;
-        };
-        let Ok(endpoint) = ScalarTerm::integer(cast_type, value) else {
-            continue;
-        };
-        let cast_goal = if lower {
-            Proposition::LessOrEqual(endpoint, witness.root.clone())
-        } else {
-            Proposition::LessOrEqual(witness.root.clone(), endpoint)
-        };
-        let Some(cast_proof) = cast_custody::prove_from_root(
-            context,
-            &cast_goal,
-            assumptions,
-            semantic_axioms,
-            &source,
-            citation.proof(fact),
-        ) else {
-            continue;
-        };
-        let Ok(mapped) = map_integer_affine_bound(&checked, &cast_proof.conclusion) else {
-            continue;
-        };
-        let same_oriented_operand = match &mapped {
-            Proposition::LessOrEqual(_, actual_operand) if lower => actual_operand == operand,
-            Proposition::LessOrEqual(actual_operand, _) if !lower => actual_operand == operand,
-            _ => false,
-        };
-        if same_oriented_operand
-            && !proofs
-                .iter()
-                .any(|proof: &ProofNode| proof.conclusion == mapped)
-        {
-            proofs.push(ProofNode {
-                conclusion: mapped,
-                rule: ProofRule::IntegerAffineBound {
-                    root_bound: Box::new(cast_proof),
-                    witness: witness.clone(),
-                },
-            });
         }
     }
     proofs

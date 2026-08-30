@@ -393,6 +393,69 @@ fn exact_multiply_orients_a_landed_zero_for_both_target_directions() {
 }
 
 #[test]
+fn exact_multiply_zero_accepts_a_definition_local_prefix_carrier_only_when_oriented() {
+    let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(u16_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(i8_type)),
+    ])
+    .unwrap();
+    let axioms = [
+        Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::integer_exact_cast(u16_type, i8_type, value(1, u16_type))
+                .expect("exact cast"),
+        ),
+        Proposition::Equal(value(3, i8_type), integer(i8_type, -2)),
+        Proposition::Equal(
+            value(4, i8_type),
+            ScalarTerm::exact_integer_multiply(i8_type, value(2, i8_type), value(3, i8_type))
+                .expect("definition-local prefix product"),
+        ),
+        Proposition::Equal(value(5, i8_type), integer(i8_type, 0)),
+    ];
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(4).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(5).unwrap(),
+        }),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MIN.into())),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MAX.into())),
+        ),
+    ]);
+    let proof = prove_canonical_integer_proposition(&context, &goal, &[], &axioms)
+        .expect("oriented zero combines with a definition-local carrier marker");
+    accept_certificate(&context, &goal, &[], &axioms, &proof)
+        .expect("the checker derives the carrier endpoint and replays the oriented zero");
+
+    let mut nonzero_axioms = axioms.clone();
+    nonzero_axioms[3] = Proposition::Equal(value(5, i8_type), integer(i8_type, 2));
+    assert!(
+        accept_certificate(&context, &goal, &[], &nonzero_axioms, &proof).is_err(),
+        "a nonzero unoriented pair cannot reuse the zero-product certificate",
+    );
+    assert!(
+        prove_canonical_integer_proposition(&context, &goal, &[], &nonzero_axioms).is_none(),
+        "two carrier-only nonzero endpoint pairs fail closed",
+    );
+}
+
+#[test]
 fn exact_multiply_replays_direct_cast_endpoints_and_rejects_redirected_custody() {
     let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let target_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -733,6 +796,112 @@ fn exact_multiply_replays_source_local_cast_bounds_through_an_affine_suffix() {
     assert!(
         accept_certificate(&context, &goal, &assumptions, &redirected_axioms, &proof).is_err(),
         "redirecting the affine suffix literal invalidates the nested witness",
+    );
+}
+
+#[test]
+fn exact_multiply_replays_affine_cast_affine_endpoints_and_rejects_each_redirect() {
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = PropositionContext::from_value_types((1..=13).map(|id| {
+        let integer_type = if matches!(id, 8..=11 | 13) {
+            i8_type
+        } else {
+            i16_type
+        };
+        (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))
+    }))
+    .unwrap();
+    let assumptions = [
+        Proposition::LessOrEqual(integer(i16_type, -34), value(1, i16_type)),
+        Proposition::LessOrEqual(value(1, i16_type), integer(i16_type, 29)),
+    ];
+    let axioms = [
+        Proposition::Equal(value(2, i16_type), integer(i16_type, 3)),
+        Proposition::Equal(
+            value(3, i16_type),
+            ScalarTerm::exact_integer_add(i16_type, value(1, i16_type), value(2, i16_type))
+                .expect("pre-cast add"),
+        ),
+        Proposition::Equal(value(4, i16_type), integer(i16_type, -2)),
+        Proposition::Equal(
+            value(5, i16_type),
+            ScalarTerm::exact_integer_multiply(i16_type, value(3, i16_type), value(4, i16_type))
+                .expect("pre-cast multiply"),
+        ),
+        Proposition::Equal(value(6, i16_type), integer(i16_type, 1)),
+        Proposition::Equal(
+            value(7, i16_type),
+            ScalarTerm::exact_integer_subtract(i16_type, value(5, i16_type), value(6, i16_type))
+                .expect("pre-cast subtract"),
+        ),
+        Proposition::Equal(
+            value(8, i8_type),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, value(7, i16_type))
+                .expect("exact cast"),
+        ),
+        Proposition::Equal(value(9, i8_type), integer(i8_type, 1)),
+        Proposition::Equal(
+            value(10, i8_type),
+            ScalarTerm::exact_integer_add(i8_type, value(8, i8_type), value(9, i8_type))
+                .expect("post-cast add"),
+        ),
+        Proposition::Equal(value(11, i8_type), integer(i8_type, 2)),
+        Proposition::Equal(value(12, i16_type), integer(i16_type, 0)),
+        Proposition::Equal(value(13, i8_type), integer(i8_type, 2)),
+    ];
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(10).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(11).unwrap(),
+        }),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MIN.into())),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MAX.into())),
+        ),
+    ]);
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("definition-local affine/cast/affine endpoints orient the product");
+    accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+        .expect("the checker replays both affine witnesses and cast custody");
+
+    let mut redirected_pre_cast = axioms.clone();
+    redirected_pre_cast[1] = Proposition::Equal(
+        value(3, i16_type),
+        ScalarTerm::exact_integer_add(i16_type, value(12, i16_type), value(2, i16_type))
+            .expect("redirected pre-cast add"),
+    );
+    assert!(
+        accept_certificate(&context, &goal, &assumptions, &redirected_pre_cast, &proof,).is_err(),
+        "redirecting the pre-cast affine root invalidates the serialized witness",
+    );
+    let drifted_assumptions = [
+        Proposition::LessOrEqual(integer(i16_type, -33), value(1, i16_type)),
+        assumptions[1].clone(),
+    ];
+    assert!(
+        accept_certificate(&context, &goal, &drifted_assumptions, &axioms, &proof).is_err(),
+        "changing a cited root endpoint invalidates the serialized witness",
+    );
+    let mut redirected_suffix = axioms.clone();
+    redirected_suffix[8] = Proposition::Equal(
+        value(10, i8_type),
+        ScalarTerm::exact_integer_add(i8_type, value(8, i8_type), value(13, i8_type))
+            .expect("redirected post-cast add"),
+    );
+    assert!(
+        accept_certificate(&context, &goal, &assumptions, &redirected_suffix, &proof).is_err(),
+        "redirecting the post-cast affine literal invalidates the serialized witness",
     );
 }
 
