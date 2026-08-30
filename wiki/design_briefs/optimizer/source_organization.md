@@ -423,7 +423,16 @@ independent replay, and custody projection below one source-validated
 entrance. Its compute rung retains one visible application loop, then descends
 through source preflight/work accounting, shared-entry policy mechanics,
 selected-CFG mutation, and focused fixtures. The former 1,022-line mixed leaf
-is gone and no replacement exceeds 278 lines. Transformed-selected reanalysis
+is gone and no replacement exceeds 278 lines. Its v4 artifact codec follows
+the same navigation contract: a 62-line protocol entrance owns magic/version
+admission and authentication precedence, then descends through the exact
+content roster, copy records, selected-plan structure, primitive wire values,
+and focused golden/rejection tests. Selected-plan encoding descends again into
+function, register, block/control-flow, instruction, and provenance leaves.
+The former 978-line flat codec and sibling test file are forbidden. The v4
+format intentionally retains its historical empty structural-Unit-function
+roster; encoding that newer roster is a versioned follow-up, not an invisible
+wire change. Transformed-selected reanalysis
 recomputes liveness, ranges, and
 legality without source-fact reuse and keeps replay, transition invariants,
 custody, and model in named leaves.

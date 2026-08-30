@@ -17,6 +17,19 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Fixed-view-copy artifact encoding now has a 62-line, meaningful v4
+protocol entrance instead of a 978-line codec catchall. The entrance alone
+owns magic/version admission and the stable rejection order: parse content,
+reject trailing bytes, authenticate the transformed selected plan, then
+authenticate the outer plan. Named leaves own the top-level content roster,
+copy records, primitives, typed values, and the selected-plan function,
+register, block/control-flow, instruction, and provenance rungs. Tests descend
+into fixture, golden, round-trip, and rejection leaves; the 1,314-byte v4
+fixture is pinned by SHA-256 and paired corruptions pin error precedence.
+Architecture gates require both coordination entrances and every semantic leaf,
+forbid the retired flat paths, and keep protocol constants at the sole codec
+entrance.
+
 [x] Abstract-to-target translation validation now has a fifteenth exact family
 for `IntegerBitwiseOr(parameter, parameter)`. OR reuses the named `bitwise`
 rung but owns distinct source and target leaves, catalog identity, error,
@@ -519,6 +532,10 @@ parallel route or optional coordinator field.
 - [x] Move home-assignment compute and fixed-view-copy codec fixtures into
   explicit path-bound sibling leaves without changing their private test scope
   or test names.
+- [x] Replace the 978-line fixed-view-copy codec with a small versioned-envelope
+  entrance above content, copy, primitive, typed-value, and selected-plan
+  taxonomies. Pin v4 bytes and rejection precedence, split codec fixtures by
+  concern, and govern both entrances and every named leaf architecturally.
 - [x] Replace flat register-home compute/replay leaves and their forwarding test
   bridge with mirrored domain/conflict/placement taxonomies. Their small
   producer and validator entrances own the complete-roster joins independently,
@@ -994,3 +1011,12 @@ rewrite or opt a program into lossy floating-point semantics.
     vocabulary and fixture maps into exact-family leaves, cover all native
     type/target/register-stack cells plus ordered and identical operands, and
     reject address/nonnative carriers and every source/target field mutation.
+37. [x] Split the fixed-view-copy v4 codec before it crosses the production
+    ceiling. Keep protocol admission and authentication order in one tiny
+    entrance; descend through content, copy, primitives, values, and selected
+    plan taxonomies; and pin exact bytes plus failure precedence.
+38. [ ] Add `IntegerBitwiseXor(parameter, parameter)` as the sixteenth exact
+    translation family beneath the existing named `bitwise` rung.
+39. [ ] Define a fixed-view-copy artifact v5 that explicitly carries the
+    selected plan's structural-Unit-function roster. V4 intentionally decodes
+    that newer field as empty and must remain byte stable.
