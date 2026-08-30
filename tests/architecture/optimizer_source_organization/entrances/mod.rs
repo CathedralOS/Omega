@@ -134,6 +134,7 @@ pub(crate) fn check(audit: &mut Audit) {
             REQUIRED_PRE_ALLOCATION_EFFECT_CODEC_LEAVES,
         ),
         ("AArch64 MOVN proposal", REQUIRED_MOVN_COMPUTE_LEAVES),
+        ("extracted focused tests", REQUIRED_EXTRACTED_TEST_LEAVES),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

@@ -833,3 +833,9 @@ pub(super) const REQUIRED_MOVN_COMPUTE_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/source.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/tests.rs",
 ];
+
+/// Focused fixtures remain outside the cohesive production leaves they cover.
+pub(super) const REQUIRED_EXTRACTED_TEST_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_choice/compute/tests.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/unit/boundary_call/tests.rs",
+];
