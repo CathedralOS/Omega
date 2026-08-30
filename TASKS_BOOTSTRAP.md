@@ -946,6 +946,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     ledger, or decoded-byte mirror. Q7 still owns source size/admission and
     outer `Incomplete` framing. Exact lexical vectors join the real
     Delta-compiler gate; do not add a host lexer or test executor.
+  - [ ] Parse semantic tokens inside one canonical parser-machine invocation.
+    That entry validates the complete immutable view once, then threads the
+    same view through private internal states that call the bounded scanner
+    stage, skip trivia by `next_cursor`, and build source-shaped syntax. Do not
+    retain a standalone validate-once cursor: D17 has neither private machines
+    nor a storable source view, so a public `initialized`/`preflighted` bit can
+    authorize a substituted source. Revalidating the whole view on every
+    public advance is correct but quadratic and is not an acceptable final
+    workaround. The parser must expose no token ledger, decoded mirror,
+    source-identity guess, or transferable lexical fact.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

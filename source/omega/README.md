@@ -59,3 +59,11 @@ raw-single-file stdin convention may stand in for it. Boundary-independent
 final internals may be authored in `D` before that ruling, but no placeholder,
 generated source closure, viewer, or standalone bootstrap owner is retained
 while the artifacts are absent.
+
+Delta cannot safely express a reusable validate-once source cursor: machines
+and fields are public, while immutable views cannot be stored in data. `D`'s
+eventual parser must therefore validate once and stream the same source through
+private states of one canonical invocation. A public preflight bit would be a
+transferable false authority; validating again at every token would instead
+make compiler-source parsing quadratic. Neither belongs in the retained
+compiler.
