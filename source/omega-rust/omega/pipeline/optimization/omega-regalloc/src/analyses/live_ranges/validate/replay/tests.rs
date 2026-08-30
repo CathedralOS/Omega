@@ -2,7 +2,14 @@ use omega_register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitI
 use omega_selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use psi_core::{BlockId, MachineId};
 
-use super::{independently_derive_early_clobbers, require_early_clobber_rows, validate_canonical};
+use super::{
+    canonical::validate as validate_canonical,
+    comparison::require_early_clobber_rows,
+    constraints::{
+        derive_early_clobbers as independently_derive_early_clobbers,
+        derive_ties as independently_derive_ties,
+    },
+};
 use crate::{
     ArchitecturalUnitLiveRange, BlockLiveness, FunctionLiveRanges, FunctionLiveness,
     InstructionLiveness, LiveRangeError, LiveRangeFragment, LiveRangePoint, LivenessPosition,
@@ -117,7 +124,7 @@ fn independent_tie_derivation_matches_production() {
         }],
     };
     assert_eq!(
-        super::independently_derive_ties(0, &live).unwrap(),
+        independently_derive_ties(0, &live).unwrap(),
         crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
     );
 }
@@ -162,7 +169,7 @@ fn isolated_tied_early_clobber_replay_rejects_malformed_and_corrupt_rows() {
     let replayed = independently_derive_early_clobbers(0, &live).unwrap();
     assert_eq!(expected, replayed);
     assert_eq!(
-        super::independently_derive_ties(0, &live).unwrap(),
+        independently_derive_ties(0, &live).unwrap(),
         crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
     );
     assert_eq!(expected[0].uses.len(), 1);
@@ -213,7 +220,7 @@ fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member
         crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap()
     );
     assert_eq!(
-        super::independently_derive_ties(0, &live).unwrap(),
+        independently_derive_ties(0, &live).unwrap(),
         crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
     );
 

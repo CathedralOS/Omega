@@ -58,17 +58,24 @@ decision. Only true language-semantic questions belong in
 - [x] Replace SCCP validation's forwarding wall and 845-line candidate leaf
   with a 98-line rule-first, exhaustive-patch entrance over integer, boolean,
   observation, and range-comparison validation leaves.
+- [x] Replace the 881-line live-range replay leaf with a 78-line independent
+  reconstruct -> canonicalize -> compare -> receipt entrance over function,
+  constraint, fragment, architectural-unit, comparison, and canonical leaves.
+- [x] Split the 798-line independent GVN expression-key leaf into an honest
+  internal group for total, proof-certified, and directional compatible-policy
+  vocabularies while retaining independent validation mechanics.
 - [ ] Audit all other `lib.rs`/`mod.rs` files and explicitly classify each as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 12 production-classified leaves at 750+ lines. Continue with independent
-  live-range replay (881), then GVN validation, machine effects, MOVN, spill
-  choice, selected validation, ledger, and lowering control/settlement leaves.
+  has 10 production-classified leaves at 750+ lines. Continue with machine
+  effects, MOVN, spill choice, selected validation, ledger, and lowering
+  control/settlement leaves.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
-  audit has 14 test/fixture leaves at 1,000+ lines; first split structural
-  catalog, register-allocation, and selected-lowering matrices by exact
-  artifact/rule family and behavior.
+  audit has 13 test/fixture leaves at 1,000+ lines. The 1,457-line structural
+  catalog now mirrors its six production validation families; next split the
+  register-allocation and selected-lowering matrices by exact artifact/rule
+  family and behavior.
 - [x] Replace parallel rule-stage path arrays in the organization guard with
   typed stage descriptors and generic entrance/catalog/next-rung checks.
   Bespoke checks remain only for genuinely stage-specific invariants.
