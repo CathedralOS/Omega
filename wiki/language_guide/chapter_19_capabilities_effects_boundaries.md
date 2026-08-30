@@ -435,6 +435,75 @@ closure. This preserves the ordinary pinned-import rule: only the explicitly
 installation-bound closure may remain symbolic, and no later provider may
 widen either its recorded bound or an ordinary compiled consumer.
 
+### Declared service reach and installed terminal authority
+
+Service reach and terminal authority are separate, joined review axes.
+`reaches` is the portable, package-stable statement of which abstract boundary
+services a callable may exercise. It remains meaningful before a target or
+provider is selected and therefore remains the authority view used to review a
+dependency as source. It is not a complete claim about which physical host
+mechanisms one installed artifact will execute.
+
+Installation derives that second view from the complete selected-provider
+closure. Traversal continues through checked adapters and selected providers
+until it reaches exact terminal bindings such as a normalized foreign import,
+target syscall number, compiler-owned intrinsic, firmware/vtable operation, or
+checked port operation. A binding is interpreted only with its target and
+provider context: the same integer or slot number is not a cross-target
+authority identity. Binding payloads are compile-time values. A runtime-valued
+syscall, import, slot, or future physical coordinate cannot become exact
+installation evidence.
+
+The two views meet through compiler-owned policy, not through spelling:
+
+```text
+exact service identity + normalized schema
+    -> permitted terminal-authority classes
+
+target + exact selected binding + provider context
+    -> exercised terminal-authority classes
+
+exercised terminal authority <= permitted terminal authority
+```
+
+Review reports an excess as an explicit containment failure, and accepted
+installation rejects it.
+For example, a filesystem provider whose selected Linux binding reaches a
+process-execution syscall does not become safe because it satisfies a
+filesystem requirement. Unknown or opaque terminal mechanisms fail closed
+until target policy classifies their exact identities. Risk labels are review
+metadata over those identities; they never grant authority and package source
+cannot mint them. Package-controlled names, aliases, filenames, and lookalike
+declarations classify nothing.
+
+The temporary string-backed import bridge must normalize to the same exact
+foreign-locator identity as ordinary imports before classification. It is not
+a second durable terminal-root vocabulary. The historical package-review
+classifier keyed by blessed `(filename, trait-name)` pairs is transitional and
+must be removed once binding-derived containment is live; extending that table
+for new service facets is forbidden.
+
+Portable requirements do not enumerate operating systems. A Linux syscall, a
+Windows import, and a firmware-table call may separately satisfy the same exact
+portable boundary requirement. The `+` operator in `reaches` remains set union,
+not provider choice or exclusive "one of" syntax.
+
+Filesystem reach is faceted by operation authority rather than collapsed into
+one `FilesystemHost` class. The portable minimum distinguishes content read,
+content write, metadata query, directory enumeration, namespace mutation, and
+metadata mutation. Exact requirement/method identity remains in evidence
+alongside the facet; facets group authority without erasing which operation was
+selected. An operation controlled by runtime flags must either split into
+authoritatively narrower operations or publish the conservative union of every
+facet those flags can enable.
+
+These facets constrain which operations code may name, not which filesystem
+objects it may touch. Today's raw integer descriptors are forgeable and carry
+no read/write provenance, so evidence may truthfully say "may perform content
+writes" but not "may write only files opened for writing." Object-level
+confinement requires typed, unforgeable authority-bearing handles whose
+attenuation and accepted operations are checked separately.
+
 ```omega
 boundary trait Console {
     machine write_line(text: &[u8])

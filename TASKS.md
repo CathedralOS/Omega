@@ -8709,6 +8709,30 @@ compiler concept is introduced.
 
 ### Frames, reach, and trust
 
+- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Replace package review's
+  filename-and-trait keyed dangerous-authority classifier with the settled
+  service/terminal containment model. Preserve normalized service reach as the
+  package-stable preinstallation axis. Independently traverse each exact
+  selected-provider closure to static target-qualified terminal bindings,
+  normalize `StringBackedImportBootstrap` through the ordinary foreign-locator
+  identity, classify exact bindings under closed compiler/target policy, and
+  reject or report any exercised class outside the exact service identity and
+  schema's permitted set. Unknown terminal mechanisms fail closed; risk labels,
+  package names, aliases, paths, and model verdicts grant nothing. Cite the
+  authored `providers/external_leaf_syscall_compile` canary and the rejection
+  in `providers/via_runtime_binding_rejected` as the static-coordinate fences,
+  and require the same property of every future binding kind.
+
+  Land this redirect and delete the blessed filename table before faceting
+  `FilesystemHost`. Then migrate its requirements and the existing
+  `reaches FilesystemHost` rows to portable content-read, content-write,
+  metadata-query, directory-enumeration, namespace-mutation, and
+  metadata-mutation facets while retaining exact requirement/method identity.
+  Split flag-polymorphic operations or conservatively publish the union of all
+  enabled facets. Evidence over the current raw `i32` descriptors may claim
+  operation classes only. Add typed unforgeable descriptor handles and checked
+  attenuation before claiming that reads or writes are confined to objects
+  opened with corresponding authority.
 - **R5:** continue exact inferred may-write summaries and relational candidates.
   Exact frames compose through transparent returns/helpers, caller-isolated
   scratch locals, statement/value positions, stable mutable aliases, and direct

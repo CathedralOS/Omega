@@ -24,64 +24,9 @@ A test, experiment, benchmark, or implementation task cannot be the sole
 motivation, and machinery introduced only to support such work is removed or
 kept non-authoritative rather than promoted into an owner decision.
 
-Last pruned: 2026-08-29.
+Last pruned: 2026-08-30.
 
-## Q1 — Semantic loci for the remaining dangerous-authority classes
-
-### Context
-
-Package review classifies dangerous authority only after an exact checked
-semantic identity rejoins compiler/toolchain provenance. The existing catalog
-covers every currently declared compiler-owned authority surface:
-`FilesystemHost`, machine control, port I/O, interrupt control/publication,
-root-memory provision, and process/console authority. Package-controlled names,
-paths, aliases, and lookalike declarations deliberately classify nothing.
-
-The package policy also requires closed classes for network access, dynamic
-loading, signing, secrets, executable installation, and DMA/IOMMU. Omega does
-not currently declare compiler-owned semantic surfaces for those authorities.
-Some may ultimately be services; others may be provider, installation,
-intrinsic, or representation mechanisms rather than boundary traits.
-
-### Problem statement
-
-Choose the exact compiler-owned semantic locus that establishes each remaining
-dangerous class. Without that identity, package review cannot distinguish real
-authority from a same-spelled ordinary package declaration, and adding enum
-tags alone would create policy vocabulary with no sound producer.
-
-### Proposed direction
-
-Define each authority at the narrowest semantic axis that actually grants or
-exercises it: a service declaration for reached runtime authority, an exact
-provider or compiler intrinsic for supplied execution, and an installation or
-representation mechanism for artifact/runtime authority. Attach the closed
-risk class as compiler-owned metadata to that identity and project the pair
-into package evidence. Ordinary-package authority classifications remain
-consumer policy bound to an exact accepted declaration identity and normalized
-schema; package source cannot self-classify.
-
-This need not force every class into a boundary trait. If Omega discovers that
-one class has no distinct semantic surface in the language, omit it rather than
-inventing a nominal declaration solely for package review.
-
-### Alternates
-
-- Acceptable: introduce one explicit compiler-owned authority catalog keyed by
-  stable semantic identities across services, intrinsics, providers,
-  installation, and representation mechanisms, provided each producer proves
-  the exact identity join.
-- Acceptable during staged language growth: keep absent classes unimplemented
-  until their real semantic surfaces land, while existing surfaces remain
-  exactly classified and unknown authority-bearing mechanisms fail admission.
-- Tempting but wrong: classify a declaration because its package-controlled
-  name contains `Network`, `Secret`, `Loader`, or another suspicious word.
-- Tempting but wrong: create placeholder boundary traits for every policy class
-  before the language has a use for those boundaries.
-- Tempting but wrong: treat a package-wide role or a reviewer/model verdict as
-  the authority identity.
-
-## Q2 — Own proof-only FloatMeaning equality and source correspondence
+## Q1 — Own proof-only FloatMeaning equality and source correspondence
 
 ### Context
 
@@ -139,7 +84,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q3 — Select the generated Gamma application profile
+## Q2 — Select the generated Gamma application profile
 
 ### Context
 
@@ -194,7 +139,7 @@ ordinary Gamma syntax.
   use an ambient host flag absent from the reconstructed edge, or let a script
   rewrite the emitted tape afterward.
 
-## Q4 — Freeze Gamma declaration identity and lexical scope
+## Q3 — Freeze Gamma declaration identity and lexical scope
 
 ### Context
 

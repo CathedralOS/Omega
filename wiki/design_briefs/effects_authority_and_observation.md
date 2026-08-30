@@ -478,6 +478,39 @@ provider-agnostic.
 There is no ambient-service category. Provider threading may gain ergonomic
 sugar later, but authority remains possessed and transferred as values.
 
+### Package service review and installed terminal authority
+
+`reaches` and physical provider bindings answer different questions. The
+normalized service row is stable across installations and supports review of a
+dependency before selecting its providers. The installed terminal-authority
+row is derived afterward by walking the exact selected-provider closure to
+target-qualified imports, syscalls, compiler intrinsics, firmware/vtable
+operations, and checked physical operations. Neither replaces the other.
+
+The verifier classifies a terminal binding only as the tuple of target, exact
+binding payload, and provider context. Every payload is static and canonically
+retained. The exact service identity and normalized schema map to permitted
+terminal classes; the selected binding tuple maps to exercised classes; every
+exercised class must be contained in the permitted set. Unknown bindings and
+unclassified compiler mechanisms fail closed. Names, filenames, aliases,
+package roles, reviewer judgments, and risk labels are never authority
+identity.
+
+Cross-platform provider choice is expressed by separate realizations
+satisfying one portable requirement. It is not expressed by adding Linux,
+Windows, and firmware mechanisms with `+`, because `+` is ordinary reach union.
+For filesystem service rows, the portable authority groups distinguish at
+least content read, content write, metadata query, directory enumeration,
+namespace mutation, and metadata mutation while exact operation identity
+remains retained. Until raw integer descriptors migrate to typed unforgeable
+handles, those groups bound operations but make no object-confinement claim.
+
+The current filename-and-trait keyed dangerous-authority classifier is a
+transitional implementation defect. Binding-derived containment lands before
+filesystem faceting, so the faceting migration never expands that obsolete
+table. String-backed import bootstrap rows normalize to exact foreign locators
+rather than becoming a parallel identity system.
+
 ### Resources
 
 Resource bounds remain contracts on explicit resource capabilities:
