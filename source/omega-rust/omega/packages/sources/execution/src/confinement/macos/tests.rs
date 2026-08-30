@@ -23,6 +23,7 @@ fn disposition(
 }
 
 mod host_routed;
+mod host_selected_git;
 mod initialization;
 mod inspection;
 mod policy_observation;

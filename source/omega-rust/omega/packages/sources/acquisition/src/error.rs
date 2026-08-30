@@ -196,7 +196,7 @@ impl fmt::Display for SourceResolveError {
                 "git {operation} exceeded its deadline of {timeout_millis} milliseconds"
             ),
             Self::GitExecutableUnavailable => output.write_str(
-                "no supported absolute Git executable is available; the resolver will not search PATH",
+                "no launchable Git executable was found in the absolute entries of the snapshotted PATH",
             ),
             Self::GitExecutableInvalid { path, message } => write!(
                 output,

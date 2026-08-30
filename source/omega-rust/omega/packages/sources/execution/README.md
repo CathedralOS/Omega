@@ -16,7 +16,7 @@ src/
 ├── prepared.rs     opaque command configuration and exact command identity
 ├── process/        limits, descriptor custody, lifecycle, and completion
 └── confinement/    optional native hardening
-    ├── macos/          Seatbelt policy for local-only phases
+    ├── macos/          optional Seatbelt policy for compatible closed commands
     ├── linux.rs        Landlock and Unix resource-limit integration
     └── windows/        Job Object launch, limits, and whole-job cleanup
 ```
@@ -28,9 +28,10 @@ classifies compiler-owned policy. Package declarations never reach this crate.
 
 ## Phase authority
 
-`RepositoryInitialization` and `RepositoryInspection` are local-only phases.
-They require no host transport chain, deny network and descendants where the
-native backend can enforce that policy, and retain narrow filesystem authority.
+`RepositoryInitialization` and `RepositoryInspection` are local-only semantic
+phases: compiler-owned arguments request no transport and only initialization
+requests repository mutation. Native denial guarantees apply only when they do
+not change selected host executable behavior.
 
 `TransportDiscovery` and `Fetch` are host-routed phases. The selected system
 Git and its descendants use the invoking user's ordinary Git/SSH configuration,
@@ -66,7 +67,10 @@ established.
 
 Native hardening is defense in depth:
 
-- macOS applies compiler-authored Seatbelt policy to the local-only phases;
+- macOS applies compiler-authored Seatbelt policy to compatible closed
+  executable preparations. Operator-selected host Git may itself be a launcher
+  or select descendants, so its local-phase route preserves that host behavior
+  and truthfully records Seatbelt-specific guarantees as unavailable;
 - Linux applies resource limits and uses Landlock where its incomplete
   filesystem mediation is useful and honestly classifiable; and
 - Windows launches through a kill-on-close Job Object with process, memory,

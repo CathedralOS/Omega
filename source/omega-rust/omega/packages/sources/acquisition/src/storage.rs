@@ -1,13 +1,13 @@
 //! Resolver-owned private storage for ordinary source acquisition.
 
+use super::SourceResolveError;
 use super::custody::platform::same_capability_file_identity;
 use super::custody::publication::{create_private_cache_directory, retain_private_cache_directory};
 use super::custody::tree::{
-    cache_custody_invalid, verify_cache_custody_root, verify_git_cache_root_custody,
-    CacheCustodyKind,
+    CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root,
+    verify_git_cache_root_custody,
 };
-use super::SourceResolveError;
-use crate::git::executable::selection::PrimaryGitSelection;
+use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};
@@ -187,13 +187,12 @@ impl SourceResolverStorage {
             )?;
         }
 
-        let mut excluded_roots = Vec::new();
+        let mut excluded_roots = resolver_package_controlled_roots(&[&root])?;
         excluded_roots
-            .try_reserve_exact(excluded_primary_git_roots.len().saturating_add(1))
+            .try_reserve_exact(excluded_primary_git_roots.len())
             .map_err(|_| SourceResolveError::PrivateStorageUnavailable {
                 message: "primary Git exclusion set exceeds host capacity".to_owned(),
             })?;
-        excluded_roots.push(root.clone());
         for excluded in excluded_primary_git_roots {
             if !excluded.is_absolute() {
                 return Err(SourceResolveError::PrivateStorageUnavailable {
@@ -203,16 +202,10 @@ impl SourceResolverStorage {
                     ),
                 });
             }
-            excluded_roots.push(
-                excluded
-                    .canonicalize()
-                    .map_err(|error| io_error(excluded, error))?,
-            );
+            excluded_roots.push(excluded.clone());
         }
-        let primary_git = PrimaryGitSelection::from_operator_or_environment(
-            explicit_primary_git,
-            &excluded_roots,
-        )?;
+        let primary_git =
+            PrimaryGitSelection::capture_optional(explicit_primary_git, &excluded_roots)?;
 
         let git_sources = RetainedStorageLane::create(
             &root,
@@ -294,10 +287,9 @@ impl RetainedStorageLane {
         Ok(child)
     }
 
-    pub(crate) fn primary_git_path(&self) -> Result<&Path, SourceResolveError> {
+    pub(crate) fn primary_git(&self) -> Result<&PrimaryGitSelection, SourceResolveError> {
         self.primary_git
             .as_ref()
-            .map(PrimaryGitSelection::path)
             .ok_or(SourceResolveError::GitExecutableUnavailable)
     }
 

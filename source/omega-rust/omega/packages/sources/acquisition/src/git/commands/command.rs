@@ -41,14 +41,16 @@ pub(crate) fn sealed_git_command(
     let command_result = match phase {
         ResolverExecutionPhase::RepositoryInspection => executor
             .execution_backend
-            .prepare_inspection(&executor.identity.path, working_directory),
+            .prepare_host_git_inspection(&executor.identity.path, working_directory),
         ResolverExecutionPhase::TransportDiscovery => executor
             .execution_backend
-            .prepare_discovery(&executor.identity.path, working_directory),
+            .prepare_host_git_discovery(&executor.identity.path, working_directory),
         ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            executor
-                .execution_backend
-                .prepare(&executor.identity.path, phase, mutable_root)
+            executor.execution_backend.prepare_host_git(
+                &executor.identity.path,
+                phase,
+                mutable_root,
+            )
         }
     };
     let mut command =

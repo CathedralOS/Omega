@@ -19,6 +19,7 @@ pub(crate) fn guarantee_disposition(
     backend: &ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
     guarantee: ResolverExecutionGuarantee,
+    macos_seatbelt_applied: bool,
 ) -> ResolverExecutionGuaranteeDisposition {
     use ResolverExecutionBackendIdentity::{
         LinuxLandlockV5, MacosSeatbelt, PortableProcessContainer, UnixResourceLimits,
@@ -34,7 +35,7 @@ pub(crate) fn guarantee_disposition(
 
     match guarantee {
         FilesystemWritesConfined | ExecutablePathsConfined
-            if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_network() =>
+            if matches!(backend, MacosSeatbelt { .. }) && macos_seatbelt_applied =>
         {
             Enforced
         }
@@ -50,13 +51,13 @@ pub(crate) fn guarantee_disposition(
         // compiler-owned path set on any backend.
         FilesystemReadsConfined => Unavailable,
         DescendantProcessesContained
-            if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_descendant_processes() =>
+            if matches!(backend, MacosSeatbelt { .. }) && macos_seatbelt_applied =>
         {
             Enforced
         }
         DescendantProcessesContained if matches!(backend, WindowsJobObject) => Enforced,
         DescendantProcessesContained => Unavailable,
-        NetworkDenied if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_network() => {
+        NetworkDenied if matches!(backend, MacosSeatbelt { .. }) && macos_seatbelt_applied => {
             Enforced
         }
         NetworkDenied if phase.permits_network() => NotRequired,

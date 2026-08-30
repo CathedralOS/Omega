@@ -12,6 +12,7 @@ use crate::git::commands::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
 use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::objects::identity::is_object_id;
 use crate::git::request::GitSourceRequest;
 use crate::git::workspace::GitWorkspaceProjectionError;
@@ -19,17 +20,18 @@ use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::issuance::finalize_git_resolution;
 use super::materialization::GitMaterializedSource;
 use super::repository::resolve_verified_git_cache_entry_with;
 
 pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError>(
+    primary_git: &PrimaryGitSelection,
+    package_controlled_roots: &[PathBuf],
     request: &GitSourceRequest,
     cache_dir: &Path,
     cache_directory: &CapabilityDirectory,
-    primary_git: &Path,
     limits: LocalSourceLimits,
     pin: Option<&GitAcquisitionPin>,
     materialize: impl FnOnce(
@@ -57,7 +59,12 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
         }
     }
     let execution_transport = request.execution_transport();
-    let executor = GitExecutor::selected(primary_git, execution_transport, limits)?;
+    let executor = GitExecutor::selected(
+        primary_git,
+        execution_transport,
+        limits,
+        package_controlled_roots,
+    )?;
     let mut materialize = Some(materialize);
     let result = (|| {
         let requested_rev = request.requested_revision();

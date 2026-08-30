@@ -30,6 +30,7 @@ impl ResolverExecutionBackend {
                     &self.identity,
                     inputs.phase,
                     guarantee,
+                    inputs.generated_policy_sha256.is_some(),
                 ),
             });
         Ok(ResolverExecutionPolicyObservation {

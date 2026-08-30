@@ -10,6 +10,7 @@ pub(crate) fn command(
     executable: &Path,
     phase: ResolverExecutionPhase,
     roots: ResolverExecutionAuthorityRoots<'_>,
+    seatbelt_compatible: bool,
 ) -> io::Result<(Command, Option<String>)> {
     let ResolverExecutionBackendIdentity::MacosSeatbelt {
         executable: sandbox_executable,
@@ -20,7 +21,7 @@ pub(crate) fn command(
             "macOS resolver selected a non-Seatbelt backend",
         ));
     };
-    if phase.permits_network() {
+    if phase.permits_network() || !seatbelt_compatible {
         return Ok((Command::new(executable), None));
     }
 
