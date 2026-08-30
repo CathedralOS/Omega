@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# gamma_ref.py — an INDEPENDENT reference evaluator for Gamma (the meaning substrate), written from
+# gamma_ref.py - an INDEPENDENT reference evaluator for Gamma (the meaning substrate), written from
 # gamma/LANGUAGE.md + interp.beta's grammar, NOT ported from interp.beta. Reads a Gamma program on stdin,
 # prints the signed decimal result, and exits with its low byte (matching interp.beta).
 #
-# WHY THIS EXISTS — interp.beta is the current executable Gamma semantics, but
+# WHY THIS EXISTS - interp.beta is the current executable Gamma semantics, but
 # its ADT/match/recursion evaluation needs one independent discriminator. This is that
 # implementation. gamma-diamond-py.sh runs random Gamma programs through BOTH interp.beta and gamma_ref.py
 # and asserts they agree. UNTRUSTED and checked, like the other *_ref tools; the runtime never runs it.
@@ -21,6 +21,9 @@ STEP_CAP = 20_000_000
 class Trap(Exception):
     pass
 
+class SourceReject(Exception):
+    pass
+
 def s64(x):
     return x - (1 << 64) if x >= (1 << 63) else x
 
@@ -28,8 +31,50 @@ def trunc_div(a, b):
     q = abs(a) // abs(b)
     return -q if (a < 0) != (b < 0) else q
 
-def tokens(s):
-    return s.replace('(', ' ( ').replace(')', ' ) ').split()
+def is_ident_start(c):
+    return 'A' <= c <= 'Z' or 'a' <= c <= 'z' or c == '_'
+
+def is_ident_continue(c):
+    return is_ident_start(c) or '0' <= c <= '9'
+
+def tokens(source):
+    if isinstance(source, bytes):
+        source = source.decode('latin1')
+    for offset, c in enumerate(source):
+        value = ord(c)
+        if value not in (9, 10, 13) and not 32 <= value <= 126:
+            raise SourceReject(f'invalid source byte at offset {offset}')
+
+    out = []
+    i, n = 0, len(source)
+    while i < n:
+        c = source[i]
+        if c in ' \t\r\n':
+            i += 1
+            continue
+        if c == ';':
+            i += 1
+            while i < n and source[i] not in '\r\n':
+                i += 1
+            continue
+        if c in '()':
+            out.append(c)
+            i += 1
+            continue
+        j = i
+        while j < n and source[j] not in ' \t\r\n();':
+            j += 1
+        token = source[i:j]
+        if not (
+            token in {'+', '-', '*', '/', '%'} or
+            token and all('0' <= digit <= '9' for digit in token) or
+            token and is_ident_start(token[0]) and
+            all(is_ident_continue(char) for char in token[1:])
+        ):
+            raise SourceReject(f'invalid token at offset {i}')
+        out.append(token)
+        i = j
+    return out
 
 def parse(ts, i):
     if ts[i] == '(':
@@ -57,11 +102,11 @@ class Ev:
         if self.steps > STEP_CAP:
             raise Trap()
         if isinstance(e, str):
-            if e.lstrip('-').isdigit():
+            if e and all('0' <= digit <= '9' for digit in e):
                 return int(e) & MASK
             if e in env:
                 return env[e]
-            if e[:1].isupper():
+            if e[:1] and 'A' <= e[0] <= 'Z':
                 return ('con', e, ())                  # nullary constructor
             raise Trap()                               # unbound name
         head = e[0]
@@ -89,7 +134,7 @@ class Ev:
             _, name, args = scrut
             for pat, body in [(a[0], a[1]) for a in e[2:]]:
                 if isinstance(pat, str):
-                    if pat[:1].isupper():              # nullary constructor pattern
+                    if pat[:1] and 'A' <= pat[0] <= 'Z':  # nullary constructor pattern
                         if pat == name and len(args) == 0:
                             return self.ev(body, env)
                     else:                              # variable/catch-all pattern
@@ -101,7 +146,7 @@ class Ev:
                         env2[v] = val
                     return self.ev(body, env2)
             raise Trap()                               # no arm matched (non-exhaustive)
-        if head[:1].isupper():
+        if head[:1] and 'A' <= head[0] <= 'Z':
             return ('con', head, tuple(self.ev(a, env) for a in e[1:]))
         # function call
         if head not in self.defs:
@@ -111,7 +156,10 @@ class Ev:
         return self.ev(body, env2)
 
 def main():
-    forms = parse_all(sys.stdin.read())
+    try:
+        forms = parse_all(sys.stdin.buffer.read())
+    except SourceReject:
+        sys.exit(255)
     defs = {}
     exprs = []
     for f in forms:

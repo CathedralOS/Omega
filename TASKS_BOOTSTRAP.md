@@ -166,6 +166,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
   rerun the assembler, compiler, checker, and diamond gates. Short-term Python
   references must implement the same byte contract if retained, but no Python
   implementation survives completion of the checked direct chain.
+  - [x] Enforce the envelope in the Alpha assembler and its independent
+    reference, clean the retained Alpha corpus, refresh both stamped platform
+    realizations, and pin CR comments plus NUL/VT/DEL/high-byte rejection.
+  - [x] Enforce the envelope and exact rejection coordinates in the
+    Alpha-written Beta compiler and temporary Python reference; replace the
+    extent control with space padding, clean every retained Beta implementation
+    source, and refresh the 104,459-byte source / 27,087-byte tape observations.
+  - [x] Enforce the envelope, explicit ASCII identifier classes, and CR/LF
+    comments in both bounded Gamma oracle surfaces and the temporary Python
+    evaluator. The existing gates now retain matching positive and negative
+    byte controls.
+  - [ ] **DEPENDENCY-BLOCKED — DELTA COMPILER:** Apply the already-fixed outer
+    envelope to the Gamma-written Delta compiler when OWNER Q2 supplies the
+    executable Delta contract and that compiler exists. No current Delta parser
+    or compiler implementation can receive this code change.
 
 ## 1. Alpha execution floor
 

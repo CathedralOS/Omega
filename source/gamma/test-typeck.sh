@@ -29,8 +29,32 @@ tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi
 }
+reject_source() { # name source-file
+  name=$1
+  source_file=$2
+  set +e
+  "$T/tc.exe" < "$source_file" > "$T/$name.out"
+  got=$?
+  if [ "$got" = 0 ] && [ ! -s "$T/$name.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL $name: source envelope returned $got with $(wc -c < "$T/$name.out" | tr -d ' ') output bytes"
+  fi
+}
 # phase 1 — Int + typed functions
 tc '(def add ((a Int) (b Int)) Int (+ a b)) (def main () Int (add 2 3))' 1 'well-typed'
+cr_comment_program=$(printf '; before\r(def id ((x Int)) Int x)')
+tc "$cr_comment_program" 1 'CR-terminated comment'
+unset cr_comment_program
+printf '; hidden\000\n(def id ((x Int)) Int x)' > "$T/comment-nul.gamma"
+reject_source comment-nul "$T/comment-nul.gamma"
+printf '(def\013id ((x Int)) Int x)' > "$T/vertical-tab.gamma"
+reject_source vertical-tab "$T/vertical-tab.gamma"
+printf '; hidden\177\n(def id ((x Int)) Int x)' > "$T/comment-del.gamma"
+reject_source comment-del "$T/comment-del.gamma"
+printf '; hidden\303\251\n(def id ((x Int)) Int x)' > "$T/comment-high.gamma"
+reject_source comment-high "$T/comment-high.gamma"
 tc '(def id ((x Int)) Int x)' 1 'identity'
 tc '(def f ((a Int) (b Int)) Int (if (lt a b) a b))' 1 'if/branches'
 tc '(def f ((a Int)) Int (let y (+ a 1) (* y y)))' 1 'let'

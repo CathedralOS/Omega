@@ -27,6 +27,16 @@
 ; AST tags: 0 INT 1 VAR 2 PRIM 3 IF 4 LET 5 CALL 6 CONS 7 CONAPP 8 MATCH
 ;           9 PVAR 10 PCON 11 ARM 50 PARAM
 
+proc source_byte_allowed(c) {
+    state ht { to yes when (c == 9)  to lf }
+    state lf { to yes when (c == 10)  to cr }
+    state cr { to yes when (c == 13)  to printable_low }
+    state printable_low { to no when (c < 32)  to printable_high }
+    state printable_high { to no when (c > 126)  return 1 }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 proc slurp() {
     let n = 0
     let c = read_byte()
@@ -35,6 +45,8 @@ proc slurp() {
         to done
     }
     state body {
+        to exhausted when (n == 4194304)
+        to invalid when (source_byte_allowed(c) == 0)
         byte[2097152 + n] = c
         n = n + 1
         c = read_byte()
@@ -51,7 +63,10 @@ proc slurp() {
         word[2097104] = 1        ; NTY (id 0 = builtin Int)
         word[2097096] = 0        ; NCON
         word[2097088] = 0        ; INVALID_TYPE
+        return 0
     }
+    state invalid { return 1 }
+    state exhausted { return 2 }
 }
 
 proc cbyte() {
@@ -88,6 +103,7 @@ proc skip_ws() {
     }
     state cmt {
         to loop when (cbyte() == 10)
+        to loop when (cbyte() == 13)
         to ceof when (cbyte() == 0)
         adv()
         to cmt
@@ -102,11 +118,19 @@ proc is_digit(c) {
     state no { return 0 }
 }
 
-proc is_delim(c) {
-    state c1 { to yes when (is_space(c) == 1)  to c2 }
-    state c2 { to yes when (c == '(')  to c3 }
-    state c3 { to yes when (c == ')')  to c4 }
-    state c4 { to yes when (c == 0)    return 0 }
+proc is_ident_start(c) {
+    state underscore { to yes when (c == '_')  to upper_low }
+    state upper_low { to lower_low when (c < 'A')  to upper_high }
+    state upper_high { to yes when (c <= 'Z')  to lower_low }
+    state lower_low { to no when (c < 'a')  to lower_high }
+    state lower_high { to no when (c > 'z')  return 1 }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc is_ident_continue(c) {
+    state start { to yes when (is_ident_start(c) == 1)  to digit }
+    state digit { to yes when (is_digit(c) == 1)  return 0 }
     state yes { return 1 }
 }
 
@@ -120,8 +144,12 @@ proc is_op(c) {
 }
 
 proc skip_ident() {
+    state first {
+        to body when (is_ident_start(cbyte()) == 1)
+        return 0
+    }
     state loop {
-        to body when (is_delim(cbyte()) == 0)
+        to body when (is_ident_continue(cbyte()) == 1)
         return 0
     }
     state body { adv()  to loop }
@@ -151,13 +179,13 @@ proc name_eq(o1, o2) {
     state loop {
         let c1 = byte[2097152 + o1 + i]
         let c2 = byte[2097152 + o2 + i]
-        to end1 when (is_delim(c1) == 1)
-        to end2 when (is_delim(c2) == 1)
+        to end1 when (is_ident_continue(c1) == 0)
+        to end2 when (is_ident_continue(c2) == 0)
         to diff when (c1 != c2)
         i = i + 1
         to loop
     }
-    state end1 { return is_delim(c2) }
+    state end1 { return 1 - is_ident_continue(c2) }
     state end2 { return 0 }
     state diff { return 0 }
 }
@@ -165,7 +193,7 @@ proc name_eq(o1, o2) {
 proc name_is2(off, a, b) {
     state c1 { to c2 when (byte[2097152 + off] == a)  return 0 }
     state c2 { to c3 when (byte[2097152 + off + 1] == b)  return 0 }
-    state c3 { to yes when (is_delim(byte[2097152 + off + 2]) == 1)  return 0 }
+    state c3 { to yes when (is_ident_continue(byte[2097152 + off + 2]) == 0)  return 0 }
     state yes { return 1 }
 }
 
@@ -173,7 +201,7 @@ proc name_is3(off, a, b, c) {
     state c1 { to c2 when (byte[2097152 + off] == a)  return 0 }
     state c2 { to c3 when (byte[2097152 + off + 1] == b)  return 0 }
     state c3 { to c4 when (byte[2097152 + off + 2] == c)  return 0 }
-    state c4 { to yes when (is_delim(byte[2097152 + off + 3]) == 1)  return 0 }
+    state c4 { to yes when (is_ident_continue(byte[2097152 + off + 3]) == 0)  return 0 }
     state yes { return 1 }
 }
 
@@ -189,7 +217,7 @@ proc is_match_kw(off) {
     state c3 { to c4 when (byte[2097152 + off + 2] == 't')  return 0 }
     state c4 { to c5 when (byte[2097152 + off + 3] == 'c')  return 0 }
     state c5 { to c6 when (byte[2097152 + off + 4] == 'h')  return 0 }
-    state c6 { to yes when (is_delim(byte[2097152 + off + 5]) == 1)  return 0 }
+    state c6 { to yes when (is_ident_continue(byte[2097152 + off + 5]) == 0)  return 0 }
     state yes { return 1 }
 }
 
@@ -489,7 +517,7 @@ proc is_data() {
     state c1 { to c2 when (byte[2097152 + o + 1] == 'a')  return 0 }
     state c2 { to c3 when (byte[2097152 + o + 2] == 't')  return 0 }
     state c3 { to c4 when (byte[2097152 + o + 3] == 'a')  return 0 }
-    state c4 { to yes when (is_delim(byte[2097152 + o + 4]) == 1)  return 0 }
+    state c4 { to yes when (is_ident_continue(byte[2097152 + o + 4]) == 0)  return 0 }
     state yes { return 1 }
 }
 
@@ -741,8 +769,13 @@ proc tc(expr) {
 }
 
 proc main() {
-    slurp()
-    skip_ws()
+    let slurp_status = slurp()
+    state source {
+        to source_failed when (slurp_status != 0)
+        skip_ws()
+        to dataloop
+    }
+    state source_failed { return 0 }
     state dataloop {
         to databody when (is_data() == 1)
         to defloop

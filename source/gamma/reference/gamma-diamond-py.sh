@@ -36,6 +36,39 @@ G="$T/g.exe"
 N=${1:-100}
 PASS=0; FAIL=0
 
+fixed_case() { # name source-file expected-status expected-output
+  fixed_name=$1
+  fixed_source=$2
+  fixed_status=$3
+  fixed_output=$4
+  set +e
+  fixed_ref=$(python3 gamma_ref.py < "$fixed_source" 2>/dev/null)
+  fixed_ref_status=$?
+  fixed_oracle=$("$G" < "$fixed_source" 2>/dev/null)
+  fixed_oracle_status=$?
+  set -e
+  if [ "$fixed_ref_status" = "$fixed_status" ] &&
+     [ "$fixed_oracle_status" = "$fixed_status" ] &&
+     [ "$fixed_ref" = "$fixed_output" ] &&
+     [ "$fixed_oracle" = "$fixed_output" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL $fixed_name: gamma_ref=(out'$fixed_ref' rc$fixed_ref_status) interp=(out'$fixed_oracle' rc$fixed_oracle_status)"
+  fi
+}
+
+printf '; before\r(+ 40 2)' > "$T/cr-comment.gamma"
+fixed_case cr-comment "$T/cr-comment.gamma" 42 42
+printf '; hidden\000\n(+ 40 2)' > "$T/comment-nul.gamma"
+fixed_case comment-nul "$T/comment-nul.gamma" 255 ''
+printf '(+ 40\0132)' > "$T/vertical-tab.gamma"
+fixed_case vertical-tab "$T/vertical-tab.gamma" 255 ''
+printf '; hidden\177\n(+ 40 2)' > "$T/comment-del.gamma"
+fixed_case comment-del "$T/comment-del.gamma" 255 ''
+printf '; hidden\303\251\n(+ 40 2)' > "$T/comment-high.gamma"
+fixed_case comment-high "$T/comment-high.gamma" 255 ''
+
 # Atom patterns beginning with lowercase are variable/catch-all patterns, not
 # nullary constructors.  Keep this fixed fence alongside the generated corpus:
 # the canonical Beta interpreter has always implemented it.

@@ -14,4 +14,6 @@ completed offline bootstrap.
 | `gamma-diamond-py.sh` | Compare the reference and canonical Beta interpreter over the bounded corpus. | Delete when the compiler's direct checked semantics covers the same observations. |
 
 The evaluator has no authority and must not become an external runtime stage of
-the future Gamma compiler.
+the future Gamma compiler. While retained, it consumes raw bytes and implements
+the same textual-ASCII envelope, explicit identifier classes, and CR/LF comment
+termination as the Beta oracle it diagnoses.
