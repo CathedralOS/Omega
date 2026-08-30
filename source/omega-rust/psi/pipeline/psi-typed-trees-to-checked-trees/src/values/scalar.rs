@@ -1021,17 +1021,26 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         Some(())
                     }
                     psi_typed_trees::data::DataShapeKind::Mixed => {
-                        // The first nested mixed-shape slice permits exactly
-                        // one direct field of the compared record. Deeper
-                        // records, case payloads, and two mixed siblings retain
-                        // their fail-closed fence until their independent path
-                        // and replay canaries land.
+                        // The bounded nested mixed-shape slice permits exactly
+                        // one or two direct record fields before the sole mixed
+                        // occurrence. Deeper records, case payloads, and two
+                        // mixed siblings retain their fail-closed fence until
+                        // their independent path and replay canaries land.
                         if !left_path.is_empty() || !right_path.is_empty() {
                             if !matches!(
                                 (left_path, right_path),
                                 (
                                     [CheckedStructuralPredicatePathSegment::Field(_)],
                                     [CheckedStructuralPredicatePathSegment::Field(_)]
+                                ) | (
+                                    [
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_)
+                                    ],
+                                    [
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_)
+                                    ]
                                 )
                             ) || !allow_direct_nested_mixed
                                 || *nested_mixed_seen
@@ -1202,12 +1211,14 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             if left_data.symbol != right_data.symbol || left_data.name != right_data.name {
                 return None;
             }
-            let allow_direct_nested_mixed = matches!(
-                psi_typed_trees::data::DataDefinition::shape_kind_from_members(
-                    program.data_members(left_data)
-                ),
-                psi_typed_trees::data::DataShapeKind::Record
-            );
+            let allow_direct_nested_mixed = left_path.is_empty()
+                && right_path.is_empty()
+                && matches!(
+                    psi_typed_trees::data::DataDefinition::shape_kind_from_members(
+                        program.data_members(left_data)
+                    ),
+                    psi_typed_trees::data::DataShapeKind::Record
+                );
             let mut comparisons = Vec::new();
             collect_comparisons(
                 program,
