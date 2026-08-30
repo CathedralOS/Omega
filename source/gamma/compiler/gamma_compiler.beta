@@ -45,6 +45,8 @@
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
 ; AST tags: 0 INT 1 VAR 2 PRIM 3 IF 4 LET 5 CALL 6 CONS 7 CONAPP 8 MATCH
 ;           9 PVAR 10 PCON 11 ARM 50 PARAM
+; Checked CALL/CONAPP/PCON nodes retain one-based function/constructor table
+; identities in f2; zero remains the unresolved or builtin sentinel.
 
 proc source_byte_allowed(c) {
     state ht { to yes when (c == 9)  to lf }
@@ -1161,7 +1163,9 @@ proc tc_bytes_builtin(kind, args) {
     state bad { return 0 - 1 }
 }
 
-proc tc_call(fname, args) {
+proc tc_call(expr) {
+    let fname = word[expr + 8]
+    let args = word[expr + 16]
     let builtin = bytes_builtin_kind(fname)
     state builtin_check { to builtin_call when (builtin != 0)  to ordinary }
     state builtin_call { return tc_bytes_builtin(builtin, args) }
@@ -1171,6 +1175,9 @@ proc tc_call(fname, args) {
     }
     state fchk { to known when (fi != 0 - 1)  return 0 - 1 }   ; unknown function
     state known {
+        ; Zero remains the unresolved/builtin sentinel; table identities are
+        ; retained one-based for the eventual tag-5 lowering join.
+        word[expr + 24] = fi + 1
         let p = word[8388608 + fi * 32 + 8]
         let a = args
         let fail = 0
@@ -1198,10 +1205,13 @@ proc tc_call(fname, args) {
     state failret { return 0 - 1 }
 }
 
-proc tc_conapp(coff, args) {
+proc tc_conapp(expr) {
+    let coff = word[expr + 8]
+    let args = word[expr + 16]
     let ci = con_lookup(coff)
     state cchk { to known when (ci != 0 - 1)  return 0 - 1 }   ; unknown constructor
     state known {
+        word[expr + 24] = ci + 1
         let p = word[6815744 + ci * 24 + 16]
         let a = args
         let fail = 0
@@ -1277,6 +1287,7 @@ proc tc_match(scrut, arms) {
         to badty when (word[6815744 + ci * 24 + 8] != st)
         to duplicate when (word[10485760 + ci * 8] == epoch)
         word[10485760 + ci * 8] = epoch
+        word[pat + 24] = ci + 1
         to bindvars
     }
     state badty { fail = 1  to checkbody }
@@ -1403,9 +1414,9 @@ proc tc_inner(expr) {
         return r
     }
     state t5 { to callexpr when (tag == 5)  to t7 }
-    state callexpr { return tc_call(word[expr + 8], word[expr + 16]) }
+    state callexpr { return tc_call(expr) }
     state t7 { to conapp when (tag == 7)  to t8 }
-    state conapp { return tc_conapp(word[expr + 8], word[expr + 16]) }
+    state conapp { return tc_conapp(expr) }
     state t8 { to matchexpr when (tag == 8)  return 0 - 1 }
     state matchexpr { return tc_match(word[expr + 8], word[expr + 16]) }
 }
