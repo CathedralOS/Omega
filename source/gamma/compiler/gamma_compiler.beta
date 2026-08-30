@@ -1652,16 +1652,23 @@ proc emit_gamma_return_frame() {
 ; resolver later assigns opaque slot indexes, but this ABI owns their exact
 ; containment inside the fixed prefix after the two-word frame header.
 
-proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
+proc validate_gamma_frame_local(frame_prefix_bytes, local_index) {
     state prefix_low { to invalid_prefix when (frame_prefix_bytes < 16)  to prefix_aligned }
     state prefix_aligned { to invalid_prefix when (frame_prefix_bytes % 16 != 0)  to prefix_high }
     state prefix_high { to invalid_prefix when (frame_prefix_bytes > 16515072)  to index_low }
     state index_low { to invalid_index when (local_index < 0)  to index_high }
     state index_high {
         to invalid_index when (local_index >= (frame_prefix_bytes - 16) / 16)
-        let slot_offset = 16 + local_index * 16
-        to mode
+        return 1
     }
+    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes)  return 0 }
+    state invalid_index { emit_fail_once(13, local_index)  return 0 }
+}
+
+proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
+    let profile_ok = validate_gamma_frame_local(frame_prefix_bytes, local_index)
+    state profile { to offset when (profile_ok == 1)  return 0 }
+    state offset { let slot_offset = 16 + local_index * 16  to mode }
     state mode { to load when (store_mode == 0)  to store_check }
     state store_check { to store when (store_mode == 1)  to invalid_mode }
     state load {
@@ -1674,8 +1681,6 @@ proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
         emit_word_store(253, slot_offset + 8, 1)
         return 1
     }
-    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes)  return 0 }
-    state invalid_index { emit_fail_once(13, local_index)  return 0 }
     state invalid_mode { emit_fail_once(13, store_mode)  return 0 }
 }
 
@@ -2540,6 +2545,45 @@ proc lower_resolved_constructor(args, constructor_tag) {
     }
     state failed { return 0 }
     state invalid_tag { emit_fail_once(14, constructor_tag)  return 0 }
+}
+
+; Lower one local reference after the resolver supplies only its opaque fixed
+; frame slot. Source spelling, scope, and shadowing remain outside this seam.
+
+proc lower_resolved_local(frame_prefix_bytes, local_index) {
+    return emit_gamma_frame_local(frame_prefix_bytes, local_index, 0)
+}
+
+; Lower one let after the resolver supplies its opaque fixed frame slot. Beta's
+; four-argument procedure limit carries `(prefix,index)` in one nonnegative
+; scalar as `prefix + index * 16777216`; validation recovers both exact values.
+; The initializer is non-tail and evaluated exactly once; its complete result is
+; retained in the frame before the body inherits the caller's tail context.
+; Validate the private slot profile before lowering the initializer so malformed
+; resolver metadata cannot author even a partial candidate payload.
+
+proc lower_resolved_let(value_expr, body_expr, tail_position, frame_local_profile) {
+    state encoded { to invalid_profile when (frame_local_profile < 0)  to decode }
+    state decode {
+        let frame_prefix_bytes = frame_local_profile % 16777216
+        let local_index = frame_local_profile / 16777216
+        to validate
+    }
+    state validate {
+        let profile_ok = validate_gamma_frame_local(frame_prefix_bytes, local_index)
+        to profile
+    }
+    state profile { to value when (profile_ok == 1)  return 0 }
+    state value {
+        to store when (lower_expr(value_expr, 0) == 1)
+        return 0
+    }
+    state store {
+        to body when (emit_gamma_frame_local(frame_prefix_bytes, local_index, 1) == 1)
+        return 0
+    }
+    state body { return lower_expr(body_expr, tail_position) }
+    state invalid_profile { emit_fail_once(13, frame_local_profile)  return 0 }
 }
 
 proc lower_expr(expr, tail_position) {

@@ -536,9 +536,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 100 procedures; with the frontend
-    gate entry, the gate uses 101 of Beta's 128 procedure slots and compiles to
-    231,957 bytes, leaving 30,183 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 103 procedures; with the frontend
+    gate entry, the gate uses 104 of Beta's 128 procedure slots and compiles to
+    234,462 bytes, leaving 27,678 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -669,6 +669,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
     being mistaken for zero arity. The tag-7 source connection remains
     Q3-blocked; no parallel verifier, serialized resolved tree, or duplicate
     list walk is retained.
+  - [x] Bridge already-resolved local references and lets into the eventual
+    expression backend without assigning Q3-blocked source identity. Reuse the
+    fixed-frame validator and emitter for complete two-word loads and stores;
+    encode the let's bounded `(prefix,index)` metadata in one private scalar to
+    respect Beta's four-argument call limit. Validate that profile before any
+    initializer byte is emitted, lower the initializer non-tail exactly once,
+    retain its complete value, and pass the incoming tail context unchanged to
+    the body. Execute a mixed `Bytes` initializer/`Int` body in a real 48-byte
+    frame, recover both values from distinct slots, restore the root stack/base,
+    reject malformed prefix and adjacent-index profiles with zero payload, and
+    require byte-identical reconstruction. Source tag-1/tag-4 connection,
+    binder-to-slot assignment, scope, and shadowing remain Q3-blocked.
   - [x] Establish the dormant profile-parameterized sealed-input reader without
     selecting Q2's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
@@ -703,7 +715,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     byte-identical declared-type/constructor spelling validators into one
     nominal-name predicate. D16 gives both forms the same capitalization and
     `Int`/`Bytes` exclusions even though Q3 may keep their namespaces separate.
-    The complete 170-case gate is unchanged; the retained compiler drops one
+    The then-complete 170-case gate was unchanged; the retained compiler drops one
     procedure and 2,549 compiled bytes without changing accepted names,
     source coordinates, or later identity ownership.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
