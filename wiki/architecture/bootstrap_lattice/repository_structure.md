@@ -65,11 +65,12 @@ The committed tree still has two important gaps:
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
-  named-type candidate scanning, and symbolic Alpha encoding; Q2 and the
-  remaining type/body checking, lowering, tape publication, and refinement are
-  still open. The restricted Delta-written native compiler prototype was also
-  deleted: it was neither that compiler nor the full Omega closure `D` and had
-  no economical unit-level adaptation into either owner.
+  named-type candidate scanning, and symbolic Alpha encoding. D31 fixes the
+  pending type judgment; implementing it and the remaining body checking,
+  lowering, tape publication, and refinement are still open. The restricted
+  Delta-written native compiler prototype was also deleted: it was neither that
+  compiler nor the full Omega closure `D` and had no economical unit-level
+  adaptation into either owner.
 
 These gaps are implementation work, not alternate accepted architectures. A
 legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its

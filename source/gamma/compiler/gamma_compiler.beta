@@ -335,7 +335,7 @@ proc name_is_packed(off, low, high, length) {
 }
 ; D19's exact source-owned Delta schema contains identifiers longer than the
 ; ordinary two-word keyword matcher. Codes 1..26 are the ruled DCOUT v1
-; rejection bijection, followed by the two nominal types and two outcome
+; rejection bijection, followed by the two nominal types and four outcome
 ; constructors. Initialize this private compile-time table only while checking
 ; the selected schema; later function labels and retained D19 identities reuse
 ; COVERAGE without deriving any code from declaration order or hashing.
@@ -460,13 +460,21 @@ proc d19_initialize_name_table() {
     word[10748840] = 127970252055890
     word[10748848] = 0
     word[10748856] = 0
+    word[10748864] = 19
+    word[10748872] = 5288747005645911123
+    word[10748880] = 8387229111175570286
+    word[10748888] = 7618917
+    word[10748896] = 22
+    word[10748904] = 5288747005645911123
+    word[10748912] = 8387229111175570286
+    word[10748920] = 119165821080677
     return 0
 }
 
 proc d19_name_matches(off, code) {
     let i = 0
     state code {
-        to no when ((code < 1) + (code > 30) != 0)
+        to no when ((code < 1) + (code > 32) != 0)
         let base = 10747904 + (code - 1) * 32
         let length = word[base]
         to loop
@@ -483,7 +491,7 @@ proc d19_name_matches(off, code) {
 
 proc d19_name_code(off) {
     let code = 1
-    state loop { to compare when (code <= 30)  return 0 }
+    state loop { to compare when (code <= 32)  return 0 }
     state compare {
         to found when (d19_name_matches(off, code) == 1)
         code = code + 1
@@ -3318,6 +3326,20 @@ proc d19_fields_match(fields, first_type, second_type, expected_count) {
     }
 }
 
+proc d19_three_int_fields_match(fields) {
+    let cursor = fields
+    let seen = 0
+    let invalid = 0
+    state loop { to row when (cursor != 0)  return (seen == 3) * (invalid == 0) }
+    state row {
+        invalid = invalid + (word[cursor] % 256 != 6)
+        invalid = invalid + (word[cursor + 8] != 0)
+        seen = seen + 1
+        cursor = word[cursor + 16]
+        to loop
+    }
+}
+
 proc validate_d19_delta_schema() {
     d19_initialize_name_table()
     let reason_type = 0 - 1
@@ -3337,6 +3359,8 @@ proc validate_d19_delta_schema() {
         let outcome_count = 0
         let complete_identity = 0
         let reject_identity = 0
+        let storage_at_identity = 0
+        let storage_total_identity = 0
         let schema_invalid = (reason_type < 2) + (outcome_type < 2)
         to constructor_loop
     }
@@ -3349,19 +3373,27 @@ proc validate_d19_delta_schema() {
         let is_outcome = owner_type == outcome_type
         let is_complete = is_outcome * (constructor_code == 29)
         let is_reject = is_outcome * (constructor_code == 30)
+        let is_storage_at = is_outcome * (constructor_code == 31)
+        let is_storage_total = is_outcome * (constructor_code == 32)
         let reason_fields_ok = d19_fields_match(fields, 0, 0, 0)
         let complete_fields_ok = d19_fields_match(fields, 1, 0, 1)
         let reject_fields_ok = d19_fields_match(fields, reason_type, 0, 2)
+        let storage_at_fields_ok = d19_three_int_fields_match(fields)
+        let storage_total_fields_ok = d19_fields_match(fields, 0, 0, 2)
         schema_invalid = schema_invalid + is_reason * (constructor_code < 1)
         schema_invalid = schema_invalid + is_reason * (constructor_code > 26)
         schema_invalid = schema_invalid + is_reason * (1 - reason_fields_ok)
-        schema_invalid = schema_invalid + is_outcome * (1 - is_complete - is_reject)
+        schema_invalid = schema_invalid + is_outcome * (1 - is_complete - is_reject - is_storage_at - is_storage_total)
         schema_invalid = schema_invalid + is_complete * (1 - complete_fields_ok)
         schema_invalid = schema_invalid + is_reject * (1 - reject_fields_ok)
+        schema_invalid = schema_invalid + is_storage_at * (1 - storage_at_fields_ok)
+        schema_invalid = schema_invalid + is_storage_total * (1 - storage_total_fields_ok)
         reason_count = reason_count + is_reason
         outcome_count = outcome_count + is_outcome
         complete_identity = complete_identity + (constructor_index + 1) * is_complete
         reject_identity = reject_identity + (constructor_index + 1) * is_reject
+        storage_at_identity = storage_at_identity + (constructor_index + 1) * is_storage_at
+        storage_total_identity = storage_total_identity + (constructor_index + 1) * is_storage_total
         word[10750000 + (constructor_code - 1) * 8] = (constructor_index + 1) * (is_reason + is_outcome)
         constructor_index = constructor_index + 1
         to constructor_loop
@@ -3383,9 +3415,11 @@ proc validate_d19_delta_schema() {
     }
     state result {
         schema_invalid = schema_invalid + (reason_count != 26)
-        schema_invalid = schema_invalid + (outcome_count != 2)
+        schema_invalid = schema_invalid + (outcome_count != 4)
         schema_invalid = schema_invalid + (complete_identity == 0)
         schema_invalid = schema_invalid + (reject_identity == 0)
+        schema_invalid = schema_invalid + (storage_at_identity == 0)
+        schema_invalid = schema_invalid + (storage_total_identity == 0)
         schema_invalid = schema_invalid + (main_count != 1)
         to invalid when (schema_invalid != 0)
         let main_index = main_identity - 1
@@ -3400,6 +3434,8 @@ proc validate_d19_delta_schema() {
         word[10750224] = main_identity
         word[10750232] = reason_type
         word[10750240] = outcome_type
+        word[10750256] = storage_at_identity
+        word[10750264] = storage_total_identity
         return 1
     }
     state invalid { return 0 }

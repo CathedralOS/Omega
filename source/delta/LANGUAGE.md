@@ -246,10 +246,13 @@ A `data` declaration is exactly one of:
 - a record containing only named fields; or
 - a sum containing only named cases with finite payload fields.
 
-Mixing fields and cases rejects. Cases may have any finite payload arity. A sum
-value's home tag is its case's zero-based declaration position; the first case
-is the zero-initialized home case. Foreign integer correspondences are ordinary
-mapping machines, not inline case numbers or layout facts.
+An empty declaration is explicitly a zero-field record. It has exactly one
+zero-initialized value and is never an empty sum. Mixing fields and cases
+rejects as `InvalidDataShape` at the declaration name. Cases may have any
+finite payload arity. A sum value's home tag is its case's zero-based
+declaration position; the first case is the zero-initialized home case. Foreign
+integer correspondences are ordinary mapping machines, not inline case numbers
+or layout facts.
 
 Sum constructors are ordinary values. Delta v1 has no record-literal form:
 records are established as declared `Main` storage, nested fields, array
@@ -263,6 +266,14 @@ structures in source-declared fixed arrays with `i32` indexes. For example, an
 AST node may store a tag and child indexes into `[Node; N]`; `N`, the cursor,
 and capacity-failure behavior are authored program state.
 
+An array length is admitted exactly when its authored `NAT` lies in
+`1..2147483647`. Zero rejects as `InvalidArrayLength` at the first byte of its
+length literal. A negative spelling is not a `NAT` and therefore fails during
+parsing; a positive token above `2147483647` is
+`IntegerLiteralOutOfRange`. Whether the selected application profile has enough
+physical storage for an admitted array is not type formation and never changes
+Delta validity.
+
 `i32` is the ordinary scalar and arithmetic type. `u8` is storage-only: it may
 occur in stored data, arrays, and byte views, but arithmetic and comparisons
 operate on the zero-extended `i32` read. A store to `u8` requires `0..255` and
@@ -275,10 +286,22 @@ An authored `-> never` machine must have no reachable normal return or falloff;
 it may diverge or terminate through another `never` call. A statement after a
 `never` call in the same block rejects as `InvalidTerminal`.
 
+The permitted occurrence is the exact outer machine-return type. Every other
+authored `never` occurrence rejects as `TypeMismatch` at the `never` token.
+
 A `&[T]` is an immutable bounded view. Views may be parameters and locals and
 may be passed onward. They cannot occur in stored data, sums, arrays, or return
 types. There is no lifetime syntax. Static checking rejects every escaping
-view.
+view. A forbidden view rejects as `EscapingView` at its outermost forbidden
+`&`. That outer placement failure suppresses defects nested inside the view;
+children of an admitted parameter or local view are checked normally.
+
+Type formation constructs these placement, shape, recursion, and unknown-type
+candidates against the complete declaration census, then reports the smallest
+packed source coordinate independent of traversal order or wire-code number.
+Their source anchors are structurally disjoint. Producing two different
+type-formation reasons at one exact anchor is a compiler contradiction and
+therefore `InternalFailure`, never an arbitrary reason-table tie-break.
 
 ## 5. Entry and boundary
 
@@ -300,6 +323,12 @@ entry is exactly:
 ```text
 machine Main::main(&mut self)
 ```
+
+`Console` is a sealed entry capability, not an ordinary named value type. Its
+only admitted occurrence is the exact `Main.console` field above. Any other
+placement, missing field, duplicate field, or competing entry shape rejects as
+`InvalidEntry` through the entry-shape judgment. `InvalidBoundary` remains
+owned solely by declaration collection for authored bodies on boundary owners.
 
 It has no value parameters and no return value. Normal falloff exits with code
 zero. Every nonzero normal status is expressed by
@@ -415,6 +444,9 @@ failing phase is reported. Coordinates are exact:
 - a duplicate reports the later declaration;
 - an invalid boundary body reports the first byte of its authored qualified
   machine declaration; and
+- an invalid mixed data shape reports its declaration name, a zero array length
+  reports its length literal, a misplaced `never` reports that token, and a
+  forbidden view reports its outermost forbidden `&`; and
 - a body error reports the first token of the offending expression or
   statement.
 
@@ -484,6 +516,18 @@ storage. Exhausting any execution-profile or private budget yields outer
 detected compiler contradiction yields outer `InternalFailure`. Neither is a
 Delta rejection, trap, divergence verdict, or partial successful tape.
 
+D31 separates valid fixed storage from one selected realization. After
+`CheckDelta` succeeds, the compiler expands only the storage roots actually
+reachable in the selected application. An unused large type consumes no
+application storage. If one reachable expanded array occurrence alone exceeds
+the selected static-storage extent, the compiler reports
+`ApplicationStaticStorageBytes` with that length literal's Delta-source
+coordinate. If individually fitting roots, repeated instances, or several
+fields exceed the extent only in aggregate, it reports the same resource with
+coordinate space `none`. The requested amount is the exact canonical complete
+storage demand, never the traversal prefix that happened to cross the limit.
+Both forms require `requested > limit` and publish no tape.
+
 Delta v1 imposes no small semantic maximum such as 128 declarations, 64
 locals, four parameters, three case fields, or 1,024 states. A compiler may
 have such a finite private ceiling only if it reports it fail-closed as
@@ -496,22 +540,29 @@ The Gamma-written Delta compiler exposes pure:
 ```text
 (data DeltaCompileOutcome
   (Complete Bytes)
-  (Reject DeltaRejectReason Int))
+  (Reject DeltaRejectReason Int)
+  (StorageIncompleteAt Int Int Int)
+  (StorageIncompleteTotal Int Int))
 
 (def main ((source Bytes)) DeltaCompileOutcome ...)
 ```
 
-`main` can return only a complete Alpha tape or one typed Delta rejection. The
-sealed Gamma compilation request selects D19's `DeltaCompilerV1`; source names
-alone select no boundary. Before emission, the Gamma compiler requires the
-exact displayed source-owned nominal schema and the complete checked reason-code
-bijection. A mismatch rejects through `GCOUT` rather than producing an adapter
-with an unhandled runtime case. The generated adapter owns sealed input and the
-`DCOUT` boundary. Halt tags are 0
+`StorageIncompleteAt(limit, requested, source_offset)` and
+`StorageIncompleteTotal(limit, requested)` are compiler results about the
+selected application profile, not Delta rejections or program results. The
+former requires an in-range source offset and maps to coordinate space 1; the
+latter maps to coordinate space 0. The adapter validates the exact selected
+limit and `requested > limit`; malformed returned values are
+`InternalFailure(InvalidReturnedOutcome)`. The sealed Gamma compilation request selects D19's
+`DeltaCompilerV1`; source names alone select no boundary. Before emission, the
+Gamma compiler requires the exact displayed source-owned nominal schema and the
+complete checked reason-code bijection. A mismatch rejects through `GCOUT`
+rather than producing an adapter with an unhandled runtime case. The generated
+adapter owns sealed input and the `DCOUT` boundary. Halt tags are 0
 Complete, 1 Reject, 2 Incomplete, and 3 InternalFailure. Complete stdout is the
 unwrapped Alpha tape. Every failure uses the versioned `DCOUT` diagnostic frame
-and publishes no tape bytes. Adapter resource exhaustion and traps produce tags
-2 and 3 because pure `main` cannot return those outcomes.
+and publishes no tape bytes. A returned storage refusal and adapter resource
+exhaustion both produce tag 2; traps and contradictions produce tag 3.
 
 D30 fixes `DeltaCompilerV1` profile ID 2, a 4,194,304-byte maximum sealed
 Delta input, and AlphaBootstrapV2's 1,048,572-byte maximum successful output.
@@ -523,6 +574,7 @@ The closed additional codes are:
 ```text
 Incomplete
 1 InputBytes  2 StackBytes  3 HeapBytes  4 OutputBytes
+5 ApplicationStaticStorageBytes
 
 InternalFailure
 1 GammaTrap                    2 MemoryContainmentViolation
@@ -538,7 +590,9 @@ in the Gamma-compiler artifact rather than a host runtime input. A returned
 offset outside `0..input length`, a malformed private value, or an authored
 Gamma trap is an adapter/internal contradiction, never a fabricated Delta
 rejection. Input, stack, heap, and output exhaustion remain `Incomplete` with
-their exact limit and requested extent.
+their exact limit and requested extent. Application-static-storage refusal is
+the only `Incomplete` class ordinary Gamma `main` may deliberately return;
+adapter-private resources cannot be forged through the source outcome.
 
 The required compiler-correctness relation is:
 

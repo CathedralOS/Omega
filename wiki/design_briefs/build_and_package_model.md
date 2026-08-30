@@ -352,7 +352,7 @@ alias. The stable package lineage and exact selected immutable resolution are
 separate facts. V1 retains both but carries no preaccepted compiled
 `PackageInstance`; that later carrier requires a new request version.
 
-Q3 owns the still-missing inner row order/width/tag tables, exact commitment
+Q2 owns the still-missing inner row order/width/tag tables, exact commitment
 domain/preimage, closed `OCOUT` failure/resource tables and phase order, and
 named scalar provisions. Until those are fixed, the outer frame can be
 validated but neither standalone compiler has a complete interoperable V1 wire.
