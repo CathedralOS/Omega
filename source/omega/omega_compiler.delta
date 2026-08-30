@@ -432,6 +432,7 @@ data OmegaExpressionKind {
     case String;
     case StructLiteral;
     case Binary;
+    case Indexed;
 }
 
 data OmegaBinaryOperatorKind {
@@ -455,6 +456,13 @@ data OmegaBinaryExpressionSyntax {
     right: i32;
 }
 
+data OmegaIndexedExpressionSyntax {
+    base: i32;
+    index: i32;
+    start: i32;
+    end: i32;
+}
+
 data OmegaPathExpressionKind {
     case Name;
     case SelfValue;
@@ -466,6 +474,7 @@ data OmegaExpressionConsumer {
     case AssignmentValue;
     case StructFieldValue;
     case TransitionSubject;
+    case IndexedAssignmentIndex;
 }
 
 data OmegaStructLiteralFieldSyntax {
@@ -491,7 +500,8 @@ data OmegaStructLiteralSyntax {
 // authored span. Integer payload0/payload1 retain its authored span; this first
 // numeric slice admits only unsuffixed nonnegative decimal spelling. String
 // payload0/payload1 retain the authored token span and payload2 its decoded
-// byte length. StructLiteral and Binary payload0 select their dedicated rows.
+// byte length. StructLiteral, Binary, and Indexed payload0 select their
+// dedicated rows.
 // Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
     kind: OmegaExpressionKind;
@@ -599,6 +609,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedSatisfiesTrait;
     case ExpectedSatisfiesRequirement;
     case ExpectedReachService;
+    case ExpectedIndexedAssignmentIndex;
+    case ExpectedIndexedAssignmentEqual;
     case ExpectedDataFieldEnd;
 }
 
@@ -635,6 +647,7 @@ data OmegaParser {
     static_machine_arguments: [OmegaStaticMachineArgumentSyntax; 16384];
     expressions: [OmegaExpressionSyntax; 16384];
     binary_expressions: [OmegaBinaryExpressionSyntax; 16384];
+    indexed_expressions: [OmegaIndexedExpressionSyntax; 16384];
     call_arguments: [i32; 16384];
     struct_literals: [OmegaStructLiteralSyntax; 16384];
     struct_literal_fields: [OmegaStructLiteralFieldSyntax; 16384];
@@ -668,6 +681,7 @@ data OmegaParser {
     static_machine_argument_count: i32;
     expression_count: i32;
     binary_expression_count: i32;
+    indexed_expression_count: i32;
     call_argument_count: i32;
     struct_literal_count: i32;
     struct_literal_field_count: i32;
@@ -775,6 +789,8 @@ data OmegaParser {
     assignment_binary_operator_end: i32;
     assignment_pending_operator_start: i32;
     assignment_pending_operator_end: i32;
+    indexed_assignment_base_expression: i32;
+    indexed_assignment_index_expression: i32;
     struct_literal_consumer: OmegaExpressionConsumer;
     struct_literal_first_type_member: i32;
     struct_literal_type_member_count: i32;
@@ -2883,6 +2899,7 @@ machine OmegaParser::parse_view(
     self.static_machine_argument_count = 0;
     self.expression_count = 0;
     self.binary_expression_count = 0;
+    self.indexed_expression_count = 0;
     self.call_argument_count = 0;
     self.struct_literal_count = 0;
     self.struct_literal_field_count = 0;
@@ -2989,6 +3006,8 @@ machine OmegaParser::parse_view(
     self.assignment_binary_operator_end = 0;
     self.assignment_pending_operator_start = 0;
     self.assignment_pending_operator_end = 0;
+    self.indexed_assignment_base_expression = 0;
+    self.indexed_assignment_index_expression = 0;
     self.struct_literal_consumer = OmegaExpressionConsumer::CallArgument;
     self.struct_literal_first_type_member = 0;
     self.struct_literal_type_member_count = 0;
@@ -3197,6 +3216,8 @@ machine OmegaParser::parse_view(
             71 -> machine_clause_continuation_token()
             72 -> reach_service_token()
             73 -> reach_tail_token()
+            74 -> indexed_assignment_index_token()
+            75 -> indexed_assignment_equal_token()
             _ -> internal_failure()
         }
     }
@@ -3520,6 +3541,16 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            74 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedAssignmentIndex,
+                source.len,
+                source.len
+            )
+            75 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedAssignmentEqual,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -3561,6 +3592,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::IndexedAssignmentIndex -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedAssignmentIndex,
+                source.len,
+                source.len
+            )
         }
     }
 
@@ -3586,6 +3622,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::IndexedAssignmentIndex -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedAssignmentIndex,
+                source.len,
+                source.len
+            )
         }
     }
 
@@ -3608,6 +3649,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::TransitionSubject -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionSubject,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::IndexedAssignmentIndex -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedAssignmentIndex,
                 source.len,
                 source.len
             )
@@ -5250,8 +5296,182 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Less -> begin_call_static_arguments()
             OmegaPunctuationKind::LeftParen -> call_target_available()
             OmegaPunctuationKind::Equal -> begin_assignment_statement()
+            OmegaPunctuationKind::LeftBracket ->
+                begin_indexed_assignment_target()
             _ -> incomplete_root()
         }
+    }
+
+    state begin_indexed_assignment_target() {
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
+        transition self.expression_count < 16384 {
+            true -> retain_indexed_assignment_base()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+        }
+    }
+
+    state retain_indexed_assignment_base() {
+        self.indexed_assignment_base_expression = self.expression_count;
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::Path;
+        self.expressions[self.expression_count].payload0 =
+            self.call_first_path_member;
+        self.expressions[self.expression_count].payload1 =
+            self.call_path_member_count;
+        self.expressions[self.expression_count].payload2 =
+            self.call_receiver_starts_at_self;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        transition self.call_path_member_count {
+            1 -> classify_single_indexed_assignment_base()
+            _ -> classify_member_indexed_assignment_base()
+        }
+    }
+
+    state classify_single_indexed_assignment_base() {
+        transition self.call_receiver_starts_at_self {
+            1 -> retain_self_indexed_assignment_base()
+            _ -> retain_named_indexed_assignment_base()
+        }
+    }
+
+    state retain_self_indexed_assignment_base() {
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::SelfValue;
+        transition true { true -> finish_indexed_assignment_base() }
+    }
+
+    state retain_named_indexed_assignment_base() {
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload3 = 1;
+        transition true { true -> finish_indexed_assignment_base() }
+    }
+
+    state classify_member_indexed_assignment_base() {
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Member;
+        transition self.call_receiver_starts_at_self {
+            1 -> finish_indexed_assignment_base()
+            _ -> retain_named_member_indexed_assignment_base()
+        }
+    }
+
+    state retain_named_member_indexed_assignment_base() {
+        self.expressions[self.expression_count].payload3 = 1;
+        transition true { true -> finish_indexed_assignment_base() }
+    }
+
+    state finish_indexed_assignment_base() {
+        self.expression_count = self.expression_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(74) }
+    }
+
+    state indexed_assignment_index_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_named_indexed_assignment_index()
+            OmegaTokenKind::Keyword -> indexed_assignment_index_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state indexed_assignment_index_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfValue -> begin_self_indexed_assignment_index()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_named_indexed_assignment_index() {
+        self.argument_starts_at_self = 0;
+        self.argument_name_member_count = 1;
+        self.argument_path_kind = OmegaPathExpressionKind::Name;
+        self.expression_consumer =
+            OmegaExpressionConsumer::IndexedAssignmentIndex;
+        transition true { true -> begin_path_expression() }
+    }
+
+    state begin_self_indexed_assignment_index() {
+        self.argument_starts_at_self = 1;
+        self.argument_name_member_count = 0;
+        self.argument_path_kind = OmegaPathExpressionKind::SelfValue;
+        self.expression_consumer =
+            OmegaExpressionConsumer::IndexedAssignmentIndex;
+        transition true { true -> begin_path_expression() }
+    }
+
+    state retain_indexed_assignment_index_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::IndexedAssignmentIndex ->
+                retain_path_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_indexed_assignment_index_handle() {
+        self.indexed_assignment_index_expression = self.expression_count;
+        self.expression_count = self.expression_count + 1;
+        transition self.expression_count < 16384 {
+            true -> retain_indexed_assignment_expression()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+        }
+    }
+
+    state retain_indexed_assignment_expression() {
+        self.indexed_expressions[self.indexed_expression_count].base =
+            self.indexed_assignment_base_expression;
+        self.indexed_expressions[self.indexed_expression_count].index =
+            self.indexed_assignment_index_expression;
+        self.indexed_expressions[self.indexed_expression_count].start =
+            self.members[self.call_first_path_member].start;
+        self.indexed_expressions[self.indexed_expression_count].end =
+            self.scan.token_end;
+        self.assignment_target_expression = self.expression_count;
+        self.expressions[self.expression_count].kind =
+            OmegaExpressionKind::Indexed;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 =
+            self.indexed_expression_count;
+        self.expressions[self.expression_count].payload1 = 0;
+        self.expressions[self.expression_count].payload2 = 0;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.indexed_expression_count = self.indexed_expression_count + 1;
+        self.expression_count = self.expression_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(75) }
+    }
+
+    state indexed_assignment_equal_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> indexed_assignment_equal_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state indexed_assignment_equal_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Equal -> begin_indexed_assignment_value()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_indexed_assignment_value() {
+        self.expression_consumer = OmegaExpressionConsumer::AssignmentValue;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(48) }
     }
 
     state begin_call_static_arguments() {
@@ -5563,6 +5783,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Comma -> retain_comma_terminated_path()
             OmegaPunctuationKind::RightParen -> retain_call_argument_path()
             OmegaPunctuationKind::RightBrace -> retain_struct_field_value_path()
+            OmegaPunctuationKind::RightBracket ->
+                retain_indexed_assignment_index_path()
             OmegaPunctuationKind::Semicolon -> retain_assignment_value_path()
             OmegaPunctuationKind::Plus -> path_expression_plus()
             OmegaPunctuationKind::Minus -> path_expression_minus()
@@ -5684,6 +5906,11 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
+            OmegaExpressionConsumer::IndexedAssignmentIndex -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedAssignmentIndex,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -5718,6 +5945,7 @@ machine OmegaParser::parse_view(
     state begin_struct_literal_from_path() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::StructFieldValue -> incomplete_root()
+            OmegaExpressionConsumer::IndexedAssignmentIndex -> incomplete_root()
             _ -> check_struct_literal_type_path()
         }
     }
@@ -5955,6 +6183,8 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::AssignmentValue -> retain_path_expression_bounded()
             OmegaExpressionConsumer::StructFieldValue -> retain_path_expression_bounded()
             OmegaExpressionConsumer::TransitionSubject -> retain_path_expression_bounded()
+            OmegaExpressionConsumer::IndexedAssignmentIndex ->
+                retain_path_expression_bounded()
         }
     }
 
@@ -5989,6 +6219,8 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::StructFieldValue -> retain_struct_field_value_handle()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_transition_subject_handle()
+            OmegaExpressionConsumer::IndexedAssignmentIndex ->
+                retain_indexed_assignment_index_handle()
         }
     }
 
@@ -6325,6 +6557,7 @@ machine OmegaParser::parse_view(
                 struct_field_literal_end_punctuation()
             OmegaExpressionConsumer::TransitionSubject ->
                 transition_literal_end_punctuation()
+            OmegaExpressionConsumer::IndexedAssignmentIndex -> incomplete_root()
         }
     }
 
