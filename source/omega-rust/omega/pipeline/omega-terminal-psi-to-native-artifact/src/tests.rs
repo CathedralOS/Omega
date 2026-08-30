@@ -1,6 +1,7 @@
 use super::*;
 use std::collections::BTreeSet;
 
+mod callback_custody;
 mod native_fuel;
 
 use crate::realization::project_selected_provider_adapters_for_requirements;

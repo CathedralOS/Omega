@@ -2379,9 +2379,13 @@ or a production rejection. Omega retains the resulting artifact and sidecar as
 one compiler product with no consuming artifact-only projection. The private
 driver route supplies checked provenance and order; the retained-product
 validator replays the artifact and every row but does not infer their origin.
-Native realization remains fenced for nonempty callback sidecars until it owns
-an explicit consumer. This establishes custody only, not registration,
-invocation, address, lifetime, or publication authority.
+The canonical native-realization seam now has a separate generic adapter that
+returns the opaque sidecar by value beside either the successful native
+artifact or diagnostic rejection. It neither adds callback vocabulary to the
+source-free artifact nor interprets the rows. Compiler native requests remain
+fenced until report and publication custody can preserve the same sidecar
+without an artifact-only escape. This establishes custody only, not
+registration, invocation, address, lifetime, or publication authority.
 
 The compiler exposes one production native-realization boundary after that
 owner. It consumes the complete canonical artifact by value, then performs

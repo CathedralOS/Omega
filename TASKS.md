@@ -6847,10 +6847,15 @@ Owners:
   The driver supplies checked provenance and order; the report carrier only
   replays each row's structural validity and cannot reconstruct that
   provenance independently. Check-only requests remain valid and retain the
-  rows. Native artifact requests remain fenced until native realization
-  explicitly consumes every row; the deleted legacy backend route is not
-  authority to discard them. This custody milestone grants no callback
-  registration, invocation, address, lifetime, or publication authority.
+  rows. The canonical native-realization seam now also offers an opaque
+  by-value adapter that returns the exact sidecar beside either its source-free
+  native artifact or diagnostic rejection. It does not inspect, admit, lower,
+  or fingerprint the rows, and the neutral `NativeArtifact` remains free of
+  checked/source carriers. Native artifact requests remain fenced until the
+  compiler report and publication route preserve the sidecar without an
+  artifact-only escape; the deleted legacy backend route is not authority to
+  discard it. These custody milestones grant no callback registration,
+  invocation, address, lifetime, or publication authority.
   The symbol is planned object identity only and never an Omega value. A
   callback thunk now also has a distinct machine-function identity bound to
   its placement-row index and selected source entry, so an ordinary source

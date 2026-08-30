@@ -2,6 +2,7 @@
 //! ordinary or selected path, admit providers, emit machine code, and replay
 //! the authority-free artifact.
 
+mod callback_custody;
 mod diagnostics;
 mod input;
 mod machine_code;
@@ -9,6 +10,10 @@ mod model;
 mod output;
 mod providers;
 
+pub use callback_custody::{
+    CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
+    realize_native_artifact_with_callback_custody,
+};
 pub use model::{
     NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationRequest,
     SettledNativeArtifact,
