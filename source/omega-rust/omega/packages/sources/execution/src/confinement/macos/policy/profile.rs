@@ -1,5 +1,4 @@
-use super::metadata::ConfinedMetadata;
-use super::{MACOS_NULL_DEVICE, MACOS_TLS_CONFIGURATION_ALIAS_ROOT, MACOS_TLS_CONFIGURATION_ROOT};
+use super::MACOS_NULL_DEVICE;
 use crate::model::{ResolverExecutionNetworkTransport, ResolverExecutionPhase};
 use std::path::PathBuf;
 
@@ -12,20 +11,18 @@ pub(super) fn encode(
     phase: ResolverExecutionPhase,
     network_transport: Option<ResolverExecutionNetworkTransport>,
     has_endpoint_route: bool,
-    confined_metadata: Option<&ConfinedMetadata>,
 ) -> String {
     let mut encoded = "(version 1) (deny default) ".to_owned();
     if phase.permits_descendant_processes() {
         encoded.push_str("(allow process-fork) ");
     }
     encoded.push_str("(allow signal) ");
-    encode_read_policy(
-        &mut encoded,
-        additional_executables,
-        phase,
-        network_transport,
-        confined_metadata,
-    );
+    // Git and its transport helpers consume the invoking user's ordinary host
+    // configuration, include files, credential helpers, agents, identities,
+    // known-host policy, and proxies. Their read locations are intentionally
+    // not a compiler-owned closed set. Seatbelt still confines writes,
+    // executable paths, descendants, resources, and network endpoints.
+    encoded.push_str("(allow file-read*) ");
     encode_execution_policy(&mut encoded, additional_executables);
     if has_endpoint_route {
         encoded.push_str(" (allow network-outbound (remote tcp (param \"BROKER_ENDPOINT\")))");
@@ -41,72 +38,6 @@ pub(super) fn encode(
         encoded.push_str(" (allow file-write* (subpath (param \"MUTABLE_ROOT\")))");
     }
     encoded
-}
-
-fn encode_read_policy(
-    encoded: &mut String,
-    additional_executables: &[PathBuf],
-    phase: ResolverExecutionPhase,
-    network_transport: Option<ResolverExecutionNetworkTransport>,
-    confined_metadata: Option<&ConfinedMetadata>,
-) {
-    let confines_content_reads = matches!(
-        phase,
-        ResolverExecutionPhase::RepositoryInitialization
-            | ResolverExecutionPhase::RepositoryInspection
-    ) || (phase == ResolverExecutionPhase::Fetch
-        && network_transport == Some(ResolverExecutionNetworkTransport::Https))
-        || (phase == ResolverExecutionPhase::TransportDiscovery
-            && network_transport == Some(ResolverExecutionNetworkTransport::Https));
-    if !confines_content_reads {
-        encoded.push_str("(allow file-read*) ");
-        return;
-    }
-
-    let read_root_parameter = match phase {
-        ResolverExecutionPhase::TransportDiscovery => "DISCOVERY_READ_ROOT",
-        ResolverExecutionPhase::RepositoryInspection => "INSPECTION_READ_ROOT",
-        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            "MUTABLE_ROOT"
-        }
-    };
-    if let Some(metadata) = confined_metadata {
-        encoded.push_str("(allow file-read-metadata file-test-existence (subpath (param \"");
-        encoded.push_str(metadata.root_parameter);
-        encoded.push_str("\"))");
-        if metadata.includes_tls_root {
-            encoded.push_str(&format!(
-                " (subpath \"{MACOS_TLS_CONFIGURATION_ROOT}\") \
-                 (subpath \"{MACOS_TLS_CONFIGURATION_ALIAS_ROOT}\")"
-            ));
-        }
-        for index in 0..metadata.subpaths.len() {
-            encoded.push_str(&format!(" (subpath (param \"METADATA_SUBPATH_{index}\"))"));
-        }
-        for index in 0..metadata.paths.len() {
-            encoded.push_str(&format!(" (literal (param \"METADATA_PATH_{index}\"))"));
-        }
-        encoded.push_str(") ");
-    } else {
-        encoded.push_str("(allow file-read-metadata) ");
-    }
-    encoded.push_str("(allow file-read-data (subpath (param \"");
-    encoded.push_str(read_root_parameter);
-    encoded.push_str("\")) (literal (param \"EXECUTABLE_0\"))");
-    for index in 0..additional_executables.len() {
-        encoded.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
-    }
-    if matches!(
-        phase,
-        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
-    ) && network_transport == Some(ResolverExecutionNetworkTransport::Https)
-    {
-        encoded.push_str(&format!(" (subpath \"{MACOS_TLS_CONFIGURATION_ROOT}\")"));
-    }
-    encoded.push_str(&format!(
-        " (literal \"{}\") (literal \"{MACOS_NULL_DEVICE}\")) ",
-        std::path::MAIN_SEPARATOR
-    ));
 }
 
 fn encode_execution_policy(encoded: &mut String, additional_executables: &[PathBuf]) {

@@ -62,6 +62,10 @@ transport executable is invoked explicitly. User and system Git/SSH
 configuration and the invoking environment remain host inputs so ordinary
 credential helpers, agents, identity files, known-host policy, and proxies work
 normally. These inputs never become package identity or package authority.
+Omega does not override the host's `StrictHostKeyChecking` policy. Because
+package resolution is noninteractive, a host policy that requires a confirmation
+prompt fails normally unless that host is already known or host configuration
+selects a noninteractive acceptance policy.
 Platform or CI integrations may provide stronger credential isolation, but
 that is optional host policy rather than a prerequisite for resolving a
 package.

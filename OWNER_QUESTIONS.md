@@ -257,3 +257,59 @@ the globally earliest later declaration in the collection phase.
 - Tempting but wrong: report whichever duplicate or type error an implementation
   happens to encounter first without preserving the frozen phase priority and
   minimum packed coordinate.
+
+## Q5 — Delegate package transport routing to the host
+
+### Context
+
+The source-resolver contract now treats user and system Git/SSH configuration,
+credential helpers, agents, identity files, known-host policy, proxies, and the
+invoking environment as ordinary host inputs. Omega owns the accepted locator
+and protocol surface, authenticated Git object graph, immutable snapshot,
+bounded command lifecycle, and exact source receipt. It does not own host
+credential custody or network topology.
+
+The implementation still forces HTTPS through an Omega localhost CONNECT
+broker and forces SSH through an Omega `ProxyCommand`. Native policy then
+confines the helper to that broker route and receipts the observed socket peer.
+This overrides ordinary Git proxy configuration and SSH `ProxyJump` or
+`ProxyCommand`, so the accepted ambient-host contract and the implementation
+cannot both hold.
+
+### Problem statement
+
+Choose whether endpoint brokering is universal package semantics or optional
+host hardening. Keeping it universal either breaks ordinary authenticated and
+proxied repositories or requires Omega to reproduce arbitrary host proxy, SSH,
+credential, and routing behavior. That expands a package manager into a
+security-sensitive transport provider without making the invoking host or its
+credentials trustworthy.
+
+### Proposed direction
+
+Remove the resolver CONNECT helper and forced HTTPS/SSH proxy overrides from
+universal source resolution. Invoke the selected system Git and SSH normally
+under the user's network authority. Keep closed source protocols, disabled
+redirects/hooks/filters/submodules, executable and write restrictions, command
+and transfer ceilings that can be measured honestly, authenticated object-graph
+validation, immutable publication, and exact locator/source receipts.
+
+Treat actual socket-peer confinement as unavailable unless an optional host or
+CI backend supplies it. The universal receipt binds the normalized requested
+endpoint and command outcome, not a claim that host proxy routing reached that
+endpoint directly.
+
+### Alternates
+
+- Acceptable: retain the broker as an explicitly selected host/CI backend whose
+  use and observations are recorded, provided ordinary package resolution does
+  not require it and source declarations cannot select it.
+- Acceptable: retain direct endpoint confinement only for a deliberately closed
+  deployment profile that rejects host proxy-dependent repositories up front;
+  it must not be presented as normal desktop package-manager behavior.
+- Tempting but wrong: implement Git proxy discovery, SSH jump hosts,
+  `ProxyCommand`, credential brokers, and platform key custody inside Omega to
+  preserve the universal broker claim.
+- Tempting but wrong: say ambient proxies work while command-scoped overrides
+  silently replace them, or record the requested host as the observed peer
+  after an unobserved host proxy route.

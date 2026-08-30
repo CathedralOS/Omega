@@ -246,7 +246,7 @@ pub(crate) fn sealed_git_command(
 #[cfg(unix)]
 pub(crate) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
-        "{} -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes -oProxyUseFdpass=no -oProxyCommand={}",
+        "{} -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oProxyUseFdpass=no -oProxyCommand={}",
         ssh_executable.display(),
         resolver_connect_helper_command_name(),
     ))
@@ -264,7 +264,7 @@ fn resolver_connect_helper_command_name() -> String {
 #[cfg(windows)]
 pub(crate) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
-        "\"{}\" -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
+        "\"{}\" -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0",
         ssh_executable.display()
     ))
 }

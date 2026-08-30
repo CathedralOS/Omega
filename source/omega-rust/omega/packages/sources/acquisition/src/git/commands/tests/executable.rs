@@ -15,7 +15,7 @@ use std::time::Duration;
 
 #[cfg(unix)]
 #[test]
-fn git_executor_uses_committed_absolute_program_cleared_environment_and_explicit_cwd() {
+fn git_executor_uses_committed_absolute_program_inherited_environment_and_explicit_cwd() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("sealed-git-executor");
@@ -47,8 +47,10 @@ fn git_executor_uses_committed_absolute_program_cleared_environment_and_explicit
         stdout.contains(&format!("cwd={}\n", working_directory.display())),
         "sealed helper reported {stdout:?}"
     );
-    assert!(stdout.contains("home=unset\n"));
-    assert!(stdout.contains("path=/usr/bin:/bin\n"));
+    let inherited_home = std::env::var("HOME").expect("test process has a UTF-8 HOME");
+    let inherited_path = std::env::var("PATH").expect("test process has a UTF-8 PATH");
+    assert!(stdout.contains(&format!("home={inherited_home}\n")));
+    assert!(stdout.contains(&format!("path={inherited_path}\n")));
 
     let command = sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
         .expect("construct sealed fake Git command");
