@@ -54,12 +54,12 @@ Supporting crates have one-way responsibilities:
 - [`omega-package-source`](../source/README.md) acquires and
   authenticates immutable local and Git source without selecting or admitting a
   package graph.
-- [`omega-package-evidence`](../evidence/README.md) projects
+- [`omega-package-evidence`](../review/evidence/README.md) projects
   checked compiler state into inert, canonically encoded evidence. It cannot
   make review or admission decisions.
-- [`omega-package-advisory`](../advisory/README.md) owns optional
+- [`omega-package-advisory`](../review/advisory/README.md) owns optional
   model-facing audit assistance. It cannot alter deterministic manager policy.
-- [`omega-resolver-execution`](../resolver-execution/README.md) owns
+- [`omega-resolver-execution`](../source/resolver-execution/README.md) owns
   confined native helper execution used by source acquisition.
 
 ## Core invariants

@@ -167,4 +167,4 @@ is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
 and process-count confinement remains unavailable on Unix; during-write object-
 store quotas, Linux/Windows endpoint confinement, native Linux Landlock canary
 execution, and complete strict backends remain package-manager tasks. See
-[`SOURCE_RESOLVER_SECURITY.md`](../source/SOURCE_RESOLVER_SECURITY.md).
+[`SOURCE_RESOLVER_SECURITY.md`](../SOURCE_RESOLVER_SECURITY.md).

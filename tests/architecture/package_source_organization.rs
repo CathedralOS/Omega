@@ -8,12 +8,13 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const PACKAGE_AREAS: &[&str] = &["manager", "review", "source"];
 const PACKAGE_CRATES: &[&str] = &[
-    "advisory",
-    "evidence",
     "manager",
-    "resolver-execution",
+    "review/advisory",
+    "review/evidence",
     "source",
+    "source/resolver-execution",
 ];
 const MANAGER_OWNERS: &[&str] = &[
     "graph",
@@ -107,25 +108,29 @@ fn assert_documented_owners(crate_root: &Path, owners: &[&str]) {
 }
 
 #[test]
-fn package_top_level_is_the_exact_advertised_crate_map() {
+fn package_top_level_is_the_exact_advertised_area_map() {
     let packages = package_root();
     let expected = std::iter::once("README.md".to_owned())
-        .chain(PACKAGE_CRATES.iter().map(|name| (*name).to_owned()))
+        .chain(PACKAGE_AREAS.iter().map(|name| (*name).to_owned()))
         .collect::<BTreeSet<_>>();
     assert_eq!(directory_entries(&packages), expected);
 
     let readme = fs::read_to_string(packages.join("README.md"))
         .expect("read package subsystem README entrance");
     assert!(readme.starts_with("# "));
+    for area_name in PACKAGE_AREAS {
+        let area_root = packages.join(area_name);
+        assert!(area_root.join("README.md").is_file());
+        assert!(
+            readme.contains(&format!("{area_name}/")),
+            "packages/README.md must advertise {area_name}"
+        );
+    }
     for crate_name in PACKAGE_CRATES {
         let crate_root = packages.join(crate_name);
         assert!(crate_root.join("README.md").is_file());
         assert!(crate_root.join("Cargo.toml").is_file());
         assert!(crate_root.join("src/lib.rs").is_file());
-        assert!(
-            readme.contains(&format!("{crate_name}/")),
-            "packages/README.md must advertise {crate_name}"
-        );
     }
 }
 
@@ -133,12 +138,12 @@ fn package_top_level_is_the_exact_advertised_crate_map() {
 fn manager_and_compiler_evidence_have_exact_reader_entrances() {
     let packages = package_root();
     assert_documented_owners(&packages.join("manager"), MANAGER_OWNERS);
-    assert_documented_owners(&packages.join("evidence"), EVIDENCE_OWNERS);
+    assert_documented_owners(&packages.join("review/evidence"), EVIDENCE_OWNERS);
 }
 
 #[test]
 fn stable_package_evidence_excludes_compiler_private_projection_handles() {
-    let evidence = package_root().join("evidence/src/evidence");
+    let evidence = package_root().join("review/evidence/src/evidence");
     for path in rust_files(&evidence) {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -154,7 +159,7 @@ fn stable_package_evidence_excludes_compiler_private_projection_handles() {
 
 #[test]
 fn stable_evidence_and_encoding_exclude_compiler_representations() {
-    let package = package_root().join("evidence/src");
+    let package = package_root().join("review/evidence/src");
     for owner in ["evidence", "encoding"] {
         for path in rust_files(&package.join(owner)) {
             let source = fs::read_to_string(&path)
@@ -172,7 +177,7 @@ fn stable_evidence_and_encoding_exclude_compiler_representations() {
 
 #[test]
 fn package_evidence_encoding_has_one_canonical_encoder_owner() {
-    let encoding = package_root().join("evidence/src/encoding");
+    let encoding = package_root().join("review/evidence/src/encoding");
     assert_eq!(
         directory_entries(&encoding),
         BTreeSet::from([
