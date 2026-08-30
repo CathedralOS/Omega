@@ -5,9 +5,10 @@ use crate::{BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemReplayVerdict};
 use crate::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemReplayDisposition, BuildFilesystemRoot,
-    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationObservationClass,
+    BuildFilesystemOperationResult, BuildFilesystemProvider, BuildFilesystemReplayDisposition,
+    BuildFilesystemRoot, BuildFilesystemScalarOperandValue, BuildObservationClass,
+    BuildObservationSummary,
 };
 use sha2::{Digest, Sha256};
 
@@ -78,6 +79,9 @@ impl BuildObservationSummary {
         for attempt in self.filesystem_operation_attempts() {
             digest.update(attempt.operation_tag().to_le_bytes());
             digest.update([filesystem_provider_tag(attempt.provider())]);
+            digest.update([filesystem_operation_observation_class_tag(
+                attempt.observation_class(),
+            )]);
             match attempt.result() {
                 BuildFilesystemOperationResult::Scalar(value) => {
                     digest.update([0]);
@@ -332,6 +336,15 @@ const fn observation_class_tag(class: BuildObservationClass) -> u8 {
     }
 }
 
+const fn filesystem_operation_observation_class_tag(
+    class: BuildFilesystemOperationObservationClass,
+) -> u8 {
+    match class {
+        BuildFilesystemOperationObservationClass::Receipted => 0,
+        BuildFilesystemOperationObservationClass::Volatile => 1,
+    }
+}
+
 const fn filesystem_provider_tag(provider: BuildFilesystemProvider) -> u8 {
     match provider {
         BuildFilesystemProvider::Virtual => 0,
@@ -411,9 +424,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0x06, 0xa9, 0xc8, 0x81, 0xd4, 0xb8, 0x56, 0x6f, 0x10, 0x1c, 0xc2, 0xec, 0xbd, 0x5f,
-                0x43, 0xf3, 0x5e, 0xed, 0xfa, 0x2f, 0xe6, 0x8c, 0x25, 0x93, 0xc7, 0x1d, 0xf0, 0x09,
-                0xf8, 0x19, 0x5c, 0x90,
+                0x8a, 0xd5, 0x00, 0x15, 0x37, 0x8d, 0x84, 0x6d, 0xef, 0xba, 0xde, 0xa6, 0x6d, 0x25,
+                0x43, 0xbc, 0x52, 0x93, 0x80, 0xae, 0x38, 0x0c, 0x98, 0x00, 0x4f, 0xd3, 0x5d, 0x04,
+                0x5a, 0xfe, 0xda, 0x4d,
             ],
             "the current package build-observation byte contract remains stable"
         );

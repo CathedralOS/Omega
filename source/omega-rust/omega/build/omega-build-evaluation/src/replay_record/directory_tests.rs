@@ -19,6 +19,7 @@ fn attempt(
     BuildFilesystemOperationAttempt {
         operation_tag,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result,
         post_error: 0,
         scalar_operands: Vec::new(),

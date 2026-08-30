@@ -5,7 +5,8 @@ use super::encoding::{
 use super::validation::replay_record_limits;
 use super::*;
 use omega_build_evaluation::{
-    BuildObservationClass, capture_verified_build_filesystem_replay_record,
+    BuildFilesystemOperationObservationClass, BuildObservationClass,
+    capture_verified_build_filesystem_replay_record,
     rehydrate_review_only_build_filesystem_replay_record,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -637,6 +638,14 @@ invokes FilesystemHost;
         .expect("unknown-descriptor failure publishes build observations");
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .all(|attempt| {
+                attempt.observation_class() == BuildFilesystemOperationObservationClass::Receipted
+            })
+    );
 
     let limits = ReviewOnlyBaselineLimits::default();
     let replay =

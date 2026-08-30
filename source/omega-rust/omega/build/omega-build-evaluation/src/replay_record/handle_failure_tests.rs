@@ -13,6 +13,7 @@ fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesyste
     BuildFilesystemOperationAttempt {
         operation_tag,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result: BuildFilesystemOperationResult::Scalar(-1),
         post_error: 9,
         scalar_operands: Vec::new(),

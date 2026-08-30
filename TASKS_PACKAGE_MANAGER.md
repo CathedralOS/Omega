@@ -71,10 +71,6 @@ stop the item on one precise owner question before adding machinery.
   - add peak-live accounts only where the compiler owns the complete allocation
     lifetime. Do not duplicate existing per-operation bounds or present partial
     allocator/RSS participation as containment;
-  - classify every exercised operation as exactly `Receipted` or `Volatile`.
-    Replay-required policy rejects a volatile candidate; lack of replay support
-    for an unrelated operation does not disable install/update globally.
-
   Host CPU/RSS limits are deployment availability policy, not package evidence
   and not a precondition that turns review into authority. Projects that need
   stronger availability isolation run `omega` under their selected CI,

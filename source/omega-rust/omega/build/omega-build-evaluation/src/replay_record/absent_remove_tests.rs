@@ -9,6 +9,7 @@ fn absent_remove(operation_tag: u16, path: &[u8]) -> BuildFilesystemOperationAtt
     BuildFilesystemOperationAttempt {
         operation_tag,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result: BuildFilesystemOperationResult::Scalar(-1),
         post_error: 2,
         scalar_operands: Vec::new(),

@@ -18,6 +18,7 @@ fn ownership_attempt(
     BuildFilesystemOperationAttempt {
         operation_tag: 49,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result: BuildFilesystemOperationResult::Scalar(result),
         post_error,
         scalar_operands: vec![
