@@ -543,6 +543,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     retain source spellings during the single strict parse and resolve only
     after every nominal declaration exists, so forward and mutually recursive
     data types now implement D16. Q6 still owns duplicate declaration identity.
+  - [x] Preserve source-coordinate custody through the reusable front end.
+    Every syntax node now retains its zero-based starting byte offset, outer
+    envelope rejection records the offending byte before tokenization, and
+    parsing, integer overflow, unknown type spelling, and the first failing
+    typed subexpression share one sticky first-source-failure coordinate. The
+    Boolean oracle does not publish a compiler frame; the direct compiler must
+    absorb this metadata into its accepted-language rejection table and final
+    `GCOUT` boundary after Q5 is ruled.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
