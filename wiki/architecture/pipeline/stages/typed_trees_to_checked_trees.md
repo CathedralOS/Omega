@@ -406,10 +406,13 @@ Current ownership is:
   this path and remains governed by its validated representation footprint.
   Whole-name/member borrow recasts publish a loan on the exact source place;
   one exact literal index into a fixed byte array may instead publish the
-  validated fact-free primitive target footprint as a half-open `FixedRange`.
-  Runtime or merely bounded offsets, slices, aggregate targets, and other
-  indexed recasts stay fenced because an element path cannot represent their
-  complete target footprint.
+  validated fact-free primitive or closed-record target footprint as a
+  half-open `FixedRange`. Record eligibility is exact-symbol, nonzero,
+  nongeneric, quotient-free, acyclic, all-relevant, and recursively fact-free;
+  its normalized padding remains covered. Runtime or merely bounded offsets,
+  slices, array targets, generic/invariant-bearing/erased/cased records, and
+  other indexed recasts stay fenced because an element path cannot represent
+  their complete target footprint.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),

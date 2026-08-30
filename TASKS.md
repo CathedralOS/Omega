@@ -10538,10 +10538,13 @@ checked-result arithmetic decision listed below.
   helper-produced, and literal operands. Validated shared/mutable recasts over
   whole name/member places now publish the exact source loan too; indexed
   byte-region recasts with one exact literal offset into a fixed byte array and
-  a fact-free primitive target now publish the complete validated half-open
-  target footprint as one fixed-range loan. First/last-byte mutations reject
-  while immediate siblings remain disjoint. Runtime or merely bounded offsets,
-  slices, aggregate targets, and other indexed recasts remain conservative.
+  either a fact-free primitive target or one nonzero closed acyclic tree of
+  nongeneric, quotient-free, all-relevant fact-free records now publish the
+  complete validated half-open target footprint as one fixed-range loan. Record
+  padding remains covered; first/last/padding-byte mutations reject while
+  immediate siblings remain disjoint. Runtime or merely bounded offsets,
+  slices, array targets, generic/invariant-bearing/erased/cased records, and
+  other indexed recasts remain conservative.
   Scalar recast representation-set normalization and
   implication now live in a focused 377-line private owner. Exact integer two's-
   complement bit-pattern intervals, same-carrier float intervals, domain-

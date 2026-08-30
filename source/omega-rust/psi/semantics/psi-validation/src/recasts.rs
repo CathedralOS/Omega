@@ -107,7 +107,8 @@ impl ValidatedLiteralIndexedRecastFootprint {
 /// byte footprint for borrow overlap.
 ///
 /// This deliberately excludes runtime or singleton-range offsets, slices,
-/// whole-array sources, and aggregate targets. Those shapes remain under their
+/// whole-array sources, and aggregate targets other than one closed,
+/// recursively fact-free fixed record. Those shapes remain under their
 /// existing conservative loan fence even when the broader recast judgment can
 /// validate their representation.
 pub fn validate_literal_indexed_recast_footprint(
@@ -128,7 +129,7 @@ pub fn validate_literal_indexed_recast_footprint(
     let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
         return None;
     };
-    if !cast.form.is_recast() || program.primitive_type_reference(cast.target_type).is_none() {
+    if !cast.form.is_recast() {
         return None;
     }
 
@@ -154,8 +155,7 @@ pub fn validate_literal_indexed_recast_footprint(
         return None;
     };
     let start = usize::try_from(offset.value_i64()?).ok()?;
-    let target = program.primitive_type_reference(cast.target_type)?;
-    let target_size = target.scalar_byte_size()?;
+    let target_size = literal_indexed_recast_target_size(program, cast.target_type)?;
     let end = start.checked_add(target_size)?;
 
     let InteriorByteRegion::Bounded {
@@ -174,6 +174,85 @@ pub fn validate_literal_indexed_recast_footprint(
         start,
         end,
     })
+}
+
+fn literal_indexed_recast_target_size(
+    program: &TypedTrees,
+    target_type: TypeReferenceHandle,
+) -> Option<usize> {
+    if let Some(primitive) = program.primitive_type_reference(target_type) {
+        return primitive.scalar_byte_size();
+    }
+
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(target_type)
+    else {
+        return None;
+    };
+    if !closed_fact_free_record_symbol_is_eligible(program, *symbol, &mut Vec::new()) {
+        return None;
+    }
+
+    shared_projection_type_representation(program, target_type)
+        .map(|representation| representation.size)
+        .filter(|size| *size > 0)
+}
+
+fn closed_fact_free_record_symbol_is_eligible(
+    program: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> bool {
+    if visiting.contains(&symbol) {
+        return false;
+    }
+    visiting.push(symbol);
+    let eligible = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol)
+        .is_some_and(|data| {
+            let members = program.data_members(data);
+            data.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+                && data.lifetime_parameters.is_empty()
+                && program.data_type_parameters(data).is_empty()
+                && data.generic_instance.is_none()
+                && data.quotient.is_none()
+                && data.where_facts.is_empty()
+                && !data.zero_gated
+                && psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                    == psi_typed_trees::data::DataShapeKind::Record
+                && members.iter().all(|member| {
+                    let psi_typed_trees::data::DataMember::Field(field) = member else {
+                        return false;
+                    };
+                    !field.relevance.is_erased()
+                        && closed_fact_free_record_field_is_eligible(
+                            program,
+                            field.type_reference,
+                            visiting,
+                        )
+                })
+        });
+    visiting.pop();
+    eligible
+}
+
+fn closed_fact_free_record_field_is_eligible(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> bool {
+    if let Some(primitive) = program.primitive_type_reference(type_reference) {
+        return primitive != psi_typed_trees::types::PrimitiveType::Bool
+            && primitive.scalar_byte_size().is_some();
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    closed_fact_free_record_symbol_is_eligible(program, *symbol, visiting)
 }
 
 pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
