@@ -22,14 +22,13 @@ source as differential evidence only; it is not this artifact's authority.
 
 The current artifact is 238,926 bytes. It accepts the bounded `OMGCHK1` binary
 frame documented in the parent README and constructs exact raw `source` and
-`tape` indexed byte-tree constants internally; the framing path leaves 23,214 bytes in
-the 262,140-byte Alpha payload extent.
+`tape` indexed byte-tree constants internally. The rebuilt tape leaves 809,646
+bytes in the 1,048,572-byte AlphaBootstrapV2 payload extent.
 
-D23 requires this artifact and its construction gate to migrate with
-`AlphaBootstrapV2`, including a representative realistically framed
-maximum-tape checker admission rather than a tape-only extent test. The
-238,926-byte artifact and 23,214-byte V1 headroom remain the current facts until
-that coherent profile migration is committed.
+The checker source, persisted tape, and gate share the V2 frame and arena. The
+complete gate admits a realistic maximum compiler tape with named lemmas and
+normalization, admits the simultaneous outer maxima, and pins adjacent input,
+subject, certificate, stack, and arena containment.
 
 Regenerate deliberately with `rebuild.sh`. Commit a changed tape only with its
 source or canonical-compiler change and a green reconstruction plus checker suite.

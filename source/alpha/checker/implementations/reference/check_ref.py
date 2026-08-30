@@ -77,14 +77,14 @@ def decode_input(data):
     """Return certificate text, framed raw terms, and frame identity."""
     if isinstance(data, str):
         data = data.encode('ascii')
-    if len(data) > 2024316:
+    if len(data) > 2810748:
         raise ValueError('input extent')
     if not data.startswith(b'OMGCHK1\n'):
         return data.decode('ascii'), None, False
 
     pos = 8
     fields = []
-    maxima = (262144, 262140, 1500000)
+    maxima = (262144, 1048572, 1500000)
     for field, maximum in enumerate(maxima):
         if pos + 8 > len(data) or any(data[pos + 4:pos + 8]):
             raise ValueError('frame length')

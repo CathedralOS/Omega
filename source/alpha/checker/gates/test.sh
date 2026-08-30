@@ -15,6 +15,7 @@ done
 unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh"
+. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 cd "$OMEGA_PATH_ALPHA_CHECKER"
 
 TMP=$(mktemp -d)
@@ -66,6 +67,25 @@ frame_chk() { # description source-bytes tape-bytes certificate expected-outcome
     FAIL=$((FAIL + 1))
     echo "FAIL: $1 — expected $5, got '$out'"
   fi
+}
+
+write_frame_files() { # output source-file tape-file certificate-file
+  frame_output=$1
+  frame_source=$2
+  frame_tape=$3
+  frame_certificate=$4
+  : > "$frame_output"
+  printf 'OMGCHK1\n' >> "$frame_output"
+  append_u64le "$(wc -c < "$frame_source" | tr -d ' ')" "$frame_output"
+  dd if="$frame_source" status=none >> "$frame_output"
+  append_u64le "$(wc -c < "$frame_tape" | tr -d ' ')" "$frame_output"
+  dd if="$frame_tape" status=none >> "$frame_output"
+  append_u64le "$(wc -c < "$frame_certificate" | tr -d ' ')" "$frame_output"
+  dd if="$frame_certificate" status=none >> "$frame_output"
+}
+
+space_file() { # extent output
+  dd if=/dev/zero bs="$1" count=1 2>/dev/null | tr '\000' ' ' > "$2"
 }
 
 file_chk() { # description input-file expected-status expected-output
@@ -143,8 +163,8 @@ frame_chk "certificate raw lookalike still substitutes" 'abc' 'x' \
 chk "raw subject constants require a frame" "(= source source) (refl source)" reject
 
 # Equality transport may retain a pointer to the immutable checker-owned raw
-# interval. Recursively copying this maximum-size subject would exhaust the
-# arena; the accepted proof therefore pins the closed-term fast path itself.
+# interval. Recursively copying this maximum-size source subject would exhaust
+# the arena; the accepted proof therefore pins the closed-term fast path itself.
 dd if=/dev/zero bs=262144 count=1 2>/dev/null | tr '\000' ' ' > "$TMP/raw-subst-source"
 printf 'x' > "$TMP/raw-subst-tape"
 printf '%s' '(= source source) (eqelim (= source source) (refl z) (refl source))' \
@@ -158,21 +178,74 @@ append_u64le "$(wc -c < "$TMP/raw-subst-cert" | tr -d ' ')" "$TMP/raw-subst-fram
 dd if="$TMP/raw-subst-cert" status=none >> "$TMP/raw-subst-frame"
 file_chk "checker raw interval survives transport" "$TMP/raw-subst-frame" 1 accept
 
-# The published profile fails closed at both its outer input boundary and its
-# permanent-arena boundary. Neither exhaustion may trap or accidentally accept.
-dd if=/dev/zero of="$TMP/input-over" bs=2024317 count=1 2>/dev/null
-file_chk "complete input extent" "$TMP/input-over" 0 reject
+# AlphaBootstrapV2's maximum tape is exercised as an actual compiler edge, not
+# as a zero-filled allocation. This source produces 12 bytes per fixed emitted
+# byte plus the 192-byte runnable-program envelope.
+stamp_beta_compiler "$TMP/beta-compiler" >/dev/null
+awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 87365; i++) printf "a"; print "\") return 1 + 1 }" }' \
+  > "$TMP/v2-max-core.beta"
+v2_source_core_extent=$(wc -c < "$TMP/v2-max-core.beta" | tr -d ' ')
+dd if="$TMP/v2-max-core.beta" status=none > "$TMP/v2-max.beta"
+space_file $((262144 - v2_source_core_extent)) "$TMP/v2-source-pad"
+dd if="$TMP/v2-source-pad" status=none >> "$TMP/v2-max.beta"
+set +e
+"$TMP/beta-compiler" < "$TMP/v2-max.beta" > "$TMP/v2-max.tape"
+v2_compile_status=$?
+set -e
+v2_tape_extent=$(wc -c < "$TMP/v2-max.tape" | tr -d ' ')
+if [ "$v2_compile_status" -eq 0 ] && [ "$v2_tape_extent" -eq 1048572 ]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: V2 exact compiler tape — expected 0/1048572, got $v2_compile_status/$v2_tape_extent"
+fi
 
-arena_cert='(= z z) (refl z)'
-: > "$TMP/arena-over"
-printf 'OMGCHK1\n' >> "$TMP/arena-over"
-append_u64le 262144 "$TMP/arena-over"
-dd if=/dev/zero bs=262144 count=1 2>/dev/null >> "$TMP/arena-over"
-append_u64le 262140 "$TMP/arena-over"
-dd if=/dev/zero bs=262140 count=1 2>/dev/null >> "$TMP/arena-over"
-append_u64le "$(printf '%s' "$arena_cert" | wc -c | tr -d ' ')" "$TMP/arena-over"
-printf '%s' "$arena_cert" >> "$TMP/arena-over"
-file_chk "permanent arena extent" "$TMP/arena-over" 0 reject
+# `first_raw` follows the immutable tree's left spine. The two checked lemmas
+# force bounded normalization over both real subjects, and the final conjunction
+# retains and reuses them rather than accepting a bare reflexive maximum tape.
+printf '%s' \
+  '(fun 100 61 (k 61)) (fun 100 62 (v 0)) (fun 100 63 (rec 0)) (def 0 (= (f 100 source) (k 60 (k 7) (k 0))) (refl (k 60 (k 7) (k 0)))) (def 1 (= (f 100 tape) (k 60 (k 0) (k 1))) (refl (k 60 (k 0) (k 1)))) (& (= (f 100 source) (k 60 (k 7) (k 0))) (= (f 100 tape) (k 60 (k 0) (k 1)))) (pair (use 0) (use 1))' \
+  > "$TMP/v2-real-cert-core"
+v2_real_cert_core_extent=$(wc -c < "$TMP/v2-real-cert-core" | tr -d ' ')
+space_file $((1500000 - v2_real_cert_core_extent)) "$TMP/v2-real.cert"
+dd if="$TMP/v2-real-cert-core" status=none >> "$TMP/v2-real.cert"
+write_frame_files "$TMP/v2-real.frame" "$TMP/v2-max.beta" "$TMP/v2-max.tape" "$TMP/v2-real.cert"
+file_chk "V2 realistic complete input maximum" "$TMP/v2-real.frame" 1 accept
+
+# Each immediately adjacent declared extent and the next complete input byte
+# rejects before publication. The payload bytes are present, so these are real
+# boundary cases rather than truncation aliases.
+dd if="$TMP/v2-max.beta" status=none > "$TMP/v2-source-over"
+printf ' ' >> "$TMP/v2-source-over"
+printf 'x' > "$TMP/v2-one"
+printf '%s' '(= z z) (refl z)' > "$TMP/v2-small-cert"
+write_frame_files "$TMP/v2-source-over-frame" "$TMP/v2-source-over" "$TMP/v2-one" "$TMP/v2-small-cert"
+file_chk "V2 source adjacent extent" "$TMP/v2-source-over-frame" 0 reject
+
+dd if="$TMP/v2-max.tape" status=none > "$TMP/v2-tape-over"
+printf '\000' >> "$TMP/v2-tape-over"
+write_frame_files "$TMP/v2-tape-over-frame" "$TMP/v2-one" "$TMP/v2-tape-over" "$TMP/v2-small-cert"
+file_chk "V2 tape adjacent extent" "$TMP/v2-tape-over-frame" 0 reject
+
+dd if="$TMP/v2-real.cert" status=none > "$TMP/v2-cert-over"
+printf ' ' >> "$TMP/v2-cert-over"
+write_frame_files "$TMP/v2-cert-over-frame" "$TMP/v2-one" "$TMP/v2-one" "$TMP/v2-cert-over"
+file_chk "V2 certificate adjacent extent" "$TMP/v2-cert-over-frame" 0 reject
+
+dd if="$TMP/v2-real.frame" status=none > "$TMP/v2-input-over"
+printf 'x' >> "$TMP/v2-input-over"
+file_chk "V2 complete input adjacent extent" "$TMP/v2-input-over" 0 reject
+
+# A compact structural identity rebuild over the maximum tape authors a fresh
+# balanced result rather than preserving the immutable subject pointer. It
+# crosses the permanent/conversion arena with logarithmic recursion depth;
+# failure must remain ordinary checker rejection, never a stack fault, trap, or
+# accidental acceptance.
+printf '%s' \
+  '(fun 201 61 (k 61)) (fun 201 62 (k 62 (v 0))) (fun 201 63 (k 63 (rec 0) (rec 1))) (= (f 201 tape) tape) (refl tape)' \
+  > "$TMP/v2-arena-over-cert"
+write_frame_files "$TMP/v2-arena-over-frame" "$TMP/v2-max.beta" "$TMP/v2-max.tape" "$TMP/v2-arena-over-cert"
+file_chk "V2 permanent arena exhaustion" "$TMP/v2-arena-over-frame" 0 reject
 
 echo "checker rule discriminators: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

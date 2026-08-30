@@ -28,33 +28,31 @@ its return address is a fresh slot on the hidden stack. Neither clobbers the oth
 
 ## Current canonical-compiler memory profile
 
-The Alpha-written Beta compiler currently emits this physical layout:
+The D23 Beta compiler source emits this `AlphaBootstrapV2` physical layout:
 
 ```text
-[0, 262140)                 Alpha tape payload
-[262144, 1048576)           guarded downward generated data stack
-[1048576, 2097152)          reserved separation
-[2097152, 35651584)         biased 32 MiB source-visible raw memory
-[35651584, 67108864)        hidden-return-stack allowance
+[0, 1048572)                Alpha tape payload
+[1048572, 1048576)          reserved raw-tape tail
+[1048576, 2097152)          guarded downward generated data stack
+[2097152, 4194304)          reserved separation
+[4194304, 138412032)        biased 128 MiB source-visible raw memory
+[138412032, 268435456)      hidden-return-stack allowance
 ```
 
-This is the current V1 layout. D23 requires `AlphaBootstrapV2` to replace the
-tape extent with a one-MiB stamped hole and a 1,048,572-byte raw-tape maximum,
-then derive a coherent replacement for every following boundary. The layout
-does not change piecemeal: generated stack, raw memory, hidden return stack,
-compiler resource rows, seeds, and checker gates move as one profile.
+The rebuilt compiler artifact, seeds, checker, downstream emitters, and gates
+all use this profile; no mixed V1/V2 construction route remains current.
 
-Every emitted byte/word access now checks the logical 32 MiB bound, rejects a
+Every emitted byte/word access checks the logical 128 MiB bound, rejects a
 signed-negative Word address, and adds the raw base before touching Alpha
 memory. Thus logical address zero is initially zero rather than tape byte zero.
 Every generated frame and expression reservation subtracts first, then checks
-`r15 >= 262144` before any generated memory access. Failure terminates inside
+`r15 >= 1048576` before any generated memory access. Failure terminates inside
 the current procedure with status 250 and no further store. Because the
 canonical compiler emits at least one guarded 8-byte frame word per active
-procedure, the 786,432-byte data region bounds semantic depth. At the failing
+procedure, the 1,048,576-byte data region bounds semantic depth. At the failing
 edge, including one transient shared-memory-guard call, the hidden Alpha return
-stack remains at or above physical byte 66,322,424—well above the raw-memory
-ceiling 35,651,584. Thus neither generated stack can alias tape or raw memory.
+stack remains at or above physical byte 267,386,872—well above the raw-memory
+ceiling 138,412,032. Thus neither generated stack can alias tape or raw memory.
 
 ## Register roles
 
@@ -82,12 +80,12 @@ compiler emits these encodings directly into Alpha tape):
 proc:
         ; prologue
         sub   r15, r13              ; reserve caller-fp word (`r13 == 8`)
-        imm   r4, 262144
+        imm   r4, 1048576
         jlt   r15, r4, fault         ; fail before any access below the stack
         store r15, r14
         mov   r14, r15              ; fp = sp   (the frame base)
         sub   r15, framesize        ; allocate params + locals below fp
-        imm   r4, 262144
+        imm   r4, 1048576
         jlt   r15, r4, fault
         ; store args r0..r(n-1) into param slots [fp - 8 - 8*k]
         ; ... body: params/locals at [fp - 8 - 8*slot]; sp moves freely for temps ...

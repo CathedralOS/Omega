@@ -21,4 +21,9 @@ stamp_proof_checker "$TMP/check" >/dev/null
 [ "$(printf '%s' '(-> P P) (lam P (hyp 0))' | "$TMP/check")" = accept ]
 [ "$(printf '%s' '(-> P Q) (lam P (hyp 0))' | "$TMP/check")" = reject ]
 
+# D23 makes realistic maximum-subject acceptance part of checker construction,
+# not an optional tape-only capacity diagnostic. The gate stamps the artifact
+# just compared above and pins the exact/adjacent V2 frame and arena boundaries.
+sh "$SCRIPT_DIR/gates/test.sh"
+
 echo "Alpha-rooted checker reconstruction OK ($(wc -c < "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape" | tr -d ' ')-byte artifact)"

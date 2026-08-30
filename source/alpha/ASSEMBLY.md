@@ -123,7 +123,7 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 104,459 |
+| Source bytes | 104,572 |
 | Instructions | 3,760 |
 | Label definitions | 457 |
 | `db` rows | 12 |

@@ -32,7 +32,7 @@ OUT="build/$NAME.exe"
 # 1. .alpha text -> bytecode, via the assembler running on the seed
 "./$BETA_SEED" < "$SRC" > "build/$NAME.tape"
 TLEN=$(wc -c < "build/$NAME.tape")
-[ $((TLEN + 4)) -le "$HOLE_SIZE" ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the seed's tape hole ($HOLE_SIZE B)" >&2; exit 1; }
+[ "$TLEN" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the AlphaBootstrapV2 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
 
 # 2. stamp [4-byte LE length][bytecode] into a fresh copy of the seed
 stamp_seed "build/$NAME.tape" "$SEED" "$OUT"

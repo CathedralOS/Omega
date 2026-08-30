@@ -11,7 +11,7 @@
 ; getbyte/putbyte are self-aligning native subroutines wrapping ReadFile/WriteFile.
 ;   rsi=pc ptr  rdi=mem base (0x140004000)  rbx=&vregs (0x140003000)  r12=sp
 ;   scratch (vregs page): stdin_h 3080, stdout_h 3088, io_byte 3090, count 3098.
-;   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000, .tape 0x4004000.
+;   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000, .tape 0x10004000.
 ; ===========================================================================
 
 ; --- DOS header ---
@@ -33,7 +33,7 @@ F0 00
 00 00
 00 10 00 00              ; SizeOfCode
 00 02 00 00              ; SizeOfInitializedData (.rdata)
-00 10 00 04              ; SizeOfUninitializedData (.data)
+00 10 00 10              ; SizeOfUninitializedData (.data)
 00 10 00 00              ; AddressOfEntryPoint
 00 10 00 00              ; BaseOfCode
 00 00 00 40 01 00 00 00  ; ImageBase
@@ -43,7 +43,7 @@ F0 00
 00 00 00 00
 06 00 00 00
 00 00 00 00
-00 40 04 04              ; SizeOfImage = 0x4044000 (covers the .tape hole)
+00 40 10 10              ; SizeOfImage = 0x10104000 (covers the .tape hole)
 00 02 00 00              ; SizeOfHeaders
 00 00 00 00
 03 00
@@ -78,7 +78,7 @@ z24
 00 00 00 00
 40 00 00 40
 2E 64 61 74 61 00 00 00
-00 10 00 04
+00 10 00 10
 00 30 00 00
 00 00 00 00
 00 00 00 00
@@ -86,9 +86,9 @@ z24
 00 00 00 00
 80 00 00 C0
 2E 74 61 70 65 00 00 00          ; .tape — the embedded-program hole
-00 00 04 00                      ; VirtualSize  0x40000 (256 KiB)
-00 40 00 04                      ; VirtualAddress 0x4004000
-00 00 04 00                      ; SizeOfRawData 0x40000
+00 00 10 00                      ; VirtualSize  0x100000 (1 MiB including length)
+00 40 00 10                      ; VirtualAddress 0x10004000
+00 00 10 00                      ; SizeOfRawData 0x100000
 00 14 00 00                      ; PointerToRawData 0x1400
 00 00 00 00 00 00 00 00
 00 00 00 00
@@ -99,7 +99,7 @@ z24
 48 83 EC 28                     ; sub rsp, 0x28
 48 BB 00 30 00 40 01 00 00 00   ; mov rbx, &vregs
 48 BF 00 40 00 40 01 00 00 00   ; mov rdi, mem base
-49 BC 00 00 00 04 00 00 00 00   ; mov r12, sp (64MB)
+49 BC 00 00 00 10 00 00 00 00   ; mov r12, sp (256 MiB)
 ; stdin_h / stdout_h
 B9 F6 FF FF FF
 FF 15 .rel32 iat_gsh
@@ -110,7 +110,7 @@ FF 15 .rel32 iat_gsh
 48 B9 88 30 00 40 01 00 00 00
 48 89 01
 ; --- loader: copy the embedded tape (the .tape hole) into VM memory ---
-48 B8 00 40 00 44 01 00 00 00   ; rax = &.tape  (ImageBase + 0x4004000)
+48 B8 00 40 00 50 01 00 00 00   ; rax = &.tape  (ImageBase + 0x10004000)
 44 8B 30                        ; mov r14d, [rax]   (tape length, 4-byte LE)
 48 83 C0 04                     ; add rax, 4        (rax -> first tape byte)
 4D 31 FF                        ; xor r15, r15      (i = 0)
@@ -403,7 +403,7 @@ dllname:
 6B 65 72 6E 65 6C 33 32 2E 64 6C 6C 00 00
 .pad 0x1400
 
-; ===================== .tape (RVA 0x4004000, file 0x1400) =====================
-; The hole: 0x40000 (256 KiB) zero bytes. A built program is this exe with [4-byte LE
+; ===================== .tape (RVA 0x10004000, file 0x1400) =====================
+; The hole: 0x100000 (1 MiB) including the four-byte length. A built program is this exe with [4-byte LE
 ; length][tape bytes] memcpy'd in here at file offset 0x1400.
-.pad 0x41400
+.pad 0x101400

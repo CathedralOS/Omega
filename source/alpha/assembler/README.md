@@ -15,7 +15,9 @@ encoder walks the stored word bytes directly and does not reinterpret high-bit
 values through signed division.
 
 - `beta_x64_windows.exe` — the historically named Alpha seed with the assembler
-  tape stamped into its hole. This is the working assembler executable.
+  tape stamped into its AlphaBootstrapV2 hole. This is the working assembler
+  executable on Windows; `beta_arm64_macos` is the corresponding Darwin
+  realization of the same tape.
 - `assembler.alpha` — the assembler source, written in Alpha.
 - `build.sh` — `./build.sh PROGRAM.alpha` → `build/PROGRAM.exe`: assembles the program with
   `beta_x64_windows.exe` and memcpy's the bytecode into a fresh copy of the alpha seed.
@@ -32,6 +34,9 @@ values through signed division.
 The historical Rust cold-start producer has been retired. The checked-in seed,
 written assembly/VM semantics, and self-hosting reconstruction
 are the maintained path.
+Both committed assembler containers carry the same 6,816-byte raw tape in the
+selected 256-MiB/one-MiB AlphaBootstrapV2 seed layout. Their native bytes differ;
+`selfhost.sh` compares the extracted platform-independent tape.
 
 ## Retention inventory
 

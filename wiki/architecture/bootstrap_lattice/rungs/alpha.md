@@ -87,19 +87,18 @@ Gaps versus this target, all small and self-contained:
   signed `jlt`, EOF, the three traps) that any seed must pass. (The two committed
   seeds both implement it; div/mod now trap on `INT_MIN/-1` to match the x64
   `idiv` overflow.)
-- **Fixed memory hole** — memory size should be an execution *parameter* with a
-  defined out-of-memory result, not baked into the artifact. Both committed
-  seeds currently reserve 256 KiB (`0x40000`). D23 requires the coherent
-  `AlphaBootstrapV2` migration to a one-MiB hole and a maximum 1,048,572-byte
-  raw tape, including the checker and every adjacent resource profile rather
-  than enlarging only the seeds. Hole size remains capacity, not semantics—the
+- **Fixed memory hole** — memory size should eventually be an execution
+  *parameter* with a defined out-of-memory result, not baked into the artifact.
+  The committed `AlphaBootstrapV2` seeds select 256 MiB of semantic memory and
+  an exact one-MiB stamped hole, including its four-byte length, for a maximum
+  1,048,572-byte raw tape. Hole size remains capacity, not opcode semantics—the
   realizations agree for any tape that fits the selected common profile.
 - **Memory accesses are unchecked** — out-of-bounds is silent, not a defined
   trap. A trust-root executor should trap, not corrupt. (Spelled out as the only
   *undefined* corner in SEMANTICS.md §8; the hardening is the next step here.)
-- **The seed is large** (x64 ~37 KB / ~400 lines; arm64 ~290 lines of asm)
-  versus a stage0-scale seed (~256 bytes). Acceptable, but it is a per-platform
-  audit cost; track it.
+- **The seed is large** (a few hundred native instructions plus the explicit
+  one-MiB zero-only tape extent) versus a stage0-scale seed (~256 bytes).
+  Acceptable, but the native code remains a per-platform audit cost; track it.
 
 See [`alpha_language.md`](../../../design_briefs/alpha_language.md) for the
 salvageable constraint list (resource budgets, banned features, trap-everything),
@@ -108,9 +107,9 @@ noting its trust-architecture framing is superseded by the
 
 ## Implementation frontiers
 
-- Implement D23's `AlphaBootstrapV2` atomically across seeds, compilers,
-  generated memory maps, checker capacity, boundary outcome tables, and exact
-  limit gates. Current 256-KiB artifacts remain V1 until that migration passes.
+- Keep D23's `AlphaBootstrapV2` coherent across seeds, compilers, generated
+  memory maps, checker capacity, boundary outcome tables, and exact limit gates;
+  no owner may retain or silently reintroduce the former V1 extent.
 - Fixed-width vs variable-width instruction encoding (canonical-parsing
   simplicity vs density).
 - Complete the memory-fault/`OutOfMemory` event surface when bounds checks land.

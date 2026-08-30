@@ -44,7 +44,7 @@ pass-one and pass-two equalities rather than require one compiler-scale
 conversion.
 
 The committed artifact is 27,087 bytes with SHA-256
-`1beacab0688a306159495d80d82f6a4367ff923d12f66911e5d5932c16e1d3d2`.
+`2e41027179e615ba1e532ad5f5d20157d67bf6cec38e2c74f98bf355af9aa06e`.
 The byte comparison, not the convenient digest, governs repository identity.
 
 ## Compiler boundary outcome
@@ -137,11 +137,11 @@ failure framing at each adjacent refusal.
 | Identifier | 64 bytes |
 | Combined state-block, parenthesis, nested-call, and nested-load syntax depth | 64 |
 | Parameters plus function-scoped locals | 64 per procedure |
-| Procedures | 128 |
+| Procedures | 256 |
 | Non-builtin procedure call-reference rows | 1,024 |
 | States | 128 per procedure; 1,024 total |
 | Transitions | 256 per procedure; 1,024 total |
-| Emitted runnable Alpha payload | 262,140 bytes |
+| Emitted runnable Alpha payload | 1,048,572 bytes |
 
 These are compiler-profile ceilings, not Beta language limits. State nesting
 remains a recursive language form. Parentheses, calls, loads, and state bodies
@@ -149,23 +149,27 @@ consume one combined checked recursion budget because they compose on the same
 Alpha parser call path; exhaustion reports `Incomplete` rather than rejecting
 otherwise valid Beta or exhausting the Alpha return stack.
 
-D23 replaces the emitted-payload row in the next coherent
-`AlphaBootstrapV2` migration: a one-MiB stamped hole permits exactly 1,048,572
-raw tape bytes. The procedure table, payload buffer, generated-program memory
-map, compiler resource table, authoritative checker, and every exact/adjacent
-gate must be revised with it. Until those changes land, the table above remains
-the current executable profile; no isolated larger payload may issue.
+D23 selects the one-MiB stamped-hole profile: the private
+payload buffer admits exactly 1,048,572 raw bytes, and the procedure table
+admits 256 rows. The rebuilt compiler tape, seeds, checker, downstream emitters,
+and exact/adjacent gates now share that profile. The closed `BCOUT` v1
+reason/resource identities do not change; their producer-owned numeric limits
+do.
 
-The generated data stack is separately guarded in `[262144,1048576)` and every
+The generated data stack is separately guarded in `[1048576,2097152)` and every
 procedure reserves at least its caller-frame word, as specified in
-`../CALLING_CONVENTION.md`. Generated programs receive 33,554,432 zeroed bytes
-of source-visible raw memory. Their data-stack and raw-memory containment
-failures are runtime statuses 250 and 251, not compiler `Incomplete` results.
+`../CALLING_CONVENTION.md`. Generated programs receive 134,217,728 zeroed bytes
+of source-visible raw memory biased at physical byte 4,194,304. Their data-stack
+and raw-memory containment failures are runtime statuses 250 and 251, not
+compiler `Incomplete` results.
 
-The 32,768-row fixup table and 65,536-row internal-PC table are secondary
-corruption guards: each row requires emitted reference or control bytes, so the
-payload ceiling is binding first. Reaching either while the payload bound still
-holds is therefore `InternalFailure`, not an advertised resource refusal.
+The private compiler map keeps the expanded procedure/initialization tables in
+`[5 MiB,5,556,417)`, the payload buffer at 16 MiB, the internal-PC table at
+20 MiB, and the fixup table at 24 MiB. The 116,508-row fixup table is dominated
+by the shortest 9-byte direct-reference encoding. The 262,144-row internal-PC
+table conservatively admits one identity per four emitted bytes. Both remain
+secondary corruption guards: reaching either while the payload bound still
+holds is `InternalFailure`, not an advertised resource refusal.
 `test.sh` pins practical source limits at the exact accepted boundary and the
 adjacent fail-closed case. Single-site temporary compiler mutations lower each
 otherwise dominated invariant and positively exercise all six closed

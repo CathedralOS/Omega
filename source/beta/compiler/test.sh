@@ -433,10 +433,10 @@ accept byte_into_unaligned_word_alias 'proc main() { word[1] = 0 byte[3] = 255 r
 accept unaligned_word_from_bytes 'proc main() { byte[7] = 17 byte[8] = 34 return word[7] / 256 }' 34
 accept zeroed_byte_memory 'proc main() { return byte[0] }' 0
 accept zeroed_word_memory 'proc main() { return word[0] }' 0
-accept last_byte_memory 'proc main() { byte[33554431] = 77 return byte[33554431] }' 77
-accept last_word_memory 'proc main() { word[33554424] = 42 return word[33554424] }' 42
-contain_memory_fault byte_memory_over 'proc main() { return byte[33554432] }'
-contain_memory_fault word_memory_over 'proc main() { return word[33554425] }'
+accept last_byte_memory 'proc main() { byte[134217727] = 77 return byte[134217727] }' 77
+accept last_word_memory 'proc main() { word[134217720] = 42 return word[134217720] }' 42
+contain_memory_fault byte_memory_over 'proc main() { return byte[134217728] }'
+contain_memory_fault word_memory_over 'proc main() { return word[134217721] }'
 contain_memory_fault negative_memory_address 'proc main() { byte[18446744073709551615] = 1 return 0 }'
 accept word_array_loop 'proc main() { let base = 2097152 let i = 0 state fill { to fb when i < 5 to sum_init } state fb { word[base + i * 8] = i * i i = i + 1 to fill } state sum_init { let t = 0 i = 0 to sum } state sum { to sb when i < 5 return t } state sb { t = t + word[base + i * 8] i = i + 1 to sum } }' 30
 accept nested_memory 'proc main() { let b = 2097152 word[b] = b + 16 byte[b + 16] = 77 return byte[word[b]] }' 77
@@ -462,15 +462,15 @@ else
   fail=$((fail + 1))
 fi
 
-printf '%s' 'imm r15,1048576
-imm r14,1048576
+printf '%s' 'imm r15,2097152
+imm r14,2097152
 imm r13,8
 call main
 halt r0
 main:
 imm r5,8
 sub r15,r5
-imm r4,262144
+imm r4,1048576
 jlt r15,r4,stack_fault
 store r15,r14
 mov r14,r15
@@ -652,10 +652,11 @@ accept mixed_state_nesting_limit "$mixed_state_depth_64" 1
 mixed_state_depth_65=$(printf '%s' "$mixed_state_depth_64" | sed 's/return /return (/; s/ } }$/) } }/')
 incomplete mixed_state_nesting_extent syntax_depth 64 65 "$mixed_state_depth_65" 100
 
-# A fixed emit body lets the gate hit Alpha's 262140-byte runnable payload
-# exactly. The second source requests 262141 bytes and must publish nothing.
-tape_limit=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21829; i++) printf "a"; print "\") return 1 + 1 }" }')
-accept_compile_extent output_limit "$tape_limit" 262140
+# A fixed emit body lets the gate hit AlphaBootstrapV2's 1,048,572-byte
+# runnable payload exactly. The second source requests 1,048,573 bytes and
+# must publish nothing.
+tape_limit=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 87365; i++) printf "a"; print "\") return 1 + 1 }" }')
+accept_compile_extent output_limit "$tape_limit" 1048572
 if sh "$OMEGA_PATH_BETA_COMPILER/validation/admission/bc-artifact-structure.sh" \
     "$TMP/output_limit.tape" >/dev/null; then
   pass=$((pass + 1))
@@ -663,20 +664,20 @@ else
   echo "FAIL output_limit_structure: maximum-size emitted tape is malformed" >&2
   fail=$((fail + 1))
 fi
-tape_over=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21834; i++) printf "a"; print "\") return 0 }" }')
-incomplete output_extent payload_bytes 262140 262141 "$tape_over" 262140
-incomplete first_payload_failure_before_late_reject payload_bytes 262140 262141 \
-  "$tape_over proc broken(" 262140
+tape_over=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 87370; i++) printf "a"; print "\") return 0 }" }')
+incomplete output_extent payload_bytes 1048572 1048573 "$tape_over" 1048572
+incomplete first_payload_failure_before_late_reject payload_bytes 1048572 1048573 \
+  "$tape_over proc broken(" 1048572
 reject first_reject_before_late_payload "proc main() { return } $tape_over" 21
 
-wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 14000; i++) printf "+1"; print " }" }')
+wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 56000; i++) printf "+1"; print " }" }')
 set +e
 printf '%s\n' "$wide" | "$TMP/compiler" > "$TMP/expression_output_extent.out"
 status=$?
 set -e
 if [ "$status" -eq 2 ] && decode_failure "$TMP/expression_output_extent.out" "$status" &&
-   [ "$decoded_name" = payload_bytes ] && [ "$decoded_limit" -eq 262140 ] &&
-   [ "$decoded_requested" -gt 262140 ] && [ "$decoded_coordinate" -eq 262140 ]; then
+   [ "$decoded_name" = payload_bytes ] && [ "$decoded_limit" -eq 1048572 ] &&
+   [ "$decoded_requested" -gt 1048572 ] && [ "$decoded_coordinate" -eq 1048572 ]; then
   pass=$((pass + 1))
 else
   echo "FAIL expression_output_extent: did not return canonical payload Incomplete" >&2
@@ -690,10 +691,10 @@ calls_1024=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 
 accept call_global_limit "$calls_1024" 0
 calls_1025=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1025; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
 incomplete call_global_extent call_rows 1024 1025 "$calls_1025" 9243
-procs_128=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 127; i++) printf "proc p%d() { return %d }\n", i, i }')
-accept procedure_limit "$procs_128" 0
-procs_129="$procs_128 proc overflow() { return 0 }"
-incomplete procedure_extent procedure_rows 128 129 "$procs_129" 3249
+procs_256=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 255; i++) printf "proc p%d() { return %d }\n", i, i }')
+accept procedure_limit "$procs_256" 0
+procs_257="$procs_256 proc overflow() { return 0 }"
+incomplete procedure_extent procedure_rows 256 257 "$procs_257" 6705
 states_128=$(awk 'BEGIN { printf "proc main() { return 0"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " }" }')
 accept state_proc_limit "$states_128" 0
 states_129=$(awk 'BEGIN { printf "proc main() { return 0"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " }" }')
@@ -711,10 +712,11 @@ accept edge_global_limit "$edges_1024" 0
 edges_1025="$edges_1024 proc extra_edges() { to done when 0 state done { return 0 } }"
 incomplete edge_global_extent global_edge_rows 1024 1025 "$edges_1025" 15542
 
-# The 32768-fixup and 65536-internal-label arrays are secondary corruption
-# guards rather than independently reachable source-profile limits: every row
-# requires emitted reference/control bytes, so the exact tape ceiling above is
-# necessarily reached first.
+# The 116508-fixup and 262144-internal-label arrays are secondary corruption
+# guards rather than independently reachable source-profile limits. A fixup
+# requires at least one 9-byte direct-reference instruction, and each internal
+# identity requires at least four emitted control bytes, so the exact tape
+# ceiling above is necessarily reached first.
 
 # Pin the compiler-owned source extent: exactly 1 MiB is accepted, while the
 # next byte is observed before any table write or output publication.
@@ -759,7 +761,7 @@ else
 fi
 
 # Every closed InternalFailure reason has a positive producer test. The
-# production capacities remain unchanged; each temporary compiler lowers one
+# production capacities remain dominant; each temporary compiler lowers one
 # otherwise dominated invariant and must publish the exact canonical frame.
 internal_source='proc main() { return 0 }'
 internal_mutant internal_replay_rejected replay_rejected \

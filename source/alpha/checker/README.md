@@ -109,15 +109,15 @@ accept the live certificate under its recorded profile or perform an explicit
 certificate migration; cross-implementation agreement remains diagnostic and
 does not grant the reference checker authority.
 
-The current authoritative profile is:
+The `AlphaBootstrapV2` authoritative checker profile is:
 
 | Resource | Exact profile |
 | --- | --- |
-| Complete stdin | At most 2,024,316 bytes: the 32-byte `OMGCHK1` framing overhead plus all three maxima below. Any next byte rejects before parsing. |
-| Framed source / tape / certificate | Source at most 262,144 bytes; tape at most 262,140 bytes; certificate 1..1,500,000 bytes; every declared extent must exactly exhaust stdin. |
-| Permanent + conversion arena | Logical bytes `[8,388,608, 33,554,432)`: exactly 1,048,576 three-word nodes at 24 bytes each. Allocation beyond the last complete node marks the candidate invalid; per-equality conversion scratch is restored to its saved mark. |
+| Complete stdin | At most 2,810,748 bytes: the 32-byte `OMGCHK1` framing overhead plus all three maxima below. Any next byte rejects before parsing. |
+| Framed source / tape / certificate | Source at most 262,144 bytes; tape at most 1,048,572 bytes; certificate 1..1,500,000 bytes; every declared extent must exactly exhaust stdin. |
+| Permanent + conversion arena | Logical bytes `[16,777,216, 134,217,712)`: exactly 4,893,354 complete three-word nodes at 24 bytes each, with 16 unused bytes before the 128-MiB logical raw-memory boundary. Allocation beyond start address 134,217,688 marks the candidate invalid; per-equality conversion scratch is restored to its saved mark. |
 | Proof context | 65,536 proposition slots plus 65,536 matching individual-binder-depth slots. The next push marks the candidate invalid. |
-| Generated semantic stack | Guarded downward logical bytes `[262,144, 1,048,576)`, 786,432 bytes total. Exhaustion halts with contained Beta runtime status 250 and cannot accept. The minimum frame word keeps the hidden Alpha return stack disjoint. |
+| Generated semantic stack | Guarded downward physical bytes `[1,048,576, 2,097,152)`, 1,048,576 bytes total. Exhaustion halts with contained Beta runtime status 250 and cannot accept. The V2 separation `[2,097,152, 4,194,304)` and 128-MiB biased raw region `[4,194,304, 138,412,032)` keep it disjoint from checker data and Alpha's hidden return stack. |
 | Constructors / products | Constructor IDs `0..63`, arity `0..2`, one declaration per ID; product marks use the same 64 IDs. Framed subjects predeclare nibble IDs `0..15` and raw-byte/tree IDs `60..63`. |
 | Ground functions | Function IDs `0..767`, with at most one rule for each of the 64 constructor IDs: 49,152 fixed rule slots. The first checked lemma freezes constructors, products, and functions. |
 | Named lemmas | Sparse IDs `0..32767`, each defined and checked once before use. |
@@ -128,16 +128,17 @@ maximum fits the arena. A candidate accepts only if its exact framed subjects,
 declarations, proof, inference, and all retained normal forms fit every row.
 Anything other than status 1 with exact `accept\n` is non-acceptance.
 
-D23 requires the next authoritative profile to admit `AlphaBootstrapV2`'s
-1,048,572-byte maximum raw tape through a coherent larger frame and arena. The
-migration is not complete merely because a zero-filled or tape-only maximum
-fits: an executed exact-edge canary must retain a representative maximum-size
-subject together with realistic source, certificate, lemma, normalization, and
-scratch demand, and the adjacent case must fail closed with its exact resource
-outcome. The current table remains authoritative until that migration lands.
-D14's bounded chunk lemmas do not by themselves authorize paging the root
-subject; chunk-addressable subject custody is a separate future checker/input
-revision that may remove the current whole-subject arena scaling.
+The V2 gate retains a real maximum-size Beta-compiler output together with its
+source, named subject lemmas, bounded raw-tree selection, normalization, and
+conversion scratch. Separate exact-maximum and adjacent cases pin every frame
+extent, while a balanced structural identity rebuild crosses the published
+arena bound and must reject without trapping. A zero-filled or tape-only
+allocation test is insufficient. The rebuilt checker tape, V2 seeds, and Beta
+compiler now install this profile coherently.
+
+D14's bounded chunk lemmas do not authorize paging the root subject. The V2
+checker continues to construct one immutable power-of-two tree per subject;
+chunk-addressable custody remains a separate future checker/input revision.
 
 ## Retention inventory
 

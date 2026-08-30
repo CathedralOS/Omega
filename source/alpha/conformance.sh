@@ -21,7 +21,9 @@ PASS=0; FAIL=0
 tc() {
   name="$1"; exp_exit="$2"; exp_out="$3"; stdin="$4"; shift 4
   echo "$*" | tr -d ' \n' | xxd -r -p > "$TMP/tape"
-  stamp_seed "$TMP/tape" "$SEED" "$TMP/exe" >/dev/null 2>&1
+  if ! stamp_seed "$TMP/tape" "$SEED" "$TMP/exe" >/dev/null 2>&1; then
+    FAIL=$((FAIL+1)); echo "  FAIL $name : seed stamping failed"; return
+  fi
   out=$(printf '%s' "$stdin" | "$TMP/exe" 2>/dev/null); got_exit=$?
   ok=1
   [ "$got_exit" = "$exp_exit" ] || ok=0
@@ -73,6 +75,61 @@ tc write          105  "Hi" "" 01 00 4800000000000000 12 00 01 00 69000000000000
 tc call_ret        42  "" "" 13 0b00000000000000 00 00 01 00 2a00000000000000 14
 # unknown opcode -> trap
 tc unknown_trap   132  "" "" ff
+
+# AlphaBootstrapV2 realization profile: the exact maximum raw tape must fit the
+# physical hole, round-trip unchanged, and execute. The adjacent raw byte must
+# be rejected before the caller's destination is touched.
+dd if=/dev/zero of="$TMP/exact-capacity.tape" bs="$ALPHA_MAX_RAW_TAPE_SIZE" count=1 2>/dev/null
+printf '\000\000' | dd of="$TMP/exact-capacity.tape" bs=1 seek=0 conv=notrunc status=none
+capacity_ok=1
+stamp_seed "$TMP/exact-capacity.tape" "$SEED" "$TMP/exact-capacity.exe" >/dev/null 2>&1 || capacity_ok=0
+if [ "$capacity_ok" = 1 ]; then
+  tape_in_seed "$TMP/exact-capacity.exe" > "$TMP/exact-capacity.framed" 2>/dev/null || capacity_ok=0
+fi
+if [ "$capacity_ok" = 1 ]; then
+  [ "$(wc -c < "$TMP/exact-capacity.framed" | tr -d ' ')" -eq "$ALPHA_SEED_HOLE_SIZE" ] || capacity_ok=0
+  [ "$(od -An -tu4 -N4 "$TMP/exact-capacity.framed" | tr -dc 0-9)" -eq "$ALPHA_MAX_RAW_TAPE_SIZE" ] || capacity_ok=0
+  dd if="$TMP/exact-capacity.framed" of="$TMP/exact-capacity.extracted" bs=1 skip=4 status=none
+  cmp -s "$TMP/exact-capacity.tape" "$TMP/exact-capacity.extracted" || capacity_ok=0
+fi
+if [ "$capacity_ok" = 1 ]; then
+  "$TMP/exact-capacity.exe" >/dev/null 2>&1
+  [ "$?" -eq 0 ] || capacity_ok=0
+fi
+
+cp "$TMP/exact-capacity.tape" "$TMP/adjacent-capacity.tape"
+printf '\000' >> "$TMP/adjacent-capacity.tape"
+printf 'preserve-on-refusal' > "$TMP/adjacent-capacity.exe"
+cp "$TMP/adjacent-capacity.exe" "$TMP/adjacent-capacity.before"
+if stamp_seed "$TMP/adjacent-capacity.tape" "$SEED" "$TMP/adjacent-capacity.exe" >/dev/null 2>&1; then
+  capacity_ok=0
+fi
+cmp -s "$TMP/adjacent-capacity.before" "$TMP/adjacent-capacity.exe" || capacity_ok=0
+
+# A stale V1-sized container must fail before copy, and extraction must not trust
+# an embedded length outside the selected profile even when the file is large.
+dd if="$SEED" of="$TMP/stale-seed" bs=1 count=$((HOLE_OFF + ALPHA_SEED_HOLE_SIZE - 1)) status=none
+printf 'preserve-stale-refusal' > "$TMP/stale-destination"
+cp "$TMP/stale-destination" "$TMP/stale-destination.before"
+if stamp_seed "$TMP/exact-capacity.tape" "$TMP/stale-seed" "$TMP/stale-destination" >/dev/null 2>&1; then
+  capacity_ok=0
+fi
+cmp -s "$TMP/stale-destination.before" "$TMP/stale-destination" || capacity_ok=0
+
+cp "$SEED" "$TMP/bad-embedded-length"
+bad_length=$((ALPHA_MAX_RAW_TAPE_SIZE + 1))
+printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((bad_length & 255)) $(((bad_length >> 8) & 255)) $(((bad_length >> 16) & 255)) $(((bad_length >> 24) & 255)))" \
+  | dd of="$TMP/bad-embedded-length" bs=1 seek="$HOLE_OFF" conv=notrunc status=none
+if tape_in_seed "$TMP/bad-embedded-length" > "$TMP/bad-embedded-output" 2>/dev/null; then
+  capacity_ok=0
+fi
+[ ! -s "$TMP/bad-embedded-output" ] || capacity_ok=0
+
+if [ "$capacity_ok" = 1 ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1)); echo "  FAIL AlphaBootstrapV2 exact/adjacent capacity"
+fi
 
 echo ""
 echo "alpha conformance ($SEED): $PASS passed, $FAIL failed"

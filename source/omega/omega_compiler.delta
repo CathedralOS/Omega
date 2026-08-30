@@ -12,14 +12,14 @@
 // rejected instruction width or invalid scalar supplied by the caller.
 
 data AlphaTapeBuffer {
-    bytes: [u8; 262140];
-    instruction_starts: [u8; 262140];
-    label_offsets: [i32; 262140];
-    label_defined: [u8; 262140];
-    fixup_labels: [i32; 29126];
-    fixup_instructions: [i32; 29126];
-    fixup_operands: [i32; 29126];
-    fixup_resolved: [u8; 29126];
+    bytes: [u8; 1048572];
+    instruction_starts: [u8; 1048572];
+    label_offsets: [i32; 1048572];
+    label_defined: [u8; 1048572];
+    fixup_labels: [i32; 116508];
+    fixup_instructions: [i32; 116508];
+    fixup_operands: [i32; 116508];
+    fixup_resolved: [u8; 116508];
     length: i32;
     label_count: i32;
     fixup_count: i32;
@@ -11765,7 +11765,7 @@ machine AlphaTapeBuffer::new_label(&mut self) -> i32 {
     }
 
     state check_capacity() {
-        transition (self.label_count >= 0) && (self.label_count < 262140) {
+        transition (self.label_count >= 0) && (self.label_count < 1048572) {
             true -> allocate()
             _ -> classify_count()
         }
@@ -11773,7 +11773,7 @@ machine AlphaTapeBuffer::new_label(&mut self) -> i32 {
 
     state classify_count() {
         transition self.label_count {
-            262140 -> capacity()
+            1048572 -> capacity()
             _ -> invalid_count()
         }
     }
@@ -11792,7 +11792,7 @@ machine AlphaTapeBuffer::new_label(&mut self) -> i32 {
     }
 
     state capacity() {
-        self.fail_capacity(262141);
+        self.fail_capacity(1048573);
         return -1;
     }
 }
@@ -11805,9 +11805,9 @@ machine AlphaTapeBuffer::define_label(&mut self, label: i32) -> i32 {
 
     state check_profile() {
         transition (self.label_count >= 0) &&
-            (self.label_count <= 262140) &&
+            (self.label_count <= 1048572) &&
             (self.length >= 0) &&
-            (self.length <= 262140) {
+            (self.length <= 1048572) {
             true -> check_low()
             _ -> invalid_profile()
         }
@@ -11858,7 +11858,7 @@ machine AlphaTapeBuffer::reserve(&mut self, count: i32) -> i32 {
     }
 
     state check_length() {
-        transition (self.length >= 0) && (self.length <= 262140) {
+        transition (self.length >= 0) && (self.length <= 1048572) {
             true -> check_count()
             _ -> corrupt_length()
         }
@@ -11872,7 +11872,7 @@ machine AlphaTapeBuffer::reserve(&mut self, count: i32) -> i32 {
     }
 
     state check_capacity() {
-        transition count <= 262140 - self.length {
+        transition count <= 1048572 - self.length {
             true -> return 1
             _ -> capacity()
         }
@@ -11959,7 +11959,7 @@ machine AlphaTapeBuffer::write_reserved_address(&mut self, target: i32) {
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 262139) {
+        transition (target >= 0) && (target <= 1048571) {
             true -> check_capacity()
             _ -> invalid_target()
         }
@@ -12146,7 +12146,7 @@ machine AlphaTapeBuffer::emit_jump(
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 262139) {
+        transition (target >= 0) && (target <= 1048571) {
             true -> reserve_instruction()
             _ -> invalid_target()
         }
@@ -12201,7 +12201,7 @@ machine AlphaTapeBuffer::emit_rx(
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 262139) {
+        transition (target >= 0) && (target <= 1048571) {
             true -> reserve_instruction()
             _ -> invalid_target()
         }
@@ -12269,7 +12269,7 @@ machine AlphaTapeBuffer::emit_rrx(
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 262139) {
+        transition (target >= 0) && (target <= 1048571) {
             true -> reserve_instruction()
             _ -> invalid_target()
         }
@@ -12336,9 +12336,9 @@ machine AlphaTapeBuffer::record_fixup(
 
     state check_profile() {
         transition (self.length >= 0) &&
-            (self.length <= 262140) &&
+            (self.length <= 1048572) &&
             (self.label_count >= 0) &&
-            (self.label_count <= 262140) {
+            (self.label_count <= 1048572) {
             true -> check_label_low()
             _ -> invalid_profile()
         }
@@ -12397,7 +12397,7 @@ machine AlphaTapeBuffer::record_fixup(
     }
 
     state check_count() {
-        transition (self.fixup_count >= 0) && (self.fixup_count < 29126) {
+        transition (self.fixup_count >= 0) && (self.fixup_count < 116508) {
             true -> check_order()
             _ -> invalid_count()
         }
@@ -12528,14 +12528,14 @@ machine AlphaTapeBuffer::resolve_fixups(&mut self) -> i32 {
     }
 
     state check_count() {
-        transition (self.fixup_count >= 0) && (self.fixup_count <= 29126) {
+        transition (self.fixup_count >= 0) && (self.fixup_count <= 116508) {
             true -> check_label_count()
             _ -> invalid_count()
         }
     }
 
     state check_label_count() {
-        transition (self.label_count >= 0) && (self.label_count <= 262140) {
+        transition (self.label_count >= 0) && (self.label_count <= 1048572) {
             true -> resolve(0)
             _ -> invalid_label_count()
         }
@@ -12664,10 +12664,10 @@ machine AlphaTapeBuffer::resolve_fixups(&mut self) -> i32 {
 
 // Decode the canonical in-tape address form produced by this encoder. Alpha
 // addresses are 64-bit, but every compiler-generated direct target is a
-// nonnegative offset inside the at-most-262140-byte payload. Return -1 when
+// nonnegative offset inside the at-most-1,048,572-byte payload. Return -1 when
 // high bytes make that final form noncanonical.
 machine AlphaTapeBuffer::decode_address(&mut self, payload_offset: i32) -> i32 {
-    transition (self.length >= 0) && (self.length <= 262140) {
+    transition (self.length >= 0) && (self.length <= 1048572) {
         true -> check_offset()
         _ -> return -1
     }
@@ -12711,7 +12711,7 @@ machine AlphaTapeBuffer::rebuild_instruction_partition(&mut self) -> i32 {
     }
 
     state check_length() {
-        transition (self.length > 0) && (self.length <= 262140) {
+        transition (self.length > 0) && (self.length <= 1048572) {
             true -> clear_starts(0)
             _ -> invalid_length()
         }
@@ -12840,7 +12840,7 @@ machine AlphaTapeBuffer::finalize(&mut self) -> i32 {
     }
 
     state check_payload() {
-        transition (self.length > 0) && (self.length <= 262140) {
+        transition (self.length > 0) && (self.length <= 1048572) {
             true -> resolve_payload()
             _ -> invalid_payload()
         }
