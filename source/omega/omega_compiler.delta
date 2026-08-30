@@ -216,13 +216,16 @@ data OmegaFieldDestination {
 data OmegaTypeReferenceKind {
     case Named;
     case Constrained;
+    case FixedArray;
 }
 
 // Compact tagged type node. Payload interpretation is owned by kind:
 // Named uses payload0/payload1 as its name span; Constrained uses payload0 as
-// its base node and payload1/payload2 as its constraint span. Remaining words
-// are reserved for final recursive type variants without parallel node arenas.
-// Words not selected by kind have no meaning and need not be cleared.
+// its base node and payload1/payload2 as its constraint span; FixedArray uses
+// payload0 for its element and payload1/payload2 for the exact length span.
+// Remaining words are reserved for final recursive type variants without
+// parallel node arenas. Words not selected by kind have no meaning and need
+// not be cleared.
 data OmegaTypeReferenceSyntax {
     kind: OmegaTypeReferenceKind;
     payload0: i32;
@@ -251,6 +254,11 @@ data OmegaTypeConstraintSyntax {
     payload3: i32;
     payload4: i32;
     payload5: i32;
+}
+
+data OmegaTypeArrayFrame {
+    length_start: i32;
+    length_end: i32;
 }
 
 data OmegaDataFieldSyntax {
@@ -317,6 +325,10 @@ data OmegaParseDiagnosticCode {
     case ExpectedTypeRangeOperator;
     case ExpectedTypeRangeBound;
     case ExpectedTypeRangeEnd;
+    case ExpectedArrayElementType;
+    case ExpectedArraySemicolon;
+    case ExpectedArrayLength;
+    case ExpectedArrayEnd;
     case ExpectedDataFieldEnd;
 }
 
@@ -326,6 +338,7 @@ data OmegaParserResource {
     case PathMembers;
     case DataMembers;
     case TypeNodes;
+    case TypeDepth;
 }
 
 data OmegaParser {
@@ -346,6 +359,7 @@ data OmegaParser {
     data_cases: [OmegaDataCaseSyntax; 16384];
     type_references: [OmegaTypeReferenceSyntax; 16384];
     type_constraints: [OmegaTypeConstraintSyntax; 16384];
+    type_array_frames: [OmegaTypeArrayFrame; 128];
     root_count: i32;
     member_count: i32;
     use_count: i32;
@@ -382,6 +396,11 @@ data OmegaParser {
     type_range_maximum_start: i32;
     type_range_maximum_end: i32;
     field_type_root: i32;
+    type_allows_range: i32;
+    type_array_frame_count: i32;
+    type_array_depth: i32;
+    type_required_nodes: i32;
+    type_array_emit_index: i32;
     case_start: i32;
     case_keyword_end: i32;
     case_name_start: i32;
@@ -2442,10 +2461,10 @@ machine OmegaLexScan::validate_lexical(
 // positions; no purpose or preflight fact escapes this invocation.
 //
 // The retained syntax currently owns ordinary `use path::member;` and basic
-// `[pub] data` roots, including structured case payloads and the first named,
-// domain-qualified, and range-refined field types. Rich valid data syntax stops
-// as Incomplete rather than becoming a false Omega rejection. Later grammar
-// slices extend this machine.
+// `[pub] data` roots, including structured case payloads and named,
+// domain-qualified, range-refined, and nested fixed-array field types. Rich
+// valid data syntax stops as Incomplete rather than becoming a false Omega
+// rejection. Later grammar slices extend this machine.
 machine OmegaParser::parse_view(
     &mut self,
     source: &[u8]
@@ -2485,6 +2504,11 @@ machine OmegaParser::parse_view(
     self.type_range_maximum_start = 0;
     self.type_range_maximum_end = 0;
     self.field_type_root = 0;
+    self.type_allows_range = 0;
+    self.type_array_frame_count = 0;
+    self.type_array_depth = 0;
+    self.type_required_nodes = 0;
+    self.type_array_emit_index = 0;
     self.case_start = 0;
     self.case_keyword_end = 0;
     self.case_name_start = 0;
@@ -2626,6 +2650,10 @@ machine OmegaParser::parse_view(
             21 -> field_range_maximum_token()
             22 -> field_range_close_token()
             23 -> field_constraint_end_token()
+            24 -> array_element_token()
+            25 -> array_semicolon_token()
+            26 -> array_length_token()
+            27 -> array_end_token()
             _ -> internal_failure()
         }
     }
@@ -2741,6 +2769,26 @@ machine OmegaParser::parse_view(
             )
             23 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
+                source.len,
+                source.len
+            )
+            24 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayElementType,
+                source.len,
+                source.len
+            )
+            25 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArraySemicolon,
+                source.len,
+                source.len
+            )
+            26 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayLength,
+                source.len,
+                source.len
+            )
+            27 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayEnd,
                 source.len,
                 source.len
             )
@@ -3358,8 +3406,7 @@ machine OmegaParser::parse_view(
         self.field_name_start = self.case_start;
         self.field_name_end = self.case_keyword_end;
         self.field_destination = OmegaFieldDestination::DirectMember;
-        self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(13) }
+        transition true { true -> after_field_colon() }
     }
 
     state field_colon_token() {
@@ -3387,6 +3434,10 @@ machine OmegaParser::parse_view(
     }
 
     state after_field_colon() {
+        self.type_constraint_mode = 0;
+        self.type_array_frame_count = 0;
+        self.type_array_depth = 0;
+        self.type_allows_range = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(13) }
     }
@@ -3426,7 +3477,7 @@ machine OmegaParser::parse_view(
 
     state field_type_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> begin_type_array()
             OmegaPunctuationKind::Ampersand -> incomplete_root()
             OmegaPunctuationKind::LeftParen -> incomplete_root()
             OmegaPunctuationKind::Hash -> incomplete_root()
@@ -3442,8 +3493,187 @@ machine OmegaParser::parse_view(
         self.type_name_start = self.scan.token_start;
         self.type_name_end = self.scan.token_end;
         self.type_end = self.scan.token_end;
-        self.type_constraint_mode = 0;
+        self.type_allows_range = 1;
         self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(14) }
+    }
+
+    state begin_type_array() {
+        transition self.type_array_depth < 128 {
+            true -> retain_type_array_frame()
+            _ -> resource_failure(
+                OmegaParserResource::TypeDepth,
+                128,
+                self.type_array_depth + 1
+            )
+        }
+    }
+
+    state retain_type_array_frame() {
+        self.type_array_frame_count = self.type_array_frame_count + 1;
+        self.type_array_depth = self.type_array_depth + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(24) }
+    }
+
+    state array_element_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> array_element_identifier()
+            OmegaTokenKind::Keyword -> array_element_keyword()
+            OmegaTokenKind::Punctuation -> array_element_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayElementType,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state array_element_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "dyn"
+        ) {
+            1 -> incomplete_root()
+            _ -> retain_array_element_name()
+        }
+    }
+
+    state array_element_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> incomplete_root()
+            _ -> retain_array_element_name()
+        }
+    }
+
+    state array_element_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBracket -> begin_type_array()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::LeftParen -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayElementType,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_array_element_name() {
+        self.type_name_start = self.scan.token_start;
+        self.type_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(25) }
+    }
+
+    state array_semicolon_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> array_semicolon_punctuation()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArraySemicolon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state array_semicolon_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> after_array_semicolon()
+            OmegaPunctuationKind::ColonColon -> incomplete_root()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::RightBracket -> incomplete_root()
+            OmegaPunctuationKind::Comma -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArraySemicolon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state after_array_semicolon() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(26) }
+    }
+
+    state array_length_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Integer -> array_length_integer()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            OmegaTokenKind::Punctuation -> array_length_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayLength,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state array_length_integer() {
+        transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
+            (self.scan.numeric_empty_digits == 0) &&
+            (self.scan.numeric_has_suffix == 0) {
+            true -> retain_array_length()
+            _ -> incomplete_root()
+        }
+    }
+
+    state array_length_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBracket -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedArrayLength,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_array_length() {
+        self.type_array_frames[self.type_array_depth - 1].length_start =
+            self.scan.token_start;
+        self.type_array_frames[self.type_array_depth - 1].length_end =
+            self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(27) }
+    }
+
+    state array_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> array_end_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state array_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBracket -> finish_type_array_layer()
+            _ -> incomplete_root()
+        }
+    }
+
+    state finish_type_array_layer() {
+        self.type_array_depth = self.type_array_depth - 1;
+        self.type_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition self.type_array_depth {
+            0 -> finish_type_array()
+            _ -> scan_semantic(25)
+        }
+    }
+
+    state finish_type_array() {
+        self.type_allows_range = 0;
         transition true { true -> scan_semantic(14) }
     }
 
@@ -3529,8 +3759,15 @@ machine OmegaParser::parse_view(
 
     state field_base_end_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftBracket -> begin_field_range()
+            OmegaPunctuationKind::LeftBracket -> field_range_allowed()
             _ -> field_destination_punctuation()
+        }
+    }
+
+    state field_range_allowed() {
+        transition self.type_allows_range {
+            1 -> begin_field_range()
+            _ -> incomplete_root()
         }
     }
 
@@ -3728,34 +3965,36 @@ machine OmegaParser::parse_view(
     }
 
     state retain_type_nodes(member_end: i32, next_cursor: i32) {
+        self.type_required_nodes = 1 + self.type_array_frame_count;
         transition self.type_constraint_mode {
-            1 -> retain_constrained_type_capacity(member_end, next_cursor)
-            2 -> retain_constrained_type_capacity(member_end, next_cursor)
-            _ -> retain_named_type_capacity(member_end, next_cursor)
+            1 -> add_constraint_node_requirement(member_end, next_cursor)
+            2 -> add_constraint_node_requirement(member_end, next_cursor)
+            _ -> retain_type_node_capacity(member_end, next_cursor)
         }
     }
 
-    state retain_named_type_capacity(member_end: i32, next_cursor: i32) {
-        transition self.type_reference_count < 16384 {
-            true -> retain_named_type(member_end, next_cursor)
-            _ -> resource_failure(
-                OmegaParserResource::TypeNodes,
-                16384,
-                self.type_reference_count + 1
-            )
-        }
-    }
-
-    state retain_constrained_type_capacity(
+    state add_constraint_node_requirement(
         member_end: i32,
         next_cursor: i32
     ) {
-        transition self.type_reference_count <= 16382 {
+        self.type_required_nodes = self.type_required_nodes + 1;
+        transition true {
+            true -> retain_type_node_capacity(member_end, next_cursor)
+        }
+    }
+
+    state retain_type_node_capacity(
+        member_end: i32,
+        next_cursor: i32
+    ) {
+        transition (self.type_required_nodes >= 1) &&
+            (self.type_required_nodes <= 16384) &&
+            (self.type_reference_count <= 16384 - self.type_required_nodes) {
             true -> retain_constraint_storage(member_end, next_cursor)
             _ -> resource_failure(
                 OmegaParserResource::TypeNodes,
                 16384,
-                self.type_reference_count + 2
+                self.type_reference_count + self.type_required_nodes
             )
         }
     }
@@ -3764,13 +4003,13 @@ machine OmegaParser::parse_view(
         transition self.type_constraint_mode {
             1 -> retain_domain_path_capacity(member_end, next_cursor)
             2 -> retain_range_constrained_type(member_end, next_cursor)
-            _ -> internal_failure()
+            _ -> begin_retain_type_tree(member_end, next_cursor)
         }
     }
 
     state retain_domain_path_capacity(member_end: i32, next_cursor: i32) {
         transition self.member_count < 16384 {
-            true -> retain_constrained_type(member_end, next_cursor)
+            true -> retain_domain_constraint(member_end, next_cursor)
             _ -> resource_failure(
                 OmegaParserResource::PathMembers,
                 16384,
@@ -3779,19 +4018,7 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state retain_named_type(member_end: i32, next_cursor: i32) {
-        self.type_references[self.type_reference_count].kind =
-            OmegaTypeReferenceKind::Named;
-        self.type_references[self.type_reference_count].payload0 =
-            self.type_name_start;
-        self.type_references[self.type_reference_count].payload1 =
-            self.type_name_end;
-        self.field_type_root = self.type_reference_count;
-        self.type_reference_count = self.type_reference_count + 1;
-        transition true { true -> retain_field_row(member_end, next_cursor) }
-    }
-
-    state retain_constrained_type(member_end: i32, next_cursor: i32) {
+    state retain_domain_constraint(member_end: i32, next_cursor: i32) {
         self.members[self.member_count].start = self.type_domain_name_start;
         self.members[self.member_count].end = self.type_domain_name_end;
         self.type_constraints[self.type_constraint_count].kind =
@@ -3801,7 +4028,7 @@ machine OmegaParser::parse_view(
         self.type_constraints[self.type_constraint_count].payload1 = 1;
         self.member_count = self.member_count + 1;
         transition true {
-            true -> retain_constrained_type_nodes(member_end, next_cursor)
+            true -> begin_retain_type_tree(member_end, next_cursor)
         }
     }
 
@@ -3820,11 +4047,11 @@ machine OmegaParser::parse_view(
         self.type_constraints[self.type_constraint_count].payload3 =
             self.type_range_maximum_end;
         transition true {
-            true -> retain_constrained_type_nodes(member_end, next_cursor)
+            true -> begin_retain_type_tree(member_end, next_cursor)
         }
     }
 
-    state retain_constrained_type_nodes(
+    state begin_retain_type_tree(
         member_end: i32,
         next_cursor: i32
     ) {
@@ -3834,16 +4061,56 @@ machine OmegaParser::parse_view(
             self.type_name_start;
         self.type_references[self.type_reference_count].payload1 =
             self.type_name_end;
-        self.type_references[self.type_reference_count + 1].kind =
+        self.field_type_root = self.type_reference_count;
+        self.type_reference_count = self.type_reference_count + 1;
+        self.type_array_emit_index = self.type_array_frame_count - 1;
+        transition true { true -> retain_type_array_nodes(member_end, next_cursor) }
+    }
+
+    state retain_type_array_nodes(member_end: i32, next_cursor: i32) {
+        transition self.type_array_emit_index >= 0 {
+            true -> retain_type_array_node(member_end, next_cursor)
+            _ -> retain_type_constraint_node(member_end, next_cursor)
+        }
+    }
+
+    state retain_type_array_node(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].kind =
+            OmegaTypeReferenceKind::FixedArray;
+        self.type_references[self.type_reference_count].payload0 =
+            self.field_type_root;
+        self.type_references[self.type_reference_count].payload1 =
+            self.type_array_frames[self.type_array_emit_index].length_start;
+        self.type_references[self.type_reference_count].payload2 =
+            self.type_array_frames[self.type_array_emit_index].length_end;
+        self.field_type_root = self.type_reference_count;
+        self.type_reference_count = self.type_reference_count + 1;
+        self.type_array_emit_index = self.type_array_emit_index - 1;
+        transition true { true -> retain_type_array_nodes(member_end, next_cursor) }
+    }
+
+    state retain_type_constraint_node(member_end: i32, next_cursor: i32) {
+        transition self.type_constraint_mode {
+            1 -> retain_type_constraint_node_bounded(member_end, next_cursor)
+            2 -> retain_type_constraint_node_bounded(member_end, next_cursor)
+            _ -> retain_field_row(member_end, next_cursor)
+        }
+    }
+
+    state retain_type_constraint_node_bounded(
+        member_end: i32,
+        next_cursor: i32
+    ) {
+        self.type_references[self.type_reference_count].kind =
             OmegaTypeReferenceKind::Constrained;
-        self.type_references[self.type_reference_count + 1].payload0 =
-            self.type_reference_count;
-        self.type_references[self.type_reference_count + 1].payload1 =
+        self.type_references[self.type_reference_count].payload0 =
+            self.field_type_root;
+        self.type_references[self.type_reference_count].payload1 =
             self.type_constraint_count;
-        self.type_references[self.type_reference_count + 1].payload2 = 1;
-        self.field_type_root = self.type_reference_count + 1;
+        self.type_references[self.type_reference_count].payload2 = 1;
+        self.field_type_root = self.type_reference_count;
         self.type_constraint_count = self.type_constraint_count + 1;
-        self.type_reference_count = self.type_reference_count + 2;
+        self.type_reference_count = self.type_reference_count + 1;
         transition true { true -> retain_field_row(member_end, next_cursor) }
     }
 

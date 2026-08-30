@@ -1073,6 +1073,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       dominance and atomic field publication. Exact semantic and capacity
       vectors still belong to the unavailable Delta-compiler gate, not a host
       parser.
+    - [x] Retain recursively nested fixed-array field types over one bare named
+      leaf: `[Type; length]`, with unsuffixed decimal length spans and the
+      existing optional unqualified domain on the completed outer array. One
+      128-row invocation-local frame stack records authored outer-to-inner
+      lengths; finalization walks it backward to emit Named, inner-to-outer
+      FixedArray, and optional Constrained nodes in strict postorder. Compute
+      and check the entire `1 + depth + optional_constraint` TypeNodes demand
+      before emitting any node, and retain `TypeDepth` as an independently
+      meaningful private resource. Slice forms, rich element types, named or
+      called lengths, other literal spellings, and inner constraints remain
+      implementation-incomplete rather than false rejection. Route ordinary
+      fields and contextual `case: Type` fields through one shared per-field
+      type reset so no prior frame or constraint can leak. This completes the
+      type shapes used by every current `C`-closure data field, without claiming
+      that the surrounding root grammar or full closure is implemented. Keep
+      exact depth/node/delimiter vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
