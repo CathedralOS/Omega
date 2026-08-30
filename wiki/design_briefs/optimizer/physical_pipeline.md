@@ -243,6 +243,18 @@ composite object, manifest, and custody. Provider projection, machine routes,
 artifact assembly, semantic replay, object validation, models, codecs, and
 diagnostics descend into named leaves.
 
+D32 requires this physical composition to issue one child receipt for every
+boundary-operation occurrence carrying a D29 row and surviving the validated
+optimization projection. Equal applications may share one semantic parent,
+but their optimized-operation identities and physical children remain
+distinct. Each child binds the domain-separated identities of its immutable
+canonical Terminal row
+and exact optimized operation before retaining selection, assignment,
+relocation, and emitted-span custody. Artifact replay derives the survivor set
+and rejects missing, duplicate, stale, substituted, or padded children; the
+physical pipeline may omit only an occurrence whose verified optimization
+proof establishes elimination.
+
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;
 physical-arrival and firmware-service postconditions supply its opaque

@@ -168,25 +168,37 @@ visibility; a bodyless boundary machine, bounded row, or later selection cannot
 synthesize that identity. Its checked or external satisfier is resolved by the
 same exact provider-plan machinery as a trait requirement.
 
-D29 boundary-operator coverage enters Terminal only after final specialization
-has closed every checked demand. The source-free row retains the exact
-requirement coordinate, ordered tagged type/const application, strong selected-
-plan identity, concrete semantic and physical facts, and one role-tagged
-specialized-body, nongeneric-body, compiler-intrinsic, or external-authority
-payload. Terminal replay recomputes the application and the role-specific
-commitment; it never reconstructs either from source spellings, arity, compact
-fingerprints, or optional fields. Empty telescopes retain one canonical empty
-application. Open applications, unsupported binder categories, and zero-
-commitment bootstrap lowering reject authoritative publication.
+D29 boundary-operator semantic coverage enters Terminal only after final
+specialization has closed every checked demand. The source-free row retains
+the exact requirement coordinate, ordered tagged type/const application,
+strong selected-plan identity, concrete semantic realization, and one role-
+tagged specialized-body, nongeneric-body, compiler-intrinsic, or external-
+authority payload. Terminal replay recomputes the application and role-
+specific commitment; it never reconstructs either from source spellings,
+arity, compact fingerprints, or optional fields. Empty telescopes retain one
+canonical empty application. Open applications, unsupported binder categories,
+and zero-commitment bootstrap lowering reject authoritative publication.
 
-The physical half of that requirement is owner-blocked on Q5. In the current
-pipeline, call placement, assignment, relocation, and emitted execution are
-computed after Terminal, so Terminal cannot honestly replay those later facts.
-Until Q5 settles whether to split semantic Terminal custody from a realized-
-artifact physical receipt or reorder a reusable physical plan earlier, no
-implementation may fill this gap with provider-plan fingerprints, asserted
-application strings, selected-dispatch rewrites, or an emitted-byte digest
-without the complete operation/placement/relocation join.
+D32 owns the physical continuation of each executable D29 row. A schema-
+derived plan may enter Terminal only when its carrier and validator live at
+`representations` rank or below without backend-owned types and its content is
+independently reconstructible before assignment or emission. Assigned homes,
+final call placement, relocation, and emitted bytes remain later facts.
+Terminal is immutable through optimization; the validated transformed
+projection retains its canonical identity rather than minting a successor
+Terminal.
+
+Each surviving boundary-operation occurrence receives exactly one physical
+child in `NativeArtifact`. Equal applications may share one semantic parent
+row, but their optimized-operation identities and children remain distinct.
+Each child binds the domain-separated identities of both its canonical
+Terminal D29 parent and its surviving optimized operation, then retains the
+target, selection, assignment, relocation, and emitted-span joins. Native
+replay derives the surviving occurrence set from the published validated
+projection. Missing, duplicate, stale, substituted, or padded children reject;
+a verified eliminated occurrence needs no child. A byte digest,
+provider-plan fingerprint, asserted application string, or selected-dispatch
+rewrite alone establishes no physical coverage.
 
 ## The cut
 

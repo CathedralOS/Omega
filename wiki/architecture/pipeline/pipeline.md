@@ -150,6 +150,18 @@ progress rejects rather than being discarded. Auxiliary observations remain
 controlled independently by `ArtifactEmissionPolicy`; with `OutputOnly`,
 retained-artifact compilation creates no build directory.
 
+D32 makes this boundary the owner of physical children for D29 boundary-
+operator rows. The canonical Terminal artifact remains immutable while the
+validated optimization projection identifies the surviving executable
+boundary-operation occurrences. Equal applications may share one semantic
+parent, but each occurrence has exactly one physical child. That child binds
+its domain-separated Terminal parent and distinct optimized-operation identity
+while retaining the target-lowering, instruction-selection, assignment,
+relocation, and emitted-span joins. Replay rejects a missing, duplicate, stale,
+substituted, or padded child; a verified optimizer elimination alone permits
+omission. Terminal/package semantic coverage and native physical coverage stay
+distinct even when this one envelope carries both.
+
 Cross-field product admission precedes that frontend. The request owner
 consumes `CompileRequest` into a private validated request and rejects a
 nonempty optimization rollback unless the selected product is
