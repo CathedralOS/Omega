@@ -8,8 +8,8 @@ use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
     CompletionClaimSource, DirectPortReadU8Realization, LinuxExitGroupI32Realization,
-    MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
-    TargetStructuralParameter, TerminalPsiProvenance,
+    MachineRegister, NormalizedForeignScalarArgument, ProviderExecutionBinding,
+    RankedU32CountdownCustody, TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -278,6 +278,7 @@ pub enum AssignedUnitOperation {
         boundary: BoundaryMachineId,
         provider_execution: ProviderExecutionBinding,
         binding: omega_target_operations::NormalizedForeignCallBinding,
+        scalar_arguments: Vec<NormalizedForeignScalarArgument>,
     },
     PortWrite {
         psi_operation: OperationId,

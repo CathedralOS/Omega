@@ -516,6 +516,13 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.bytes,
                 call,
             )?;
+            validate_foreign_scalar_arguments(
+                plan.target,
+                function.machine,
+                &function.bytes,
+                &function.semantic_code_attribution,
+                call,
+            )?;
         }
         let mut validated_function_stack = function
             .unit_stack
@@ -1615,6 +1622,186 @@ fn validate_foreign_call_site(
     })
 }
 
+fn validate_foreign_scalar_arguments(
+    target: NativeTarget,
+    caller: MachineId,
+    bytes: &[u8],
+    semantic_code_attribution: &[SemanticCodeAttribution],
+    call: &omega_machine_code::ForeignCallRelocation,
+) -> Result<(), ObjectError> {
+    let ([] | [_]) = call.scalar_arguments.as_slice() else {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    };
+    let Some(argument) = call.scalar_arguments.first() else {
+        return (call.call_plan.parameters.is_empty()
+            && call.call_plan.result.is_none()
+            && call.call_plan.callback_materializations.is_empty()
+            && call.call_plan.policy
+                == omega_calling_conventions::CallingPolicy::native_for_target(target)
+            && call.call_plan.entry_control
+                == omega_calling_conventions::EntryControl::CallReturn)
+            .then_some(())
+            .ok_or(ObjectError::InvalidForeignCallArgument {
+                caller,
+                owner: call.owner,
+            });
+    };
+    let bits = argument.scalar_type.bits();
+    let byte_size = bits / 8;
+    if argument.scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
+        || !matches!(bits, 8 | 16 | 32 | 64)
+        || !argument.scalar_type.admits(argument.immediate)
+        || argument.parameter_index != 0
+    {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    }
+    let shape = omega_calling_conventions::ValueShape::integer(byte_size, byte_size);
+    let signature = omega_calling_conventions::CallSignature {
+        parameters: vec![shape],
+        result: None,
+    };
+    let expected_plan = omega_calling_conventions::evaluate_call_plan(
+        omega_calling_conventions::CallingPolicy::native_for_target(target),
+        &signature,
+    )
+    .map_err(|_| ObjectError::InvalidForeignCallArgument {
+        caller,
+        owner: call.owner,
+    })?;
+    let [expected_placement] = expected_plan.parameters.as_slice() else {
+        unreachable!("one scalar parameter has one placement")
+    };
+    let [
+        omega_calling_conventions::ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: placed_bytes,
+        },
+    ] = argument.placement.locations.as_slice()
+    else {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    };
+    let expected_register = match target.architecture {
+        Architecture::X86_64 => omega_calling_conventions::MachineRegister::X86Rdi,
+        Architecture::Aarch64 => omega_calling_conventions::MachineRegister::Aarch64X(0),
+    };
+    if call.call_plan != expected_plan
+        || argument.placement != *expected_placement
+        || argument.placement.shape != shape
+        || *placed_bytes != byte_size
+        || *register != expected_register
+    {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    }
+
+    let mask = if bits == 64 {
+        u64::MAX
+    } else {
+        (1_u64 << bits) - 1
+    };
+    let value_bits = match (argument.scalar_type.sign(), argument.immediate) {
+        (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => {
+            value as u128 as u64
+        }
+        (psi_core::IntegerSign::Unsigned, psi_core::IntegerValue::Unsigned(value)) => value as u64,
+        _ => {
+            return Err(ObjectError::InvalidForeignCallArgument {
+                caller,
+                owner: call.owner,
+            });
+        }
+    } & mask;
+    let mut expected_bytes = Vec::new();
+    match target.architecture {
+        Architecture::X86_64 if bits <= 32 => {
+            expected_bytes.push(0xbf);
+            expected_bytes.extend_from_slice(&(value_bits as u32).to_le_bytes());
+        }
+        Architecture::X86_64 => {
+            expected_bytes.extend_from_slice(&[0x48, 0xbf]);
+            expected_bytes.extend_from_slice(&value_bits.to_le_bytes());
+        }
+        Architecture::Aarch64 => {
+            for chunk in 0..4 {
+                let immediate = ((value_bits >> (chunk * 16)) & 0xffff) as u32;
+                if chunk == 0 || immediate != 0 {
+                    let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
+                    let instruction = base | ((chunk as u32) << 21) | (immediate << 5);
+                    expected_bytes.extend_from_slice(&instruction.to_le_bytes());
+                }
+            }
+        }
+    }
+    let argument_end = argument
+        .code_offset
+        .checked_add(argument.byte_count)
+        .ok_or(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        })?;
+    let call_start = match target.architecture {
+        Architecture::X86_64 => call.offset.saturating_sub(1),
+        Architecture::Aarch64 => call.offset,
+    };
+    let next_interval = call
+        .unit_stack
+        .outbound
+        .map_or(call_start, |outbound| outbound.allocation_offset);
+    if argument.byte_count != expected_bytes.len()
+        || bytes.get(argument.code_offset..argument_end) != Some(expected_bytes.as_slice())
+        || argument_end != next_interval
+    {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    }
+    let CallSiteOwner::Operation(operation) = call.owner else {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    };
+    let call_end = call
+        .offset
+        .checked_add(4)
+        .ok_or(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        })?;
+    if semantic_code_attribution
+        .iter()
+        .filter(|row| row.site == SemanticCodeSite::Operation(operation))
+        .filter(|row| {
+            row.code_offset <= argument.code_offset
+                && row
+                    .code_offset
+                    .checked_add(row.byte_count)
+                    .is_some_and(|end| end >= call_end)
+        })
+        .count()
+        != 1
+    {
+        return Err(ObjectError::InvalidForeignCallArgument {
+            caller,
+            owner: call.owner,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObjectError {
     EmptyPlan,
@@ -1667,6 +1854,10 @@ pub enum ObjectError {
         caller: MachineId,
         owner: CallSiteOwner,
         offset: usize,
+    },
+    InvalidForeignCallArgument {
+        caller: MachineId,
+        owner: CallSiteOwner,
     },
     ForeignCallOwnerNotInProvenance {
         caller: MachineId,

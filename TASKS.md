@@ -10238,23 +10238,31 @@ boundary without its corresponding checked law.
   dynamic-ELF driver can therefore start from the ordinary object builder for
   both Linux profiles without a private `ObjectArtifact` fixture, and repeated
   calls to one locator share one import symbol while retaining distinct call
-  sites. The first preceding production path is now closed for a zero-argument,
-  `Unit`-returning normalized import leaf. Checked compilation retains the
-  extracted external-binding rows before consuming typed trees; native
-  settlement rejoins one unique retained row to the complete selected
+  sites. The first preceding production path is now closed for a
+  `Unit`-returning normalized import leaf with either no scalar arguments or
+  one fixed-width 8/16/32/64-bit integer literal argument. Checked compilation
+  retains the extracted external-binding rows before consuming typed trees;
+  native settlement rejoins one unique retained row to the complete selected
   `ProviderPlan`, exact selected-plan evidence, and admitted same-stack
   contribution. Compact report fingerprints are never used as plan authority,
   and an equal-report substitute plan rejects. A distinct target operation
   survives assignment; ordinary machine emission produces an x86-64 `CALL
   rel32` or AArch64 `BL` placeholder and retains the locator, provider
   execution, evaluated call plan, admitted contribution, and exact physical
-  `Unit` stack evidence in `MachineCodeFunction::foreign_calls`. Object
-  construction now replays that physical stack custody before consuming the
-  row. Both Linux profiles advance from the exact native rejoin through target,
-  assignment, machine, ordinary object, and the complete dynamic-ELF driver;
-  stack-plan or compact-plan tampering rejects. Broader argument/result
-  signatures, complete task-stack-budget composition, optional `.gnu.hash`,
-  and ordinary source `via` evaluation remain engineering work.
+  `Unit` stack evidence in `MachineCodeFunction::foreign_calls`. For the
+  one-literal case, occurrence-specific custody also retains the source value,
+  integer type and immediate, parameter index, evaluated register placement,
+  and exact materialization byte interval. Machine emission independently
+  rejoins that custody to the preceding constant and emits compact x86-64 or
+  AArch64 register materialization; object construction replays the plan,
+  placement, bytes, semantic call ownership, and physical stack custody before
+  consuming the row. Both Linux profiles advance from the exact native rejoin
+  through target, assignment, machine, ordinary object, and the complete
+  dynamic-ELF driver; stripped custody or source/type/value/index/register/
+  byte/plan/stack drift rejects. Runtime-derived arguments, multiple or stack
+  arguments, result-bearing signatures, complete task-stack-budget
+  composition, optional `.gnu.hash`, and ordinary source `via` evaluation
+  remain engineering work.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

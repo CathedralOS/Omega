@@ -17,8 +17,8 @@ use omega_target_operations::{
     ProviderExecutionBinding, TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ScalarType, ServiceId,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
+    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
@@ -123,10 +123,27 @@ pub struct ForeignCallRelocation {
     pub provider_execution: ProviderExecutionRecord,
     /// Exact source-selected ABI plan consumed to emit this call.
     pub call_plan: omega_calling_conventions::CallPlan,
+    /// Canonically ordered evaluated literal arguments materialized before
+    /// the unresolved native procedure-call placeholder.
+    pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.
     pub unit_stack: UnitCallStackEvidence,
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+}
+
+/// Exact source, value, and ABI custody for one evaluated foreign-call scalar
+/// literal. The byte interval names only its register materialization; the
+/// unresolved call field remains owned by [`ForeignCallRelocation::offset`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForeignCallScalarArgumentRecord {
+    pub parameter_index: u32,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub immediate: IntegerValue,
+    pub placement: ValuePlacement,
+    pub code_offset: usize,
+    pub byte_count: usize,
 }
 
 /// Complete machine-code custody for the one admitted structural Unit / `u32`

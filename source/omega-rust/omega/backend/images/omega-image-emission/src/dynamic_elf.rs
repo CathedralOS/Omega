@@ -471,6 +471,7 @@ mod tests {
                                         boundary_entry_plan: boundary_entry_plan.clone(),
                                         same_stack_contribution: same_stack_contribution.clone(),
                                     },
+                                    scalar_arguments: Vec::new(),
                                 }
                             })
                             .chain(std::iter::once(
