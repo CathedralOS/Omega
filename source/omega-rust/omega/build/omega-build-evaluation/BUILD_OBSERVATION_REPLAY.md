@@ -342,3 +342,22 @@ descriptor table, and requires exact attempt, empty namespace, and teardown
 equality before issuing empty staged-output custody. Short or changed carriers,
 alternate ordinals, handles, errors, repetitions, and mixed lifecycles remain
 non-receipted.
+
+## Unknown-descriptor reads (summary v56, replay record v37)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one read from an unknown descriptor: tag-4 `read` with an
+operand-two `u64` count, or tag-6 `read_at` with that count and an operand-three
+`i64` offset. The row fixes the scoped-real provider, scalar `-1`, post-error
+`9`, and operand-zero `Descriptor/Unknown`. Operand one's complete mutable byte
+carrier is retained as equal resolution and provider pre/post states, and the
+authored count may not exceed its capacity. No observed-byte region exists for
+the failed transfer; every other lane and generated-source handoff is empty.
+
+The real evaluator rejects through its compiler-owned descriptor table before
+performing a host read or changing the carrier. Provider-free replay restores
+the exact carrier and executes the selected read against a fresh virtual table,
+requiring exact attempt, empty namespace, and teardown equality before issuing
+empty staged-output custody. Changed counts, offsets, carrier bytes or ordinals,
+over-capacity transfers, alternate handles or errors, repetitions, and mixed
+lifecycles remain non-receipted.

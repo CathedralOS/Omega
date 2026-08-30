@@ -94,6 +94,8 @@ pub use filesystem_replay::{
     FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
+    FilesystemInputUnknownDescriptorReadReplayKind,
+    FilesystemInputUnknownDescriptorReadReplayRecord,
     FilesystemInputUnknownDescriptorSeekReplayRecord,
     FilesystemInputUnknownDescriptorSetFileTimesReplayRecord,
     FilesystemInputUnknownDescriptorWriteOperationReplayKind,

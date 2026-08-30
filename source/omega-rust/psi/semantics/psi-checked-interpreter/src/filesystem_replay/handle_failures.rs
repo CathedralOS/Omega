@@ -11,6 +11,8 @@ use crate::{
 
 const UNKNOWN_DESCRIPTOR_RESULT: i64 = -1;
 const BAD_DESCRIPTOR_ERROR: i32 = 9;
+const READ_OPERATION_TAG: u16 = 4;
+const READ_AT_OPERATION_TAG: u16 = 6;
 const SEEK_OPERATION_TAG: u16 = 10;
 const SET_FILE_TIMES_OPERATION_TAG: u16 = 42;
 const SET_FILE_TIMES_MINIMUM_CARRIER_BYTES: usize = 32;
@@ -125,6 +127,105 @@ impl FilesystemInputUnknownDescriptorSeekReplayRecord {
 
     fn into_parts(self) -> (Option<FilesystemSourceInputReplayRecord>, i64, i32) {
         (self.source_input, self.offset, self.whence)
+    }
+}
+
+/// One mutable-buffer read whose unknown descriptor deterministically fails
+/// with `EBADF`. Each variant retains only its authored scalar coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemInputUnknownDescriptorReadReplayKind {
+    Sequential { count: u64 },
+    Positioned { count: u64, offset: i64 },
+}
+
+impl FilesystemInputUnknownDescriptorReadReplayKind {
+    const fn operation_tag(self) -> u16 {
+        match self {
+            Self::Sequential { .. } => READ_OPERATION_TAG,
+            Self::Positioned { .. } => READ_AT_OPERATION_TAG,
+        }
+    }
+
+    fn scalar_operands(self) -> Vec<FilesystemScalarOperand> {
+        match self {
+            Self::Sequential { count } => vec![FilesystemScalarOperand {
+                operand_ordinal: 2,
+                value: FilesystemScalarOperandValue::U64(count),
+            }],
+            Self::Positioned { count, offset } => vec![
+                FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::U64(count),
+                },
+                FilesystemScalarOperand {
+                    operand_ordinal: 3,
+                    value: FilesystemScalarOperandValue::I64(offset),
+                },
+            ],
+        }
+    }
+
+    const fn count(self) -> u64 {
+        match self {
+            Self::Sequential { count } | Self::Positioned { count, .. } => count,
+        }
+    }
+}
+
+/// Optional exact Source-input prefix followed by one read whose unknown
+/// descriptor deterministically fails with `EBADF`.
+///
+/// The exact authored mutable buffer is retained once here. Replay rebuilds
+/// its equal resolution and provider-visible pre/post states without retaining
+/// or consulting a filesystem provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownDescriptorReadReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+    kind: FilesystemInputUnknownDescriptorReadReplayKind,
+    buffer: Vec<u8>,
+}
+
+impl FilesystemInputUnknownDescriptorReadReplayRecord {
+    pub fn new(
+        source_input: Option<FilesystemSourceInputReplayRecord>,
+        kind: FilesystemInputUnknownDescriptorReadReplayKind,
+        buffer: Vec<u8>,
+    ) -> Result<Self, String> {
+        let count = usize::try_from(kind.count())
+            .map_err(|_| "filesystem replay unknown-descriptor read count exceeds this host")?;
+        if count > buffer.len() {
+            return Err(
+                "filesystem replay unknown-descriptor read count exceeds its mutable buffer"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            source_input,
+            kind,
+            buffer,
+        })
+    }
+
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
+    }
+
+    pub const fn kind(&self) -> FilesystemInputUnknownDescriptorReadReplayKind {
+        self.kind
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        &self.buffer
+    }
+
+    fn into_parts(
+        self,
+    ) -> (
+        Option<FilesystemSourceInputReplayRecord>,
+        FilesystemInputUnknownDescriptorReadReplayKind,
+        Vec<u8>,
+    ) {
+        (self.source_input, self.kind, self.buffer)
     }
 }
 
@@ -301,6 +402,32 @@ impl FilesystemReplay {
             observations,
             unknown_descriptor_seek_attempt_is_exact,
             "seek",
+        )
+    }
+
+    /// Construct the closed optional-Source plus one unknown-descriptor read
+    /// failure from typed compiler-owned evidence.
+    pub fn from_input_unknown_descriptor_read_record(
+        record: FilesystemInputUnknownDescriptorReadReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, kind, buffer) = record.into_parts();
+        unknown_descriptor_failure_replay_from_record(
+            source_input,
+            unknown_descriptor_read_attempt(kind, buffer),
+            unknown_descriptor_read_attempt_is_exact,
+            "read",
+        )
+    }
+
+    /// Validate observed evidence for an optional Source-input prefix followed
+    /// by one read failure on an unknown descriptor.
+    pub fn from_input_unknown_descriptor_read_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        unknown_descriptor_failure_replay_from_observations(
+            observations,
+            unknown_descriptor_read_attempt_is_exact,
+            "read",
         )
     }
 
@@ -558,6 +685,77 @@ pub(crate) fn unknown_descriptor_write_operation_from_exact_attempt(
     unknown_descriptor_failure_has_exact_common_shape(attempt, kind.operation_tag()).then_some(kind)
 }
 
+pub(crate) fn unknown_descriptor_read_from_exact_attempt(
+    attempt: &FilesystemOperationAttempt,
+) -> Option<(FilesystemInputUnknownDescriptorReadReplayKind, &[u8])> {
+    let kind = match (attempt.operation_tag, attempt.scalar_operands.as_slice()) {
+        (
+            READ_OPERATION_TAG,
+            [
+                FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::U64(count),
+                },
+            ],
+        ) => FilesystemInputUnknownDescriptorReadReplayKind::Sequential { count: *count },
+        (
+            READ_AT_OPERATION_TAG,
+            [
+                FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::U64(count),
+                },
+                FilesystemScalarOperand {
+                    operand_ordinal: 3,
+                    value: FilesystemScalarOperandValue::I64(offset),
+                },
+            ],
+        ) => FilesystemInputUnknownDescriptorReadReplayKind::Positioned {
+            count: *count,
+            offset: *offset,
+        },
+        _ => return None,
+    };
+    let [resolution] = attempt.mutable_byte_operand_resolutions.as_slice() else {
+        return None;
+    };
+    let [provider_carrier] = attempt.mutable_byte_operands.as_slice() else {
+        return None;
+    };
+    let count = usize::try_from(kind.count()).ok()?;
+    (resolution.operand_ordinal == 1
+        && provider_carrier.operand_ordinal == 1
+        && count <= resolution.bytes.len()
+        && resolution.bytes == provider_carrier.pre_bytes
+        && resolution.bytes == provider_carrier.post_bytes
+        && unknown_descriptor_failure_has_exact_base_shape(attempt, kind.operation_tag()))
+    .then_some((kind, resolution.bytes.as_slice()))
+}
+
+fn unknown_descriptor_read_attempt_is_exact(attempt: &FilesystemOperationAttempt) -> bool {
+    unknown_descriptor_read_from_exact_attempt(attempt).is_some()
+}
+
+pub(crate) fn unknown_descriptor_read_attempt(
+    kind: FilesystemInputUnknownDescriptorReadReplayKind,
+    buffer: Vec<u8>,
+) -> FilesystemOperationAttempt {
+    let resolution_buffer = buffer.clone();
+    let pre_buffer = buffer.clone();
+    let mut attempt =
+        unknown_descriptor_failure_attempt(kind.operation_tag(), kind.scalar_operands());
+    attempt.mutable_byte_operand_resolutions = vec![FilesystemMutableByteOperandResolution {
+        operand_ordinal: 1,
+        bytes: resolution_buffer,
+    }];
+    attempt.mutable_byte_operands = vec![FilesystemMutableByteOperand {
+        operand_ordinal: 1,
+        pre_bytes: pre_buffer,
+        post_bytes: buffer,
+    }];
+    attempt
+}
+
 fn unknown_descriptor_write_operation_attempt_is_exact(
     attempt: &FilesystemOperationAttempt,
 ) -> bool {
@@ -575,6 +773,7 @@ pub(crate) fn unknown_descriptor_failure_attempt_is_exact(
 ) -> bool {
     unknown_descriptor_operation_attempt_is_exact(attempt)
         || unknown_descriptor_seek_attempt_is_exact(attempt)
+        || unknown_descriptor_read_attempt_is_exact(attempt)
         || unknown_descriptor_write_operation_attempt_is_exact(attempt)
         || unknown_descriptor_set_file_times_attempt_is_exact(attempt)
 }

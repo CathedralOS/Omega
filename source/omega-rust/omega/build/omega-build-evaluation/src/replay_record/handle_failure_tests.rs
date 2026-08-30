@@ -101,6 +101,57 @@ fn unknown_descriptor_set_file_times_summary(times: Vec<u8>) -> BuildObservation
     summary
 }
 
+fn unknown_descriptor_read_summary(
+    operation_tag: u16,
+    buffer: Vec<u8>,
+    scalar_values: &[BuildFilesystemScalarOperandValue],
+) -> BuildObservationSummary {
+    let mut summary = summary(operation_tag);
+    summary.filesystem_operation_attempts[0].scalar_operands = scalar_values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| BuildFilesystemScalarOperand {
+            operand_ordinal: u8::try_from(index + 2).unwrap(),
+            value: *value,
+        })
+        .collect();
+    summary.filesystem_operation_attempts[0].mutable_byte_operand_resolutions =
+        vec![BuildFilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: buffer.clone(),
+        }];
+    summary.filesystem_operation_attempts[0].mutable_byte_operands =
+        vec![BuildFilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: buffer.clone(),
+            post_bytes: buffer,
+        }];
+    summary
+}
+
+fn replay_scalar_values(
+    values: &[BuildFilesystemScalarOperandValue],
+) -> Vec<psi_checked_interpreter::FilesystemScalarOperandValue> {
+    values
+        .iter()
+        .copied()
+        .map(|value| match value {
+            BuildFilesystemScalarOperandValue::I32(value) => {
+                psi_checked_interpreter::FilesystemScalarOperandValue::I32(value)
+            }
+            BuildFilesystemScalarOperandValue::U32(value) => {
+                psi_checked_interpreter::FilesystemScalarOperandValue::U32(value)
+            }
+            BuildFilesystemScalarOperandValue::I64(value) => {
+                psi_checked_interpreter::FilesystemScalarOperandValue::I64(value)
+            }
+            BuildFilesystemScalarOperandValue::U64(value) => {
+                psi_checked_interpreter::FilesystemScalarOperandValue::U64(value)
+            }
+        })
+        .collect()
+}
+
 #[test]
 fn operand_free_unknown_descriptor_failure_records_recover_and_rehydrate_exactly() {
     let limits = BuildFilesystemReplayRecordLimits::default();
@@ -276,24 +327,7 @@ fn unknown_descriptor_write_operation_failures_round_trip_exact_scalars() {
                 .iter()
                 .map(|operand| operand.value())
                 .collect::<Vec<_>>(),
-            values
-                .iter()
-                .copied()
-                .map(|value| match value {
-                    BuildFilesystemScalarOperandValue::I32(value) => {
-                        psi_checked_interpreter::FilesystemScalarOperandValue::I32(value)
-                    }
-                    BuildFilesystemScalarOperandValue::U32(value) => {
-                        psi_checked_interpreter::FilesystemScalarOperandValue::U32(value)
-                    }
-                    BuildFilesystemScalarOperandValue::I64(value) => {
-                        psi_checked_interpreter::FilesystemScalarOperandValue::I64(value)
-                    }
-                    BuildFilesystemScalarOperandValue::U64(value) => {
-                        psi_checked_interpreter::FilesystemScalarOperandValue::U64(value)
-                    }
-                })
-                .collect::<Vec<_>>()
+            replay_scalar_values(&values)
         );
         assert_eq!(attempt.post_error(), Some(9));
         assert!(!replay.has_output_attempts());
@@ -388,6 +422,114 @@ fn unknown_descriptor_set_file_times_failure_rejects_carrier_drift() {
     assert!(capture_verified_build_filesystem_replay_record(&changed_pre, limits).is_err());
 
     let mut changed_post = unknown_descriptor_set_file_times_summary(vec![0; 32]);
+    changed_post.filesystem_operation_attempts[0].mutable_byte_operands[0].post_bytes[31] = 1;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_post, limits).is_err());
+}
+
+#[test]
+fn unknown_descriptor_read_failures_round_trip_exact_scalars_and_carrier() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let fixtures = [
+        (4, vec![BuildFilesystemScalarOperandValue::U64(23)]),
+        (
+            6,
+            vec![
+                BuildFilesystemScalarOperandValue::U64(19),
+                BuildFilesystemScalarOperandValue::I64(-17),
+            ],
+        ),
+    ];
+
+    for (operation_tag, scalar_values) in fixtures {
+        let mut buffer = vec![0; 47];
+        buffer[0] = 11;
+        buffer[23] = 29;
+        buffer[46] = 173;
+        let summary =
+            unknown_descriptor_read_summary(operation_tag, buffer.clone(), &scalar_values);
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .expect("exact unknown-descriptor read failure encodes")
+            .expect("verified read failure retains replay custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("exact read failure recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("read failure rehydrates through its typed constructor");
+
+        let [attempt] = replay.attempts() else {
+            panic!("unknown-descriptor read replay retains one attempt")
+        };
+        assert_eq!(attempt.operation_tag(), operation_tag);
+        assert_eq!(
+            attempt
+                .scalar_operands()
+                .iter()
+                .map(|operand| operand.value())
+                .collect::<Vec<_>>(),
+            replay_scalar_values(&scalar_values)
+        );
+        let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+            panic!("read replay retains one resolution-time carrier")
+        };
+        let [carrier] = attempt.mutable_byte_operands() else {
+            panic!("read replay retains one provider carrier")
+        };
+        assert_eq!(resolution.operand_ordinal(), 1);
+        assert_eq!(resolution.bytes(), buffer);
+        assert_eq!(carrier.operand_ordinal(), 1);
+        assert_eq!(carrier.pre_bytes(), buffer);
+        assert_eq!(carrier.post_bytes(), buffer);
+        assert_eq!(attempt.post_error(), Some(9));
+        assert!(!replay.has_output_attempts());
+    }
+}
+
+#[test]
+fn unknown_descriptor_read_failures_reject_scalar_and_carrier_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut count_exceeds_carrier = unknown_descriptor_read_summary(
+        4,
+        vec![0; 31],
+        &[BuildFilesystemScalarOperandValue::U64(32)],
+    );
+    assert!(
+        capture_verified_build_filesystem_replay_record(&count_exceeds_carrier, limits).is_err()
+    );
+
+    count_exceeds_carrier.filesystem_operation_attempts[0].scalar_operands[0].value =
+        BuildFilesystemScalarOperandValue::U64(31);
+    assert!(
+        capture_verified_build_filesystem_replay_record(&count_exceeds_carrier, limits).is_ok()
+    );
+
+    let mut wrong_scalar = unknown_descriptor_read_summary(
+        6,
+        vec![0; 32],
+        &[
+            BuildFilesystemScalarOperandValue::U64(32),
+            BuildFilesystemScalarOperandValue::U64(0),
+        ],
+    );
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_scalar, limits).is_err());
+    wrong_scalar.filesystem_operation_attempts[0].scalar_operands[1].value =
+        BuildFilesystemScalarOperandValue::I64(0);
+    wrong_scalar.filesystem_operation_attempts[0].scalar_operands[1].operand_ordinal = 2;
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_scalar, limits).is_err());
+
+    let mut changed_resolution = unknown_descriptor_read_summary(
+        4,
+        vec![0; 32],
+        &[BuildFilesystemScalarOperandValue::U64(7)],
+    );
+    changed_resolution.filesystem_operation_attempts[0].mutable_byte_operand_resolutions[0].bytes
+        [0] = 1;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_resolution, limits).is_err());
+
+    let mut changed_post = unknown_descriptor_read_summary(
+        4,
+        vec![0; 32],
+        &[BuildFilesystemScalarOperandValue::U64(7)],
+    );
     changed_post.filesystem_operation_attempts[0].mutable_byte_operands[0].post_bytes[31] = 1;
     assert!(capture_verified_build_filesystem_replay_record(&changed_post, limits).is_err());
 }
