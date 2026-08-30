@@ -55,6 +55,7 @@ fn summary() -> BuildObservationSummary {
         ),
         included_source_handoffs: Vec::new(),
         staged_output_tree: None,
+        build_log: Vec::new(),
     }
 }
 

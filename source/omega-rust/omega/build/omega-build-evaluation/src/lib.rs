@@ -319,7 +319,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 62;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 63;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -1117,6 +1117,7 @@ pub struct BuildObservationSummary {
     filesystem_replay_verdict: BuildFilesystemReplayVerdict,
     included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
     staged_output_tree: Option<BuildStagedOutputTree>,
+    build_log: Vec<u8>,
 }
 
 /// Exact explicit publication of one retained Output file as generated Omega
@@ -1163,6 +1164,11 @@ impl BuildObservationSummary {
 
     pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {
         self.staged_output_tree.as_ref()
+    }
+
+    /// Exact bytes emitted through the compiler-owned `Build.log` facet.
+    pub fn build_log(&self) -> &[u8] {
+        &self.build_log
     }
 
     /// Exact ordered Output-relative generated-source handoffs. Ordinary
@@ -2022,19 +2028,17 @@ fn is_exact_toolchain_build_service(
             })
 }
 
-fn has_exact_toolchain_build_root_facets(typed: &TypedTrees) -> bool {
-    ["BuildSource", "BuildOutput"].into_iter().all(|name| {
-        typed.data_definitions().iter().any(|definition| {
-            definition.name.as_str() == name
-                && typed
-                    .symbols
-                    .symbol_source_span(definition.symbol)
-                    .and_then(|span| typed.symbols.source_file(span))
-                    .is_some_and(|file| {
-                        file.origin == psi_source::SourceOrigin::Toolchain
-                            && file.path == std::path::Path::new("<build-prelude>")
-                    })
-        })
+fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
+    typed.data_definitions().iter().any(|definition| {
+        definition.name.as_str() == name
+            && typed
+                .symbols
+                .symbol_source_span(definition.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == psi_source::SourceOrigin::Toolchain
+                        && file.path == std::path::Path::new("<build-prelude>")
+                })
     })
 }
 
@@ -3387,7 +3391,18 @@ pub fn compute_build_config(
             },
         ));
     }
-    if has_exact_toolchain_build_root_facets(typed) {
+    if has_exact_toolchain_build_facet(typed, "BuildLog") {
+        build_fields.push((
+            "log".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "$OmegaBuildLogFacet".to_owned(),
+                fields: Vec::new(),
+            },
+        ));
+    }
+    if has_exact_toolchain_build_facet(typed, "BuildSource")
+        && has_exact_toolchain_build_facet(typed, "BuildOutput")
+    {
         let root_facet = |type_name: &str, root: BuildMachineFilesystemGrantRootIdentity| {
             BuildTimeValue::Struct {
                 type_name: type_name.to_owned(),
@@ -4094,6 +4109,7 @@ pub fn compute_build_config(
         .collect::<Result<Vec<_>, Diagnostic>>()
         .map_err(|diagnostic| vec![diagnostic])?;
     let filesystem_host_observed = measured.observations().filesystem_host_observed();
+    let build_log = measured.observations().build_log().to_vec();
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -4213,6 +4229,7 @@ pub fn compute_build_config(
             filesystem_replay_verdict,
             included_source_handoffs,
             staged_output_tree,
+            build_log,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
         generated_sources,

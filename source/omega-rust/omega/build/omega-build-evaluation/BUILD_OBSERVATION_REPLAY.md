@@ -459,3 +459,18 @@ host locking. Replay therefore claims only Omega's modeled invalid-handle
 behavior. It claims no operating-system handle, lock, timestamp, or Windows
 security property. Tag 35 `get_last_error` remains outside this family because
 it observes ordered provider state rather than an isolated handle input.
+
+## Compiler-owned build log (summary v63, replay record v43)
+
+`BuildLog::write_line` is an exact compiler-owned build operation. The checked
+interpreter retains its newline-terminated bytes in a dedicated observation
+lane, separate from runtime Console stdout and stderr, and the complete lane is
+bound into build-observation identity. It grants no boundary-service reach and
+does not change the realized filesystem observation class.
+
+The filesystem replay record remains at v43 because it proves only the bounded
+filesystem operation grammar. Build re-evaluation compares the complete
+observation, including BuildLog bytes, while the package-level observation
+identity binds those bytes durably. Copying the log into the filesystem record
+would add no filesystem claim and would conflate two independent observation
+lanes.

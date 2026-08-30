@@ -1652,6 +1652,7 @@ pub struct EvaluationObservations {
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     build_included_sources: Vec<BuildIncludedSource>,
+    build_log: Vec<u8>,
 }
 
 /// Opaque, compiler-produced operation record for bounded filesystem replay.
@@ -5624,11 +5625,13 @@ impl Default for EvaluationObservations {
             filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
             build_included_sources: Vec::new(),
+            build_log: Vec::new(),
         }
     }
 }
 
 impl EvaluationObservations {
+    #[cfg(test)]
     fn from_filesystem_operation_attempts(
         filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
         build_included_sources: Vec<BuildIncludedSource>,
@@ -5637,6 +5640,20 @@ impl EvaluationObservations {
             filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts,
             build_included_sources,
+            build_log: Vec::new(),
+        }
+    }
+
+    fn from_build_run(
+        filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+        build_included_sources: Vec<BuildIncludedSource>,
+        build_log: Vec<u8>,
+    ) -> Self {
+        Self {
+            filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
+            filesystem_operation_attempts,
+            build_included_sources,
+            build_log,
         }
     }
 
@@ -5654,6 +5671,11 @@ impl EvaluationObservations {
 
     pub fn build_included_sources(&self) -> &[BuildIncludedSource] {
         &self.build_included_sources
+    }
+
+    /// Exact bytes emitted by the compiler-owned `Build.log` facet.
+    pub fn build_log(&self) -> &[u8] {
+        &self.build_log
     }
 }
 
@@ -6194,6 +6216,32 @@ pub fn evaluate_build_time_machine_arguments_measured_with_sponsor(
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
     evaluator::run_build_time_machine_arguments_with_sponsor(
+        program,
+        machine_name,
+        arguments,
+        sponsor,
+    )
+}
+
+/// Evaluate an effect-free augmenting build machine while retaining output
+/// from the compiler-owned `Build.log` facet as a distinct observation.
+pub fn evaluate_observed_build_time_machine_arguments_measured(
+    program: &psi_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+    evaluator::run_observed_build_time_machine_arguments(program, machine_name, arguments)
+}
+
+/// Sponsored form of
+/// [`evaluate_observed_build_time_machine_arguments_measured`].
+pub fn evaluate_observed_build_time_machine_arguments_measured_with_sponsor(
+    program: &psi_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+    evaluator::run_observed_build_time_machine_arguments_with_sponsor(
         program,
         machine_name,
         arguments,

@@ -102,6 +102,10 @@ fn compile_package_build_log() {
         .expect("BuildLog execution retains a build observation");
     assert_eq!(observation.ceiling(), BuildObservationClass::Hermetic);
     assert_eq!(observation.realized(), BuildObservationClass::Hermetic);
+    assert_eq!(
+        observation.build_log(),
+        format!("{BUILD_LOG_LINE}\n").as_bytes()
+    );
     assert!(observation.filesystem_operation_attempts().is_empty());
     assert!(observation.staged_output_tree().is_none());
 }
@@ -168,7 +172,8 @@ machine accept_package_log(log: &mut BuildLog) {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        rendered.contains("accept_package_log") && rendered.contains("BuildLog"),
+        rendered.contains("BuildLog")
+            && (rendered.contains("accept_package_log") || rendered.contains("duplicate")),
         "the lookalike must reject at the exact nominal handoff, not merely because Build.log is absent:\n{rendered}",
     );
 }

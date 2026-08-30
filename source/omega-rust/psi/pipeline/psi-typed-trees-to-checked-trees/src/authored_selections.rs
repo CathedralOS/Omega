@@ -650,6 +650,9 @@ fn checked_statement_call_intrinsic(
     if exact_statement_build_output_receiver(program, state, call) {
         return Some(Intrinsic::BuildIncludedSourceHandoff);
     }
+    if exact_statement_build_log_receiver(program, state, call) {
+        return Some(Intrinsic::BuildLogWriteLine);
+    }
     if exact_statement_build_optimization_receiver(program, state, call) {
         return Some(Intrinsic::BuildOptimizationSelection);
     }
@@ -696,6 +699,8 @@ fn checked_call_intrinsic(
     } else if receiver.is_valid() {
         if exact_build_output_receiver(program, receiver, target) {
             Some(Intrinsic::BuildIncludedSourceHandoff)
+        } else if exact_build_log_receiver(program, receiver, target) {
+            Some(Intrinsic::BuildLogWriteLine)
         } else if exact_build_optimization_receiver(program, receiver, target) {
             Some(Intrinsic::BuildOptimizationSelection)
         } else if exact_build_optimization_report_receiver(program, receiver, target) {
@@ -736,6 +741,18 @@ fn exact_build_output_receiver(
         .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "BuildOutput"))
 }
 
+fn exact_build_log_receiver(
+    program: &TypedTrees,
+    receiver: psi_typed_trees::expression::ExpressionHandle,
+    target: &str,
+) -> bool {
+    if target != "write_line" {
+        return false;
+    }
+    crate::flow::expression_type_symbol(program, receiver)
+        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "BuildLog"))
+}
+
 fn exact_build_optimization_receiver(
     program: &TypedTrees,
     receiver: psi_typed_trees::expression::ExpressionHandle,
@@ -767,6 +784,15 @@ fn exact_statement_build_output_receiver(
 ) -> bool {
     call.target.as_str() == "include_source"
         && exact_statement_build_member_receiver(program, state, call, "BuildOutput")
+}
+
+fn exact_statement_build_log_receiver(
+    program: &TypedTrees,
+    state: &psi_typed_trees::state::State,
+    call: &psi_typed_trees::statement::TableCall,
+) -> bool {
+    call.target.as_str() == "write_line"
+        && exact_statement_build_member_receiver(program, state, call, "BuildLog")
 }
 
 fn exact_statement_build_optimization_receiver(
