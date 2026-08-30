@@ -463,7 +463,8 @@ fn validate_program_internal(
                 // introduce a symbol and assert nothing.
                 && !matches!(
                     machine.supply_mode,
-                    psi_language_semantics::MachineSupplyMode::Accepted
+                    psi_language_semantics::MachineSupplyMode::AdmissionClaim
+                        | psi_language_semantics::MachineSupplyMode::TopLevelRequirement
                         | psi_language_semantics::MachineSupplyMode::Boundary
                 )
                 // PRV4: an EXTERNAL LEAF's body IS its binding -- the

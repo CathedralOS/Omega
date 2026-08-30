@@ -4177,8 +4177,9 @@ fn supply_mode_name(mode: psi_language_semantics::MachineSupplyMode) -> &'static
     match mode {
         MachineSupplyMode::CheckedBody => "checked_body",
         MachineSupplyMode::Requirement => "requirement",
+        MachineSupplyMode::TopLevelRequirement => "top_level_requirement",
         MachineSupplyMode::Boundary => "boundary",
-        MachineSupplyMode::Accepted => "accepted",
+        MachineSupplyMode::AdmissionClaim => "admission_claim",
         MachineSupplyMode::ExternalRealization { .. } => "external-realization",
     }
 }

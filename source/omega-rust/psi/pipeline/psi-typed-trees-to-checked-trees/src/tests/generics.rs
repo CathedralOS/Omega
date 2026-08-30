@@ -474,8 +474,9 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
     let source = r#"
         boundary trait MachineControl {}
         boundary trait PortIo {}
+        pub data Completion {}
 
-        boundary machine complete() -> u64
+        pub boundary requirement Completion::complete() -> u64
         reaches <= MachineControl + PortIo;
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -485,7 +486,7 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
         resolved
             .machines
             .iter()
-            .find(|machine| machine.name.as_str() == "complete")
+            .find(|machine| machine.name.as_str() == "Completion::complete")
             .expect("resolved complete requirement")
             .service_reach_is_installation_bound
     );
@@ -493,8 +494,12 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
     let complete = typed
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == "complete")
+        .find(|machine| machine.name.as_str() == "Completion::complete")
         .expect("complete requirement");
+    assert_eq!(
+        complete.supply_mode,
+        psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+    );
     let complete_symbol = complete.symbol;
     let upper_bound = complete.service_reach_row;
     assert!(complete.service_reach_is_installation_bound);

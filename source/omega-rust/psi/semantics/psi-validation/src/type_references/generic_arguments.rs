@@ -1,16 +1,16 @@
 use super::{
-    type_reference_label, type_references_match, TopLevelSymbols, TypeParameterScope,
-    TypeReferenceOwner,
+    TopLevelSymbols, TypeParameterScope, TypeReferenceOwner, type_reference_label,
+    type_references_match,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{
     DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
 use psi_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
-use psi_typed_trees::TypedTrees;
 use std::collections::HashSet;
 
 pub(super) fn validate_machine_data_argument(

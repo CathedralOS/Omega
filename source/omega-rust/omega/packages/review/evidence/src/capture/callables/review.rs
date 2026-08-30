@@ -192,7 +192,8 @@ pub(in crate::capture) fn project_callable(
                 "reviewed callable `{subject}` is classified as checked supply but has no retained body"
             ))]);
         }
-        MachineSupplyMode::Accepted
+        MachineSupplyMode::AdmissionClaim
+        | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement
         | MachineSupplyMode::ExternalRealization { .. }
             if machine.body_is_present =>
@@ -203,7 +204,8 @@ pub(in crate::capture) fn project_callable(
         }
         MachineSupplyMode::CheckedBody
         | MachineSupplyMode::Boundary
-        | MachineSupplyMode::Accepted
+        | MachineSupplyMode::AdmissionClaim
+        | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement
         | MachineSupplyMode::ExternalRealization { .. } => {}
     }
@@ -254,8 +256,9 @@ pub(in crate::capture) fn project_callable(
     let supply = match machine.supply_mode {
         MachineSupplyMode::CheckedBody => PackageReviewCallableSupply::CheckedBody,
         MachineSupplyMode::Requirement => PackageReviewCallableSupply::Requirement,
+        MachineSupplyMode::TopLevelRequirement => PackageReviewCallableSupply::TopLevelRequirement,
         MachineSupplyMode::Boundary => PackageReviewCallableSupply::Boundary,
-        MachineSupplyMode::Accepted => PackageReviewCallableSupply::Accepted,
+        MachineSupplyMode::AdmissionClaim => PackageReviewCallableSupply::AdmissionClaim,
         MachineSupplyMode::ExternalRealization { .. } => {
             PackageReviewCallableSupply::ExternalRealization
         }

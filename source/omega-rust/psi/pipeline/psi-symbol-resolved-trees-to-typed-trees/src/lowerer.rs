@@ -343,7 +343,7 @@ fn machine_interface_exposure(
     let is_exported_boundary = matches!(
         machine.supply_mode,
         psi_language_semantics::MachineSupplyMode::Boundary
-            | psi_language_semantics::MachineSupplyMode::Accepted
+            | psi_language_semantics::MachineSupplyMode::AdmissionClaim
     );
     declaration_exposure(machine.is_public || is_exported_boundary)
 }

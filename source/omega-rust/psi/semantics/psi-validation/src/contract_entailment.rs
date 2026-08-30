@@ -347,6 +347,12 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
     diagnostics: &mut Vec<Diagnostic>,
     stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
 ) {
+    // A top-level requirement publishes the contract that its selected
+    // satisfier must refine. The declaration has no implementation body whose
+    // exits could prove those guarantees.
+    if machine.supply_mode == psi_language_semantics::MachineSupplyMode::TopLevelRequirement {
+        return;
+    }
     let mut requires = Vec::new();
     let mut requires_propositions = Vec::new();
     let mut ensures = Vec::new();
@@ -717,7 +723,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
             // (own-package dev-active; the trust report carries the row),
             // never proven. The ENGINE VETO still applies: a statement the
             // judge can REFUTE is a compile error, grants notwithstanding.
-            if machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
+            if machine.supply_mode == psi_language_semantics::MachineSupplyMode::AdmissionClaim
                 && zero_value_mention.is_none()
             {
                 if matches!(judge_structural(*fact), StructuralJudgment::Refuted) {

@@ -101,7 +101,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .iter_mut()
         .find(|machine| machine.name.as_str() == "api")
         .expect("api machine");
-    api.supply_mode = psi_language_semantics::MachineSupplyMode::Accepted;
+    api.supply_mode = psi_language_semantics::MachineSupplyMode::AdmissionClaim;
     let diagnostics = project_checked_package_review(&bodyful_accepted)
         .expect_err("bodyless supply with a body must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {

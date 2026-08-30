@@ -247,8 +247,9 @@ pub(crate) fn lower_machine(
         let publishes_entry_signature = machine.is_public
             || matches!(
                 machine.supply_mode,
-                psi_language_semantics::MachineSupplyMode::Boundary
-                    | psi_language_semantics::MachineSupplyMode::Accepted
+                psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                    | psi_language_semantics::MachineSupplyMode::Boundary
+                    | psi_language_semantics::MachineSupplyMode::AdmissionClaim
             );
         let exposure = if publishes_entry_signature && state_index == 0 {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
@@ -335,8 +336,9 @@ fn machine_interface_exposure(
 ) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
     let exported_boundary = matches!(
         machine.supply_mode,
-        psi_language_semantics::MachineSupplyMode::Boundary
-            | psi_language_semantics::MachineSupplyMode::Accepted
+        psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+            | psi_language_semantics::MachineSupplyMode::Boundary
+            | psi_language_semantics::MachineSupplyMode::AdmissionClaim
     );
     if machine.is_public || exported_boundary {
         psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface

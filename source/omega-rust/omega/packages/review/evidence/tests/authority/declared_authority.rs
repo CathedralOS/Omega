@@ -502,7 +502,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .expect("boundary callable row");
     assert_eq!(
         boundary.supply(),
-        PackageReviewCallableSupply::Accepted,
+        PackageReviewCallableSupply::AdmissionClaim,
         "a bodyless boundary guarantee must remain an explicit trust-bearing accepted claim",
     );
     assert_eq!(

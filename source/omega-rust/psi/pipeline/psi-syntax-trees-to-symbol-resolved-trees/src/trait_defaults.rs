@@ -822,6 +822,7 @@ fn machine_from_signature(
         bodyless: false,
         target: None,
         boundary: false,
+        is_top_level_boundary_requirement: false,
         lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),

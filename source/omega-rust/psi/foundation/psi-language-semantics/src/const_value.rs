@@ -235,7 +235,7 @@ fn take_length_delimited(rest: &mut &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CanonicalConstValue, DecodedCanonicalConstValue, MAX_DECODED_NODES, MAX_DECODE_DEPTH,
+        CanonicalConstValue, DecodedCanonicalConstValue, MAX_DECODE_DEPTH, MAX_DECODED_NODES,
         MAX_ENCODING_BYTES,
     };
 

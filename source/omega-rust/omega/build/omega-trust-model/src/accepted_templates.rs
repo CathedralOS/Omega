@@ -38,7 +38,7 @@ impl AcceptedTemplateClassifications {
                 .machines()
                 .iter()
                 .filter(|machine| {
-                    machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
+                    machine.supply_mode == psi_language_semantics::MachineSupplyMode::AdmissionClaim
                 })
                 .map(|machine| {
                     let report_fingerprint = psi_typed_trees_to_checked_trees::
@@ -100,7 +100,7 @@ mod tests {
         let mut typed = TypedTrees::default();
         let mut generic_accepted = psi_typed_trees::machine::Machine {
             symbol: first,
-            supply_mode: MachineSupplyMode::Accepted,
+            supply_mode: MachineSupplyMode::AdmissionClaim,
             ..Default::default()
         };
         typed.push_machine_type_parameter(
@@ -114,7 +114,7 @@ mod tests {
         typed.push_machine(generic_accepted);
         for (symbol, supply_mode) in [
             (checked, MachineSupplyMode::CheckedBody),
-            (second, MachineSupplyMode::Accepted),
+            (second, MachineSupplyMode::AdmissionClaim),
         ] {
             typed.push_machine(psi_typed_trees::machine::Machine {
                 symbol,

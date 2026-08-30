@@ -272,7 +272,7 @@ pub fn reconstruct_trust_report(
     // own-package dev-active with the standing warning, or root-granted
     // when build.omg names the machine.
     for machine in typed.machines() {
-        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::Accepted {
+        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::AdmissionClaim {
             continue;
         }
         // A generic accepted template spends and reports one universal

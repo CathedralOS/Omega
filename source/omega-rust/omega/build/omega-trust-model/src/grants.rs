@@ -55,7 +55,7 @@ pub(crate) fn grantable_accepted_machine(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
 ) -> bool {
-    machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
+    machine.supply_mode == psi_language_semantics::MachineSupplyMode::AdmissionClaim
         && !typed.machine_specializations.iter().any(|specialization| {
             specialization.accepted_template_commitment.is_some()
                 && specialization.instance == machine.symbol

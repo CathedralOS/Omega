@@ -158,6 +158,7 @@ pub enum ItemSnapshot {
         bodyless: bool,
         target: Option<IdentifierSnapshot>,
         boundary: bool,
+        is_top_level_boundary_requirement: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -1064,6 +1065,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             bodyless: value.bodyless,
             target: value.target.as_ref().map(snapshot_identifier),
             boundary: value.boundary,
+            is_top_level_boundary_requirement: value.is_top_level_boundary_requirement,
             lifetime_parameters: value
                 .lifetime_parameters
                 .iter()

@@ -34,8 +34,9 @@ pub(crate) fn encode_supply(
         PackageReviewCallableSupply::CheckedBody => 0,
         PackageReviewCallableSupply::Requirement => 1,
         PackageReviewCallableSupply::Boundary => 2,
-        PackageReviewCallableSupply::Accepted => 3,
+        PackageReviewCallableSupply::AdmissionClaim => 3,
         PackageReviewCallableSupply::ExternalRealization => 4,
+        PackageReviewCallableSupply::TopLevelRequirement => 5,
     });
     Ok(())
 }

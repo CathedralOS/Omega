@@ -744,9 +744,10 @@ pub struct Machine {
     /// an ordinary public library callable remains checked Omega code while
     /// publishing strict effect and operational ceilings.
     pub is_public: bool,
-    /// CH10 ACCEPTED FORM (GR6d): a contract with NO body (`boundary
-    /// machine f(..) ensures ..;`) -- the accepted-axiom tier. Only legal
-    /// with `boundary`; the item parser enforces the pairing.
+    /// A contract with no checked body. This is retained independently from
+    /// both the exported-callable/admission boundary marker and the explicit
+    /// top-level requirement marker below; the item parser enforces which
+    /// bodyless source forms are legal.
     pub bodyless: bool,
     /// TARGET-SCOPED implementation machine (`<target> machine ...`, the fs
     /// portable-contract settle 2026-07-18): the machine participates in the
@@ -759,6 +760,11 @@ pub struct Machine {
     /// is a callable surface the platform (or a foreign caller) invokes; its
     /// parameters are the boundary-trusted shape over the arrival bytes.
     pub boundary: bool,
+    /// The explicit carrier-owned required-body declaration
+    /// (`boundary requirement Package::operation(...);`). This is distinct
+    /// from `boundary machine`: it declares a selectable requirement slot,
+    /// not an exported callable or admission-bearing bodyless claim.
+    pub is_top_level_boundary_requirement: bool,
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,

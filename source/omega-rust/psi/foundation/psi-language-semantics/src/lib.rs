@@ -179,12 +179,15 @@ pub enum MachineSupplyMode {
     /// A requirement slot: the signature is the contract; a provider is
     /// admitted against it.
     Requirement,
+    /// A package-qualified carrier-owned provider requirement. The declaration
+    /// publishes an interface slot and contains no executable or admitted body.
+    TopLevelRequirement,
     /// A boundary declaration: supplied by the host/component seam, claims
     /// gated by grants.
     Boundary,
     /// An accepted (axiom-tier) declaration: trusted without proof, shown
     /// in the trust report.
-    Accepted,
+    AdmissionClaim,
     /// PRV4: an irreducible external leaf -- `satisfies Requirement via
     /// <Binding>;` on a bodyless machine. The satisfied requirement supplies
     /// the public contract and service/operational ceilings; the normalized binding is the
@@ -201,11 +204,14 @@ impl MachineSupplyMode {
         matches!(self, Self::CheckedBody)
     }
 
-    /// Whether the source declaration uses the boundary seam. Accepted
+    /// Whether the source declaration uses the boundary seam. Admission claims
     /// declarations are a distinct trust tier but share that source-facing
     /// entry/storage shape.
     pub const fn is_boundary_declaration(self) -> bool {
-        matches!(self, Self::Boundary | Self::Accepted)
+        matches!(
+            self,
+            Self::TopLevelRequirement | Self::Boundary | Self::AdmissionClaim
+        )
     }
 }
 
@@ -966,8 +972,10 @@ mod tests {
         assert!(!MachineSupplyMode::CheckedBody.is_boundary_declaration());
 
         assert!(MachineSupplyMode::Boundary.is_boundary_declaration());
-        assert!(MachineSupplyMode::Accepted.is_boundary_declaration());
-        assert!(!MachineSupplyMode::Accepted.is_checked_body());
+        assert!(MachineSupplyMode::AdmissionClaim.is_boundary_declaration());
+        assert!(!MachineSupplyMode::AdmissionClaim.is_checked_body());
+        assert!(MachineSupplyMode::TopLevelRequirement.is_boundary_declaration());
+        assert!(!MachineSupplyMode::TopLevelRequirement.is_checked_body());
 
         for mode in [
             MachineSupplyMode::Requirement,

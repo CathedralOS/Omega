@@ -325,6 +325,7 @@ fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bool {
     let after_boundary = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
     after_boundary.at_keyword(psi_tokens::KeywordKind::Machine)
         || after_boundary.at_keyword(psi_tokens::KeywordKind::Data)
+        || after_boundary.at_contextual("requirement")
         || after_boundary.at_contextual("operator")
         || after_boundary.at_contextual("trait")
 }
