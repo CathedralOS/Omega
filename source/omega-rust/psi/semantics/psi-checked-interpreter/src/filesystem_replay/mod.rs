@@ -28,6 +28,7 @@ mod source_directory_tests;
 mod source_read_link_tests;
 mod source_read_links;
 mod symlinks;
+mod unlink_at_failures;
 
 pub use directories::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
@@ -118,11 +119,18 @@ pub use symlinks::{
     FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
 pub(crate) use symlinks::{output_symlink_attempt, output_symlink_record_from_attempt};
+pub use unlink_at_failures::FilesystemInputUnknownDescriptorUnlinkAtReplayRecord;
+#[cfg(test)]
+pub(crate) use unlink_at_failures::{
+    unknown_descriptor_unlink_at_attempt, unknown_descriptor_unlink_at_attempt_is_exact,
+    unknown_descriptor_unlink_at_from_exact_attempt,
+};
 
 pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
     attempt: &crate::FilesystemOperationAttempt,
 ) -> bool {
     handle_failures::unknown_input_handle_failure_attempt_is_exact(attempt)
         || open_at_failures::unknown_descriptor_open_at_attempt_is_exact(attempt)
+        || unlink_at_failures::unknown_descriptor_unlink_at_attempt_is_exact(attempt)
         || native_mutation_failures::unknown_native_handle_mutation_attempt_is_exact(attempt)
 }
