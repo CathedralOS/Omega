@@ -166,7 +166,7 @@ pub(super) fn validate_const_data_argument(
     };
 
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-        if exact_structured_const_record_carrier_is_eligible(program, parameter_type) {
+        if exact_structured_const_data_carrier_is_eligible(program, parameter_type) {
             if let Err(reason) =
                 validate_exact_typed_structured_const_argument(program, parameter_type, &value)
             {
@@ -257,22 +257,23 @@ pub(super) fn validate_const_data_argument(
 
 /// Replay one compiler-generated structured const atom against its exact typed
 /// carrier. Encoded type and field names are canonical-format consistency
-/// checks only; record selection always follows the resolved symbol carried by
+/// checks only; data selection always follows the resolved symbol carried by
 /// `expected_type`.
 ///
 /// This first exact cohort is intentionally narrower than the ordinary const
-/// index surface: acyclic, monomorphic checked records composed only of exact
-/// integer/Boolean primitives, literal fixed arrays, and records of the same
-/// shape. Cases and types with separate canonical-representative rules remain
-/// with the broader producer judgment until their typed replay is shared too.
+/// index surface: acyclic, monomorphic checked records and pure sums composed
+/// only of exact integer/Boolean primitives, literal fixed arrays, and data of
+/// the same cohort. Mixed data and types with separate canonical-representative
+/// rules remain with the broader producer judgment until their typed replay is
+/// shared too.
 pub(crate) fn validate_exact_typed_structured_const_argument(
     program: &TypedTrees,
     expected_type: TypeReferenceHandle,
     value: &CanonicalConstValue,
 ) -> Result<(), String> {
-    if !exact_structured_const_record_carrier_is_eligible(program, expected_type) {
+    if !exact_structured_const_data_carrier_is_eligible(program, expected_type) {
         return Err(format!(
-            "`{}` is outside the exact acyclic structured-record const cohort",
+            "`{}` is outside the exact acyclic structured-data const cohort",
             type_reference_label(program, expected_type)
         ));
     }
@@ -289,7 +290,7 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
     validate_decoded_structured_const(program, expected_type, &decoded, &mut Vec::new())
 }
 
-fn exact_structured_const_record_carrier_is_eligible(
+fn exact_structured_const_data_carrier_is_eligible(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
@@ -331,25 +332,47 @@ fn exact_structured_const_carrier_is_eligible(
                 .is_some_and(|definition| {
                     let members = program.data_members(definition);
                     definition.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+                        && definition.name.as_str() != "Rat"
                         && definition.lifetime_parameters.is_empty()
                         && program.data_type_parameters(definition).is_empty()
                         && definition.generic_instance.is_none()
                         && definition.quotient.is_none()
                         && definition.where_facts.is_empty()
                         && !definition.zero_gated
-                        && psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                            == psi_typed_trees::data::DataShapeKind::Record
-                        && members.iter().all(|member| {
-                            let DataMember::Field(field) = member else {
-                                return false;
-                            };
-                            !field.relevance.is_erased()
-                                && exact_structured_const_carrier_is_eligible(
-                                    program,
-                                    field.type_reference,
-                                    visiting,
-                                )
-                        })
+                        && match psi_typed_trees::data::DataDefinition::shape_kind_from_members(
+                            members,
+                        ) {
+                            psi_typed_trees::data::DataShapeKind::Record => {
+                                members.iter().all(|member| {
+                                    let DataMember::Field(field) = member else {
+                                        return false;
+                                    };
+                                    !field.relevance.is_erased()
+                                        && exact_structured_const_carrier_is_eligible(
+                                            program,
+                                            field.type_reference,
+                                            visiting,
+                                        )
+                                })
+                            }
+                            psi_typed_trees::data::DataShapeKind::Enum => {
+                                members.iter().all(|member| {
+                                    let DataMember::Variant(variant) = member else {
+                                        return false;
+                                    };
+                                    program.data_payload_fields(variant).iter().all(|field| {
+                                        !field.relevance.is_erased()
+                                            && exact_structured_const_carrier_is_eligible(
+                                                program,
+                                                field.type_reference,
+                                                visiting,
+                                            )
+                                    })
+                                })
+                            }
+                            psi_typed_trees::data::DataShapeKind::Empty
+                            | psi_typed_trees::data::DataShapeKind::Mixed => false,
+                        }
                 });
             visiting.pop();
             eligible
@@ -439,6 +462,11 @@ fn validate_decoded_structured_const(
                 ));
             }
             let members = program.data_members(definition);
+            if psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                != psi_typed_trees::data::DataShapeKind::Record
+            {
+                return Err("canonical record node names non-record data".to_owned());
+            }
             if fields.len() != members.len() {
                 return Err(format!(
                     "record node has {} fields, expected {}",
@@ -469,8 +497,81 @@ fn validate_decoded_structured_const(
             visiting.pop();
             result
         }
-        (_, DecodedCanonicalConstValue::Variant { .. }) => {
-            Err("canonical variants are outside the exact record cohort".to_owned())
+        (
+            TypeReferenceNode::Named { symbol, .. },
+            DecodedCanonicalConstValue::Variant {
+                type_name,
+                case_name,
+                fields,
+            },
+        ) => {
+            if !symbol.is_valid() || visiting.contains(symbol) {
+                return Err("structured const carrier is unresolved or recursive".to_owned());
+            }
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+                .ok_or_else(|| {
+                    "structured const carrier symbol has no data definition".to_owned()
+                })?;
+            if type_name.as_str() != definition.name.as_str() {
+                return Err(format!(
+                    "variant node names `{type_name}`, expected `{}`",
+                    definition.name
+                ));
+            }
+            let members = program.data_members(definition);
+            if psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                != psi_typed_trees::data::DataShapeKind::Enum
+            {
+                return Err("canonical variant node names non-sum data".to_owned());
+            }
+            let mut matching_cases = members.iter().filter_map(|member| {
+                let DataMember::Variant(variant) = member else {
+                    return None;
+                };
+                (variant.name.as_str() == case_name.as_str()).then_some(variant)
+            });
+            let variant = matching_cases.next().ok_or_else(|| {
+                format!(
+                    "sum `{}` has no case `{case_name}`",
+                    definition.name.as_str()
+                )
+            })?;
+            if matching_cases.next().is_some() {
+                return Err(format!(
+                    "sum `{}` has duplicate case name `{case_name}`",
+                    definition.name.as_str()
+                ));
+            }
+            let payload = program.data_payload_fields(variant);
+            if fields.len() != payload.len() {
+                return Err(format!(
+                    "case `{case_name}` has {} payload fields, expected {}",
+                    fields.len(),
+                    payload.len()
+                ));
+            }
+            visiting.push(*symbol);
+            let result = payload.iter().zip(fields).try_for_each(
+                |(field, (encoded_name, encoded_value))| {
+                    if encoded_name.as_str() != field.name.as_str() {
+                        return Err(format!(
+                            "case payload field `{encoded_name}` appears where `{}` is required",
+                            field.name
+                        ));
+                    }
+                    validate_decoded_structured_const(
+                        program,
+                        field.type_reference,
+                        encoded_value,
+                        visiting,
+                    )
+                },
+            );
+            visiting.pop();
+            result
         }
         _ => Err(format!(
             "canonical node does not match exact carrier `{}`",

@@ -441,6 +441,104 @@ fn structured_const_instance_recast_rejects_overlap_but_keeps_siblings_writable(
 }
 
 #[test]
+fn structured_const_pure_sum_instances_retain_payloadless_and_payload_ranges() {
+    let source = r#"
+        data CountPayload { value: u16; }
+        data Mode {
+            case Idle;
+            case Count(payload: CountPayload);
+        }
+        data Modes {}
+        const Modes::IDLE: Mode = Mode::Idle;
+        const Modes::COUNT: Mode =
+            Mode::Count { payload: CountPayload { value: 7 } };
+        data Indexed<const M: Mode> { marker: u8; }
+        data Cell { bytes: [u8; 16]; }
+        machine observe(value: &Indexed<Modes::IDLE>) {}
+        machine Cell::exercise(&mut self) {
+            let shared: &Indexed<Modes::IDLE> =
+                &self.bytes[2] as &Indexed<Modes::IDLE>;
+            observe(shared);
+            let mutable: &mut Indexed<Modes::COUNT> =
+                &mut self.bytes[8] as &mut Indexed<Modes::COUNT>;
+            mutable.marker = 7;
+        }
+    "#;
+
+    let checked = checked(source).expect("pure-sum structured const recasts should check");
+    let loans = fixed_range_loans(&checked);
+    assert_eq!(
+        loans.len(),
+        2,
+        "one exact loan per payloadless or payload-bearing const recast"
+    );
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 3)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 8, 9)));
+}
+
+#[test]
+fn structured_const_pure_sum_instance_rejects_overlap_but_keeps_siblings_writable() {
+    rejected(
+        r#"
+            data CountPayload { value: u16; }
+            data Mode { case Idle; case Count(payload: CountPayload); }
+            data Modes {}
+            const Modes::COUNT: Mode =
+                Mode::Count { payload: CountPayload { value: 7 } };
+            data Indexed<const M: Mode> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine observe(value: &Indexed<Modes::COUNT>) {}
+            machine Cell::exercise(&mut self) {
+                let view: &Indexed<Modes::COUNT> =
+                    &self.bytes[3] as &Indexed<Modes::COUNT>;
+                self.bytes[3] = 1;
+                observe(view);
+            }
+        "#,
+        "mutates `self.bytes[3]` while local borrow `view` is still active",
+    );
+
+    rejected(
+        r#"
+            data CountPayload { value: u16; }
+            data Mode { case Idle; case Count(payload: CountPayload); }
+            data Modes {}
+            const Modes::COUNT: Mode =
+                Mode::Count { payload: CountPayload { value: 7 } };
+            data Indexed<const M: Mode> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Indexed<Modes::COUNT> =
+                    &mut self.bytes[3] as &mut Indexed<Modes::COUNT>;
+                self.bytes[3] = 1;
+                view.marker = 2;
+            }
+        "#,
+        "mutates `self.bytes[3]` while local borrow `view` is still active",
+    );
+
+    checked(
+        r#"
+            data CountPayload { value: u16; }
+            data Mode { case Idle; case Count(payload: CountPayload); }
+            data Modes {}
+            const Modes::COUNT: Mode =
+                Mode::Count { payload: CountPayload { value: 7 } };
+            data Indexed<const M: Mode> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Indexed<Modes::COUNT> =
+                    &mut self.bytes[3] as &mut Indexed<Modes::COUNT>;
+                self.bytes[2] = 1;
+                self.bytes[4] = 1;
+                view.marker = 2;
+            }
+        "#,
+    )
+    .expect("the bytes immediately beside the pure-sum const view remain disjoint");
+}
+
+#[test]
 fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() {
     rejected(
         r#"

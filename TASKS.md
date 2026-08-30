@@ -10550,20 +10550,21 @@ checked-result arithmetic decision listed below.
   containing record remains nonzero; their element alignment can still induce
   protected padding.
   Fully specialized type plus scalar-integer `const` or exact-replayed acyclic
-  structured-record `const` instances participate through their exact
+  structured-data `const` instances participate through their exact
   synthesized symbol, validated base/argument origin, and substituted fields.
   Scalar const origins require an unbound canonical decimal leaf within the
   exact declared integer carrier. Structured origins require one bounded,
   completely decoded compiler-only atom replayed in declaration order against
-  the exact resolved monomorphic record carrier, including nested literal
-  arrays/records and exact integer/Boolean leaves. Layout still comes only from
-  substituted instance fields. Generic normalization rewrites
+  the exact resolved monomorphic record or pure-sum carrier, including selected
+  cases, ordered payloads, nested literal arrays/records/sums, and exact
+  integer/Boolean leaves. Layout still comes only from substituted instance
+  fields. Generic normalization rewrites
   concrete-machine cast targets and synthesizes recursively nonzero literal-
   array type arguments. Record lookup
   and recursion use exact symbol identity. Repeated-leaf capacity
   overflow fails closed before allocation. First/last/padding-byte mutations
   reject while immediate siblings remain disjoint. Runtime or merely bounded
-  offsets, slices, total zero-size targets, open/unresolved, cased, recursive,
+  offsets, slices, total zero-size targets, open/unresolved, mixed, recursive,
   or custom-canonical structured-const origins, lifetime/machine/proposition
   generic instances, invariant-bearing/erased/cased records, and other indexed
   recasts remain conservative.
