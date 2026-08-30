@@ -73,8 +73,16 @@ pub(crate) fn run() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    let package_inputs = match reconcile_local_project(&mut options) {
-        Ok(package_inputs) => package_inputs,
+    let package_inputs = match omega_package_manager::workflows::prepare_local_project(
+        &options.root_path,
+        options.target_name.as_deref(),
+    ) {
+        Ok(Some(prepared)) => {
+            let (entry_path, package_inputs) = prepared.into_parts();
+            options.root_path = entry_path;
+            Some(package_inputs)
+        }
+        Ok(None) => None,
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(1);
@@ -167,67 +175,6 @@ pub(crate) fn run() {
             std::process::exit(1);
         }
     };
-}
-
-/// Enter the reconciled package path for every project selected by a
-/// `build.omg`. Package identity and source custody belong to the project even
-/// when its dependency closure contains only the root package. Only an entry
-/// without a sibling build root remains on the standalone compiler path.
-fn reconcile_local_project(
-    options: &mut CompileOptions,
-) -> Result<Option<omega_package_compilation::PackageCompilationInputs>, String> {
-    let project_root = options
-        .root_path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .to_path_buf();
-    if !project_root.join("build.omg").is_file() {
-        return Ok(None);
-    }
-    let entry_relative =
-        if options.root_path.is_relative() && project_root == std::path::Path::new(".") {
-            options.root_path.clone()
-        } else {
-            options
-                .root_path
-                .strip_prefix(&project_root)
-                .map(std::path::Path::to_path_buf)
-                .map_err(|_| {
-                    format!(
-                        "entry source {} is outside its selected project root {}",
-                        options.root_path.display(),
-                        project_root.display()
-                    )
-                })?
-        };
-    let target_profile = omega_target::TargetProfile::from_omega_target_name(
-        options.target_name.as_deref(),
-    )
-    .map_err(|diagnostic| diagnostic.to_string())?;
-    let storage = local_source_storage()?;
-    let closure =
-        omega_package_manager::graph::resolve_external_local_project_closure_with_storage(
-            &project_root,
-            omega_package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
-            target_profile,
-            &storage,
-            omega_package_source::LocalSourceLimits::default(),
-            omega_package_manager::graph::PackageSourceClosureLimits::default(),
-        )
-        .map_err(|error| format!("cannot resolve declared package closure: {error}"))?;
-    let root_snapshot = closure
-        .source_root(closure.graph().root())
-        .ok_or_else(|| "resolved package closure lost its root source custody".to_owned())?;
-    options.root_path = root_snapshot.join(entry_relative);
-    omega_package_manager::review::package_compilation_inputs(&closure)
-        .map(Some)
-        .map_err(|errors| format!("cannot construct compiler package graph: {errors:?}"))
-}
-
-fn local_source_storage() -> Result<omega_package_source::SourceResolverStorage, String> {
-    omega_package_source::SourceResolverStorage::for_current_user()
-        .map_err(|error| format!("cannot open private source resolver storage: {error}"))
 }
 
 struct CliArguments {
