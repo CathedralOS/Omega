@@ -527,6 +527,15 @@ The settled core vocabulary is now source-visible: opaque `Placed<P, T>`, the
 `PlacementCustody<P, T>` trait. This shape milestone adds no placement
 operation, admission value, occurrence identity, or source-visible authority.
 
+The first checked `PlacementCustody<P, T>` agreement is bounded to a concrete
+named conformance whose exact concrete policy/schema pair already owns a
+source-derived placed-view plan. Direct erased record fields absent from that
+physical plan must match the custody record by canonical path, exact normalized
+type, and multiplicity, while represented fields are forbidden there.
+Diagnostics retain the exact `Policy::plan` machine and represented
+offset/width decision. This is ordinary conformance checking only; recursive,
+case-dependent, planless, and establishment-operation custody remain open.
+
 Remaining compiler and language work:
 
 - extend the live fixed-layout `Schema` reflection and `Plan` vocabulary beyond

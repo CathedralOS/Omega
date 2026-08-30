@@ -19,12 +19,17 @@ use psi_typed_trees::statement::{
 };
 
 mod checked_atomic_resident;
+mod placement_custody;
 mod plan_replay;
 pub use checked_atomic_resident::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
     bind_checked_atomic_resident_access,
 };
-pub(crate) use plan_replay::validate_plans;
+
+pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    plan_replay::validate_plans(program, diagnostics);
+    placement_custody::validate_agreements(program, diagnostics);
+}
 
 pub(crate) fn validate_statement(
     program: &TypedTrees,
