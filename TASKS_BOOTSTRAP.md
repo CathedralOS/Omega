@@ -482,6 +482,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       `[104448,104704)` selector has 124 real leaves plus checker `EMPTY`
       padding and must close the final `db "main"` at source byte 104,572 and
       PC 27,087.
+      A later temporary frozen-map prototype measured the exact current census
+      at 457 label definitions and 1,010 symbolic references. One balanced
+      accessor with 31 in-order pieces represented all rows using 3,670
+      declarations and 512 of 768 function IDs; its certificate was 445,785
+      bytes and its complete framed input 577,476 bytes. Exact `source_done ->
+      92` lookup accepted in 0.89 seconds, while a same-length undefined spelling
+      rejected in 0.76 seconds. Exact duplicate, nonduplicate, and interior-span
+      discriminators completed in 0.55--0.61 seconds, so bytewise span identity
+      and maximal-boundary rejection are viable without hash authority. The
+      aggregate map is not viable yet: its 31-piece proof rejected after 16.75
+      seconds at roughly 120 MiB RSS, localized to one 27-row fold even though
+      all 26 of that piece's adjacency judgments accepted. Prefixes of two,
+      four, and eight named pieces accepted in 2.32, 4.15, and 8.82 seconds;
+      sixteen rejected in 16.76 seconds. No artifact was retained. Fix the
+      fold/environment defect and keep label-token/maximal-boundary ownership in
+      pass one rather than rescanning every label through the accessor.
     - Implement the eventual proof in place only when pass one is vertically
       complete: exact D15/token/comment/`db` streaming states, fixed-width
       decimal/register/PC checks, every source subtree equality, balanced

@@ -33,3 +33,14 @@ complete retained pass-one checkpoint must include every source region,
 cross-cut token/`db` continuation, fixed-width PC accounting, balanced unique
 label-map construction, and the exact 104,572-byte / 27,087-byte joint. No
 one-chunk demonstration is retained here.
+
+The latest temporary label-map measurement counted 457 definitions and 1,010
+symbolic references. Balanced lookup and exact undefined/duplicate/interior
+span discriminators all completed in under one second, but the attempted
+31-piece aggregate rejected after 16.75 seconds at about 120 MiB RSS because
+one 27-row fold did not establish its claimed summary. The other exact
+adjacencies in that piece accepted. This is evidence for the compact accessor
+and bytewise identity, not for the broken fold; no generated map, ledger,
+certificate, or gate was retained. Pass one must establish label-token and
+maximal-boundary validity as it emits each record so the final join proves only
+exact row coverage, strict order/uniqueness, and frozen lookup ownership.
