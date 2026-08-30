@@ -185,9 +185,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
 ## 1. Alpha execution floor
 
 - [x] Keep `source/alpha/SEMANTICS.md`, the audited seed implementations, and
-  conformance tests synchronized. A seed consumes an exact length-prefixed tape
-  and exposes the exact Alpha observation model. `source/alpha/verify.sh --edge`
-  currently passes all 25 conformance cases and exact assembler reconstruction.
+  conformance tests synchronized. The canonical `.tape` is the raw Alpha
+  payload; transparent seed stamping prepends its exact four-byte length inside
+  the native container. The seed then exposes the exact Alpha observation
+  model. `source/alpha/verify.sh --edge` currently passes all 25 conformance
+  cases and exact assembler reconstruction.
 - [x] Treat tape stamping as transparent packaging. No Mach-O, PE, ELF, code
   signature, linker receipt, or installation inventory becomes compiler
   identity above the seed. Canonical locators and manifests identify tapes;
@@ -524,7 +526,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,11.5 MiB)` for 32,768 fixups,
     `[16 MiB,31.75 MiB)` for the bounded frontend arena, and
-    `[31.75 MiB,32 MiB)` for the private 262,144-byte payload buffer. The direct
+    `[31.75 MiB,32 MiB)` for the private 262,144-byte reserved emitter region.
+    The direct
     emitter owns sticky failure, exact byte/word append, every Alpha operand
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
@@ -813,6 +816,27 @@ code, discover a closure, manufacture proof premises, or decide admission.
     exact source through trivia to EOF. `delta_parse_program_syntax` now parses
     every D17 grammar form without claiming collection, type/control checking,
     lowering, or a compiler artifact.
+  - [x] Implement the pure final symbolic-Alpha encoder used after Delta
+    lowering. Its closed, nonempty compiler IR covers all 21 Alpha instructions
+    plus dense symbolic labels and admits forward/backward references and
+    aliases. Successful encoding requires every allocated label to bind exactly
+    once and emits the exact raw at-most-262140-byte Alpha payload. It is
+    intentionally not a general Alpha
+    assembler: empty instruction streams are outside the compiler relation and
+    a referenced label must resolve to an instruction start, not the payload
+    end. Layout stops at the first over-limit instruction and constructs the
+    exact short oversize candidate for the adapter's mandatory output preflight;
+    no partial payload is publishable. Balanced immutable serialization avoids
+    linear rope depth, then an independent two-pass replay partitions the raw
+    opcodes and proves every distinct direct target is an instruction start.
+    The implementation uses no host encoder, decoder, evaluator, or older rung
+    and type-checks through the Gamma frontend gate. Executed exact-vector and
+    mutation canaries join the real Gamma-compiler gate once that edge exists.
+    Immutable heap use scales with authored instructions and distinct direct
+    targets, so private exhaustion may honestly become outer `Incomplete` below
+    Alpha's payload cap. Profile the real `D` closure; terrible performance,
+    unacceptable heap pressure, or pressure to extend Alpha instructions is an
+    owner-escalation trigger, not permission for a hidden alternate backend.
   - [ ] **OWNER-BLOCKED — Q4.** Collect exact Delta declaration identities and
     reject the earliest duplicate before type formation. D17 does not yet fix
     whether type owners and machines share a namespace, whether boundary
@@ -857,10 +881,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
     complete closed opcode-shape table, paired-`i32` representation of arbitrary
     64-bit immediates, instruction-atomic capacity checks, bounded address
-    fixups, and the exact four-byte descriptive length prefix. Sealing clears
-    and reconstructs the complete instruction-start partition, rejects unknown
-    or truncated instructions, and requires every direct target to land on a
-    reconstructed start before committing the prefix. Because Delta has no
+    fixups, and the exact raw 262,140-byte payload ceiling. Sealing clears and
+    reconstructs the complete instruction-start partition, rejects unknown or
+    truncated instructions, and requires every direct target to land on a
+    reconstructed start. Native seed stamping alone owns the descriptive
+    four-byte length prefix; it is not part of the `.tape`. Because Delta has no
     private visibility, even the reserved-write helpers independently enforce
     open state, byte range, and whole-write capacity rather than relying on a
     prose-only caller precondition. `D` deliberately has no `Main`, source
