@@ -17,6 +17,7 @@ pub(super) fn prove(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
+    allow_cast: bool,
     equality: ProofNode,
 ) -> Option<ProofNode> {
     let (endpoint, relation) = if old == goal_left {
@@ -39,6 +40,7 @@ pub(super) fn prove(
         assumptions,
         semantic_axioms,
         definitions,
+        allow_cast,
     )?;
     Some(ProofNode {
         conclusion: goal.clone(),

@@ -16,17 +16,28 @@ pub(super) fn prove(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
+    allow_cast: bool,
 ) -> Option<ProofNode> {
     prove_exact_or_closed_transitive_integer_bound(relation, assumptions, semantic_axioms)
         .or_else(|| prove_two_fact_transitive_integer_bound(relation, assumptions, semantic_axioms))
         .or_else(|| {
-            affine_selection::prove_with_definitions(
-                context,
-                relation,
-                assumptions,
-                semantic_axioms,
-                definitions,
-            )
+            if allow_cast {
+                affine_selection::prove_with_definitions(
+                    context,
+                    relation,
+                    assumptions,
+                    semantic_axioms,
+                    definitions,
+                )
+            } else {
+                affine_selection::prove_without_cast(
+                    context,
+                    relation,
+                    assumptions,
+                    semantic_axioms,
+                    definitions,
+                )
+            }
         })
         .or_else(|| {
             replacement_is_literal

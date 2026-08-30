@@ -31,3 +31,13 @@ pub(super) fn prove_with_definitions(
     definitions.cache_affine_proof(goal, proof.clone());
     proof
 }
+
+pub(super) fn prove_without_cast(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    dispatch::prove_without_cast(context, goal, assumptions, semantic_axioms, definitions)
+}

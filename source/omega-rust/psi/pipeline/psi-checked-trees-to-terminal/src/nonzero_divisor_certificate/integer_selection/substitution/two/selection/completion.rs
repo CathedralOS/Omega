@@ -18,6 +18,7 @@ pub(super) fn prove(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
+    allow_cast: bool,
     inner_citation: Citation,
     inner_equality: &Proposition,
     outer_citation: Citation,
@@ -28,13 +29,23 @@ pub(super) fn prove(
     } else {
         Proposition::LessOrEqual(goal_left.clone(), target_alias.clone())
     };
-    let affine = affine_selection::prove_with_definitions(
-        context,
-        &relation,
-        assumptions,
-        semantic_axioms,
-        definitions,
-    )?;
+    let affine = if allow_cast {
+        affine_selection::prove_with_definitions(
+            context,
+            &relation,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        )
+    } else {
+        affine_selection::prove_without_cast(
+            context,
+            &relation,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        )
+    }?;
     let middle_relation = if endpoint == 0 {
         Proposition::LessOrEqual(middle_alias.clone(), goal_right.clone())
     } else {

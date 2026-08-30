@@ -16,6 +16,7 @@ pub(super) fn prove(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
+    allow_cast: bool,
 ) -> Option<ProofNode> {
     let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
         return None;
@@ -50,6 +51,7 @@ pub(super) fn prove(
                     assumptions,
                     semantic_axioms,
                     definitions,
+                    allow_cast,
                     inner_citation,
                     inner_equality,
                     outer_citation,
