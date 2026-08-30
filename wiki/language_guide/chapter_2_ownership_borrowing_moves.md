@@ -159,13 +159,17 @@ storage containing no live `T` is a separate feature.
 > length as static metadata through the same eligible record paths, and forward
 > the loan explicitly. One bounded subloan form may pass
 > `&write root.field...leaf` directly to a checked call when the complete field
-> path and leaf meet that same non-observation referee. It cannot be retained in
-> a local alias. Record-held slice descriptors remain content-bearing.
-> General symbolic or open-ended range projection, sum projection, and opaque
-> providers remain gated. Structural parameters and calls preserve
+> path and leaf meet that same non-observation referee. That direct-call form may
+> now finish with exactly one in-bounds literal index into a nonempty fixed-array
+> leaf of unrestricted primitive elements; the ordered fields and `FixedIndex`
+> cross checked and Terminal replay.
+> It cannot be retained in a local alias. Direct-root, dynamic, range, and second
+> index subloans remain gated, as do aggregate/nested-array elements,
+> record-held slice descriptors, sum projection, and opaque providers.
+> Structural parameters and calls preserve
 > owned/shared/mutable/write-only access (first introduced in Terminal format
-> 27); one exact unrestricted record-leaf field path crosses the codec and the
-> independent verifier. Terminal format 42/vocabulary 45 additionally carries
+> 27); exact unrestricted record-leaf and literal-indexed field paths cross the
+> codec and independent verifier. Terminal format 42/vocabulary 45 additionally carries
 > one direct whole-root unrestricted primitive integer store. Its ordinary SSA
 > value producer precedes a Unit write-only event, the verifier reconstructs
 > exact type/access/place custody without an old-value premise, and the

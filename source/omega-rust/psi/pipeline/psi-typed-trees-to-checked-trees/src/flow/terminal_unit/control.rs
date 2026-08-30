@@ -978,8 +978,9 @@ pub(super) fn build_checked_machine(
             return None;
         }
         // Primitive structural places are introduced solely for the bounded
-        // write-only call closure. A leaf with no store and no call would widen
-        // the prior forwarding-only roster without contributing that effect.
+        // write-only store/call closure. One exact empty write-only sink must
+        // remain available as the target of a projected forwarding call; other
+        // primitive leaves with no store and no call would widen the roster.
         let carries_primitive = structural_parameters.iter().any(|parameter| {
             shapes
                 .types
@@ -991,7 +992,20 @@ pub(super) fn build_checked_machine(
                     )
                 })
         });
-        if carries_primitive && calls.is_empty() {
+        let exact_write_only_primitive_sink = matches!(
+            structural_parameters.as_slice(),
+            [parameter]
+                if parameter.multiplicity == Multiplicity::Unrestricted
+                    && parameter.access == CheckedStructuralAccess::WriteOnlyBorrow
+                    && parameter.qualifications.is_empty()
+                    && shapes.types.get(&parameter.type_identity).is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                        )
+                    })
+        );
+        if carries_primitive && calls.is_empty() && !exact_write_only_primitive_sink {
             return None;
         }
     }

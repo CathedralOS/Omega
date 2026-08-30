@@ -994,6 +994,16 @@ impl<'program> ShapeCollector<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            let unrestricted_primitive_element = matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(*element_type),
+                TypeReferenceNode::Named { name, .. }
+                    if !name.as_str().starts_with("Atomic")
+                        && self.program.primitive_type_reference(*element_type).is_some()
+                        && crate::checks::type_multiplicity(self.program, *element_type)
+                            == Multiplicity::Unrestricted
+            );
             if *length == 0
                 || !substitutions.is_empty()
                 || !matches!(
@@ -1002,8 +1012,9 @@ impl<'program> ShapeCollector<'program> {
                         .type_reference(*element_type),
                     TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                 )
-                || crate::checks::type_multiplicity(self.program, *element_type)
+                || (crate::checks::type_multiplicity(self.program, *element_type)
                     != Multiplicity::Linear
+                    && !unrestricted_primitive_element)
                 || !self.in_progress.insert(identity.clone())
             {
                 return None;
