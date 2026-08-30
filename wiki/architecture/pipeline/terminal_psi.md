@@ -124,6 +124,17 @@ The Psi interpreter follows a cataloged boundary only through that explicit
 private-field installation; absence fails closed instead of falling through to
 an external effect handler.
 
+The claim-only projected Unit slice also replays installed providers. The
+verified Terminal call already retains the exact relevant-record or fixed-array
+argument path, completion receipt, and complete caller claim-source catalog.
+Omega resolves that path against the Terminal structural graph, requires the
+provider's whole-root claim at the resulting leaf type, and rebases it onto the
+exact caller path without discarding sibling sources. Access attenuation and
+the ordinary projected linear multiplicity are replayed independently;
+cross-path, receipt, provider, type, or qualification drift rejects. A
+projected content claim remains unsupported because claim custody alone cannot
+derive its residual content geometry.
+
 Provider-backed O0 roots use a distinct later binding. Terminal Psi retains the
 authored attachment, erased provider field, bodyless boundary declarations, and
 exact field-to-boundary roots, but does not serialize a chosen native provider.
