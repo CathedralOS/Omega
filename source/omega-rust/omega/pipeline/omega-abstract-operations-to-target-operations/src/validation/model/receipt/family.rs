@@ -60,6 +60,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineWrappingIntegerSubtractParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters
             }
+            Self::StraightLineWrappingIntegerMultiplyParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters
+            }
         }
     }
 }

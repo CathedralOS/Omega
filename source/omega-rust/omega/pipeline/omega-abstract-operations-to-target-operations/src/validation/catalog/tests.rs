@@ -96,6 +96,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters,
+            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters,
         ]
     );
     let identities = ordered.iter().copied().collect::<BTreeSet<_>>();

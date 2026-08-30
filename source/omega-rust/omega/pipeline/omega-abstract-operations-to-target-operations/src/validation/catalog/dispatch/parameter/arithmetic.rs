@@ -25,6 +25,13 @@ pub(in crate::validation::catalog) const WRAPPING_INTEGER_SUBTRACT: TranslationF
         wrapping_integer_subtract,
     );
 
+pub(in crate::validation::catalog) const WRAPPING_INTEGER_MULTIPLY: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters,
+        straight_line_parameter::integer::arithmetic::wrapping_multiply::is_candidate,
+        wrapping_integer_multiply,
+    );
+
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_add(
     source: &AbstractFunction,
     expected_target: NativeTarget,
@@ -51,4 +58,18 @@ pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerSubtractParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerSubtractParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn wrapping_integer_multiply(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::wrapping_multiply::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerMultiplyParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerMultiplyParameters)
 }
