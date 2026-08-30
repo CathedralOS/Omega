@@ -8,7 +8,7 @@
 // The integer fields are the bootstrap carrier for provider and activation
 // identity. They are not public proof that a provider accepted custody: TR4's
 // boundary requirement and admission path own establishment of real claims.
-data Task<T> [linear] {
+pub data Task<T> [linear] {
     provider: u64;
     activation: u64;
 }
@@ -16,7 +16,7 @@ data Task<T> [linear] {
 // Provider/lifecycle failures are ordinary affine records. Concrete providers
 // may wrap richer diagnostics; the core outcomes keep the runtime boundary
 // surface's payloads stable while provider admission is implemented.
-data TaskFailureReceipt {
+pub data TaskFailureReceipt {
     provider: u64;
     code: i32;
 }
@@ -29,7 +29,7 @@ data StartRejection {
 // carries any substituted linear debt. `Returned(LinearT)` and
 // `Rejected(LinearArguments)` therefore participate in the same conditional
 // permission accounting as a non-generic `Empty | Live(Token)` sum.
-data TaskOutcome<T> {
+pub data TaskOutcome<T> {
     case Cancelled;
     case Returned(value: T);
     case Failed(receipt: TaskFailureReceipt);
