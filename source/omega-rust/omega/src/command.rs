@@ -66,6 +66,10 @@ pub(crate) fn run() {
         root_path: arguments.root_path,
         target_name: arguments.target_name,
     };
+    // Artifact placement belongs to the user-authored entrypoint. Package
+    // preparation may replace only the compilation root with an immutable
+    // resolver snapshot.
+    let build_dir = options.retain_build_dir();
     let policy_root_path = options.root_path.clone();
 
     let artifact_policy = if arguments.output_only {
@@ -88,7 +92,6 @@ pub(crate) fn run() {
             std::process::exit(1);
         }
     };
-    let build_dir = options.build_dir();
     let requested_product = if arguments.check_only {
         RequestedCompileProduct::Check
     } else {
