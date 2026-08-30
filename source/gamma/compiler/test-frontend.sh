@@ -525,7 +525,7 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        define_label(entry_label)' \
     '        emit_runtime_init()' \
     '        let body = word[8388608 + 24]' \
-    '        let lower_status = lower_closed_int_expr(body)' \
+    '        let lower_status = lower_expr(body, 1)' \
     '        to lowered' \
     '    }' \
     '    state lowered {' \
@@ -639,8 +639,29 @@ lower_int '(def main () Int (eq 5 5))' 1 'equal true'
 lower_int '(def main () Int (eq 5 6))' 0 'equal false'
 lower_int '(def main () Int (lt -1 0))' 1 'less true'
 lower_int '(def main () Int (lt 2 1))' 0 'less false'
+lower_int '(def main () Int (if 0 (/ 1 0) 7))' 7 'zero selects else lazily'
+lower_int '(def main () Int (if -2 9 (/ 1 0)))' 9 'nonzero selects then lazily'
+lower_int '(def main () Int (if (lt 1 2) (+ 2 3) 0))' 5 'nested conditional control flow'
+lower_int '(def main () Int (if (/ 1 0) 7 8))' 253 'condition trap precedes branch selection'
+lower_int '(def main () Int (if 1 (/ 1 0) 7))' 253 'selected then trap is contained'
+lower_int '(def main () Int (if 0 7 (/ 1 0)))' 253 'selected else trap is contained'
+lower_int '(def main () Int (if (lt 1 2) (if 0 3 4) 5))' 4 'nested conditional joins'
+lower_int '(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))' 22 'outer spill survives conditional'
 lower_int '(def main () Int (+ 9223372036854775807 1))' 253 'lowered addition overflow'
 lower_int '(def main () Int (/ -9223372036854775808 -1))' 253 'lowered division overflow'
+deterministic_source='(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))'
+printf '%s' "$deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
+deterministic_a_status=$?
+printf '%s' "$deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-deterministic-b.tape"
+deterministic_b_status=$?
+if [ "$deterministic_a_status" = 1 ] && [ "$deterministic_b_status" = 1 ] &&
+   cmp -s "$T/lower-deterministic-a.tape" "$T/lower-deterministic-b.tape"; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL lower deterministic reconstruction: statuses $deterministic_a_status/$deterministic_b_status"
+fi
+unset deterministic_source deterministic_a_status deterministic_b_status
 tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi
