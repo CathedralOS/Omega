@@ -991,6 +991,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     public advance is correct but quadratic and is not an acceptable final
     workaround. The parser must expose no token ledger, decoded mirror,
     source-identity guess, or transferable lexical fact.
+    - [x] Establish the first retained source-shaped slice in that canonical
+      invocation: sequence empty/trivia-only views and ordinary
+      `use path::member;` roots, skip trivia only by the scanner's guarded
+      `next_cursor`, and preserve ordered path members and relative byte spans
+      in fixed parser-owned tables. Require exact progress after every bounded
+      scan and require token absence to coincide with view end. A lexically
+      valid unimplemented root records implementation-incomplete rather than a
+      false Omega rejection; malformed use paths retain only two internal
+      parser distinctions with relative spans. Repeated invocation resets all
+      observable counts/status, and no source ID, alias, token ledger, decoded
+      mirror, standalone cursor, or Q7 outcome tag is introduced. The 4,096-use
+      and 16,384-member ceilings are private compiler budgets whose eventual
+      outer `Incomplete` mapping remains Q7-owned; profile both against the real
+      `C` closure before publication rather than treating the provisional
+      values as semantic necessities. Executed vectors wait for the real
+      Delta-compiler gate; do not add a host Delta executor.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

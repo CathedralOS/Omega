@@ -45,7 +45,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns strict source-view UTF-8 framing, the complete source-neutral lexical scanner, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented invocation boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
+| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns strict source-view UTF-8 framing, the complete source-neutral lexical scanner, the first one-invocation source-shaped parser slice, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
 
 The four empty target declarations in `build.omg` are temporary compatibility
 scaffolding, not product architecture. Delete them as soon as immutable target
@@ -62,8 +62,17 @@ while the artifacts are absent.
 
 Delta cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
-eventual parser must therefore validate once and stream the same source through
-private states of one canonical invocation. A public preflight bit would be a
-transferable false authority; validating again at every token would instead
-make compiler-source parsing quadratic. Neither belongs in the retained
-compiler.
+parser therefore validates once and streams the same source through private
+states of one canonical invocation. Its first retained slice sequences empty,
+trivia-only, and ordinary `use path::member;` roots, preserving ordered path
+members and byte spans relative to that one view. Any other lexically valid
+root stops as implementation-incomplete rather than becoming a false Omega
+rejection. The fixed use/member tables are private compiler budgets; their
+exhaustion is retained for the future outer `Incomplete` mapping and is not an
+Omega source limit.
+
+No source identity, package alias, token ledger, decoded mirror, or transferable
+preflight fact is retained. Q7 still owns binding each relative tree to a
+package-owned source unit and fixing public diagnostic/outcome framing. A
+public validate/advance split would be false authority, while revalidating the
+whole view at every token would be quadratic; neither belongs in the compiler.
