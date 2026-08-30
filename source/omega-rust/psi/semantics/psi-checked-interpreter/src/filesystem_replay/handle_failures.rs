@@ -19,9 +19,12 @@ const WRITE_OPERATION_TAG: u16 = 5;
 const READ_AT_OPERATION_TAG: u16 = 6;
 const WRITE_AT_OPERATION_TAG: u16 = 7;
 const SEEK_OPERATION_TAG: u16 = 10;
+const CLOSE_HANDLE_OPERATION_TAG: u16 = 29;
 const GET_OSF_HANDLE_OPERATION_TAG: u16 = 30;
 const READ_FILE_METADATA_OPERATION_TAG: u16 = 39;
 const SET_FILE_TIMES_OPERATION_TAG: u16 = 42;
+const UNKNOWN_NATIVE_HANDLE_CLOSE_RESULT: i64 = 0;
+const INVALID_HANDLE_ERROR: i32 = 6;
 const SET_FILE_TIMES_MINIMUM_CARRIER_BYTES: usize = 32;
 
 /// One operand-free descriptor operation whose unknown input deterministically
@@ -103,6 +106,30 @@ impl FilesystemInputUnknownDescriptorOperationReplayRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord {
     source_input: Option<FilesystemSourceInputReplayRecord>,
+}
+
+/// Optional exact Source-input prefix followed by one failed close of an
+/// unknown compiler-owned synthetic native handle.
+///
+/// The fixed result and error describe only Omega's evaluator model. No host
+/// operating-system handle or handle authority is retained by this record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownNativeHandleCloseHandleReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+}
+
+impl FilesystemInputUnknownNativeHandleCloseHandleReplayRecord {
+    pub fn new(source_input: Option<FilesystemSourceInputReplayRecord>) -> Self {
+        Self { source_input }
+    }
+
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
+    }
+
+    fn into_source_input(self) -> Option<FilesystemSourceInputReplayRecord> {
+        self.source_input
+    }
 }
 
 impl FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord {
@@ -501,7 +528,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorOperationReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, kind) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_operation_attempt(kind),
             unknown_descriptor_operation_attempt_is_exact,
@@ -514,10 +541,35 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_operation_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_operation_attempt_is_exact,
             "operation",
+        )
+    }
+
+    /// Construct the closed optional-Source plus one unknown synthetic native
+    /// handle `close_handle` failure from typed compiler-owned evidence.
+    pub fn from_input_unknown_native_handle_close_handle_record(
+        record: FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
+    ) -> Result<Self, String> {
+        unknown_handle_input_failure_replay_from_record(
+            record.into_source_input(),
+            unknown_native_handle_close_handle_attempt(),
+            unknown_native_handle_close_handle_attempt_is_exact,
+            "close_handle",
+        )
+    }
+
+    /// Validate observed evidence for an optional Source-input prefix followed
+    /// by one failed close of an unknown compiler-owned synthetic native handle.
+    pub fn from_input_unknown_native_handle_close_handle_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        unknown_handle_input_failure_replay_from_observations(
+            observations,
+            unknown_native_handle_close_handle_attempt_is_exact,
+            "close_handle",
         )
     }
 
@@ -526,7 +578,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_get_osfhandle_record(
         record: FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             record.into_source_input(),
             unknown_descriptor_get_osfhandle_attempt(),
             unknown_descriptor_get_osfhandle_attempt_is_exact,
@@ -539,7 +591,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_get_osfhandle_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_get_osfhandle_attempt_is_exact,
             "get_osfhandle",
@@ -552,7 +604,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorSeekReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, offset, whence) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_seek_attempt(offset, whence),
             unknown_descriptor_seek_attempt_is_exact,
@@ -565,7 +617,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_seek_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_seek_attempt_is_exact,
             "seek",
@@ -578,7 +630,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorReadReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, kind, buffer) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_read_attempt(kind, buffer),
             unknown_descriptor_read_attempt_is_exact,
@@ -591,7 +643,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_read_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_read_attempt_is_exact,
             "read",
@@ -604,7 +656,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, carrier) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_read_file_metadata_attempt(carrier),
             unknown_descriptor_read_file_metadata_attempt_is_exact,
@@ -617,7 +669,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_read_file_metadata_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_read_file_metadata_attempt_is_exact,
             "read_file_metadata",
@@ -630,7 +682,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorWriteReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, kind, payload) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_write_attempt(kind, payload),
             unknown_descriptor_write_attempt_is_exact,
@@ -643,7 +695,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_write_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_write_attempt_is_exact,
             "write",
@@ -656,7 +708,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorWriteOperationReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, kind) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_write_operation_attempt(kind),
             unknown_descriptor_write_operation_attempt_is_exact,
@@ -669,7 +721,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_write_operation_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_write_operation_attempt_is_exact,
             "write operation",
@@ -682,7 +734,7 @@ impl FilesystemReplay {
         record: FilesystemInputUnknownDescriptorSetFileTimesReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, times) = record.into_parts();
-        unknown_descriptor_failure_replay_from_record(
+        unknown_handle_input_failure_replay_from_record(
             source_input,
             unknown_descriptor_set_file_times_attempt(times),
             unknown_descriptor_set_file_times_attempt_is_exact,
@@ -695,7 +747,7 @@ impl FilesystemReplay {
     pub fn from_input_unknown_descriptor_set_file_times_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
-        unknown_descriptor_failure_replay_from_observations(
+        unknown_handle_input_failure_replay_from_observations(
             observations,
             unknown_descriptor_set_file_times_attempt_is_exact,
             "set_file_times",
@@ -703,7 +755,7 @@ impl FilesystemReplay {
     }
 }
 
-fn unknown_descriptor_failure_replay_from_record(
+fn unknown_handle_input_failure_replay_from_record(
     source_input: Option<FilesystemSourceInputReplayRecord>,
     operation: FilesystemOperationAttempt,
     operation_is_exact: fn(&FilesystemOperationAttempt) -> bool,
@@ -728,7 +780,7 @@ fn unknown_descriptor_failure_replay_from_record(
     })
 }
 
-fn unknown_descriptor_failure_replay_from_observations(
+fn unknown_handle_input_failure_replay_from_observations(
     observations: &EvaluationObservations,
     operation_is_exact: fn(&FilesystemOperationAttempt) -> bool,
     operation_name: &str,
@@ -821,6 +873,32 @@ pub(crate) fn unknown_descriptor_get_osfhandle_attempt() -> FilesystemOperationA
         result: FilesystemOperationResult::Scalar(UNKNOWN_DESCRIPTOR_OSF_HANDLE_RESULT),
         post_error: UNCHANGED_ERROR,
     });
+    attempt
+}
+
+pub(crate) fn unknown_native_handle_close_handle_attempt_is_exact(
+    attempt: &FilesystemOperationAttempt,
+) -> bool {
+    attempt.scalar_operands.is_empty()
+        && attempt.byte_operands.is_empty()
+        && attempt.mutable_byte_operand_resolutions.is_empty()
+        && attempt.mutable_byte_operands.is_empty()
+        && unknown_handle_failure_has_exact_core_shape_with_outcome(
+            attempt,
+            CLOSE_HANDLE_OPERATION_TAG,
+            UNKNOWN_NATIVE_HANDLE_CLOSE_RESULT,
+            INVALID_HANDLE_ERROR,
+            FilesystemLogicalHandleKind::Native,
+        )
+}
+
+pub(crate) fn unknown_native_handle_close_handle_attempt() -> FilesystemOperationAttempt {
+    let mut attempt = unknown_descriptor_failure_attempt(CLOSE_HANDLE_OPERATION_TAG, Vec::new());
+    attempt.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(UNKNOWN_NATIVE_HANDLE_CLOSE_RESULT),
+        post_error: INVALID_HANDLE_ERROR,
+    });
+    attempt.logical_handle_inputs[0].kind = FilesystemLogicalHandleKind::Native;
     attempt
 }
 
@@ -1101,10 +1179,11 @@ pub(crate) fn unknown_descriptor_write_operation_attempt(
     unknown_descriptor_failure_attempt(kind.operation_tag(), kind.scalar_operands())
 }
 
-pub(crate) fn unknown_descriptor_failure_attempt_is_exact(
+pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
     attempt: &FilesystemOperationAttempt,
 ) -> bool {
     unknown_descriptor_operation_attempt_is_exact(attempt)
+        || unknown_native_handle_close_handle_attempt_is_exact(attempt)
         || unknown_descriptor_get_osfhandle_attempt_is_exact(attempt)
         || unknown_descriptor_seek_attempt_is_exact(attempt)
         || unknown_descriptor_read_attempt_is_exact(attempt)
@@ -1149,6 +1228,22 @@ fn unknown_descriptor_failure_has_exact_core_shape_with_outcome(
     result: i64,
     post_error: i32,
 ) -> bool {
+    unknown_handle_failure_has_exact_core_shape_with_outcome(
+        attempt,
+        operation_tag,
+        result,
+        post_error,
+        FilesystemLogicalHandleKind::Descriptor,
+    )
+}
+
+fn unknown_handle_failure_has_exact_core_shape_with_outcome(
+    attempt: &FilesystemOperationAttempt,
+    operation_tag: u16,
+    result: i64,
+    post_error: i32,
+    logical_handle_kind: FilesystemLogicalHandleKind,
+) -> bool {
     matches!(
         attempt,
         FilesystemOperationAttempt {
@@ -1189,9 +1284,9 @@ fn unknown_descriptor_failure_has_exact_core_shape_with_outcome(
                 logical_handle_inputs.as_slice(),
                 [FilesystemLogicalHandleInput {
                     operand_ordinal: 0,
-                    kind: FilesystemLogicalHandleKind::Descriptor,
+                    kind,
                     resolution: FilesystemLogicalHandleInputResolution::Unknown,
-                }]
+                }] if *kind == logical_handle_kind
             )
             && retired_logical_handles.is_empty()
             && grant_refusals.is_empty()

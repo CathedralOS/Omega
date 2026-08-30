@@ -7,6 +7,7 @@ use super::{
 
 const REAL_SCOPED_PROVIDER_TAG: u8 = 2;
 const DESCRIPTOR_HANDLE_KIND_TAG: u8 = 0;
+const NATIVE_HANDLE_KIND_TAG: u8 = 1;
 const BAD_DESCRIPTOR_RESULT: i64 = -1;
 const BAD_DESCRIPTOR_ERROR: i32 = 9;
 
@@ -54,6 +55,20 @@ pub(super) fn unknown_descriptor_get_osfhandle_failure_shape_is_exact(
         && shape.mutable_bytes.is_empty()
         && shape.byte_operands.is_empty()
         && unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(shape, -2, 0)
+}
+
+pub(super) fn unknown_native_handle_close_failure_shape_is_exact(shape: &AttemptShape<'_>) -> bool {
+    shape.operation == 29
+        && shape.scalars.is_empty()
+        && shape.mutable_byte_resolutions.is_empty()
+        && shape.mutable_bytes.is_empty()
+        && shape.byte_operands.is_empty()
+        && unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+            shape,
+            NATIVE_HANDLE_KIND_TAG,
+            0,
+            6,
+        )
 }
 
 pub(super) fn unknown_descriptor_write_operation(operation: u16) -> bool {
@@ -177,13 +192,27 @@ fn unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(
     result: i64,
     post_error: i32,
 ) -> bool {
+    unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+        shape,
+        DESCRIPTOR_HANDLE_KIND_TAG,
+        result,
+        post_error,
+    )
+}
+
+fn unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+    shape: &AttemptShape<'_>,
+    handle_kind: u8,
+    result: i64,
+    post_error: i32,
+) -> bool {
     shape.provider == REAL_SCOPED_PROVIDER_TAG
         && shape.result == ShapeResult::Scalar(result)
         && shape.post_error == post_error
         && shape.inputs.as_slice()
             == [ShapeLogicalInput {
                 ordinal: 0,
-                kind: DESCRIPTOR_HANDLE_KIND_TAG,
+                kind: handle_kind,
                 resolution: ShapeLogicalInputResolution::Unknown,
             }]
         && shape.path_like_operands.is_empty()
@@ -198,6 +227,18 @@ fn unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(
         && shape.output.is_none()
         && shape.retired.is_empty()
         && shape.refusal_count == 0
+}
+
+pub(super) fn validate_unknown_native_handle_close_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_native_handle_close_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-native-handle close failure is internally inconsistent",
+        ))
+    }
 }
 
 pub(super) fn validate_unknown_descriptor_get_osfhandle_failure_shape(

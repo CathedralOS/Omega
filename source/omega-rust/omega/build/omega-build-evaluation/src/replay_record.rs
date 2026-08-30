@@ -46,7 +46,7 @@ use handle_failures::{
     unknown_descriptor_set_file_times_failure_shape_is_exact, unknown_descriptor_write_operation,
     unknown_descriptor_write_operation_failure_shape_is_exact,
     unknown_descriptor_write_payload_failure_shape_is_exact,
-    unknown_descriptor_write_payload_operation,
+    unknown_descriptor_write_payload_operation, unknown_native_handle_close_failure_shape_is_exact,
     validate_operand_free_unknown_descriptor_failure_shape,
     validate_unknown_descriptor_get_osfhandle_failure_shape,
     validate_unknown_descriptor_read_failure_shape,
@@ -55,6 +55,7 @@ use handle_failures::{
     validate_unknown_descriptor_set_file_times_failure_shape,
     validate_unknown_descriptor_write_operation_failure_shape,
     validate_unknown_descriptor_write_payload_failure_shape,
+    validate_unknown_native_handle_close_failure_shape,
 };
 use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
@@ -65,7 +66,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 40;
+const VERSION: u16 = 41;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -235,6 +236,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         || unknown_descriptor_write_payload_failure_shape_is_exact(shape)
                         || unknown_descriptor_read_file_metadata_failure_shape_is_exact(shape)
                         || unknown_descriptor_get_osfhandle_failure_shape_is_exact(shape)
+                        || unknown_native_handle_close_failure_shape_is_exact(shape)
                 })
                 .map(|_| shapes.len() - 1)
         })
@@ -565,6 +567,21 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay unknown-descriptor get_osfhandle failure could not be rehydrated",
+            )
+        });
+    }
+    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 29
+    {
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputUnknownNativeHandleCloseHandleReplayRecord::new(
+                typed_source_record,
+            );
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_close_handle_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-native-handle close failure could not be rehydrated",
             )
         });
     }
@@ -1788,6 +1805,7 @@ fn validate_first_rung(
                 | 19
                 | 20
                 | 27
+                | 29
                 | 30
                 | 39
                 | 41
@@ -1882,6 +1900,7 @@ fn validate_first_rung(
                     | 19
                     | 20
                     | 27
+                    | 29
                     | 30
                     | 39
                     | 41
@@ -1936,6 +1955,10 @@ fn validate_first_rung(
         }
         if shapes.len() - cursor == 1 && shapes[cursor].operation == 30 {
             validate_unknown_descriptor_get_osfhandle_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 1 && shapes[cursor].operation == 29 {
+            validate_unknown_native_handle_close_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {

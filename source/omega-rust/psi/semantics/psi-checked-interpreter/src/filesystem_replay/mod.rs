@@ -42,7 +42,7 @@ pub(crate) use duplicates::{
     output_duplicate_attempts, output_duplicate_record_from_attempts,
     output_logical_handle_identities, validate_output_duplicate_replay,
 };
-pub(crate) use handle_failures::unknown_descriptor_failure_attempt_is_exact;
+pub(crate) use handle_failures::unknown_input_handle_failure_attempt_is_exact;
 pub use handle_failures::{
     FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
@@ -56,6 +56,7 @@ pub use handle_failures::{
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord,
     FilesystemInputUnknownDescriptorWriteReplayKind,
     FilesystemInputUnknownDescriptorWriteReplayRecord,
+    FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
 };
 #[cfg(test)]
 pub(crate) use handle_failures::{
@@ -68,6 +69,8 @@ pub(crate) use handle_failures::{
     unknown_descriptor_set_file_times_from_exact_attempt, unknown_descriptor_write_attempt,
     unknown_descriptor_write_from_exact_attempt, unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,
+    unknown_native_handle_close_handle_attempt,
+    unknown_native_handle_close_handle_attempt_is_exact,
 };
 pub use hard_links::{FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord};
 pub(crate) use hard_links::{output_hard_link_attempt, output_hard_link_record_from_attempt};
