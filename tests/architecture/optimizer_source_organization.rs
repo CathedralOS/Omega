@@ -357,6 +357,30 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn built_in_psi_registries",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/mod.rs",
+        coordination_marker: "fn built_in_registrations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/mod.rs",
+        coordination_marker: "fn built_in_registrations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/mod.rs",
+        coordination_marker: "fn built_in_registrations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/mod.rs",
+        coordination_marker: "fn built_in_registrations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/mod.rs",
+        coordination_marker: "fn built_in_registrations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/mod.rs",
+        coordination_marker: "fn built_in_registrations",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
         coordination_marker: "pub fn selected_allocation_recovery_rule",
     },
@@ -715,30 +739,6 @@ const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
         order_marker: "FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG",
-    },
-    RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/catalog.rs",
-        order_marker: "fn built_in_registrations",
-    },
-    RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/catalog.rs",
-        order_marker: "fn built_in_registrations",
-    },
-    RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/catalog.rs",
-        order_marker: "fn built_in_registrations",
-    },
-    RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/catalog.rs",
-        order_marker: "fn built_in_registrations",
-    },
-    RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/catalog.rs",
-        order_marker: "fn built_in_registrations",
-    },
-    RequiredRuleCatalog {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/catalog.rs",
-        order_marker: "fn built_in_registrations",
     },
 ];
 

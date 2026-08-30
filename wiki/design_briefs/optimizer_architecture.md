@@ -67,7 +67,11 @@ singleton, hash-map scheduling, in-place partial mutation, or implicit analysis
 invalidation.
 
 Each rule-owning optimizer stage therefore has exactly one small, meaningful
-entrance:
+entrance. "Small" is necessary but not sufficient: a short re-export wall is
+not an entrance, and a thousand-line leaf below a short `mod.rs` is not a
+navigable taxonomy.
+
+The entrance:
 
 - the entrance owns the stage input/output and its ordered catalog;
 - `analyses/` owns immutable facts and their revision/invalidation rules;
@@ -83,8 +87,10 @@ human path is always rule entrance -> adjacent catalog -> named family -> exact
 rule leaf, while the pipeline path is custody entrance -> typed dispatch ->
 validated stage result.
 
-An entrance is not a re-export wall. It answers: what enters, which exact rules
-can run, in what order, and what validated value leaves.
+An entrance answers: what enters, which exact rules can run, where their sole
+order is declared, what proposal/validation join executes, and what validated
+value leaves. A `mod.rs` that only groups neighboring executable boundaries is
+a stage-group map, not a stage entrance, and must say so explicitly.
 
 Custody stages use the same navigational rule even when they do not own a rule
 catalog. For example, run-to-abstract replay enters through `replay/mod.rs`,
@@ -98,10 +104,14 @@ Here, “stage” means an executable transformation or validation boundary, not
 directory used only to group neighboring boundaries. The Psi reference shape
 is concrete: `rules/mod.rs` applies exact selections,
 `rules/catalog.rs` visibly lists the ordered passes, and each
-`rules/passes/<exact-pass>/catalog.rs` lists that pass's rules. The executable
+`rules/passes/<exact-pass>/mod.rs` visibly lists that pass's local rule order
+while routing into named mechanics. The executable
 architecture test checks those files and the coordination seams of migrated
-physical stages. Remaining flat-stage migrations are active work, not evidence
-that the small-file rule alone has been satisfied.
+physical stages. Its own inventory and checks must follow the same taxonomy; a
+giant bespoke path list would merely relocate the navigation problem.
+Remaining forwarding entrances, oversized semantic leaves, and broad fixtures
+are active organization debt, not evidence that the small-file rule alone has
+been satisfied.
 
 ## Pipeline
 

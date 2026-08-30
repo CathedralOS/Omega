@@ -1,15 +1,12 @@
 //! Removal of unused scalar computations, grouped by their semantic safety proof.
 
-mod catalog;
-
-pub(in crate::rules) use catalog::built_in_registrations;
-
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 
 use super::{DEAD_PURE_SCALAR_PASS_NAME, PROOF_CHECK_ELISION_PASS_NAME};
+use crate::rules::catalog::BuiltInRuleRegistration;
 
 mod accounting;
 mod proposal;
@@ -56,4 +53,12 @@ impl DeadScalarFamily {
         )
         .expect("built-in rule has nonzero version")
     }
+}
+
+/// The exact local rule order for this pass.
+pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
+    vec![
+        BuiltInRuleRegistration::new(0, DeadScalarLiteralEliminationRule),
+        BuiltInRuleRegistration::new(1, DeadUnconditionallyTotalScalarEliminationRule),
+    ]
 }

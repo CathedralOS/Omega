@@ -1,9 +1,14 @@
 //! Copy-propagation pass entrance.
 //!
-//! `catalog` owns exact rule order; `rule` owns proposal mechanics.
+//! This entrance owns exact rule order; `rule` owns proposal mechanics.
 
-mod catalog;
 mod rule;
 
-pub(in crate::rules) use catalog::built_in_registrations;
 pub use rule::RedundantBlockParameterRule;
+
+use crate::rules::catalog::BuiltInRuleRegistration;
+
+/// The exact local rule order for this pass.
+pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
+    vec![BuiltInRuleRegistration::new(0, RedundantBlockParameterRule)]
+}

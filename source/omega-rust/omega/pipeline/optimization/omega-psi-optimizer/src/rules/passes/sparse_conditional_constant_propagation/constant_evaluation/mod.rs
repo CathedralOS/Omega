@@ -3,7 +3,7 @@
 //! Boolean rewrites and integer rewrites are separate semantic families. The
 //! integer entrance descends again into binary arithmetic, exact casts, unary
 //! operations, and fact lookup. This module owns their shared SCCP rule
-//! contract; the pass catalog remains the only rule-order and enable point.
+//! contract; the pass entrance remains the only local rule-order point.
 
 mod boolean;
 mod integer;

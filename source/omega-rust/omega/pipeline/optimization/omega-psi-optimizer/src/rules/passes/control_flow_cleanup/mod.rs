@@ -1,9 +1,5 @@
 //! Control-flow cleanup, arranged by the graph transformation being performed.
 
-mod catalog;
-
-pub(in crate::rules) use catalog::built_in_registrations;
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_abstract_operations::AbstractOperation as O;
@@ -21,6 +17,7 @@ use omega_optimization_unit::{
 };
 use psi_core::{BlockId, MachineId};
 
+use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 use super::{
@@ -43,3 +40,16 @@ pub use unreachable_private_machines::*;
 use block_merging::adjacent_merge_ownership_is_identity;
 #[cfg(test)]
 pub(in crate::rules::passes) use unreachable_private_machines::rule_unreachable_private_machine_complement;
+
+/// The exact local rule order for this pass.
+pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
+    vec![
+        BuiltInRuleRegistration::new(0, ConstantConditionalFoldRule),
+        BuiltInRuleRegistration::new(1, LinearEmptyBlockThreadRule),
+        BuiltInRuleRegistration::new(2, PathQualifiedEmptyBlockThreadRule),
+        BuiltInRuleRegistration::new(3, AdjacentBlockMergeRule),
+        BuiltInRuleRegistration::new(4, SharedJumpFusionRule),
+        BuiltInRuleRegistration::new(5, UnreachablePrivateMachinePruneRule),
+        BuiltInRuleRegistration::new(6, NonAdjacentBlockMergeRule),
+    ]
+}
