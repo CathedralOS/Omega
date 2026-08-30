@@ -68,22 +68,28 @@ trivia-only, ordinary `use path::member;`, basic `[pub] data`, and ordinary
 empty-body machine roots.
 One mixed root table preserves authored use/data/machine order. Bare ordinary
 machines retain an arbitrary name-like path, optional parentheses containing a
-comma-separated list of ordinary `name: Type` parameters, and an immediately
-empty body. Parameters reuse the same type engine as data fields, including its
-current bare named, unqualified domain, inclusive literal range, and nested
-fixed-array forms. Each completed machine owns one implicit empty entry state
-and its contiguous parameter span, matching the canonical parser: a free
-machine uses the generated `entry` identity, while an attached machine names
-its entry with the final authored declaration-path member. Machine and domain
-paths share the general path-member arena, but a machine snapshots its path
-extent before parameter types can append domain members. A trailing parameter
-comma rejects as malformed. Parameter modifiers, receivers, references,
-returns, generics, clauses, `pub`/`boundary`/target-scoped forms, bodyless
-declarations, and nonempty bodies remain incomplete; the parser never skips a
-body as opaque syntax. Every current `C` machine requires at least a receiver,
-reference, richer type, prefix, clause, or nonempty body, so this remains a
-durable representation checkpoint rather than a present closure-coverage
-claim.
+comma-separated state-parameter list, and an immediately empty body. The list
+retains canonical optional `const` and leading `mut`, consuming or borrowed
+`self`, and shared/mutable/write-only binding-reference forms. Non-receiver
+parameters retain `name: Type`; their type, data fields, and case-payload fields
+share one engine for bare named, outer elided-lifetime references, unqualified
+domains, inclusive literal ranges, and nested fixed arrays. Self receivers
+materialize a `SelfType` base and optional outer Reference node. Every parameter
+row records its canonical const/mutable/self flags.
+
+Each completed machine owns one implicit empty entry state and its contiguous
+parameter span, matching the canonical parser: a free machine uses the
+generated `entry` identity, while an attached machine names its entry with the
+final authored declaration-path member. Machine and domain paths share the
+general path-member arena, but a machine snapshots its path extent before
+parameter types can append domain members. A trailing parameter comma rejects
+as malformed. Explicit reference lifetimes, general type-position `Self`,
+slices, returns, generics, clauses, `pub`/`boundary`/target-scoped forms,
+bodyless declarations, and nonempty bodies remain incomplete; the parser never
+skips a body as opaque syntax. In the current 72-root `C` closure, 104 of 112
+parameter occurrences and 64 complete parameter lists are representable, and
+39 headers reach body parsing. Every reached body is nonempty, so zero current
+`C` roots complete.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -95,7 +101,9 @@ optional outer domain, optional final member/case semicolons, mixed field/case
 order, and relative spans in separate live-prefix tables. A case reaches its
 contiguous payload-field span in a separate arena; direct and payload fields
 share one binding control path. Type references are postorder tagged nodes: a
-constrained root points to its named base and to one source-shaped constraint.
+constrained root points to its base and to one source-shaped constraint, while
+an outer Reference points backward to its complete referee tree and retains
+shared/mutable/write-only access. SelfType needs no payload.
 Domain constraints point into the general path arena; literal ranges and array
 lengths retain exact spans without interpreting their values. Array syntax
 uses a bounded invocation-local frame stack and emits named/array nodes in
@@ -103,18 +111,18 @@ postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
 spans instead of duplicating coordinates. Qualified, indexed, intersected,
 combined, exclusive, expression-bound, or multiple constraints; slices,
-references, generic types, rich array elements or lengths; governed built-ins
-such as `Slice`; numbered identities; field relevance; other public roots; and
-every other unimplemented valid form stop as implementation-incomplete rather than
-becoming false Omega rejections.
+explicit reference lifetimes, general Self types, generic types, rich array
+elements or lengths; governed built-ins such as `Slice`; numbered identities;
+field relevance; other public roots; and every other unimplemented valid form
+stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/implicit-state
 rows and 16,384 path-member/data-member/direct-field/payload-field/case/
 machine-parameter/type-node/constraint rows, plus 128 scratch array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
-syntax-tree consumer. A
-repeated invocation invalidates old rows by resetting every count. Root
+syntax-tree consumer. A repeated invocation invalidates old rows by resetting
+every count. Root
 capacity dominates use/data/machine/implicit-state capacity, while data-member
 capacity dominates direct-field/case capacity. Direct and payload fields share
 the type-node table, making `TypeNodes` independently exhaustible; its equal
