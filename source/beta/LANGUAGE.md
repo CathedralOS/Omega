@@ -47,6 +47,27 @@ CHAR       := "'" (char | '\\' ('n'|'t'|'r'|'0'|'\\'|"'")) "'"   ; the byte valu
 INT        := decimal digits whose mathematical value is in 0..2^64-1
 ```
 
+## Lexical form
+
+Beta source is a byte stream in the bootstrap textual-ASCII envelope. The only
+admitted source bytes are horizontal tab (`0x09`), line feed (`0x0A`), carriage
+return (`0x0D`), and printable ASCII (`0x20..0x7E`). NUL, DEL, bytes above
+`0x7F`, and every other control byte reject before tokenization at their exact
+byte offset. There is no source decoding, BOM, Unicode normalization,
+host-locale rule, or Unicode character classification.
+
+Space, tab, CR, and LF are the complete whitespace set. `;` begins a comment
+through the next CR, LF, or source end. Identifiers match
+`[A-Za-z_][A-Za-z0-9_]*`; decimal digits are exactly `0..9`. A direct character
+literal byte is printable ASCII except single quote and backslash, which use
+the closed escapes in the grammar. A direct `emit` string byte is printable
+ASCII except double quote and backslash; its escapes are exactly
+`\n \t \r \0 \\ \"`.
+
+These are source rules, not value restrictions. `write_byte(x)` can emit any
+low byte of `x`, and escapes can produce admitted control data without placing
+the corresponding control byte raw in source.
+
 **BETA-FLATTENED-CFG-INITIALIZATION.** Every procedure body and state body has
 the same recursive authored shape: an ordinary-statement prefix followed by
 zero or more state declarations. Once a state declaration begins in one block,

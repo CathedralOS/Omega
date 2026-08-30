@@ -61,7 +61,7 @@ the agreed chain.
   encoding reconstructor was deleted when it could not be adapted into the
   selected derivation. The duplicate Beta self-host wrapper was deleted. The Alpha checker was subsequently cut
   from a 293-file theorem/prover/adapter and overlapping-gate tree to one
-  authoritative Beta source/tape, one complete independent reference, one
+  authoritative Beta source/tape, one temporary complete independent reference, one
   bounded semantic seam, and compact positive/negative discriminators.
 
 ## Non-negotiable edge contract
@@ -151,6 +151,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
   compiler owners, rung pages, repository map, and chain manifest now use this
   distinction consistently; paths that still contradict it are migration tasks
   above rather than alternate roles.
+- [ ] **BOOTSTRAP-ASCII-SOURCE:** Implement D15's one source-byte envelope for
+  Alpha assembly, Beta, the selected Gamma contract, and Delta. Reject before
+  tokenization every byte other than HT, LF, CR, and printable ASCII; use
+  explicit ASCII identifier/digit predicates, exactly space/tab/CR/LF trivia,
+  CR/LF/source-end comment termination, and printable direct literal bytes plus
+  each language's closed escapes. Clean the currently checked-in compiler and
+  oracle sources mechanically, translating the checker's logic comments into
+  the ASCII vocabulary its certificates actually parse. Enforce the invariant
+  over exact source-closure membership rather than filename suffixes. Replace
+  NUL-filled extent controls with valid space padding. Because this changes
+  exact source subjects, refresh hashes, coordinate evidence, measurements, and
+  affected construction certificates before the next D14 capacity experiment;
+  rerun the assembler, compiler, checker, and diamond gates. Short-term Python
+  references must implement the same byte contract if retained, but no Python
+  implementation survives completion of the checked direct chain.
 
 ## 1. Alpha execution floor
 
@@ -276,13 +291,6 @@ code, discover a closure, manufacture proof premises, or decide admission.
     temporary compiler mutations that lower otherwise dominated invariants;
     production has no test hook. The rebuilt 26,751-byte compiler artifact
     passes exact reconstruction and structural validation.
-  - [ ] **DESIGN-BLOCKED — OWNER Q9:** Freeze Beta v1's byte-level lexical
-    contract: source decoding, identifier/digit alphabets, trivia bytes, and
-    direct character-literal bytes. The Alpha compiler and Python reference
-    currently disagree on these source-validity choices, while the written
-    grammar does not select either behavior. Closed comma-list grammar,
-    comparison arity, and literal escape sets are independent of this ruling
-    and remain implementation work rather than design blockers.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds a Beta self-host, then that self-host becomes canonical” logic. The
@@ -318,12 +326,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
   resource, and divergence observation; this first edge needs no stuttering
   rank or new trusted LTS rule. Correctness of the compiler for arbitrary Beta
   source is a separate `ADMIT-ALPHA-BETA-COMPILER` obligation.
-  - [x] Freeze `source/alpha/ASSEMBLY.md`: byte-stream lexical form with
-    arbitrary ignored comment payloads, exact operand grammar, full
+  - [x] Freeze `source/alpha/ASSEMBLY.md`: byte-stream lexical form, exact operand grammar, full
     opcode/width table, string decoding, absolute label meaning, deterministic
     two-pass encoding, and the raw-payload/container boundary. Close the Alpha
     assembler and independent reference implementation over that grammar while
-    retaining their byte-identical fixed point.
+    retaining their byte-identical fixed point. D15 subsequently narrowed the
+    shared outer source envelope; `BOOTSTRAP-ASCII-SOURCE` owns that atomic
+    implementation and evidence refresh without reopening this encoding work.
   - [x] Retire the Alpha-written status-only encoding reconstructor and its
     parallel mutation gate. It exercised the then-current 78,109-byte source and
     20,977-byte tape, but returned private halt statuses rather than a checked
@@ -397,10 +406,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Arena and proof-context exhaustion are now explicit fail-closed guards,
       and complete stdin is bounded to the exact largest permitted frame rather
       than overlapping later checker tables. The fixed proof must fit that
-      profile. The independent Python checker must agree on the logical result
-      but is diagnostic and need not reproduce Beta's resource ceilings. A
-      future authoritative checker cannot replace the service while silently
-      refusing its live certificate/profile.
+      profile. While retained, the independent Python checker must
+      agree on the logical result but is diagnostic and need not reproduce
+      Beta's resource ceilings. Delete it when this checked route subsumes the
+      comparison. A future authoritative checker cannot replace the service
+      while silently refusing its live certificate/profile.
     - Repeat measurements against the exact current bound subjects rather than
       copying prose byte counts. Across candidate chunk counts record peak
       conversion scratch, permanently retained lemma/boundary-state arena,

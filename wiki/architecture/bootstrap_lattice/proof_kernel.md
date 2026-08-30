@@ -3,7 +3,7 @@
 [Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
 > **Status: ROOTED CHECKER SERVICE; EDGE ADMISSION OPEN.** The authoritative
-> Beta implementation and one independent diagnostic reference exercise the shared calculus, and the accepted checker
+> Beta implementation and one temporary independent diagnostic reference exercise the shared calculus, and the accepted checker
 > tape is constructed directly from the Alpha-written Beta compiler source,
 > independently of the persisted Beta compiler artifact. The lattice
 > requires every compiler edge to relate its immediate-predecessor source
@@ -66,7 +66,7 @@ A solver's verdict is never a premise.
 
 ## Implementations
 
-The retained implementations are:
+The currently retained implementations are:
 
 - `source/alpha/checker/implementations/beta/check.beta` — logical proof checking in Beta;
 - `source/alpha/checker/implementations/beta/eq.beta` — fuel-bounded definitional equality;
@@ -83,6 +83,11 @@ checker artifact is reconstructed independently below `bc`. Checker acceptance
 can authorize a compiler edge only after an artifact-aware producer
 reconstructs the exact proposition and supplies a derivation in the kernel's
 supported calculus.
+
+The Python reference is not part of the completed checker service or bootstrap
+closure. It is deleted when the checked soundness/refinement route subsumes its
+named differential role; retaining it indefinitely as a second implementation
+would violate the lattice's offline self-containment and retention rules.
 
 ## Proof checking is not artifact verification
 

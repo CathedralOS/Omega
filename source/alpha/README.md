@@ -8,6 +8,10 @@ the Alpha-written assembler, and the root derivation checker. Beta compiler
 admission lives with the artifact it admits under
 `source/beta/compiler/validation/`.
 
+The Python executable reference is temporary development scaffolding. It has
+no place in the completed offline bootstrap and is deleted once the checked
+Alpha realization/conformance route subsumes its bounded comparison.
+
 ```
 alpha_x64_windows.exe    seed binary, x86-64 Windows PE   (audit THIS)
 alpha_x64_windows.hex    the annotated x64 listing it's built from  (audit AGAINST this)
@@ -69,7 +73,9 @@ it. It is **UNTRUSTED and checked**: `diamond-py.sh` runs
 opcode edges (signedness, traps, EOF) *and* real bc-compiled programs through both the host
 seed and `alpha_ref.py` and asserts they agree — so the semantics is now pinned by two opaque
 seeds *and* one auditable reference. The runtime lineage never runs `alpha_ref.py`; it is a
-verification instrument and regression oracle. Run `sh diamond-py.sh`.
+temporary verification instrument and regression oracle. It supplies no
+authority and is not retained after the direct checked relation covers this
+failure surface. Run `sh diamond-py.sh` while it remains.
 
 macOS note: `dd`-stamping a tape into a Mach-O invalidates its code signature, and Apple
 Silicon refuses to exec an invalid one, so a stamped seed is re-signed (`codesign -f -s -`)
@@ -94,7 +100,7 @@ seed owner would add another apparent construction route.
 | `alpha_x64_windows.exe`, `alpha_x64_windows.hex` | Selected Windows seed and its annotated audit listing. | Delete only when Windows x64 support is retired or an equally audited conforming seed replaces both. |
 | `seed_env.sh` | Select and stamp the exact host seed without changing tape identity. | Delete when every caller executes raw tape through an equally audited interface. |
 | `conformance.sh`, `verify.sh` | Pin every opcode edge and run the canonical seed plus assembler-construction gate. | Delete a check only when a stronger checked seed admission subsumes it. |
-| `alpha_ref.py`, `diamond-py.sh` | One independent executable semantics and its bounded seed comparison. | Delete together when a stronger independent formal relation replaces the diagnostic. |
+| `alpha_ref.py`, `diamond-py.sh` | One temporary independent executable semantics and its bounded seed comparison. | Delete together when the checked Alpha realization/conformance relation subsumes the diagnostic; never retain them in the completed bootstrap. |
 
 The duplicate random seed/reference fuzzer and its generator were deleted: the
 retained conformance suite plus one independent diamond own that failure

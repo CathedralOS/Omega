@@ -26,7 +26,7 @@ source/
       gamma_compiler.beta        canonical compiler/reference implementation
       gamma_compiler_bytecode.tape
       validation/                Beta-source/Gamma-compiler tape refinement
-    reference/                   optional differential implementations
+    reference/                   temporary differential implementations only
 
   delta/                         Delta language
     compiler/
@@ -73,6 +73,11 @@ direct adaptation into a canonical edge, canonical owner, and deletion
 condition. Otherwise it has negative value: it enlarges the audit surface,
 creates false architectural choices, and consumes maintenance and test time.
 Delete it; Git history is the archive.
+
+The same rule applies to Python and other host-language references. They may
+temporarily diagnose an incomplete direct edge, but they are not eligible for
+permanent membership in the self-contained chain and are deleted when their
+named differential role is subsumed.
 
 ## Artifact rule
 
