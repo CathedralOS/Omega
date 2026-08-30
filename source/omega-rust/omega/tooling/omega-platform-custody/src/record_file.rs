@@ -314,10 +314,7 @@ impl RootRecordRead<'_> {
         &self.bytes
     }
 
-    pub fn verify_current(
-        &mut self,
-        limits: RecordFileLimits,
-    ) -> Result<(), RecordFileError> {
+    pub fn verify_current(&mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
         self.file
             .seek(SeekFrom::Start(0))
             .map_err(|error| io_error(&self.display_path, error))?;

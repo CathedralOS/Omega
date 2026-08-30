@@ -363,26 +363,30 @@ mod tests {
     #[test]
     fn transformed_rflags_clobbers_pass_when_not_abi_preserved() {
         let rflags = RegisterUnitId(91);
-        assert!(reject_implicit_unit_writes(
-            &[],
-            &[rflags],
-            &BTreeSet::new(),
-            &BTreeSet::new(),
-            SelectedInstructionId(7),
-        )
-        .is_ok());
+        assert!(
+            reject_implicit_unit_writes(
+                &[],
+                &[rflags],
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                SelectedInstructionId(7),
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn transformed_implicit_writes_cannot_bypass_abi_preservation() {
         let preserved = RegisterUnitId(13);
-        assert!(reject_implicit_unit_writes(
-            &[],
-            &[preserved],
-            &BTreeSet::from([preserved]),
-            &BTreeSet::new(),
-            SelectedInstructionId(8),
-        )
-        .is_err());
+        assert!(
+            reject_implicit_unit_writes(
+                &[],
+                &[preserved],
+                &BTreeSet::from([preserved]),
+                &BTreeSet::new(),
+                SelectedInstructionId(8),
+            )
+            .is_err()
+        );
     }
 }

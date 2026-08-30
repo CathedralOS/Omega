@@ -245,12 +245,12 @@ fn encode_units(hasher: &mut Sha256, units: &[RegisterUnitId]) {
 #[cfg(test)]
 mod tests {
     use omega_isa_x86_64::{
-        X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
-        X86_64StructuralUnitInternalControlFixupState,
         X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET,
         X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET,
         X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
-        X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT,
+        X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT, X86_64StructuralUnitInternalControlFixup,
+        X86_64StructuralUnitInternalControlFixupKind,
+        X86_64StructuralUnitInternalControlFixupState,
     };
     use omega_machine_optimizer::Aarch64MovnMaterializationIdentity;
     use omega_optimization_core::Optimization;

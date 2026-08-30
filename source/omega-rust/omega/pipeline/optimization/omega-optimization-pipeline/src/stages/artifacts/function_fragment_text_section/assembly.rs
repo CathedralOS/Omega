@@ -5,11 +5,11 @@ use omega_optimization_core::FunctionFragmentTextSectionManifestIdentity;
 use crate::StagedOptimizedFunctionFragmentEmission;
 
 use super::{
-    placement::{place_fragments, usize_to_u64},
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
     FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
     RelocationFreeTextSectionPlacementError, StagedRelocationFreeTextSectionCustodyReceipt,
     ValidatedFunctionFragmentTextSectionManifest,
+    placement::{place_fragments, usize_to_u64},
 };
 
 pub(super) fn compute(

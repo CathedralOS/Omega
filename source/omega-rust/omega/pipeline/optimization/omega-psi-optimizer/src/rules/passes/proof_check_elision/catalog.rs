@@ -1,6 +1,9 @@
 //! Exact proof-check-elision rule order.
 
-use crate::rules::{catalog::BuiltInRuleRegistration, passes::dead_scalar_elimination::ProofCertifiedDeadScalarEliminationRule};
+use crate::rules::{
+    catalog::BuiltInRuleRegistration,
+    passes::dead_scalar_elimination::ProofCertifiedDeadScalarEliminationRule,
+};
 
 use super::*;
 
@@ -18,10 +21,7 @@ pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration>
             5,
             LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
         ),
-        BuiltInRuleRegistration::new(
-            6,
-            LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
-        ),
+        BuiltInRuleRegistration::new(6, LiveProofCertifiedExactIntegerSelfSubtractEliminationRule),
         BuiltInRuleRegistration::new(7, LiveProofCertifiedIntegerSelfRemainderEliminationRule),
         BuiltInRuleRegistration::new(8, LiveProofCertifiedIntegerSelfDivideEliminationRule),
         BuiltInRuleRegistration::new(9, LiveProofCertifiedIntegerRemainderByOneEliminationRule),

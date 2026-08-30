@@ -20,7 +20,7 @@ pub use model::*;
 pub(crate) use placement::{place_fragments_for_test, place_structural_unit_fragments_for_test};
 
 use crate::{
-    validate_optimized_function_fragment_emission, StagedOptimizedFunctionFragmentEmission,
+    StagedOptimizedFunctionFragmentEmission, validate_optimized_function_fragment_emission,
 };
 
 use assembly::{compute, receipt};
