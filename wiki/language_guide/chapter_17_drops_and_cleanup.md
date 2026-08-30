@@ -379,8 +379,15 @@ The fifth bounded slice admits `[T; 7]` under those same restrictions.
 Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5]`; an ordinary
 Unit return records six distinct zero-ABI element occurrences and cleans them
 in reverse order `[5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
-wrong-root, wrong-length, or length-eight and wider construction shapes remain
-unsupported, and trap or nuclear-abort edges still clean nothing.
+wrong-root, wrong-length, or other prefix drift remains unsupported, and trap
+or nuclear-abort edges still clean nothing.
+
+The sixth bounded slice admits `[T; 8]` under those same restrictions.
+Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5, 6]`; an ordinary
+Unit return records seven distinct zero-ABI element occurrences and cleans them
+in reverse order `[6, 5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate,
+dynamic, wrong-root, wrong-length, or length-nine and wider construction shapes
+remain unsupported, and trap or nuclear-abort edges still clean nothing.
 
 ## Contextual Droppability
 
