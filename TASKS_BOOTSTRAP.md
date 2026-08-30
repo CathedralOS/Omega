@@ -529,9 +529,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 91
-    procedures; with the frontend gate entry, the gate uses 92 of Beta's 128
-    procedure slots and compiles to 217,103 bytes, leaving 45,037 bytes below
+    and retains no alternate compiler or tape. The retained source declares 94
+    procedures; with the frontend gate entry, the gate uses 95 of Beta's 128
+    procedure slots and compiles to 229,258 bytes, leaving 32,882 bytes below
     Alpha's runnable payload ceiling for
     lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
@@ -543,6 +543,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and stack boundaries, their adjacent one-byte failures, both negative
     requests, and heap-addition/stack-subtraction wrap; no case enters Alpha's
     undefined out-of-range memory behavior.
+  - [x] Establish the private arbitrary-arity Gamma frame ABI independently of
+    Q3's unresolved source identities. Retain complete two-word values; lay out
+    previous-frame and caller-cursor words, fixed local slots, and reverse-
+    positioned source-order parameters in one downward explicit frame. Ordinary
+    calls use Alpha `call`/`ret`, but every live return owns at least a 16-byte
+    explicit frame: the guarded `[256 KiB,16 MiB)` stack therefore exhausts
+    after at most 1,032,192 live calls while their 8,257,536 hidden-return bytes
+    still lie above the 48 MiB heap ceiling. Tail calls preflight their complete
+    replacement extent, copy already-evaluated two-word arguments high-to-low,
+    inherit the original caller cursor, and jump without growing either stack.
+    Execute 4,096 mutual grow/shrink tail transfers between 48- and 80-byte
+    frames, preserve a pending caller spill across non-tail return, carry 600
+    nonzero-kind arguments, and distinguish an exact 256 KiB tail landing from
+    the adjacent aligned resource failure before relocation. Reject malformed
+    compiler-owned frame profiles before emitting bytes. Q3 still blocks
+    assigning calls and binder slots from ambiguous source, not this ABI.
   - [x] Directly emit checked signed-add, subtract, multiply, divide, and
     remainder helpers. Ordinary results return in `r0`; both overflow
     directions, zero divisors, and `INT64_MIN / -1` transfer to a supplied
