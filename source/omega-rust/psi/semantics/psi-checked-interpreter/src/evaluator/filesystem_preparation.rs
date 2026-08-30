@@ -74,6 +74,20 @@ fn check_filesystem_arity(operation: FilesystemHostOperation, actual: usize) -> 
     Ok(())
 }
 
+fn rooted_package_build_operation_refusal(
+    operation: FilesystemHostOperation,
+) -> Option<&'static str> {
+    match operation {
+        FilesystemHostOperation::Canonicalize => Some("would expose a host-absolute path"),
+        FilesystemHostOperation::FindFirst
+        | FilesystemHostOperation::FindNext
+        | FilesystemHostOperation::FindClose => {
+            Some("belongs to an unrooted find-cursor protocol not admitted by the Build facet")
+        }
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct PreparedTransferCount {
     pub(super) raw: u64,
@@ -1091,6 +1105,21 @@ mod tests {
             output: array_output(length),
             bytes: vec![0; length],
         }
+    }
+
+    #[test]
+    fn rooted_package_build_refuses_unrooted_or_host_absolute_protocols() {
+        assert!(
+            rooted_package_build_operation_refusal(FilesystemHostOperation::Canonicalize).is_some()
+        );
+        for operation in [
+            FilesystemHostOperation::FindFirst,
+            FilesystemHostOperation::FindNext,
+            FilesystemHostOperation::FindClose,
+        ] {
+            assert!(rooted_package_build_operation_refusal(operation).is_some());
+        }
+        assert!(rooted_package_build_operation_refusal(FilesystemHostOperation::ReadDir).is_none());
     }
 
     fn mutable_i64() -> PreparedI64Output {
@@ -2256,10 +2285,12 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<PreparedFilesystemPreparation> {
         check_filesystem_arity(operation, arguments.len())?;
-        if self.rooted_build_paths_required && operation == FilesystemHostOperation::Canonicalize {
+        if self.rooted_build_paths_required
+            && let Some(reason) = rooted_package_build_operation_refusal(operation)
+        {
             return Err(Halt::Trap(format!(
-                "package build filesystem operation `{}` would expose a host-absolute path",
-                operation.canonical_name()
+                "package build filesystem operation `{}` {reason}",
+                operation.canonical_name(),
             )));
         }
         let attempt_index = *self

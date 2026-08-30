@@ -72,19 +72,20 @@ stop the item on one precise owner question before adding machinery.
     explicitly named deterministic retention weights. Until then it is only an
     implementation availability guard, not exact payload or memory evidence;
   - add exact peak-live byte accounts only where the compiler owns a complete
-    allocation lifetime. Evaluator `Text` backing payloads are landed. Keep the
-    remaining persistent filesystem domain distinct: retained find-cursor
-    name snapshots need one closure-wide live account because several cursors
-    can coexist. Each individual cursor is already capped at 16 MiB of exact
-    retained name payload. Complete synchronous directory enumeration now
-    truncates retained components to Omega std's existing 255-byte `DirEntry`
-    carrier and caps packed dirent bytes at 16 MiB per operation before
-    retaining each snapshot name and before allocating the packed buffer. That
-    extent strictly dominates the complete retained source-name payload. It
-    needs no duplicate name account or peak receipt. Synchronous
-    file-read transfer buffers likewise already have one exact pre-provider
-    16-MiB per-operation bound; do not add a peak receipt that merely restates
-    it. Do not add a generic filesystem-scratch,
+    allocation lifetime. Evaluator `Text` backing payloads are landed.
+    Complete synchronous directory enumeration truncates retained components
+    to Omega std's existing 255-byte `DirEntry` carrier and caps packed dirent
+    bytes at 16 MiB per operation before retaining each snapshot name and
+    before allocating the packed buffer. That extent strictly dominates the
+    complete retained source-name payload. It needs no duplicate name account
+    or peak receipt. Synchronous file-read transfer buffers likewise already
+    have one exact pre-provider 16-MiB per-operation bound; do not add a peak
+    receipt that merely restates it. The unrooted Windows find-cursor trio is
+    now rejected outright in
+    rooted package-build mode; its ambient/differential interpreter model has
+    a 16-MiB per-snapshot retained-name bound, but it must not grow package
+    sponsor, usage, or manifest fields before a root-aware Build-facet protocol
+    is actually admitted. Do not add a generic filesystem-scratch,
     “temporary logical payload,” or memory ceiling: partial participation would
     misstate allocator/RSS containment. BuildLog bytes, canonical filesystem
     operation attempts, concurrently live filesystem handles and interpreter
@@ -100,11 +101,13 @@ stop the item on one precise owner question before adding machinery.
 
   The Windows `find_first`/`find_next`/`find_close` companion remains ordered
   after **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS**. Its current
-  plain-byte pattern records a host-absolute `directory/*` spelling rather
-  than a compiler-rooted coordinate, so accepting it now would make a receipt
-  source-location-dependent. Replace that operand with the root-aware Build
-  facet before adding replay; do not add a same-path-only receipt or ignore the
-  pattern during replay matching.
+  plain-byte pattern records an unrooted, working-directory-dependent
+  `directory/*` spelling rather than a compiler-rooted coordinate, so accepting
+  it now would make a receipt source-location-dependent. Rooted package-build
+  evaluation rejects the trio before operand evaluation or provider service.
+  Replace that operand with the root-aware Build facet before admitting it or
+  adding replay; do not add a same-path-only receipt or ignore the pattern
+  during replay matching.
 
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Locally recheck every proof or retained
   certificate required by an ordinary package claim. Reject open/deferred

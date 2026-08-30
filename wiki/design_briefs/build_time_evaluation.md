@@ -794,8 +794,10 @@ enumeration truncates retained components to Omega std's existing 255-byte
 before retaining each snapshot name and before allocating the packed buffer.
 That extent strictly dominates the complete retained source-name payload, so a
 duplicate name account adds no invariant. Retained find-cursor names have a
-16-MiB per-snapshot name ceiling, but still need a closure-wide live account
-because several cursors can coexist. Synchronous file-read transfer buffers
+16-MiB per-snapshot name ceiling in the ambient/differential interpreter, but
+the unrooted find trio is rejected in rooted package-build mode. It therefore
+does not justify package sponsor, usage, or manifest fields before a root-aware
+Build-facet protocol is admitted. Synchronous file-read transfer buffers
 already have one exact pre-provider 16-MiB per-operation bound; another peak
 field would add no enforceable invariant. Allocator capacity, RSS, and process
 memory remain deployment policy rather than an Omega claim.

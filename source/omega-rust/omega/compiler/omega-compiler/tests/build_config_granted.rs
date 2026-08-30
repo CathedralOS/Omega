@@ -1196,25 +1196,26 @@ invokes FilesystemHost;
 }
 
 #[test]
-fn failed_filesystem_preparation_retains_the_completed_path_like_operand_prefix() {
+fn rooted_build_rejects_unrooted_find_before_operand_preparation() {
     let (project, profile) = rooted_build_probe_project(
         "path-like-preparation-prefix",
         r#"    self.result = self.filesystem.find_first("missing/*", &mut self.small_buffer);"#,
     );
     let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-        .expect_err("undersized find-data output must reject build evaluation");
+        .expect_err("unrooted find protocol must reject package build evaluation");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        rendered.contains("filesystem output requires 320 bytes"),
+        rendered.contains("unrooted find-cursor protocol not admitted by the Build facet"),
         "{rendered}"
     );
     assert!(
-        rendered.contains("1 path-like operand(s)"),
-        "the completed find pattern must survive the later buffer-capacity failure: {rendered}"
+        !rendered.contains("filesystem output requires 320 bytes")
+            && !rendered.contains("1 path-like operand(s)"),
+        "package rejection must precede operand evaluation and buffer preparation: {rendered}"
     );
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -4055,31 +4056,38 @@ fn rooted_path_prefix_precedes_a_later_resolver_failure() {
 }
 
 #[test]
-fn failed_filesystem_preparation_retains_the_completed_logical_handle_prefix() {
-    let (project, profile) = rooted_build_probe_project(
-        "logical-handle-preparation-prefix",
-        r#"    self.code = self.filesystem.find_next(7, &mut self.small_buffer);"#,
-    );
-    let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-        .expect_err("undersized find-data output must reject build evaluation");
-    let rendered = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        rendered.contains("filesystem output requires 320 bytes"),
-        "{rendered}"
-    );
-    assert!(
-        rendered.contains("1 logical-handle operand(s)"),
-        "the completed find handle must survive the later buffer-capacity failure: {rendered}"
-    );
-    assert!(
-        rendered.contains("1 mutable-carrier operand(s)"),
-        "the completed find-data carrier must survive its capacity failure: {rendered}"
-    );
-    let _ = std::fs::remove_dir_all(&project);
+fn rooted_build_rejects_unrooted_find_continuations_before_operand_preparation() {
+    for (case, body) in [
+        (
+            "find-next",
+            r#"    self.code = self.filesystem.find_next(7, &mut self.small_buffer);"#,
+        ),
+        (
+            "find-close",
+            r#"    self.code = self.filesystem.find_close(7);"#,
+        ),
+    ] {
+        let (project, profile) = rooted_build_probe_project(case, body);
+        let diagnostics =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect_err("unrooted find continuation must reject package build evaluation");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains("unrooted find-cursor protocol not admitted by the Build facet"),
+            "{case}: {rendered}"
+        );
+        assert!(
+            !rendered.contains("filesystem output requires 320 bytes")
+                && !rendered.contains("1 logical-handle operand(s)")
+                && !rendered.contains("1 mutable-carrier operand(s)"),
+            "{case}: package rejection must precede handle and buffer preparation: {rendered}"
+        );
+        let _ = std::fs::remove_dir_all(&project);
+    }
 }
 
 #[test]
