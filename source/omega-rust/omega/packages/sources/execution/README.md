@@ -65,7 +65,26 @@ guarantees remain `Unavailable` rather than acquiring placeholder modules or
 best-effort claims. These rows report optional platform hardening; they are not
 universal prerequisites for successful source resolution.
 
-## Current enforcement
+## Settled network boundary
+
+The governing `Host-routed network transport` contract lives in
+[`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).
+Networked discovery and fetch must allow the selected system Git to use the
+invoking user's ordinary transport/authentication chain. The universal path
+therefore has no compiler-owned CONNECT route, forced HTTPS proxy or SSH
+command, preselected descendant-helper set, endpoint-peer claim, or aggregate
+network-transfer measurement. Uniform lifecycle/resource controls remain;
+local-only initialization and inspection may retain their tighter closed
+execution/write policy.
+
+The code described below still contains the older brokered network path. It is
+implementation drift scheduled by `HOST-ROUTED-SOURCE-TRANSPORT`, not a second
+supported contract. Its endpoint and transfer observations are not retained as
+zero-valued fields when removed. A later hermetic host/CI profile may attach
+separately typed confinement evidence to a universal source receipt, but cannot
+change package semantics or source identity.
+
+## Current implementation, including the legacy network path
 
 - macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
   profile imports. Every resolver phase deliberately retains broad filesystem
@@ -136,10 +155,10 @@ universal prerequisites for successful source resolution.
   retained by the package-source receipt, not claims that the host operating
   system excluded all ambient authority.
 
-The broker bounds CONNECT request bytes and headers, the complete DNS result
-set collected before any upstream connection, accepted connections, buffers,
-connection/relay duration, and bytes accepted for relay. Every route in one
-source resolution shares one compiler-owned bidirectional transfer budget;
+The legacy broker bounds CONNECT request bytes and headers, the complete DNS
+result set collected before any upstream connection, accepted connections,
+buffers, connection/relay duration, and bytes accepted for relay. Every route
+in one source resolution shares one compiler-owned bidirectional transfer budget;
 CONNECT framing and DNS traffic are excluded. Endpoint observations retain
 closed outcomes, effective socket peers, and exact uploaded/downloaded counts.
 An over-ceiling read is not forwarded or charged, closes the tunnel, and emits
@@ -156,11 +175,16 @@ the exact system command shell and current login shell needed by Git and
 OpenSSH are independently verified and included in the native executable set;
 compiler-authored environment fields carry the broker and target authorities,
 so package locator text never becomes shell syntax. User and system Git/SSH
-configuration and the inherited host environment remain available for ordinary
-credential helpers, agents, identity files, known-host policy, and proxies.
+configuration and the inherited host environment remain readable, but
+configured programs or state outside the compiler-preselected execution/write
+set may still fail. That behavior override is why the legacy broker and
+network-phase allowlists are being removed together.
 
-This engineering enforcement is recorded in each successful package-source
-receipt. Every macOS phase marks `FilesystemReadsConfined` unavailable because
-ambient host reads are intentional. Other unavailable rows remain visible as
-platform-hardening facts and do not prevent resolution. See
+The current implementation records this legacy engineering enforcement in each
+successful package-source receipt. The migration removes helper identities,
+endpoint outcomes, and broker transfer counts from the universal receipt rather
+than treating their absence as an observed zero. Every macOS phase marks
+`FilesystemReadsConfined` unavailable because ambient host reads are
+intentional. Other applicable platform-hardening rows remain visible as facts
+and do not prevent resolution. See
 [`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).

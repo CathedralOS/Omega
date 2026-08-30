@@ -33,9 +33,10 @@ The resolver is responsible for:
   depth ceilings;
 - preventing fetched source and `build.omg` from receiving resolver
   credentials, environment, or transport handles;
-- bounding captured helper output, brokered network transfer, command duration,
-  command count, and accepted source/cache size; and
-- recording the endpoint, transport, executable identities, command outcomes,
+- bounding captured helper output, command duration, command count, accepted
+  source/cache size, and the uniform process resources the selected host
+  backend can honestly constrain; and
+- recording the requested endpoint, primary Git invocation, command outcomes,
   source identities, limits, and observed resource use that produced a
   successful result.
 
@@ -57,11 +58,11 @@ source. A missing, rejected, or unusable credential produces an ordinary fetch
 failure.
 
 Omega constrains the command surface it owns: protocols and redirects are
-closed, hooks, checkout filters, and submodules are disabled, and the selected
-transport executable is invoked explicitly. User and system Git/SSH
-configuration and the invoking environment remain host inputs so ordinary
-credential helpers, agents, identity files, known-host policy, and proxies work
-normally. These inputs never become package identity or package authority.
+closed, while hooks, checkout filters, and submodules are disabled. User and
+system Git/SSH configuration and the invoking environment remain host inputs so
+ordinary credential helpers, agents, identity files, known-host policy,
+transport programs, and proxies work normally. These inputs never become
+package identity or package authority.
 Omega does not override the host's `StrictHostKeyChecking` policy. Because
 package resolution is noninteractive, a host policy that requires a confirmation
 prompt fails normally unless that host is already known or host configuration
@@ -69,6 +70,36 @@ selects a noninteractive acceptance policy.
 Platform or CI integrations may provide stronger credential isolation, but
 that is optional host policy rather than a prerequisite for resolving a
 package.
+
+## Host-routed network transport
+
+Networked discovery and fetch invoke the selected system Git under the
+invoking user's ordinary descendant-execution, filesystem, credential, and
+network authority. The universal path does not force an Omega proxy or SSH
+command, pre-enumerate the host-selected transport/helper executable graph, or
+confine helper-specific state locations. Git configuration may contain
+includes, shell commands, helper protocols, platform services, and further
+host-selected programs; partially reproducing or brokering that ecosystem
+would override host behavior without establishing a stronger operating-system
+trust boundary.
+
+This delegation is limited to the transport and authentication chain. It does
+not reopen package-controlled execution: the closed protocol surface,
+noninteractive invocation, disabled redirects, hooks, replacements, filters,
+and submodules, command construction, captured-output and lifetime bounds,
+whole-process-tree cleanup, authenticated object graph, quarantine publication,
+and immutable snapshot remain compiler owned. Uniform native limits may apply
+to the complete child tree without knowing descendant identities. A control
+that requires an allowlist of host transport/helper identities or writable
+state locations is not part of the universal network path.
+
+Repository initialization and inspection have no ambient transport-helper
+requirement and may retain their closed execution and write policy. A
+deliberately hermetic host or CI profile may additionally close its complete
+configuration and executable set. Stronger confinement from such a profile is
+carried as separately typed evidence bound to the universal source receipt; it
+does not replace that receipt, change package identity, or become selectable by
+package source.
 
 ## Successful receipt
 
@@ -80,10 +111,12 @@ public constructor or decoder. Its canonical identity binds:
   workspace-member projection;
 - the published snapshot path, content identity, entry count, logical bytes,
   depth, and compiler-owned limits;
-- the selected Git and transport executable observations;
-- every prepared-policy and completed-command observation;
-- the requested endpoint route and observed connection outcomes;
-- captured-output and network-transfer ceilings and observed counts; and
+- the selected primary Git executable and exact compiler-owned invocation;
+- every applicable lifecycle/resource policy and completed-command
+  observation;
+- the normalized requested endpoint, without claiming the host's actual route
+  or socket peer;
+- captured-output ceilings and observed counts; and
 - the retained cache-storage measurement accepted before publication.
 
 The receipt records what happened. It does not assert that host credentials,
@@ -110,6 +143,16 @@ outcomes, object identities, the materialized tree, cache custody, and source
 limits before publishing `ResolvedGitSource`. Helper output alone never issues
 a result.
 
+Pipeline consistency is compiler-owned even though hostile same-user isolation
+is not. Resolution binds one exact commit and tree, validates a private
+materialization, and publishes one immutable snapshot. Later phases consume
+that snapshot and its retained content identity rather than rereading a mutable
+repository. Detected drift or a mismatch between retained and consumed bytes
+rejects; the resolver never combines observations from different source
+moments. Atomic publication and rechecks protect correctness, reproducibility,
+and ordinary concurrent-edit races without claiming that they can defeat a
+process already holding the invoking user's authority.
+
 ## Local sources
 
 Local sources skip transport but still pass through bounded snapshot staging.
@@ -122,12 +165,13 @@ authority after resolution completes.
 ## Resource handling
 
 The resolver enforces compiler-owned ceilings on source entries, source bytes,
-depth, command count, captured output, brokered transfer, and retained cache
-state. Commands have deadlines and platform-appropriate process cleanup. Native
-backends may additionally provide filesystem, network, executable, descendant,
-CPU, memory, file-size, descriptor, or process-count controls; their exact
-dispositions are recorded rather than promoted into universal package
-semantics.
+depth, command count, captured output, and retained cache state. Commands have
+deadlines and platform-appropriate process cleanup. Native backends may
+additionally provide phase-applicable filesystem, descendant, CPU, memory,
+file-size, descriptor, or process-count controls; their exact dispositions are
+recorded rather than promoted into universal package semantics. Universal
+networked resolution claims neither aggregate transport-byte accounting nor
+direct endpoint confinement.
 
 These controls substantially bound hostile input, but an ordinary user-mode
 package manager cannot promise that the host filesystem will never report disk
@@ -137,12 +181,22 @@ credential failures remain ordinary resolution failures.
 
 ## Platform hardening
 
-The existing macOS Seatbelt, Linux Landlock/resource-limit, Windows Job Object,
-endpoint-broker, executable-custody, and process-lifecycle code is defense in
-depth. It narrows what trusted helpers can do and records the controls that were
-active. Cross-platform parity is not required before a successful source
-receipt may issue, and those mechanisms do not claim to solve hostile same-user
-replacement or remove ambient host authority.
+The macOS Seatbelt, Linux Landlock/resource-limit, Windows Job Object, and
+process-lifecycle mechanisms are defense in depth when they preserve the
+selected phase's contract. Uniform lifecycle and resource controls may narrow
+what the complete trusted child tree can do. Network-phase executable or write
+allowlists that prevent a host-selected transport helper from running are
+behavior overrides and are excluded from the universal path. Cross-platform
+parity is not required before a successful source receipt may issue, and these
+mechanisms do not claim to solve hostile same-user replacement or remove
+ambient host authority.
+
+The current native implementation still contains a forced CONNECT route,
+preselected transport/helper identities, and associated endpoint/transfer
+receipt fields. Those are legacy implementation drift, not this contract. The
+host-routed transport task removes them together; until it lands, some valid
+ambient Git/SSH configurations may fail to resolve. Removed observations are
+deleted from the universal receipt rather than retained as zero-valued fields.
 
 ## Package and build separation
 

@@ -11106,7 +11106,7 @@ checked-result arithmetic decision listed below.
   result/evidence custody, and compiler-issued ordering-scope construction.
   The five semantic families and retained structural contexts are already
   settled; do not synthesize checked rows until a real source operation can
-  emit them. See `OWNER_QUESTIONS.md` Q3.
+  emit them. See `OWNER_QUESTIONS.md` Q2.
 - After that source contract lands, add sealed provider requirements for DMA
   publication/acquisition, cache maintenance, MMIO notification, and
   posted-write completion. Every emitted

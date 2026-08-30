@@ -1206,7 +1206,8 @@ incomplete recorded override. The projection never substitutes an overload
 display name, declaration order, or a runtime-layout-only type identity for
 this contract surface.
 
-Production exact package applications remain fail-closed. Q6 must first
+Production exact package applications remain fail-closed. The owner question
+`Define exact boundary-realization application evidence` must first
 settle a tagged structural demand representation and its recheckable join to
 selected-realization evidence; an arity plus semantic strings is not sufficient
 authority, and a provisional type-only use carrier would pre-commit the wider

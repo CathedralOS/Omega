@@ -616,7 +616,8 @@ wins meaning from collector traversal.
 
 D22 does not decide transition-arm binder shadowing/scope or the exact
 coordinate and competition rule between `InvalidBoundary` and a separate
-collection-phase duplicate. Those narrow rules remain open in Q9; they must not
+collection-phase duplicate. Those narrow rules remain open in the owner question
+`Complete Delta's census rules for transition binders and failures`; they must not
 be inferred from collector traversal or used to justify a partial census.
 
 ## Dependency order
