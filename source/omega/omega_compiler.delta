@@ -222,14 +222,30 @@ data OmegaPathDestination {
 
 data OmegaTypeReferenceKind {
     case Named;
+    case SelfType;
     case Constrained;
     case FixedArray;
+    case Reference;
+}
+
+data OmegaTypeBaseKind {
+    case Named;
+    case SelfType;
+}
+
+data OmegaReferenceAccess {
+    case Shared;
+    case Mutable;
+    case WriteOnly;
 }
 
 // Compact tagged type node. Payload interpretation is owned by kind:
 // Named uses payload0/payload1 as its name span; Constrained uses payload0 as
 // its base node and payload1/payload2 as its constraint span; FixedArray uses
 // payload0 for its element and payload1/payload2 for the exact length span.
+// Reference uses payload0 for its referee, payload1 for access (0 shared,
+// 1 mutable, 2 write-only), payload2 as has-lifetime, and payload3/payload4 for
+// a future exact lifetime span. SelfType has no payload.
 // Remaining words are reserved for final recursive type variants without
 // parallel node arenas. Words not selected by kind have no meaning and need
 // not be cleared.
@@ -463,6 +479,16 @@ data OmegaParser {
     machine_first_parameter: i32;
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
+    machine_parameter_is_const: i32;
+    machine_parameter_is_leading_mutable: i32;
+    machine_parameter_is_mutable: i32;
+    machine_parameter_is_self: i32;
+    machine_parameter_has_binding_reference: i32;
+    machine_parameter_binding_access: OmegaReferenceAccess;
+    type_base_kind: OmegaTypeBaseKind;
+    type_has_reference: i32;
+    type_reference_access: OmegaReferenceAccess;
+    type_reference_is_exclusive: i32;
     status: OmegaParserStatus;
     diagnostic_code: OmegaParseDiagnosticCode;
     diagnostic_start: i32;
@@ -2517,10 +2543,11 @@ machine OmegaLexScan::validate_lexical(
 // positions; no purpose or preflight fact escapes this invocation.
 //
 // The retained syntax currently owns ordinary `use path::member;`, basic
-// `[pub] data` roots, and empty-body machine roots with ordinary named
-// parameters. Data fields and machine parameters share named,
-// domain-qualified, range-refined, and nested fixed-array type syntax. Rich
-// valid syntax stops as Incomplete rather than becoming a false Omega
+// `[pub] data` roots, and empty-body machine roots with state parameters. Data
+// fields and parameters share named, outer-reference, domain-qualified,
+// range-refined, and nested fixed-array type syntax; parameters additionally
+// retain their canonical simple modifiers, binding references, and receivers.
+// Rich valid syntax stops as Incomplete rather than becoming a false Omega
 // rejection. Later grammar slices extend this machine.
 machine OmegaParser::parse_view(
     &mut self,
@@ -2579,6 +2606,16 @@ machine OmegaParser::parse_view(
     self.machine_first_parameter = 0;
     self.machine_parameter_has_more = 0;
     self.machine_path_member_count = 0;
+    self.machine_parameter_is_const = 0;
+    self.machine_parameter_is_leading_mutable = 0;
+    self.machine_parameter_is_mutable = 0;
+    self.machine_parameter_is_self = 0;
+    self.machine_parameter_has_binding_reference = 0;
+    self.machine_parameter_binding_access = OmegaReferenceAccess::Shared;
+    self.type_base_kind = OmegaTypeBaseKind::Named;
+    self.type_has_reference = 0;
+    self.type_reference_access = OmegaReferenceAccess::Shared;
+    self.type_reference_is_exclusive = 0;
     self.status = OmegaParserStatus::Parsing;
     self.diagnostic_code = OmegaParseDiagnosticCode::None;
     self.diagnostic_start = 0;
@@ -2723,6 +2760,11 @@ machine OmegaParser::parse_view(
             30 -> machine_body_token()
             31 -> machine_parameter_token()
             32 -> machine_parameter_colon_token()
+            33 -> machine_parameter_after_const_token()
+            34 -> machine_parameter_core_token()
+            35 -> machine_binding_access_or_name_token()
+            36 -> machine_binding_name_token()
+            37 -> type_reference_access_or_type_token()
             _ -> internal_failure()
         }
     }
@@ -2866,6 +2908,27 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            33 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                source.len,
+                source.len
+            )
+            34 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                source.len,
+                source.len
+            )
+            35 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                source.len,
+                source.len
+            )
+            36 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                source.len,
+                source.len
+            )
+            37 -> type_missing_at_view_end()
             _ -> internal_failure()
         }
     }
@@ -3119,8 +3182,8 @@ machine OmegaParser::parse_view(
     state machine_parameter_or_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> machine_parameter_or_end_punctuation()
-            OmegaTokenKind::Identifier -> machine_parameter_identifier()
-            OmegaTokenKind::Keyword -> machine_parameter_keyword()
+            OmegaTokenKind::Identifier -> begin_machine_parameter_form()
+            OmegaTokenKind::Keyword -> begin_machine_parameter_form()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameterOrEnd,
                 self.scan.token_start,
@@ -3132,7 +3195,7 @@ machine OmegaParser::parse_view(
     state machine_parameter_or_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::RightParen -> finish_machine_parameters()
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> begin_machine_parameter_form()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameterOrEnd,
                 self.scan.token_start,
@@ -3143,8 +3206,8 @@ machine OmegaParser::parse_view(
 
     state machine_parameter_token() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> machine_parameter_identifier()
-            OmegaTokenKind::Keyword -> machine_parameter_keyword()
+            OmegaTokenKind::Identifier -> begin_machine_parameter_form()
+            OmegaTokenKind::Keyword -> begin_machine_parameter_form()
             OmegaTokenKind::Punctuation -> machine_parameter_punctuation()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameter,
@@ -3156,7 +3219,7 @@ machine OmegaParser::parse_view(
 
     state machine_parameter_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> begin_machine_parameter_form()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameter,
                 self.scan.token_start,
@@ -3165,34 +3228,209 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state machine_parameter_identifier() {
+    state begin_machine_parameter_form() {
+        self.machine_parameter_is_const = 0;
+        self.machine_parameter_is_leading_mutable = 0;
+        self.machine_parameter_is_mutable = 0;
+        self.machine_parameter_is_self = 0;
+        self.machine_parameter_has_binding_reference = 0;
+        self.machine_parameter_binding_access = OmegaReferenceAccess::Shared;
+        transition true { true -> machine_parameter_prefix_token() }
+    }
+
+    state machine_parameter_prefix_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> machine_parameter_prefix_identifier()
+            OmegaTokenKind::Keyword -> machine_parameter_core_keyword()
+            OmegaTokenKind::Punctuation -> machine_parameter_core_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state machine_parameter_prefix_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
             self.scan.token_end,
             "const"
         ) {
-            1 -> incomplete_root()
-            _ -> machine_parameter_mutable_identifier()
+            1 -> retain_machine_parameter_const()
+            _ -> machine_parameter_leading_mutable_identifier()
         }
     }
 
-    state machine_parameter_mutable_identifier() {
+    state machine_parameter_leading_mutable_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
             self.scan.token_end,
             "mut"
         ) {
-            1 -> incomplete_root()
+            1 -> retain_machine_parameter_leading_mutable()
             _ -> begin_machine_parameter()
         }
     }
 
-    state machine_parameter_keyword() {
+    state retain_machine_parameter_const() {
+        self.machine_parameter_is_const = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(33) }
+    }
+
+    state machine_parameter_after_const_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> machine_parameter_after_const_identifier()
+            OmegaTokenKind::Keyword -> machine_parameter_core_keyword()
+            OmegaTokenKind::Punctuation -> machine_parameter_core_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state machine_parameter_after_const_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "mut"
+        ) {
+            1 -> retain_machine_parameter_leading_mutable()
+            _ -> begin_machine_parameter()
+        }
+    }
+
+    state retain_machine_parameter_leading_mutable() {
+        self.machine_parameter_is_leading_mutable = 1;
+        self.machine_parameter_is_mutable = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(34) }
+    }
+
+    state machine_parameter_core_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_machine_parameter()
+            OmegaTokenKind::Keyword -> machine_parameter_core_keyword()
+            OmegaTokenKind::Punctuation -> machine_parameter_core_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state machine_parameter_core_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::SelfType -> incomplete_root()
-            OmegaKeywordKind::SelfValue -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> begin_machine_self_parameter()
+            _ -> begin_machine_parameter()
+        }
+    }
+
+    state machine_parameter_core_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Ampersand -> begin_machine_binding_reference()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state begin_machine_binding_reference() {
+        self.machine_parameter_has_binding_reference = 1;
+        self.machine_parameter_binding_access = OmegaReferenceAccess::Shared;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(35) }
+    }
+
+    state machine_binding_access_or_name_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> machine_binding_access_or_name_identifier()
+            OmegaTokenKind::Keyword -> machine_binding_name_keyword()
+            OmegaTokenKind::Punctuation -> machine_binding_access_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state machine_binding_access_or_name_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "mut"
+        ) {
+            1 -> retain_machine_binding_mutable()
+            _ -> machine_binding_write_or_name_identifier()
+        }
+    }
+
+    state machine_binding_write_or_name_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "write"
+        ) {
+            1 -> retain_machine_binding_write_only()
+            _ -> begin_machine_parameter()
+        }
+    }
+
+    state retain_machine_binding_mutable() {
+        self.machine_parameter_binding_access = OmegaReferenceAccess::Mutable;
+        self.machine_parameter_is_mutable = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(36) }
+    }
+
+    state retain_machine_binding_write_only() {
+        self.machine_parameter_binding_access = OmegaReferenceAccess::WriteOnly;
+        self.machine_parameter_is_mutable = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(36) }
+    }
+
+    state machine_binding_access_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::Apostrophe -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state machine_binding_name_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_machine_parameter()
+            OmegaTokenKind::Keyword -> machine_binding_name_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineParameter,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state machine_binding_name_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> begin_machine_self_parameter()
             _ -> begin_machine_parameter()
         }
     }
@@ -3204,6 +3442,48 @@ machine OmegaParser::parse_view(
         self.type_consumer = OmegaTypeConsumer::MachineParameter;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(32) }
+    }
+
+    state begin_machine_self_parameter() {
+        self.type_subject_start = self.scan.token_start;
+        self.type_subject_name_start = self.scan.token_start;
+        self.type_subject_name_end = self.scan.token_end;
+        self.type_consumer = OmegaTypeConsumer::MachineParameter;
+        self.machine_parameter_is_self = 1;
+        self.type_base_kind = OmegaTypeBaseKind::SelfType;
+        self.type_has_reference = 0;
+        self.type_reference_access = OmegaReferenceAccess::Shared;
+        self.type_reference_is_exclusive = 0;
+        self.type_constraint_mode = 0;
+        self.type_array_frame_count = 0;
+        self.type_array_depth = 0;
+        self.type_allows_range = 0;
+        self.type_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition self.machine_parameter_has_binding_reference {
+            1 -> begin_machine_self_reference()
+            _ -> scan_semantic(14)
+        }
+    }
+
+    state begin_machine_self_reference() {
+        self.type_has_reference = 1;
+        transition self.machine_parameter_is_leading_mutable {
+            1 -> retain_leading_mutable_self_reference()
+            _ -> retain_binding_self_reference()
+        }
+    }
+
+    state retain_leading_mutable_self_reference() {
+        self.type_reference_access = OmegaReferenceAccess::Mutable;
+        self.type_reference_is_exclusive = 1;
+        transition true { true -> scan_semantic(14) }
+    }
+
+    state retain_binding_self_reference() {
+        self.type_reference_access = self.machine_parameter_binding_access;
+        self.type_reference_is_exclusive = self.machine_parameter_is_mutable;
+        transition true { true -> scan_semantic(14) }
     }
 
     state machine_parameter_colon_token() {
@@ -3832,6 +4112,10 @@ machine OmegaParser::parse_view(
         self.type_array_frame_count = 0;
         self.type_array_depth = 0;
         self.type_allows_range = 0;
+        self.type_base_kind = OmegaTypeBaseKind::Named;
+        self.type_has_reference = 0;
+        self.type_reference_access = OmegaReferenceAccess::Shared;
+        self.type_reference_is_exclusive = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(13) }
     }
@@ -3886,7 +4170,7 @@ machine OmegaParser::parse_view(
     state type_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> begin_type_reference()
             OmegaPunctuationKind::LeftParen -> incomplete_root()
             OmegaPunctuationKind::Hash -> incomplete_root()
             _ -> type_missing_failure(
@@ -3896,7 +4180,86 @@ machine OmegaParser::parse_view(
         }
     }
 
+    state begin_type_reference() {
+        self.type_has_reference = 1;
+        self.type_reference_access = OmegaReferenceAccess::Shared;
+        self.type_reference_is_exclusive = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(37) }
+    }
+
+    state type_reference_access_or_type_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> type_reference_access_or_type_identifier()
+            OmegaTokenKind::Keyword -> type_token()
+            OmegaTokenKind::Punctuation -> type_reference_prefix_punctuation()
+            _ -> type_missing_failure(
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state type_reference_access_or_type_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "mut"
+        ) {
+            1 -> retain_type_reference_mutable()
+            _ -> type_reference_write_or_type_identifier()
+        }
+    }
+
+    state type_reference_write_or_type_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "write"
+        ) {
+            1 -> retain_type_reference_write_only()
+            _ -> type_reference_relaxed_or_type_identifier()
+        }
+    }
+
+    state type_reference_relaxed_or_type_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "relaxed"
+        ) {
+            1 -> incomplete_root()
+            _ -> type_token()
+        }
+    }
+
+    state retain_type_reference_mutable() {
+        self.type_reference_access = OmegaReferenceAccess::Mutable;
+        self.type_reference_is_exclusive = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(13) }
+    }
+
+    state retain_type_reference_write_only() {
+        self.type_reference_access = OmegaReferenceAccess::WriteOnly;
+        self.type_reference_is_exclusive = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(13) }
+    }
+
+    state type_reference_prefix_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Apostrophe -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            _ -> type_token()
+        }
+    }
+
     state retain_type_name() {
+        self.type_base_kind = OmegaTypeBaseKind::Named;
         self.type_name_start = self.scan.token_start;
         self.type_name_end = self.scan.token_end;
         self.type_end = self.scan.token_end;
@@ -4112,6 +4475,16 @@ machine OmegaParser::parse_view(
     }
 
     state type_suffix_identifier() {
+        transition self.type_base_kind {
+            OmegaTypeBaseKind::SelfType -> type_end_failure(
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> named_type_suffix_identifier()
+        }
+    }
+
+    state named_type_suffix_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
@@ -4432,11 +4805,34 @@ machine OmegaParser::parse_view(
         transition self.type_constraint_mode {
             1 -> add_constraint_node_requirement(member_end, next_cursor)
             2 -> add_constraint_node_requirement(member_end, next_cursor)
-            _ -> retain_type_node_capacity(member_end, next_cursor)
+            _ -> add_reference_node_requirement(member_end, next_cursor)
         }
     }
 
     state add_constraint_node_requirement(
+        member_end: i32,
+        next_cursor: i32
+    ) {
+        self.type_required_nodes = self.type_required_nodes + 1;
+        transition true {
+            true -> add_reference_node_requirement(member_end, next_cursor)
+        }
+    }
+
+    state add_reference_node_requirement(
+        member_end: i32,
+        next_cursor: i32
+    ) {
+        transition self.type_has_reference {
+            1 -> add_reference_node_requirement_bounded(
+                member_end,
+                next_cursor
+            )
+            _ -> retain_type_node_capacity(member_end, next_cursor)
+        }
+    }
+
+    state add_reference_node_requirement_bounded(
         member_end: i32,
         next_cursor: i32
     ) {
@@ -4518,12 +4914,39 @@ machine OmegaParser::parse_view(
         member_end: i32,
         next_cursor: i32
     ) {
+        transition self.type_base_kind {
+            OmegaTypeBaseKind::Named -> retain_named_type_base(
+                member_end,
+                next_cursor
+            )
+            OmegaTypeBaseKind::SelfType -> retain_self_type_base(
+                member_end,
+                next_cursor
+            )
+        }
+    }
+
+    state retain_named_type_base(member_end: i32, next_cursor: i32) {
         self.type_references[self.type_reference_count].kind =
             OmegaTypeReferenceKind::Named;
         self.type_references[self.type_reference_count].payload0 =
             self.type_name_start;
         self.type_references[self.type_reference_count].payload1 =
             self.type_name_end;
+        transition true {
+            true -> finish_retain_type_base(member_end, next_cursor)
+        }
+    }
+
+    state retain_self_type_base(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].kind =
+            OmegaTypeReferenceKind::SelfType;
+        transition true {
+            true -> finish_retain_type_base(member_end, next_cursor)
+        }
+    }
+
+    state finish_retain_type_base(member_end: i32, next_cursor: i32) {
         self.type_root = self.type_reference_count;
         self.type_reference_count = self.type_reference_count + 1;
         self.type_array_emit_index = self.type_array_frame_count - 1;
@@ -4556,7 +4979,7 @@ machine OmegaParser::parse_view(
         transition self.type_constraint_mode {
             1 -> retain_type_constraint_node_bounded(member_end, next_cursor)
             2 -> retain_type_constraint_node_bounded(member_end, next_cursor)
-            _ -> retain_type_consumer_row(member_end, next_cursor)
+            _ -> retain_type_reference_node(member_end, next_cursor)
         }
     }
 
@@ -4574,7 +4997,66 @@ machine OmegaParser::parse_view(
         self.type_root = self.type_reference_count;
         self.type_constraint_count = self.type_constraint_count + 1;
         self.type_reference_count = self.type_reference_count + 1;
-        transition true { true -> retain_type_consumer_row(member_end, next_cursor) }
+        transition true {
+            true -> retain_type_reference_node(member_end, next_cursor)
+        }
+    }
+
+    state retain_type_reference_node(member_end: i32, next_cursor: i32) {
+        transition self.type_has_reference {
+            1 -> begin_retain_type_reference(member_end, next_cursor)
+            _ -> retain_type_consumer_row(member_end, next_cursor)
+        }
+    }
+
+    state begin_retain_type_reference(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].kind =
+            OmegaTypeReferenceKind::Reference;
+        self.type_references[self.type_reference_count].payload0 = self.type_root;
+        self.type_references[self.type_reference_count].payload2 = 0;
+        transition self.type_reference_access {
+            OmegaReferenceAccess::Shared -> retain_shared_type_reference(
+                member_end,
+                next_cursor
+            )
+            OmegaReferenceAccess::Mutable -> retain_mutable_type_reference(
+                member_end,
+                next_cursor
+            )
+            OmegaReferenceAccess::WriteOnly -> retain_write_type_reference(
+                member_end,
+                next_cursor
+            )
+        }
+    }
+
+    state retain_shared_type_reference(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].payload1 = 0;
+        transition true {
+            true -> finish_retain_type_reference(member_end, next_cursor)
+        }
+    }
+
+    state retain_mutable_type_reference(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].payload1 = 1;
+        transition true {
+            true -> finish_retain_type_reference(member_end, next_cursor)
+        }
+    }
+
+    state retain_write_type_reference(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].payload1 = 2;
+        transition true {
+            true -> finish_retain_type_reference(member_end, next_cursor)
+        }
+    }
+
+    state finish_retain_type_reference(member_end: i32, next_cursor: i32) {
+        self.type_root = self.type_reference_count;
+        self.type_reference_count = self.type_reference_count + 1;
+        transition true {
+            true -> retain_type_consumer_row(member_end, next_cursor)
+        }
     }
 
     state retain_type_consumer_row(member_end: i32, next_cursor: i32) {
@@ -4587,10 +5069,22 @@ machine OmegaParser::parse_view(
                 member_end,
                 next_cursor
             )
-            OmegaTypeConsumer::MachineParameter -> retain_machine_parameter_bounded(
+            OmegaTypeConsumer::MachineParameter -> retain_machine_parameter_by_reference(
                 next_cursor
             )
         }
+    }
+
+    state retain_machine_parameter_by_reference(next_cursor: i32) {
+        transition self.type_reference_is_exclusive {
+            1 -> retain_exclusive_machine_parameter(next_cursor)
+            _ -> retain_machine_parameter_bounded(next_cursor)
+        }
+    }
+
+    state retain_exclusive_machine_parameter(next_cursor: i32) {
+        self.machine_parameter_is_mutable = 1;
+        transition true { true -> retain_machine_parameter_bounded(next_cursor) }
     }
 
     state retain_machine_parameter_bounded(next_cursor: i32) {
@@ -4600,9 +5094,12 @@ machine OmegaParser::parse_view(
             self.type_subject_name_end;
         self.machine_parameters[self.machine_parameter_count].type_reference =
             self.type_root;
-        self.machine_parameters[self.machine_parameter_count].is_const = 0;
-        self.machine_parameters[self.machine_parameter_count].is_mutable = 0;
-        self.machine_parameters[self.machine_parameter_count].is_self = 0;
+        self.machine_parameters[self.machine_parameter_count].is_const =
+            self.machine_parameter_is_const;
+        self.machine_parameters[self.machine_parameter_count].is_mutable =
+            self.machine_parameter_is_mutable;
+        self.machine_parameters[self.machine_parameter_count].is_self =
+            self.machine_parameter_is_self;
         self.machine_parameter_count = self.machine_parameter_count + 1;
         self.cursor = next_cursor;
         transition self.machine_parameter_has_more {
