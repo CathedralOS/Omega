@@ -1395,18 +1395,35 @@ code, discover a closure, manufacture proof premises, or decide admission.
       compiler gate.
     - [x] Materialize the first source-ordered binary-expression layer instead
       of recognizing one closure-specific assignment spelling. Assignment
-      values accept a left-associated `+` chain over the already-retained path,
-      boolean, decimal-integer, string, and shallow-struct primaries; every
-      operator owns a dedicated `(left, Add, right)` row and a tagged expression
-      node. `Expressions` dominates the equal binary table, and no operand is
-      evaluated or type-classified during parsing. Other operators, unary and
-      grouped operands, postfix continuations, and binary expressions in other
+      values accept a left-associated `+`/`-` chain over the already-retained
+      path, boolean, decimal-integer, string, and shallow-struct primaries;
+      every operator owns a dedicated `(left, operator, right)` row and a tagged
+      expression node. `Expressions` dominates the equal binary table, and no
+      operand is evaluated or type-classified during parsing. Other operators,
+      unary and grouped operands, postfix continuations, and binary expressions in other
       consumers remain implementation-incomplete until their shared precedence
       frame exists. This completes `Lexer::emit_punctuation`, raising completed
       current `C` roots from twenty-two to twenty-three while body-boundary
       coverage remains 54 of 73. Keep exact associativity/operator/delimiter,
       mixed-primary, expression-capacity, reset, and partial-publication vectors
       at the real Delta-compiler gate.
+    - [x] Add one bounded nonrecursive precedence frame for transition subjects
+      instead of accumulating comparison-shaped parser branches. It retains
+      path, boolean, and unsuffixed decimal-integer primaries; left-associated
+      `+`/`-`; equality and ordered comparisons; then `&&` and `||` in their
+      canonical precedence order. A 128-row invocation-local value/operator
+      frame reduces into the shared binary-expression arena before the
+      transition block is published. `ExpressionDepth` is an independent
+      private resource; `Expressions` still dominates the equal binary table.
+      Parenthesized, unary, postfix, multiplicative, membership, and other
+      subject forms remain implementation-incomplete, as do richer arm patterns
+      and targets. Extending the assignment layer to subtraction shares the
+      same operator representation. This completes
+      `Lexer::{is_identifier_start,is_identifier_continue,hex_digit_value}`,
+      raising completed current `C` roots from twenty-three to twenty-six while
+      body-boundary coverage remains 54 of 73. Keep exact precedence,
+      associativity, reduction-depth, mixed-primary, resource, reset, and
+      Complete-only publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
