@@ -36,7 +36,9 @@ pub use model::{
     StraightLineIntegerLessThanParametersTranslationError,
     StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
-    StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
+    StraightLineIntegerWidenParameterTranslationError,
+    StraightLineIntegerWidenParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
+    StraightLineScalarCrashTranslationReceipt,
 };
 
 pub fn validate_abstract_to_target_translation(

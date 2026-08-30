@@ -23,7 +23,8 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   translation families. Its descriptor and dispatch leaves connect one source
   classifier to one typed validator, and ambiguous classification fails closed.
 - `validation/catalog/dispatch/mod.rs` maps that inventory through immediate,
-  parameter-derived, and terminal typed adapter leaves.
+  parameter, and terminal adapters. Parameter adapters descend through
+  `parameter/{direct,unary,comparison}.rs`.
 - `validation/straight_line_integer_immediate.rs` owns the first closed
   translation family: parameterless `[IntegerConstant, Return]` to
   `ReturnIntegerImmediate`.
@@ -32,24 +33,26 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `validation/straight_line_scalar_crash.rs` owns parameterless one-block
   scalar `[Crash]` to exact target `Crash` custody.
 - `validation/straight_line_parameter/mod.rs` owns the shared source-envelope
-  to native-ABI replay join for direct nonempty scalar parameter rosters;
-  `derived/mod.rs` owns unary full-roster ABI/provenance replay and descends to
-  `derived/equality.rs` for equality or `derived/ordering.rs` for strict and
-  inclusive ordering expressions.
+  to native-ABI replay join for nonempty scalar parameter rosters. Boolean and
+  integer target replay descend through named `direct`, `unary`, and
+  `comparison` folders.
 - `validation/straight_line_parameter/source/mod.rs` maps source grammar,
   descending into a common `envelope.rs`, direct-return and Boolean grammar,
   or `source/integer/mod.rs`. The integer coordinator owns common
-  result-envelope reconstruction for integer-derived grammars and
-  typed-parameter lookup before descending into equality, strict/inclusive
-  ordering, or bitwise-not grammar leaves.
-- `validation/straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than,integer_less_or_equal,integer_bitwise_not}.rs`
-  retain distinct exact family identities and validate their corresponding
-  target variants after independent register or stack reconstruction. Binary
+  typed-parameter lookup before descending into comparison or unary grammar.
+  Unary source replay distinguishes bitwise-not from widen and validates the
+  exact fixed-integer widening relation before target replay begins.
+- `validation/straight_line_parameter/{boolean,integer}/{direct,unary,comparison}`
+  retain distinct exact family identities and validate corresponding target
+  variants after independent register or stack reconstruction. Binary
   Boolean-result families open recursive `ReturnBooleanExpression` carriers
   and retain ordered or identical operands; integer equality, less-than, and
   less-or-equal also bind their common exact integer type. Integer bitwise-not
   opens `ReturnIntegerExpression::BitwiseNot`, retaining its exact type and
-  parameter operand.
+  parameter operand. Integer widen opens
+  `ReturnIntegerExpression::IntegerWiden`, retaining distinct source and target
+  types and accepting only same-sign or unsigned-to-larger-signed native
+  fixed-integer widening.
 - `validation/model/{error,receipt}/mod.rs` are the small family maps above
   immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and

@@ -17,6 +17,18 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has a twelfth exact family
+for `IntegerWiden(parameter)`. All 18 legal native fixed-integer widenings are
+covered: same-sign widening and unsigned-to-larger-signed widening across
+8/16/32/64-bit carriers. Independent replay retains distinct source and target
+types, operand/result identities, operation/edge provenance, full-roster ABI
+placement, and register/stack custody on all five native targets; corruption
+of either source or target fails closed. The former mixed parameter replay,
+model, error, receipt, and catalog-adapter files now descend through explicit
+`direct`, `unary`, and `comparison` rungs. The sole enable/disable catalog stays
+small and visible, and architecture gates forbid the retired flat and
+`derived` taxonomies.
+
 [x] Transition-free, spill-free register-home assignment is now a deterministic
 constraint-graph allocator rather than a start-ordered greedy walk. Distinct
 use/definition ties form allocation vertices with exact intersected candidate
@@ -30,12 +42,10 @@ formerly rejected `{r0,r1}` versus `{r0}` feasible case, noninterfering reuse,
 aliased physical views, ties, early clobbers, pressure, corruption, and
 determinism.
 
-[x] Abstract-to-target translation validation now has an eleventh exact family
+[x] Abstract-to-target translation validation has an eleventh exact family
 for integer bitwise-not of one parameter. The source grammar map first descends
-through a new 78-line `source/integer/mod.rs` coordinator that owns common
-result-envelope reconstruction for integer-derived grammars and typed parameter
-lookup, then reaches named comparison and bitwise-not leaves; the cross-result
-source entrance shrank from 99 to 49 lines. Independent replay covers signed
+through the small `source/integer/mod.rs` coordinator that owns typed parameter
+lookup, then reaches named comparison and unary leaves. Independent replay covers signed
 and unsigned 8/16/32/64-bit
 types, register and incoming-stack placement on all five native targets, mixed
 rosters, exact operand/result/type/provenance custody, and source/target
@@ -85,15 +95,16 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first eleven semantic
+and duplicate or overlapping matches fail closed. The first twelve semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
 integer equality, strict ordering, or inclusive ordering of two same-type
-integer parameters, plus integer bitwise-not of one parameter. The
-parameter-derived families descend through a governed source-grammar map,
-integer-family coordinator, shared envelope, whole-roster ABI replay, and a
-derived-expression join. Boolean-not, integer bitwise-not, and equality replay
+integer parameters, plus integer bitwise-not and integer-widen of one parameter.
+The parameter-expression families descend through a governed source-grammar
+map, integer-family coordinator, shared envelope, whole-roster ABI replay, and
+explicit direct/unary/comparison joins. Boolean-not, integer bitwise-not,
+integer widen, and equality replay
 retain their distinct operands, produced value, operation provenance, return
 edge, exact integer type where applicable, and exact register or stack
 locations.
@@ -645,8 +656,8 @@ parallel route or optional coordinator field.
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
   integer-parameter, Boolean-parameter, Boolean-not-parameter, and ordered
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
-  integer-less-than-parameters, integer-less-or-equal-parameters, and
-  integer-bitwise-not-parameter
+  integer-less-than-parameters, integer-less-or-equal-parameters,
+  integer-bitwise-not-parameter, and integer-widen-parameter
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -906,3 +917,8 @@ rewrite or opt a program into lossy floating-point semantics.
     derive interference and directional early-clobber edges, prioritize the
     most constrained domain, independently replay the policy, and split both
     sides plus focused fixtures into visible semantic rungs.
+33. [x] Add `IntegerWiden(parameter)` as the twelfth independent
+    abstract-to-target family. Cover all 18 native widening relations and both
+    register and stack placement on all targets, retain distinct source/target
+    type custody, and replace mixed parameter catchalls with the explicit
+    direct/unary/comparison taxonomy before extending the catalog.

@@ -27,6 +27,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::STRAIGHT_LINE_INTEGER_LESS_THAN_PARAMETERS,
     dispatch::STRAIGHT_LINE_INTEGER_LESS_OR_EQUAL_PARAMETERS,
     dispatch::STRAIGHT_LINE_INTEGER_BITWISE_NOT_PARAMETER,
+    dispatch::STRAIGHT_LINE_INTEGER_WIDEN_PARAMETER,
 ];
 
 pub(super) fn validate_function(

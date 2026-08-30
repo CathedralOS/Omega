@@ -1,19 +1,12 @@
-//! Parameter translation join: direct returns or derived expressions.
+//! Parameter translation join: direct returns or typed expressions.
 //!
 //! Result-kind leaves remain distinct catalog families. This entrance owns
-//! their common source-envelope and ABI replay. Derived expression provenance
-//! descends through `derived.rs` before typed target validation.
+//! their common source-envelope and ABI replay. Boolean and integer entrances
+//! descend through direct, unary, and comparison semantics.
 
 mod abi;
 pub(crate) mod boolean;
-pub(crate) mod boolean_equal;
-pub(crate) mod boolean_not;
-mod derived;
 pub(crate) mod integer;
-pub(crate) mod integer_bitwise_not;
-pub(crate) mod integer_equal;
-pub(crate) mod integer_less_or_equal;
-pub(crate) mod integer_less_than;
 mod model;
 mod source;
 

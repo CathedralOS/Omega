@@ -18,7 +18,7 @@ fn leaf_error(
     let target_profile = NativeTarget::linux_x64();
     let target = lower_to_target_operations(&source, target_profile).unwrap();
     mutate(&mut source.functions[0]);
-    crate::validation::straight_line_parameter::integer_less_or_equal::validate(
+    crate::validation::straight_line_parameter::integer::comparison::less_or_equal::validate(
         &source.functions[0],
         target_profile,
         &target.functions[0],

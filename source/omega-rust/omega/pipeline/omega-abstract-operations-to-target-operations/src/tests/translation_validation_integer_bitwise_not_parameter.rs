@@ -20,7 +20,7 @@ fn leaf_error(
     let target_profile = NativeTarget::linux_x64();
     let target = lower_to_target_operations(&source, target_profile).unwrap();
     mutate(&mut source.functions[0]);
-    crate::validation::straight_line_parameter::integer_bitwise_not::validate(
+    crate::validation::straight_line_parameter::integer::unary::bitwise_not::validate(
         &source.functions[0],
         target_profile,
         &target.functions[0],

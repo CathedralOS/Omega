@@ -1,4 +1,4 @@
-//! Common source-function envelope for parameter-derived scalar families.
+//! Common source-function envelope for parameter-based scalar families.
 
 use std::collections::BTreeSet;
 

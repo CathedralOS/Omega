@@ -202,7 +202,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/mod.rs",
-        coordination_marker: "STRAIGHT_LINE_INTEGER_BITWISE_NOT_PARAMETER",
+        coordination_marker: "STRAIGHT_LINE_INTEGER_WIDEN_PARAMETER",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/mod.rs",
@@ -214,23 +214,27 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/mod.rs",
-        coordination_marker: "super::envelope::reconstruct",
+        coordination_marker: "mod unary",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/mod.rs",
         coordination_marker: "fn parameter(",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/mod.rs",
-        coordination_marker: "fn reconstruct_integer_bitwise_not",
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/unary/mod.rs",
+        coordination_marker: "fn reconstruct_widen",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/equality.rs",
-        coordination_marker: "fn reconstruct_integer_equal",
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/comparison/mod.rs",
+        coordination_marker: "fn reconstruct_equal",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/ordering.rs",
-        coordination_marker: "fn reconstruct_integer_less_or_equal",
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/comparison/mod.rs",
+        coordination_marker: "fn reconstruct_less_or_equal",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/parameter/mod.rs",
+        coordination_marker: "mod unary",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/mod.rs",

@@ -1,4 +1,4 @@
-//! Source-only grammar map for direct and derived parameter use.
+//! Source-only grammar map for direct and expression parameter use.
 
 pub(super) mod boolean_equal;
 pub(super) mod boolean_not;

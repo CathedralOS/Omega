@@ -58,6 +58,20 @@ pub(crate) fn integer_bitwise_not_parameter_return_artifact(
     )
 }
 
+pub(crate) fn integer_widen_parameter_return_artifact(
+    source_type: IntegerType,
+    target_type: IntegerType,
+    parameter_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Integer(target_type),
+        ScalarTerminal::IntegerWidenParameter {
+            source_type,
+            parameter_count,
+        },
+    )
+}
+
 pub(crate) fn boolean_equal_parameters_return_artifact(
     parameter_count: usize,
 ) -> (Vec<u8>, Vec<u8>) {
@@ -119,6 +133,10 @@ enum ScalarTerminal {
         parameter_count: usize,
     },
     IntegerBitwiseNotParameter {
+        parameter_count: usize,
+    },
+    IntegerWidenParameter {
+        source_type: IntegerType,
         parameter_count: usize,
     },
     BooleanEqualParameters {
@@ -226,6 +244,33 @@ fn scalar_terminal_artifact(
                     id: OperationId::new(30_005).unwrap(),
                     result: OperationResult::Scalar(declaration(constant_value)),
                     kind: OperationKind::IntegerBitwiseNot { operand },
+                }],
+                Terminator::Return {
+                    edge,
+                    value: constant_value,
+                    cleanup_actions: Vec::new(),
+                },
+                Vec::new(),
+            )
+        }
+        ScalarTerminal::IntegerWidenParameter {
+            source_type,
+            parameter_count,
+        } => {
+            assert!(parameter_count > 0, "parameter fixture must be nonempty");
+            let parameters = (0..parameter_count)
+                .map(|index| ValueDeclaration {
+                    id: ValueId::new(30_100 + index as u64).unwrap(),
+                    scalar_type: ScalarType::Integer(source_type),
+                })
+                .collect::<Vec<_>>();
+            let operand = parameters[parameter_count - 1].id;
+            (
+                parameters,
+                vec![Operation {
+                    id: OperationId::new(30_005).unwrap(),
+                    result: OperationResult::Scalar(declaration(constant_value)),
+                    kind: OperationKind::IntegerWiden { operand },
                 }],
                 Terminator::Return {
                     edge,

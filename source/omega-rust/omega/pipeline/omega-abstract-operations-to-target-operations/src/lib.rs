@@ -36,8 +36,9 @@ pub use validation::{
     StraightLineIntegerLessThanParametersTranslationError,
     StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
-    StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
-    validate_abstract_to_target_translation,
+    StraightLineIntegerWidenParameterTranslationError,
+    StraightLineIntegerWidenParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
+    StraightLineScalarCrashTranslationReceipt, validate_abstract_to_target_translation,
 };
 
 #[cfg(test)]
