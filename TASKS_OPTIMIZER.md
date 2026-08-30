@@ -17,6 +17,21 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has a thirteenth exact family
+for proof-bearing `IntegerExactCast(parameter)`. All 38 legal ordered casts
+between native signed/unsigned 8/16/32/64-bit integers are covered after
+excluding identities and widenings. Independent replay retains the cast
+obligation, source/target types, operand/result identities, operation/edge
+provenance, and full-roster register/stack ABI placement on all five native
+targets. Optimized-pipeline custody starts from a real Terminal artifact whose
+canonical representability goal is a machine precondition discharged by an
+assumption certificate; the same obligation identity reaches the typed target
+receipt. Parameter fixtures and Terminal translation fixtures now enter through
+small taxonomy maps over `direct`, `unary`, and `comparison` leaves instead of
+growing mixed builders. Unary model, error, and receipt catchalls are likewise
+split into exact semantic leaves, and the source-organization gate pins the real
+catalog join rather than forwarding modules.
+
 [x] Abstract-to-target translation validation now has a twelfth exact family
 for `IntegerWiden(parameter)`. All 18 legal native fixed-integer widenings are
 covered: same-sign widening and unsigned-to-larger-signed widening across
@@ -95,12 +110,13 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first twelve semantic
+and duplicate or overlapping matches fail closed. The first thirteen semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
 integer equality, strict ordering, or inclusive ordering of two same-type
-integer parameters, plus integer bitwise-not and integer-widen of one parameter.
+integer parameters, plus integer bitwise-not, integer-widen, and proof-bearing
+integer exact-cast of one parameter.
 The parameter-expression families descend through a governed source-grammar
 map, integer-family coordinator, shared envelope, whole-roster ABI replay, and
 explicit direct/unary/comparison joins. Boolean-not, integer bitwise-not,
@@ -657,7 +673,8 @@ parallel route or optional coordinator field.
   integer-parameter, Boolean-parameter, Boolean-not-parameter, and ordered
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
   integer-less-than-parameters, integer-less-or-equal-parameters,
-  integer-bitwise-not-parameter, and integer-widen-parameter
+  integer-bitwise-not-parameter, integer-widen-parameter, and proof-bearing
+  integer-exact-cast-parameter
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -922,3 +939,9 @@ rewrite or opt a program into lossy floating-point semantics.
     register and stack placement on all targets, retain distinct source/target
     type custody, and replace mixed parameter catchalls with the explicit
     direct/unary/comparison taxonomy before extending the catalog.
+34. [x] Add proof-bearing `IntegerExactCast(parameter)` as the thirteenth
+    independent abstract-to-target family. Cover all 38 native nonidentity,
+    nonwiden exact-cast relations; retain obligation, source/target types,
+    register/stack placement, and provenance; exercise optimized custody from
+    a canonical Terminal proof artifact; and split mixed unary/fixture
+    catchalls before adding the row to the sole enable/disable catalog.

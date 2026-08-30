@@ -6,6 +6,22 @@ use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_boolean_immediate, straight_line_integer_immediate,
 };
+use super::super::model::TranslationFamilyDescriptor;
+use crate::AbstractToTargetTranslationFamily;
+
+pub(in crate::validation::catalog) const INTEGER: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+        straight_line_integer_immediate::is_candidate,
+        straight_line_integer_immediate,
+    );
+
+pub(in crate::validation::catalog) const BOOLEAN: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
+        straight_line_boolean_immediate::is_candidate,
+        straight_line_boolean_immediate,
+    );
 
 pub(super) fn straight_line_integer_immediate(
     source: &AbstractFunction,

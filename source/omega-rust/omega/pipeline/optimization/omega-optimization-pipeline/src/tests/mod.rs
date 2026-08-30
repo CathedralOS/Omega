@@ -43,11 +43,14 @@ use omega_target_operations_to_selected_instructions::{
     validate_selected_instructions,
 };
 use psi_core::{
-    BlockId, ContractId, DomainSemanticId, EdgeId, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralDomainId,
+    BlockId, ContractId, DomainSemanticId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralDomainId,
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use psi_proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
+use psi_proof_admission::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
+};
 use psi_terminal::{
     BindingRelevance, Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralDomainDeclaration,
@@ -56,7 +59,7 @@ use psi_terminal::{
     StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+use psi_terminal_verifier::{ObligationEvidence, ProofBundle, reconstruct_operation_obligations};
 
 use super::*;
 use crate::coordination::physical_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions;

@@ -8,6 +8,22 @@ use super::super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_parameter,
 };
+use super::super::super::model::TranslationFamilyDescriptor;
+use crate::AbstractToTargetTranslationFamily;
+
+pub(in crate::validation::catalog) const INTEGER: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
+        straight_line_parameter::integer::direct::is_candidate,
+        integer,
+    );
+
+pub(in crate::validation::catalog) const BOOLEAN: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineBooleanParameter,
+        straight_line_parameter::boolean::direct::is_candidate,
+        boolean,
+    );
 
 pub(in crate::validation::catalog::dispatch) fn integer(
     source: &AbstractFunction,

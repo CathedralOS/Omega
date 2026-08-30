@@ -1,14 +1,18 @@
 //! Integer-result unary grammar coordination.
 
 pub(in crate::validation::straight_line_parameter) mod bitwise_not;
+pub(in crate::validation::straight_line_parameter) mod exact_cast;
 pub(in crate::validation::straight_line_parameter) mod widen;
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
-use super::super::super::model::{IntegerUnaryParameterSource, IntegerWidenParameterSource};
+use super::super::super::model::{
+    IntegerExactCastParameterSource, IntegerUnaryParameterSource, IntegerWidenParameterSource,
+};
 use crate::validation::model::{
     StraightLineIntegerBitwiseNotParameterTranslationError,
+    StraightLineIntegerExactCastParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
 };
 
@@ -23,6 +27,19 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_bitwise_not(
     let envelope =
         super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     bitwise_not::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_cast(
+    function: &AbstractFunction,
+) -> Result<IntegerExactCastParameterSource, StraightLineIntegerExactCastParameterTranslationError>
+{
+    let Some(AbstractOperation::IntegerExactCast { target_type, .. }) = function.operations.first()
+    else {
+        return Err(StraightLineIntegerExactCastParameterTranslationError::SourceOperationRoster);
+    };
+    let envelope =
+        super::super::envelope::reconstruct(function, ScalarType::Integer(*target_type))?;
+    exact_cast::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_widen(

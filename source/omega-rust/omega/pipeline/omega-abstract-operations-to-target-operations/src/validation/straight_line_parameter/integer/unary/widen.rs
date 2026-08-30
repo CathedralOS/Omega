@@ -21,7 +21,7 @@ pub(crate) fn validate(
     StraightLineIntegerWidenParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationError,
 > {
-    let reconstructed = super::reconstruct_widen(source, expected_target, target)?;
+    let reconstructed = super::replay::reconstruct_widen(source, expected_target, target)?;
     let TargetOperation::ReturnIntegerExpression {
         psi_edge,
         source_value,
