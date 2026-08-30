@@ -306,11 +306,16 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     Ok(((facts, token_count), input))
 }
 
-/// A bodyless accepted declaration owns its final semicolon even when the
-/// following root item carries the `boundary` prefix.  Looking only for a
-/// direct `machine`/`data` keyword made two consecutive accepted declarations
-/// parse as one machine whose clauses continued with the second `boundary`.
-fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bool {
+/// A bodyless callable declaration owns its final semicolon even when the
+/// following root item carries `pub` and/or `boundary` prefixes. Looking only
+/// for a direct `machine`/`data` keyword made consecutive declarations parse as
+/// one machine whose clauses continued into the next item.
+pub(super) fn starts_machine_contract_following_item(input: Input<'_, '_>) -> bool {
+    if input.at_keyword(psi_tokens::KeywordKind::Pub) {
+        let after_pub = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+        return starts_machine_contract_following_item(after_pub);
+    }
+
     if input.at_keyword(psi_tokens::KeywordKind::Machine)
         || input.at_keyword(psi_tokens::KeywordKind::Data)
         || input.at_keyword(psi_tokens::KeywordKind::Use)

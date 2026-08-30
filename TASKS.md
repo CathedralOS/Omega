@@ -804,6 +804,19 @@ Remaining:
   installed execution and era retained by the linear token rather than ambient
   redispatch or row equality.
 
+  Explicit top-level requirements now retain their distinct supply identity
+  through syntax, resolved/typed/checked trees, Terminal Psi, package review,
+  and canonical provider identity. Exact checked `satisfies` edges validate the
+  carrier-aware signature, contracts, effects, and installation reach ceiling;
+  build harvesting derives only declared public requirements and selects their
+  checked provider plans without creating a satisfier edge. Installation reach
+  settlement now rejoins the selected exact requirement/provider row. The core
+  task claim and public outcome carriers are visible in preparation for their
+  exported requirement signatures. Remaining work is bodyless external-
+  realization planning, selected invocation replay of the installed execution
+  and era, exact generic-provider coverage, and final removal of the
+  transitional undifferentiated bodyless-machine cases.
+
   Migrate `InterruptMaskGuard::restore`,
   `InterruptAcknowledgement::complete`, `Task::request_cancel`, and
   `Task::finish` to this form. Change `complete` to
@@ -8803,7 +8816,7 @@ state through a raw address.
     the same closure: nominal static-machine calls retain their exact bounded
     requirement, primitive results no longer require an unrelated custody
     transfer, and codec/verifier canaries reject deletion, drift, or padding.
-    Transitional top-level installation-bound requirements now lower the
+    Explicit top-level installation-bound requirements now lower the
     same exact dependency through their normalized machine-overload identity;
     trait requirements retain their normalized trait-requirement identity.
     Missing, ambiguous, wrong-kind, duplicate, changed-bound, and unused rows
@@ -8822,12 +8835,14 @@ state through a raw address.
     producers contain no service-bearing boundary operation, so there is no
     additional producer row to populate today; verifier reconstruction remains
     the fail-closed fence if one gains such an operation.
-    **Implementation-blocked on TOP-LEVEL-BOUNDARY-REQUIREMENTS:** migrate the
-    transitional top-level identity to explicit `boundary requirement`, admit
-    exact checked/external satisfiers, and select the declared operation through
-    the typed provider slot. Until that lands, provider selection cannot close
-    the new top-level dependency, so the source declaration for
-    `InterruptAcknowledgement::complete` must retain its fixed `PortIo` row.
+    Exact checked satisfiers and typed provider selection now close explicit
+    top-level requirement dependencies. External satisfiers and the final
+    carrier-owned invocation path remain under
+    **TOP-LEVEL-BOUNDARY-REQUIREMENTS**; they must replay the installed
+    execution and era rather than performing ambient redispatch. Until that
+    invocation path lands, the core completion declaration retains its
+    transitional fixed `PortIo` row rather than claiming executable selected
+    dispatch that checking cannot yet provide.
     Installation settlement no longer depends on that placeholder: its sealed
     completion route replays the exact installed reach resolution and binds the
     selected provider plan/execution, entry receipt, acknowledgement policy,

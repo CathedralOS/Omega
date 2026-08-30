@@ -2519,6 +2519,71 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
 }
 
 #[test]
+fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
+    let source = r#"
+        pub boundary requirement InterruptMaskGuard::restore(self)
+        requires self in InterruptMaskGuard::Active;
+
+        pub boundary requirement InterruptAcknowledgement::complete(self);
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize consecutive requirements");
+    let parsed = parse_syntax_trees(&tokens)
+        .expect("a contract-final semicolon must also terminate the first requirement");
+    let requirements = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(requirements.len(), 2);
+    assert_eq!(requirements[0].name.as_str(), "InterruptMaskGuard::restore");
+    assert_eq!(requirements[0].contracts.len(), 1);
+    assert!(requirements[0].bodyless);
+    assert!(requirements[0].is_top_level_boundary_requirement);
+    assert_eq!(
+        requirements[1].name.as_str(),
+        "InterruptAcknowledgement::complete"
+    );
+    assert!(requirements[1].bodyless);
+    assert!(requirements[1].is_top_level_boundary_requirement);
+}
+
+#[test]
+fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
+    let source = r#"
+        pub boundary requirement Task::finish<T>(self) -> T
+        suspends; blocks;
+
+        boundary trait TaskRuntime {}
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize operational requirement");
+    let parsed = parse_syntax_trees(&tokens)
+        .expect("the final operational semicolon must terminate the requirement");
+    let requirement = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("top-level requirement");
+    assert_eq!(requirement.name.as_str(), "Task::finish");
+    assert!(requirement.bodyless);
+    assert!(requirement.is_top_level_boundary_requirement);
+    assert!(requirement.suspends);
+    assert!(requirement.blocks);
+    assert!(parsed.root_items().any(|item| matches!(
+        item,
+        psi_syntax_trees::item::Item::Trait(definition)
+            if definition.name.as_str() == "TaskRuntime"
+    )));
+}
+
+#[test]
 fn rejects_invalid_explicit_top_level_boundary_requirement_forms() {
     for (source, expected) in [
         (
