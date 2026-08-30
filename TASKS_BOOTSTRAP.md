@@ -562,7 +562,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reusable front end. Constructor fields, parameters, and function results
     retain source spellings during the single strict parse and resolve only
     after every nominal declaration exists, so forward and mutually recursive
-    data types now implement D16. Q6 still owns duplicate declaration identity.
+    data types now implement D16. Q4 still owns duplicate declaration identity.
   - [x] Preserve source-coordinate custody through the reusable front end.
     Every syntax node now retains its zero-based starting byte offset, outer
     envelope rejection records the offending byte before tokenization, and
@@ -570,7 +570,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     typed subexpression share one sticky first-source-failure coordinate. The
     Boolean oracle does not publish a compiler frame; the direct compiler must
     absorb this metadata into its accepted-language rejection table and final
-    `GCOUT` boundary after Q5 is ruled.
+    `GCOUT` boundary after Q3 is ruled.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
@@ -723,8 +723,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and current ranked-runtime acceptance.**
-  Publish one deterministic package-resolved Omega closure `C` rooted at
+- [ ] Publish one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
   adjacent tools are excluded unless truly required.
@@ -736,8 +735,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
   itself is complete; do not revive an inspection-only precursor.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and current ranked-runtime acceptance.**
-  Author `C` with a conservative compositional subset of ordinary Omega to
+- [ ] Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.
 - [ ] **DEPENDENCY-BLOCKED — missing `omega0` and complete `C`.** Run `omega₀ C → omega` without rewriting or selectively replacing any
