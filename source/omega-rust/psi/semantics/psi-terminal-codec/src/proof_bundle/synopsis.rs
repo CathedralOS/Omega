@@ -2,7 +2,8 @@
 
 use super::{ProofCodecError, proof_bundle_fingerprint};
 use psi_proof_admission::AcceptedFactRoute;
-use psi_terminal_verifier::VerifiedTerminalModule;
+use psi_terminal::{TerminalModule, TerminalRankedGuard, TerminalRankedSuccessorArgument};
+use psi_terminal_verifier::{VerifiedNativeRankedTerminalModule, VerifiedTerminalModule};
 
 /// Render the review view from the exact bundle and trust closures retained by
 /// a successful terminal-Psi verification. This deliberately accepts a
@@ -11,13 +12,37 @@ use psi_terminal_verifier::VerifiedTerminalModule;
 pub fn render_verified_proof_synopsis(
     verified: &VerifiedTerminalModule<'_>,
 ) -> Result<String, ProofCodecError> {
+    render_verified_proof_synopsis_body(verified.proof_bundle(), verified.accepted_facts(), None)
+}
+
+/// Render the proof review view for the exact native-ranked countdown slice.
+///
+/// The extra component rows are available only after the specialized verifier
+/// has accepted the retained ranked graph. They describe that closed Terminal
+/// representation and its verifier-owned unsigned-countdown rule; they are not
+/// a general recursive-component certificate.
+pub fn render_verified_native_ranked_countdown_synopsis(
+    verified: &VerifiedNativeRankedTerminalModule<'_>,
+) -> Result<String, ProofCodecError> {
+    render_verified_proof_synopsis_body(
+        verified.proof_bundle(),
+        verified.accepted_facts(),
+        Some(verified.module()),
+    )
+}
+
+fn render_verified_proof_synopsis_body(
+    proof_bundle: &psi_terminal_verifier::ProofBundle,
+    accepted_facts: &[psi_proof_admission::AcceptedFact],
+    ranked_module: Option<&TerminalModule>,
+) -> Result<String, ProofCodecError> {
     use std::fmt::Write;
 
-    let fingerprint = proof_bundle_fingerprint(verified.proof_bundle())?;
+    let fingerprint = proof_bundle_fingerprint(proof_bundle)?;
     let mut output = String::new();
     writeln!(&mut output, "proof-bundle {fingerprint}")
         .expect("writing a synopsis to a String cannot fail");
-    let mut facts = verified.accepted_facts().iter().collect::<Vec<_>>();
+    let mut facts = accepted_facts.iter().collect::<Vec<_>>();
     facts.sort_by_key(|fact| fact.obligation);
     for fact in facts {
         writeln!(
@@ -77,7 +102,7 @@ pub fn render_verified_proof_synopsis(
             }
         }
     }
-    for producer in &verified.proof_bundle().evidence_producers {
+    for producer in &proof_bundle.evidence_producers {
         writeln!(
             &mut output,
             "evidence-producer {} term {} conformance {} trait {}",
@@ -100,10 +125,73 @@ pub fn render_verified_proof_synopsis(
             .expect("writing a synopsis to a String cannot fail");
         }
     }
+    if let Some(module) = ranked_module {
+        render_verified_ranked_countdowns(&mut output, module);
+    }
     let trust_graph = crate::current_terminal_trust_graph().map_err(ProofCodecError::TrustGraph)?;
     output.push_str(
         &crate::render_terminal_trust_graph(&trust_graph)
             .expect("writing a trust graph to a String cannot fail"),
     );
     Ok(output)
+}
+
+fn render_verified_ranked_countdowns(output: &mut String, module: &TerminalModule) {
+    use std::fmt::Write;
+
+    for machine in &module.machines {
+        let Some(component) = &machine.ranked_scc else {
+            continue;
+        };
+        writeln!(
+            output,
+            "ranked-countdown machine {} header {} rank {} type {:?}-{:?}-{} lower {:?} upper {:?}",
+            machine.id,
+            component.header,
+            component.rank_parameter,
+            component.rank_type.carrier(),
+            component.rank_type.sign(),
+            component.rank_type.bits(),
+            component.lower_bound,
+            component.upper_bound,
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        writeln!(
+            output,
+            "  ranking-rule closed-unsigned-countdown verifier-reconstructed"
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        for edge in &component.covered_cyclic_edges {
+            writeln!(
+                output,
+                "  covered-edge {} source {} target {}",
+                edge.edge, edge.source, edge.target,
+            )
+            .expect("writing a synopsis to a String cannot fail");
+            match edge.guard {
+                TerminalRankedGuard::UnsignedParameterPositive {
+                    block,
+                    edge,
+                    condition,
+                    parameter,
+                } => writeln!(
+                    output,
+                    "    guard unsigned-positive block {block} edge {edge} condition {condition} parameter {parameter}",
+                )
+                .expect("writing a synopsis to a String cannot fail"),
+            }
+            match edge.successor_argument {
+                TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                    argument_index,
+                    argument,
+                    source_parameter,
+                    target_parameter,
+                } => writeln!(
+                    output,
+                    "    successor unsigned-minus-one argument-index {argument_index} argument {argument} source-parameter {source_parameter} target-parameter {target_parameter}",
+                )
+                .expect("writing a synopsis to a String cannot fail"),
+            }
+        }
+    }
 }

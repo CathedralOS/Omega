@@ -55,7 +55,8 @@ pub use program_local_root_catalog::{
 };
 pub use proof_bundle::{
     ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,
-    proof_bundle_fingerprint, render_verified_proof_synopsis,
+    proof_bundle_fingerprint, render_verified_native_ranked_countdown_synopsis,
+    render_verified_proof_synopsis,
 };
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 pub use publication::{

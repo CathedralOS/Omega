@@ -699,6 +699,10 @@ fn synopsis_is_projected_from_the_exact_accepted_certificate() {
     assert!(first.contains("obligation 1 goal "));
     assert!(first.contains("certificate 9 proof-system 1"));
     assert!(first.contains("rule Primitive"));
+    assert!(
+        !first.contains("ranked-countdown "),
+        "ordinary verified synopsis bytes do not acquire ranked-only rows"
+    );
     let trust_graph = current_terminal_trust_graph().expect("current trust graph");
     assert!(first.contains(&format!(
         "trust-graph {} entry closure:terminal-pcc-current fully-derived false",

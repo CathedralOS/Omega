@@ -1055,6 +1055,35 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &fixed_fuel,
     )
     .expect("ranked fixed-fuel theorem replays");
+    let native_verified = psi_terminal_verifier::verify_module_for_native_ranked_countdown(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("ranked proof closes for native authority");
+    let synopsis =
+        psi_terminal_codec::render_verified_native_ranked_countdown_synopsis(&native_verified)
+            .expect("verified ranked countdown has a review synopsis");
+    assert_eq!(
+        synopsis,
+        psi_terminal_codec::render_verified_native_ranked_countdown_synopsis(&native_verified)
+            .expect("ranked synopsis is deterministic")
+    );
+    assert!(synopsis.starts_with("proof-bundle "));
+    assert!(synopsis.contains("obligation 1 goal "));
+    assert!(synopsis.contains(
+        "ranked-countdown machine 1 header 2 rank 2 type Fixed-Unsigned-32 lower Unsigned(0) upper Unsigned(4294967295)"
+    ));
+    assert!(synopsis.contains("  ranking-rule closed-unsigned-countdown verifier-reconstructed"));
+    assert!(synopsis.contains("  covered-edge 4 source 3 target 2"));
+    assert!(
+        synopsis.contains("    guard unsigned-positive block 2 edge 2 condition 4 parameter 2")
+    );
+    assert!(synopsis.contains(
+        "    successor unsigned-minus-one argument-index 0 argument 6 source-parameter 2 target-parameter 2"
+    ));
+    assert!(synopsis.contains("trust-node implementation:rust-terminal-verifier"));
+    assert!(!synopsis.contains("RecursiveComponentCertificate"));
     assert_eq!(lowered.proof_bundle.evidence.len(), 1);
     assert!(matches!(
         psi_terminal_verifier::validate_module(&lowered.semantic_module),
@@ -1066,9 +1095,13 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         .expect("ranked semantic identity should encode");
     let decoded = psi_terminal_codec::decode_module(&bytes).expect("ranked identity decodes");
     assert_eq!(decoded, lowered.semantic_module);
+    let proof_bytes = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("ranked proof identity should encode");
+    let decoded_proof = psi_terminal_codec::decode_proof_bundle(&proof_bytes)
+        .expect("ranked proof identity decodes canonically");
     let decoded_fixed_fuel_verified = psi_terminal_verifier::verify_module_for_fixed_fuel(
         &decoded,
-        &lowered.proof_bundle,
+        &decoded_proof,
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("decoded ranked proof closes for fixed fuel");
@@ -1083,6 +1116,48 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         .expect("ranked semantic section encodes");
     let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
         .expect("ranked proof section encodes");
+    let decoded_native = psi_terminal_verifier::verify_module_for_native_ranked_countdown(
+        &decoded,
+        &decoded_proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("decoded ranked proof closes for native authority");
+    assert_eq!(
+        synopsis,
+        psi_terminal_codec::render_verified_native_ranked_countdown_synopsis(&decoded_native)
+            .expect("round-tripped ranked synopsis")
+    );
+    let mut mutated_component = decoded.clone();
+    let edge = &mut mutated_component.machines[0]
+        .ranked_scc
+        .as_mut()
+        .expect("ranked component")
+        .covered_cyclic_edges[0];
+    let psi_terminal::TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+        argument_index,
+        ..
+    } = &mut edge.successor_argument;
+    *argument_index = 1;
+    assert!(
+        psi_terminal_verifier::verify_module_for_native_ranked_countdown(
+            &mutated_component,
+            &decoded_proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "mutated ranked custody must reject before it can be rendered"
+    );
+    let mut missing_proof = decoded_proof.clone();
+    missing_proof.evidence.clear();
+    assert!(
+        psi_terminal_verifier::verify_module_for_native_ranked_countdown(
+            &decoded,
+            &missing_proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "missing decrease evidence must reject before it can be rendered"
+    );
     let machine = &lowered.semantic_module.machines[0];
     let structural_parameter = &machine.structural_parameters[0];
     let structural_argument = psi_terminal_interpreter::TerminalStructuralValue {

@@ -4023,6 +4023,16 @@ object/image join. The fixed-work theorem may accompany that artifact as
 non-authorizing PCC/report evidence; native execution remains the unchanged
 countdown body.
 
+The proof review synopsis has one matching ranked-only entry point. It accepts
+only the opaque native-ranked verifier result, preserves the ordinary acyclic
+synopsis bytes, and appends the exact verified machine/header, rank carrier and
+bounds, covered edges, positive guard, and `n - 1` successor coordinates. Its
+rule label is `closed-unsigned-countdown verifier-reconstructed`; it is not a
+general recursive-component certificate. Invalid ranked structure or missing
+decrease evidence therefore rejects before a report can be rendered, while the
+accepted subtraction certificate and current trust graph remain visible in the
+same synopsis.
+
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi
 fuel evidence carries no provider receipt.

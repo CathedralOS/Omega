@@ -3645,6 +3645,16 @@ Remaining:
   rejects or changes the recorded trust closure; measured mutual proof
   recursion checks while an unmeasured cycle rejects; an admitted law makes
   every dependent normalization admission-dependent.
+
+  The existing exact unsigned ranked-countdown slice now has a narrower
+  verified reporting path. Only its opaque native-ranked verifier authority can
+  render deterministic component, rank, bound, guard, and successor-custody
+  rows alongside the accepted subtract proof and current trust graph. The row
+  names the closed verifier-reconstructed countdown rule and does not claim a
+  general recursive-component certificate. Codec round-trip, structural
+  mutation, and missing-proof canaries reject before reporting. General proof
+  SCC production, well-foundedness propositions, and normalization-law trust
+  remain open.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one

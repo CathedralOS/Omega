@@ -21,7 +21,9 @@ use psi_terminal_verifier::{
     ObligationEvidence, ProofBundle,
 };
 use sha2::{Digest, Sha256};
-pub use synopsis::render_verified_proof_synopsis;
+pub use synopsis::{
+    render_verified_native_ranked_countdown_synopsis, render_verified_proof_synopsis,
+};
 use validation::validate_bundle;
 use wire::{Reader, Writer};
 
