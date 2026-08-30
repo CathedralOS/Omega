@@ -13,6 +13,17 @@ mod review;
 
 pub(crate) use review::derive_checked_collection_view_intrinsic;
 
+pub(crate) fn derive_checked_nominal_call_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CheckedResolution {
     occurrence: AuthoredDeclarationSelectionOccurrenceId,

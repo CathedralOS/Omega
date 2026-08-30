@@ -79,6 +79,18 @@ pub fn derive_checked_collection_view_intrinsic(
     authored_selections::derive_checked_collection_view_intrinsic(program, facts, expression)
 }
 
+/// Rederive one nominal call target from the final typed program and the exact
+/// checked owner environments that contain the expression. Package review uses
+/// this compiler-internal seam for proof-owned attached and path-qualified
+/// calls whose typed node intentionally carries no direct target symbol.
+pub fn derive_checked_nominal_call_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    authored_selections::derive_checked_nominal_call_target(program, facts, expression)
+}
+
 #[cfg(test)]
 pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
 

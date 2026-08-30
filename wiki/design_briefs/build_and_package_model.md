@@ -3299,7 +3299,11 @@ total, pure calls retain their optional receiver, exact
 checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
-signature identity. Unreduced symbolic const expressions,
+signature identity. In proof-owned domain, proposition, and contract
+expressions, attached `self.member()` calls and path-qualified
+`Data::member(value)` calls rederive that target only from the exact checked
+owner environment. A path qualifier is not encoded as a value receiver, and no
+program-wide name fallback participates in the row. Unreduced symbolic const expressions,
 proposition/evidence static arguments, quotient calls, true nested
 machine/conformance applications, unrepresented compiler-intrinsic calls,
 computed members whose receivers are not in the closed expression vocabulary,
