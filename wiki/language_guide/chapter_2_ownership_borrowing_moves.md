@@ -549,9 +549,12 @@ symbol identity. Eligible records may themselves contain recursively literal
 array fields ending in the same exact primitive or record shapes. A zero-length
 field participates only when its terminal independently qualifies and the
 whole record remains nonzero; its element alignment can still induce protected
-padding. Runtime or merely bounded offsets, slices, total zero-size targets,
-generic/invariant-bearing/erased/cased records, and other indexed forms remain
-conservative. Last-use accounting compares the canonical
+padding. Fully specialized type-parameter record instances participate under
+their exact synthesized symbol, validated origin, and substituted-field
+eligibility. Runtime or merely bounded offsets, slices, total zero-size targets,
+open/unresolved or const/lifetime/machine/proposition generic instances, and
+invariant-bearing/erased/cased records remain conservative. Last-use accounting
+compares the canonical
 field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.

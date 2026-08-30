@@ -10539,9 +10539,9 @@ checked-result arithmetic decision listed below.
   whole name/member places now publish the exact source loan too; indexed
   byte-region recasts with one exact literal offset into a fixed byte array and
   either a fact-free primitive target, one nonzero closed acyclic tree of
-  nongeneric, quotient-free, all-relevant fact-free records, or one recursively
-  nonzero literal fixed array ending in either an exact primitive or eligible
-  record shape now publish the
+  quotient-free, all-relevant fact-free records, or one recursively nonzero
+  literal fixed array ending in either an exact primitive or eligible record
+  shape now publish the
   complete validated half-open target footprint as one fixed-range loan.
   Primitive-terminal arrays require an exactly tiled normalized representation;
   record-terminal arrays and eligible records containing recursively literal
@@ -10549,12 +10549,16 @@ checked-result arithmetic decision listed below.
   fields participate only when their terminal independently qualifies and the
   containing record remains nonzero; their element alignment can still induce
   protected padding.
-  Record lookup and recursion use exact symbol identity. Repeated-leaf capacity
+  Fully specialized type-parameter record instances participate through their
+  exact synthesized symbol, validated base/argument origin, and substituted
+  fields. Generic normalization now rewrites concrete-machine cast targets and
+  synthesizes recursively nonzero literal-array type arguments. Record lookup
+  and recursion use exact symbol identity. Repeated-leaf capacity
   overflow fails closed before allocation. First/last/padding-byte mutations
   reject while immediate siblings remain disjoint. Runtime or merely bounded
-  offsets, slices, total zero-size targets,
-  generic/invariant-bearing/erased/cased records, and other indexed recasts
-  remain conservative.
+  offsets, slices, total zero-size targets, open/unresolved, const/lifetime/
+  machine/proposition generic instances, invariant-bearing/erased/cased
+  records, and other indexed recasts remain conservative.
   Scalar recast representation-set normalization and
   implication now live in a focused 377-line private owner. Exact integer two's-
   complement bit-pattern intervals, same-carrier float intervals, domain-

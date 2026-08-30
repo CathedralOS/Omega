@@ -1679,6 +1679,7 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-diagnostics",
+ "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
  "psi-source-files-to-tokens",

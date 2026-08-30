@@ -34,6 +34,240 @@ fn rejected(source: &str, expected: &str) {
     );
 }
 
+fn fixed_range_loans(
+    checked: &CheckedTrees,
+) -> Vec<(psi_checked_trees::BorrowAccessKind, usize, usize)> {
+    checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter_map(|(_, loan)| {
+            let [psi_facts::PlaceSegment::FixedRange { start, end }] =
+                checked.facts.borrow.loan_segments(loan)
+            else {
+                return None;
+            };
+            Some((loan.kind.clone(), *start, *end))
+        })
+        .collect()
+}
+
+#[test]
+fn closed_generic_pair_recasts_retain_padded_ranges_for_both_polarities() {
+    let source = r#"
+        data Pair<T> {
+            tag: u8;
+            value: T;
+        }
+
+        data Cell {
+            bytes: [u8; 32];
+        }
+
+        machine observe(value: &Pair<u32>) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared: &Pair<u32> = &self.bytes[2] as &Pair<u32>;
+            observe(shared);
+            let mutable: &mut Pair<u32> =
+                &mut self.bytes[12] as &mut Pair<u32>;
+            mutable.value = 1;
+        }
+    "#;
+
+    let checked = checked(source).expect("closed Pair<u32> recasts should check");
+    let loans = fixed_range_loans(&checked);
+    assert_eq!(loans.len(), 2, "one exact loan per generic recast");
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 10)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 20)));
+}
+
+#[test]
+fn closed_generic_pair_recast_rejects_padding_overlap_but_keeps_siblings_writable() {
+    rejected(
+        r#"
+            data Pair<T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine observe(value: &Pair<u32>) {}
+            machine Cell::exercise(&mut self) {
+                let view: &Pair<u32> = &self.bytes[3] as &Pair<u32>;
+                self.bytes[4] = 1;
+                observe(view);
+            }
+        "#,
+        "mutates `self.bytes[4]` while local borrow `view` is still active",
+    );
+
+    rejected(
+        r#"
+            data Pair<T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Pair<u32> =
+                    &mut self.bytes[3] as &mut Pair<u32>;
+                self.bytes[4] = 1;
+                view.value = 2;
+            }
+        "#,
+        "mutates `self.bytes[4]` while local borrow `view` is still active",
+    );
+
+    checked(
+        r#"
+            data Pair<T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Pair<u32> =
+                    &mut self.bytes[3] as &mut Pair<u32>;
+                self.bytes[2] = 1;
+                self.bytes[11] = 1;
+                view.value = 2;
+            }
+        "#,
+    )
+    .expect("the bytes immediately before and after [3, 11) are disjoint");
+}
+
+#[test]
+fn closed_generic_specializations_retain_distinct_symbols_and_nested_holder_ranges() {
+    let source = r#"
+        data Pair<T> {
+            tag: u8;
+            value: T;
+        }
+
+        data Holder {
+            prefix: u8;
+            small: [Pair<u16>; 2];
+            large: Pair<u32>;
+            tail: u16;
+        }
+
+        data Cell {
+            bytes: [u8; 64];
+        }
+
+        machine observe_holder(value: &Holder) {
+        }
+
+        machine observe_small(value: &[Pair<u16>; 2]) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let holder: &Holder = &self.bytes[2] as &Holder;
+            observe_holder(holder);
+            let small: &[Pair<u16>; 2] =
+                &self.bytes[32] as &[Pair<u16>; 2];
+            observe_small(small);
+            let large: &mut Pair<u32> =
+                &mut self.bytes[44] as &mut Pair<u32>;
+            large.value = 1;
+        }
+    "#;
+
+    let checked = checked(source).expect("closed generic composition should check");
+    let pair_u16 = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Pair<u16>")
+        .expect("Pair<u16> instance");
+    let pair_u32 = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Pair<u32>")
+        .expect("Pair<u32> instance");
+    assert_ne!(pair_u16.symbol, pair_u32.symbol);
+    assert!(pair_u16.generic_instance.is_some());
+    assert!(pair_u32.generic_instance.is_some());
+    assert!(checked.data_type_parameters(pair_u16).is_empty());
+    assert!(checked.data_type_parameters(pair_u32).is_empty());
+
+    let loans = fixed_range_loans(&checked);
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 26)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 32, 40)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 44, 52)));
+}
+
+#[test]
+fn closed_literal_array_type_argument_retains_its_concrete_range() {
+    let source = r#"
+        data Pair<T> { tag: u8; value: T; }
+        data Cell { bytes: [u8; 16]; }
+        machine Cell::exercise(&mut self) {
+            let view: &mut Pair<[u16; 2]> =
+                &mut self.bytes[3] as &mut Pair<[u16; 2]>;
+            view.value[1] = 2;
+        }
+    "#;
+
+    let checked = checked(source).expect("closed array type argument should check");
+    assert!(fixed_range_loans(&checked).contains(&(
+        psi_checked_trees::BorrowAccessKind::Mutable,
+        3,
+        9
+    )));
+}
+
+#[test]
+fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() {
+    rejected(
+        r#"
+            data Pair<T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &Pair<bool> = &self.bytes[0] as &Pair<bool>;
+            }
+        "#,
+        "must be recursively fact-free",
+    );
+
+    checked(
+        r#"
+            data Pair<T> { tag: u8; value: T; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Pair<AtomicU32> =
+                    &mut self.bytes[0] as &mut Pair<AtomicU32>;
+                self.bytes[0] = 1;
+                view.tag = 2;
+            }
+        "#,
+    )
+    .expect("an atomic stored argument remains ordinary-valid but publishes no loan");
+
+    checked(
+        r#"
+            data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Block<u16, 2> =
+                    &mut self.bytes[0] as &mut Block<u16, 2>;
+                self.bytes[0] = 1;
+                view.tag = 2;
+            }
+        "#,
+    )
+    .expect("const-parameter instances stay outside the first all-Type rung");
+
+    assert!(
+        checked(
+            r#"
+                data Pair<T> { tag: u8; value: T; }
+                data Cell { bytes: [u8; 16]; }
+                machine inspect<T>(cell: &mut Cell) {
+                    let view: &mut Pair<T> =
+                        &mut cell.bytes[0] as &mut Pair<T>;
+                    view.tag = 1;
+                }
+            "#,
+        )
+        .is_err(),
+        "an open generic application must remain outside precise recast admission"
+    );
+}
+
 fn local_initializer<'syntax>(
     syntax: &'syntax psi_syntax_trees::SyntaxTrees,
     local_name: &str,

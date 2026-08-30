@@ -12,17 +12,19 @@
 //! concrete executable contexts.
 //! Sluggable arguments are a plain concrete `Named` type OR a
 //! `Named` carrying only nameable domain constraints (`Box<i32 in Wrapping>`,
-//! `Store<u8 in Utf8>`) -- the substitution rides the argument's own type
-//! reference, so the domain follows the field for free. What it skips: mixed
-//! record/case data, genuinely composite ARGUMENTS (`Box<[i32; 4]>`,
-//! `Box<&T>`, a range-bounded arg), and a field that nests the parameter under a
+//! `Store<u8 in Utf8>`), or a recursively nonzero literal fixed array of a
+//! sluggable type. The substitution rides the argument's own type reference,
+//! so its exact closed shape follows the field for free. What it skips: mixed
+//! record/case data, other composite ARGUMENTS (`Box<&T>`, a range-bounded
+//! arg), and a field that nests the parameter under a
 //! NON-generic composite (`[T; N]`, `&T`). A field nesting the parameter under
 //! ANOTHER generic (`Pair<T> { a: Box<T> }`) IS handled (Phase 3): the desugar
 //! runs to a FIXPOINT, synthesizing the concrete `Box<i32>` a `Pair<i32>`
 //! produces. Scans every TYPE-REFERENCE position a generic-data spelling reaches:
-//! data FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN type
-//! annotations; generic TEMPLATE bodies (defs/machines with type params) are
-//! skipped so their param-arg spellings are not mistaken for concrete instances.
+//! data FIELDS plus concrete-machine `let` locals, state PARAMETERS, RETURN
+//! annotations, and cast TARGETS; generic TEMPLATE bodies (defs/machines with
+//! type params) are skipped so their param-arg spellings are not mistaken for
+//! concrete instances.
 
 use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
@@ -1706,11 +1708,12 @@ fn collect_expression_handles(
 }
 
 /// A distinguishing slug for each argument -- the Phase-1 gate. `Some` when
-/// EVERY argument is either a plain concrete `Named` type or a `Named` carrying
-/// only nameable constraints (an arithmetic/carrier domain, `Box<i32 in
-/// Wrapping>` / `Store<u8 in Utf8>`); `None` if any argument is genuinely
-/// composite (a nested generic, array, slice, reference, or a range-bounded
-/// type whose bound is an expression). The slug is used only to name the
+/// EVERY argument is either a plain concrete `Named` type, a recursively
+/// nonzero literal fixed array of one, or a `Named` carrying only nameable
+/// constraints (an arithmetic/carrier domain, `Box<i32 in Wrapping>` /
+/// `Store<u8 in Utf8>`); `None` if any argument is a nested generic, zero or
+/// nonliteral array, slice, reference, or a range-bounded type whose bound is
+/// an expression. The slug is used only to name the
 /// synthetic record -- the SUBSTITUTION points the field at the argument's own
 /// type reference, so a domain constraint on the argument rides along
 /// unchanged. Distinct spellings must slug distinctly (`i32 in Wrapping` vs
@@ -1726,10 +1729,18 @@ fn monomorphizable_argument_slugs(
 }
 
 /// The naming slug for an argument type, or `None` for a shape Phase 1 leaves
-/// to the existing generic path. Plain `Named` and `Named in Domain...` only.
+/// to the existing generic path. Plain `Named`, recursively nonzero literal
+/// fixed arrays, and `Named in Domain...` only.
 fn type_reference_slug(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<String> {
     match syntax.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } if *length > 0 => Some(format!(
+            "[{}; {length}]",
+            type_reference_slug(syntax, *element_type)?
+        )),
         TypeReferenceNode::Constrained {
             base_type,
             constraints,

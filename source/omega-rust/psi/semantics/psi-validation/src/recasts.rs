@@ -284,7 +284,7 @@ fn closed_fact_free_record_symbol_is_eligible(
             data.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
                 && data.lifetime_parameters.is_empty()
                 && program.data_type_parameters(data).is_empty()
-                && data.generic_instance.is_none()
+                && closed_record_generic_origin_is_eligible(program, data)
                 && data.quotient.is_none()
                 && data.where_facts.is_empty()
                 && !data.zero_gated
@@ -304,6 +304,78 @@ fn closed_fact_free_record_symbol_is_eligible(
         });
     visiting.pop();
     eligible
+}
+
+fn closed_record_generic_origin_is_eligible(
+    program: &TypedTrees,
+    instance: &psi_typed_trees::data::DataDefinition,
+) -> bool {
+    let Some(origin) = instance.generic_instance else {
+        return true;
+    };
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(origin)
+    else {
+        return false;
+    };
+    if !base_symbol.is_valid() || *base_symbol == instance.symbol || !lifetime_arguments.is_empty()
+    {
+        return false;
+    }
+    let Some(base) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *base_symbol)
+    else {
+        return false;
+    };
+    let parameters = program.data_type_parameters(base);
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    base.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+        && base.generic_instance.is_none()
+        && base.quotient.is_none()
+        && psi_typed_trees::data::DataDefinition::shape_kind_from_members(
+            program.data_members(base),
+        ) == psi_typed_trees::data::DataShapeKind::Record
+        && !parameters.is_empty()
+        && parameters.len() == arguments.len()
+        && parameters.iter().all(|parameter| {
+            matches!(
+                parameter.kind,
+                psi_typed_trees::data::TypeParameterKind::Type
+            )
+        })
+        && arguments
+            .iter()
+            .all(|argument| closed_raw_generic_type_argument_is_eligible(program, *argument))
+}
+
+fn closed_raw_generic_type_argument_is_eligible(
+    program: &TypedTrees,
+    argument: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(argument) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            exact_primitive_type(program, argument).is_some()
+                || (symbol.is_valid()
+                    && program.data_definitions().iter().any(|data| {
+                        data.symbol == *symbol
+                            && data.lifetime_parameters.is_empty()
+                            && program.data_type_parameters(data).is_empty()
+                    }))
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } => *length > 0 && closed_raw_generic_type_argument_is_eligible(program, *element_type),
+        _ => false,
+    }
 }
 
 fn closed_fact_free_record_field_is_eligible(
