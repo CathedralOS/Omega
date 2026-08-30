@@ -42,6 +42,19 @@ reject_source() { # name source-file
     echo "  FAIL $name: source envelope returned $got with $(wc -c < "$T/$name.out" | tr -d ' ') output bytes"
   fi
 }
+accept_source() { # name source-file
+  name=$1
+  source_file=$2
+  set +e
+  "$T/tc.exe" < "$source_file" > "$T/$name.out"
+  got=$?
+  if [ "$got" = 1 ] && [ ! -s "$T/$name.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL $name: valid source returned $got with $(wc -c < "$T/$name.out" | tr -d ' ') output bytes"
+  fi
+}
 # phase 1 — Int + typed functions
 tc '(def add ((a Int) (b Int)) Int (+ a b)) (def main () Int (add 2 3))' 1 'well-typed'
 cr_comment_program=$(printf '; before\r(def id ((x Int)) Int x)')
@@ -55,6 +68,16 @@ printf '; hidden\177\n(def id ((x Int)) Int x)' > "$T/comment-del.gamma"
 reject_source comment-del "$T/comment-del.gamma"
 printf '; hidden\303\251\n(def id ((x Int)) Int x)' > "$T/comment-high.gamma"
 reject_source comment-high "$T/comment-high.gamma"
+# Place the second declaration exactly at source offset 2 MiB. The former
+# declaration tables began at raw address 4 MiB and therefore aliased this byte
+# because the source buffer begins at raw address 2 MiB.
+printf '(def first () Int (later))\n;' > "$T/table-disjoint.gamma"
+table_prefix_size=$(wc -c < "$T/table-disjoint.gamma" | tr -d ' ')
+table_pad_size=$((2097151 - table_prefix_size))
+dd if=/dev/zero bs="$table_pad_size" count=1 2>/dev/null | tr '\000' 'x' >> "$T/table-disjoint.gamma"
+printf '\n(def later () Int 7)' >> "$T/table-disjoint.gamma"
+accept_source table-disjoint "$T/table-disjoint.gamma"
+unset table_prefix_size table_pad_size
 # fixed D16 program/declaration grammar and exact source exhaustion
 tc '' 0 'empty program'
 tc '; comment only' 0 'comment-only program'

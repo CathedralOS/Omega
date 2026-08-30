@@ -502,7 +502,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 69-case oracle gate are implementation material for
+    constructor table and 70-case oracle gate are implementation material for
     `gamma_compiler.beta`; the direct compiler must absorb the rule before this
     temporary checker is deleted.
   - [x] Close the first strict-parser slice in the reusable front end: require a
@@ -512,6 +512,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     D16's identifier capitalization and reserved-name rules; and require every
     data declaration to contain a constructor. These 24 parser discriminators
     are candidate compiler material, not a substitute compiler edge.
+  - [x] Remove the reusable front end's compiler-sized-input alias: the 4 MiB
+    source buffer no longer overlaps its type, constructor, function,
+    environment, or match-coverage tables. Reserve one readable error node and
+    bound the 48 MiB AST arena before writes. A 2 MiB-boundary canary places a
+    later declaration exactly where the former function table corrupted source.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
@@ -522,7 +527,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 69 type-checker cases, and 106 independent
+  fail-closed arena case, 70 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the
