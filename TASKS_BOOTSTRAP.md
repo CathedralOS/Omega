@@ -589,6 +589,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     alongside `FAIL_OFF`, generate the two PC-zero adapters, validate D21's
     profile invariant, supply sealed `Bytes`, preflight every success/failure
     publication, and emit no partial bytes.
+  - [ ] **OWNER-BLOCKED — Q4 GCOUT boundary priority and schema coordinates.**
+    Before publishing the canonical compiler boundary, fix exact-end versus
+    oversized-source priority, exact request-field coordinates, and the total
+    partition/priority/absence coordinate for schema rejection codes 19 through
+    21. This does not block shared emitted-runtime support or construction of
+    either adapter after successful request and schema admission.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
