@@ -69,7 +69,7 @@ impl FilesystemInputUnknownNativeHandleMutationReplayRecord {
         &self.kind
     }
 
-    fn into_parts(
+    pub(super) fn into_parts(
         self,
     ) -> (
         Option<FilesystemSourceInputReplayRecord>,

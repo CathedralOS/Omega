@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 67;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 68;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2666,6 +2666,39 @@ const fn unknown_native_handle_mutation_tag(operation_tag: u16) -> bool {
     matches!(operation_tag, 32 | 33 | 34)
 }
 
+const fn get_last_error_tag(operation_tag: u16) -> bool {
+    operation_tag == 35
+}
+
+fn complete_no_output_failure_suffix_is_recognized(
+    attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
+    suffix_start: usize,
+) -> bool {
+    match &attempts[suffix_start..] {
+        [failure] => {
+            operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
+                || failure.operation_tag() == 10
+                || unknown_descriptor_open_at_tag(failure.operation_tag())
+                || unknown_descriptor_unlink_at_tag(failure.operation_tag())
+                || unknown_descriptor_read_dir_tag(failure.operation_tag())
+                || unknown_descriptor_write_operation_tag(failure.operation_tag())
+                || unknown_descriptor_set_file_times_tag(failure.operation_tag())
+                || unknown_descriptor_read_operation_tag(failure.operation_tag())
+                || unknown_descriptor_write_payload_operation_tag(failure.operation_tag())
+                || unknown_descriptor_read_file_metadata_tag(failure.operation_tag())
+                || unknown_descriptor_get_osfhandle_tag(failure.operation_tag())
+                || unknown_native_handle_close_tag(failure.operation_tag())
+                || unknown_native_handle_final_path_tag(failure.operation_tag())
+                || unknown_native_handle_mutation_tag(failure.operation_tag())
+        }
+        [mutation, error_read] => {
+            unknown_native_handle_mutation_tag(mutation.operation_tag())
+                && get_last_error_tag(error_read.operation_tag())
+        }
+        _ => false,
+    }
+}
+
 fn source_input_replay_prefix_end(
     attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
 ) -> Option<usize> {
@@ -3720,6 +3753,16 @@ pub fn compute_build_config(
                     measured.observations(),
                 )
                 .ok()
+            } else if attempts.len() - operation_suffix_start == 2
+                && unknown_native_handle_mutation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+                && get_last_error_tag(attempts[operation_suffix_start + 1].operation_tag())
+            {
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_mutation_with_last_error_observations(
+                    measured.observations(),
+                )
+                .ok()
             } else {
                 psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
                     measured.observations(),
@@ -3742,28 +3785,12 @@ pub fn compute_build_config(
         .as_ref()
         .is_some_and(|replay| !replay.has_output_attempts());
     let replay_includes_complete_no_output_failure = replay.is_some()
-        && measured
-            .observations()
-            .filesystem_operation_attempts()
-            .split_last()
-            .is_some_and(|(failure, source_attempts)| {
-                (operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
-                    || failure.operation_tag() == 10
-                    || unknown_descriptor_open_at_tag(failure.operation_tag())
-                    || unknown_descriptor_unlink_at_tag(failure.operation_tag())
-                    || unknown_descriptor_read_dir_tag(failure.operation_tag())
-                    || unknown_descriptor_write_operation_tag(failure.operation_tag())
-                    || unknown_descriptor_set_file_times_tag(failure.operation_tag())
-                    || unknown_descriptor_read_operation_tag(failure.operation_tag())
-                    || unknown_descriptor_write_payload_operation_tag(failure.operation_tag())
-                    || unknown_descriptor_read_file_metadata_tag(failure.operation_tag())
-                    || unknown_descriptor_get_osfhandle_tag(failure.operation_tag())
-                    || unknown_native_handle_close_tag(failure.operation_tag())
-                    || unknown_native_handle_final_path_tag(failure.operation_tag())
-                    || unknown_native_handle_mutation_tag(failure.operation_tag()))
-                    && (source_attempts.is_empty()
-                        || source_input_replay_prefix_end(source_attempts)
-                            == Some(source_attempts.len()))
+        && source_input_replay_prefix_end(measured.observations().filesystem_operation_attempts())
+            .is_some_and(|suffix_start| {
+                complete_no_output_failure_suffix_is_recognized(
+                    measured.observations().filesystem_operation_attempts(),
+                    suffix_start,
+                )
             });
     let receipted_output_entries = replay.as_ref().and_then(receipted_output_entries);
     let replay_usage = if let Some(replay) = replay {

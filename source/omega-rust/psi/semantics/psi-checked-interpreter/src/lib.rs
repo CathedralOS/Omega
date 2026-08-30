@@ -115,21 +115,24 @@ pub use filesystem_replay::{
     FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
     FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord,
     FilesystemInputUnknownNativeHandleMutationReplayKind,
-    FilesystemInputUnknownNativeHandleMutationReplayRecord, FilesystemOutputAbsentRemoveKind,
-    FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDirectoryReplayRecord,
-    FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
-    FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
-    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
-    FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
-    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemInputUnknownNativeHandleMutationReplayRecord,
+    FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord,
+    FilesystemOutputAbsentRemoveKind, FilesystemOutputAbsentRemoveReplayRecord,
+    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
+    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
+    FilesystemOutputLockReplayRecord, FilesystemOutputSymlinkReplayRecord,
+    FilesystemOutputTreeEntryReplayRecord, FilesystemSourceDirectoryReadChainReplayRecord,
+    FilesystemSourceDirectoryReadReplayRecord, FilesystemSourceReadLinkReplayRecord,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
 use filesystem_replay::{
-    output_absent_remove_attempt, output_absent_remove_record_from_attempt,
-    output_directory_attempt, output_directory_record_from_attempt, output_duplicate_attempts,
+    ordered_native_error_state_attempt_is_replayed, output_absent_remove_attempt,
+    output_absent_remove_record_from_attempt, output_directory_attempt,
+    output_directory_record_from_attempt, output_duplicate_attempts,
     output_duplicate_record_from_attempts, output_hard_link_attempt,
     output_hard_link_record_from_attempt, output_lock_attempts, output_lock_record_from_attempts,
     output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
@@ -2555,6 +2558,7 @@ impl FilesystemReplay {
             .attempts
             .get(attempt_index)
             .is_some_and(unknown_input_handle_failure_attempt_is_exact)
+            || ordered_native_error_state_attempt_is_replayed(&self.attempts, attempt_index)
         {
             return true;
         }
