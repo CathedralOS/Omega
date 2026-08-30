@@ -536,9 +536,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 100 procedures; with the frontend
-    gate entry, the gate uses 101 of Beta's 128 procedure slots and compiles to
-    231,723 bytes, leaving 30,417 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 101 procedures; with the frontend
+    gate entry, the gate uses 102 of Beta's 128 procedure slots and compiles to
+    234,506 bytes, leaving 27,634 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -567,6 +567,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     the adjacent aligned resource failure before relocation. Reject malformed
     compiler-owned frame profiles before emitting bytes. Q3 still blocks
     assigning calls and binder slots from ambiguous source, not this ABI.
+  - [x] Establish one Q3-neutral fixed-local access inside that frame ABI.
+    Compiler-resolved local indexes address complete two-word values only in
+    the aligned prefix after the frame header; one shared emitter expands both
+    load and store through the canonical word helpers. It validates the full
+    prefix, local count, index, and closed load/store mode before emitting any
+    byte, and classifies malformed metadata under the existing private frame
+    failure. The frame probe stores, clobbers, and reloads a nontrivial pair in
+    the final local of a 48-byte prefix; its existing parameter and root-frame
+    checks prove non-overlap and restoration. Focused controls reject a
+    misaligned prefix, the adjacent local index, and an unknown mode with no
+    payload. Q3 still owns source binder/reference-to-slot assignment, scope,
+    and shadowing. Until that ruling produces canonical arm/slot metadata, do
+    not retain a tag-only or binderless match-lowering scaffold.
   - [x] Establish the private arbitrary-arity algebraic-value ABI without
     assigning Q3-blocked source constructor identities. Consume an opaque
     resolved kind `>= 2`, copy complete argument pairs from the guarded stack

@@ -1658,6 +1658,38 @@ proc emit_gamma_return_frame() {
     return 1
 }
 
+; Expand one compiler-resolved fixed-local access inside the current Gamma
+; frame. Mode 0 loads the complete pair into r0/r1; mode 1 stores r0/r1. The
+; resolver later assigns opaque slot indexes, but this ABI owns their exact
+; containment inside the fixed prefix after the two-word frame header.
+
+proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
+    state prefix_low { to invalid_prefix when (frame_prefix_bytes < 16)  to prefix_aligned }
+    state prefix_aligned { to invalid_prefix when (frame_prefix_bytes % 16 != 0)  to prefix_high }
+    state prefix_high { to invalid_prefix when (frame_prefix_bytes > 16515072)  to index_low }
+    state index_low { to invalid_index when (local_index < 0)  to index_high }
+    state index_high {
+        to invalid_index when (local_index >= (frame_prefix_bytes - 16) / 16)
+        let slot_offset = 16 + local_index * 16
+        to mode
+    }
+    state mode { to load when (store_mode == 0)  to store_check }
+    state store_check { to store when (store_mode == 1)  to invalid_mode }
+    state load {
+        emit_word_load(0, 253, slot_offset)
+        emit_word_load(1, 253, slot_offset + 8)
+        return 1
+    }
+    state store {
+        emit_word_store(253, slot_offset, 0)
+        emit_word_store(253, slot_offset + 8, 1)
+        return 1
+    }
+    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes)  return 0 }
+    state invalid_index { emit_fail_once(13, local_index)  return 0 }
+    state invalid_mode { emit_fail_once(13, store_mode)  return 0 }
+}
+
 proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
                            failure_label) {
     state target_low { to invalid_target when (target_prefix_bytes < 16)  to target_aligned }

@@ -186,6 +186,42 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        to failed when (invalid_frame_result != 0)' \
     '        to failed when (word[2097016] != 13)' \
     '        to failed when (word[2097040] != 0)' \
+    '        to local_prefix_setup' \
+    '    }' \
+    '    state local_prefix_setup {' \
+    '        emit_reset()' \
+    '        let local_prefix_result = emit_gamma_frame_local(47, 0, 0)' \
+    '        to local_prefix_check' \
+    '    }' \
+    '    state local_prefix_check {' \
+    '        to failed when (local_prefix_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 47)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        to local_adjacent_setup' \
+    '    }' \
+    '    state local_adjacent_setup {' \
+    '        emit_reset()' \
+    '        let local_adjacent_result = emit_gamma_frame_local(48, 2, 0)' \
+    '        to local_adjacent_check' \
+    '    }' \
+    '    state local_adjacent_check {' \
+    '        to failed when (local_adjacent_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 2)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        to local_mode_setup' \
+    '    }' \
+    '    state local_mode_setup {' \
+    '        emit_reset()' \
+    '        let local_mode_result = emit_gamma_frame_local(48, 1, 2)' \
+    '        to local_mode_check' \
+    '    }' \
+    '    state local_mode_check {' \
+    '        to failed when (local_mode_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 2)' \
+    '        to failed when (word[2097040] != 0)' \
     '        to constructor_profile_setup' \
     '    }' \
     '    state constructor_profile_setup {' \
@@ -402,6 +438,8 @@ stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&
     '    let wide_push_done = new_label()' \
     '    let wide_label = new_label()' \
     '    let wide_frame_ok = new_label()' \
+    '    let wide_local_kind_ok = new_label()' \
+    '    let wide_local_payload_ok = new_label()' \
     '    let wide_first_kind_ok = new_label()' \
     '    let wide_first_ok = new_label()' \
     '    let wide_last_kind_ok = new_label()' \
@@ -570,6 +608,16 @@ stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&
     '    emit_jump(12, after_wide)' \
     '    define_label(wide_label)' \
     '    emit_frame_eq(252, 253, wide_frame_ok, unexpected_label)' \
+    '    emit_imm(0, 37)' \
+    '    emit_imm(1, 88)' \
+    '    emit_gamma_frame_local(48, 1, 1)' \
+    '    emit_imm(0, 0)' \
+    '    emit_imm(1, 0)' \
+    '    emit_gamma_frame_local(48, 1, 0)' \
+    '    emit_imm(22, 37)' \
+    '    emit_frame_eq(0, 22, wide_local_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 88)' \
+    '    emit_frame_eq(1, 22, wide_local_payload_ok, unexpected_label)' \
     '    emit_rr(2, 20, 253)' \
     '    emit_imm(22, 9632)' \
     '    emit_rr(3, 20, 22)' \

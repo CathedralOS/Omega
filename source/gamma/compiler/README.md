@@ -21,9 +21,9 @@ arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 100 procedures. With the fixed frontend
-gate entry, the compiled gate uses 101 of Beta's 128 procedure slots and
-compiles to 231,723 bytes. The remaining 30,417 bytes under
+The retained compiler source declares 101 procedures. With the fixed frontend
+gate entry, the compiled gate uses 102 of Beta's 128 procedure slots and
+compiles to 234,506 bytes. The remaining 27,634 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -36,6 +36,12 @@ calls. Its emitted compiler-application adapter alone supplies sealed input as
 Gamma `Bytes`, invokes the typed `main`, and serializes exact success or the
 accepted-language edge's failure frame. Fuel and private storage ceilings yield
 outer resource outcomes; they never change Gamma meaning.
+
+Fixed frame locals use zero-based opaque indexes into the aligned two-word
+slots after the frame header. One guarded emitter owns both load and store, so
+future resolved variables, lets, and pattern binders reuse one containment
+check rather than separate validators. Q3 still owns assigning source binders
+and references to those indexes; this ABI chooses no scope or shadowing rule.
 
 ## Implementation shape
 
