@@ -64,7 +64,7 @@ bound before adapter emission.
 direct Alpha payload/fixup substrate, executed heap/stack and checked-`Int`
 helpers, resolved expression lowering, and profile-neutral whole-function
 label/body emission. It also validates both exact D19 source schemas and the
-26-code Delta rejection bijection without declaration-order authority. Q4's
+26-code Delta rejection bijection without declaration-order authority. Q3's
 physical profile realization remains open; the source is incomplete and has no
 published tape. Its
 251,142-byte historical fixed gate exhausted the former V1 Alpha ceiling before
@@ -89,7 +89,7 @@ the universal checker remains Alpha-owned and outside the language rung.
 
 - retain D23's coherent `AlphaBootstrapV2` profile and the consolidated adjacent
   conformance gate through publication;
-- resolve Q4's exact physical profiles, complete the two D19-selected adapters
+- resolve Q3's exact physical profiles, complete the two D19-selected adapters
   and remaining lowering in the exact Gamma compiler source, then publish its
   artifact closure;
 - reuse the interpreter only as a specification or isolated algorithm source

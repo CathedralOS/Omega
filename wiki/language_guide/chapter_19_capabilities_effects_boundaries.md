@@ -1109,16 +1109,37 @@ application before installation binds its exact issuance occurrences. Only a
 requirement whose distinct applications genuinely need different providers
 declares an indexed slot family.
 
+Every executable artifact closes that finite exact application set. This is
+independent of whether a realization is generic: universal checking can prove
+that one source template is semantically selectable for a whole telescope, but
+it does not monomorphize an application or establish its representation,
+layout, `Calling<C>` plan, register classes, stack placement, target admissions,
+or emitted code. The production first rung is consequently exact-only. Generic
+requirements in core do not themselves justify a generic-coverage row, and no
+checked generic operator realization currently supplies one.
+
+A future universal row may be compiler-issued only for an exact checked Omega
+body validated on the pristine symbolic graph. Its typed telescope retains
+binder categories, declared domains and bounds, `where` requirements, and an
+exact requirement-to-realization binder mapping. The requirement domain must
+imply the realization domain; implementations may not collapse independent
+binders or narrow the accepted set. Its plan claim covers symbolic provider
+routing and dispatch only. Bodyless, external, opaque, compiler-intrinsic, and
+separately supplied realizations cannot acquire universal coverage from an
+authored claim and remain exact-only. A foreign universal contract would need
+a distinct independently recheckable verifier.
+
 The compiler foundation represents this as a non-authorizing indexed-
 application closure. It combines exact concrete demands with substituted,
-artifact-qualified symbolic demands, canonicalizes the reconstructed
-application set, and checks it against a generic or exact-family coverage
-assertion already retained with one selected provider plan. The closed result
-retains the selected closure, exact provider plan, application set, and complete
-coverage assertion; it does not create a slot for each application. Deriving
-the demand and coverage rows from verified artifacts and binding exact provider
-issuance occurrences at installation remain separate engineering steps, so
-this structural result alone grants no resident content or transfer authority.
+artifact-qualified symbolic demands and canonicalizes the reconstructed
+application set. Its existing generic coverage assertion is structural
+scaffolding, not evidence; production accepts only compiler-rechecked exact
+coverage. The closed structural result retains the selected closure, exact
+provider plan, application set, and asserted coverage, but it does not create a
+slot for each application or authorize execution. Deriving exact demand and
+coverage rows from verified artifacts and binding exact provider issuance
+occurrences at installation remain separate engineering steps, so this
+structural result alone grants no resident content or transfer authority.
 Native realization also retains the exact nonzero selected-closure identity
 beside its source-free provider-plan projection. Component-candidate replay
 requires both to match independently, preventing indexed coverage or

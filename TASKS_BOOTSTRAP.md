@@ -86,8 +86,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | resolve Q4's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, named-type candidate scan, and symbolic Alpha encoding | resolve Q5, complete type/body checking and lowering, publish the tape, and close refinement |
+| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | resolve Q3's physical profiles, emit adapters, publish the standalone tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, named-type candidate scan, and symbolic Alpha encoding | resolve Q4, complete type/body checking and lowering, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -559,7 +559,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adapter bytes. Six adjacent cases accept both profiles, reverse every reason
     declaration while preserving the mapping, and reject a wrong entry, missing
     reason, extra outcome constructor, and wrong `Reject` payload.
-  - [ ] **OWNER-BLOCKED — Q4 D19 PHYSICAL PROFILES.** Fix the sealed
+  - [ ] **OWNER-BLOCKED — Q3 D19 PHYSICAL PROFILES.** Fix the sealed
     source-plus-profile request encoding, numeric profile IDs, both exact input
     maxima, Conformance observation table, `GCOUT` identity/tables, and the
     missing `DCOUT` magic/resource/internal tables. Then generate the two PC-zero
@@ -1052,11 +1052,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     owner table. Retain the globally earliest unknown spelling candidate at its
     exact type start beside the collected native syntax for later shape,
     recursion, body, and lowering passes. Do not promote that candidate to a
-    rejection before Q5 fixes its priority against other type-formation
+    rejection before Q4 fixes its priority against other type-formation
     failures. The source type-checks through the full Gamma frontend gate;
     behavioral canaries remain dependency-blocked on the real Gamma compiler
     edge.
-  - [ ] **OWNER-BLOCKED — Q5 DELTA TYPE FORMATION.** Settle zero-length arrays,
+  - [ ] **OWNER-BLOCKED — Q4 DELTA TYPE FORMATION.** Settle zero-length arrays,
     empty data declarations, forbidden `never`/view placements, `Console` type
     placement, and same-coordinate failure priority before implementing the
     remaining type-formation judgment. Do not derive these language results
@@ -1845,11 +1845,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 through Q3 still own
-  unresolved full-spec compiler contracts. D25 unblocks the standalone source
-  identity and application boundary, while D24 unblocks the Delta census
-  implementation. None prevents implementation of independently settled
-  source-shaped parser slices.
+  allowed; weakened Omega semantics are not. Q1 and Q2 still own unresolved
+  full-spec Omega contracts; Q3 and Q4 block earlier bootstrap edges. D25
+  unblocks the standalone source identity and application boundary, while D24
+  unblocks the Delta census implementation. None prevents implementation of
+  independently settled source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full

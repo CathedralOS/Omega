@@ -39,7 +39,7 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
 Remaining type/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. Q5 owns the type-formation cases
+final publication remain implementation gaps. Q4 owns the type-formation cases
 that D17 does not yet classify exactly; the existing source is therefore not
 yet a compiler edge and no validation may describe it as one.
 
@@ -64,7 +64,7 @@ accumulating the earliest potential `UnknownType` coordinate independent of
 traversal order. It preserves the collected native syntax rather than
 serializing a resolved tree. The candidate is not yet promoted to a rejection:
 data-shape, recursive-value, placement, entry, and body judgments remain
-separate, and Q5 blocks their exact within-phase composition.
+separate, and Q4 blocks their exact within-phase composition.
 
 ## Contract-derived conformance plan
 

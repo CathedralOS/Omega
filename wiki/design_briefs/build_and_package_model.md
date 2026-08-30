@@ -960,16 +960,22 @@ equal rows never select or correlate providers.
 Boundary-operator family membership is a semantic set. Evidence deduplicates
 exact overload coordinates and serializes them in canonical coordinate-identity
 order; source reorderings do not change selection identity. Each coordinate's
-static telescope is a separate axis: coverage may be one generic realization or
-an exact application family covering every verifier-reconstructed concrete or
-symbolic demand. Generic applications are not overload coordinates.
+static telescope is a separate axis, and generic applications are not overload
+coordinates. D28 makes exact application closure mandatory for every emitted
+artifact. A future compiler-issued checked-template row may additionally prove
+universal semantic selection coverage, but it cannot replace concrete
+monomorphization, representation, layout, calling-plan, target, and admission
+checks. Provider-authored generic assertions remain non-authorizing.
 
 Production does not yet publish exact static-application demand or
 `ExactApplications` coverage. The owner question `Define exact
 boundary-realization application evidence` must first settle one tagged
 structural application representation and its recheckable join to
 selected-realization evidence; a provisional type-only use carrier would
-pre-commit that design.
+pre-commit that design. That carrier must retain binder categories, domains,
+bounds, and tagged arguments rather than arity plus semantic strings. D28
+deliberately adds no universal generic carrier until a checked generic operator
+realization exists.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not

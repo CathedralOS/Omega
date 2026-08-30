@@ -1232,7 +1232,11 @@ Production exact package applications remain fail-closed. The owner question
 settle a tagged structural demand representation and its recheckable join to
 selected-realization evidence; an arity plus semantic strings is not sufficient
 authority, and a provisional type-only use carrier would pre-commit the wider
-static-binder design.
+static-binder design. Under D28, every emitted artifact retains this finite
+exact set even if a future checked generic body proves universal semantic
+selection coverage. No such checked generic operator realization exists today,
+so generic coverage remains deliberately unrepresented; provider assertions,
+bodyless supply, and one successful specialization grant nothing.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
