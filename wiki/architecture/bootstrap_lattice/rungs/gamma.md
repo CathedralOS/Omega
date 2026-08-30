@@ -46,8 +46,9 @@ primitive merely because one application is a compiler.
 `source/gamma/interp.beta` and `typeck.beta` are bounded, disconnected semantic
 oracles and useful implementation material. They do not define alternate Gamma
 languages and together do not constitute the standalone Gamma-to-Alpha compiler
-required by D11. Their shared omission of match exhaustiveness is a recorded
-warning that differential agreement cannot establish a rule both omit. The
+required by D11. Their now-hardened historical omission of match exhaustiveness
+is a recorded warning that differential agreement cannot establish a rule both
+omit. The
 former Beta-written Delta-to-Gamma route was outside Gamma ownership and is
 deleted rather than retained as the Delta edge or a compatibility layer.
 

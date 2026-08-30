@@ -74,12 +74,13 @@ after a catch-all, a constructor from another type, and a missing constructor
 reject the program. A checked Gamma program therefore has no dynamic
 "no arm matched" value.
 
-This requirement closes a known correlated oracle defect: the current type
-checker does not test exhaustiveness, and the interpreter formerly fabricated
-`Int` zero when no arm matched. The interpreter now traps on that impossible
-state as a migration hardening measure, but this does not add the missing
-static judgment to either oracle. Differential agreement remains useful
-evidence, but never establishes completeness of the language contract.
+This requirement closes a known correlated oracle defect: the temporary type
+checker once omitted exhaustiveness while the interpreter fabricated `Int`
+zero when no arm matched. The checker now rejects incomplete coverage and the
+interpreter traps on the impossible runtime state as migration hardening, but
+their former agreement still demonstrates why a differential cannot establish
+a rule both sides omit. The direct compiler remains responsible for the
+authoritative static judgment.
 
 ## Evaluation
 
@@ -189,7 +190,7 @@ nonexhaustive source statically.
 ## Current oracle coverage
 
 The current oracle gates check the outer source contract before parsing: the
-evaluation surface passes 48 focused cases, the typed surface passes 28, and
+evaluation surface passes 48 focused cases, the typed surface passes 34, and
 the temporary independent evaluator agrees on 106 fixed or generated cases.
 These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
 DEL, and high-byte controls. They cover bounded parts of this contract but do

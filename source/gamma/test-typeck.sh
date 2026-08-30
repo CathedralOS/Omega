@@ -67,6 +67,7 @@ tc '(def f ((x Nope)) Nope x)' 0 'unknown declared type'
 tc '(data Nat (Z) (S Nat)) (def pred ((n Nat)) Nat (match n (Z Z) ((S m) m))) (def main () Nat (pred (S (S Z))))' 1 'Nat pred'
 tc '(data List (Nil) (Cons Int List)) (def len ((xs List)) Int (match xs (Nil 0) ((Cons h t) (+ 1 (len t)))))' 1 'list length'
 tc '(data Nat (Z) (S Nat)) (def plus ((a Nat) (b Nat)) Nat (match a (Z b) ((S m) (S (plus m b)))))' 1 'Nat plus'
+tc '(data Nat (Z) (S Nat)) (def classify ((n Nat)) Int (match n (Z 0) (rest 1)))' 1 'final catch-all is exhaustive'
 # phase 2 — TYPE ERRORS
 tc '(data List (Nil) (Cons Int List)) (def bad ((xs List)) Int (+ xs 1))' 0 'Int op on a List'
 tc '(data List (Nil) (Cons Int List)) (def bad () List (Cons Nil Nil))' 0 'Cons wants Int got List'
@@ -80,5 +81,10 @@ tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Nat (S))' 0 'constructor too few a
 tc '(data Nat (Z) (S Nat)) (def bad ((n Int)) Nat (S n))' 0 'constructor arg wrong type (S on Int)'
 tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Nat (Nope n))' 0 'unknown constructor'
 tc '(data Pair (Mk Int Int)) (def bad ((p Pair)) Int (match p ((Mk a) a)))' 0 'pattern arity wrong (1 of 2)'
+tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n (Z 0)))' 0 'missing constructor arm'
+tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n (Z 0) (Z 1) ((S m) 2)))' 0 'duplicate constructor arm'
+tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n (rest 0) (Z 1)))' 0 'arm after catch-all'
+tc '(def bad ((n Int)) Int (match n (rest 0)))' 0 'match requires algebraic scrutinee'
+tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n))' 0 'match requires an arm'
 echo "gamma typeck: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

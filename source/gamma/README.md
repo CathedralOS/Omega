@@ -31,11 +31,13 @@ role, that component or gate is deleted. The direct compiler must type-check
 Gamma and emit Alpha tape; it may not publish an interpreter plus serialized
 syntax.
 
-The current pair retains one correlated blind spot: the checker does not test
-match exhaustiveness. The interpreter now traps rather than fabricating integer
-zero when no arm matches, but that runtime hardening is not the missing static
-judgment. The canonical compiler must reject nonexhaustive source statically;
-differential agreement does not prove a rule that compared programs omit.
+The current oracles close their former correlated match blind spot in different
+ways: the checker rejects incomplete or duplicate coverage, while the
+interpreter traps rather than fabricating integer zero when no arm matches.
+That migration hardening is not compiler authority. Their historical shared
+omission remains the warning that differential agreement cannot prove a rule
+both compared programs omit; the canonical compiler must own the static
+judgment.
 
 The evaluator's 4 MiB source ceiling, 16 MiB arena, 4 KiB argument scratch, and
 50,000,000-call fuel are oracle resource bounds, not Gamma semantics. Exhaustion

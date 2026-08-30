@@ -489,17 +489,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
     compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
     supplies sealed `Bytes`, validates structured returned rejection values,
     owns private failures, and never emits partial artifact bytes.
+  - [x] Close the reusable candidate front end's algebraic-match coverage rule:
+    require a nonempty match on an algebraic scrutinee, reject duplicate
+    constructor arms and every arm after a catch-all, and require either a final
+    catch-all or every constructor of the nominal type. The epoch-marked
+    constructor table and 34-case oracle gate are implementation material for
+    `gamma_compiler.beta`; the direct compiler must absorb the rule before this
+    temporary checker is deleted.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
   owns complete static match-exhaustiveness rejection. Keep the
-  correlated-oracle warning explicit: the temporary type checker still omits
-  this obligation, so its agreement with another oracle cannot establish it.
+  correlated-oracle warning explicit: the two oracles historically shared the
+  omission, demonstrating that agreement alone could not establish it.
 - [x] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 28 type-checker cases, and 106 independent
+  fail-closed arena case, 34 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the
