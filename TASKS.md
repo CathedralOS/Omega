@@ -6366,7 +6366,7 @@ Owners:
   A bounded executable Terminal rung is now live for one direct whole-root
   unrestricted primitive integer replacement inside a checked in-module Unit
   callee. Checked planning retains the exact literal expression and
-  write-only parameter coordinate. Terminal format 41/vocabulary 44 adds an
+  write-only parameter coordinate. Terminal format 42/vocabulary 45 retains an
   honest `PrimitiveScalar` structural referent plus a Unit
   `WriteOnlyPrimitiveStore` naming the destination place and preceding SSA
   value. Codec replay and independent verification require exact scalar type,
@@ -9575,11 +9575,20 @@ Remaining N6/N8 work:
   rejoins the declaration, binders, evidence interface, dependency roots, and
   exact call endpoints; reconstruction imports only the guarded implication
   concluding the caller application. Source, codec, verifier, optimizer
-  identity, and tamper canaries preserve the same four-unit runtime. Payload
-  projections, multiple or partial-result substitutions, later use of the
-  bound guarded term, erased proof-output linkage, wider structural calls, and
-  validity invalidation remain fail-closed rather than being inferred from this
-  bounded carrier.
+  identity, and tamper canaries preserve the same four-unit runtime. The next
+  bounded rung permits exactly one later use of that bound whole-result term:
+  the matching payloadless arm may pass it as the sole named `requires` input
+  to one direct tail state whose sole ordinary argument is the saved result and
+  whose body returns that argument unchanged. Terminal retains an independently
+  resolvable third machine with the exact requirement lane and identity-return
+  shape, plus one selected-use row naming its machine, input position,
+  proposition applications, evidence terms, and caller/target result places.
+  Codec format 42 / vocabulary 45 and the verifier reject omitted, duplicated,
+  redirected, interface-drifted, or non-identity uses while fixed fuel and
+  interpretation retain the existing four-unit runtime. Payload projections,
+  multiple or partial-result substitutions, multiple evidence arguments or
+  uses, later invalidation, erased proof-output linkage, wider structural
+  calls, and tagged-sum execution remain fail-closed.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
@@ -9880,7 +9889,7 @@ Remaining N6/N8 work:
   The collection migration is implemented through sealed typed requests,
   checked relation planning, the proof-only total-direct `define`
   correspondence, canonical Terminal identity/codec/replay, and mutation
-  canaries. Terminal format 41/vocabulary 44 bind the role discriminant before
+  canaries. Terminal format 42/vocabulary 45 bind the role discriminant before
   its role-specific payload and reject missing, duplicate, reversed, surplus,
   role/payload-mismatched, and unknown-tag evidence. Three-argument `lift`
   retains `Congruence, ForwardPreconditionTransport` in canonical order but

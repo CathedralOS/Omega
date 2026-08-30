@@ -487,6 +487,85 @@ pub(super) fn validate_evidence_contract_lanes(
                                 .is_some_and(|projection| projection.term == binding.output)
                         })
                     });
+                let uses_are_exact = usize::try_from(binding.expected_use_count)
+                    .ok()
+                    .is_some_and(|count| count == binding.uses.len())
+                    && binding.uses.len() <= 1
+                    && (binding.uses.is_empty() || binding.result_substitution.is_some())
+                    && binding.uses.iter().all(|use_| {
+                        let Some(target) = machines.get(&use_.target).copied() else {
+                            return false;
+                        };
+                        let [parameter] = target.structural_parameters.as_slice() else {
+                            return false;
+                        };
+                        let Some(target_result) = target.result.structural() else {
+                            return false;
+                        };
+                        let [block] = target.blocks.as_slice() else {
+                            return false;
+                        };
+                        let [Proposition::Atom(target_requirement)] =
+                            target.contract.requires.as_slice()
+                        else {
+                            return false;
+                        };
+                        let Some(target_term) = terms.get(&use_.target_term).copied() else {
+                            return false;
+                        };
+                        let Some(target_application) = module
+                            .proposition_applications
+                            .iter()
+                            .find(|application| application.id == use_.target_requirement)
+                        else {
+                            return false;
+                        };
+                        use_.target != caller.id
+                            && use_.target != callee.id
+                            && use_.input_position == 0
+                            && parameter.position == use_.input_position
+                            && !parameter.is_self
+                            && parameter.structural_type == result.structural_type
+                            && parameter.multiplicity
+                                == psi_terminal::StructuralMultiplicity::Unrestricted
+                            && parameter.access == psi_terminal::StructuralAccess::Owned
+                            && parameter.qualifications.is_empty()
+                            && use_.target_parameter == parameter.place
+                            && target_result.place != parameter.place
+                            && target_result.structural_type == parameter.structural_type
+                            && target_result.multiplicity == parameter.multiplicity
+                            && target_result.qualifications.is_empty()
+                            && target.parameters.is_empty()
+                            && target.contract.crash_routes.is_empty()
+                            && target.contract.ensures.is_empty()
+                            && target.contract.outcome_specific_ensures.is_empty()
+                            && block.operations.is_empty()
+                            && matches!(
+                                &block.terminator,
+                                psi_terminal::Terminator::ReturnStructural {
+                                    source,
+                                    returned_claims,
+                                    trivial_affine_discards,
+                                    ..
+                                } if *source == parameter.place
+                                    && returned_claims.is_empty()
+                                    && trivial_affine_discards.is_empty()
+                            )
+                            && *target_requirement == use_.target_requirement
+                            && target_term.proposition == use_.target_requirement
+                            && target_term.interface == output.interface
+                            && use_.source == binding.output
+                            && use_.instantiated_proposition == binding.instantiated_proposition
+                            && use_.caller_result == result.place
+                            && target_application.declaration
+                                == instantiated_application.declaration
+                            && target_application.binder_arguments
+                                == instantiated_application.binder_arguments
+                            && target_application.evidence_interface
+                                == instantiated_application.evidence_interface
+                            && target_application.arguments.len() == 1
+                            && target_application.id != instantiated_application.id
+                    });
                 if binding.guard.result_type != result.structural_type
                     || binding.callee_obligation != row.obligation
                     || binding.callee_term != row_evidence.term
@@ -500,6 +579,7 @@ pub(super) fn validate_evidence_contract_lanes(
                     || used_terms.contains(&binding.output)
                     || output_is_projected_elsewhere
                     || output.interface != callee_term.interface
+                    || !uses_are_exact
                     || binding.validity.result != result.place
                     || binding.validity.evidence_interface != callee_term.interface
                     || !dependencies_are_exact_result(&binding.validity.proposition_dependencies)
@@ -516,6 +596,7 @@ pub(super) fn validate_evidence_contract_lanes(
                 }
                 used_terms.insert(binding.callee_term);
                 used_terms.insert(binding.output);
+                used_terms.extend(binding.uses.iter().map(|use_| use_.target_term));
             }
         }
     }

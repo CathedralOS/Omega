@@ -142,5 +142,69 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
     };
     module.entry = caller.id;
     module.machines.insert(0, caller);
+    if plan
+        .selected_evidence
+        .iter()
+        .any(|selection| selection.tail_use.is_some())
+    {
+        module.machines.push(TerminalMachine {
+            id: machine_id(3),
+            attachment: Some(attachment),
+            parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: place_id(5),
+                position: 0,
+                is_self: false,
+                structural_type: result_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            }],
+            ranked_scc: None,
+            result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: place_id(6),
+                structural_type: result_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+            }),
+            structural_places: vec![
+                StructuralPlaceDeclaration {
+                    id: place_id(5),
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                },
+                StructuralPlaceDeclaration {
+                    id: place_id(6),
+                    kind: StructuralPlaceKind::Result,
+                },
+            ],
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(3),
+            blocks: vec![Block {
+                id: block_id(3),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnStructural {
+                    edge: edge_id(3),
+                    source: place_id(5),
+                    returned_claims: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(3),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        });
+    }
     Ok(lowered)
 }

@@ -418,7 +418,7 @@ arity, or provider substitution rejects. Reusable local or re-entrant reborrow
 authority does not follow. The verifier also rejects widening, target
 disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
-Terminal format 41/vocabulary 44 adds one executable direct whole-root
+Terminal format 42/vocabulary 45 retains one executable direct whole-root
 primitive-integer replacement. `PrimitiveScalar` is an honest structural
 referent shape rather than a synthetic record, and
 `WriteOnlyPrimitiveStore(destination, value)` is Unit, unconditional, and
@@ -625,10 +625,19 @@ omission stays fact-only. Lowering canonicalizes those selections by guarded
 callee-row coordinate, emits the exact two-machine closure, retains sibling
 guarded rows and producer provenance on the callee, and rejoins each selected
 row to a distinct caller-local term without changing the four-unit runtime.
-Payload projections, multiple or partial-result substitutions, later guarded-
-term use, erased proof-output linkage, wider structural calls, validity
-invalidation, and tagged-sum target lowering remain outside this bounded source
-rung.
+The next bounded rung permits one selected whole-result guarded term to be used
+once as the sole named `requires` input of one direct tail state in the matching
+payloadless arm. Terminal retains that tail as an independently resolvable
+third machine with one structural parameter, one exact requirement, and an
+identity structural return, while the selected-use row binds its machine,
+input position, proposition applications, evidence terms, and caller/target
+places. Format 42 / vocabulary 45 reject omission, duplication, redirection,
+interface drift, and tail-shape drift. The tail remains outside the runtime
+entry graph, so interpretation and fixed fuel retain the existing four-unit
+saved-result path. Payload projections, multiple or partial-result
+substitutions, multiple evidence arguments or uses, later invalidation, erased
+proof-output linkage, wider structural calls, and tagged-sum target lowering
+remain outside this bounded source rung.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry
