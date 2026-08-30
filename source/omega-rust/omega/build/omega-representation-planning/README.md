@@ -12,10 +12,14 @@ source.
 D26 scopes uniqueness to the compilation activation: one opaque declaration
 has at most one selected application, including an unused selection. Current
 orchestration evaluates one authoritative build machine, so the local harvest
-implements that invariant; completed build-configuration validation must keep
-it fail-closed if orchestration later admits more than one. Dependency builds
-publish generated-source bundles and their selections are not imported as
-consumer policy.
+implements that invariant. `CheckedCompilation` retains the complete validated
+collection unchanged, including unused selections, so downstream work need not
+rediscover an application from syntax or a calling-plan digest; completed
+build-configuration validation must keep it fail-closed if orchestration later
+admits more than one. This custody is not a package-review availability row,
+consumer demand, or physical ABI commitment. Dependency builds publish
+generated-source bundles and their selections are not imported as consumer
+policy.
 
 Downstream target consumers derive physical shape from the retained carrier.
 Calling-policy closure is the first consumer. General layout, package review,

@@ -681,6 +681,62 @@ machine build(builder: &mut Build) {
 }
 "#;
 
+fn retained_interrupt_representation(
+    checked: &omega_compiler::CheckedCompilation,
+) -> &omega_representation_planning::OpaqueRepresentationSelection {
+    let [selection] = checked.opaque_representation_selections() else {
+        panic!("one exact opaque-representation selection")
+    };
+    let opaque = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "InterruptAcknowledgement")
+        .expect("exact opaque declaration");
+    let carrier = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "PicAckCarrier")
+        .expect("exact representation carrier");
+    let conformance = checked
+        .conformances()
+        .iter()
+        .find(|definition| {
+            checked
+                .symbols
+                .display_path(definition.symbol, "::")
+                .ends_with("PicAckRepresentation")
+        })
+        .expect("exact representation conformance");
+    let build = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("authoritative build machine");
+
+    assert_eq!(selection.opaque(), opaque.symbol);
+    assert_eq!(selection.carrier(), carrier.symbol);
+    assert_eq!(selection.application().declaration, conformance.symbol);
+    assert_eq!(
+        selection.application().subject_identity.as_deref(),
+        Some("PicAckCarrier")
+    );
+    assert!(!selection.application().commitment.is_zero());
+    assert_eq!(selection.selecting_machine(), build.symbol);
+    let selecting_source = checked
+        .symbols
+        .source_file(selection.source_span())
+        .expect("selection must retain authored source custody");
+    assert_eq!(
+        selecting_source
+            .path
+            .file_name()
+            .and_then(|name| name.to_str()),
+        Some("build.omg")
+    );
+    assert!(selection.source_span().span.start < selection.source_span().span.end);
+    selection
+}
+
 #[test]
 fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let main_path = write_project(
@@ -689,6 +745,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         INTERRUPT_REPRESENTATION_BUILD,
     );
     let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
+    retained_interrupt_representation(&checked);
 
     let timer = checked
         .typed
@@ -1012,7 +1069,7 @@ fn opaque_by_value_boundary_rejects_without_build_selection() {
 }
 
 #[test]
-fn reference_only_opaque_boundary_does_not_demand_representation_selection() {
+fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one() {
     let source = INTERRUPT_POLICY
         .replace(
             "boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {",
@@ -1030,14 +1087,55 @@ fn reference_only_opaque_boundary_does_not_demand_representation_selection() {
         .replace(
             "machine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)\n    satisfies LookalikeEntry::enter\n    reaches PortIo\n{\n    acknowledgement.complete();\n}",
             "machine LookalikeEntryProvider::enter(acknowledgement: &InterruptAcknowledgement)\n    satisfies LookalikeEntry::enter\n{\n}",
+        )
+        .replace(
+            "PicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;",
+            "PicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;\n\nAlternatePicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;",
         );
-    let main = write_project(
-        "interrupt-reference-only-representation",
+    let unselected = write_project(
+        "interrupt-reference-only-unselected-representation",
         &source,
         "machine build(builder: &mut Build) { builder.application(\"interrupt-entry\"); }",
     );
-    compile_to_checked(&main, None)
+    let unselected = compile_to_checked(&unselected, None)
         .expect("a reference-only opaque pointee must not demand representation closure");
+    assert!(unselected.opaque_representation_selections().is_empty());
+
+    let selected = write_project(
+        "interrupt-reference-only-selected-representation",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    let selected = compile_to_checked(&selected, None)
+        .expect("an unused valid selection remains activation policy");
+    let selected_application = retained_interrupt_representation(&selected).application();
+
+    let alternate_build = INTERRUPT_REPRESENTATION_BUILD
+        .replace("PicAckRepresentation", "AlternatePicAckRepresentation");
+    let alternate = write_project(
+        "interrupt-reference-only-alternate-representation",
+        &source,
+        &alternate_build,
+    );
+    let alternate = compile_to_checked(&alternate, None)
+        .expect("an alternate unused valid selection remains activation policy");
+    let [alternate_selection] = alternate.opaque_representation_selections() else {
+        panic!("one alternate unused opaque-representation selection")
+    };
+    assert_eq!(
+        selected.selected_provider_plans(),
+        alternate.selected_provider_plans(),
+        "an unused representation selection must not change calling-plan settlement"
+    );
+    assert_ne!(
+        selected_application.commitment,
+        alternate_selection.application().commitment,
+        "unused selection custody must retain the exact closed application identity"
+    );
+    assert_ne!(
+        selected, alternate,
+        "unused opaque-representation policy must participate in checked semantic equality"
+    );
 }
 
 #[test]
@@ -1132,6 +1230,15 @@ fn changing_the_selected_opaque_conformance_reissues_the_calling_application() {
     )
     .expect("alternate representation application");
 
+    let first_selection = retained_interrupt_representation(&first);
+    let [alternate_selection] = alternate.opaque_representation_selections() else {
+        panic!("one alternate opaque-representation selection")
+    };
+    assert_ne!(
+        first_selection.application().commitment,
+        alternate_selection.application().commitment,
+        "the retained closed application commitment must change with its named conformance"
+    );
     assert_ne!(
         timer_calling_application(&first),
         timer_calling_application(&alternate),

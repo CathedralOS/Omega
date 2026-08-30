@@ -3341,6 +3341,14 @@ remain visible without recurring blanket approval. Opacity alone is not a
 blocking trust claim. Deployment policy may still classify an exact compiler-
 owned mechanism as dangerous and blocking.
 
+The first compiler-custody checkpoint retains the complete validated
+activation-wide opaque-representation selection collection in the checked
+compilation, including an unused selection and its selecting-machine/source
+provenance. That retention does not itself publish producer availability,
+consumer demand, or physical ABI evidence: package review remains `Unbound`
+until the complete D26 row can rejoin the independent shape, movement, and
+boundary-plan commitments described above.
+
 Accepted propositions, boundary/provider guarantees, authority establishment,
 executable mechanisms, and derived dangerous reach remain independent
 admission rows. Public ABI incompatibility may block on the API axis without
