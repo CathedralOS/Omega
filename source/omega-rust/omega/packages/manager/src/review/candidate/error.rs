@@ -20,6 +20,10 @@ pub enum CompileResolvedPackageReviewsError {
         path: PathBuf,
         error: FilesystemSponsorError,
     },
+    BuildEvaluationAccountingMismatch {
+        reported: Option<u64>,
+        sponsored: u64,
+    },
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
@@ -81,6 +85,13 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 formatter,
                 "failed to sponsor package-review staging root `{}`: {error}",
                 path.display()
+            ),
+            Self::BuildEvaluationAccountingMismatch {
+                reported,
+                sponsored,
+            } => write!(
+                formatter,
+                "package-review build usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
             ),
             Self::BuildStagingCleanup { path, error, prior } => {
                 write!(

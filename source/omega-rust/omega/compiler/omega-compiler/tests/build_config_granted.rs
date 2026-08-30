@@ -335,9 +335,14 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_usage = checked
         .build_evaluation_usage()
         .expect("build machine evaluation must publish precursor usage");
-    assert_eq!(checked_usage.usage_schema_version, 1);
+    assert_eq!(checked_usage.usage_schema_version, 2);
     assert_eq!(checked_usage.step_schedule_marker, 1);
+    assert_eq!(checked_usage.invocation_fuel_ceiling, 10_000_000);
+    assert_eq!(checked_usage.sponsor_schema_version, None);
+    assert_eq!(checked_usage.session_fuel_ceiling, None);
     assert!(checked_usage.fuel_units > 0);
+    assert!(checked_usage.fuel_units <= checked_usage.invocation_fuel_ceiling);
+    assert!(checked_usage.replay_fuel_units <= checked_usage.invocation_fuel_ceiling);
     assert!(checked_usage.result_cells > 0);
     let checked_observations = checked
         .build_observation_summary()

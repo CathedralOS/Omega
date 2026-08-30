@@ -1784,6 +1784,15 @@ and open-but-unlinked objects under a 4,096-entry, 256-MiB-total, and
 256-MiB-per-object ceiling. Provider mutations reserve before touching the OS
 and commit after success; ceiling refusal is resource exhaustion. Neither
 per-package limits nor path-summing bound the actual resource.
+A distinct version-1 evaluation sponsor now accounts deterministic evaluator
+work across that same closure. The compiler policy grants 100,000,000 total
+fuel units, preserves the 100,000-unit effect-free and 10,000,000-unit granted
+per-invocation ceilings for initial evaluation and automatic replay, and
+prevents dependencies or the ambient interpreter development override from
+raising package-policy limits. Usage receipt v2 binds those limits and
+separates initial from replay work; successful closure review requires exact
+reconciliation with the shared account. This is not a CPU-time or
+process-memory claim.
 
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable

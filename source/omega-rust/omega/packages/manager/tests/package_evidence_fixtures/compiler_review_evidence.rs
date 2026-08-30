@@ -31,6 +31,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         );
 
         assert_eq!(reviews.reviews().len(), closure.graph().packages().len());
+        let mut closure_build_fuel = 0_u64;
         for (package_index, node) in closure.graph().packages().iter().enumerate() {
             let custody = closure
                 .custody(node.source().key())
@@ -38,7 +39,31 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let issued = reviews
                 .review(node.source().key())
                 .expect("every resolved graph package receives compiler review material");
+            let executes_filesystem_build =
+                node.source().key().name().as_str() == "generated-table";
             assert_eq!(issued.resolution(), custody.resolution());
+            let usage = issued
+                .build_evaluation_usage()
+                .expect("package review retains sponsored build-evaluation usage");
+            assert_eq!(usage.usage_schema_version, 2);
+            assert_eq!(usage.step_schedule_marker, 1);
+            assert_eq!(
+                usage.invocation_fuel_ceiling,
+                if executes_filesystem_build {
+                    10_000_000
+                } else {
+                    100_000
+                }
+            );
+            assert_eq!(usage.sponsor_schema_version, Some(1));
+            assert_eq!(usage.session_fuel_ceiling, Some(100_000_000));
+            assert!(usage.fuel_units > 0);
+            assert!(usage.fuel_units <= usage.invocation_fuel_ceiling);
+            assert!(usage.replay_fuel_units <= usage.invocation_fuel_ceiling);
+            closure_build_fuel = closure_build_fuel
+                .checked_add(usage.fuel_units)
+                .and_then(|total| total.checked_add(usage.replay_fuel_units))
+                .expect("fixture closure build fuel fits u64");
             assert_ne!(
                 issued.source_consumption_commitment().digest(),
                 [0; 32],
@@ -52,8 +77,6 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let observations = issued
                 .build_observation_summary()
                 .expect("fixture package build machine publishes observation evidence");
-            let executes_filesystem_build =
-                node.source().key().name().as_str() == "generated-table";
             assert_eq!(
                 observations.ceiling(),
                 if executes_filesystem_build {
@@ -138,6 +161,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .expect("retained obligation ledger should recover canonically");
             assert_eq!(&recovered, issued.obligations());
         }
+        assert!(closure_build_fuel <= 100_000_000);
 
         let root_review = reviews
             .review(closure.graph().root())

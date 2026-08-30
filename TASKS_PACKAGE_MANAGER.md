@@ -61,8 +61,12 @@ package review remains non-admitting.
   - retain exact failed and denied outcomes, including their rooted/refused
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
-  - enforce process CPU/memory and every remaining whole-session quota needed
-    before that verdict can be authority-bearing.
+  - extend the landed compiler-owned, closure-wide deterministic fuel sponsor
+    with peak-live-cell, temporary/result-byte, console-output, attempt-count,
+    and live-handle ceilings;
+  - enforce hard process CPU and memory containment before a package-review
+    verdict can be authority-bearing. Deterministic evaluator fuel is not CPU,
+    and the filesystem staging account is not memory containment.
 
   A summary or observation digest alone is not a receipt.
 

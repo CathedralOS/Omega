@@ -1,7 +1,9 @@
 use psi_build_time_evaluation::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
     PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
-    evaluate_const_array_lengths, evaluate_zero_argument_machine,
+    evaluate_build_machine_arguments_measured_with_sponsor, evaluate_const_array_lengths,
+    evaluate_zero_argument_machine,
 };
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -317,6 +319,131 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
             fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(true))],
         }]
     );
+}
+
+#[test]
+fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
+    let typed = typed(SOURCE);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
+    let argument = || BuildTimeValue::Struct {
+        type_name: "Build".to_owned(),
+        fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+    };
+
+    let baseline = evaluate_build_machine_arguments_measured(
+        &prepared,
+        "pure_build",
+        vec![argument()],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect("baseline pure build");
+    let fuel_per_evaluation = baseline.usage().fuel_units();
+    assert!(fuel_per_evaluation > 0);
+    assert_eq!(baseline.usage().schema().schema_version(), 2);
+    assert_eq!(baseline.usage().fuel_ceiling(), 100_000);
+
+    let aggregate_ceiling = fuel_per_evaluation
+        .checked_mul(2)
+        .expect("small test evaluation");
+    let sponsor = BuildEvaluationSponsor::new(
+        BuildEvaluationSponsorLimits::new(aggregate_ceiling).expect("nonzero limit"),
+    );
+    assert_eq!(sponsor.limits().schema_version(), 1);
+    assert_eq!(sponsor.limits().maximum_fuel_units(), aggregate_ceiling);
+    let sponsor_clone = sponsor.clone();
+
+    let first = evaluate_build_machine_arguments_measured_with_sponsor(
+        &prepared,
+        "pure_build",
+        vec![argument()],
+        BuildMachineExecutionMode::Pure,
+        &sponsor,
+    )
+    .expect("first sponsored evaluation");
+    let second = evaluate_build_machine_arguments_measured_with_sponsor(
+        &prepared,
+        "pure_build",
+        vec![argument()],
+        BuildMachineExecutionMode::Pure,
+        &sponsor_clone,
+    )
+    .expect("second sponsored evaluation");
+
+    assert_eq!(first.usage().fuel_units(), fuel_per_evaluation);
+    assert_eq!(second.usage().fuel_units(), fuel_per_evaluation);
+    assert_eq!(sponsor.consumed_fuel_units(), aggregate_ceiling);
+    assert_eq!(sponsor_clone.consumed_fuel_units(), aggregate_ceiling);
+
+    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+        &prepared,
+        "pure_build",
+        vec![argument()],
+        BuildMachineExecutionMode::Pure,
+        &sponsor,
+    )
+    .expect_err("the exactly consumed account must reject another tick");
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "build-evaluation aggregate fuel sponsor exhausted at {aggregate_ceiling} fuel units"
+        )
+    );
+    assert_eq!(sponsor.consumed_fuel_units(), aggregate_ceiling);
+}
+
+#[test]
+fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion() {
+    let typed = typed(SOURCE);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
+    let argument = || BuildTimeValue::Struct {
+        type_name: "Build".to_owned(),
+        fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+    };
+    let mode = || BuildMachineExecutionMode::Granted {
+        filesystem: BuildMachineFilesystemAccess::Virtual,
+        filesystem_metadata_layout: Default::default(),
+    };
+    let sponsor = BuildEvaluationSponsor::new(
+        BuildEvaluationSponsorLimits::new(100_000).expect("nonzero limit"),
+    );
+
+    let evaluated = evaluate_build_machine_arguments_measured_with_sponsor(
+        &prepared,
+        "pure_build",
+        vec![argument()],
+        mode(),
+        &sponsor,
+    )
+    .expect("granted entry may execute a pure build");
+    assert_eq!(evaluated.usage().fuel_ceiling(), 10_000_000);
+    assert_eq!(
+        sponsor.consumed_fuel_units(),
+        evaluated.usage().fuel_units()
+    );
+
+    let exhausted =
+        BuildEvaluationSponsor::new(BuildEvaluationSponsorLimits::new(1).expect("nonzero limit"));
+    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+        &prepared,
+        "pure_build",
+        vec![argument()],
+        mode(),
+        &exhausted,
+    )
+    .expect_err("one fuel unit is insufficient");
+    let BuildMachineEvaluationError::Granted(failure) = error else {
+        panic!("granted execution must retain its classified failure");
+    };
+    assert_eq!(
+        failure.kind(),
+        psi_checked_interpreter::BuildMachineEvaluationFailureKind::ResourceExhausted
+    );
+    assert_eq!(
+        failure.diagnostic(),
+        "build-evaluation aggregate fuel sponsor exhausted at 1 fuel units"
+    );
+    assert_eq!(failure.usage().expect("partial usage").fuel_units(), 2);
+    assert_eq!(exhausted.consumed_fuel_units(), 1);
 }
 
 #[test]

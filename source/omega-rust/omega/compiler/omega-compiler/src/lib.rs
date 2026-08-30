@@ -18,7 +18,9 @@ pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,
     compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_build_dir,
-    compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
+    compile_to_checked_with_packages_in_sponsored_build_dir,
+    compile_to_checked_with_packages_in_sponsored_build_session,
+    compile_to_checked_with_replay_record,
 };
 pub(crate) use psi_source as source;
 pub(crate) use psi_source_files_to_tokens as lexer;

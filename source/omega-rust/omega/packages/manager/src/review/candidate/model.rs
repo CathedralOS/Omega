@@ -1,6 +1,6 @@
 use super::rows::ReviewOnlyCanonicalRow;
 use crate::declarations::PackageKey;
-use omega_build_evaluation::BuildObservationSummary;
+use omega_build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
 use omega_package_evidence::ledger::OrdinaryPackageObligationLedger;
 use omega_package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
@@ -16,6 +16,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) key: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
+    pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
     pub(super) projection: CheckedPackageReviewProjection,
@@ -36,6 +37,12 @@ impl CompilerIssuedPackageReview {
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption_commitment
+    }
+
+    /// Deterministic evaluator accounting from this package's checked build.
+    /// This is not a CPU-time or process-memory receipt.
+    pub const fn build_evaluation_usage(&self) -> Option<BuildEvaluationUsage> {
+        self.build_evaluation_usage
     }
 
     /// Selected build-machine execution evidence. This is deliberately

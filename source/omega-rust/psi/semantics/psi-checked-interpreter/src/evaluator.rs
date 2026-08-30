@@ -1,13 +1,13 @@
 use crate::{
-    BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind, BuildTimeOperationEvaluation,
-    EvaluationObservations, EvaluationUsage, FilesystemAccess, FilesystemEvaluationHaltKind,
-    FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
-    FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
-    FilesystemLogicalHandleKind, FilesystemLogicalHandleOutput,
-    FilesystemLogicalHandleOutputSource, FilesystemMetadataLayout, FilesystemObservationProvider,
-    FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
-    InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
-    PrivateLayoutPlacementReceipt,
+    BuildEvaluationSponsor, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
+    BuildTimeOperationEvaluation, EvaluationObservations, EvaluationUsage, FilesystemAccess,
+    FilesystemEvaluationHaltKind, FilesystemGrantAccess, FilesystemGrantRefusal,
+    FilesystemGrantRefusalReason, FilesystemLogicalHandleInput,
+    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
+    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource, FilesystemMetadataLayout,
+    FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
+    FilesystemOperationResult, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
+    MeasuredEvaluation, PrivateLayoutPlacementReceipt,
 };
 
 mod filesystem_host_operation;
@@ -108,6 +108,13 @@ use std::rc::Rc;
 
 const STEP_BUDGET: u64 = 10_000_000;
 
+fn ambient_step_budget() -> u64 {
+    std::env::var("OMEGA_INTERP_STEP_BUDGET")
+        .ok()
+        .and_then(|raw| raw.parse().ok())
+        .unwrap_or(STEP_BUDGET)
+}
+
 fn project_landed_float(format: SemanticFloatFormat, value: f64) -> FloatMeaning {
     if format == SemanticFloatFormat::BINARY32 {
         FloatProjectionOperation::Meaning32
@@ -182,7 +189,7 @@ pub(crate) fn run_with_options(
                     "interpreter thread panicked",
                     Vec::new(),
                     Vec::new(),
-                    EvaluationUsage::empty(),
+                    EvaluationUsage::empty(ambient_step_budget()),
                 )
             })
     })
@@ -217,7 +224,7 @@ fn run_const_machine_on_current_thread(
     machine_name: &str,
 ) -> Result<MeasuredEvaluation<i64>, String> {
     let mut evaluator = Evaluator::new(program, &[]);
-    evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+    evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
     let result = evaluator.run_const_machine(machine_name);
     let mut usage = evaluator.usage;
     match result {
@@ -263,7 +270,7 @@ pub(crate) fn run_build_time_machine_with_operation_receipts(
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
-                evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+                evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = evaluator.run_build_time_machine(machine_name, arguments);
                 let mut usage = evaluator.usage;
                 match result {
@@ -302,12 +309,35 @@ pub(crate) fn run_build_time_machine_arguments(
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+    run_build_time_machine_arguments_with_optional_sponsor(program, machine_name, arguments, None)
+}
+
+pub(crate) fn run_build_time_machine_arguments_with_sponsor(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+    run_build_time_machine_arguments_with_optional_sponsor(
+        program,
+        machine_name,
+        arguments,
+        Some(sponsor.clone()),
+    )
+}
+
+fn run_build_time_machine_arguments_with_optional_sponsor(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    sponsor: Option<BuildEvaluationSponsor>,
+) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
-                evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+                evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
                 let result = evaluator.run_build_time_machine_arguments(machine_name, arguments);
                 let mut usage = evaluator.usage;
                 match result {
@@ -350,11 +380,50 @@ pub(crate) fn run_granted_build_machine_arguments(
     MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
     BuildMachineEvaluationFailure,
 > {
+    run_granted_build_machine_arguments_with_optional_sponsor(
+        program,
+        machine_name,
+        arguments,
+        options,
+        None,
+    )
+}
+
+pub(crate) fn run_granted_build_machine_arguments_with_sponsor(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    options: InterpretOptions,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<
+    MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
+    BuildMachineEvaluationFailure,
+> {
+    run_granted_build_machine_arguments_with_optional_sponsor(
+        program,
+        machine_name,
+        arguments,
+        options,
+        Some(sponsor.clone()),
+    )
+}
+
+fn run_granted_build_machine_arguments_with_optional_sponsor(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    options: InterpretOptions,
+    sponsor: Option<BuildEvaluationSponsor>,
+) -> Result<
+    MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
+    BuildMachineEvaluationFailure,
+> {
     std::thread::scope(|scope| {
         let worker = std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, move || {
                 let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
                 let replaying = matches!(
                     &options.filesystem,
@@ -909,6 +978,9 @@ struct Evaluator<'program> {
     /// interpreted store.
     private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
     usage: EvaluationUsage,
+    /// Optional compiler-owned account shared across a complete build-review
+    /// session. This measures deterministic evaluator fuel units only.
+    build_evaluation_sponsor: Option<BuildEvaluationSponsor>,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
     /// `CONST_EVAL_STEP_BUDGET` as a defense-in-depth step ceiling.

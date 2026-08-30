@@ -6,7 +6,7 @@ use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V2\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V3\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -52,6 +52,38 @@ impl ProductionCompilationSubject {
             return Err(
                 "production compilation subject target profile disagrees with native target",
             );
+        }
+        if build_evaluation_usage.invocation_fuel_ceiling == 0 {
+            return Err("production compilation subject has a zero invocation fuel ceiling");
+        }
+        if build_evaluation_usage.fuel_units > build_evaluation_usage.invocation_fuel_ceiling
+            || build_evaluation_usage.replay_fuel_units
+                > build_evaluation_usage.invocation_fuel_ceiling
+        {
+            return Err("production compilation subject exceeded its invocation fuel ceiling");
+        }
+        match (
+            build_evaluation_usage.sponsor_schema_version,
+            build_evaluation_usage.session_fuel_ceiling,
+        ) {
+            (None, None) => {}
+            (Some(_), Some(0)) => {
+                return Err("production compilation subject has a zero session fuel ceiling");
+            }
+            (Some(_), Some(session_ceiling)) => {
+                let consumed = build_evaluation_usage
+                    .fuel_units
+                    .checked_add(build_evaluation_usage.replay_fuel_units)
+                    .ok_or("production compilation subject build fuel overflowed")?;
+                if consumed > session_ceiling {
+                    return Err("production compilation subject exceeded its session fuel ceiling");
+                }
+            }
+            _ => {
+                return Err(
+                    "production compilation subject has incomplete evaluation sponsor identity",
+                );
+            }
         }
         Ok(Self {
             package,
@@ -224,7 +256,18 @@ fn canonical_manifest_bytes(
     let usage = subject.build_evaluation_usage;
     bytes.extend_from_slice(&usage.usage_schema_version.to_le_bytes());
     bytes.extend_from_slice(&usage.step_schedule_marker.to_le_bytes());
+    bytes.extend_from_slice(&usage.invocation_fuel_ceiling.to_le_bytes());
+    match (usage.sponsor_schema_version, usage.session_fuel_ceiling) {
+        (Some(schema), Some(ceiling)) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&schema.to_le_bytes());
+            bytes.extend_from_slice(&ceiling.to_le_bytes());
+        }
+        (None, None) => bytes.push(0),
+        _ => unreachable!("validated production subject has paired sponsor identity"),
+    }
     bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
+    bytes.extend_from_slice(&usage.replay_fuel_units.to_le_bytes());
     bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
     bytes.extend_from_slice(subject.build_observation_identity.as_bytes());
     bytes.push(target_profile_tag(subject.target_profile));
