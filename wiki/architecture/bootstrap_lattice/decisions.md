@@ -614,6 +614,11 @@ declaration remain `DuplicateName`; qualified bodies on data owners are ordinary
 owner-qualified machine identities. Lookup never acquires first-wins or last-
 wins meaning from collector traversal.
 
+D22 does not decide transition-arm binder shadowing/scope or the exact
+coordinate and competition rule between `InvalidBoundary` and a separate
+collection-phase duplicate. Those narrow rules remain open in Q9; they must not
+be inferred from collector traversal or used to justify a partial census.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

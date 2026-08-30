@@ -41,11 +41,50 @@ Whole-closure collection, type/control checking, AST-to-symbolic-Alpha lowering,
 `main`, and final publication remain implementation gaps. The existing source
 is therefore not yet a compiler edge and no validation may describe it as one.
 
-D22 now fixes the collection phase that must land next. It performs one scoped
-identity census before type formation, rejects the globally earliest later
-duplicate, retains ordered local visibility without active shadowing, permits
-member/local and disjoint-state spelling reuse, and rejects any authored body
-whose owner is a boundary trait as `InvalidBoundary`.
+D22 fixes the collection phase's namespace and ordinary local rules. Q9 still
+blocks the complete collector on transition-arm binder scope and the exact
+ordering/coordinate of `InvalidBoundary` against duplicate-name issues. No
+partial collector is retained while those accepted-language rules are open.
+
+## Contract-derived conformance plan
+
+This is the compact case matrix for the eventual adjacent executable gate. It
+derives from D17, D22, and `LANGUAGE.md`; it is not an unrun corpus and records
+no execution evidence. Cases become executable only through the real
+Gamma-written compiler and its selected D19 adapter.
+
+| Area | Positive controls | Negative controls and exact obligation |
+| --- | --- | --- |
+| Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
+| Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
+| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry and distinct states | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let; active machine/state/local shadowing; globally earliest later declaration independent of a later type/body error |
+| Type and body checking | forward owners/machines/states; finite records/sums/arrays; views only in admitted positions; complete scalar and sum transitions | every reason from `UnknownType` through `NonexhaustiveSum`, at the first offending type, expression, statement, pattern, or control target; exact `Console`, `Main`, and entry shapes |
+| Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 262,140-byte cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
+
+D22 rows already settled by the third line include these discriminator pairs:
+
+- a type owner and an unqualified machine may share a spelling, while boundary
+  and data owners may not;
+- `parse` and `Owner::parse` are distinct machine identities, while two exact
+  owner/name pairs conflict;
+- fields and cases share their data-owner member scope, but a member and bare
+  local may share a spelling;
+- machine parameters conflict in the entry and every state body; state
+  parameters and lets conflict only in their active body; and
+- entry and sibling state bodies may reuse local spellings.
+
+Q9 owns the remaining census rows: mutual and outer-environment conflicts for
+transition payload binders, sibling-arm reuse, and competition between
+`InvalidBoundary` and `DuplicateName`, including a boundary/data-ambiguous owner.
+
+Runtime conformance must execute all nine settled traps—`Overflow`,
+`DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
+`NonBoolean`, `Assertion`, and `NonExhaustiveTransition`—and preserve the exact
+stdout prefix before each trap. Resource conformance is parameterized by the
+selected compiler/application profile rather than invented constants: for every
+source, immutable-heap, recursion/step, emitted-tape, and output bound, exercise
+the exact admitted boundary and its adjacent refusal, require outer
+`Incomplete`, and prove that no partial compiler artifact is published.
 
 The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
 restricted Delta-written native compiler prototype are deleted rather than

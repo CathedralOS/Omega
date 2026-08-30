@@ -972,18 +972,29 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Alpha's payload cap. Profile the real `D` closure; terrible performance,
     unacceptable heap pressure, or pressure to extend Alpha instructions is an
     owner-escalation trigger, not permission for a hidden alternate backend.
-  - [ ] Implement D22's exact Delta identity census before type formation.
-    Collect grammar-selected owner, machine, member, state, parameter, and local
-    scopes; reject the globally earliest later duplicate; preserve ordered let
-    visibility without active shadowing; permit local/member and disjoint-state
-    spelling reuse; and reject every authored body on a boundary owner as
-    `InvalidBoundary`. Do not add first-wins lookup or a partial collector.
+  - [ ] **OWNER-BLOCKED — Q9: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
+    D22's exact Delta identity census before type formation after the remaining
+    transition-binder scope and collection-failure ordering rules are fixed.
+    Collect grammar-selected owner, machine, member, state, parameter, binder,
+    and local scopes; reject the globally earliest later conflict; preserve
+    ordered let visibility without active shadowing; permit local/member and
+    disjoint-state spelling reuse; and reject every authored body on a boundary
+    owner as `InvalidBoundary`. Do not add first-wins lookup, omit executable
+    pattern binders, or retain a partial collector while Q9 is unresolved.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
   disjoint-state vectors. Do not recreate cases that
   merely pin quirks of the removed translator or materialize another unrun
   corpus.
+  - [x] Record the compact settled-contract matrix adjacent to the compiler.
+    It covers lexical/parse phase priority and coordinates, all grammar and
+    checking families, symbolic Alpha encoding/replay, all nine runtime traps,
+    and boundary/adjacent private-resource obligations without materializing an
+    unrun file corpus or claiming execution evidence.
+  - [ ] **OWNER-BLOCKED — Q9.** Complete the transition-binder and mixed
+    `DuplicateName`/`InvalidBoundary` rows after their exact scope, phase, and
+    coordinate rules are settled.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
   and run that
   contract-derived suite through the real Gamma-written compiler and bind every

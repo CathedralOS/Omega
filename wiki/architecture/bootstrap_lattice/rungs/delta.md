@@ -38,7 +38,9 @@ types.
 D22 fixes declaration identity and lexical scope: grammar-selected namespaces,
 one pre-type scoped duplicate census, no active local shadowing, disjoint state-
 local reuse, and categorical `InvalidBoundary` rejection for authored machine
-bodies on boundary owners.
+bodies on boundary owners. Q9 narrowly remains over transition-arm binders and
+the coordinate/priority of competing collection failures; the compiler may not
+invent those accepted-language rules in a partial census.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns
