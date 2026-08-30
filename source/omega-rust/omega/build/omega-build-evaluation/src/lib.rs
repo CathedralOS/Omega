@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 65;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 66;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2634,6 +2634,10 @@ const fn unknown_descriptor_open_at_tag(operation_tag: u16) -> bool {
     operation_tag == 14
 }
 
+const fn unknown_descriptor_unlink_at_tag(operation_tag: u16) -> bool {
+    operation_tag == 15
+}
+
 const fn unknown_descriptor_write_payload_operation_tag(operation_tag: u16) -> bool {
     matches!(operation_tag, 5 | 7)
 }
@@ -2677,6 +2681,7 @@ fn source_input_replay_prefix_end(
                 | 11
                 | 12
                 | 14
+                | 15
                 | 17
                 | 19
                 | 20
@@ -2788,6 +2793,7 @@ fn source_input_replay_prefix_end(
                         | 11
                         | 12
                         | 14
+                        | 15
                         | 17
                         | 19
                         | 20
@@ -3614,6 +3620,15 @@ pub fn compute_build_config(
                 )
                 .ok()
             } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_unlink_at_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_unlink_at_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 1
                 && unknown_descriptor_write_operation_tag(
                     attempts[operation_suffix_start].operation_tag(),
                 )
@@ -3722,6 +3737,7 @@ pub fn compute_build_config(
                 (operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
                     || failure.operation_tag() == 10
                     || unknown_descriptor_open_at_tag(failure.operation_tag())
+                    || unknown_descriptor_unlink_at_tag(failure.operation_tag())
                     || unknown_descriptor_write_operation_tag(failure.operation_tag())
                     || unknown_descriptor_set_file_times_tag(failure.operation_tag())
                     || unknown_descriptor_read_operation_tag(failure.operation_tag())

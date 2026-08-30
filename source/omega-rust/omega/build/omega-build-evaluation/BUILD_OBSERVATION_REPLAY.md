@@ -591,3 +591,21 @@ filesystem state, or operating-system security property. Nested or otherwise
 non-component names, alternate outcomes, resolved descriptors, and any rooted,
 authorized, refusal, output-handle, or generated-source evidence remain
 non-receipted.
+
+## Unknown-descriptor `unlink_at` (summary v66, replay record v46)
+
+The same failure-only grammar admits one tag-15 `unlink_at` after an optional
+exact Source-input prefix when its directory descriptor resolves to Omega's
+unknown synthetic descriptor. The typed row retains one nonempty portable
+relative component and the exact authored `i32` flags. Its scoped provider,
+scalar `-1`, post-error `9` (`bad descriptor`), unknown descriptor input, and
+all empty side lanes are fixed by the record type.
+
+Both evaluators reject this row through the compiler-owned descriptor table
+before path resolution, authorization, sponsorship, namespace mutation, or
+host access. Provider-free replay therefore proves only that the same authored
+call receives Omega's modeled unknown-descriptor result. It claims no host
+path, credential, filesystem state, or operating-system security property.
+Successful or resolved unlinks, alternate errors such as an absent leaf,
+non-component names, and any rooted, authorized, refusal, output-mutation, or
+generated-source evidence remain non-receipted.

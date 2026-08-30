@@ -71,11 +71,12 @@ fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservation
     summary
 }
 
-fn unknown_descriptor_open_at_summary(
+fn unknown_descriptor_at_summary(
+    operation_tag: u16,
     relative_component: Vec<u8>,
     flags: i32,
 ) -> BuildObservationSummary {
-    let mut summary = summary(14);
+    let mut summary = summary(operation_tag);
     summary.filesystem_operation_attempts[0].scalar_operands = vec![BuildFilesystemScalarOperand {
         operand_ordinal: 2,
         value: BuildFilesystemScalarOperandValue::I32(flags),
@@ -394,78 +395,92 @@ fn unknown_descriptor_seek_failure_rejects_scalar_and_side_lane_drift() {
 }
 
 #[test]
-fn unknown_descriptor_open_at_failure_round_trips_exact_authored_inputs() {
+fn unknown_descriptor_at_failures_round_trip_exact_authored_inputs() {
     let limits = BuildFilesystemReplayRecordLimits::default();
-    let summary = unknown_descriptor_open_at_summary(b"generated.omg".to_vec(), 0x241);
-    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
-        .expect("exact unknown-descriptor open_at failure encodes")
-        .expect("verified open_at failure retains replay custody");
-    let recovered =
-        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
-            .expect("exact unknown-descriptor open_at failure recovers");
-    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
-        .expect("exact open_at failure rehydrates through its typed constructor");
+    for (operation_tag, operation_name) in [(14, "open_at"), (15, "unlink_at")] {
+        let summary =
+            unknown_descriptor_at_summary(operation_tag, b"generated.omg".to_vec(), 0x241);
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .unwrap_or_else(|_| panic!("exact unknown-descriptor {operation_name} failure encodes"))
+            .unwrap_or_else(|| panic!("verified {operation_name} failure retains replay custody"));
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .unwrap_or_else(|_| {
+                    panic!("exact unknown-descriptor {operation_name} failure recovers")
+                });
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .unwrap_or_else(|_| {
+                panic!("exact {operation_name} failure rehydrates through its typed constructor")
+            });
 
-    let [attempt] = replay.attempts() else {
-        panic!("unknown-descriptor open_at replay must retain one exact attempt")
-    };
-    assert_eq!(attempt.operation_tag(), 14);
-    assert_eq!(
-        attempt.result(),
-        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
-            -1
-        ))
-    );
-    assert_eq!(attempt.post_error(), Some(9));
-    let [component] = attempt.byte_operands() else {
-        panic!("open_at replay must retain one component")
-    };
-    assert_eq!(component.operand_ordinal(), 1);
-    assert_eq!(component.bytes(), b"generated.omg");
-    let [flags] = attempt.scalar_operands() else {
-        panic!("open_at replay must retain one flags operand")
-    };
-    assert_eq!(flags.operand_ordinal(), 2);
-    assert_eq!(
-        flags.value(),
-        psi_checked_interpreter::FilesystemScalarOperandValue::I32(0x241)
-    );
-    assert!(!replay.has_output_attempts());
-    assert!(replay.output_entries().is_empty());
+        let [attempt] = replay.attempts() else {
+            panic!("unknown-descriptor {operation_name} replay must retain one exact attempt")
+        };
+        assert_eq!(attempt.operation_tag(), operation_tag);
+        assert_eq!(
+            attempt.result(),
+            Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+                -1
+            ))
+        );
+        assert_eq!(attempt.post_error(), Some(9));
+        let [component] = attempt.byte_operands() else {
+            panic!("{operation_name} replay must retain one component")
+        };
+        assert_eq!(component.operand_ordinal(), 1);
+        assert_eq!(component.bytes(), b"generated.omg");
+        let [flags] = attempt.scalar_operands() else {
+            panic!("{operation_name} replay must retain one flags operand")
+        };
+        assert_eq!(flags.operand_ordinal(), 2);
+        assert_eq!(
+            flags.value(),
+            psi_checked_interpreter::FilesystemScalarOperandValue::I32(0x241)
+        );
+        assert!(!replay.has_output_attempts());
+        assert!(replay.output_entries().is_empty());
+    }
 }
 
 #[test]
-fn unknown_descriptor_open_at_failure_rejects_coordinate_drift() {
+fn unknown_descriptor_at_failures_reject_coordinate_drift() {
     let limits = BuildFilesystemReplayRecordLimits::default();
 
-    for component in [
-        Vec::new(),
-        b".".to_vec(),
-        b"..".to_vec(),
-        b"nested/file".to_vec(),
-        b"nested\\file".to_vec(),
-        b"nul\0byte".to_vec(),
-    ] {
+    for operation_tag in [14, 15] {
+        for component in [
+            Vec::new(),
+            b".".to_vec(),
+            b"..".to_vec(),
+            b"nested/file".to_vec(),
+            b"nested\\file".to_vec(),
+            b"nul\0byte".to_vec(),
+        ] {
+            assert!(
+                capture_verified_build_filesystem_replay_record(
+                    &unknown_descriptor_at_summary(operation_tag, component, 0),
+                    limits,
+                )
+                .is_err(),
+                "non-component at-operation coordinates must reject"
+            );
+        }
+
+        let mut wrong_component_ordinal =
+            unknown_descriptor_at_summary(operation_tag, b"generated.omg".to_vec(), 0);
+        wrong_component_ordinal.filesystem_operation_attempts[0].byte_operands[0].operand_ordinal =
+            2;
         assert!(
-            capture_verified_build_filesystem_replay_record(
-                &unknown_descriptor_open_at_summary(component, 0),
-                limits,
-            )
-            .is_err(),
-            "non-component open_at coordinates must reject"
+            capture_verified_build_filesystem_replay_record(&wrong_component_ordinal, limits)
+                .is_err()
+        );
+
+        let mut wrong_flags_ordinal =
+            unknown_descriptor_at_summary(operation_tag, b"generated.omg".to_vec(), 0);
+        wrong_flags_ordinal.filesystem_operation_attempts[0].scalar_operands[0].operand_ordinal = 1;
+        assert!(
+            capture_verified_build_filesystem_replay_record(&wrong_flags_ordinal, limits).is_err()
         );
     }
-
-    let mut wrong_component_ordinal =
-        unknown_descriptor_open_at_summary(b"generated.omg".to_vec(), 0);
-    wrong_component_ordinal.filesystem_operation_attempts[0].byte_operands[0].operand_ordinal = 2;
-    assert!(
-        capture_verified_build_filesystem_replay_record(&wrong_component_ordinal, limits).is_err()
-    );
-
-    let mut wrong_flags_ordinal = unknown_descriptor_open_at_summary(b"generated.omg".to_vec(), 0);
-    wrong_flags_ordinal.filesystem_operation_attempts[0].scalar_operands[0].operand_ordinal = 1;
-    assert!(capture_verified_build_filesystem_replay_record(&wrong_flags_ordinal, limits).is_err());
 }
 
 #[test]

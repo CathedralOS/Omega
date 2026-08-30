@@ -369,7 +369,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 65);
+    assert_eq!(checked_observations.schema_version(), 66);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2126,69 +2126,87 @@ fn unknown_descriptor_seek_failure_replays_exact_authored_scalars_without_a_prov
 }
 
 #[test]
-fn unknown_descriptor_open_at_failure_replays_exact_authored_inputs_without_a_provider() {
-    let (project, profile) = rooted_build_probe_project(
-        "unknown-descriptor-open-at-replay",
-        r#"    self.result = self.filesystem.open_at(-1, "generated.omg", 577);"#,
-    );
+fn unknown_descriptor_at_failures_replay_exact_authored_inputs_without_a_provider() {
+    for (label, statement, operation_tag) in [
+        (
+            "open-at",
+            r#"    self.result = self.filesystem.open_at(-1, "generated.omg", 577);"#,
+            14,
+        ),
+        (
+            "unlink-at",
+            r#"    self.result = self.filesystem.unlink_at(-1, "generated.omg", 577);"#,
+            15,
+        ),
+    ] {
+        assert_unknown_descriptor_at_failure_replay(label, statement, operation_tag);
+    }
+}
+
+fn assert_unknown_descriptor_at_failure_replay(label: &str, statement: &str, operation_tag: u16) {
+    let (project, profile) =
+        rooted_build_probe_project(&format!("unknown-descriptor-{label}-replay"), statement);
     let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-        .expect("unknown-descriptor open_at failure should compile and replay");
+        .expect("unknown-descriptor at-operation failure should compile and replay");
     let summary = compilation
         .build_observation_summary()
-        .expect("unknown-descriptor open_at failure retains observations");
+        .expect("unknown-descriptor at-operation failure retains observations");
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
             .staged_output_tree()
-            .expect("failure-only open_at replay retains exact empty Output custody")
+            .expect("failure-only at-operation replay retains exact empty Output custody")
             .entry_count(),
         0
     );
-    let [open_at] = summary.filesystem_operation_attempts() else {
-        panic!("unknown-descriptor open_at fixture retains one failed operation")
+    let [at_operation] = summary.filesystem_operation_attempts() else {
+        panic!("unknown-descriptor at-operation fixture retains one failed operation")
     };
-    assert_eq!(open_at.operation_tag(), 14);
-    assert_eq!(open_at.result(), BuildFilesystemOperationResult::Scalar(-1));
-    assert_eq!(open_at.post_error(), 9);
-    let [component] = open_at.byte_operands() else {
-        panic!("failed open_at retains one exact relative component")
+    assert_eq!(at_operation.operation_tag(), operation_tag);
+    assert_eq!(
+        at_operation.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
+    assert_eq!(at_operation.post_error(), 9);
+    let [component] = at_operation.byte_operands() else {
+        panic!("failed at-operation retains one exact relative component")
     };
     assert_eq!(component.operand_ordinal(), 1);
     assert_eq!(component.bytes(), b"generated.omg");
-    let [flags] = open_at.scalar_operands() else {
-        panic!("failed open_at retains one exact flags operand")
+    let [flags] = at_operation.scalar_operands() else {
+        panic!("failed at-operation retains one exact flags operand")
     };
     assert_eq!(flags.operand_ordinal(), 2);
     assert_eq!(flags.value(), BuildFilesystemScalarOperandValue::I32(577));
-    let [descriptor] = open_at.logical_handle_inputs() else {
-        panic!("failed open_at retains one descriptor input")
+    let [descriptor] = at_operation.logical_handle_inputs() else {
+        panic!("failed at-operation retains one descriptor input")
     };
     assert_eq!(
         descriptor.resolution(),
         BuildFilesystemLogicalHandleInputResolution::Unknown
     );
-    assert!(open_at.rooted_path_operand_resolutions().is_empty());
-    assert!(open_at.authorized_paths().is_empty());
-    assert!(open_at.grant_refusals().is_empty());
+    assert!(at_operation.rooted_path_operand_resolutions().is_empty());
+    assert!(at_operation.authorized_paths().is_empty());
+    assert!(at_operation.grant_refusals().is_empty());
 
     let limits = BuildFilesystemReplayRecordLimits::default();
     let record = capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("verified unknown-descriptor open_at must encode")
-        .expect("verified open_at failure retains review-only custody");
+        .expect("verified unknown-descriptor at-operation must encode")
+        .expect("verified at-operation failure retains review-only custody");
     let recovered =
         recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
-            .expect("canonical unknown-descriptor open_at record must recover");
+            .expect("canonical unknown-descriptor at-operation record must recover");
     let replayed = compile_to_checked_with_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
         recovered,
     )
-    .expect("unknown-descriptor open_at replay must not invoke the host provider");
+    .expect("unknown-descriptor at-operation replay must not invoke the host provider");
     assert_eq!(
         replayed
             .build_observation_summary()
-            .expect("replayed open_at retains observations")
+            .expect("replayed at-operation retains observations")
             .filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
     );
@@ -4425,7 +4443,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 65);
+    assert_eq!(summary.schema_version(), 66);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -5329,7 +5347,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 65);
+    assert_eq!(summary.schema_version(), 66);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -5402,7 +5420,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 65);
+    assert_eq!(summary.schema_version(), 66);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
