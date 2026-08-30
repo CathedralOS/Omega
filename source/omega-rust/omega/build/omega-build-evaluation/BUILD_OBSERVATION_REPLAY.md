@@ -549,6 +549,22 @@ compiler-owned operation, result, and sequencing model; it claims neither host
 ownership mutation nor credentials, operating-system trust, or containment.
 Path-based ownership changes remain outside this Output-descriptor grammar.
 
+## Per-operation replay classification (summary v73, replay record v53)
+
+Every retained filesystem operation now carries exactly one compiler-derived
+classification: `Receipted` when the exact complete operation record was
+reproduced through the provider-free replay path, otherwise `Volatile`.
+`Hermetic` remains a whole-build classification for a build that exercised no
+host operation; it is not a valid label for an exercised operation.
+
+The operation classification is part of build-observation identity. A replay
+record cannot be captured or recovered with a volatile operation hidden behind
+a whole-build replay verdict. Replay-required package policy therefore rejects
+a candidate containing any volatile operation; an unsupported operation in an
+unrelated candidate does not disable package commands globally. This classifies
+evidence owned by Omega; it does not claim that the original host filesystem or
+provider was contained.
+
 ## Compiler-owned build log (summary v63, replay record v43)
 
 `BuildLog::write_line` is an exact compiler-owned build operation. The checked

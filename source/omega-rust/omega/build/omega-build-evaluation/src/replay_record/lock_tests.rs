@@ -19,6 +19,7 @@ fn attempt(
     BuildFilesystemOperationAttempt {
         operation_tag,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result,
         post_error: 0,
         scalar_operands: Vec::new(),
@@ -209,6 +210,7 @@ fn exact_attempt_prefix(operation: i32) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&46u16.to_le_bytes());
     bytes.push(2);
+    bytes.push(0);
     bytes.push(0);
     bytes.extend_from_slice(&0i64.to_le_bytes());
     bytes.extend_from_slice(&0i32.to_le_bytes());

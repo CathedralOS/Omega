@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 72;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 73;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -379,6 +379,17 @@ pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BuildObservationClass {
     Hermetic,
+    Receipted,
+    Volatile,
+}
+
+/// Exact replay disposition for one exercised filesystem operation.
+///
+/// An exercised operation cannot be `Hermetic`: it was either reproduced by
+/// the compiler-owned replay provider or it remains a volatile host
+/// observation. This row does not claim containment of the host provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemOperationObservationClass {
     Receipted,
     Volatile,
 }
@@ -992,6 +1003,7 @@ const fn project_operation_result(
 pub struct BuildFilesystemOperationAttempt {
     operation_tag: u16,
     provider: BuildFilesystemProvider,
+    observation_class: BuildFilesystemOperationObservationClass,
     result: BuildFilesystemOperationResult,
     post_error: i32,
     scalar_operands: Vec<BuildFilesystemScalarOperand>,
@@ -1019,6 +1031,10 @@ impl BuildFilesystemOperationAttempt {
 
     pub const fn provider(&self) -> BuildFilesystemProvider {
         self.provider
+    }
+
+    pub const fn observation_class(&self) -> BuildFilesystemOperationObservationClass {
+        self.observation_class
     }
 
     pub const fn result(&self) -> BuildFilesystemOperationResult {
@@ -4179,6 +4195,11 @@ pub fn compute_build_config(
                     BuildFilesystemProvider::RealScoped
                 }
             },
+                observation_class: if source_inputs_replayed {
+                    BuildFilesystemOperationObservationClass::Receipted
+                } else {
+                    BuildFilesystemOperationObservationClass::Volatile
+                },
                 result: project_operation_result(
                     attempt
                         .result()

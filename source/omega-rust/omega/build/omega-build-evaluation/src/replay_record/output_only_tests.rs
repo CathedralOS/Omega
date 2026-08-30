@@ -19,6 +19,7 @@ fn attempt(
     BuildFilesystemOperationAttempt {
         operation_tag,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result,
         post_error: 0,
         scalar_operands: Vec::new(),
@@ -170,6 +171,7 @@ fn output_only_record_rejects_empty_attempts_and_tampered_output_shape() {
     let mut create_prefix = Vec::new();
     create_prefix.extend_from_slice(&1u16.to_le_bytes());
     create_prefix.push(2);
+    create_prefix.push(0);
     create_prefix.push(1);
     create_prefix.extend_from_slice(&73u64.to_le_bytes());
     create_prefix.extend_from_slice(&0i32.to_le_bytes());
@@ -184,4 +186,18 @@ fn output_only_record_rejects_empty_attempts_and_tampered_output_shape() {
     let mut tampered = captured.canonical_bytes().to_vec();
     tampered[offsets[0] + 2] = 1;
     assert!(recover_review_only_build_filesystem_replay_record(&tampered, limits).is_err());
+}
+
+#[test]
+fn replay_record_rejects_a_volatile_operation_class() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut summary = output_only_summary(2);
+    summary.filesystem_operation_attempts[0].observation_class =
+        crate::BuildFilesystemOperationObservationClass::Volatile;
+
+    assert_eq!(
+        capture_verified_build_filesystem_replay_record(&summary, limits).unwrap(),
+        None,
+        "a replay verdict cannot launder a volatile operation into a receipt"
+    );
 }

@@ -22,6 +22,7 @@ pub(super) fn summary(
         filesystem_operation_attempts: vec![BuildFilesystemOperationAttempt {
             operation_tag: 23,
             provider: BuildFilesystemProvider::RealScoped,
+            observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
             result: BuildFilesystemOperationResult::Scalar(-1),
             post_error: 9,
             scalar_operands: vec![BuildFilesystemScalarOperand {

@@ -3,7 +3,8 @@ use crate::{
     BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleInputResolution,
     BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutputSource,
     BuildFilesystemMetadataObservationKind, BuildFilesystemObservedByteRegionKind,
-    BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BuildFilesystemOperationAttempt, BuildFilesystemOperationObservationClass,
+    BuildFilesystemOperationResult, BuildFilesystemProvider,
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemScalarOperandValue, BuildObservationSummary,
 };
@@ -95,7 +96,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 52;
+const VERSION: u16 = 53;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -200,6 +201,15 @@ pub fn capture_verified_build_filesystem_replay_record(
                     .any(|path| path.root() == BuildFilesystemRoot::Output)
         });
     if includes_output && !replay_verdict.is_complete() {
+        return Ok(None);
+    }
+    if summary
+        .filesystem_operation_attempts()
+        .iter()
+        .any(|attempt| {
+            attempt.observation_class() != BuildFilesystemOperationObservationClass::Receipted
+        })
+    {
         return Ok(None);
     }
     let mut encoder = Encoder::new(limits.maximum_bytes);
@@ -1182,6 +1192,10 @@ fn encode_attempt(
 ) -> Result<(), BuildFilesystemReplayRecordError> {
     encoder.u16(attempt.operation_tag());
     encoder.byte(provider_tag(attempt.provider()));
+    encoder.byte(match attempt.observation_class() {
+        BuildFilesystemOperationObservationClass::Receipted => 0,
+        BuildFilesystemOperationObservationClass::Volatile => 1,
+    });
     match attempt.result() {
         BuildFilesystemOperationResult::Scalar(value) => {
             encoder.byte(0);
@@ -1471,6 +1485,11 @@ fn decode_attempt<'a>(
 ) -> Result<AttemptShape<'a>, BuildFilesystemReplayRecordError> {
     let operation = decoder.u16()?;
     let provider = decoder.tag(2, "invalid filesystem provider tag")?;
+    if decoder.tag(1, "invalid filesystem operation observation class tag")? != 0 {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "volatile filesystem operation cannot appear in a replay record",
+        ));
+    }
     let result = match decoder.tag(1, "invalid filesystem result tag")? {
         0 => ShapeResult::Scalar(decoder.i64()?),
         1 => ShapeResult::Handle(decoder.nonzero_u64()?),

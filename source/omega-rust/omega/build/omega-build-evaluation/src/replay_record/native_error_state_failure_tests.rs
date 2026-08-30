@@ -18,6 +18,7 @@ fn get_last_error() -> BuildFilesystemOperationAttempt {
     BuildFilesystemOperationAttempt {
         operation_tag: 35,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result: BuildFilesystemOperationResult::Scalar(6),
         post_error: 6,
         scalar_operands: Vec::new(),

@@ -19,6 +19,7 @@ fn errno() -> BuildFilesystemOperationAttempt {
     BuildFilesystemOperationAttempt {
         operation_tag: 50,
         provider: BuildFilesystemProvider::RealScoped,
+        observation_class: crate::BuildFilesystemOperationObservationClass::Receipted,
         result: BuildFilesystemOperationResult::Scalar(9),
         post_error: 9,
         scalar_operands: Vec::new(),
