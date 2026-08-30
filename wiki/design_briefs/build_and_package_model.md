@@ -1512,6 +1512,16 @@ the retained attempts, handoffs, and tree. This evidence is neither an audit
 attestation nor package admission; process CPU, memory, and remaining
 whole-session quotas remain separate.
 
+Summary v53 and replay-record v34 additionally admit an optional exact Source
+prefix followed by one failed tag-10 `seek` on an unknown descriptor. The row
+binds scoped-real provider, scalar `-1`, post-error `9`, operand-zero
+`Descriptor/Unknown`, and the authored operand-one `i64` offset and operand-two
+`i32` origin; every other lane and generated-source handoff is empty.
+Provider-free replay uses the exact scalars in a fresh virtual descriptor table
+and issues empty staged-output custody only after attempt, result, namespace,
+and teardown equality. Alternate scalar shapes, handles, failures, repetition,
+and mixed lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1557,7 +1567,8 @@ successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
-unknown-descriptor-close, and v51/v32 operand-free-unknown-descriptor grammars
+unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, and
+v53/v34 unknown-descriptor-seek grammars
 above may join them to verified operation
 replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
@@ -1588,7 +1599,8 @@ successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
-unknown-descriptor-close, and v51/v32 operand-free-unknown-descriptor grammars
+unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, and
+v53/v34 unknown-descriptor-seek grammars
 above supply canonical operation replay and
 retained observed inputs.
 Generated-source cases bind the complete present

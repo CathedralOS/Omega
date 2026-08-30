@@ -177,3 +177,84 @@ invokes FilesystemHost;
 
     let _ = std::fs::remove_dir_all(project);
 }
+
+#[test]
+fn baseline_retains_unknown_descriptor_seek_failure_replay_custody() {
+    let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+    let project = std::env::temp_dir().join(format!(
+        "omega-review-baseline-unknown-seek-{}-{sequence}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create unknown-seek baseline fixture");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"use omega::language::std::filesystem_host;
+
+target windows_x64 { }
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+invokes FilesystemHost;
+{
+    builder.application("review-baseline-unknown-seek");
+    let position: i64 = builder.filesystem.seek(-1, -17, 2);
+}
+"#,
+    )
+    .expect("write unknown-seek baseline build");
+    std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
+        .expect("write unknown-seek baseline source");
+    let compilation =
+        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .expect("compile unknown-seek baseline fixture");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("unknown seek publishes build observations");
+    assert!(summary.filesystem_replay_verdict().is_complete());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+
+    let limits = ReviewOnlyBaselineLimits::default();
+    let replay =
+        capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
+            .expect("capture unknown-seek replay record")
+            .expect("verified unknown seek retains replay custody");
+    let mut encoder = Encoder::bounded(limits.maximum_capsule_bytes);
+    encode_replay_record_option(&mut encoder, Some(&replay)).expect("frame unknown-seek replay");
+    let framed = encoder.finish().expect("finish unknown-seek replay frame");
+    let mut decoder = Decoder::new(&framed);
+    let recovered = decode_replay_record_option(&mut decoder, limits)
+        .expect("recover unknown-seek replay frame")
+        .expect("unknown-seek replay frame is present");
+    decoder
+        .finish()
+        .expect("unknown-seek replay consumes frame");
+    let rehydrated = rehydrate_review_only_build_filesystem_replay_record(
+        &recovered,
+        replay_record_limits(limits),
+    )
+    .expect("unknown-seek baseline rehydrates through compiler replay custody");
+    let [seek] = rehydrated.attempts() else {
+        panic!("unknown-seek baseline retains one operation")
+    };
+    assert_eq!(seek.operation_tag(), 10);
+    assert_eq!(
+        seek.scalar_operands()
+            .iter()
+            .map(|operand| (operand.operand_ordinal(), operand.value()))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                1,
+                psi_checked_interpreter::FilesystemScalarOperandValue::I64(-17)
+            ),
+            (
+                2,
+                psi_checked_interpreter::FilesystemScalarOperandValue::I32(2)
+            ),
+        ]
+    );
+    assert!(!rehydrated.has_output_attempts());
+
+    let _ = std::fs::remove_dir_all(project);
+}

@@ -342,7 +342,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 52);
+    assert_eq!(checked_observations.schema_version(), 53);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2011,6 +2011,92 @@ fn operand_free_unknown_descriptor_failures_are_receipted_and_replayed_without_a
     }
 }
 
+#[test]
+fn unknown_descriptor_seek_failure_replays_exact_authored_scalars_without_a_provider() {
+    let (project, profile) = rooted_build_probe_project(
+        "unknown-descriptor-seek-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    self.position = self.filesystem.seek(-1, -17, 2);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("unknown-descriptor seek failure should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("unknown-descriptor seek failure retains observations");
+    assert!(summary.filesystem_replay_verdict().is_complete());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .staged_output_tree()
+            .expect("failure-only seek replay retains exact empty Output custody")
+            .entry_count(),
+        0
+    );
+    let [open, read, close, seek] = summary.filesystem_operation_attempts() else {
+        panic!("unknown-descriptor seek fixture has one Source chain and one failed seek")
+    };
+    assert_eq!(
+        [
+            open.operation_tag(),
+            read.operation_tag(),
+            close.operation_tag(),
+            seek.operation_tag()
+        ],
+        [2, 4, 8, 10]
+    );
+    assert_eq!(seek.operation_tag(), 10);
+    assert_eq!(seek.result(), BuildFilesystemOperationResult::Scalar(-1));
+    assert_eq!(seek.post_error(), 9);
+    assert_eq!(
+        seek.scalar_operands()
+            .iter()
+            .map(|operand| (operand.operand_ordinal(), operand.value()))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, BuildFilesystemScalarOperandValue::I64(-17)),
+            (2, BuildFilesystemScalarOperandValue::I32(2)),
+        ]
+    );
+    let [descriptor] = seek.logical_handle_inputs() else {
+        panic!("failed seek retains one descriptor input")
+    };
+    assert_eq!(
+        descriptor.resolution(),
+        BuildFilesystemLogicalHandleInputResolution::Unknown
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified unknown-descriptor seek must encode")
+        .expect("verified unknown-descriptor seek retains review-only custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("canonical unknown-descriptor seek record must recover");
+    std::fs::write(
+        project.join("main.omg"),
+        "data Main { value: u64; changed: u8; }\n",
+    )
+    .expect("change host source after unknown-descriptor seek capture");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        recovered,
+    )
+    .expect("unknown-descriptor seek replay must not invoke the host provider");
+    assert_eq!(
+        replayed
+            .build_observation_summary()
+            .expect("replayed seek retains observations")
+            .filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
+
+    let _ = std::fs::remove_dir_all(project);
+}
+
 fn assert_operand_free_unknown_descriptor_failure_replay(
     label: &str,
     statement: &str,
@@ -3182,7 +3268,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 52);
+    assert_eq!(summary.schema_version(), 53);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -4083,7 +4169,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 52);
+    assert_eq!(summary.schema_version(), 53);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -4156,7 +4242,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 52);
+    assert_eq!(summary.schema_version(), 53);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
