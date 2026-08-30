@@ -123,6 +123,11 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    InvalidWriteOnlyPrimitiveStore {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     StructuralReturnSourceContractMismatch {
         machine: MachineId,
         block: BlockId,

@@ -6374,9 +6374,15 @@ Owners:
   unrestricted multiplicity, and empty qualifications/claims. The reference
   interpreter mutates stable target-neutral backing shared across call frames;
   fuel is charged before mutation, so exhaustion and resume neither partially
-  commit nor replay the store. Opaque provider candidates and Omega native
-  lowering fail closed until non-observation and physical address/width/store
-  custody are specified.
+  commit nor replay the store. Omega target-neutral lowering now retains that
+  exact store through abstract operations and optimization identity/validation:
+  the complete structural-parameter row and typed preceding SSA use remain
+  bound, scalar rewrites update only the value use, and dead-scalar removal
+  cannot drop the structural-state event. Abstract-to-target lowering stops at
+  a dedicated `UnsupportedWriteOnlyPrimitiveStore` fence before structural
+  layout can manufacture address, width, or store authority. Opaque provider
+  candidates and physical realization remain closed until non-observation and
+  physical address/width/store custody are specified.
 
   Remaining work is the broader executable access discipline: add
   broader content-independent aggregate and symbolic range projection, finer
@@ -6386,10 +6392,10 @@ Owners:
   reading the referent, and retain exact per-outcome write footprints so
   untouched ranges and their facts survive. Carry the admitted operation set
   through provider selection, broader Terminal write operations, the remaining
-  execution/native engines, and native ABI lowering. Opaque providers still need a specified,
-  implementation-pinned
-  non-observation judgment; do not infer one from ABI shape. Migrate byte-output
-  boundary surfaces only after that gate exists, and never reinterpret
+  execution/native engines, and physical ABI lowering. Opaque providers still
+  need a specified, implementation-pinned non-observation judgment; do not
+  infer one from ABI shape. Migrate byte-output boundary surfaces only after
+  that gate exists, and never reinterpret
   `&write` as vacant storage or typed construction.
 - **BORROW-PROOF-CONVERGENCE — make ordinary borrow checking a proof-producing
   compatibility tactic.** Preserve existing `&T`, `&mut T`, and `&write T`

@@ -287,7 +287,8 @@ fn operation_node_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance
                 )
                 .collect();
         }
-        O::EstablishPayloadlessCase { psi_operation, .. }
+        O::WriteOnlyPrimitiveStore { psi_operation, .. }
+        | O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
@@ -485,6 +486,7 @@ fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
+        O::WriteOnlyPrimitiveStore { value, .. } => vec![value.value],
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
         | O::IntegerWiden { operand, .. }
@@ -574,6 +576,9 @@ fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
 fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
+        O::WriteOnlyPrimitiveStore { destination, .. } => {
+            places.insert(destination.place);
+        }
         O::EstablishByteSequenceLiteral { place, .. }
         | O::EstablishTrivialAffineLocal { place, .. } => {
             places.insert(place.id);

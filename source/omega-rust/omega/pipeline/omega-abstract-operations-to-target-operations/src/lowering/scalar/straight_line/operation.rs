@@ -15,6 +15,12 @@ pub(super) fn lower_operation(
     returned: &mut Option<TargetOperation>,
 ) -> Result<(), LoweringError> {
     match operation {
+        AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
+            return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
+                machine: function.machine,
+                operation: *psi_operation,
+            });
+        }
         AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
             return Err(LoweringError::UnitOperationInScalarFunction {

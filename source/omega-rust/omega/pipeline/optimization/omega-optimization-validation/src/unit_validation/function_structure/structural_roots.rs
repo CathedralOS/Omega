@@ -78,6 +78,7 @@ pub(crate) fn validate_structural_place_availability(
 
 pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = match operation {
+        O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place],
         O::CallUnit {
             structural_arguments,
             ..
@@ -150,6 +151,44 @@ pub(crate) fn validate_structural_root_operations(
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
             match &node.operation {
+                O::WriteOnlyPrimitiveStore {
+                    destination, value, ..
+                } => {
+                    let valid = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == destination.place)
+                        == Some(destination)
+                        && destination.access == psi_terminal::StructuralAccess::WriteOnlyBorrow
+                        && destination.multiplicity
+                            == psi_terminal::StructuralMultiplicity::Unrestricted
+                        && destination.qualifications.is_empty()
+                        && matches!(
+                            place_kinds.get(&destination.place),
+                            Some(StructuralPlaceKind::Parameter { position, is_self })
+                                if *position == destination.position
+                                    && *is_self == destination.is_self
+                        )
+                        && structural_types
+                            .get(&destination.structural_type)
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    psi_terminal::StructuralTypeShape::PrimitiveScalar(
+                                        scalar_type
+                                    ) if scalar_type == value.scalar_type
+                                )
+                            });
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidWriteOnlyPrimitiveStore {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
                 O::BooleanStructuralField { source, field, .. } => {
                     let valid = function.machine == unit_entry
                         && observations

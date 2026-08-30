@@ -27,7 +27,8 @@ pub(crate) fn expected_provenance(
                 )
                 .collect()
         }
-        O::EstablishPayloadlessCase { psi_operation, .. }
+        O::WriteOnlyPrimitiveStore { psi_operation, .. }
+        | O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }

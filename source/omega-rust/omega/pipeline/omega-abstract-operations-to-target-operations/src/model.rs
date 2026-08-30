@@ -98,6 +98,13 @@ pub enum LoweringError {
     InvalidLinuxExitGroupShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
+    /// Target-neutral custody retains this verified semantic write, but no
+    /// target operation may realize it until parameter address, scalar width,
+    /// and non-observing store authority are selected and replayable.
+    UnsupportedWriteOnlyPrimitiveStore {
+        machine: MachineId,
+        operation: OperationId,
+    },
     UnsupportedStructuralReturn(MachineId),
     UnsupportedStructuralReturnShape {
         machine: MachineId,

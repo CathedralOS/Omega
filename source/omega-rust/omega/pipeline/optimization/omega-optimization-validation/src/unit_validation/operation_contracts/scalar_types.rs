@@ -16,6 +16,7 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
+        O::WriteOnlyPrimitiveStore { value, .. } => scalar(value.value) == Some(value.scalar_type),
         O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
