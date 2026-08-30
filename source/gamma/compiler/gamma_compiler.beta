@@ -405,6 +405,71 @@ proc valid_nominal_name(off) {
     state yes { return 1 }
 }
 
+; Hash one exact ASCII identifier into the reusable 65,536-row coverage table.
+; Reducing after every byte avoids relying on wrapping arithmetic.
+proc name_hash(off) {
+    let h = 0
+    let i = off
+    state bound {
+        to loop when (i < word[2097136])
+        return h
+    }
+    state loop {
+        to body when (is_ident_continue(byte[2097152 + i]) == 1)
+        return h
+    }
+    state body {
+        h = (h * 131 + byte[2097152 + i]) % 65536
+        i = i + 1
+        to bound
+    }
+}
+
+; Return the earlier of best_off and this namespace's first later duplicate.
+; COVERAGE is scratch here and is cleared before each grammar-selected
+; namespace. Rows retain declaration indexes, so hash collisions are resolved
+; by exact source-name comparison and never acquire semantic meaning.
+proc namespace_duplicate_before(base, stride, count, best_off) {
+    let clear = 0
+    state clear_loop {
+        to clear_body when (clear < 65536)
+        let i = 0
+        to declaration_loop
+    }
+    state clear_body {
+        word[10485760 + clear * 8] = 0
+        clear = clear + 1
+        to clear_loop
+    }
+    state declaration_loop {
+        to declaration_body when (i < count)
+        return best_off
+    }
+    state declaration_body {
+        let name_off = word[base + i * stride]
+        let bucket = name_hash(name_off)
+        let probes = 0
+        to probe
+    }
+    state probe {
+        let retained = word[10485760 + bucket * 8]
+        to empty when (retained == 0)
+        to duplicate when (name_eq(name_off, word[base + (retained - 1) * stride]) == 1)
+        probes = probes + 1
+        to exhausted when (probes == 65536)
+        bucket = (bucket + 1) % 65536
+        to probe
+    }
+    state empty {
+        word[10485760 + bucket * 8] = i + 1
+        i = i + 1
+        to declaration_loop
+    }
+    state duplicate { to earlier when (name_off < best_off)  return best_off }
+    state earlier { return name_off }
+    state exhausted { mark_resource_failed()  return best_off }
+}
+
 ; resolve a type name to a type id: Int = 0, Bytes = 1, else nominal, else -1.
 proc tyid(off) {
     state intchk { to byteschk when (name_is_packed(off, 7630409, 0, 3) == 0)  return 0 }
@@ -940,6 +1005,11 @@ proc fun_lookup(noff) {
 
 proc tenv_push(off, t) {
     let n = word[2097112]
+    state unique {
+        to capacity when (tenv_lookup(off) == 0 - 1)
+        mark_invalid_at(off)
+        return 0
+    }
     state capacity { to store when (n < 65536)  to exhausted }
     state store {
     word[9437184 + n * 16] = off
@@ -969,10 +1039,23 @@ proc tenv_lookup(qoff) {
 }
 
 ; Resolve declaration type spellings only after the complete data* / def+
-; sequence has been parsed. D20 requires within-namespace duplicate rejection
-; during collection; this pass implements D16 forward/mutual nominal references.
+; sequence has been collected. D20 duplicate rejection runs first over those
+; exact rows; the remainder implements D16 forward/mutual nominal references.
 proc resolve_decl_types() {
-    let ci = 0
+    let duplicate = word[2097136]
+    duplicate = namespace_duplicate_before(6291472, 8, word[2097104] - 2, duplicate)
+    duplicate = namespace_duplicate_before(6815744, 24, word[2097096], duplicate)
+    duplicate = namespace_duplicate_before(8388608, 32, word[2097120], duplicate)
+    ; Function rows retain at most 32,768 one-based indexes in COVERAGE. Start
+    ; match epochs above that range so the final hash table needs no fourth
+    ; 65,536-row clearing pass before exhaustiveness checking.
+    word[2097080] = 65536
+    state declarations {
+        to duplicate_declaration when (duplicate < word[2097136])
+        let ci = 0
+        to con_loop
+    }
+    state duplicate_declaration { mark_invalid_at(duplicate)  return 0 }
     state con_loop {
         to con_body when (ci < word[2097096])
         to fun_start
