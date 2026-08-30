@@ -92,8 +92,8 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             else {
                 continue;
             };
-            let parameters = program.domain_type_parameters(definition);
-            for (parameter, argument) in parameters.iter().skip(1).zip(&constraint.arguments) {
+            let parameters = psi_typed_trees::domain::index_parameters(program, definition);
+            for (parameter, argument) in parameters.iter().zip(&constraint.arguments) {
                 let TypeParameterKind::Const {
                     type_reference: expected,
                 } = parameter.kind
@@ -130,8 +130,8 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
         else {
             continue;
         };
-        let parameters = program.domain_type_parameters(definition);
-        for (parameter, argument) in parameters.iter().skip(1).zip(
+        let parameters = psi_typed_trees::domain::index_parameters(program, definition);
+        for (parameter, argument) in parameters.iter().zip(
             program
                 .type_reference_table
                 .type_reference_handles(arguments),
@@ -308,11 +308,11 @@ fn validate_indexed_domain_argument_pack(
     diagnostics: &mut Vec<Diagnostic>,
     owner: &dyn fmt::Display,
 ) {
-    let parameters = program.domain_type_parameters(definition);
+    let parameters = psi_typed_trees::domain::index_parameters(program, definition);
     if parameters.is_empty() {
         return;
     }
-    for (parameter, argument) in parameters[1..].iter().zip(arguments) {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         let TypeParameterKind::Const {
             type_reference: expected,
         } = parameter.kind

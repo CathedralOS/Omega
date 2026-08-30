@@ -354,7 +354,18 @@ pub(super) fn qualified_const_name(definition: &ConstDefinition) -> String {
 
 #[derive(Clone)]
 pub(super) struct ClosedDomainFamily {
-    parameters: Vec<(String, TypeReferenceHandle)>,
+    parameters: Vec<ClosedDomainParameter>,
+}
+
+#[derive(Clone)]
+enum ClosedDomainParameter {
+    Type {
+        name: String,
+    },
+    Const {
+        name: String,
+        type_reference: TypeReferenceHandle,
+    },
 }
 
 /// PDI2's closed-index precursor runs beside generic-data canonicalization but
@@ -391,15 +402,6 @@ pub(super) fn canonicalize_closed_domain_indices(
             continue;
         }
 
-        let Some(carrier) = parameters.first() else {
-            unreachable!();
-        };
-        if !matches!(carrier.kind, TypeParameterKind::Type) {
-            return Err(Diagnostic::error(format!(
-                "indexed domain `{}` must declare its carrier type parameter first",
-                definition.name
-            )));
-        }
         let TypeReferenceNode::Named(target) = syntax
             .tables
             .type_references
@@ -410,57 +412,72 @@ pub(super) fn canonicalize_closed_domain_indices(
                 definition.name, definition.name
             )));
         };
-        if target.as_str() != carrier.name.as_str() {
+        let generic_carrier = parameters.first().is_some_and(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Type)
+                && target.as_str() == parameter.name.as_str()
+        });
+        let index_parameters = if generic_carrier {
+            &parameters[1..]
+        } else {
+            parameters
+        };
+        if index_parameters.is_empty() {
             return Err(Diagnostic::error(format!(
-                "indexed domain `{}` binds carrier `{}` but declares the family over `{target}`",
-                definition.name, carrier.name
-            )));
-        }
-
-        let mut const_parameters = Vec::new();
-        for parameter in &parameters[1..] {
-            let TypeParameterKind::Const { type_reference } = parameter.kind else {
-                return Err(Diagnostic::error(format!(
-                    "indexed domain `{}` may declare only one carrier type followed by proof-static const parameters",
-                    definition.name
-                )));
-            };
-            validate_const_index_type(syntax, type_reference, &mut HashSet::new()).map_err(
-                |reason| {
-                    Diagnostic::error(format!(
-                        "indexed domain `{}::{}` has an ineligible index type: {reason}",
-                        definition.name, parameter.name
-                    ))
-                },
-            )?;
-            const_parameters.push((parameter.name.as_str().to_owned(), type_reference));
-        }
-        if const_parameters.is_empty() {
-            return Err(Diagnostic::error(format!(
-                "generic domain `{}` must declare at least one proof-static const index after its carrier",
+                "generic domain `{}` must declare at least one type or proof-static const index",
                 definition.name
             )));
         }
-        if header_arguments.len() != const_parameters.len() {
+        let mut family_parameters = Vec::with_capacity(index_parameters.len());
+        for parameter in index_parameters {
+            match parameter.kind {
+                TypeParameterKind::Type => family_parameters.push(ClosedDomainParameter::Type {
+                    name: parameter.name.as_str().to_owned(),
+                }),
+                TypeParameterKind::Const { type_reference } => {
+                    validate_const_index_type(syntax, type_reference, &mut HashSet::new())
+                        .map_err(|reason| {
+                            Diagnostic::error(format!(
+                                "indexed domain `{}::{}` has an ineligible index type: {reason}",
+                                definition.name, parameter.name
+                            ))
+                        })?;
+                    family_parameters.push(ClosedDomainParameter::Const {
+                        name: parameter.name.as_str().to_owned(),
+                        type_reference,
+                    });
+                }
+                _ => {
+                    return Err(Diagnostic::error(format!(
+                        "indexed domain `{}` indices must be type or proof-static const parameters",
+                        definition.name
+                    )));
+                }
+            }
+        }
+        if header_arguments.len() != family_parameters.len() {
             return Err(Diagnostic::error(format!(
-                "indexed domain `{}` declares {} const parameter(s) but selects {} index argument(s) in its family header",
+                "indexed domain `{}` declares {} index parameter(s) but selects {} index argument(s) in its family header",
                 definition.name,
-                const_parameters.len(),
+                family_parameters.len(),
                 header_arguments.len()
             )));
         }
-        for ((parameter_name, _), argument) in const_parameters.iter().zip(header_arguments) {
+        for (parameter, argument) in family_parameters.iter().zip(header_arguments) {
+            let parameter_name = match parameter {
+                ClosedDomainParameter::Type { name }
+                | ClosedDomainParameter::Const { name, .. } => name,
+            };
             let TypeReferenceNode::Named(argument_name) =
                 syntax.tables.type_references.type_reference(*argument)
             else {
                 return Err(Diagnostic::error(format!(
-                    "indexed domain `{}` must select each const binder directly in its family header",
+                    "indexed domain `{}` must select each index binder directly in its family header",
                     definition.name
                 )));
             };
             if argument_name.as_str() != parameter_name {
                 return Err(Diagnostic::error(format!(
-                    "indexed domain `{}` must select const binder `{parameter_name}` in declaration order, not `{argument_name}`",
+                    "indexed domain `{}` must select index binder `{parameter_name}` in declaration order, not `{argument_name}`",
                     definition.name
                 )));
             }
@@ -469,7 +486,7 @@ pub(super) fn canonicalize_closed_domain_indices(
             .insert(
                 definition.name.as_str().to_owned(),
                 ClosedDomainFamily {
-                    parameters: const_parameters,
+                    parameters: family_parameters,
                 },
             )
             .is_some()
@@ -541,13 +558,20 @@ pub(super) fn canonicalize_closed_domain_application(
 ) -> Result<(), Diagnostic> {
     if arguments.len() != family.parameters.len() {
         return Err(Diagnostic::error(format!(
-            "indexed domain `{}` requires {} closed const argument(s), but {} were supplied",
+            "indexed domain `{}` requires {} closed index argument(s), but {} were supplied",
             family_name,
             family.parameters.len(),
             arguments.len()
         )));
     }
-    for ((parameter_name, parameter_type), argument) in family.parameters.iter().zip(arguments) {
+    for (parameter, argument) in family.parameters.iter().zip(arguments) {
+        let ClosedDomainParameter::Const {
+            name: parameter_name,
+            type_reference: parameter_type,
+        } = parameter
+        else {
+            continue;
+        };
         let node = syntax
             .tables
             .type_references

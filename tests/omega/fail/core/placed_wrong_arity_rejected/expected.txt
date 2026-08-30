@@ -1,0 +1,1 @@
+`Placed` takes exactly a nominal placement policy and a plain schema

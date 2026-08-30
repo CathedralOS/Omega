@@ -521,6 +521,12 @@ respect to the destination. Decoding establishes no domain, trust, authority,
 or device-correspondence fact. Target and OS table lifecycle remains package
 work.
 
+The settled core vocabulary is now source-visible: opaque `Placed<P, T>`, the
+`Vacant` and invariant indexed `Resident<P, T>` Extent domains,
+`PlacementOutcome`, `PlacementReturn`, and the empty ordinary
+`PlacementCustody<P, T>` trait. This shape milestone adds no placement
+operation, admission value, occurrence identity, or source-visible authority.
+
 Remaining compiler and language work:
 
 - extend the live fixed-layout `Schema` reflection and `Plan` vocabulary beyond

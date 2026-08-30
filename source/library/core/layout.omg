@@ -465,6 +465,26 @@ pub data ResourceProfile {
     region_count: u64 [0..=32];
 }
 
+// Settled placement identity and recovery vocabulary. `Placed<P, T>` is an
+// opaque compiler-derived view; these ordinary result carriers add no access,
+// storage, provider, or domain authority. Declaration order is the canonical
+// runtime tag and payload order. Establishment/retirement operations and
+// custody-conformance checking remain intentionally absent.
+pub boundary data Placed<P, T>;
+
+pub data PlacementOutcome<View, Returned, Reason> {
+    case Ready(view: View);
+    case Rejected(returned: Returned, reason: Reason);
+}
+
+pub data PlacementReturn<Source, Custody> {
+    source: Source;
+    custody: Custody;
+}
+
+pub trait PlacementCustody<P, T> {
+}
+
 // Granular placed-field requirements. These are ordinary generic contracts so
 // helpers can accept one accessor without receiving the whole placed view.
 // The compiler derives conforming accessor types from a normalized placement;

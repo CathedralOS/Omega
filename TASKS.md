@@ -1982,6 +1982,17 @@ Owners:
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
+- The first source-vocabulary milestone is live. Core now publishes opaque
+  `Placed<P, T>`; `Extent::Vacant`; invariant indexed
+  `Extent::Resident<P, T>`; canonical `PlacementOutcome` and
+  `PlacementReturn` carriers; and the empty ordinary
+  `PlacementCustody<P, T>` trait. Structural and malformed-use canaries pin
+  exact arity, declaration order, opacity, fixed-carrier type-index identity,
+  generic substitution, and mismatch rejection. This adds no placement
+  operation, authority route, admission intermediate, occurrence identity, or
+  runtime domain carrier. Operations and compiler-checked custody agreement
+  remain open below.
+
 - Implement the settled borrowed/owned `Placed<P, T>` establishment and
   retirement model from `Extent in Granted`, using ordinary subrange borrows
   and no source-visible admission intermediate. Declare opaque core

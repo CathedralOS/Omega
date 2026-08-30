@@ -1,0 +1,8 @@
+use omega::language::core::layout;
+
+data Main {
+    invalid: PlacementOutcome<u32, bool>;
+}
+
+machine Main::main(&mut self) {
+}

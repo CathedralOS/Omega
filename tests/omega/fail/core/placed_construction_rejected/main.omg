@@ -1,0 +1,17 @@
+use omega::language::core::layout;
+
+data Native {
+}
+
+data Packet {
+}
+
+machine forge() -> Placed<Native, Packet> {
+    Placed { }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

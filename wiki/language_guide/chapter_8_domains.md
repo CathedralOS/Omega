@@ -118,7 +118,10 @@ record literal spells its fields in a different order; different values are
 different domains and cannot flow into one another implicitly. Every index is
 retained in checked and terminal identity while the carrier remains unchanged
 at runtime. Explicit qualification selects closed canonical indices or direct
-binders without runtime work:
+binders without runtime work. Generic-carrier families such as
+`T::Quantity<U>` and fixed-carrier families such as
+`Extent::Resident<P, T>` are both supported; every binder of the latter is an
+invariant index, while `Extent` remains the exact runtime carrier:
 
 ```omega
 machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
