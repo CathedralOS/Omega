@@ -1588,6 +1588,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
       roots from fifty-three to fifty-five while body-boundary coverage remains
       56 of 73. `Lexer::lex_number` is the sole remaining body-reaching
       incomplete root and stops at unary `!`.
+    - [x] Retain recursive logical `!` through one bounded prefix stack shared
+      by assignment values, local initializers, ordinary call arguments, and
+      transition subjects. Each group snapshots the live prefix base so an
+      outer prefix wraps the completed group while an inner prefix is retained
+      before group closure; postfix casts therefore preserve canonical
+      distinctions such as `!x as T` versus `(!x) as T`. Every unary row owns
+      one expression row, and the 128-entry prefix/group ledgers remain private
+      `ExpressionDepth` budgets. This completes `Lexer::lex_number`, raising
+      completed current `C` roots from fifty-five to fifty-six. All 56 roots
+      that reach body parsing are now complete; the remaining seventeen stop
+      in their headers.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
