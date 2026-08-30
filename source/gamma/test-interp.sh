@@ -54,6 +54,19 @@ reject_source() { # name source-file
     echo "  FAIL $name: source envelope returned $got with $(wc -c < "$T/$name.out" | tr -d ' ') output bytes"
   fi
 }
+trap_program() { # name program
+  trap_name=$1
+  trap_source=$2
+  set +e
+  { printf '%s' "$trap_source" | "$T/g.exe" > "$T/$trap_name.out"; } 2>/dev/null
+  trap_status=$?
+  if [ "$trap_status" = 132 ] && [ ! -s "$T/$trap_name.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL $trap_name: expected trap 132 with no output, got $trap_status with $(wc -c < "$T/$trap_name.out" | tr -d ' ') output bytes"
+  fi
+}
 ev '(+ 2 3)' 5
 ev '(- 50 8)' 42
 ev '(let x 10 (* x x))' 100
@@ -106,6 +119,11 @@ ev '(match Nilly (Nil 1) (other 42))' 42
 ev '(match (Consx 1 2) ((Cons a b) 1) (other 42))' 42
 ev '(match (Cons 1 Nil) ((Cons a) 1) (other 42))' 42
 ev '(match (Pair 1 2) ((Pair a) 1) (other 42))' 42
+# Nonexhaustive source is statically invalid under D16. Until the direct
+# compiler owns that rejection, both interpreter paths must fail loudly rather
+# than turn the impossible state into integer zero.
+trap_program no-match-tail '(match (Cons 1 Nil) (Nil 0))'
+trap_program no-match-nested '(+ 1 (match (Cons 1 Nil) (Nil 0)))'
 # returning data structures (printed)
 cv '(def sq (xs) (match xs (Nil Nil) ((Cons h t) (Cons (* h h) (sq t))))) (sq (Cons 1 (Cons 2 (Cons 3 Nil))))' '(Cons 1 (Cons 4 (Cons 9 Nil)))'
 cv '(def app (xs ys) (match xs (Nil ys) ((Cons h t) (Cons h (app t ys))))) (app (Cons 1 (Cons 2 Nil)) (Cons 3 Nil))' '(Cons 1 (Cons 2 (Cons 3 Nil)))'

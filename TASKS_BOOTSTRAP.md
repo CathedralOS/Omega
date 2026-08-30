@@ -484,22 +484,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
   compilation.
   - Derive positive and negative canaries directly from the fixed grammar and
     static semantics: forward/mutual recursion, arbitrary arity, proper tail
-    calls, exhaustive and nonexhaustive matches, checked `Int` traps, every
-    `Bytes` operation, and invalid byte/range access.
+    calls, exhaustive matches and complete static rejection of every
+    nonexhaustive shape, checked `Int` traps, every `Bytes` operation, and
+    invalid byte/range access.
   - Implement the Gamma compiler's `GCOUT` boundary and generate each selected
     compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
     supplies sealed `Bytes`, validates structured returned rejection values,
     owns private failures, and never emits partial artifact bytes.
-- [ ] **GAMMA-NO-MATCH-HARDENING.** Make the current interpreter trap rather than
-  fabricate integer zero when `eval_match` reaches no arm, and add a focused
-  fail canary. Implement complete match-exhaustiveness rejection in the direct
-  compiler. Keep the correlated-oracle warning explicit: the current type
-  checker and interpreter both omit this obligation, so their agreement cannot
-  establish it.
+- [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
+  paths trap rather than fabricate integer zero when no arm matches, and pin
+  both with focused no-output trap canaries. The direct compiler task separately
+  owns complete static match-exhaustiveness rejection. Keep the
+  correlated-oracle warning explicit: the temporary type checker still omits
+  this obligation, so its agreement with another oracle cannot establish it.
 - [x] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
-  compiler edge. The retained post-prune gates pass 46 interpreter cases, the
+  compiler edge. The retained post-prune gates pass 48 interpreter cases, the
   fail-closed arena case, 28 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.

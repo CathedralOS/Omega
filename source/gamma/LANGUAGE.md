@@ -75,10 +75,11 @@ reject the program. A checked Gamma program therefore has no dynamic
 "no arm matched" value.
 
 This requirement closes a known correlated oracle defect: the current type
-checker does not test exhaustiveness, while the current interpreter fabricates
-`Int` zero when no arm matches. Agreement between those two programs cannot
-detect a rule that both omit. Differential agreement remains useful evidence,
-but never establishes completeness of the language contract.
+checker does not test exhaustiveness, and the interpreter formerly fabricated
+`Int` zero when no arm matched. The interpreter now traps on that impossible
+state as a migration hardening measure, but this does not add the missing
+static judgment to either oracle. Differential agreement remains useful
+evidence, but never establishes completeness of the language contract.
 
 ## Evaluation
 
@@ -180,14 +181,14 @@ deleted once the direct compiler edge subsumes their diagnostic roles. The
 Python reference is temporary differential scaffolding and never part of the
 completed offline bootstrap closure.
 
-The interpreter's current unmatched-pattern behavior should trap immediately as
-a temporary hardening measure. The canonical compiler must instead reject the
+The interpreter traps immediately on an unmatched pattern as a temporary
+hardening measure. The canonical compiler must instead reject the
 nonexhaustive source statically.
 
 ## Current oracle coverage
 
 The current oracle gates check the outer source contract before parsing: the
-evaluation surface passes 46 focused cases, the typed surface passes 28, and
+evaluation surface passes 48 focused cases, the typed surface passes 28, and
 the temporary independent evaluator agrees on 106 fixed or generated cases.
 These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
 DEL, and high-byte controls. They cover bounded parts of this contract but do

@@ -746,7 +746,10 @@ proc eval_tail(expr, fuel) {
         expr = chosen
         to loop
     }
-    state tail_no_match { return 0 - 2 }
+    ; A checked Gamma program cannot reach this state. Trap instead of
+    ; fabricating the immediate encoding of integer zero while this untyped
+    ; oracle remains available during compiler construction.
+    state tail_no_match { return 1 / 0 }
     state tail_call {
         let values = word[2097096]
         eval_scratch_args(word[expr + 16], fuel)
@@ -890,10 +893,9 @@ proc try_match(pat, val) {
 proc eval_match(scrut, arms, fuel) {
     let sv = eval_positive(scrut, fuel)
     let arm = arms
-    let result = 0
     state loop {
         to body when (arm != 0)
-        return result               ; no arm matched
+        return 1 / 0                ; impossible after exhaustive type checking
     }
     state body {
         let armnode = word[arm + 8]
@@ -904,7 +906,7 @@ proc eval_match(scrut, arms, fuel) {
         to loop
     }
     state matched {
-        result = eval_positive(word[armnode + 16], fuel)
+        let result = eval_positive(word[armnode + 16], fuel)
         word[2097112] = savedepth
         return result
     }
