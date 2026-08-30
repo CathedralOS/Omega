@@ -39,8 +39,8 @@ receipt ceremony without a semantic edge has negative maintenance value.
 | Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | canonical source and direct artifact exist; full refinement and resource outcomes remain open |
 | Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | D16 fixes the language, D19 its sealed application profiles, D20 its resolver identity/scope, D21 its `Bytes` length invariant, and D23 its coherent one-MiB Alpha profile; the profile is migrated and incomplete source exists, while selected-match lowering, whole-function emission, adapter emission, tape, and refinement remain open |
 | Delta compiler | Gamma | exact Gamma source under `DeltaCompilerV1` refines the exact Delta-compiler tape | D17 fixes Delta v1 and its `DCOUT` boundary, D22 fixes declaration identity/scope, and D24 completes transition-binder and collection-failure rules; incomplete source owns syntax and symbolic encoding, while collection/checking, lowering, tape, suite, and refinement remain open |
-| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | incomplete `D` owns lexical, parser, and Alpha-encoder slices; the full compiler and edge remain open |
-| `omega` | Omega closure `C` | exact `C`, compiled by `omega₀`, refines a full Omega compiler represented as Alpha tape | product source is incomplete; edge is open |
+| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | D18 fixes the logical request and D25 its committed `OCREQ`/`OCOUT` wire; incomplete `D` owns lexical, parser, and Alpha-encoder slices, while the full compiler and edge remain open |
+| `omega` | Omega closure `C` | exact `C`, compiled by `omega₀`, refines a full Omega compiler represented as Alpha tape | D18 and D25 fix the common standalone edge; product source is incomplete and the edge remains open |
 
 No later fixed point repairs an open earlier row. Every row must stand on its
 own exact source, exact tape, source semantics, Alpha semantics, observation

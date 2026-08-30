@@ -55,14 +55,14 @@ activation/reach closure lands, and normalize `windows_x64` to
 `omega_compiler.delta` (`D`) now exists but is intentionally incomplete, and
 both descriptive compiler tapes remain absent. D18 fixes their logical sealed
 Omega request as a resolved package subject plus a bound invocation, complete
-deterministic build-visible snapshots, and the `OCOUT` compiler boundary. The
-standalone Omega compiler request-and-outcome wire owner question must still
-freeze the authoritative request bytes, limits, validation order,
-and failure schemas before either standalone compiler can expose that edge. No
-raw-single-file stdin convention may stand in for it. Each compiler derives and
-retains the admitted typed build checkpoint internally, evaluates the selected
-root build once, adds its generated source as a later one-way-visible stratum,
-and continues ordinary compilation. Dependencies contribute durable generated-
+deterministic build-visible snapshots, and the `OCOUT` compiler boundary. D25
+fixes their `OCREQ` v1 byte framing, committed subject binding, structural graph
+and closed-tree snapshot encoding, validation order, and shared 40-byte/
+source-coordinate-extended 48-byte `OCOUT` realization. No raw-single-file
+stdin convention may stand in for it. Each compiler derives and retains the
+admitted typed build checkpoint internally, evaluates the selected root build
+once, adds its generated source as a later one-way-visible stratum, and
+continues ordinary compilation. Dependencies contribute durable generated-
 source bundles rather than recursively executing their builds or retaining live
 partial compiler checkpoints.
 

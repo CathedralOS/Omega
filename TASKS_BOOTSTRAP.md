@@ -1,6 +1,6 @@
 # Direct compiler lattice — active work
 
-Last pruned: 2026-08-29.
+Last pruned: 2026-08-30.
 
 This queue exists to construct exactly one sequence:
 
@@ -1039,17 +1039,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q6: OMEGA-COMPILER-REQUEST-WIRE-V1.** Freeze the
-    byte-exact standalone request and `OCOUT` schemas that carry D18's logical
-    subject/invocation contract. Specify magic/version, scalar encoding,
-    counts/lengths, canonical limits and exact end; every graph, package,
-    alias/edge, source-coordinate, dependency-instance, snapshot, product,
-    target, admission, and subject-binding row; validation and diagnostic
-    order; and the complete Reject/Incomplete/InternalFailure payloads. The
-    Rust host request layout is explicitly non-authoritative and neither `D`
-    nor `C` may choose a private replacement.
-  - [ ] **DEPENDENCY-BLOCKED — Q6: OMEGA-COMPILER-REQUEST-V1.** After the wire
-    ruling, implement D18's canonical sealed Omega
+  - [ ] **IMPLEMENTATION — D25: OMEGA-COMPILER-REQUEST-WIRE-V1.** Implement
+    the byte-exact `OCREQ` and `OCOUT` profiles shared by `D` and `C`. Encode
+    the committed canonical subject and invocation, structural package keys,
+    separately selected immutable revisions, graph indices, closed-tree
+    snapshots, products, targets, and admissions. V1 carries no preaccepted
+    `PackageInstance`. Reject every raw `u32` high bit before signed Delta
+    conversion, validate exact end and canonical order, and implement the
+    shared 40-byte `OCOUT` header plus its sole eight-byte package/source
+    coordinate tail. Retain the edge-owned closed reason/resource tables and
+    exact scalar profile provisions; neither compiler may use the Rust request
+    object, host serde, paths, replay, or a private replacement as wire
+    authority.
+  - [ ] **IMPLEMENTATION — D18/D25: OMEGA-COMPILER-REQUEST-V1.** Implement the
+    canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
     build-visible package snapshots, explicit bootstrap Alpha-tape product, and
@@ -1062,8 +1065,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     a later one-way-visible scope; then continue checked lowering from the
     retained base. Dependency activations publish durable generated-source
     bundles and evidence rather than cascading builds or retaining live partial
-    checkpoints. Add exact request/framing, scope-stratum, no-reread,
-    dependency-bundle, diagnostic-order, resource, and no-partial-output gates.
+    checkpoints. Generated-source failures retain their local generated path
+    and offset but re-anchor `OCOUT` to the authored `include_source` handoff.
+    Add exact request/framing, scope-stratum, no-reread, dependency-bundle,
+    diagnostic-order, resource, and no-partial-output gates.
   - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
     complete closed opcode-shape table, paired-`i32` representation of arbitrary
     64-bit immediates, instruction-atomic capacity checks, bounded address
@@ -1775,11 +1780,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 through Q6 still own
-  unresolved full-spec compiler or standalone-edge contracts. Q6 blocks
-  source identity, semantic/lowering custody, and the application boundary;
-  D24 unblocks the Delta census implementation. None prevents implementation
-  of independently settled source-shaped parser slices.
+  allowed; weakened Omega semantics are not. Q1 through Q5 still own
+  unresolved full-spec compiler contracts. D25 unblocks the standalone source
+  identity and application boundary, while D24 unblocks the Delta census
+  implementation. None prevents implementation of independently settled
+  source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full

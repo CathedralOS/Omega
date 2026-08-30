@@ -172,9 +172,9 @@ machine InventorySystem::find_item_at(
     }
 
     // Was a SIBLING MACHINE (find_item_after) forming an A -> B -> A
-    // machine-call cycle with this one -- banned (Q6 ruling, 2026-07-13:
-    // machine call cycles are banned; states are loops). The same scan is
-    // now an in-machine state pair: inspect_item <-> scan_next is a
+    // machine-call cycle with this one -- banned by the chapter 3 runtime-cycle
+    // ruling (machine call cycles require tail admission; states are loops).
+    // The same scan is now an in-machine state pair: inspect_item <-> scan_next is a
     // state-transition LOOP (constant stack), the blessed spelling.
     state scan_next(
         &mut self,
