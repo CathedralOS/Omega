@@ -190,7 +190,7 @@ nonexhaustive source statically.
 ## Current oracle coverage
 
 The current oracle gates check the outer source contract before parsing: the
-evaluation surface passes 48 focused cases, the typed surface passes 45, and
+evaluation surface passes 48 focused cases, the typed surface passes 69, and
 the temporary independent evaluator agrees on 106 fixed or generated cases.
 These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
 DEL, and high-byte controls. They cover bounded parts of this contract but do
