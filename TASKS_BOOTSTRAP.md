@@ -502,7 +502,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 76-case oracle gate are implementation material for
+    constructor table and 77-case oracle gate are implementation material for
     `gamma_compiler.beta`; the direct compiler must absorb the rule before this
     temporary checker is deleted.
   - [x] Close the first strict-parser slice in the reusable front end: require a
@@ -515,8 +515,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove the reusable front end's compiler-sized-input alias: the 4 MiB
     source buffer no longer overlaps its type, constructor, function,
     environment, or match-coverage tables. Reserve one readable error node and
-    bound the 48 MiB AST arena before writes. A 2 MiB-boundary canary places a
-    later declaration exactly where the former function table corrupted source.
+    bound the 16 MiB AST arena below Beta's exact 32 MiB logical raw-memory edge
+    before writes; physical memory above that edge is Alpha hidden-return-stack
+    allowance. A 2 MiB-boundary canary places a later declaration exactly where
+    the former function table corrupted source.
   - [x] Remove recursive list parsing from the reusable front end's argument,
     constructor-field, parameter, pattern-binder, and match-arm paths. Iterative
     builders preserve source order and pass 600-argument/function and
@@ -527,8 +529,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     returns a readable error node rather than an out-of-range pointer; binding
     failure propagates through `let`, patterns, and function checking. A
     32,769-declaration canary crosses the exact function-table capacity without
-    output or memory corruption. The eventual compiler boundary maps this class
-    to `Incomplete`; the Boolean oracle still reports only unsuccessful checking.
+    output or memory corruption. A 300,000-argument source exhausts the AST
+    arena without crossing into generated status 251. The eventual compiler
+    boundary maps this class to `Incomplete`; the Boolean oracle still reports
+    only unsuccessful checking.
   - [x] Bound recursive expression parsing at one explicit 1,024-level private
     profile while leaving list arity iterative. A 900-level valid program checks;
     a 1,100-level program fails closed through private resource state rather
@@ -549,7 +553,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 76 type-checker cases, and 106 independent
+  fail-closed arena case, 77 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the
