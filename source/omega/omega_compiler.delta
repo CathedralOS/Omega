@@ -436,11 +436,22 @@ data OmegaExpressionKind {
 
 data OmegaBinaryOperatorKind {
     case Add;
+    case Subtract;
+    case Equal;
+    case NotEqual;
+    case Less;
+    case LessEqual;
+    case Greater;
+    case GreaterEqual;
+    case And;
+    case Or;
 }
 
 data OmegaBinaryExpressionSyntax {
     left: i32;
     operator: OmegaBinaryOperatorKind;
+    operator_start: i32;
+    operator_end: i32;
     right: i32;
 }
 
@@ -599,6 +610,7 @@ data OmegaParserResource {
     case DataMembers;
     case TypeNodes;
     case TypeDepth;
+    case ExpressionDepth;
     case Statements;
     case Expressions;
 }
@@ -636,6 +648,11 @@ data OmegaParser {
     type_references: [OmegaTypeReferenceSyntax; 16384];
     type_constraints: [OmegaTypeConstraintSyntax; 16384];
     type_array_frames: [OmegaTypeArrayFrame; 128];
+    expression_frame_values: [i32; 128];
+    expression_frame_operators: [OmegaBinaryOperatorKind; 128];
+    expression_frame_precedences: [i32; 128];
+    expression_frame_operator_starts: [i32; 128];
+    expression_frame_operator_ends: [i32; 128];
     root_count: i32;
     member_count: i32;
     use_count: i32;
@@ -752,6 +769,12 @@ data OmegaParser {
     assignment_value_expression: i32;
     assignment_has_binary: i32;
     assignment_binary_left: i32;
+    assignment_binary_operator: OmegaBinaryOperatorKind;
+    assignment_pending_operator: OmegaBinaryOperatorKind;
+    assignment_binary_operator_start: i32;
+    assignment_binary_operator_end: i32;
+    assignment_pending_operator_start: i32;
+    assignment_pending_operator_end: i32;
     struct_literal_consumer: OmegaExpressionConsumer;
     struct_literal_first_type_member: i32;
     struct_literal_type_member_count: i32;
@@ -770,6 +793,12 @@ data OmegaParser {
     transition_arrow_end: i32;
     transition_target_start: i32;
     transition_target_end: i32;
+    expression_frame_value_count: i32;
+    expression_frame_operator_count: i32;
+    expression_pending_operator: OmegaBinaryOperatorKind;
+    expression_pending_precedence: i32;
+    expression_pending_operator_start: i32;
+    expression_pending_operator_end: i32;
     status: OmegaParserStatus;
     diagnostic_code: OmegaParseDiagnosticCode;
     diagnostic_start: i32;
@@ -2954,6 +2983,12 @@ machine OmegaParser::parse_view(
     self.assignment_value_expression = 0;
     self.assignment_has_binary = 0;
     self.assignment_binary_left = 0;
+    self.assignment_binary_operator = OmegaBinaryOperatorKind::Add;
+    self.assignment_pending_operator = OmegaBinaryOperatorKind::Add;
+    self.assignment_binary_operator_start = 0;
+    self.assignment_binary_operator_end = 0;
+    self.assignment_pending_operator_start = 0;
+    self.assignment_pending_operator_end = 0;
     self.struct_literal_consumer = OmegaExpressionConsumer::CallArgument;
     self.struct_literal_first_type_member = 0;
     self.struct_literal_type_member_count = 0;
@@ -2972,6 +3007,12 @@ machine OmegaParser::parse_view(
     self.transition_arrow_end = 0;
     self.transition_target_start = 0;
     self.transition_target_end = 0;
+    self.expression_frame_value_count = 0;
+    self.expression_frame_operator_count = 0;
+    self.expression_pending_operator = OmegaBinaryOperatorKind::Add;
+    self.expression_pending_precedence = 0;
+    self.expression_pending_operator_start = 0;
+    self.expression_pending_operator_end = 0;
     self.status = OmegaParserStatus::Parsing;
     self.diagnostic_code = OmegaParseDiagnosticCode::None;
     self.diagnostic_start = 0;
@@ -4653,6 +4694,8 @@ machine OmegaParser::parse_view(
 
     state begin_transition() {
         self.state_has_body_syntax = 1;
+        self.expression_frame_value_count = 0;
+        self.expression_frame_operator_count = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(60) }
     }
@@ -4660,6 +4703,7 @@ machine OmegaParser::parse_view(
     state transition_subject_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Identifier -> begin_named_transition_subject()
+            OmegaTokenKind::Integer -> begin_integer_transition_subject()
             OmegaTokenKind::Keyword -> transition_subject_keyword()
             _ -> incomplete_root()
         }
@@ -4668,8 +4712,20 @@ machine OmegaParser::parse_view(
     state transition_subject_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::SelfValue -> begin_self_transition_subject()
+            OmegaKeywordKind::True -> begin_boolean_transition_subject(1)
+            OmegaKeywordKind::False -> begin_boolean_transition_subject(0)
             _ -> incomplete_root()
         }
+    }
+
+    state begin_integer_transition_subject() {
+        self.expression_consumer = OmegaExpressionConsumer::TransitionSubject;
+        transition true { true -> check_integer_expression() }
+    }
+
+    state begin_boolean_transition_subject(value: i32) {
+        self.expression_consumer = OmegaExpressionConsumer::TransitionSubject;
+        transition true { true -> retain_boolean_expression(value) }
     }
 
     state begin_named_transition_subject() {
@@ -4689,8 +4745,260 @@ machine OmegaParser::parse_view(
     }
 
     state retain_transition_subject_handle() {
-        self.transition_subject_expression = self.expression_count;
+        self.expression_result = self.expression_count;
         self.expression_count = self.expression_count + 1;
+        transition true { true -> retain_transition_expression_operand() }
+    }
+
+    state retain_transition_expression_operand() {
+        transition self.expression_frame_value_count < 128 {
+            true -> retain_transition_expression_operand_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::ExpressionDepth,
+                128,
+                self.expression_frame_value_count + 1
+            )
+        }
+    }
+
+    state retain_transition_expression_operand_bounded() {
+        self.expression_frame_values[self.expression_frame_value_count] =
+            self.expression_result;
+        self.expression_frame_value_count = self.expression_frame_value_count + 1;
+        transition true { true -> transition_expression_tail() }
+    }
+
+    state transition_expression_tail() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> finish_transition_expression()
+            OmegaPunctuationKind::Plus -> select_transition_add()
+            OmegaPunctuationKind::Minus -> select_transition_subtract()
+            OmegaPunctuationKind::EqualEqual -> select_transition_equal()
+            OmegaPunctuationKind::ExclamationEqual -> select_transition_not_equal()
+            OmegaPunctuationKind::Less -> select_transition_less()
+            OmegaPunctuationKind::LessEqual -> select_transition_less_equal()
+            OmegaPunctuationKind::Greater -> select_transition_greater()
+            OmegaPunctuationKind::GreaterEqual ->
+                select_transition_greater_equal()
+            OmegaPunctuationKind::AndAnd -> select_transition_and()
+            OmegaPunctuationKind::PipePipe -> select_transition_or()
+            _ -> incomplete_root()
+        }
+    }
+
+    state select_transition_add() {
+        transition true {
+            true -> select_transition_operator(OmegaBinaryOperatorKind::Add, 3)
+        }
+    }
+
+    state select_transition_subtract() {
+        transition true {
+            true -> select_transition_operator(
+                OmegaBinaryOperatorKind::Subtract,
+                3
+            )
+        }
+    }
+
+    state select_transition_equal() {
+        transition true {
+            true -> select_transition_operator(OmegaBinaryOperatorKind::Equal, 2)
+        }
+    }
+
+    state select_transition_not_equal() {
+        transition true {
+            true -> select_transition_operator(
+                OmegaBinaryOperatorKind::NotEqual,
+                2
+            )
+        }
+    }
+
+    state select_transition_less() {
+        transition true {
+            true -> select_transition_operator(OmegaBinaryOperatorKind::Less, 2)
+        }
+    }
+
+    state select_transition_less_equal() {
+        transition true {
+            true -> select_transition_operator(
+                OmegaBinaryOperatorKind::LessEqual,
+                2
+            )
+        }
+    }
+
+    state select_transition_greater() {
+        transition true {
+            true -> select_transition_operator(
+                OmegaBinaryOperatorKind::Greater,
+                2
+            )
+        }
+    }
+
+    state select_transition_greater_equal() {
+        transition true {
+            true -> select_transition_operator(
+                OmegaBinaryOperatorKind::GreaterEqual,
+                2
+            )
+        }
+    }
+
+    state select_transition_and() {
+        transition true {
+            true -> select_transition_operator(OmegaBinaryOperatorKind::And, 1)
+        }
+    }
+
+    state select_transition_or() {
+        transition true {
+            true -> select_transition_operator(OmegaBinaryOperatorKind::Or, 0)
+        }
+    }
+
+    state select_transition_operator(
+        operator: OmegaBinaryOperatorKind,
+        precedence: i32
+    ) {
+        self.expression_pending_operator = operator;
+        self.expression_pending_precedence = precedence;
+        self.expression_pending_operator_start = self.scan.token_start;
+        self.expression_pending_operator_end = self.scan.token_end;
+        transition true { true -> reduce_transition_expression_for_pending() }
+    }
+
+    state reduce_transition_expression_for_pending() {
+        transition self.expression_frame_operator_count > 0 {
+            true -> compare_transition_operator_precedence()
+            _ -> push_transition_pending_operator()
+        }
+    }
+
+    state compare_transition_operator_precedence() {
+        transition self.expression_frame_precedences[
+            self.expression_frame_operator_count - 1
+        ] >= self.expression_pending_precedence {
+            true -> retain_transition_binary_expression(0)
+            _ -> push_transition_pending_operator()
+        }
+    }
+
+    state push_transition_pending_operator() {
+        transition self.expression_frame_operator_count < 128 {
+            true -> push_transition_pending_operator_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::ExpressionDepth,
+                128,
+                self.expression_frame_operator_count + 1
+            )
+        }
+    }
+
+    state push_transition_pending_operator_bounded() {
+        self.expression_frame_operators[
+            self.expression_frame_operator_count
+        ] = self.expression_pending_operator;
+        self.expression_frame_precedences[
+            self.expression_frame_operator_count
+        ] = self.expression_pending_precedence;
+        self.expression_frame_operator_starts[
+            self.expression_frame_operator_count
+        ] = self.expression_pending_operator_start;
+        self.expression_frame_operator_ends[
+            self.expression_frame_operator_count
+        ] = self.expression_pending_operator_end;
+        self.expression_frame_operator_count =
+            self.expression_frame_operator_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(60) }
+    }
+
+    state finish_transition_expression() {
+        transition self.expression_frame_operator_count > 0 {
+            true -> retain_transition_binary_expression(1)
+            _ -> publish_transition_expression()
+        }
+    }
+
+    state retain_transition_binary_expression(continuation: i32) {
+        transition (self.expression_frame_value_count >= 2) &&
+            (self.expression_count < 16384) &&
+            (self.binary_expression_count < 16384) {
+            true -> retain_transition_binary_expression_bounded(continuation)
+            _ -> transition_binary_expression_failure()
+        }
+    }
+
+    state transition_binary_expression_failure() {
+        transition self.expression_frame_value_count >= 2 {
+            true -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+            _ -> internal_failure()
+        }
+    }
+
+    state retain_transition_binary_expression_bounded(continuation: i32) {
+        self.binary_expressions[self.binary_expression_count].left =
+            self.expression_frame_values[
+                self.expression_frame_value_count - 2
+            ];
+        self.binary_expressions[self.binary_expression_count].operator =
+            self.expression_frame_operators[
+                self.expression_frame_operator_count - 1
+            ];
+        self.binary_expressions[self.binary_expression_count].operator_start =
+            self.expression_frame_operator_starts[
+                self.expression_frame_operator_count - 1
+            ];
+        self.binary_expressions[self.binary_expression_count].operator_end =
+            self.expression_frame_operator_ends[
+                self.expression_frame_operator_count - 1
+            ];
+        self.binary_expressions[self.binary_expression_count].right =
+            self.expression_frame_values[
+                self.expression_frame_value_count - 1
+            ];
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::Binary;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 =
+            self.binary_expression_count;
+        self.expressions[self.expression_count].payload1 = 0;
+        self.expressions[self.expression_count].payload2 = 0;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.expression_frame_values[
+            self.expression_frame_value_count - 2
+        ] = self.expression_count;
+        self.expression_frame_value_count = self.expression_frame_value_count - 1;
+        self.expression_frame_operator_count =
+            self.expression_frame_operator_count - 1;
+        self.binary_expression_count = self.binary_expression_count + 1;
+        self.expression_count = self.expression_count + 1;
+        transition continuation {
+            0 -> reduce_transition_expression_for_pending()
+            _ -> finish_transition_expression()
+        }
+    }
+
+    state publish_transition_expression() {
+        transition self.expression_frame_value_count {
+            1 -> publish_transition_expression_bounded()
+            _ -> internal_failure()
+        }
+    }
+
+    state publish_transition_expression_bounded() {
+        self.transition_subject_expression = self.expression_frame_values[0];
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(61) }
     }
@@ -5256,7 +5564,45 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::RightParen -> retain_call_argument_path()
             OmegaPunctuationKind::RightBrace -> retain_struct_field_value_path()
             OmegaPunctuationKind::Semicolon -> retain_assignment_value_path()
-            OmegaPunctuationKind::Plus -> retain_assignment_value_path()
+            OmegaPunctuationKind::Plus -> path_expression_plus()
+            OmegaPunctuationKind::Minus -> path_expression_minus()
+            OmegaPunctuationKind::EqualEqual -> retain_transition_operator_path()
+            OmegaPunctuationKind::ExclamationEqual ->
+                retain_transition_operator_path()
+            OmegaPunctuationKind::Less -> retain_transition_operator_path()
+            OmegaPunctuationKind::LessEqual -> retain_transition_operator_path()
+            OmegaPunctuationKind::Greater -> retain_transition_operator_path()
+            OmegaPunctuationKind::GreaterEqual -> retain_transition_operator_path()
+            OmegaPunctuationKind::AndAnd -> retain_transition_operator_path()
+            OmegaPunctuationKind::PipePipe -> retain_transition_operator_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state path_expression_plus() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::AssignmentValue ->
+                retain_assignment_value_path()
+            OmegaExpressionConsumer::TransitionSubject ->
+                retain_transition_subject_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state path_expression_minus() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::AssignmentValue ->
+                retain_assignment_value_path()
+            OmegaExpressionConsumer::TransitionSubject ->
+                retain_transition_subject_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_transition_operator_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::TransitionSubject ->
+                retain_transition_subject_path()
             _ -> incomplete_root()
         }
     }
@@ -5977,8 +6323,35 @@ machine OmegaParser::parse_view(
                 assignment_literal_end_punctuation()
             OmegaExpressionConsumer::StructFieldValue ->
                 struct_field_literal_end_punctuation()
-            OmegaExpressionConsumer::TransitionSubject -> incomplete_root()
+            OmegaExpressionConsumer::TransitionSubject ->
+                transition_literal_end_punctuation()
         }
+    }
+
+    state transition_literal_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace ->
+                retain_transition_literal_operand()
+            OmegaPunctuationKind::Plus -> retain_transition_literal_operand()
+            OmegaPunctuationKind::Minus -> retain_transition_literal_operand()
+            OmegaPunctuationKind::EqualEqual ->
+                retain_transition_literal_operand()
+            OmegaPunctuationKind::ExclamationEqual ->
+                retain_transition_literal_operand()
+            OmegaPunctuationKind::Less -> retain_transition_literal_operand()
+            OmegaPunctuationKind::LessEqual ->
+                retain_transition_literal_operand()
+            OmegaPunctuationKind::Greater -> retain_transition_literal_operand()
+            OmegaPunctuationKind::GreaterEqual ->
+                retain_transition_literal_operand()
+            OmegaPunctuationKind::AndAnd -> retain_transition_literal_operand()
+            OmegaPunctuationKind::PipePipe -> retain_transition_literal_operand()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_transition_literal_operand() {
+        transition true { true -> retain_transition_expression_operand() }
     }
 
     state call_literal_end_punctuation() {
@@ -5993,6 +6366,7 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::Semicolon -> retain_assignment_literal_value()
             OmegaPunctuationKind::Plus -> retain_assignment_literal_value()
+            OmegaPunctuationKind::Minus -> retain_assignment_literal_value()
             _ -> incomplete_root()
         }
     }
@@ -6040,9 +6414,24 @@ machine OmegaParser::parse_view(
     state finish_assignment_value_operand() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Semicolon -> finish_assignment_expression()
-            OmegaPunctuationKind::Plus -> continue_assignment_expression()
+            OmegaPunctuationKind::Plus -> select_assignment_add()
+            OmegaPunctuationKind::Minus -> select_assignment_subtract()
             _ -> internal_failure()
         }
+    }
+
+    state select_assignment_add() {
+        self.assignment_pending_operator = OmegaBinaryOperatorKind::Add;
+        self.assignment_pending_operator_start = self.scan.token_start;
+        self.assignment_pending_operator_end = self.scan.token_end;
+        transition true { true -> continue_assignment_expression() }
+    }
+
+    state select_assignment_subtract() {
+        self.assignment_pending_operator = OmegaBinaryOperatorKind::Subtract;
+        self.assignment_pending_operator_start = self.scan.token_start;
+        self.assignment_pending_operator_end = self.scan.token_end;
+        transition true { true -> continue_assignment_expression() }
     }
 
     state finish_assignment_expression() {
@@ -6062,6 +6451,10 @@ machine OmegaParser::parse_view(
     state begin_assignment_binary_expression() {
         self.assignment_has_binary = 1;
         self.assignment_binary_left = self.assignment_value_expression;
+        self.assignment_binary_operator = self.assignment_pending_operator;
+        self.assignment_binary_operator_start =
+            self.assignment_pending_operator_start;
+        self.assignment_binary_operator_end = self.assignment_pending_operator_end;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(48) }
     }
@@ -6082,7 +6475,11 @@ machine OmegaParser::parse_view(
         self.binary_expressions[self.binary_expression_count].left =
             self.assignment_binary_left;
         self.binary_expressions[self.binary_expression_count].operator =
-            OmegaBinaryOperatorKind::Add;
+            self.assignment_binary_operator;
+        self.binary_expressions[self.binary_expression_count].operator_start =
+            self.assignment_binary_operator_start;
+        self.binary_expressions[self.binary_expression_count].operator_end =
+            self.assignment_binary_operator_end;
         self.binary_expressions[self.binary_expression_count].right =
             self.assignment_value_expression;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Binary;
@@ -6106,6 +6503,10 @@ machine OmegaParser::parse_view(
 
     state begin_next_assignment_binary_operand() {
         self.assignment_binary_left = self.assignment_value_expression;
+        self.assignment_binary_operator = self.assignment_pending_operator;
+        self.assignment_binary_operator_start =
+            self.assignment_pending_operator_start;
+        self.assignment_binary_operator_end = self.assignment_pending_operator_end;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(48) }
     }
