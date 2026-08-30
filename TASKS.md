@@ -10780,15 +10780,24 @@ checked-result arithmetic decision listed below.
   order, and zero-initialized final bytes; replay rejects missing, extra,
   reordered, and duplicate occurrence rows, compares every layout hash-free,
   stages every nested buffer, and performs one atomic outer copy. Erased sum
-  fields remain outside the runtime occurrence set. Arrays of sums, sums behind
-  another record, mixed
-  common-field/case shapes, target-dependent inactive-case geometry,
+  fields remain outside the runtime occurrence set. The first array rung is
+  live for exactly one direct nonzero literal fixed-array-of-sums field in the
+  same closed record cohort. Its compact target report retains the exact outer
+  field identity, count, stride, and one complete conventional all-case layout;
+  a distinct non-clone carrier retains every literal index and independently
+  selected case/value/bytes without duplicating the complete layout per
+  element. Projection rejoins the exact array descriptor, symbol, extent, and
+  alignment from one runtime plan and rejects fragment, stored-integer, or
+  target-dependent repeated placement on every outer field. Replay reconstructs
+  every indexed sum and the zero-padded outer image before one atomic copy.
+  Zero/multiple/nested sum arrays, direct-sum coexistence, sums behind another
+  record, mixed common-field/case shapes, target-dependent inactive-case geometry,
   generic/opaque/quotient records, references, slices, Text, dynamic values,
   atomics, non-copy data, and malformed shapes remain rejected without
   narrowing the legacy materialization API. This custody is not evaluator
   admission, a target capsule, quotient canonicalization, an origin-chain
   proof, or proof authority. Quotient snapshots/materialization, sums nested
-  through arrays or deeper aggregates, mixed shapes, target capsules/observations,
+  through deeper aggregates, mixed shapes, target capsules/observations,
   complete origin diagnostics, and broader representation bytes remain
   subsequent.
 

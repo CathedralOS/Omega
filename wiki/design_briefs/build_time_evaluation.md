@@ -362,11 +362,25 @@ nested buffer, reconstructs the zero-padded outer bytes, and performs one copy
 only after every check succeeds. Erased direct sum fields remain outside the
 runtime occurrence set.
 
-Arrays of sums, sums behind another record, mixed common-field/case shapes, and
-sums whose all-case geometry requires a target capsule remain later rungs. The
-same NaN, generic/opaque/quotient, reference, slice, Text, dynamic, atomic, and
-non-copy fences remain in force. None of these slices narrows the legacy
-typed-owned materialization API or establishes evaluator admission, quotient
+The first array rung admits exactly one direct nonzero literal fixed-array-of-
+sums field in that same outer record cohort. The target report remains compact:
+one exact outer field identity, literal count, element stride, and complete
+conventional all-case element layout. Value-sensitive custody separately
+retains each literal index and selected sum, so different elements may select
+different cases without copying the complete all-case report per element.
+Projection rejoins the exact array descriptor, element symbol, count, extent,
+alignment, and outer layout from one target plan. Fragmented, stored-integer,
+or target-dependent repeated placement on any outer field rejects. Replay
+checks the outer and compact reports hash-free, reconstructs every selected
+element into contiguous fixed-array staging, reconstructs the zero-padded outer
+record, and performs one atomic copy.
+
+Zero-length, multiple, or nested sum arrays, coexistence with direct sum fields,
+sums behind another record, mixed common-field/case shapes, and sums whose all-
+case geometry requires a target capsule remain later rungs. The same NaN,
+generic/opaque/quotient, reference, slice, Text, dynamic, atomic, and non-copy
+fences remain in force. None of these slices narrows the legacy typed-owned
+materialization API or establishes evaluator admission, quotient
 canonicalization, producer-origin chains, or proof authority. Carried quotient
 representatives, richer origin diagnostics, and target-dependent const
 application remain later slices.

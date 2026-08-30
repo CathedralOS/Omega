@@ -14,6 +14,7 @@ pub use builder::{build_layout_plan, layout_type_reference};
 pub use field_paths::{field_data_layout_fields, field_machine_layout, field_path_offset};
 pub use sizing::primitive_layout;
 pub use sum_materialization::{
+    project_conventional_record_with_sum_array_materialization_layout,
     project_conventional_record_with_sum_materialization_layout,
     project_conventional_sum_materialization_layout,
 };
