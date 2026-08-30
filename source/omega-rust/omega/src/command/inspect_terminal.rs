@@ -5,8 +5,11 @@ use omega_compiler::compile_to_checked;
 use psi_core::{ServiceId, StructuralTypeId};
 use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
-use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
-use psi_terminal_verifier::verify_module;
+use psi_terminal_fixed_fuel::{
+    derive_fixed_entry_fuel, derive_ranked_countdown_entry_fuel, validate_fixed_entry_fuel,
+    validate_ranked_countdown_entry_fuel,
+};
+use psi_terminal_verifier::{verify_module, verify_module_for_fixed_fuel};
 
 pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let Some(arguments) = parse_inspect_terminal_arguments(arguments) else {
@@ -34,37 +37,79 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     };
-    let verified = match verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    ) {
-        Ok(verified) => verified,
-        Err(error) => {
+    let fixed_fuel = if lowered
+        .semantic_module
+        .machines
+        .iter()
+        .any(|machine| machine.ranked_scc.is_some())
+    {
+        let verified = match verify_module_for_fixed_fuel(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        ) {
+            Ok(verified) => verified,
+            Err(error) => {
+                eprintln!(
+                    "cannot verify terminal machine `{}` for fixed fuel: {error}",
+                    arguments.machine
+                );
+                std::process::exit(1);
+            }
+        };
+        let fixed_fuel =
+            match derive_ranked_countdown_entry_fuel(&verified, lowered.semantic_module.entry) {
+                Ok(fixed_fuel) => fixed_fuel,
+                Err(error) => {
+                    eprintln!(
+                        "cannot derive ranked fixed fuel for terminal machine `{}`: {error}",
+                        arguments.machine
+                    );
+                    std::process::exit(1);
+                }
+            };
+        if let Err(error) = validate_ranked_countdown_entry_fuel(&verified, &fixed_fuel) {
             eprintln!(
-                "cannot verify terminal machine `{}`: {error}",
+                "cannot validate ranked fixed fuel for terminal machine `{}`: {error}",
                 arguments.machine
             );
             std::process::exit(1);
         }
-    };
-    let fixed_fuel = match derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry) {
-        Ok(fixed_fuel) => fixed_fuel,
-        Err(error) => {
+        fixed_fuel
+    } else {
+        let verified = match verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        ) {
+            Ok(verified) => verified,
+            Err(error) => {
+                eprintln!(
+                    "cannot verify terminal machine `{}`: {error}",
+                    arguments.machine
+                );
+                std::process::exit(1);
+            }
+        };
+        let fixed_fuel = match derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry) {
+            Ok(fixed_fuel) => fixed_fuel,
+            Err(error) => {
+                eprintln!(
+                    "cannot derive fixed fuel for terminal machine `{}`: {error}",
+                    arguments.machine
+                );
+                std::process::exit(1);
+            }
+        };
+        if let Err(error) = validate_fixed_entry_fuel(&verified, &fixed_fuel) {
             eprintln!(
-                "cannot derive fixed fuel for terminal machine `{}`: {error}",
+                "cannot validate fixed fuel for terminal machine `{}`: {error}",
                 arguments.machine
             );
             std::process::exit(1);
         }
+        fixed_fuel
     };
-    if let Err(error) = validate_fixed_entry_fuel(&verified, &fixed_fuel) {
-        eprintln!(
-            "cannot validate fixed fuel for terminal machine `{}`: {error}",
-            arguments.machine
-        );
-        std::process::exit(1);
-    }
     print!(
         "{}",
         terminal_summary(&arguments.machine, &lowered.semantic_module, &fixed_fuel,)

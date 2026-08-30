@@ -4076,9 +4076,14 @@ architecture, entry stub, and external-root context it names. Recomputable Psi
 fuel evidence carries no provider receipt.
 
 `omega inspect-terminal --machine <qualified>` verifies the selected terminal
-closure and proof bundle, recomputes and validates its acyclic entry
-certificate, and publishes the exact terminal identity, schedule, entry, and
-ceiling. This is build-time semantic evidence, not installed-root evidence:
+closure and proof bundle, recomputes and validates its entry certificate, and
+publishes the exact terminal identity, schedule, entry, and ceiling. Acyclic
+closures retain ordinary verification. A closure carrying ranked metadata uses
+the distinct fixed-fuel verifier and ranked-countdown derivation; the current
+accepted case is the exact `u32` whole-entry countdown above, and wider or
+otherwise unsupported ranked shapes fail closed without falling back to
+ordinary execution authority. This is build-time semantic evidence, not
+installed-root evidence:
 the native terminal Unit and scalar slices retain exact emitter evidence that
 object construction replays into local peaks, caller-live bytes at typed calls,
 and an acyclic closure demand. Accountable acyclic scalar conditionals use one

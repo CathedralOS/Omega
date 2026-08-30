@@ -577,6 +577,11 @@ Remaining:
   `u32` all-input ceiling is `25_769_803_775` units for concrete cost
   `5 + 6 * remaining`; the canonical codec round trip replays the certificate,
   while a `u64` carrier fails closed because its ceiling cannot be represented.
+  `omega inspect-terminal` now selects that distinct fixed-fuel verifier for a
+  lowered closure carrying ranked metadata, derives and validates the ranked
+  whole-entry certificate, and renders the same canonical terminal/fuel
+  summary. Acyclic inspection keeps its ordinary verifier path, while wider or
+  otherwise unsupported ranked shapes fail closed instead of falling back.
   Existing acyclic segment authority remains unchanged. Native admission and
   custody are now complete through assigned target operations for the same
   exact first slice. A third opaque verifier carrier admits only the canonical
