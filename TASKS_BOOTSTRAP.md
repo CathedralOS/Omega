@@ -526,8 +526,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       namespaces, and keeps the 32,768-function capacity canary linear in
       ordinary hash behavior. Exact-offset negatives and cross-namespace,
       colliding-hash, branch, and arm positives are adjacent. Global identities
-      now retain exact table rows; whole-function runtime label publication
-      remains open.
+      now retain exact table rows; the two-phase whole-function emitter below
+      publishes their runtime labels.
     - [x] Retain exact one-based function and constructor table identities on
       every checked ordinary call, constructor application, and constructor
       pattern. Zero remains the unresolved/builtin sentinel. The adjacent
@@ -539,10 +539,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
       retain one-based source-order indexes; locals retain one-based fixed-slot
       indexes while disjoint scopes reuse slots. Each function profile packs
       its resolved return type, maximum simultaneously live locals, and exact
-      parameter count. The metadata gate pins parameter/local kinds, slots,
-      references, pattern fields, reuse-derived maximum, and profile counts.
-      The variable/let/call/constructor/match source joins consume those
-      profiles; whole-function entry construction remains.
+      parameter count. The 16-bit local field admits at most 65,535
+      simultaneously live locals, while active parameters may exhaust the
+      shared lexical environment earlier. The adjacent publication is a private
+      resource failure before environment, AST, or wrapped-profile mutation. The
+      metadata gate pins parameter/local kinds, slots, references, pattern
+      fields, reuse-derived maximum, exact/adjacent local capacity, and profile
+      counts. The variable/let/call/constructor/match source joins and
+      whole-function body emission consume those profiles.
   - Implement D19's sealed application-profile input as part of the exact Gamma
     compilation question and reconstruction evidence. Generate exactly
     `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
@@ -569,9 +573,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source now declares 106 procedures; with the
-    frontend gate entry, the gate uses 107 of the persisted V2 artifact's 256
-    procedure slots. It compiles to 273,826 bytes, leaving 774,746 bytes below
+    tape budget. The retained source now declares 109 procedures; with the
+    frontend gate entry, the gate uses 110 of the persisted V2 artifact's 256
+    procedure slots. It compiles to 293,875 bytes, leaving 754,697 bytes below
     the V2 runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
@@ -740,8 +744,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     identity into runtime kinds starting at two. Execute source-derived ordinary
     and proper-tail calls, a parameter return, constructor allocation, and a
     let/local `Bytes` read; compile each bridge twice byte-identically. Malformed
-    resolved metadata fails before publication. Complete function-label/entry
-    emission remains open.
+    resolved metadata fails before publication. The two-phase function emitter
+    below consumes the resulting labels and profiles.
   - [x] Lower D20's resolved selected matches through the general expression
     backend. Validate the complete forward arm spine, arm/pattern nodes,
     constructor identities, exact payload arities, fixed binder slots, and
@@ -754,8 +758,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
     with root frame restoration. A one-row heap ceiling distinguishes one
     scrutinee evaluation from two; focused malformed identity, slot, and cyclic
     arm controls retain sticky private failure and zero payload; repeated
-    compilation is byte-identical. Whole-function label/entry emission remains
-    open.
+    compilation is byte-identical.
+  - [x] Emit every checked Gamma function without taking ownership of D19's
+    application adapter. Validate the complete function table, body pointers,
+    packed return/local/parameter profiles, and exact forward parameter spines;
+    preflight label capacity and allocate all source-order function labels
+    before authoring any body so forward, mutual, and self calls are ordinary
+    cases. Define bodies in source order, install each retained frame profile,
+    lower the body in tail position, and emit the common return-frame epilogue.
+    One consolidated full-source test emitter replaces five redundant compiler
+    variants and executes a forward ordinary call, 4,000 mutual proper-tail
+    transfers across different frame sizes, constructor/match/local/`Bytes`
+    composition, selected-only traps, and deterministic reconstruction. Focused
+    malformed parameter, body-tag, prepared-label, and exact/adjacent capacity
+    controls require sticky failure, zero payload, and no label-table mutation.
+    The test-only PC-zero wrapper deliberately selects row zero; D19 alone still
+    owns canonical entry selection, sealed input, result framing, and final
+    publication.
   - [x] Perform the bounded ordinary compaction required before D12 escalation.
     Merge identical global lookup and root-form scans, share the call/
     constructor type-argument zipper, remove the one-use local wrapper, and
@@ -776,9 +795,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     gate retains a real exact-maximum compiler tape with representative source,
     named lemmas, normalization, scratch, simultaneous outer maxima, balanced
     arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
-    tapes reproduce exactly; the subsequently expanded Gamma gate is 201/201. Ordinary
-    density work remains useful but is no longer a condition for the retired
-    V1 ceiling.
+    tapes reproduce exactly; the current consolidated Gamma gate is 198/198
+    after replacing five redundant full-source compiler variants with one
+    whole-function emitter. Ordinary density work remains useful but is no
+    longer a condition for the retired V1 ceiling.
   - [x] Establish the dormant profile-parameterized sealed-input reader before
     selecting D19's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
