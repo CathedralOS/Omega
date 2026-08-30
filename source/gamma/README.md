@@ -32,13 +32,13 @@ Disjoint scopes may reuse names.
 
 The Beta-written compiler source now lives at
 `compiler/gamma_compiler.beta`. Its retained strict frontend and direct Alpha
-emitter/runtime-containment substrate, including executed checked-`Int` and
-compact immutable-`Bytes` helpers and direct `Int`, conditional, and `Bytes`
-slices of the general expression dispatcher, now also includes the executed
-arbitrary-arity/proper-tail-call frame and algebraic-value ABIs plus a dormant,
-profile-parameterized sealed-input reader. D19 now fixes its two possible
-application contracts and D20 fixes its resolver contract, but resolver and
-adapter completion and publication remain implementation work. Complete
+emitter/runtime-containment substrate include executed checked-`Int` and
+compact immutable-`Bytes` helpers, resolved expression lowering, the
+arbitrary-arity/proper-tail-call frame and algebraic-value ABIs, profile-neutral
+whole-function label/body emission, and a dormant profile-parameterized
+sealed-input reader. D19 fixes its two possible application contracts and D20's
+resolver is implemented, but adapter completion, remaining lowering, and
+publication remain implementation work. Complete
 fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an

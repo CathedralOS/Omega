@@ -10,22 +10,19 @@ gamma_compiler.beta → gamma_compiler_bytecode.tape
 The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
-The adjacent gate compiles this one source with temporary fixed test entries,
-runs all 97 frontend discriminators, checks exact emitter bytes plus sticky
-capacity/fixup/structural-replay failures, executes six generated
-runtime-containment programs,
-exercises 16 checked-`Int` paths, runs 37 source-to-code lowering cases,
-executes separate ordinary/tail source-call, source-constructor, and
-source-local/let and selected-match bridge payloads, compares seven repeated payloads
-byte-identically, and executes 17
-compact-`Bytes`, two
-arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
-runtime paths plus one sealed-input reconstruction comparison. It publishes no
-compiler artifact.
+The adjacent 198-case gate compiles this one source with temporary fixed test
+entries, retains all 97 frontend discriminators, and executes the emitter,
+runtime containment, frame/value ABI, checked `Int`, compact `Bytes`, sealed
+input, resolved-expression, selected-match, and whole-function paths. One
+full-source test emitter now covers ordinary and proper-tail calls,
+constructors, locals, matches, and general expressions instead of rebuilding
+five redundant compiler variants. It also pins malformed whole-function
+metadata and exact/adjacent label capacity before payload mutation. The gate
+publishes no compiler artifact.
 
-The retained compiler source declares 106 procedures. With the fixed frontend
-gate entry, the compiled gate uses 107 of Beta's 256 procedure slots and
-compiles to 273,826 bytes. The remaining 774,746 bytes under
+The retained compiler source declares 109 procedures. With the fixed frontend
+gate entry, the compiled gate uses 110 of Beta's 256 procedure slots and
+compiles to 293,875 bytes. The remaining 754,697 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -83,8 +80,8 @@ byte is published until every fixup and the complete payload extent validate.
 Those extents describe the `AlphaBootstrapV2` profile selected by D23 and
 migrated with the seeds, Beta compiler, checker, outcome tables, and exact-limit
 gates. The measured 251,142-byte fixed frontend no longer has to fit the retired
-V1 ceiling. Its fixed 201-case gate remains mandatory, and ordinary density
-improvements remain useful rather than a release gate.
+V1 ceiling. The current consolidated 198-case gate remains mandatory, and
+ordinary density improvements remain useful rather than a release gate.
 
 The retained front end's four-word syntax nodes retain the exact
 zero-based source start in the high bits of their tag word; the 4 MiB source
@@ -122,10 +119,20 @@ The same lexical environment now assigns source-order parameter indexes and
 fixed local slots to parameters, lets, pattern fields, catch-alls, and every
 variable reference. Disjoint scopes reuse local slots, while each function
 retains its return type, maximum live-local count, and exact parameter count in
-one packed profile word. Source variables, lets, ordinary calls, constructor
-applications, and selected matches now consume those identities directly in
-`lower_expr`. Publishing the complete function-label table and entering every
-function with its retained frame profile remain open.
+one packed profile word. That 16-bit field admits at most 65,535 simultaneously
+live locals; active parameters may exhaust the shared lexical environment
+earlier. Attempting the adjacent local fails through the private resource state
+before publishing an environment/AST slot or a wrapped profile. Source
+variables, lets, ordinary calls, constructor applications, and selected matches
+consume those identities directly in `lower_expr`.
+
+Whole-function emission validates every retained function row and exact
+parameter spine, preflights label capacity, and publishes every source-order
+function label before emitting any body. It then defines bodies in source order,
+installs each packed frame profile, lowers the body in tail position, and emits
+the common return-frame epilogue. D19 remains the separate owner of profile
+selection, the generated PC-zero application adapter, result framing, and final
+publication.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
@@ -238,9 +245,10 @@ with the root stack and frame restored. `if`, resolved lets, and every selected
 match arm preserve their incoming tail-position bit, so terminating tail
 recursion grows neither Gamma activations nor Alpha's hidden return stack. The source connection
 uses the retained one-based function identity, the compiler-owned label table,
-and the callee's packed maximum-live-local profile; whole-function emission must
-populate that label table before lowering callers. No resolved AST is
-serialized or executed.
+and the callee's packed maximum-live-local profile. The two-phase whole-function
+emitter populates the complete table before lowering any caller, so forward,
+mutual, and self calls share the same path. No resolved AST is serialized or
+executed.
 
 `Bytes` uses a compact immutable rope/view representation with closed descriptor
 kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
@@ -277,10 +285,10 @@ branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
 
-D20's declaration/binder resolver and the variable, let, call, constructor, and
-selected-match source joins are implemented. Whole-function label/entry
-emission remains. D19 fixes application-profile selection; implementing
-both adapters and final publication still gates the tape. No incomplete slice
+D20's declaration/binder resolver, source joins, and profile-neutral
+whole-function label/body emission are implemented. D19 fixes
+application-profile selection; implementing both adapters and final publication
+still gates the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.

@@ -11,7 +11,7 @@ alpha/          Alpha semantics, audited native VM seeds, assembler, and checker
 beta/           Beta language, reference meaning, and Alpha-written compiler
   compiler/     beta_compiler.alpha, its Alpha tape, and adjacent validation
 gamma/          Gamma language and bounded Beta-written semantic components
-  compiler/     owner of the future Beta-written Gamma compiler and Alpha tape
+  compiler/     owner of the Beta-written Gamma compiler source and Alpha tape
 delta/          Delta language
   compiler/     owner of the future Gamma-written Delta compiler and Alpha tape
 library/        core, allocation, and standard-library source

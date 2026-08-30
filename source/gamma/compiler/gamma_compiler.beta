@@ -3,8 +3,8 @@
 ; The strict parser, declaration tables, coordinate custody, and static checks
 ; below are retained compiler frontend material. The current gate supplies a
 ; temporary frontend-only entry; no compiler tape or emitted-program adapter is
-; published until the D20 resolver, remaining lowering, and D19 application-adapter
-; work is complete.
+; published until the remaining lowering and D19 application-adapter work is
+; complete.
 ;
 ; Builtin Int/Bytes + top-level functions with typed params and a declared return
 ; type; arithmetic/comparisons are Int x Int -> Int, `if` wants an Int condition and
@@ -1000,10 +1000,29 @@ proc tenv_push(off, t, local_kind, index) {
     state exhausted { mark_resource_failed()  return 0 }
 }
 
-proc claim_local_slot(slot) {
-    word[2096896] = slot + 1
-    state maximum { to update when (word[2096896] > word[2096888])  return 0 }
-    state update { word[2096888] = word[2096896]  return 0 }
+; Commit one local binder only after D20's source duplicate check and both
+; private capacities succeed. This keeps source rejection ahead of resource
+; exhaustion and prevents a failed bind from mutating TENV, slot cursors, or
+; the packed-profile maximum.
+proc tenv_push_local(off, t, slot) {
+    let n = word[2097112]
+    state unique {
+        to environment_capacity when (tenv_lookup(off) == 0 - 1)
+        mark_invalid_at(off)
+        return 0
+    }
+    state environment_capacity { to slot_capacity when (n < 65536)  to exhausted }
+    state slot_capacity { to commit when (slot < 65535)  to exhausted }
+    state commit {
+        word[9437184 + n * 16] = off
+        word[9437184 + n * 16 + 8] = t + 196608 + slot * 262144
+        word[2097112] = n + 1
+        word[2096896] = slot + 1
+        to maximum
+    }
+    state maximum { to update when (word[2096896] > word[2096888])  return 1 }
+    state update { word[2096888] = word[2096896]  return 1 }
+    state exhausted { mark_resource_failed()  return 0 }
 }
 
 proc tenv_lookup(qoff) {
@@ -1243,13 +1262,13 @@ proc tc_match(scrut, arms) {
     state pvar {
         catchall = 1
         let slot = word[2096896]
-        to pvar_bound when (tenv_push(word[pat + 8], st, 1, slot) == 1)
+        to pvar_bound when (tenv_push_local(word[pat + 8], st, slot) == 1)
+        to binding_resource when (word[2097072] != 0)
         fail = 1
         to checkbody
     }
     state pvar_bound {
         word[pat + 16] = slot + 1
-        claim_local_slot(slot)
         to checkbody
     }
     state pcon {
@@ -1279,13 +1298,13 @@ proc tc_match(scrut, arms) {
     state bindpv {
         to bindav0 when (av == 0)     ; too many pattern vars
         let slot2 = word[2096896]
-        to bind_record when (tenv_push(word[pv + 8], word[av + 8], 1, slot2) == 1)
+        to bind_record when (tenv_push_local(word[pv + 8], word[av + 8], slot2) == 1)
+        to binding_resource when (word[2097072] != 0)
         fail = 1
         to bind_advance
     }
     state bind_record {
         word[pv + 24] = slot2 + 1
-        claim_local_slot(slot2)
         to bind_advance
     }
     state bind_advance {
@@ -1303,9 +1322,16 @@ proc tc_match(scrut, arms) {
         let bt = tc(word[armnode + 16])
         word[2097112] = base
         word[2096896] = local_base
+        to body_resource when (word[2097072] != 0)
         to btfail when (bt == 0 - 1)
         to rtychk
     }
+    state binding_resource {
+        word[2097112] = base
+        word[2096896] = local_base
+        return 0 - 1
+    }
+    state body_resource { return 0 - 1 }
     state btfail { fail = 1  to rtychk }
     state rtychk {
         to setrty when (rty == 0 - 2)
@@ -1344,9 +1370,11 @@ proc tc(expr) {
     let result = tc_inner(expr)
     state checked { to invalid when (result == 0 - 1)  return result }
     state invalid {
+        to resource when (word[2097072] != 0)
         mark_invalid_at(word[expr] / 256)
         return 0 - 1
     }
+    state resource { return 0 - 1 }
 }
 
 proc tc_inner(expr) {
@@ -1395,11 +1423,10 @@ proc tc_inner(expr) {
     state let_ok {
         let local_base = word[2096896]
         let slot = local_base
-        to let_bound when (tenv_push(word[expr + 8], vt, 1, slot) == 1)
+        to let_bound when (tenv_push_local(word[expr + 8], vt, slot) == 1)
         return 0 - 1
     }
     state let_bound {
-        claim_local_slot(slot)
         let r = tc(word[expr + 24])
         word[2097112] = word[2097112] - 1
         word[2096896] = local_base
@@ -3079,6 +3106,209 @@ proc lower_expr(expr, tail_position) {
     }
 }
 
+; ---- resolved whole-function emission --------------------------------
+;
+; D20 has already retained exact one-based function identities and a packed
+; frame profile in every FUNS row.  D19 still owns entry selection and the
+; generated application adapter.  Keep the two concerns separate: first
+; validate every row and publish all forward labels without authoring payload
+; bytes, then let the adapter occupy pc zero before these bodies are emitted.
+
+proc validate_gamma_function_rows() {
+    let function_count = word[2097120]
+    let arena_end = word[2097128]
+    let failure_coordinate = 0
+    let parameter_cursor = 0
+    let parameter_seen = 0
+    let next_parameter_cursor = 0
+    state count_low { to invalid_count when (function_count < 1)  to count_high }
+    state count_high { to invalid_count when (function_count > 32768)  to arena_low }
+    state arena_low { to invalid_arena when (arena_end < 16777248)  to arena_high }
+    state arena_high { to invalid_arena when (arena_end > 131072000)  to arena_align }
+    state arena_align {
+        to invalid_arena when ((arena_end - 16777248) % 32 != 0)
+        let function_index = 0
+        to loop
+    }
+    state loop { to row when (function_index < function_count)  return 1 }
+    state row {
+        let profile = word[8388608 + function_index * 32 + 16]
+        let body = word[8388608 + function_index * 32 + 24]
+        to invalid_profile when (profile < 0)
+        let return_type = profile % 65536
+        let maximum_locals = (profile / 65536) % 65536
+        let parameter_count = profile / 4294967296
+        let frame_prefix = 16 + maximum_locals * 16
+        to invalid_profile when (return_type >= word[2097104])
+        to invalid_profile when (frame_prefix < 16)
+        to invalid_profile when (frame_prefix % 16 != 0)
+        to invalid_profile when (frame_prefix > 15728640)
+        to invalid_profile when (parameter_count < 0)
+        to invalid_profile when (parameter_count > 983040)
+        to invalid_profile when (parameter_count > (15728640 - frame_prefix) / 16)
+        to body_bounds
+    }
+    state body_bounds {
+        to invalid_body when (body < 16777248)
+        to invalid_body when (body > arena_end - 32)
+        to invalid_body when ((body - 16777248) % 32 != 0)
+        let body_tag = word[body] % 256
+        to invalid_body when (body_tag < 0)
+        to invalid_body when (body_tag == 6)
+        to invalid_body when (body_tag > 8)
+        parameter_cursor = word[8388608 + function_index * 32 + 8]
+        parameter_seen = 0
+        to parameter_loop
+    }
+    state parameter_loop {
+        to parameter_finish when (parameter_cursor == 0)
+        to invalid_parameter when (parameter_seen >= parameter_count)
+        to parameter_link
+    }
+    state parameter_link {
+        to invalid_parameter when (parameter_cursor < 16777248)
+        to invalid_parameter when (parameter_cursor > arena_end - 32)
+        to invalid_parameter when ((parameter_cursor - 16777248) % 32 != 0)
+        to invalid_parameter when (word[parameter_cursor] % 256 != 6)
+        to invalid_parameter when (word[parameter_cursor + 24] != 0)
+        let parameter = word[parameter_cursor + 8]
+        next_parameter_cursor = word[parameter_cursor + 16]
+        to parameter_node
+    }
+    state parameter_node {
+        to invalid_parameter when (parameter < 16777248)
+        to invalid_parameter when (parameter > arena_end - 32)
+        to invalid_parameter when ((parameter - 16777248) % 32 != 0)
+        to invalid_parameter when (parameter >= parameter_cursor)
+        to invalid_parameter when (word[parameter] % 256 != 50)
+        to invalid_parameter when (word[parameter + 16] < 0)
+        to invalid_parameter when (word[parameter + 16] >= word[2097104])
+        to invalid_parameter when (word[parameter + 24] != parameter_seen + 1)
+        to parameter_next_check when (next_parameter_cursor != 0)
+        to parameter_advance
+    }
+    state parameter_next_check {
+        to invalid_parameter when (next_parameter_cursor <= parameter_cursor)
+        to parameter_advance
+    }
+    state parameter_advance {
+        parameter_seen = parameter_seen + 1
+        parameter_cursor = next_parameter_cursor
+        to parameter_loop
+    }
+    state parameter_finish {
+        to invalid_parameter when (parameter_seen != parameter_count)
+        to advance
+    }
+    state advance { function_index = function_index + 1  to loop }
+    state invalid_count { failure_coordinate = function_count  to invalid }
+    state invalid_arena { failure_coordinate = arena_end  to invalid }
+    state invalid_profile { failure_coordinate = function_index  to invalid }
+    state invalid_body { failure_coordinate = body  to invalid }
+    state invalid_parameter { failure_coordinate = parameter_cursor  to invalid }
+    state invalid { emit_fail_once(13, failure_coordinate)  return 0 }
+}
+
+proc prepare_gamma_function_labels() {
+    let failure_coordinate = 0
+    state sticky { to failed when (word[2097016] != 0)  to label_low }
+    state label_low { to label_invalid when (word[2097032] < 0)  to label_high }
+    state label_high { to label_invalid when (word[2097032] > 65536)  to rows }
+    state rows {
+        let rows_ok = validate_gamma_function_rows()
+        to rows_checked
+    }
+    state rows_checked { to failed when (rows_ok != 1)  to capacity }
+    state capacity {
+        to label_exhausted when (word[2097120] > 65536 - word[2097032])
+        let function_index = 0
+        to loop
+    }
+    state loop { to allocate when (function_index < word[2097120])  return 1 }
+    state allocate {
+        let label = new_label()
+        to allocation_failed when (label < 0)
+        word[10485760 + function_index * 8] = label + 1
+        function_index = function_index + 1
+        to loop
+    }
+    state label_exhausted { failure_coordinate = 65536  to label_failure }
+    state label_invalid { failure_coordinate = word[2097032]  to label_failure }
+    state label_failure { emit_fail_once(3, failure_coordinate)  return 0 }
+    state allocation_failed { return 0 }
+    state failed { return 0 }
+}
+
+proc emit_gamma_function_bodies() {
+    let saved_frame_prefix = word[2096880]
+    let saved_parameter_count = word[2096872]
+    let function_index = 0
+    let failure_coordinate = 0
+    state labels_start {
+        let first_encoded = word[10485760]
+        to invalid_labels when (first_encoded <= 0)
+        to invalid_labels when (first_encoded - 1 >= word[2097032])
+        to invalid_labels when (word[2097120] > word[2097032] - first_encoded + 1)
+        function_index = 0
+        to labels_loop
+    }
+    state labels_loop {
+        to labels_row when (function_index < word[2097120])
+        function_index = 0
+        to body_loop
+    }
+    state labels_row {
+        let encoded = word[10485760 + function_index * 8]
+        to invalid_labels when (encoded != first_encoded + function_index)
+        to invalid_labels when (word[11010048 + (encoded - 1) * 8] != 0)
+        function_index = function_index + 1
+        to labels_loop
+    }
+    state body_loop { to body when (function_index < word[2097120])  to complete }
+    state body {
+        let profile = word[8388608 + function_index * 32 + 16]
+        let body_expression = word[8388608 + function_index * 32 + 24]
+        let label = word[10485760 + function_index * 8] - 1
+        to body_defined when (define_label(label) == 1)
+        to restore_failure
+    }
+    state body_defined {
+        word[2096880] = 16 + ((profile / 65536) % 65536) * 16
+        word[2096872] = profile / 4294967296
+        let lower_status = lower_expr(body_expression, 1)
+        to body_lowered
+    }
+    state body_lowered { to lowering_failed when (lower_status != 1)  to epilogue }
+    state epilogue {
+        emit_gamma_return_frame()
+        to restore_failure when (word[2097016] != 0)
+        function_index = function_index + 1
+        to body_loop
+    }
+    state lowering_failed {
+        failure_coordinate = body_expression
+        to function_failure
+    }
+    state invalid_labels {
+        failure_coordinate = function_index
+        to function_failure
+    }
+    state function_failure {
+        emit_fail_once(13, failure_coordinate)
+        to restore_failure
+    }
+    state complete {
+        word[2096880] = saved_frame_prefix
+        word[2096872] = saved_parameter_count
+        return 1
+    }
+    state restore_failure {
+        word[2096880] = saved_frame_prefix
+        word[2096872] = saved_parameter_count
+        return 0
+    }
+}
+
 proc frontend_check_main() {
     let slurp_status = slurp()
     state source {
@@ -3145,8 +3375,14 @@ proc frontend_check_main() {
     }
     state docheck {
         let declared_return = word[8388608 + i * 32 + 16] % 65536
-        to okmark when (tc(word[8388608 + i * 32 + 24]) != declared_return)
+        let actual_return = tc(word[8388608 + i * 32 + 24])
+        to function_resource when (word[2097072] != 0)
+        to okmark when (actual_return != declared_return)
         to advance
+    }
+    state function_resource {
+        word[2097112] = base
+        return 0
     }
     state okmark {
         mark_invalid_at(word[word[8388608 + i * 32 + 24]] / 256)

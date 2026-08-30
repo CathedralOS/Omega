@@ -61,11 +61,11 @@ bound before adapter emission.
 ## Current migration
 
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
-direct Alpha payload/fixup substrate, and executed heap/stack and checked-`Int`
-helpers plus the first retained slice of the general expression dispatcher. It
-is incomplete and has no published tape. Its 251,142-byte fixed gate exhausted
-the former V1 Alpha ceiling before selected-match lowering, complete function
-emission, and the D19 adapters. D23 therefore selects the coherent
+direct Alpha payload/fixup substrate, executed heap/stack and checked-`Int`
+helpers, resolved expression lowering, and profile-neutral whole-function
+label/body emission. It is incomplete and has no published tape. Its
+251,142-byte historical fixed gate exhausted the former V1 Alpha ceiling before
+those later slices and the D19 adapters. D23 therefore selects the coherent
 `AlphaBootstrapV2` profile—a one-MiB stamped hole and 1,048,572-byte raw-tape
 maximum across seeds, compilers, checker, and exact gates—rather than another
 Gamma-specific density gate or private execution path.
@@ -84,10 +84,10 @@ the universal checker remains Alpha-owned and outside the language rung.
 
 ## Implementation frontiers
 
-- land D23's coherent `AlphaBootstrapV2` profile before publishing the complete
-  compiler; retain the existing fixed conformance gate through the migration;
-- complete lowering and the two D19-selected adapters in the exact Gamma compiler
-  source, then publish its artifact closure;
+- retain D23's coherent `AlphaBootstrapV2` profile and the consolidated adjacent
+  conformance gate through publication;
+- complete the two D19-selected adapters and remaining lowering in the exact
+  Gamma compiler source, then publish its artifact closure;
 - reuse the interpreter only as a specification or isolated algorithm source
   without turning runtime interpretation into a permanent dependency;
 - emit exact Alpha tapes and checked source-to-tape certificates; and
