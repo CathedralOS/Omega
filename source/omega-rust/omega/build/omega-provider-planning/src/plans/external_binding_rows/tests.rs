@@ -330,6 +330,63 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
 }
 
 #[test]
+fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
+    let source = r#"
+        pub data Counter [copy] { value: u64; }
+        pub data LinuxCounter {}
+
+        pub boundary requirement Counter::write(self, value: u64);
+
+        machine LinuxCounter::write(counter: Counter, value: u64)
+        satisfies Counter::write
+        via Binding::Syscall(1);
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize top-level external ABI fixture");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse top-level external ABI fixture");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve top-level external ABI fixture");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type top-level external ABI fixture");
+    psi_typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
+        .expect("check exact top-level external satisfier");
+    let plans = crate::plans::derive_satisfies_plans(&typed, Some("linux_x86_64"));
+    let [plan] = plans.as_slice() else {
+        panic!("one top-level external provider plan")
+    };
+
+    let rows = extract_external_binding_rows(
+        Some("linux_x86_64"),
+        omega_target::NativeTarget::linux_x64(),
+        std::slice::from_ref(plan),
+        &[],
+        &typed,
+    )
+    .expect("selected top-level external satisfier should enter ABI extraction");
+    let [row] = rows.as_slice() else {
+        panic!("one top-level external ABI row")
+    };
+    assert_eq!(row.trait_name, "Counter::write");
+    assert_eq!(row.method, "write");
+    assert!(matches!(
+        row.binding,
+        omega_calling_conventions::ExternalBindingKind::Syscall { number: 1 }
+    ));
+    let entry = row
+        .boundary_entry_plan
+        .as_ref()
+        .expect("Linux syscall extraction requires a closed calling plan");
+    assert_eq!(
+        entry.call.parameters.len(),
+        2,
+        "the requirement's semantic `self` carrier and ordinary value parameter both cross the external ABI",
+    );
+    assert!(entry.call.result.is_none());
+}
+
+#[test]
 fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically() {
     let mut fixture = fixture(false);
     fixture.plans[0].target = "windows_x86_64".to_owned();

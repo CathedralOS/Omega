@@ -333,7 +333,9 @@ explicitly.
   telescope/signature/contract, authored selection custody, bounded reach,
   installed execution and era, and disclosed admissions. Neither equal reach,
   bodylessness, catalog presence, nor build policy may synthesize a requirement
-  or satisfier edge.
+  or satisfier edge. Package disclosure and payload-bearing external ABI-row
+  extraction are complete for the current nongeneric lane; selected invocation
+  must still replay the installed execution and era before this item closes.
 
 ## P8 — Final release gate
 

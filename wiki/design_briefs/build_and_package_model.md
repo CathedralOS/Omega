@@ -2526,6 +2526,15 @@ Disclosure of an unselected leaf still implies no selection or audit.
 Compiler-intrinsic execution remains closed pending catalog settlement, and
 canonical recovery remains v14.
 
+For a selected payload-bearing top-level external satisfier, provider planning
+extracts the foreign calling row from the same exact selected plan. The ABI
+join resolves one canonical top-level requirement and normalized overload; it
+does not reinterpret the row as a trait. The declaration's semantic `self`
+maps to the satisfier's first explicit carrier parameter and remains in the
+foreign signature. Missing, duplicate, mismatched, or fingerprint-spoofed
+custody rejects before publication. This closes executable-row extraction, not
+installed invocation or component-era replay.
+
 The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a
 trusted component rewriting typed state and checked facts; it is not a reason
