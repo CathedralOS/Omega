@@ -53,6 +53,15 @@ that buffer. It checks source, table, arena, fixup, and payload bounds before
 mutation. No output byte is written until every fixup and the complete payload
 extent have validated.
 
+The candidate front end's existing four-word syntax nodes retain the exact
+zero-based source start in the high bits of their tag word; the 4 MiB source
+ceiling and closed tags make that packing exact without reducing AST capacity.
+Its first source failure is sticky across the outer byte envelope, parsing,
+literal checking, type-name resolution, and typed subexpression traversal.
+This is coordinate custody for later absorption, not an oracle-owned diagnostic
+format: the final compiler maps it through its closed rejection taxonomy and
+publishes it only through the selected `GCOUT` profile.
+
 An emitted Gamma program uses this Alpha-memory profile:
 
 ```text
