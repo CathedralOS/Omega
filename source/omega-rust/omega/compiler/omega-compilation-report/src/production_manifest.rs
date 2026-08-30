@@ -6,7 +6,7 @@ use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V5\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V6\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -67,17 +67,27 @@ impl ProductionCompilationSubject {
             build_evaluation_usage.session_fuel_ceiling,
             build_evaluation_usage.session_build_log_byte_ceiling,
             build_evaluation_usage.session_filesystem_attempt_ceiling,
+            build_evaluation_usage.session_live_filesystem_handle_ceiling,
         ) {
-            (None, None, None, None) => {}
-            (Some(_), Some(0), Some(_), Some(_)) => {
+            (None, None, None, None, None) => {
+                if build_evaluation_usage.session_peak_live_filesystem_handles != 0 {
+                    return Err("production compilation subject has unsponsored live-handle usage");
+                }
+            }
+            (Some(_), Some(0), Some(_), Some(_), Some(_)) => {
                 return Err("production compilation subject has a zero session fuel ceiling");
             }
-            (Some(_), Some(_), Some(0), Some(_)) => {
+            (Some(_), Some(_), Some(0), Some(_), Some(_)) => {
                 return Err("production compilation subject has a zero session BuildLog ceiling");
             }
-            (Some(_), Some(_), Some(_), Some(0)) => {
+            (Some(_), Some(_), Some(_), Some(0), Some(_)) => {
                 return Err(
                     "production compilation subject has a zero session filesystem-attempt ceiling",
+                );
+            }
+            (Some(_), Some(_), Some(_), Some(_), Some(0)) => {
+                return Err(
+                    "production compilation subject has a zero live-filesystem-handle ceiling",
                 );
             }
             (
@@ -85,6 +95,7 @@ impl ProductionCompilationSubject {
                 Some(session_ceiling),
                 Some(build_log_ceiling),
                 Some(filesystem_attempt_ceiling),
+                Some(live_filesystem_handle_ceiling),
             ) => {
                 let consumed = build_evaluation_usage
                     .fuel_units
@@ -111,6 +122,13 @@ impl ProductionCompilationSubject {
                 if filesystem_attempts > filesystem_attempt_ceiling {
                     return Err(
                         "production compilation subject exceeded its session filesystem-attempt ceiling",
+                    );
+                }
+                if build_evaluation_usage.session_peak_live_filesystem_handles
+                    > live_filesystem_handle_ceiling
+                {
+                    return Err(
+                        "production compilation subject exceeded its live-filesystem-handle ceiling",
                     );
                 }
             }
@@ -297,20 +315,23 @@ fn canonical_manifest_bytes(
         usage.session_fuel_ceiling,
         usage.session_build_log_byte_ceiling,
         usage.session_filesystem_attempt_ceiling,
+        usage.session_live_filesystem_handle_ceiling,
     ) {
         (
             Some(schema),
             Some(fuel_ceiling),
             Some(build_log_ceiling),
             Some(filesystem_attempt_ceiling),
+            Some(live_filesystem_handle_ceiling),
         ) => {
             bytes.push(1);
             bytes.extend_from_slice(&schema.to_le_bytes());
             bytes.extend_from_slice(&fuel_ceiling.to_le_bytes());
             bytes.extend_from_slice(&build_log_ceiling.to_le_bytes());
             bytes.extend_from_slice(&filesystem_attempt_ceiling.to_le_bytes());
+            bytes.extend_from_slice(&live_filesystem_handle_ceiling.to_le_bytes());
         }
-        (None, None, None, None) => bytes.push(0),
+        (None, None, None, None, None) => bytes.push(0),
         _ => unreachable!("validated production subject has paired sponsor identity"),
     }
     bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
@@ -319,6 +340,7 @@ fn canonical_manifest_bytes(
     bytes.extend_from_slice(&usage.replay_build_log_bytes.to_le_bytes());
     bytes.extend_from_slice(&usage.filesystem_operation_attempts.to_le_bytes());
     bytes.extend_from_slice(&usage.replay_filesystem_operation_attempts.to_le_bytes());
+    bytes.extend_from_slice(&usage.session_peak_live_filesystem_handles.to_le_bytes());
     bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
     bytes.extend_from_slice(subject.build_observation_identity.as_bytes());
     bytes.push(target_profile_tag(subject.target_profile));

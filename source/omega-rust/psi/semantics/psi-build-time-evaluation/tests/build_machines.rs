@@ -346,9 +346,10 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         .checked_mul(2)
         .expect("small test evaluation");
     let sponsor = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(aggregate_ceiling, 1024, 1024).expect("nonzero limits"),
+        BuildEvaluationSponsorLimits::new(aggregate_ceiling, 1024, 1024, 64)
+            .expect("nonzero limits"),
     );
-    assert_eq!(sponsor.limits().schema_version(), 3);
+    assert_eq!(sponsor.limits().schema_version(), 4);
     assert_eq!(sponsor.limits().maximum_fuel_units(), aggregate_ceiling);
     let sponsor_clone = sponsor.clone();
 
@@ -404,7 +405,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
         filesystem_metadata_layout: Default::default(),
     };
     let sponsor = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(100_000, 1024, 1024).expect("nonzero limits"),
+        BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64).expect("nonzero limits"),
     );
 
     let evaluated = evaluate_build_machine_arguments_measured_with_sponsor(
@@ -422,7 +423,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
     );
 
     let exhausted = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(1, 1024, 1024).expect("nonzero limits"),
+        BuildEvaluationSponsorLimits::new(1, 1024, 1024, 64).expect("nonzero limits"),
     );
     let error = evaluate_build_machine_arguments_measured_with_sponsor(
         &prepared,

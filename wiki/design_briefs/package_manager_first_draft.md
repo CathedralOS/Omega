@@ -1784,18 +1784,24 @@ and open-but-unlinked objects under a 4,096-entry, 256-MiB-total, and
 256-MiB-per-object ceiling. Provider mutations reserve before touching the OS
 and commit after success; ceiling refusal is resource exhaustion. Neither
 per-package limits nor path-summing bound the actual resource.
-A distinct version-3 evaluation sponsor now accounts deterministic evaluator
-work, compiler-owned BuildLog bytes, and filesystem operation attempts across
-that same closure. The compiler
-policy grants 100,000,000 total fuel units, 16 MiB of BuildLog output, and
-65,536 canonical filesystem operation attempts,
+A distinct version-4 evaluation sponsor now accounts deterministic evaluator
+work, compiler-owned BuildLog bytes, filesystem operation attempts, and
+concurrently live compiler-owned filesystem resources across that same
+closure. The compiler policy grants 100,000,000 total fuel units, 16 MiB of
+BuildLog output, 65,536 canonical filesystem operation attempts, and 4,096
+live filesystem handles,
 preserves the 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings for initial evaluation and automatic replay, and
 prevents dependencies or the ambient interpreter development override from
 raising package-policy limits. Usage receipt v4 binds those limits and
-separates initial from replay fuel, BuildLog, and filesystem-attempt charges;
-successful closure review requires exact reconciliation with the shared
-sponsor. This is not a CPU-time or process-memory claim.
+separates initial from replay fuel, BuildLog, and filesystem-attempt charges,
+and retains the shared session's peak live-handle count. Owned handle outputs
+reserve before provider entry; provider failure, successful close, and
+evaluator teardown release through compiler ownership. Borrowed native views
+do not consume a second resource slot. Successful closure review requires
+exact cumulative-charge and peak reconciliation with the shared sponsor and
+zero live reservations at completion. This is not a CPU-time, process-memory,
+or process-wide descriptor-table claim.
 
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable

@@ -19,6 +19,9 @@ const PACKAGE_REVIEW_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
 /// Aggregate canonical filesystem operation attempts across initial evaluation
 /// and replay for the complete package closure.
 const PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
+/// Compiler-owned filesystem resources live concurrently across the package
+/// closure. This does not count unrelated host-process descriptors.
+const PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING: u64 = 4_096;
 
 #[derive(Debug)]
 pub(super) struct ReviewBuildSession {
@@ -87,6 +90,7 @@ impl ReviewBuildSession {
                         PACKAGE_REVIEW_BUILD_FUEL_CEILING,
                         PACKAGE_REVIEW_BUILD_LOG_CEILING,
                         PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING,
+                        PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING,
                     )
                     .expect("package-review build ceilings are nonzero");
                     return Ok(Self {

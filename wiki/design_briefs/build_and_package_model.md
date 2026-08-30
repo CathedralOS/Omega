@@ -1639,16 +1639,20 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
-The same disposable review session now owns a separate version-3 deterministic
-evaluation sponsor across the closure: 100,000,000 total evaluator fuel units
-16 MiB of compiler-owned BuildLog bytes, and 65,536 canonical filesystem
-operation attempts,
+The same disposable review session now owns a separate version-4 deterministic
+evaluation sponsor across the closure: 100,000,000 total evaluator fuel units,
+16 MiB of compiler-owned BuildLog bytes, 65,536 canonical filesystem operation
+attempts, and 4,096 concurrently live compiler-owned filesystem resources,
 with the ordinary 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings retained for initial evaluation and replay. Usage
-receipt v4 binds the fuel, BuildLog, and filesystem-attempt ceilings and records
-initial and replay charges separately; the compiler rejects a successful
-closure whose retained charges do not exactly reconcile with the shared
-sponsor. This closes
+receipt v4 binds the fuel, BuildLog, filesystem-attempt, and live-handle
+ceilings, records initial and replay cumulative charges separately, and retains
+the shared session's peak live-handle count. Owned outputs reserve before a
+provider is entered; provider failure, successful close, and evaluator teardown
+release through compiler ownership, while a borrowed native view does not mint
+a second resource. The compiler rejects a successful closure whose retained
+charges and peak do not reconcile with the shared sponsor or whose session
+finishes with a live reservation. This closes
 dependency self-budgeting and closure amplification for deterministic work. It
 does not bound process CPU or memory.
 These summary fields are compiler-issued execution evidence kept outside

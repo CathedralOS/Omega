@@ -293,5 +293,24 @@ fn compile_resolved_package_reviews_in_session(
             },
         );
     }
+    let reported_live_filesystem_handle_peak = Some(
+        reviews
+            .iter()
+            .filter_map(|review| review.build_evaluation_usage())
+            .map(|usage| usage.session_peak_live_filesystem_handles)
+            .max()
+            .unwrap_or(0),
+    );
+    let sponsored_live = evaluation_sponsor.live_filesystem_handles();
+    let sponsored_peak = evaluation_sponsor.peak_live_filesystem_handles();
+    if reported_live_filesystem_handle_peak != Some(sponsored_peak) || sponsored_live != 0 {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildLiveFilesystemHandleAccountingMismatch {
+                reported_peak: reported_live_filesystem_handle_peak,
+                sponsored_peak,
+                sponsored_live,
+            },
+        );
+    }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }

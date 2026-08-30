@@ -32,6 +32,11 @@ pub enum CompileResolvedPackageReviewsError {
         reported: Option<u64>,
         sponsored: u64,
     },
+    BuildLiveFilesystemHandleAccountingMismatch {
+        reported_peak: Option<u64>,
+        sponsored_peak: u64,
+        sponsored_live: u64,
+    },
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
@@ -114,6 +119,14 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             } => write!(
                 formatter,
                 "package-review filesystem-attempt usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
+            ),
+            Self::BuildLiveFilesystemHandleAccountingMismatch {
+                reported_peak,
+                sponsored_peak,
+                sponsored_live,
+            } => write!(
+                formatter,
+                "package-review live-filesystem-handle usage did not reconcile with its shared evaluator sponsor (reported peak {reported_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
             ),
             Self::BuildStagingCleanup { path, error, prior } => {
                 write!(
