@@ -1574,6 +1574,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
       body-boundary coverage remains 56 of 73. The three remaining body-
       reaching roots need grouped/multiplicative or unary expressions; none
       remains blocked on a closure-specific pattern rewrite.
+    - [x] Replace the assignment/call additive scalar lane with the existing
+      bounded precedence frame as the single expression reducer for assignment
+      values, local initializers, ordinary call arguments, and transition
+      subjects. It retains canonical `||`, `&&`, equality, comparison,
+      additive, and multiplicative precedence; parenthesized groups record and
+      rewind explicit value/operator bases without inventing a syntax node.
+      Completed grouped primaries may enter the shared cast/type engine before
+      returning to the same postfix tail. Each binary row still owns one
+      expression row, while the three 128-entry group ledgers share the
+      existing `ExpressionDepth` resource. This completes
+      `Lexer::{decode_at,lex_cooked_string}`, raising completed current `C`
+      roots from fifty-three to fifty-five while body-boundary coverage remains
+      56 of 73. `Lexer::lex_number` is the sole remaining body-reaching
+      incomplete root and stops at unary `!`.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and

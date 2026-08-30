@@ -111,18 +111,21 @@ self-member paths, qualified-name paths, booleans, unsuffixed nonnegative
 decimal integer literals, or strings. Integer
 spelling is retained by source span and is not evaluated during parsing;
 strings retain the exact token span and scanner-proven decoded byte length
-without a decoded-byte mirror. Assignment values may combine those retained
-primaries and shallow struct literals through a left-associated `+`/`-` chain;
-every operator materializes a source-ordered binary node without evaluation or
-type guessing. Shallow struct literals accept an exact one-
-member record or two-member case type path and a comma-separated named field
-list with an optional trailing comma. Canonical adjacent fields without commas,
-nested struct literals, and richer field expressions remain incomplete until a
-bounded expression-frame design exists. The implicit entry state and every
+without a decoded-byte mirror. Assignment values, local initializers, ordinary
+call arguments, and transition subjects share one bounded precedence reducer
+over `||`, `&&`, equality, comparison, `+`, `-`, and `*`. Every operator
+materializes a source-ordered binary node without evaluation or type guessing.
+Parentheses delimit reduction frames and preserve their exact transient source
+extent without manufacturing a group syntax node. Shallow struct literals
+accept an exact one-member record or two-member case type path and a comma-
+separated named field list with an optional trailing comma. Canonical adjacent
+fields without commas, nested struct literals, and richer field expressions
+remain incomplete until the shared postfix and field-expression paths admit
+them. The implicit entry state and every
 authored `state` own independent parameter, return-type, and contiguous mixed-
 statement spans. A retained transition has either no subject or one precedence-
 correct subject over path, boolean, and unsuffixed nonnegative decimal integer
-primaries with additive, comparison, `&&`, and `||` operators, and expands each
+primaries, and expands each
 boolean, integer, or wildcard arm into an ordinary statement targeting one
 named state. Arms also retain bare name paths and qualified two-member case
 paths with optional braces. Braced case patterns own a contiguous field ledger
@@ -142,19 +145,20 @@ incomplete, and no body is skipped as opaque text.
 Local-data statements retain canonical `let [mut] name: Type [= expression];`
 syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
 immutable local named `mut`. Locals share the borrow-capable type engine and the
-same left-associated path/Boolean/decimal-integer/string/shallow-struct `+`/`-`
-expression path as assignments, including one path-indexed expression with a
-path index; absent initializers are represented by an explicit presence bit
-rather than a valid-looking handle. Ordinary call
+same bounded expression reducer as assignments, including one path-indexed
+expression with a path index; absent initializers are represented by an explicit
+presence bit rather than a valid-looking handle. Ordinary call
 initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
-reuse the same left-associated `+`/`-` engine as assignments and locals.
+reuse the same reducer.
 Path-valued casts reuse the same expression and type engines in assignments,
 locals, ordinary call arguments, and transition-target arguments. They retain
 the value and target-type handles, exact cast span, and an optional single-name
-`in Domain` suffix; richer postfix values, recasts, domain arguments, unary,
-grouped, nested/chained indexing, and other richer initializers remain
+`in Domain` suffix. Ordinary assignment, local, and call-argument casts may
+also wrap a completed grouped primary and then continue through the shared
+binary tail. Richer postfix values, recasts, domain arguments, unary,
+nested/chained indexing, and other richer initializers remain
 implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
@@ -178,7 +182,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 56 headers reach body parsing. Fifty-three are complete: four
+representable, and 56 headers reach body parsing. Fifty-five are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -207,7 +211,8 @@ initializers completes `Lexer::span_equals`; the three Parser roots that use the
 same form advance to qualified token-pattern guards. Retaining qualified case
 paths, shorthand bindings, and fixed path matches then completes `Main::main`,
 `Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse_roots}`. The
-three other reached bodies stop at grouped/multiplicative expressions or a
+shared grouping and multiplicative reducer then completes
+`Lexer::{decode_at,lex_cooked_string}`. The only other reached body stops at a
 unary expression.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -244,8 +249,8 @@ cast-expression/assignment/local-data/transition/expression/binary-expression/
 indexed-expression/
 argument/transition-pattern-field/static-machine-
 argument/struct-literal/struct-field rows,
-plus 128 scratch
-type-array frames and 128 transition-expression values/operators.
+plus 128 scratch type-array frames and 128 expression values, operators, and
+group boundaries.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting
