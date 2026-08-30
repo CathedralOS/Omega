@@ -947,6 +947,22 @@ tag-30 `get_osfhandle` is excluded because its modeled post-error is `0`.
 This is compiler evaluator sequencing, not custody of host thread-local state,
 descriptors, credentials, or operating-system policy.
 
+Summary v70 and replay-record v50 extend the same immediate tag-50 `errno`
+receipt to every already-admitted exact unknown-descriptor failure whose
+modeled post-error is `9`: seek; `open_at` and `unlink_at`; directory reads;
+scalar write operations; file-time mutation; sequential and positioned reads
+and writes; and descriptor metadata reads, in addition to the operand-free
+family. The failure row retains its existing exact authored operands,
+unchanged mutable carriers, scoped-real provider, scalar `-1`, and sole
+`Descriptor/Unknown` input. The immediate `errno` row remains operand-free,
+scoped-real, scalar `9`, post-error `9`, and empty in every evidence and
+handoff lane. Tag-30 `get_osfhandle` remains excluded because it does not
+establish modeled error `9`; native-handle failures remain in the separate
+error-`6` grammar. Standalone, delayed, reordered, or altered reads remain
+non-receipted. This binds compiler-evaluator sequencing only; it claims no
+custody of host thread-local state, descriptors, credentials, or
+operating-system policy.
+
 Summary v64 and replay-record v44 generalize the failure-only Output sequence
 to exact absent tag-9 `remove` and tag-12 `remove_dir` attempts. Every row binds
 the selected operation, canonical compiler-rooted Output path, matching write

@@ -154,3 +154,27 @@ pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
         || unlink_at_failures::unknown_descriptor_unlink_at_attempt_is_exact(attempt)
         || native_mutation_failures::unknown_native_handle_mutation_attempt_is_exact(attempt)
 }
+
+pub(crate) fn unknown_descriptor_bad_descriptor_failure_attempt_is_exact(
+    attempt: &crate::FilesystemOperationAttempt,
+) -> bool {
+    unknown_input_handle_failure_attempt_is_exact(attempt)
+        && matches!(
+            attempt,
+            crate::FilesystemOperationAttempt {
+                outcome: Some(crate::FilesystemOperationAttemptOutcome::Returned {
+                    post_error: 9,
+                    ..
+                }),
+                logical_handle_inputs,
+                ..
+            } if matches!(
+                logical_handle_inputs.as_slice(),
+                [crate::FilesystemLogicalHandleInput {
+                    kind: crate::FilesystemLogicalHandleKind::Descriptor,
+                    resolution: crate::FilesystemLogicalHandleInputResolution::Unknown,
+                    ..
+                }]
+            )
+        )
+}

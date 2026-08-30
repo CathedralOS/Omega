@@ -5,11 +5,22 @@ use super::{
         errno_after_bad_descriptor_attempt, errno_after_bad_descriptor_attempt_is_exact,
     },
     handle_failure_tests::{KINDS_AND_TAGS, source_input},
-    handle_failures::unknown_descriptor_operation_attempt,
+    handle_failures::{
+        unknown_descriptor_get_osfhandle_attempt, unknown_descriptor_operation_attempt,
+        unknown_descriptor_read_attempt, unknown_descriptor_read_file_metadata_attempt,
+        unknown_descriptor_seek_attempt, unknown_descriptor_set_file_times_attempt,
+        unknown_descriptor_write_attempt, unknown_descriptor_write_operation_attempt,
+        unknown_native_handle_close_handle_attempt,
+    },
+    open_at_failures::unknown_descriptor_open_at_attempt,
+    read_dir_failures::unknown_descriptor_read_dir_attempt,
+    unlink_at_failures::unknown_descriptor_unlink_at_attempt,
 };
 use crate::{
-    EvaluationObservations, FilesystemObservationProvider, FilesystemOperationAttemptOutcome,
-    FilesystemOperationResult, FilesystemReplay,
+    EvaluationObservations, FilesystemInputUnknownDescriptorReadReplayKind,
+    FilesystemInputUnknownDescriptorWriteOperationReplayKind,
+    FilesystemInputUnknownDescriptorWriteReplayKind, FilesystemObservationProvider,
+    FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemReplay,
 };
 
 #[test]
@@ -97,6 +108,59 @@ fn ordered_errno_pair_rejects_standalone_reordered_and_drifting_reads() {
         post_error: 0,
     });
     assert_rejected(vec![operation, changed]);
+}
+
+#[test]
+fn generic_errno_observations_cover_every_existing_ebadf_descriptor_shape() {
+    let failures = vec![
+        unknown_descriptor_operation_attempt(KINDS_AND_TAGS[0].0),
+        unknown_descriptor_seek_attempt(-47, 2),
+        unknown_descriptor_open_at_attempt(b"child.omg".to_vec(), 0),
+        unknown_descriptor_unlink_at_attempt(b"child.omg".to_vec(), 0),
+        unknown_descriptor_read_dir_attempt(8, vec![3; 8], 11),
+        unknown_descriptor_write_operation_attempt(
+            FilesystemInputUnknownDescriptorWriteOperationReplayKind::SetLength { length: 37 },
+        ),
+        unknown_descriptor_set_file_times_attempt(vec![5; 32]),
+        unknown_descriptor_read_attempt(
+            FilesystemInputUnknownDescriptorReadReplayKind::Sequential { count: 8 },
+            vec![7; 8],
+        ),
+        unknown_descriptor_write_attempt(
+            FilesystemInputUnknownDescriptorWriteReplayKind::Sequential,
+            vec![11; 13],
+        ),
+        unknown_descriptor_read_file_metadata_attempt(vec![17; 144]),
+    ];
+
+    for failure in failures {
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            vec![failure, errno_after_bad_descriptor_attempt()],
+            Vec::new(),
+        );
+        let replay =
+            FilesystemReplay::from_input_unknown_descriptor_failure_with_errno_observations(
+                &observations,
+            )
+            .expect("every existing exact EBADF descriptor shape admits immediate errno");
+        assert_eq!(replay.attempts().last().unwrap().operation_tag(), 50);
+    }
+
+    for excluded in [
+        unknown_descriptor_get_osfhandle_attempt(),
+        unknown_native_handle_close_handle_attempt(),
+    ] {
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            vec![excluded, errno_after_bad_descriptor_attempt()],
+            Vec::new(),
+        );
+        assert!(
+            FilesystemReplay::from_input_unknown_descriptor_failure_with_errno_observations(
+                &observations,
+            )
+            .is_err()
+        );
+    }
 }
 
 fn assert_rejected(attempts: Vec<crate::FilesystemOperationAttempt>) {
