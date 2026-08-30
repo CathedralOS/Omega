@@ -10,23 +10,26 @@ delta_compiler.gamma → delta_compiler_bytecode.tape
 The source now exists as an incomplete implementation. Its retained milestones
 own the exact D17 rejection/outcome sums, complete lexical phase, native syntax
 representation, allocation-free syntax-token scanner, and complete type and
-expression parser. It validates every source byte before scanning all tokens
-and literals, returns the exact lexical reason and packed offset, and retains no
-host-generated token ledger. Syntax nodes are recursive Gamma values with exact
-source spans rather than byte-rope records or numeric arena references. The
-scanner rescans one token at a time only after the complete lexical phase
-succeeds. Its token start, code, end, and literal value are immediate `Int`
-results: lookahead may repeat bounded scanning work, but it authors no transient
-token objects into the generated program's fixed immutable heap. Parser success
-wrappers contain only their native AST value and no duplicated cursor or span.
-This implementation type-checks through the current Gamma frontend gate.
+expression parser plus transition-pattern/control parser. It validates every
+source byte before scanning all tokens and literals, returns the exact lexical
+reason and packed offset, and retains no host-generated token ledger. Syntax
+nodes are recursive Gamma values with exact source spans rather than byte-rope
+records or numeric arena references. The scanner rescans one token at a time
+only after the complete lexical phase succeeds. Its token start, code, end, and
+literal value are immediate `Int` results: lookahead may repeat bounded scanning
+work, but it authors no transient token objects into the generated program's
+fixed immutable heap. The ambiguous arm-level `return expression?` uses the
+same scalar lookahead to recognize a complete following `pattern ->` prefix.
+Parser success wrappers contain only their native AST value and no duplicated
+cursor or span. This implementation type-checks through the current Gamma
+frontend gate.
 
 It deliberately has no `main`, emitted placeholder, or canonical tape. The
 native values can represent every D17 grammar form, and types and expressions
-parse, but program/declaration/body/control parsing, whole-closure collection,
-type/control checking, direct Alpha lowering, and final publication remain
-implementation gaps. The existing source is therefore not yet a compiler edge
-and no validation may describe it as one.
+plus transitions parse, but program/declaration/body parsing, whole-closure
+collection, type/control checking, direct Alpha lowering, and final publication
+remain implementation gaps. The existing source is therefore not yet a
+compiler edge and no validation may describe it as one.
 
 The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
 restricted Delta-written native compiler prototype are deleted rather than

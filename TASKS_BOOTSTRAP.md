@@ -636,8 +636,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
     success wrappers retain only the native AST value and are reused across
     no-op postfix/binary stages; a trivial integer expression authors 112 heap
     bytes rather than the rejected token-object design's roughly 528. Program,
-    declaration, body, pattern, and control-form parsing remain the next
-    implementation milestone.
+    declaration, and body parsing remain later implementation milestones.
+  - [x] Implement D17 transition syntax: integer, Boolean, wildcard, and
+    qualified-case patterns; optional source-order binders; postfix and
+    `return expression?` continuations; nonempty source-order arm lists; and
+    complete transition delimiters. The ambiguous expressionless arm return
+    uses allocation-free scalar lookahead for a complete following
+    `pattern ->` prefix rather than retaining tokens or resolving names.
+    Pattern magnitude `2147483648`, trailing binder commas, missing arrows,
+    empty arm sets, and incomplete delimiters fail at their exact source
+    coordinate. Duplicate-pattern and sum-exhaustiveness decisions remain in
+    the later body/control checker, not syntax.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
