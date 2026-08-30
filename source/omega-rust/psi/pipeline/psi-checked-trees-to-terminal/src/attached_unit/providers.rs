@@ -16,7 +16,8 @@ pub(super) fn checked_unit_provider_candidates(
                 .flat_map(|plan| &plan.operations)
         })
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
                 Some(*target_machine)
             }
             _ => None,

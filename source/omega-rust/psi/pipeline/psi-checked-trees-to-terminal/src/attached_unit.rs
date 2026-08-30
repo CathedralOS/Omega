@@ -38,6 +38,55 @@ pub(super) use parameters::{
 };
 use providers::checked_unit_provider_candidates;
 
+fn retain_exact_checked_flow_call(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    coordinate: psi_checked_trees::CheckedUnitCallCoordinate,
+    target: psi_symbols::SymbolHandle,
+) -> Result<(), LoweringError> {
+    let mut states = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter_map(|(_, state)| {
+            (state.machine_symbol == machine.machine && state.state_symbol == machine.state)
+                .then_some(state)
+        });
+    let Some(state) = states.next() else {
+        return unsupported("Unit scalar call is missing its original checked flow state");
+    };
+    if states.next().is_some() {
+        return unsupported("Unit scalar call has duplicate original checked flow states");
+    }
+    let statement_index = usize::try_from(coordinate.statement_index).map_err(|_| {
+        LoweringError::Unsupported("Unit scalar call statement coordinate exceeds usize")
+    })?;
+    let call_ordinal = usize::try_from(coordinate.call_ordinal).map_err(|_| {
+        LoweringError::Unsupported("Unit scalar call ordinal coordinate exceeds usize")
+    })?;
+    let exact_calls = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == statement_index
+                && call.call_ordinal == call_ordinal
+                && call.target_symbol == target
+        })
+        .count();
+    if exact_calls != 1 {
+        return unsupported(
+            "Unit scalar call coordinate and target do not rejoin its original checked flow call",
+        );
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn retain_exact_unit_boundary<'plans>(
     checked: &CheckedTrees,
@@ -210,6 +259,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate,
                     target_machine,
                     target_state,
                     target_contract_report_fingerprint,
@@ -217,6 +267,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     result,
                     ..
                 } => {
+                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_machine)?;
                     retain_exact_unit_boundary(
                         checked,
                         plans,
@@ -508,9 +559,10 @@ pub(super) fn lower_attached_unit_closure_including(
                 .operations
                 .iter()
                 .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                        Some(*target_machine)
-                    }
+                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        target_machine, ..
+                    } => Some(*target_machine),
                     _ => None,
                 })
                 .collect::<Vec<_>>();

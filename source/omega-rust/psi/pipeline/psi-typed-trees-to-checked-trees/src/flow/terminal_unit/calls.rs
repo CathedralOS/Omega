@@ -605,21 +605,38 @@ pub(super) fn build_call_operation(
     }
 }
 
-fn provider_attachment_receiver_matches(
+pub(super) fn provider_attachment_receiver_matches(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     call_site: &crate::CallSite<'_>,
     provider_symbol: SymbolHandle,
 ) -> bool {
-    let crate::CallSite::Statement(call) = call_site else {
-        return false;
+    let (field_name, selected_field) = match call_site {
+        crate::CallSite::Statement(call) => {
+            let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
+            else {
+                return false;
+            };
+            if self_name.as_str() != "self" {
+                return false;
+            }
+            (field_name.clone(), None)
+        }
+        crate::CallSite::Expression { call, .. } => {
+            let (_, Some(receiver)) = crate::lookup::call_receiver_parts(program, call.receiver)
+            else {
+                return false;
+            };
+            let [self_name, field_name] = receiver.members() else {
+                return false;
+            };
+            if self_name.as_str() != "self" {
+                return false;
+            }
+            (field_name.clone(), Some(receiver.member_symbol(1)))
+        }
+        crate::CallSite::TransitionNamed { .. } => return false,
     };
-    let [self_name, field_name] = program.statement_table.name_path_members(call.receiver) else {
-        return false;
-    };
-    if self_name.as_str() != "self" {
-        return false;
-    }
     let Some(attached_name) = machine.attached_data.as_ref() else {
         return false;
     };
@@ -634,7 +651,10 @@ fn provider_attachment_receiver_matches(
         let DataMember::Field(field) = member else {
             return false;
         };
-        if field.name != *field_name || field.relevance.is_erased() {
+        if field.name != field_name
+            || field.relevance.is_erased()
+            || selected_field.is_some_and(|symbol| symbol != field.symbol)
+        {
             return false;
         }
         matches!(
