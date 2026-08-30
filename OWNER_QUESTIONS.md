@@ -284,3 +284,53 @@ ordinary Gamma syntax.
 - Tempting but wrong: hardwire the general Gamma compiler to the Delta customer,
   use an ambient host flag absent from the reconstructed edge, or let a script
   rewrite the emitted tape afterward.
+
+## Q6 — Freeze Gamma declaration identity and lexical scope
+
+### Context
+
+D16 fixes Gamma's grammar, mutual declaration visibility, static type checks,
+and evaluation order. It does not say whether type, constructor, function,
+parameter, or pattern-binder names must be unique. It also does not define the
+scope of `let` and pattern bindings or whether those bindings may shadow an
+outer binding.
+
+The temporary type checker currently resolves the first matching global row and
+the last matching local row. It therefore accepts duplicate globals and binders
+with accidental first-wins or last-wins behavior. The untyped interpreter has a
+positive `let`-shadowing example, but D16 explicitly classifies that executable
+as an oracle rather than a language authority.
+
+### Problem statement
+
+Choose the declaration-identity and lexical-scope rules required for one
+deterministic Gamma resolver. Without them, two conforming compilers can assign
+different meaning to the same accepted source. This blocks the resolver/type
+checker portion of the Beta-written compiler, not lexical validation, strict
+grammar parsing, target ABI work, or profile-independent emission machinery.
+
+### Proposed direction
+
+Require user type names, constructor names, and function names to be unique in
+their respective namespaces. Require parameter names to be unique within one
+function and constructor-pattern binders to be unique within one pattern;
+duplicate binders reject rather than assert an equality constraint.
+
+Evaluate a `let` initializer in the outer environment, then bind its name only
+within the body. Let and match-arm bindings may shadow outer parameters, lets,
+or pattern bindings. Catch-all and constructor-pattern bindings scope only over
+their arm, and bindings in different arms are independent. Keep type and
+constructor namespaces separate, so one spelling may deliberately name both a
+type and its constructor. `Int`, `Bytes`, keywords, and the closed `bytes_*`
+built-ins remain reserved as already required by D16.
+
+### Alternates
+
+- Acceptable: forbid all lexical shadowing, provided the rule is uniform and
+  every resolver rejects it rather than selecting an accidental table row.
+- Acceptable: merge the type and constructor namespaces, provided D16 states
+  that change explicitly and existing source/gates are updated together.
+- Tempting but wrong: preserve the temporary checker's first-global/last-local
+  lookup as semantics merely because it currently accepts focused examples.
+- Tempting but wrong: allow duplicate pattern binders to imply equality without
+  adding an explicit pattern rule and executable comparison semantics.
