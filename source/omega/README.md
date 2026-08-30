@@ -45,7 +45,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns the final exact Alpha tape encoder and no invented invocation boundary. | Extend in place as `D`; replace an encoder component only atomically with an equally complete final Delta implementation. |
+| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns the final exact Alpha tape encoder, structural replay before sealing, and no invented invocation boundary. | Extend in place as `D`; replace an encoder component only atomically with an equally complete final Delta implementation. |
 
 The four empty target declarations in `build.omg` are temporary compatibility
 scaffolding, not product architecture. Delete them as soon as immutable target

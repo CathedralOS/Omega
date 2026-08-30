@@ -857,11 +857,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
     complete closed opcode-shape table, paired-`i32` representation of arbitrary
     64-bit immediates, instruction-atomic capacity checks, bounded address
-    fixups, and the exact four-byte descriptive length prefix. It deliberately
-    has no `Main`, source protocol, package lookup, publication, or placeholder
-    compiler result while Q7 is open. Final lowering must replay the finished
-    payload structurally before publication; the raw reserved-write helpers are
-    internal construction primitives, not a second artifact interface.
+    fixups, and the exact four-byte descriptive length prefix. Sealing clears
+    and reconstructs the complete instruction-start partition, rejects unknown
+    or truncated instructions, and requires every direct target to land on a
+    reconstructed start before committing the prefix. Because Delta has no
+    private visibility, even the reserved-write helpers independently enforce
+    open state, byte range, and whole-write capacity rather than relying on a
+    prose-only caller precondition. `D` deliberately has no `Main`, source
+    protocol, package lookup, publication, or placeholder compiler result while
+    Q7 is open.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
