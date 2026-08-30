@@ -531,6 +531,7 @@ data OmegaExpressionKind {
     case Call;
     case Cast;
     case Unary;
+    case Membership;
 }
 
 data OmegaBinaryOperatorKind {
@@ -637,8 +638,10 @@ data OmegaStructLiteralSyntax {
 // authored span. Integer payload0/payload1 retain its authored span; this first
 // numeric slice admits only unsuffixed nonnegative decimal spelling. String
 // payload0/payload1 retain the authored token span and payload2 its decoded
-// byte length. StructLiteral, Binary, Indexed, Range, Call, Cast, and Unary
-// payload0 select their dedicated rows.
+// byte length. Membership uses payload0 for the value expression, payload1/
+// payload2 for the domain path-member span, and payload3/payload4 for the exact
+// contextual `in` span. StructLiteral, Binary, Indexed, Range, Call, Cast, and
+// Unary payload0 select their dedicated rows.
 // Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
     kind: OmegaExpressionKind;
@@ -765,6 +768,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedCastType;
     case ExpectedCastDomain;
     case ExpectedCastEnd;
+    case ExpectedMembershipDomain;
+    case ExpectedMembershipEnd;
     case ExpectedDataFieldEnd;
 }
 
@@ -1038,6 +1043,7 @@ data OmegaParser {
     expression_pending_precedence: i32;
     expression_pending_operator_start: i32;
     expression_pending_operator_end: i32;
+    membership_domain_active: i32;
     status: OmegaParserStatus;
     diagnostic_code: OmegaParseDiagnosticCode;
     diagnostic_start: i32;
@@ -3404,6 +3410,7 @@ machine OmegaParser::parse_view(
     self.expression_pending_precedence = 0;
     self.expression_pending_operator_start = 0;
     self.expression_pending_operator_end = 0;
+    self.membership_domain_active = 0;
     self.status = OmegaParserStatus::Parsing;
     self.diagnostic_code = OmegaParseDiagnosticCode::None;
     self.diagnostic_start = 0;
@@ -3615,6 +3622,8 @@ machine OmegaParser::parse_view(
             98 -> termination_view_tail_token()
             99 -> termination_view_member_token()
             100 -> indexed_range_end_token()
+            101 -> membership_domain_token()
+            102 -> membership_domain_tail_token()
             _ -> internal_failure()
         }
     }
@@ -4073,6 +4082,12 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            101 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMembershipDomain,
+                source.len,
+                source.len
+            )
+            102 -> retain_membership_expression(1)
             _ -> internal_failure()
         }
     }
@@ -6144,6 +6159,26 @@ machine OmegaParser::parse_view(
     }
 
     state framed_expression_tail() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> framed_expression_tail_punctuation()
+            OmegaTokenKind::Identifier -> framed_expression_tail_identifier()
+            _ -> incomplete_root()
+        }
+    }
+
+    state framed_expression_tail_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "in"
+        ) {
+            1 -> select_expression_membership()
+            _ -> incomplete_root()
+        }
+    }
+
+    state framed_expression_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBrace -> finish_left_brace_expression()
             OmegaPunctuationKind::Plus -> select_expression_add()
@@ -6232,7 +6267,65 @@ machine OmegaParser::parse_view(
         }
     }
 
-    // Membership remains reserved between comparison and bitwise OR.
+    state select_expression_membership() {
+        self.expression_pending_precedence = 4;
+        self.expression_pending_operator_start = self.scan.token_start;
+        self.expression_pending_operator_end = self.scan.token_end;
+        transition true { true -> reduce_expression_for_membership() }
+    }
+
+    state reduce_expression_for_membership() {
+        transition self.expression_group_count > 0 {
+            true -> reduce_group_expression_for_membership()
+            _ -> reduce_root_expression_for_membership()
+        }
+    }
+
+    state reduce_group_expression_for_membership() {
+        transition self.expression_frame_operator_count >
+            self.expression_group_operator_bases[
+                self.expression_group_count - 1
+            ] {
+            true -> compare_expression_membership_precedence()
+            _ -> begin_membership_domain()
+        }
+    }
+
+    state reduce_root_expression_for_membership() {
+        transition self.expression_frame_operator_count > 0 {
+            true -> compare_expression_membership_precedence()
+            _ -> begin_membership_domain()
+        }
+    }
+
+    state compare_expression_membership_precedence() {
+        transition self.expression_frame_precedences[
+            self.expression_frame_operator_count - 1
+        ] >= self.expression_pending_precedence {
+            true -> retain_binary_expression(3)
+            _ -> begin_membership_domain()
+        }
+    }
+
+    state begin_membership_domain() {
+        transition (self.expression_frame_value_count > 0) &&
+            (self.membership_domain_active == 0) {
+            true -> begin_membership_domain_bounded()
+            _ -> internal_failure()
+        }
+    }
+
+    state begin_membership_domain_bounded() {
+        self.argument_first_path_member = self.member_count;
+        self.argument_path_member_count = 0;
+        self.argument_starts_at_self = 0;
+        self.argument_name_member_count = 1;
+        self.argument_path_kind = OmegaPathExpressionKind::Name;
+        self.membership_domain_active = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(101) }
+    }
+
     state select_expression_add() {
         transition true {
             true -> select_expression_operator(OmegaBinaryOperatorKind::Add, 9)
@@ -6614,7 +6707,156 @@ machine OmegaParser::parse_view(
         transition continuation {
             0 -> reduce_expression_for_pending()
             1 -> finish_framed_expression()
-            _ -> finish_group_expression()
+            2 -> finish_group_expression()
+            _ -> reduce_expression_for_membership()
+        }
+    }
+
+    state membership_domain_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_path_expression_member()
+            OmegaTokenKind::Keyword -> membership_domain_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMembershipDomain,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state membership_domain_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMembershipDomain,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMembershipDomain,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_path_expression_member()
+        }
+    }
+
+    state membership_domain_tail_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> membership_domain_tail_punctuation()
+            _ -> retain_membership_expression(0)
+        }
+    }
+
+    state membership_domain_tail_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::ColonColon -> next_membership_domain_member()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::Pipe -> incomplete_root()
+            _ -> retain_membership_expression(0)
+        }
+    }
+
+    state next_membership_domain_member() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(101) }
+    }
+
+    state retain_membership_expression(continuation: i32) {
+        transition (self.membership_domain_active == 1) &&
+            (self.argument_path_member_count > 0) &&
+            (self.expression_frame_value_count > 0) &&
+            (self.expression_count < 16384) {
+            true -> retain_membership_expression_bounded(continuation)
+            _ -> membership_expression_failure()
+        }
+    }
+
+    state membership_expression_failure() {
+        transition self.expression_count < 16384 {
+            true -> internal_failure()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+        }
+    }
+
+    state retain_membership_expression_bounded(continuation: i32) {
+        self.expressions[self.expression_count].kind =
+            OmegaExpressionKind::Membership;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 =
+            self.expression_frame_values[self.expression_frame_value_count - 1];
+        self.expressions[self.expression_count].payload1 =
+            self.argument_first_path_member;
+        self.expressions[self.expression_count].payload2 =
+            self.argument_path_member_count;
+        self.expressions[self.expression_count].payload3 =
+            self.expression_pending_operator_start;
+        self.expressions[self.expression_count].payload4 =
+            self.expression_pending_operator_end;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.expression_frame_values[self.expression_frame_value_count - 1] =
+            self.expression_count;
+        self.expression_frame_value_ends[self.expression_frame_value_count - 1] =
+            self.members[self.member_count - 1].end;
+        self.expression_count = self.expression_count + 1;
+        self.membership_domain_active = 0;
+        transition continuation {
+            0 -> membership_expression_tail()
+            _ -> primary_expression_end_at_view_end()
+        }
+    }
+
+    state membership_expression_tail() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation ->
+                membership_expression_tail_punctuation()
+            OmegaTokenKind::Identifier -> membership_expression_tail_identifier()
+            _ -> membership_expression_end_failure()
+        }
+    }
+
+    state membership_expression_tail_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "in"
+        ) {
+            1 -> select_expression_membership()
+            _ -> membership_expression_end_failure()
+        }
+    }
+
+    state membership_expression_tail_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> finish_left_brace_expression()
+            OmegaPunctuationKind::Semicolon -> finish_semicolon_expression()
+            OmegaPunctuationKind::Comma -> finish_comma_expression()
+            OmegaPunctuationKind::RightParen -> expression_right_parenthesis()
+            OmegaPunctuationKind::EqualEqual -> select_expression_equal()
+            OmegaPunctuationKind::ExclamationEqual -> select_expression_not_equal()
+            OmegaPunctuationKind::Less -> select_expression_less()
+            OmegaPunctuationKind::LessEqual -> select_expression_less_equal()
+            OmegaPunctuationKind::Greater -> select_expression_greater()
+            OmegaPunctuationKind::GreaterEqual ->
+                select_expression_greater_equal()
+            OmegaPunctuationKind::AndAnd -> select_expression_and()
+            OmegaPunctuationKind::PipePipe -> select_expression_or()
+            _ -> membership_expression_end_failure()
+        }
+    }
+
+    state membership_expression_end_failure() {
+        transition true {
+            true -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMembershipEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -8072,13 +8314,29 @@ machine OmegaParser::parse_view(
         self.member_count = self.member_count + 1;
         self.argument_path_member_count = self.argument_path_member_count + 1;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(45) }
+        transition self.membership_domain_active {
+            1 -> scan_semantic(102)
+            _ -> scan_semantic(45)
+        }
     }
 
     state path_expression_tail_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> path_expression_tail_punctuation()
+            OmegaTokenKind::Identifier -> path_expression_tail_identifier()
             OmegaTokenKind::Keyword -> path_expression_tail_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state path_expression_tail_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "in"
+        ) {
+            1 -> retain_framed_operator_path()
             _ -> incomplete_root()
         }
     }
@@ -9321,9 +9579,32 @@ machine OmegaParser::parse_view(
     state primary_expression_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> primary_expression_end_punctuation()
-            OmegaTokenKind::Identifier -> possible_implicit_struct_field()
+            OmegaTokenKind::Identifier -> primary_expression_end_identifier()
             OmegaTokenKind::Keyword -> primary_expression_end_keyword()
             _ -> primary_expression_end_failure()
+        }
+    }
+
+    state primary_expression_end_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "in"
+        ) {
+            1 -> begin_primary_membership()
+            _ -> possible_implicit_struct_field()
+        }
+    }
+
+    state begin_primary_membership() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> finish_framed_primary()
+            OmegaExpressionConsumer::AssignmentValue -> finish_framed_primary()
+            OmegaExpressionConsumer::TransitionSubject -> finish_framed_primary()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                finish_framed_primary()
+            _ -> incomplete_root()
         }
     }
 
