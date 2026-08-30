@@ -139,7 +139,7 @@ pub(crate) fn unknown_descriptor_open_at_attempt(
     attempt
 }
 
-fn filesystem_relative_component_is_safe(bytes: &[u8]) -> bool {
+pub(super) fn filesystem_relative_component_is_safe(bytes: &[u8]) -> bool {
     !bytes.is_empty()
         && bytes != b"."
         && bytes != b".."

@@ -1,4 +1,5 @@
 mod open_at_failure_tests;
+mod unlink_at_failure_tests;
 
 use super::{
     FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord as GetOsfHandleRecord,
