@@ -3797,10 +3797,15 @@ Remaining:
   canonical order. Carrier-total counts project to `Truth`. Exact right shift
   is the bounded production pilot: complete prior bounds select the unchanged
   canonical goal and the existing untrusted recursive producer emits a kernel-
-  checked citation/conjunction proof; missing or redirected evidence retains
-  the trusted sufficient-reduction fallback. Exact left-shift result
-  representability, exact arithmetic/cast representability, general ledger
-  reconstruction, and global composition remain open.
+  checked citation/conjunction proof. This pilot initially retained the trusted
+  sufficient-reduction fallback for missing or redirected evidence. The later
+  exact-cast/shift/arithmetic closure made `kernel_proposition` total, removed
+  production sufficient-reducer authority, and routes exact left-shift result
+  representability through producer-serialized, kernel-checked
+  `IntegerAffineBound` certificates. Focused integration coverage now locks the
+  canonical reconstructed question and accepted-rule report and rejects
+  mutated, missing, or stale exact-left-shift evidence. General low-rung ledger
+  reconstruction and global composition remain open.
   `IntegerLessOrEqualTransitivity` checks two recursively derived `<=` premises
   with an identical middle and exact outer endpoints, allowing existing
   `d <= -2` evidence plus the closed `-2 <= -1` relation to establish the
