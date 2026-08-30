@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Gate for the Gamma static type checker (typeck.beta). Compiled by bc, run on the
-# seed. Well-typed programs -> exit 1; type errors -> exit 0.
+# Adjacent gate for the canonical Gamma compiler's retained frontend and direct
+# Alpha emitter substrate. No compiler artifact is published by this gate.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -21,10 +21,136 @@ cd "$OMEGA_GATE_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
-"$T/bc.exe" < typeck.beta > "$T/tc.tape" || { echo "bc(typeck.beta) failed"; exit 1; }
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '\nproc main() { return frontend_check_main() }\n'
+} | "$T/bc.exe" > "$T/tc.tape" || {
+  echo "bc(gamma_compiler.beta + frontend gate entry) failed"
+  exit 1
+}
 stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let start_label = new_label()' \
+    '    let target_label = new_label()' \
+    '    define_label(start_label)' \
+    '    emit_imm(2, 72623859790382856)' \
+    '    emit_jump(12, target_label)' \
+    '    emit_rx(13, 3, start_label)' \
+    '    define_label(target_label)' \
+    '    emit_rr(3, 2, 3)' \
+    '    emit_rrx(16, 2, 3, target_label)' \
+    '    emit_r(0, 0)' \
+    '    emit_ret()' \
+    '    let payload_ok = validate_payload()' \
+    '    state exact {' \
+    '        to failed when (payload_ok != 1)' \
+    '        to failed when (word[2097040] != 46)' \
+    '        to failed when (word[2097024] != 3)' \
+    '        to failed when (byte[33292288] != 1)' \
+    '        to failed when (byte[33292289] != 2)' \
+    '        to failed when (word[33292290] != 72623859790382856)' \
+    '        to failed when (byte[33292298] != 12)' \
+    '        to failed when (word[33292299] != 29)' \
+    '        to failed when (byte[33292307] != 13)' \
+    '        to failed when (byte[33292308] != 3)' \
+	    '        to failed when (word[33292309] != 0)' \
+	    '        to failed when (byte[33292317] != 3)' \
+	    '        to failed when (byte[33292318] != 2)' \
+	    '        to failed when (byte[33292319] != 3)' \
+	    '        to failed when (byte[33292320] != 16)' \
+	    '        to failed when (byte[33292321] != 2)' \
+	    '        to failed when (byte[33292322] != 3)' \
+	    '        to failed when (word[33292323] != 29)' \
+	    '        to failed when (byte[33292331] != 0)' \
+	    '        to failed when (byte[33292332] != 0)' \
+	    '        to failed when (byte[33292333] != 20)' \
+    '        to duplicate_setup' \
+    '    }' \
+    '    state duplicate_setup {' \
+    '        emit_reset()' \
+    '        let duplicate_label = new_label()' \
+    '        define_label(duplicate_label)' \
+    '        define_label(duplicate_label)' \
+    '        let label_after_failure = new_label()' \
+    '        to duplicate_check' \
+    '    }' \
+    '    state duplicate_check {' \
+    '        to failed when (word[2097016] != 4)' \
+    '        to failed when (label_after_failure != 0 - 1)' \
+    '        to failed when (word[2097032] != 1)' \
+    '        to missing_setup' \
+    '    }' \
+    '    state missing_setup {' \
+    '        emit_reset()' \
+    '        let missing_label = new_label()' \
+    '        put_label_word(missing_label)' \
+    '        let missing_valid = validate_payload()' \
+    '        to missing_check' \
+    '    }' \
+    '    state missing_check {' \
+    '        to failed when (missing_valid != 0)' \
+    '        to failed when (word[2097016] != 8)' \
+    '        to capacity_setup' \
+    '    }' \
+    '    state capacity_setup {' \
+    '        emit_reset()' \
+    '        word[2097040] = 262139' \
+    '        let adjacent = put_byte(7)' \
+    '        let overflow = put_byte(8)' \
+    '        to capacity_check' \
+    '    }' \
+    '    state capacity_check {' \
+    '        to failed when (adjacent != 1)' \
+    '        to failed when (overflow != 0)' \
+    '        to failed when (word[2097040] != 262140)' \
+    '        to failed when (word[2097016] != 1)' \
+    '        to fixup_capacity_setup' \
+    '    }' \
+    '    state fixup_capacity_setup {' \
+    '        emit_reset()' \
+    '        let fixup_label = new_label()' \
+    '        put_u64(0)' \
+    '        word[2097024] = 32768' \
+    '        let fixup_result = add_fixup(0, fixup_label)' \
+    '        to fixup_capacity_check' \
+    '    }' \
+    '    state fixup_capacity_check {' \
+    '        to failed when (fixup_result != 0)' \
+    '        to failed when (word[2097016] != 6)' \
+    '        to empty_setup' \
+    '    }' \
+    '    state empty_setup {' \
+    '        emit_reset()' \
+    '        let empty_valid = validate_payload()' \
+    '        to empty_check' \
+    '    }' \
+    '    state empty_check {' \
+    '        to failed when (empty_valid != 0)' \
+    '        to failed when (word[2097016] != 12)' \
+    '        return 1' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/emitter.tape" || {
+  echo "bc(gamma_compiler.beta + emitter probe) failed"
+  exit 1
+}
+stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
+"$T/emitter.exe" > "$T/emitter.out"
+emitter_status=$?
+if [ "$emitter_status" = 1 ] && [ ! -s "$T/emitter.out" ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL emitter probe: status $emitter_status, output $(wc -c < "$T/emitter.out" | tr -d ' ') bytes"
+fi
 tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi
@@ -195,5 +321,5 @@ tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n (Z 0) (Z 1) ((S m) 2)
 tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n (rest 0) (Z 1)))' 0 'arm after catch-all'
 tc '(def bad ((n Int)) Int (match n (rest 0)))' 0 'match requires algebraic scrutinee'
 tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n))' 0 'match requires an arm'
-echo "gamma typeck: $PASS passed, $FAIL failed"
+echo "gamma compiler substrate: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

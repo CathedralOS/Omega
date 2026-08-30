@@ -7,17 +7,22 @@ emits platform-independent Alpha tape:
 gamma_compiler.beta → gamma_compiler_bytecode.tape
 ```
 
-The source and artifact do not yet exist. Their language-level contract is
-settled in [`../LANGUAGE.md`](../LANGUAGE.md); this owner is now an implementation
-gap rather than a design-blocked placeholder. No interpreter-shaped artifact is
-accepted in the meantime.
+The source now exists as an incomplete implementation; the tape does not. Its
+retained frontend is the former standalone checker, moved rather than copied,
+and its direct Alpha payload/label/fixup substrate is final compiler material.
+The adjacent gate compiles this one source with temporary fixed test entries,
+runs all 78 frontend discriminators, and checks exact emitter bytes plus sticky
+capacity/fixup failures. It publishes no compiler artifact.
 
-`../interp.beta` and `../typeck.beta` are retained at the Gamma language owner
-as bounded semantic oracles and candidate implementation components. The
-eventual compiler may reorganize or absorb them, but must type-check Gamma and
-emit Alpha tape directly rather than publishing an interpreter plus source AST.
-Delete either component when the compiler subsumes its unique failure
-detection, or if it cannot be economically adapted to the contract.
+The retained compiler source declares 75 procedures. With the fixed frontend
+gate entry, the compiled gate uses 76 of Beta's 128
+procedure slots and compiles to 141,840 bytes. The remaining 120,300 bytes under
+Alpha's runnable payload ceiling are a measured implementation budget, not a
+Gamma language limit.
+
+`../interp.beta` remains a bounded execution oracle. It may contribute an
+isolated lowering/runtime algorithm where economical, but no interpreter loop,
+serialized Gamma AST, or second frontend enters the canonical compiler.
 
 The compiler uses a private arbitrary-arity frame ABI and preserves proper tail
 calls. Its emitted compiler-application adapter alone supplies sealed input as
@@ -27,8 +32,7 @@ outer resource outcomes; they never change Gamma meaning.
 
 ## Implementation shape
 
-The compiler source has one pipeline inside the eventual
-`gamma_compiler.beta`:
+The compiler source is growing one pipeline inside `gamma_compiler.beta`:
 
 ```text
 sealed source
@@ -44,23 +48,23 @@ evaluator loop, syntax-tag dispatcher, textual Alpha stream, or host-side
 assembler participates in the edge.
 
 The Beta executable has exactly 32 MiB of source-visible logical raw memory;
-physical memory above it is Alpha's hidden-return-stack allowance. The reusable
-front end already keeps sealed source in `[2 MiB,6 MiB)`, declaration and
-environment tables in `[6 MiB,10.5 MiB)`, and AST storage above 16 MiB. When it
-is absorbed, the final compiler reserves `[31.75 MiB,32 MiB)` as its private
-262,144-byte payload buffer and ends every upward-growing frontend arena before
-that buffer. It checks source, table, arena, fixup, and payload bounds before
-mutation. No output byte is written until every fixup and the complete payload
-extent have validated.
+physical memory above it is Alpha's hidden-return-stack allowance. The frontend
+keeps sealed source in `[2 MiB,6 MiB)`, declaration and environment tables in
+`[6 MiB,10.5 MiB)`, labels/fixups in `[10.5 MiB,11.5 MiB)`, and AST storage in
+`[16 MiB,31.75 MiB)`. The final `[31.75 MiB,32 MiB)` is the private 262,144-byte
+payload buffer; the runnable Alpha payload limit is 262,140 bytes. Source,
+table, arena, fixup, and payload writes are checked before mutation. No output
+byte is published until every fixup and the complete payload extent validate.
 
-The candidate front end's existing four-word syntax nodes retain the exact
+The retained front end's four-word syntax nodes retain the exact
 zero-based source start in the high bits of their tag word; the 4 MiB source
 ceiling and closed tags make that packing exact without reducing AST capacity.
 Its first source failure is sticky across the outer byte envelope, parsing,
 literal checking, type-name resolution, and typed subexpression traversal.
 This is coordinate custody for later absorption, not an oracle-owned diagnostic
-format: the final compiler maps it through its closed rejection taxonomy and
-publishes it only through the selected `GCOUT` profile.
+format: the final compiler maps it through `GCOUT`'s fixed rejection table and
+publication boundary. The Q3-selected generated-program application profile is
+a separate concern.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
@@ -98,8 +102,9 @@ output extent before replaying it to stdout, preventing partial artifacts.
 
 The direct emitter owns byte/word append, label definition, and
 `{payload_offset,label_id}` fixup rows. Branch and call targets remain private
-placeholders until all code exists; duplicate or missing labels, out-of-range
-targets, and replay disagreement are internal failures. Checked `Int` lowering
+placeholders until all code exists; duplicate or missing labels and out-of-range
+targets are sticky internal failures. Final lowering/refinement must add replay
+validation; this substrate does not yet claim it. Checked `Int` lowering
 branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
@@ -118,10 +123,15 @@ this owner.
 The implementation order is tracked in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
 
+## Retention inventory
+
+| Retained file | Canonical role | Deletion condition |
+| --- | --- | --- |
+| `gamma_compiler.beta` | Sole Beta-written Gamma compiler source; currently owns the strict frontend and direct Alpha payload/fixup substrate. | Replace only atomically with another implementation of the same ruled edge. |
+| `test-frontend.sh` | Adjacent bounded gate for the retained frontend, source/resource guards, and exact emitter substrate. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
+
 ## Deletion condition
 
-This currently empty implementation owner is retained because its exact path is
-part of the canonical lattice contract. Delete any future child subtree that
-does not reconstruct, implement, or test
-`gamma_compiler.beta → gamma_compiler_bytecode.tape`; replace the owner only
-atomically with a changed, explicitly ruled lattice topology.
+Delete any future file or child subtree that does not reconstruct, implement,
+or efficiently test `gamma_compiler.beta → gamma_compiler_bytecode.tape`;
+replace this owner only atomically with a changed, explicitly ruled topology.

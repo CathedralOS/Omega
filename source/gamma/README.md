@@ -19,25 +19,18 @@ and owns private resource failures.
 
 ## Current implementation state
 
-`interp.beta` and `typeck.beta` predate the unified contract:
+The Beta-written compiler source now lives at
+`compiler/gamma_compiler.beta`. Its retained strict frontend and direct Alpha
+emitter substrate are incomplete compiler material, not an accepted compiler
+artifact. `interp.beta` remains an untyped, bounded evaluation oracle; it is not
+an alternate Gamma language or a runtime to be serialized into emitted tapes.
 
-- `interp.beta` is an untyped, bounded evaluation oracle;
-- `typeck.beta` is a typed, nonexecuting static-semantics oracle; and
-- neither is an accepted compiler artifact or an alternate Gamma language.
-
-They may be reorganized or absorbed into the direct compiler where economical.
-Once the compiler and its checked edge subsume a component's unique diagnostic
-role, that component or gate is deleted. The direct compiler must type-check
-Gamma and emit Alpha tape; it may not publish an interpreter plus serialized
-syntax.
-
-The current oracles close their former correlated match blind spot in different
-ways: the checker rejects incomplete or duplicate coverage, while the
-interpreter traps rather than fabricating integer zero when no arm matches.
-That migration hardening is not compiler authority. Their historical shared
-omission remains the warning that differential agreement cannot prove a rule
-both compared programs omit; the canonical compiler must own the static
-judgment.
+The compiler frontend and interpreter close their former correlated match blind
+spot in different ways: the frontend rejects incomplete or duplicate coverage,
+while the interpreter traps rather than fabricating integer zero when no arm
+matches. Their historical shared omission remains the warning that differential
+agreement cannot prove a rule both compared programs omit; the completed
+canonical compiler must own the static judgment.
 
 The evaluator's 4 MiB source ceiling, 16 MiB arena, 4 KiB argument scratch, and
 50,000,000-call fuel are oracle resource bounds, not Gamma semantics. Exhaustion
@@ -47,9 +40,10 @@ prevents compiler input from requiring one algebraic node per byte.
 Principal artifacts:
 
 - `LANGUAGE.md` - the normative typed executable Gamma contract;
-- `compiler/` - owner of `gamma_compiler.beta`, its tape, and exact edge;
-- `interp.beta` - temporary bounded semantic oracle and candidate component;
-- `typeck.beta` - temporary static-semantics oracle and candidate component;
+- `compiler/` - owner of `gamma_compiler.beta`, adjacent validation, its future
+  tape, and the exact edge;
+- `interp.beta` - temporary bounded semantic oracle and candidate algorithm
+  source;
 - `reference/` - temporary Python differential scaffolding.
 
 Run the currently retained diagnostic gates from the repository root:
@@ -57,7 +51,7 @@ Run the currently retained diagnostic gates from the repository root:
 ```sh
 sh source/gamma/test-interp.sh
 sh source/gamma/test-interp-arena.sh
-sh source/gamma/test-typeck.sh
+sh source/gamma/compiler/test-frontend.sh
 sh source/gamma/reference/gamma-diamond-py.sh
 ```
 
@@ -71,9 +65,8 @@ offline machine.
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` | Normative Gamma source and execution contract. | Replace only through an explicit language ruling with synchronized compiler and contract tests. |
-| `compiler/` | Sole owner of the Beta-written compiler accepting Gamma and its exact Alpha-tape edge. | Replace only atomically with an explicitly ruled lattice change. |
+| `compiler/` | Sole owner of the Beta-written compiler accepting Gamma, adjacent validation, and its exact Alpha-tape edge. | Replace only atomically with an explicitly ruled lattice change. |
 | `interp.beta`, `test-interp.sh`, `test-interp-arena.sh` | Candidate compiler material plus bounded semantic and resource discriminators. | Absorb or delete after the direct compiler subsumes each retained failure surface. |
-| `typeck.beta`, `test-typeck.sh` | Candidate compiler material plus static-semantics discriminators. | Absorb or delete after the direct compiler subsumes each retained failure surface. |
 | `reference/` | Temporary independent meaning comparison and differential gate. | Delete when the checked direct edge subsumes every named diagnostic role. |
 
 The older imperative experiment, generic canonical-byte prototype, and terminal

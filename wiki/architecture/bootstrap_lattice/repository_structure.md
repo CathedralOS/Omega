@@ -57,9 +57,9 @@ trees. `omega₀` and `omega` are artifacts, not directories or languages.
 
 The committed tree still has two important gaps:
 
-- `source/gamma/interp.beta` and `typeck.beta` supply real Beta-written Gamma
-  meaning but do not yet form the standalone Gamma-to-Alpha compiler required
-  by the lattice.
+- `source/gamma/compiler/gamma_compiler.beta` now owns a real strict frontend
+  and direct Alpha emitter substrate, but lowering, the selected application
+  adapter, canonical tape, and refinement are still missing.
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   required replacement is a Gamma-written Delta compiler producing Alpha tape.

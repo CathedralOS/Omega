@@ -349,14 +349,15 @@ edge-owned magic, version, code tables, and coordinates. One parameterized gate
 may decode them, but an edge never accepts another edge's frame. Success remains
 an unwrapped Alpha tape and every failure publishes no partial artifact.
 
-The current Gamma interpreter and type checker remain temporary oracles and
-candidate compiler material. Their historical correlated omission of match
-exhaustiveness demonstrates the limit of a differential diamond: agreement
-detects divergence between implementations but cannot establish a rule both
-omit. The checker now rejects incomplete coverage and the interpreter fails
-loudly on no match during migration; the canonical compiler still owns the
-static judgment. The Beta-written compiler type-checks and emits Alpha tape
-directly rather than packaging an interpreter with source syntax.
+The strict static frontend is now absorbed into the canonical Beta-written
+compiler source; the Gamma interpreter remains a temporary oracle and candidate
+algorithm source. Their historical correlated omission of match exhaustiveness
+demonstrates the limit of a differential diamond: agreement detects divergence
+between implementations but cannot establish a rule both omit. The compiler
+frontend rejects incomplete coverage and the interpreter fails loudly on no
+match during migration; the completed canonical compiler still owns the static
+judgment. It type-checks and emits Alpha tape directly rather than packaging an
+interpreter with source syntax.
 
 ## D17 — Delta v1 is one closed fixed-storage compiler-host language
 

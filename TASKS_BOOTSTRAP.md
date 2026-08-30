@@ -86,7 +86,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | `interp.beta`, `typeck.beta`, Gamma semantics/tests | standalone Gamma-to-Alpha compiler tape and refinement |
+| Beta-written Gamma compiler | canonical frontend/emitter source, `interp.beta` oracle, Gamma semantics/tests | complete lowering, adapter, standalone tape, and refinement |
 | Gamma-written Delta compiler | Delta contract and feature ledger | compiler source, spec-derived tests, tape, and refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
@@ -113,8 +113,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
     its otherwise content-free `artifacts/` bucket, and make path hygiene reject
     nested artifact buckets for every canonical compiler owner.
-  - [ ] Materialize the Gamma compiler source, tape, and adjacent validation in
-    `source/gamma/compiler/` under D16; section 3 owns the implementation.
+  - [ ] Complete the Gamma compiler source, tape, and adjacent validation in
+    `source/gamma/compiler/` under D16. The canonical source and its bounded
+    frontend/emitter gate now exist; section 3 owns lowering, adapter selection,
+    tape publication, and refinement.
   - [ ] Materialize the Delta compiler source, tape, and adjacent validation in
     `source/delta/compiler/` under D17; section 4 owns the implementation.
   - [ ] Author `source/omega/omega_compiler.delta` under D17; section 5 owns
@@ -497,7 +499,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   `source/gamma/compiler/gamma_compiler.beta` as a standalone compiler from
   Gamma source to Alpha tape. Type-check before emission, use the private
   arbitrary-arity Gamma frame ABI, preserve proper tail calls, and emit Alpha
-  tape directly. It may reuse or reorganize `interp.beta` and `typeck.beta`; no
+  tape directly. It may reuse or reorganize `interp.beta`; no
   external interpreter or serialized-AST runtime may remain part of
   compilation.
   - Derive positive and negative canaries directly from the fixed grammar and
@@ -518,13 +520,26 @@ code, discover a closure, manufacture proof premises, or decide admission.
     carries the generated application profile. This blocks adapter publication
     and the final tape, not the complete profile-independent front end,
     lowering, or emitter.
+  - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
+    into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
+    for 65,536 exact labels, `[11 MiB,11.5 MiB)` for 32,768 fixups,
+    `[16 MiB,31.75 MiB)` for the bounded frontend arena, and
+    `[31.75 MiB,32 MiB)` for the private 262,144-byte payload buffer. The direct
+    emitter owns sticky failure, exact byte/word append, every Alpha operand
+    shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
+    rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
+    fixed temporary entries, pins exact payload bytes and capacity failures,
+    and retains no alternate compiler or tape. The retained source declares 75
+    procedures; with the frontend gate entry, the gate uses 76 of Beta's 128
+    procedure slots and compiles to 141,840
+    bytes, leaving 120,300 bytes below Alpha's runnable payload ceiling for
+    lowering and the eventual adapter.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 78-case oracle gate are implementation material for
-    `gamma_compiler.beta`; the direct compiler must absorb the rule before this
-    temporary checker is deleted.
+    constructor table and 78-case gate now live in `gamma_compiler.beta` and its
+    adjacent validation; no standalone checker source remains.
   - [x] Close the first strict-parser slice in the reusable front end: require a
     nonempty function-declaration sequence and exact source exhaustion; check
     every consumed delimiter; reject malformed or unterminated argument,
@@ -535,16 +550,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove the reusable front end's compiler-sized-input alias: the 4 MiB
     source buffer no longer overlaps its type, constructor, function,
     environment, or match-coverage tables. Reserve one readable error node and
-    bound the 16 MiB AST arena below Beta's exact 32 MiB logical raw-memory edge
-    before writes; physical memory above that edge is Alpha hidden-return-stack
-    allowance. A 2 MiB-boundary canary places a later declaration exactly where
-    the former function table corrupted source.
+    bound the AST arena below the compiler's reserved 31.75 MiB payload edge
+    before writes; physical memory above Beta's 32 MiB logical edge is Alpha
+    hidden-return-stack allowance. A 2 MiB-boundary canary places a later
+    declaration exactly where the former function table corrupted source.
   - [x] Remove recursive list parsing from the reusable front end's argument,
     constructor-field, parameter, pattern-binder, and match-arm paths. Iterative
     builders preserve source order and pass 600-argument/function and
     600-field/constructor/pattern canaries, crossing the retired interpreter's
     unrelated 512-value scratch bound.
-  - [x] Bound the candidate front end's AST, type, constructor, function, and
+  - [x] Bound the retained front end's AST, type, constructor, function, and
     lexical-environment writes before mutation. Private exhaustion is sticky and
     returns a readable error node rather than an out-of-range pointer; binding
     failure propagates through `let`, patterns, and function checking. A
@@ -578,13 +593,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
   owns complete static match-exhaustiveness rejection. Keep the
   correlated-oracle warning explicit: the two oracles historically shared the
   omission, demonstrating that agreement alone could not establish it.
-- [x] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
-  or bounded semantic oracles. Their inventories now name present gates and
-  explicit D16 absorption/deletion conditions; neither is accepted as a
-  compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 78 type-checker cases, and 106 independent
-  differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
-  step.
+- [x] Absorb the reusable static frontend into `gamma_compiler.beta` without a
+  duplicate checker source, and keep `interp.beta` only as a bounded semantic
+  oracle/candidate algorithm source. Neither the oracle nor the incomplete
+  compiler source is an accepted compiler artifact. The retained gates pass 48
+  interpreter cases, the fail-closed arena case, 78 compiler-frontend cases,
+  one exact emitter probe, and 106 independent differential cases.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
@@ -594,8 +608,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove the type checker's retired proof-kernel purpose and reject
     unknown declared types explicitly instead of allowing the shared `-1`
     error/type sentinel to compare equal.
-- [ ] **DEPENDENCY-BLOCKED — missing `gamma_compiler.beta`.** Check the
-  exact Beta-source-to-Alpha-tape refinement and all resource outcomes. Measure
+- [ ] **DEPENDENCY-BLOCKED — incomplete `gamma_compiler.beta` and missing
+  tape.** Check the exact Beta-source-to-Alpha-tape refinement and all resource
+  outcomes after lowering and the Q3 adapter are complete. Measure
   representative compiler-sized inputs; a 12-hour ceiling is emergency
   containment, not acceptable normal performance.
 
