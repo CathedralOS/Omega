@@ -874,7 +874,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/packages/evidence/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/review/evidence/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-evidence must own package review"
@@ -961,14 +961,14 @@ fn package_semantics_exclude_executable_provenance_and_model_protocols() {
     );
 
     let root = workspace_root();
-    let manager_review = root.join("source/omega-rust/omega/packages/src/review");
+    let manager_review = root.join("source/omega-rust/omega/packages/manager/src/review");
     for retired in ["advisory/protocol.rs", "advisory/invocation.rs"] {
         assert!(
             !manager_review.join(retired).exists(),
             "model protocol must remain outside package core: {retired}"
         );
     }
-    let optional_tool = root.join("source/omega-rust/omega/packages/advisory/src");
+    let optional_tool = root.join("source/omega-rust/omega/packages/review/advisory/src");
     for owned in ["protocol.rs", "invocation.rs"] {
         assert!(
             optional_tool.join(owned).is_file(),
@@ -3992,7 +3992,7 @@ fn external_root_stack_and_fuel_fingerprints_are_report_only() {
 fn package_review_provider_plan_fingerprints_are_report_only() {
     let root = workspace_root();
     let evidence_path =
-        root.join("source/omega-rust/omega/packages/evidence/src/evidence/package/providers.rs");
+        root.join("source/omega-rust/omega/packages/review/evidence/src/record/package/providers.rs");
     let evidence = std::fs::read_to_string(&evidence_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
     assert!(
@@ -4006,7 +4006,7 @@ fn package_review_provider_plan_fingerprints_are_report_only() {
     );
 
     let encoding_path = root
-        .join("source/omega-rust/omega/packages/evidence/src/encoding/encode/values/providers.rs");
+        .join("source/omega-rust/omega/packages/review/evidence/src/encoding/encode/values/providers.rs");
     let encoding = std::fs::read_to_string(&encoding_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", encoding_path.display()));
     assert!(
