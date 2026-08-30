@@ -204,6 +204,16 @@ Must own:
   private table, then projects guarded facts through its package-qualified
   structural expression vocabulary; runtime predicate display fallbacks do not
   become operator API identity.
+- D29 boundary-operator application demand. Each checked use retains the exact
+  selected requirement telescope and an ordered typed application rather than
+  arity plus display strings. Type arguments use normalized checked type
+  identity; const arguments use the canonical evaluated value in the declared
+  carrier. A use inside generic code may retain exact references to its
+  enclosing typed binders, but that row is symbolic demand only. Provider-plan
+  selection, final substitution, role-specific realization checking, and
+  physical-plan coverage occur in later owners and cannot be inferred here.
+  Lifetime, static-machine, and proposition operator applications remain
+  explicit fences.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked

@@ -967,15 +967,22 @@ universal semantic selection coverage, but it cannot replace concrete
 monomorphization, representation, layout, calling-plan, target, and admission
 checks. Provider-authored generic assertions remain non-authorizing.
 
-Production does not yet publish exact static-application demand or
-`ExactApplications` coverage. The owner question `Define exact
-boundary-realization application evidence` must first settle one tagged
-structural application representation and its recheckable join to
-selected-realization evidence; a provisional type-only use carrier would
-pre-commit that design. That carrier must retain binder categories, domains,
-bounds, and tagged arguments rather than arity plus semantic strings. D28
-deliberately adds no universal generic carrier until a checked generic operator
-realization exists.
+D29 settles the production exact-application join. A checked use retains an
+ordered typed application; a still-generic use may export artifact-qualified
+symbolic demand, but only final substitution to a closed application can
+produce coverage. Type and const arguments are supported first. Const identity
+is the canonical evaluated value in its declared carrier, never its spelling;
+lifetime, machine, and proposition arguments remain fail-closed. Empty
+telescopes use one canonical empty application without substitution.
+
+Checked generic bodies reuse ordinary authoritative specialization and recheck
+the substituted semantic, target, admission, representation, layout, calling,
+and emission facts. The coverage row then binds the exact requirement,
+application, strong selected plan, and a role-tagged specialized-body,
+nongeneric-body, compiler-intrinsic, or external-authority payload. Bodyless
+and external supply stays exact-only. Bootstrap lowering is non-authoritative
+and cannot publish coverage. D28 deliberately adds no universal generic
+carrier until a checked generic operator realization exists.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not
@@ -3106,7 +3113,11 @@ ordering and encodes every normalized structural argument beside the compact
 application report coordinate. Missing, stale, duplicate, cross-coordinate,
 reordered, and arity-drifting evidence rejects. Generic coverage has no review
 variant until the compiler retains proof that the selected realization is
-genuinely generic, and this structural row remains non-authorizing.
+genuinely generic, and this structural row remains non-authorizing. This is the
+pre-D29 scaffold: its arity/string application is not authoritative production
+coverage. A later review/canonical revision must consume D29's compiler-derived
+typed type/const application and role-specific realization commitment; it may
+not reinterpret the v87 row as that evidence.
 Review v63 and canonical row v21 admit selected generic-conformance
 applications in public generic bounds. The row retains the exact
 package-qualified conformance declaration, alpha-normalized lifetime

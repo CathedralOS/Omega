@@ -142,7 +142,7 @@ types, the exact `Complete`/`Reject` field lists, all 26 nullary rejection
 constructors, and the fixed code bijection without using declaration order or
 runtime constructor kinds. The physical sealed request, exact profile maxima,
 Conformance observations, and complete `GCOUT`/`DCOUT` tables remain
-owner-blocked by Q3; no canonical adapter bytes are emitted until those facts
+owner-blocked by Q2; no canonical adapter bytes are emitted until those facts
 are fixed.
 
 An emitted Gamma program uses this Alpha-memory profile:
@@ -298,7 +298,7 @@ depends on falling into an uncatchable Alpha trap.
 
 D20's declaration/binder resolver, source joins, and profile-neutral
 whole-function label/body emission are implemented. D19's exact source-owned
-schemas and reason-code bijection are implemented; Q3's physical profile facts,
+schemas and reason-code bijection are implemented; Q2's physical profile facts,
 both adapters, and final publication still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
