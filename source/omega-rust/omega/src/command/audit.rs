@@ -28,7 +28,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
         std::process::exit(2);
     };
     let adapter =
-        match omega_package_manager::workflows::SourceAdapter::parse(&arguments.source_kind) {
+        match omega_package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {
             Ok(adapter) => adapter,
             Err(error) => {
                 eprintln!("invalid source adapter: {error:?}");
@@ -42,7 +42,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
             std::process::exit(1);
         }
     };
-    match omega_package_manager::workflows::audit_package_source_locator(
+    match omega_package_manager::operations::inspect_package_source_locator(
         adapter,
         arguments.locator,
         arguments.rev,
@@ -51,7 +51,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
     ) {
         Ok(report) => print!("{}", report.to_text()),
         Err(error) => {
-            eprintln!("cannot audit package source: {error:?}");
+            eprintln!("cannot inspect package source: {error:?}");
             std::process::exit(1);
         }
     }
@@ -59,7 +59,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
 
 fn warn_unhardened_source_resolver() {
     eprintln!(
-        "warning: source audit is diagnostic and non-admitting; strict native \
+        "warning: source inspection is diagnostic and non-admitting; strict native \
          confinement on every platform, TLS/SSH credential custody, aggregate \
          CPU/memory/process/object-store accounting, and an accepted source \
          receipt remain unavailable"

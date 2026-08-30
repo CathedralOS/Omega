@@ -73,7 +73,7 @@ pub(crate) fn run() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    let package_inputs = match omega_package_manager::workflows::prepare_local_project(
+    let package_inputs = match omega_package_manager::operations::prepare_local_project(
         &options.root_path,
         options.target_name.as_deref(),
     ) {

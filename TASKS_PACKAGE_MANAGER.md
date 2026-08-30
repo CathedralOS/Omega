@@ -12,7 +12,7 @@ Governing documents:
 - `wiki/design_briefs/build_and_package_model.md`
 - `wiki/language_guide/chapter_15_modules_imports_visibility.md`
 - `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
-- `source/omega-rust/omega/packages/manager/README.md`
+- `source/omega-rust/omega/packages/README.md`
 - `source/omega-rust/omega/packages/source/SOURCE_RESOLVER_SECURITY.md`
 - `OWNER_QUESTIONS.md`
 
