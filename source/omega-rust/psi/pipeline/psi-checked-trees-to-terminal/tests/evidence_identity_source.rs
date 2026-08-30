@@ -155,6 +155,39 @@ const STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE: &str = r#"
     }
 "#;
 
+const STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+
+    trait Producer {
+        machine Self::produce(&self)
+        requires public_in: ready()
+        ensures public_out: ready()
+        {
+            public_out = public_in;
+        }
+    }
+
+    data Token {}
+    TokenProducer: Token satisfies Producer {}
+
+    data Root {}
+    machine Root::invoke<Element, Order: Element satisfies Producer>(
+        &self,
+        value: &Element
+    )
+    requires incoming: ready()
+    {
+        let (; public_out: result) = Order::produce(value; incoming);
+    }
+
+    machine Root::caller(&self, value: &Token)
+    requires incoming: ready()
+    {
+        self.invoke<Token, TokenProducer>(value; incoming);
+    }
+"#;
+
 const STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE: &str = r#"
     trait Producer {
         machine Self::produce(&self);
@@ -1731,6 +1764,108 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .conformance_application_commitment = application.commitment;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&widened_application),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+}
+
+#[test]
+fn static_requirement_trait_default_rejoins_exact_application_and_runtime_callee() {
+    let checked = check(STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE);
+    let checked_invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .expect("one checked trait-default static dispatch");
+    let expected_public_requirement = checked
+        .symbols
+        .display_path(checked_invocation.1.requirement, "::");
+    let expected_realization = checked
+        .symbols
+        .display_path(checked_invocation.1.realization_state, "::");
+    let machine_name = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| {
+            (selection.machine == checked_invocation.0.caller_machine_symbol)
+                .then_some(selection.name.clone())
+        })
+        .expect("the specialized default caller is terminal-selected");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, &machine_name)
+        .expect("the exact trait-default dispatch should cross Terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one trait-default proof-output invocation")
+    };
+    let dispatch = invocation
+        .static_requirement_dispatch
+        .as_ref()
+        .expect("the trait-default dispatch remains explicit");
+    assert_eq!(dispatch.requirement_identity, expected_public_requirement);
+    assert_eq!(dispatch.realization_identity, expected_realization);
+    assert_ne!(dispatch.conformance_application_report_fingerprint, 0);
+    assert!(!dispatch.conformance_application_commitment.is_zero());
+    assert_eq!(
+        invocation.runtime_call.map(|call| call.callee),
+        Some(dispatch.realization)
+    );
+    let application_index = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .iter()
+        .position(|application| {
+            application.owner == invocation.caller
+                && application.commitment == dispatch.conformance_application_commitment
+        })
+        .expect("the dispatch rejoins its owner-scoped closed application");
+    let application = &lowered.semantic_module.closed_conformance_applications[application_index];
+    assert!(application.rows.iter().any(|row| {
+        row.public_requirement_identity == dispatch.public_requirement_identity
+            && row.realization_identity == dispatch.realization_identity
+    }));
+    let bytes = encode_module(&lowered.semantic_module).expect("default dispatch module encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the exact trait-default dispatch verifies");
+
+    let mut declaration_drift = lowered.semantic_module.clone();
+    declaration_drift.closed_conformance_applications[application_index]
+        .declaration_identity
+        .push_str("::forged");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&declaration_drift),
+        Err(psi_terminal_verifier::ModuleError::ClosedConformanceFingerprintMismatch { .. })
+    ));
+
+    let mut row_drift = lowered.semantic_module.clone();
+    row_drift.closed_conformance_applications[application_index].rows[0]
+        .realization_identity
+        .push_str("::forged");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&row_drift),
+        Err(psi_terminal_verifier::ModuleError::ClosedConformanceFingerprintMismatch { .. })
+    ));
+
+    let mut runtime_drift = lowered.semantic_module.clone();
+    runtime_drift.proof_output_calls[0]
+        .runtime_call
+        .as_mut()
+        .expect("runtime call")
+        .callee = runtime_drift.entry;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&runtime_drift),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 }
