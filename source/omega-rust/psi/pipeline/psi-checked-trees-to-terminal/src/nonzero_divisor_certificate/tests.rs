@@ -1,6 +1,6 @@
 use super::*;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
-use psi_proof_admission::{PrimitiveJudgment, ProofRule};
+use psi_proof_admission::{PrimitiveJudgment, ProofRule, accept_certificate};
 
 fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
     ScalarTerm::value(
@@ -390,6 +390,190 @@ fn exact_multiply_orients_a_landed_zero_for_both_target_directions() {
                 .any(|part| matches!(part.rule, ProofRule::IntegerLessOrEqualSubstitution { .. }))
         );
     }
+}
+
+#[test]
+fn exact_multiply_replays_direct_cast_endpoints_and_rejects_redirected_custody() {
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let target_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let source = value(1, source_type);
+    let cast = value(2, target_type);
+    let factor = value(3, target_type);
+    let other_source = value(4, source_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(source_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(target_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(target_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(source_type)),
+    ])
+    .unwrap();
+    let cast_definition = Proposition::Equal(
+        cast,
+        ScalarTerm::integer_exact_cast(source_type, target_type, source).expect("exact cast"),
+    );
+    let source_bound = Proposition::LessOrEqual(
+        value(1, source_type),
+        ScalarTerm::integer(source_type, IntegerValue::Unsigned(64)).expect("u16 bound"),
+    );
+    let factor_definition = Proposition::Equal(factor, integer(target_type, -2));
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: target_type,
+            value: ValueId::new(2).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: target_type,
+            value: ValueId::new(3).unwrap(),
+        }),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(127)),
+        ),
+    ]);
+    let axioms = [cast_definition, factor_definition.clone()];
+    for cast_goal in [
+        Proposition::LessOrEqual(integer(target_type, 0), value(2, target_type)),
+        Proposition::LessOrEqual(value(2, target_type), integer(target_type, 64)),
+    ] {
+        assert!(
+            super::cast_selection::prove(
+                &context,
+                &cast_goal,
+                std::slice::from_ref(&source_bound),
+                &axioms,
+            )
+            .is_some(),
+            "the existing cast selector proves {cast_goal:?}",
+        );
+    }
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        std::slice::from_ref(&source_bound),
+        &axioms,
+    )
+    .expect("source-bounded cast endpoints orient the exact product");
+    accept_certificate(
+        &context,
+        &goal,
+        std::slice::from_ref(&source_bound),
+        &axioms,
+        &proof,
+    )
+    .expect("the checker replays the direct cast endpoint custody");
+
+    let redirected_axioms = [
+        Proposition::Equal(
+            value(2, target_type),
+            ScalarTerm::integer_exact_cast(source_type, target_type, other_source)
+                .expect("redirected exact cast"),
+        ),
+        factor_definition,
+    ];
+    assert!(
+        accept_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&source_bound),
+            &redirected_axioms,
+            &proof,
+        )
+        .is_err(),
+        "redirecting the cited cast source invalidates the serialized witness",
+    );
+    let drifted_source_bound = Proposition::LessOrEqual(
+        value(1, source_type),
+        ScalarTerm::integer(source_type, IntegerValue::Unsigned(65)).expect("drifted u16 bound"),
+    );
+    assert!(
+        accept_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&drifted_source_bound),
+            &axioms,
+            &proof,
+        )
+        .is_err(),
+        "changing the cited cast-root endpoint invalidates the serialized witness",
+    );
+}
+
+#[test]
+fn exact_multiply_replays_a_computed_multiply_root_through_a_cast_chain() {
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(i64_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i64_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i64_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(u64_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(i32_type)),
+        (ValueId::new(6).unwrap(), ScalarType::Integer(i32_type)),
+    ])
+    .unwrap();
+    let assumptions = [
+        Proposition::LessOrEqual(integer(i64_type, -536_870_912), value(1, i64_type)),
+        Proposition::LessOrEqual(value(1, i64_type), integer(i64_type, 0)),
+    ];
+    let axioms = [
+        Proposition::Equal(value(3, i64_type), integer(i64_type, -2)),
+        Proposition::Equal(
+            value(2, i64_type),
+            ScalarTerm::exact_integer_multiply(i64_type, value(1, i64_type), value(3, i64_type))
+                .expect("computed product"),
+        ),
+        Proposition::Equal(
+            value(4, u64_type),
+            ScalarTerm::integer_exact_cast(i64_type, u64_type, value(2, i64_type))
+                .expect("first exact cast"),
+        ),
+        Proposition::Equal(
+            value(5, i32_type),
+            ScalarTerm::integer_exact_cast(u64_type, i32_type, value(4, u64_type))
+                .expect("second exact cast"),
+        ),
+        Proposition::Equal(value(6, i32_type), integer(i32_type, -2)),
+    ];
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i32_type,
+            value: ValueId::new(5).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i32_type,
+            value: ValueId::new(6).unwrap(),
+        }),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i32::MIN.into())),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i32::MAX.into())),
+        ),
+    ]);
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("the computed multiply endpoint replays through the exact cast chain");
+    accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+        .expect("the checker replays both multiply and cast custody");
+
+    let drifted_assumptions = [
+        Proposition::LessOrEqual(integer(i64_type, -536_870_911), value(1, i64_type)),
+        assumptions[1].clone(),
+    ];
+    assert!(
+        accept_certificate(&context, &goal, &drifted_assumptions, &axioms, &proof).is_err(),
+        "changing the computed root bound invalidates the nested witness",
+    );
 }
 
 #[test]

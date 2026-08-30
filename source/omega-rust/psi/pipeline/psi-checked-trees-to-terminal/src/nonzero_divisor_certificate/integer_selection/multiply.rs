@@ -11,6 +11,7 @@ use psi_proof_admission::{
 
 use super::super::affine_custody::DefinitionIndex;
 use super::super::integer_evidence::{cited_facts, closed_integer_relation};
+use super::super::{cast_custody, cast_selection};
 use super::dispatch::{
     add_endpoint_candidates, lower_add_math_leaf, prove_add_operand_endpoint, relax_math_bound,
 };
@@ -392,6 +393,21 @@ pub(super) fn targeted_operand_endpoints(
     }
     let mut proofs =
         direct_cited_operand_endpoints(integer_type, operand, lower, assumptions, semantic_axioms);
+    for proof in direct_cast_operand_endpoints(
+        context,
+        integer_type,
+        operand,
+        lower,
+        assumptions,
+        semantic_axioms,
+    ) {
+        if !proofs
+            .iter()
+            .any(|existing| existing.conclusion == proof.conclusion)
+        {
+            proofs.push(proof);
+        }
+    }
     let affine_proofs = prove_multiply_affine_operand_endpoints(
         context,
         integer_type,
@@ -435,6 +451,193 @@ pub(super) fn targeted_operand_endpoints(
         })
     {
         proofs.push(proof);
+    }
+    proofs
+}
+
+fn direct_cast_operand_endpoints(
+    context: &PropositionContext,
+    integer_type: IntegerType,
+    operand: &ScalarTerm,
+    lower: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    if !semantic_axioms.iter().any(|axiom| {
+        matches!(
+            axiom,
+            Proposition::Equal(output, ScalarTerm::IntegerExactCast { .. }) if output == operand
+        )
+    }) {
+        return Vec::new();
+    }
+    let Some((root, _)) = cast_custody::source_root(operand, semantic_axioms) else {
+        return Vec::new();
+    };
+    let ScalarType::Integer(root_type) = root.scalar_type() else {
+        return Vec::new();
+    };
+    let mut proofs = Vec::new();
+    let root_proofs = prove_direct_computed_multiply_endpoints(
+        context,
+        &root,
+        lower,
+        assumptions,
+        semantic_axioms,
+    );
+    for root_proof in root_proofs {
+        let endpoint = match &root_proof.conclusion {
+            Proposition::LessOrEqual(endpoint, actual_root) if lower && actual_root == &root => {
+                endpoint
+            }
+            Proposition::LessOrEqual(actual_root, endpoint) if !lower && actual_root == &root => {
+                endpoint
+            }
+            _ => continue,
+        };
+        let Some((actual_type, value)) = endpoint.integer_value() else {
+            continue;
+        };
+        if actual_type != root_type {
+            continue;
+        }
+        let Some(value) = root_type.exact_cast_value_to(integer_type, value) else {
+            continue;
+        };
+        let Ok(literal) = ScalarTerm::integer(integer_type, value) else {
+            continue;
+        };
+        let goal = if lower {
+            Proposition::LessOrEqual(literal, operand.clone())
+        } else {
+            Proposition::LessOrEqual(operand.clone(), literal)
+        };
+        if let Some(proof) = cast_custody::prove_from_root(
+            context,
+            &goal,
+            assumptions,
+            semantic_axioms,
+            &root,
+            root_proof,
+        ) {
+            proofs.push(proof);
+        }
+    }
+    let mut candidates = Vec::new();
+    for (_, fact) in cited_facts(assumptions, semantic_axioms) {
+        let literal = match fact {
+            Proposition::Equal(left, right) if left == &root => right,
+            Proposition::Equal(left, right) if right == &root => left,
+            Proposition::LessOrEqual(left, right) if lower && right == &root => left,
+            Proposition::LessOrEqual(left, right) if !lower && left == &root => right,
+            _ => continue,
+        };
+        let Some((actual_type, value)) = literal.integer_value() else {
+            continue;
+        };
+        if actual_type != root_type {
+            continue;
+        }
+        let Some(value) = root_type.exact_cast_value_to(integer_type, value) else {
+            continue;
+        };
+        if !candidates.contains(&value) {
+            candidates.push(value);
+        }
+    }
+    let root_carrier = if lower {
+        root_type.minimum_value()
+    } else {
+        root_type.maximum_value()
+    };
+    if let Some(value) = root_type.exact_cast_value_to(integer_type, root_carrier)
+        && !candidates.contains(&value)
+    {
+        candidates.push(value);
+    }
+    let carrier = if lower {
+        integer_type.minimum_value()
+    } else {
+        integer_type.maximum_value()
+    };
+    if !candidates.contains(&carrier) {
+        candidates.push(carrier);
+    }
+    proofs.extend(candidates.into_iter().filter_map(|candidate| {
+        let literal = ScalarTerm::integer(integer_type, candidate).ok()?;
+        let goal = if lower {
+            Proposition::LessOrEqual(literal, operand.clone())
+        } else {
+            Proposition::LessOrEqual(operand.clone(), literal)
+        };
+        cast_selection::prove(context, &goal, assumptions, semantic_axioms)
+    }));
+    proofs
+}
+
+fn prove_direct_computed_multiply_endpoints(
+    context: &PropositionContext,
+    target: &ScalarTerm,
+    lower: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let mut proofs = Vec::new();
+    for (definition_index, axiom) in semantic_axioms.iter().enumerate() {
+        let Proposition::Equal(output, expression @ ScalarTerm::ExactIntegerMultiply { .. }) =
+            axiom
+        else {
+            continue;
+        };
+        if output != target {
+            continue;
+        }
+        for (predecessor, sibling) in targeted_affine_predecessors(expression) {
+            let Some(literal_axiom) =
+                targeted_literal_axiom(context, semantic_axioms, definition_index, sibling)
+            else {
+                continue;
+            };
+            let witness = IntegerAffineWitness {
+                root: predecessor.clone(),
+                target: target.clone(),
+                definition_axioms: vec![definition_index],
+                literal_axioms: vec![literal_axiom],
+            };
+            let Ok(checked) = check_integer_affine_witness(context, semantic_axioms, &witness)
+            else {
+                continue;
+            };
+            for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+                let Proposition::LessOrEqual(left, right) = fact else {
+                    continue;
+                };
+                if left != predecessor && right != predecessor {
+                    continue;
+                }
+                let Ok(mapped) = map_integer_affine_bound(&checked, fact) else {
+                    continue;
+                };
+                let same_oriented_target = match &mapped {
+                    Proposition::LessOrEqual(_, actual_target) if lower => actual_target == target,
+                    Proposition::LessOrEqual(actual_target, _) if !lower => actual_target == target,
+                    _ => false,
+                };
+                if same_oriented_target
+                    && !proofs
+                        .iter()
+                        .any(|proof: &ProofNode| proof.conclusion == mapped)
+                {
+                    proofs.push(ProofNode {
+                        conclusion: mapped,
+                        rule: ProofRule::IntegerAffineBound {
+                            root_bound: Box::new(citation.proof(fact)),
+                            witness: witness.clone(),
+                        },
+                    });
+                }
+            }
+        }
     }
     proofs
 }
