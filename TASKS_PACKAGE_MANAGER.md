@@ -94,28 +94,27 @@ closed. Compiler-issued package review remains non-admitting.
   missing fact. Do not reconstruct identity from diagnostics and do not add a
   nominal Chi stage merely to collect private compiler state.
 
-- [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the existing exact
-  Source-input/empty-Output grammar, including nonempty exact Output trees with
-  an empty Source-event prefix (without fabricating a Source observation), and
-  ordered successful Source directory-enumeration chains with exact record-byte
-  and cursor carriers, Source-rooted `read_link` events with exact
-  complete-or-truncated inert target bytes, and repeated direct-child
-  `create`/zero-or-more full sequential-or-positioned writes, exact successful
-  seeks, successful length changes, descriptor-scoped permission and timestamp
-  changes, bounded immediately retired successful descriptor duplicates, and
-  bounded adjacent nonblocking exclusive lock/unlock pairs on the original
-  Output descriptor, and successful syncs/`close` output replay lanes,
-  including exact cursor-independent positioned offsets, exact ordered
-  generated-source subsets, and bounded parent-before-child mixed Output trees
-  containing directories, complete regular-file chains, nested generated
-  sources, canonical self-contained symbolic links, and exact successful
-  Output hard links (portable tag 19 and Win32 tag 27) to prior regular-file or
-  hard-link entries. Generalize these landed lanes into a complete receipted
-  build-operation and output grammar. Add replay for every remaining admitted
-  service and staged-output shape, exact staged-output commitments,
-  failure/denial outcomes, and a complete replay verdict. Enforce
-  process CPU/memory and remaining session quotas. A summary or observation
-  digest alone is not a receipt.
+- [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the landed exact replay lanes
+  into a complete receipted build-operation and output grammar. The detailed
+  implemented floor, version history, ceilings, and deliberately non-receipted
+  neighbors live in
+  `source/omega-rust/omega/build/omega-build-evaluation/BUILD_OBSERVATION_REPLAY.md`.
+
+  Remaining work:
+
+  - replay every still-admitted build service and staged-output lifecycle that
+    falls outside the closed landed grammar, without inferring operations from
+    an equivalent final tree;
+  - retain exact failed and denied outcomes, including their rooted/refused
+    operands, without turning host-specific path spellings into portable
+    coordinates or treating provider error text as identity;
+  - replace the current pair of partial replay booleans with one complete,
+    versioned verdict over the exact attempted operation sequence, staged-output
+    commitment, generated-source handoffs, teardown, and replay result;
+  - enforce process CPU/memory and every remaining whole-session quota needed
+    before that verdict can be authority-bearing.
+
+  A summary or observation digest alone is not a receipt.
 
   The Windows `find_first`/`find_next`/`find_close` companion remains ordered
   after **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS**. Its current
