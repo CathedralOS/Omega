@@ -545,6 +545,8 @@ data OmegaBinaryOperatorKind {
     case And;
     case Or;
     case Multiply;
+    case Divide;
+    case Modulo;
 }
 
 data OmegaBinaryExpressionSyntax {
@@ -6142,6 +6144,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Plus -> select_expression_add()
             OmegaPunctuationKind::Minus -> select_expression_subtract()
             OmegaPunctuationKind::Asterisk -> select_expression_multiply()
+            OmegaPunctuationKind::Slash -> select_expression_divide()
+            OmegaPunctuationKind::Percent -> select_expression_modulo()
             OmegaPunctuationKind::Semicolon -> finish_semicolon_expression()
             OmegaPunctuationKind::Comma -> finish_comma_expression()
             OmegaPunctuationKind::RightParen -> expression_right_parenthesis()
@@ -6237,6 +6241,24 @@ machine OmegaParser::parse_view(
         transition true {
             true -> select_expression_operator(
                 OmegaBinaryOperatorKind::Multiply,
+                5
+            )
+        }
+    }
+
+    state select_expression_divide() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::Divide,
+                5
+            )
+        }
+    }
+
+    state select_expression_modulo() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::Modulo,
                 5
             )
         }
