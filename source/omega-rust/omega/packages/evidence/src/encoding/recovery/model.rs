@@ -7,7 +7,7 @@ use crate::evidence::{
 };
 
 /// Version of the package-review canonical-row recovery envelope.
-pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 13;
+pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 14;
 
 /// Resource ceilings applied while encoding or decoding one canonical-row
 /// recovery envelope.

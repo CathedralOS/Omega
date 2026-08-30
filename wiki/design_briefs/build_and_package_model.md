@@ -2471,6 +2471,16 @@ Exact selected-provider grants remain valid. Exact accepted-machine grants are
 retained only as temporary standalone compatibility; package-aware compilation
 rejects them because admitting one selector is not admitting the complete exact
 accepted-claim inventory.
+Review v89 and canonical row v47 retain each authored selected-provider grant
+on the exact selected provider row as its selector kind plus the
+collision-resistant `ProviderPlanDigest`. The compiler carries the selecting
+build-machine symbol and exact `build.omg` source span from typed build
+evaluation through provider settlement; projection rejects a missing, foreign,
+or orphan grant and records that span as `ProviderGrant` explanatory custody.
+The selector string is not persisted as authority: plan-name grants rejoin the
+retained exact plan, slot grants rejoin its exact schema declaration, and both
+bind the same complete selected plan and strong digest. Canonical-row recovery
+v14 adds the source role.
 The signature includes lifetime arity, alpha-normalized type/const/static-
 machine binders,
 ordered parameter names and modes,

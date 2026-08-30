@@ -58,6 +58,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [provider] = review.selected_providers() else {
         panic!("one selected boundary operator provider")
     };
+    assert!(provider.grants().is_empty());
     assert_eq!(
         provider.schema_declaration(),
         declaration.coordinate().identity()

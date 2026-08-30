@@ -83,6 +83,34 @@ impl PackageReviewSelectedInstallationReach {
     }
 }
 
+/// Authored selector vocabulary for one admitted selected-provider grant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewProviderGrantSelectorKind {
+    PlanName,
+    ProviderSlot,
+}
+
+/// Stable admission evidence for one `build.omg` provider grant.
+///
+/// The complete selected plan is retained by the owning provider review. This
+/// child binds the authored selector kind to the collision-resistant identity
+/// of that exact plan; the compact report fingerprint is never authority.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewSelectedProviderGrant {
+    pub(crate) selector_kind: PackageReviewProviderGrantSelectorKind,
+    pub(crate) selected_plan_digest: [u8; 32],
+}
+
+impl PackageReviewSelectedProviderGrant {
+    pub const fn selector_kind(&self) -> PackageReviewProviderGrantSelectorKind {
+        self.selector_kind
+    }
+
+    pub const fn selected_plan_digest(&self) -> &[u8; 32] {
+        &self.selected_plan_digest
+    }
+}
+
 /// One selected provider plan retained for human/LLM review.
 ///
 /// The realizing package is exact and participates in
@@ -100,6 +128,7 @@ impl PackageReviewSelectedInstallationReach {
 pub struct CheckedPackageProviderReview {
     pub(crate) plan_name: String,
     pub(crate) plan_report_fingerprint: u64,
+    pub(crate) grants: Vec<PackageReviewSelectedProviderGrant>,
     pub(crate) realizing_package: Option<PackageKeyIdentity>,
     pub(crate) schema_declaration: PackageReviewNominalIdentity,
     pub(crate) provider_type: String,
@@ -118,6 +147,10 @@ impl CheckedPackageProviderReview {
 
     pub const fn plan_report_fingerprint(&self) -> u64 {
         self.plan_report_fingerprint
+    }
+
+    pub fn grants(&self) -> &[PackageReviewSelectedProviderGrant] {
+        &self.grants
     }
 
     pub const fn realizing_package(&self) -> Option<PackageKeyIdentity> {

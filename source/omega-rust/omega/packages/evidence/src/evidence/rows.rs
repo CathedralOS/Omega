@@ -64,6 +64,7 @@ pub enum PackageReviewSourceLocationRole {
     AuthorityDeclaration,
     AuthorityExposure,
     ProviderSelection,
+    ProviderGrant,
     ProviderSchemaDeclaration,
     ProviderTypeDeclaration,
     ProviderRequirementDeclaration,

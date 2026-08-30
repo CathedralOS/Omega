@@ -108,6 +108,13 @@ pub(crate) fn selected_provider_row_source(
             )?);
         }
     }
+    for grant in compilation.selected_provider_grants() {
+        locations.push(canonical_source_span_location(
+            compilation,
+            grant.source_span,
+            PackageReviewSourceLocationRole::ProviderGrant,
+        )?);
+    }
     locations.sort();
     locations.dedup();
     compiler_derivations.sort();

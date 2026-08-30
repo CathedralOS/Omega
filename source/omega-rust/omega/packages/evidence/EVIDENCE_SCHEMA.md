@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 88 and row schema version 46. This file
+The canonical review schema is version 89 and row schema version 47. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -70,3 +70,11 @@ the selected resolution with the typed requirement, checked service row, and
 realized contract envelope; missing, orphaned, or drifted resolutions reject.
 Rendered service names remain reconciliation data and never become canonical
 service identity. This is schema v88 / row v46.
+
+Authored selected-provider grants are retained on the exact selected provider
+row as `PlanName` or `ProviderSlot` plus the collision-resistant digest of the
+complete retained plan. Projection rejoins every grant to one selected plan,
+requires the exact selected build machine, and retains the authored
+`build.omg` occurrence as `ProviderGrant` source custody. Selector strings and
+compact report fingerprints grant nothing. This is schema v89 / row v47;
+canonical-row recovery v14 adds the source role.

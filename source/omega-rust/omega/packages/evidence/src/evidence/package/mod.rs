@@ -10,7 +10,8 @@ pub use providers::{
     CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
+    PackageReviewSelectedProviderGrant,
 };
 pub(crate) use source::PackageReviewCanonicalRowSources;

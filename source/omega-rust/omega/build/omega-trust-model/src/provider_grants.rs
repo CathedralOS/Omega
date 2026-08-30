@@ -167,25 +167,23 @@ pub fn resolve_authored_selected_provider_grants(
     selected: &omega_effects::SelectedProviderPlanFacts,
     authored_grants: &[AuthoredRootGrant],
 ) -> Result<Vec<ResolvedAuthoredSelectedProviderGrant>, Diagnostic> {
-    let selectors = authored_grants
-        .iter()
-        .map(|grant| grant.selector.clone())
-        .collect::<Vec<_>>();
-    let resolved = resolve_selected_provider_grants(candidates, selected, &selectors)?;
-    if resolved.len() != authored_grants.len() {
-        return Err(Diagnostic::error(
-            "authored provider grants are not aligned with their resolved selected plans",
-        ));
-    }
-    Ok(resolved
-        .into_iter()
-        .zip(authored_grants)
-        .map(|(grant, authored)| ResolvedAuthoredSelectedProviderGrant {
+    let mut resolved_authored = Vec::new();
+    for authored in authored_grants {
+        let mut resolved = resolve_selected_provider_grants(
+            candidates,
+            selected,
+            std::slice::from_ref(&authored.selector),
+        )?;
+        let Some(grant) = resolved.pop() else {
+            continue;
+        };
+        resolved_authored.push(ResolvedAuthoredSelectedProviderGrant {
             grant,
             selecting_machine: authored.selecting_machine,
             source_span: authored.source_span,
-        })
-        .collect())
+        });
+    }
+    Ok(resolved_authored)
 }
 
 #[cfg(test)]

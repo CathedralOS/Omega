@@ -51,7 +51,10 @@ pub(super) fn collect_expression_borrow_calls(
                     receiver_path.as_deref(),
                 );
 
-            if is_machine_call {
+            // `accept_boundary#...` is a statically harvested build
+            // declaration, not an operational machine call. Keep nested
+            // expression traversal below, but do not mint flow-call evidence.
+            if is_machine_call && !call.target.as_str().starts_with("accept_boundary#") {
                 let accesses = collection.collect_call_argument_accesses(
                     collection
                         .program
