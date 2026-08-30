@@ -609,3 +609,22 @@ path, credential, filesystem state, or operating-system security property.
 Successful or resolved unlinks, alternate errors such as an absent leaf,
 non-component names, and any rooted, authorized, refusal, output-mutation, or
 generated-source evidence remain non-receipted.
+
+## Unknown-descriptor `read_dir` (summary v67, replay record v47)
+
+The failure-only grammar admits one tag-23 `read_dir` after an optional exact
+Source-input prefix when its descriptor resolves to Omega's unknown synthetic
+descriptor. The typed row retains the exact authored `u64` requested count,
+the complete unchanged byte carrier at operand one, and the exact unchanged
+`i64` position carrier at operand three. The count may not exceed the byte
+carrier. Scoped provider, scalar `-1`, post-error `9` (`bad descriptor`),
+operand-zero `Descriptor/Unknown`, and every other empty lane are fixed.
+
+Both evaluators reject the unknown descriptor before directory enumeration,
+authorization, sponsorship, observed-region creation, or mutation of either
+carrier. Provider-free replay therefore proves only Omega's modeled
+unknown-descriptor result for the same authored call. It claims no directory
+contents, host path, permission, credential, or operating-system security
+property. Resolved or non-directory descriptors, successful enumeration,
+alternate errors, changed carriers, and any rooted, authorized, refusal,
+output-mutation, or generated-source evidence remain non-receipted.

@@ -101,6 +101,7 @@ pub use filesystem_replay::{
     FilesystemInputUnknownDescriptorOpenAtReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
+    FilesystemInputUnknownDescriptorReadDirReplayRecord,
     FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
     FilesystemInputUnknownDescriptorReadReplayKind,
     FilesystemInputUnknownDescriptorReadReplayRecord,

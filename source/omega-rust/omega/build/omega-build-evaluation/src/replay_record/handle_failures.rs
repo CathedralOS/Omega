@@ -251,15 +251,36 @@ fn unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(
     result: i64,
     post_error: i32,
 ) -> bool {
-    unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+    unknown_handle_failure_fixed_shape_with_outcome_is_exact(
         shape,
         DESCRIPTOR_HANDLE_KIND_TAG,
         result,
         post_error,
-    )
+    ) && shape.mutable_i64_resolutions.is_empty()
+        && shape.mutable_i64s.is_empty()
 }
 
 pub(super) fn unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+    shape: &AttemptShape<'_>,
+    handle_kind: u8,
+    result: i64,
+    post_error: i32,
+) -> bool {
+    unknown_handle_failure_fixed_shape_with_outcome_is_exact(shape, handle_kind, result, post_error)
+        && shape.mutable_i64_resolutions.is_empty()
+        && shape.mutable_i64s.is_empty()
+}
+
+pub(super) fn unknown_descriptor_failure_fixed_shape_is_exact(shape: &AttemptShape<'_>) -> bool {
+    unknown_handle_failure_fixed_shape_with_outcome_is_exact(
+        shape,
+        DESCRIPTOR_HANDLE_KIND_TAG,
+        BAD_DESCRIPTOR_RESULT,
+        BAD_DESCRIPTOR_ERROR,
+    )
+}
+
+fn unknown_handle_failure_fixed_shape_with_outcome_is_exact(
     shape: &AttemptShape<'_>,
     handle_kind: u8,
     result: i64,
@@ -280,8 +301,6 @@ pub(super) fn unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
         && shape.returned_path_count == 0
         && shape.observed_regions.is_empty()
         && shape.metadata.is_empty()
-        && shape.mutable_i64_resolutions.is_empty()
-        && shape.mutable_i64s.is_empty()
         && shape.authorized_paths.is_empty()
         && shape.output.is_none()
         && shape.retired.is_empty()

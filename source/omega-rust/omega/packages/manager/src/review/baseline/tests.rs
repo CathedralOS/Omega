@@ -166,6 +166,50 @@ fn baseline_retains_unknown_descriptor_at_failure_replay_custody() {
 }
 
 #[test]
+fn baseline_retains_unknown_descriptor_read_dir_failure_replay_custody() {
+    let replay = unknown_descriptor_failure_baseline(
+        "unknown-read-dir",
+        r#"let mut buffer: [u8; 47];
+    buffer[0] = 11;
+    buffer[46] = 173;
+    let mut position: i64 = -19;
+    let count: i64 = builder.filesystem.read_dir(-1, &mut buffer, 31, &mut position);"#,
+    );
+    let [attempt] = replay.attempts() else {
+        panic!("read_dir baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 23);
+    let [count] = attempt.scalar_operands() else {
+        panic!("read_dir baseline retains one requested count")
+    };
+    assert_eq!(count.operand_ordinal(), 2);
+    assert_eq!(
+        count.value(),
+        psi_checked_interpreter::FilesystemScalarOperandValue::U64(31)
+    );
+    let [buffer_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        panic!("read_dir baseline retains one buffer resolution")
+    };
+    let [buffer] = attempt.mutable_byte_operands() else {
+        panic!("read_dir baseline retains one provider buffer")
+    };
+    assert_eq!(buffer_resolution.bytes(), buffer.pre_bytes());
+    assert_eq!(buffer.pre_bytes(), buffer.post_bytes());
+    assert_eq!(buffer.pre_bytes()[0], 11);
+    assert_eq!(buffer.pre_bytes()[46], 173);
+    let [position_resolution] = attempt.mutable_i64_operand_resolutions() else {
+        panic!("read_dir baseline retains one position resolution")
+    };
+    let [position] = attempt.mutable_i64_operands() else {
+        panic!("read_dir baseline retains one provider position")
+    };
+    assert_eq!(position_resolution.value(), -19);
+    assert_eq!(position.pre_value(), -19);
+    assert_eq!(position.post_value(), -19);
+    assert!(!replay.has_output_attempts());
+}
+
+#[test]
 fn baseline_retains_unknown_descriptor_write_operation_replay_custody() {
     assert_baseline_retains_unknown_descriptor_failure(
         "unknown-change-file-owner",
