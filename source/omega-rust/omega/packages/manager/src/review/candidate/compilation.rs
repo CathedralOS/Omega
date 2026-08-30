@@ -12,7 +12,7 @@ use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
-use crate::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ResolvedPackageSourceClosure;
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_evidence::obligations::{

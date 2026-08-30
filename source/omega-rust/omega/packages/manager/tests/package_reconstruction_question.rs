@@ -1,4 +1,4 @@
-use omega_package_manager::graph::{
+use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_workspace_package_closure_with_storage,
 };
@@ -6,7 +6,7 @@ use omega_package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
     compile_resolved_package_reviews,
 };
-use omega_package_manager::sources::ResolvePackageSourceError;
+use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };

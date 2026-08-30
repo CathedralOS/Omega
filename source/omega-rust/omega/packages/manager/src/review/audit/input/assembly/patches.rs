@@ -1,10 +1,10 @@
-use crate::graph::ResolvedPackageSourceClosure;
-use crate::package::PackageKey;
+use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::manifest::PackageKey;
 use crate::review::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
     render_package_source_patch,
 };
-use crate::sources::PackageSourceCustody;
+use crate::resolution::source::PackageSourceCustody;
 use std::collections::BTreeMap;
 
 use super::super::error::PackageSourceReviewError;

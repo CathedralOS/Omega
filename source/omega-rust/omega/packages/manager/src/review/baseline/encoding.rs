@@ -5,7 +5,7 @@ use super::{
     CHECKSUM_DOMAIN, REPLAY_PARENT_BINDING_DOMAIN, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits,
 };
-use crate::package::{PackageKey, PackageName};
+use crate::manifest::{PackageKey, PackageName};
 use crate::review::candidate::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::{
     ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,

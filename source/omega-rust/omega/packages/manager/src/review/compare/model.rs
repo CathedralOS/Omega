@@ -2,9 +2,9 @@
 
 use super::format::{RenderByteCounter, render_conflict_set, review_role_token};
 use super::render_error::ReviewOnlyCapabilityConflictRenderError;
-use crate::graph::DependencyRequestPath;
-use crate::package::PackageKey;
-use crate::project::BuildDeclarationKind;
+use crate::resolution::graph::DependencyRequestPath;
+use crate::manifest::PackageKey;
+use crate::manifest::BuildDeclarationKind;
 use crate::review::candidate::ReviewOnlySourceConsumptionCommitment;
 use omega_package_evidence::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,

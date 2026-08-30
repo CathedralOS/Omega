@@ -4,7 +4,7 @@ use super::model::{
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
 };
 use super::validation::validate_association;
-use crate::graph::{CanonicalSourceClosureSubject, ResolvedPackageSourceClosure};
+use crate::resolution::graph::{CanonicalSourceClosureSubject, ResolvedPackageSourceClosure};
 use crate::review::{CompilerIssuedPackageReviewSet, package_compilation_inputs_for};
 use std::collections::BTreeMap;
 

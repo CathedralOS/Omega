@@ -1,6 +1,6 @@
 //! Prepare one local `build.omg` project for package-aware compilation.
 
-use crate::graph::{
+use crate::resolution::graph::{
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
     resolve_external_local_project_closure_with_storage,
 };

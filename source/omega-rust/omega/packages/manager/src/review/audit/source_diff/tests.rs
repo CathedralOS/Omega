@@ -1,6 +1,6 @@
 use super::super::diff::{Edit, render_hunks};
 use super::*;
-use crate::sources::resolve_external_local_package_source;
+use crate::resolution::source::resolve_external_local_package_source;
 use omega_package_source::local::model::VerifiedPackageSourceEntryKind;
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits};
 use std::path::{Path, PathBuf};

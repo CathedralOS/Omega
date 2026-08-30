@@ -1,5 +1,5 @@
-use crate::graph::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits};
-use crate::package::PackageKey;
+use crate::resolution::graph::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits};
+use crate::manifest::PackageKey;
 use omega_package_evidence::obligations::OrdinaryPackageObligationLedger;
 use std::fmt;
 

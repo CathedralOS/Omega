@@ -1,6 +1,6 @@
 //! Revalidated package-aware inputs handed from source custody to the compiler.
 
-use crate::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ResolvedPackageSourceClosure;
 use omega_package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
@@ -27,7 +27,7 @@ pub fn package_compilation_inputs(
 /// unreachable-package check.
 pub fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
-    root: &crate::package::PackageKey,
+    root: &crate::manifest::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
     let reachable = reachable_package_keys(closure, root);
     let packages = closure
@@ -68,13 +68,13 @@ pub fn package_compilation_inputs_for(
     let root_role = if root == closure.graph().root() {
         closure.root_role()
     } else {
-        crate::project::BuildDeclarationKind::Package
+        crate::manifest::BuildDeclarationKind::Package
     };
     PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::sources::PackageSourceCustody,
+    custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::local::operations::capture_verified_package_source_snapshot(
@@ -97,7 +97,7 @@ fn binding_with_canonical_source_metadata(
 }
 
 fn revalidate_package_source_selection(
-    custody: &crate::sources::PackageSourceCustody,
+    custody: &crate::resolution::source::PackageSourceCustody,
 ) -> Result<(), PackageCompilationInputError> {
     custody.selection_evidence().revalidate().map_err(|error| {
         PackageCompilationInputError::InvalidSourceRoot {
@@ -110,8 +110,8 @@ fn revalidate_package_source_selection(
 
 pub(crate) fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
-    root: &crate::package::PackageKey,
-) -> BTreeSet<crate::package::PackageKey> {
+    root: &crate::manifest::PackageKey,
+) -> BTreeSet<crate::manifest::PackageKey> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root.clone()];
     while let Some(package) = pending.pop() {
@@ -134,11 +134,11 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::PackageRootSourceRequest;
-    use crate::graph::reconcile::resolve_package_source_closure;
-    use crate::package::{PackageKey, PackageName};
-    use crate::project::dependencies::read::DependencySourceRequest;
-    use crate::sources::PackageSourceCustody;
+    use crate::resolution::graph::PackageRootSourceRequest;
+    use crate::resolution::graph::reconcile::resolve_package_source_closure;
+    use crate::manifest::{PackageKey, PackageName};
+    use crate::manifest::dependencies::read::DependencySourceRequest;
+    use crate::resolution::source::PackageSourceCustody;
     use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
     #[cfg(unix)]
     use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
@@ -146,7 +146,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
-        PackageRootSourceRequest::Git(crate::sources::GitPackageSourceRequest::root(
+        PackageRootSourceRequest::Git(crate::resolution::source::GitPackageSourceRequest::root(
             omega_package_source::GitSourceRequest::new(
                 format!(
                     "https://github.com/CathedralOS/{}.git",
@@ -201,15 +201,15 @@ mod tests {
             GitTreeId::parse_hex(&digit.to_string().repeat(40)).expect("tree"),
         )
         .expect("resolution");
-        let materialization = crate::sources::PackageSourceMaterialization::from_local(&source);
+        let materialization = crate::resolution::source::PackageSourceMaterialization::from_local(&source);
         PackageSourceCustody::from_resolved_parts(
             key,
-            crate::project::BuildDeclarationKind::Package,
+            crate::manifest::BuildDeclarationKind::Package,
             resolution,
             materialization,
             source_root,
-            crate::sources::PackageSourceNavigation::Root,
-            crate::sources::PackageSourceSelectionEvidence::Root,
+            crate::resolution::source::PackageSourceNavigation::Root,
+            crate::resolution::source::PackageSourceSelectionEvidence::Root,
             omega_package_source::LocalSourceLimits::default(),
             dependency_requests,
         )

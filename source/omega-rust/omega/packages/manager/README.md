@@ -10,18 +10,13 @@ src/
 ├── workflows/      real user-facing entrances
 │   ├── audit_source/ acquire and inspect one source without admission
 │   └── local_project.rs prepare ordinary package-aware compilation
-├── project/        package roles and dependencies declared by build.omg
+├── manifest/       package identity, roles, and dependencies from build.omg
+│   ├── identity.rs names, aliases, and source-qualified package keys
 │   ├── roles.rs    package, application, and workspace roles
-│   └── dependencies/
-├── sources/        bind declarations to immutable package source custody
-│   ├── git/        Git package and workspace-member sources
-│   ├── local.rs    external-local sources
-│   └── workspace.rs live workspace-member sources
-├── graph/          build and identify one exact dependency closure
-│   ├── resolve/    traverse declared dependency edges
-│   ├── reconcile/  reject conflicting or incomplete closures
-│   └── subject/    canonical closure question and fingerprint
-├── package/        names, requester aliases, and source-qualified package keys
+│   └── dependencies/ read and conservatively edit dependency declarations
+├── resolution/     turn declarations into one exact immutable closure
+│   ├── source/     bind local, workspace, and Git declarations to custody
+│   └── graph/      traverse, reconcile, and identify the complete graph
 └── review/         compiler evidence, source audit, comparison, and decisions
     ├── candidate/  compile exact custody into compiler-issued evidence
     ├── compare/    compare candidate evidence with a retained baseline
@@ -39,12 +34,11 @@ transaction prerequisites are implemented. Current work is tracked in
 
 ## Ownership
 
-`workflows` owns complete command/compiler flows. `project` reads checked
-`build.omg` package declarations. `sources` joins those
-declarations to immutable source custody. `graph` follows and
-reconciles dependency edges. `review` compiles the resulting closure, compares
-compiler-issued facts, prepares source audit material, and records the root
-owner's decision.
+`workflows` owns complete command/compiler flows. `manifest` reads the checked
+`build.omg` identity, role, and dependency declarations. `resolution` binds
+those declarations to immutable source custody and reconciles the exact graph.
+`review` compiles the resulting closure, compares compiler-issued facts,
+prepares source audit material, and records the root owner's decision.
 
 The crate root deliberately does not flatten these APIs. Callers name the owner
 they consume, so source paths continue to explain authority and data flow.

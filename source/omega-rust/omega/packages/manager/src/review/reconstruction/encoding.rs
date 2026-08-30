@@ -7,7 +7,7 @@ use super::{
     PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION, RECONSTRUCTION_QUESTION_FINGERPRINT_DOMAIN,
     RECONSTRUCTION_QUESTION_MAGIC,
 };
-use crate::graph::CanonicalSourceClosureSubject;
+use crate::resolution::graph::CanonicalSourceClosureSubject;
 use omega_package_evidence::obligations::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
