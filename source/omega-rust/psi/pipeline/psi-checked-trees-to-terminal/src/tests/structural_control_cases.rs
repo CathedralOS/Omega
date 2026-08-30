@@ -1229,6 +1229,77 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
 }
 
 #[test]
+fn ranked_countdown_lowers_implicit_mutable_receiver_without_discarding_it() {
+    let checked = checked_source(
+        r#"
+            data Root { value: i32; }
+
+            machine Root::countdown(&mut self, remaining: u32)
+            terminates by remaining -> Nat::Descending;
+            {
+                transition remaining > 0 {
+                    true -> countdown(remaining - 1)
+                    _ -> done()
+                }
+                state done(&mut self) {}
+            }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .machines
+        .iter()
+        .find(|plan| plan.ranked_scc.is_some())
+        .expect("checked mutable-receiver countdown");
+    let lowered = lower_structural_unit_control_machine(&checked, plan)
+        .expect("mutable receiver should lower into ranked Terminal custody");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("one ranked machine")
+    };
+    let [receiver] = machine.structural_parameters.as_slice() else {
+        panic!("one structural receiver")
+    };
+    assert!(receiver.is_self);
+    assert_eq!(receiver.position, 0);
+    assert_eq!(
+        receiver.access,
+        psi_terminal::StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        receiver.multiplicity,
+        psi_terminal::StructuralMultiplicity::Affine
+    );
+    assert!(matches!(
+        machine.structural_places.as_slice(),
+        [psi_terminal::StructuralPlaceDeclaration {
+            id,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: true,
+            },
+        }] if *id == receiver.place
+    ));
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &machine.blocks[3].terminator
+    else {
+        panic!("countdown exit returns Unit")
+    };
+    assert!(trivial_affine_discards.is_empty());
+    psi_terminal_verifier::validate_module_representation(&lowered.semantic_module)
+        .expect("mutable-receiver ranked representation is structurally valid");
+    psi_terminal_verifier::verify_module_for_interpretation(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("mutable-receiver ranked proof closes for interpreter admission");
+}
+
+#[test]
 fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
     let checked = checked_source(
         r#"

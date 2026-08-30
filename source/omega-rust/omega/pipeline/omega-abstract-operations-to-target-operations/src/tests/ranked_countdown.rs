@@ -24,8 +24,29 @@ const COUNTDOWN_SOURCE: &str = r#"
     }
 "#;
 
+const RECEIVER_COUNTDOWN_SOURCE: &str = r#"
+    data Token { value: i32; }
+    data Root { token: Token; }
+
+    machine Root::countdown(&mut self, remaining: u32)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> countdown(remaining - 1)
+            _ -> done()
+        }
+        state done(&mut self) {}
+    }
+"#;
+
 fn ranked_abstract() -> omega_abstract_operations::RankedNativeAbstractOperationPlan {
-    let tokens = Lexer::new(COUNTDOWN_SOURCE).tokenize().expect("tokenize");
+    ranked_abstract_from(COUNTDOWN_SOURCE)
+}
+
+fn ranked_abstract_from(
+    source: &str,
+) -> omega_abstract_operations::RankedNativeAbstractOperationPlan {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
@@ -40,6 +61,58 @@ fn ranked_abstract() -> omega_abstract_operations::RankedNativeAbstractOperation
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("admit native ranked countdown")
+}
+
+#[test]
+fn ranked_receiver_countdown_uses_one_persistent_pointer_custody_row() {
+    let ranked = ranked_abstract_from(RECEIVER_COUNTDOWN_SOURCE);
+    let replay = &ranked.countdown.semantic_replay.machines[0].structural_parameters[0];
+    assert!(replay.is_self);
+    assert_eq!(
+        replay.multiplicity,
+        psi_terminal::StructuralMultiplicity::Affine
+    );
+    assert_eq!(replay.access, psi_terminal::StructuralAccess::MutableBorrow);
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let lowered = lower_ranked_to_target_operations(&ranked, target)
+            .expect("persistent receiver reaches target custody");
+        let TargetOperation::RankedU32Countdown(countdown) = &lowered.functions[0].operation else {
+            panic!("dedicated ranked carrier")
+        };
+        let [parameter] = countdown.structural_parameters.as_slice() else {
+            panic!("one receiver custody row")
+        };
+        assert_eq!(parameter.place, replay.place);
+        assert_eq!(parameter.structural_type, replay.structural_type);
+        assert_eq!(parameter.multiplicity, replay.multiplicity);
+        assert_eq!(parameter.access, replay.access);
+        assert_eq!(
+            parameter.shape,
+            omega_calling_conventions::ValueShape::integer(8, 8)
+        );
+        assert_eq!(countdown.call_plan.parameters[1], parameter.placement);
+        assert!(countdown.cleanup_actions.is_empty());
+        assert!(
+            countdown
+                .custody
+                .structural_frontiers
+                .header_entry
+                .owned_places()
+                .is_empty()
+        );
+        assert_eq!(
+            countdown.custody.structural_frontiers.header_entry,
+            countdown.custody.structural_frontiers.backedge_exit
+        );
+    }
+
+    let mut forged = ranked;
+    forged.countdown.semantic_replay.machines[0].structural_parameters[0].is_self = false;
+    assert!(matches!(
+        lower_ranked_to_target_operations(&forged, NativeTarget::linux_x64()),
+        Err(LoweringError::InvalidRankedCountdown(machine)) if machine == forged.plan.entry
+    ));
 }
 
 #[test]

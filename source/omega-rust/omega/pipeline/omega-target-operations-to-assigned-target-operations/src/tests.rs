@@ -39,10 +39,30 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
     }
 "#;
 
+const RANKED_RECEIVER_COUNTDOWN_SOURCE: &str = r#"
+    data Token { value: i32; }
+    data Root { token: Token; }
+
+    machine Root::countdown(&mut self, remaining: u32)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> countdown(remaining - 1)
+            _ -> done()
+        }
+        state done(&mut self) {}
+    }
+"#;
+
 fn ranked_target(target: NativeTarget) -> omega_target_operations::TargetOperationPlan {
-    let tokens = Lexer::new(RANKED_COUNTDOWN_SOURCE)
-        .tokenize()
-        .expect("tokenize");
+    ranked_target_from(RANKED_COUNTDOWN_SOURCE, target)
+}
+
+fn ranked_target_from(
+    source: &str,
+    target: NativeTarget,
+) -> omega_target_operations::TargetOperationPlan {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
@@ -62,6 +82,46 @@ fn ranked_target(target: NativeTarget) -> omega_target_operations::TargetOperati
         &ranked, target,
     )
     .expect("lower ranked target")
+}
+
+#[test]
+fn ranked_receiver_assignment_replays_semantic_identity_and_pointer_placement() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = ranked_target_from(RANKED_RECEIVER_COUNTDOWN_SOURCE, target);
+        let assigned = assign_registers(&target_plan).expect("assign persistent receiver");
+        let AssignedOperation::RankedU32Countdown(countdown) = &assigned.functions[0].operation
+        else {
+            panic!("assigned ranked carrier")
+        };
+        let [replay] = countdown.custody.semantic_replay.machines[0]
+            .structural_parameters
+            .as_slice()
+        else {
+            panic!("one replay receiver")
+        };
+        let [physical] = countdown.structural_parameters.as_slice() else {
+            panic!("one physical receiver")
+        };
+        assert!(replay.is_self);
+        assert_eq!(physical.place, replay.place);
+        assert_eq!(physical.structural_type, replay.structural_type);
+        assert_eq!(physical.multiplicity, replay.multiplicity);
+        assert_eq!(physical.access, replay.access);
+        assert_eq!(physical.shape, ValueShape::integer(8, 8));
+        assert!(countdown.cleanup_actions.is_empty());
+
+        let mut forged = target_plan.clone();
+        let TargetOperation::RankedU32Countdown(candidate) = &mut forged.functions[0].operation
+        else {
+            unreachable!()
+        };
+        candidate.structural_parameters[0].access = psi_terminal::StructuralAccess::Owned;
+        let source = candidate.custody.graph.initial_value;
+        assert_eq!(
+            assign_registers(&forged),
+            Err(AssignmentError::RankedCountdownAbiMismatch(source))
+        );
+    }
 }
 
 #[test]

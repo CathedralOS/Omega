@@ -1812,7 +1812,7 @@ pub(super) fn build_structural_scalar_return_machine(
     }
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        structural_scalar_signature(program, shapes, machine, state, &binders)?;
+        structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
     let source_state_parameters = program.state_parameters(state);
     let authored_parameter_positions = structural_parameters
         .iter()

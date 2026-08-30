@@ -1533,6 +1533,7 @@ pub(super) fn structural_scalar_signature(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
+    retain_reference_self: bool,
 ) -> Option<(
     String,
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -1563,7 +1564,10 @@ pub(super) fn structural_scalar_signature(
         if parameter.is_const {
             return None;
         }
-        if parameter.is_self && is_reference(program, parameter.type_reference) {
+        if parameter.is_self
+            && is_reference(program, parameter.type_reference)
+            && !retain_reference_self
+        {
             continue;
         }
         let type_identity = if parameter.is_self {

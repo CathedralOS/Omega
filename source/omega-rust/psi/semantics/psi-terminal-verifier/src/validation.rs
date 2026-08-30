@@ -307,18 +307,21 @@ fn validate_native_ranked_countdown_module(module: &TerminalModule) -> Result<()
     let [structural_place] = machine.structural_places.as_slice() else {
         return Err(ModuleError::NonExecutableRankedScc(machine.id));
     };
+    let affine_owned = !structural_parameter.is_self
+        && structural_parameter.multiplicity == StructuralMultiplicity::Affine
+        && structural_parameter.access == StructuralAccess::Owned;
+    let persistent_receiver = structural_parameter.is_self
+        && structural_parameter.access == StructuralAccess::MutableBorrow;
     if component.rank_type != u32_type
         || machine.parameters[0].scalar_type != ScalarType::Integer(u32_type)
         || structural_parameter.position != 0
-        || structural_parameter.is_self
-        || structural_parameter.multiplicity != StructuralMultiplicity::Affine
-        || structural_parameter.access != StructuralAccess::Owned
+        || (!affine_owned && !persistent_receiver)
         || !structural_parameter.qualifications.is_empty()
         || structural_place.id != structural_parameter.place
         || structural_place.kind
             != (StructuralPlaceKind::Parameter {
                 position: 0,
-                is_self: false,
+                is_self: structural_parameter.is_self,
             })
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
