@@ -1,6 +1,7 @@
 use super::{
     FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
     FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
+    FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord as ReadFileMetadataRecord,
     FilesystemInputUnknownDescriptorReadReplayKind as ReadKind,
     FilesystemInputUnknownDescriptorReadReplayRecord as ReadRecord,
     FilesystemInputUnknownDescriptorSeekReplayRecord as SeekRecord,
@@ -10,15 +11,17 @@ use super::{
     FilesystemInputUnknownDescriptorWriteReplayKind as PayloadWriteKind,
     FilesystemInputUnknownDescriptorWriteReplayRecord as PayloadWriteRecord,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
-    unknown_descriptor_read_attempt, unknown_descriptor_read_from_exact_attempt,
-    unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
-    unknown_descriptor_set_file_times_attempt,
+    unknown_descriptor_read_attempt, unknown_descriptor_read_file_metadata_attempt,
+    unknown_descriptor_read_file_metadata_from_exact_attempt,
+    unknown_descriptor_read_from_exact_attempt, unknown_descriptor_seek_attempt,
+    unknown_descriptor_seek_from_exact_attempt, unknown_descriptor_set_file_times_attempt,
     unknown_descriptor_set_file_times_from_exact_attempt, unknown_descriptor_write_attempt,
     unknown_descriptor_write_from_exact_attempt, unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,
 };
 use crate::{
-    BuildIncludedSource, EvaluationObservations, FilesystemAuthorizedPath, FilesystemByteOperand,
+    BuildIncludedSource, EvaluationObservations, FILESYSTEM_METADATA_API_CARRIER_BYTES,
+    FilesystemAccess, FilesystemAuthorizedPath, FilesystemByteOperand,
     FilesystemEvaluationHaltKind, FilesystemGrantAccess, FilesystemGrantRefusal,
     FilesystemGrantRefusalReason, FilesystemGrantRootIdentity, FilesystemLogicalHandleIdentity,
     FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
@@ -33,8 +36,21 @@ use crate::{
     FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
     FilesystemRootedPathOperandResolution, FilesystemScalarOperand, FilesystemScalarOperandValue,
     FilesystemSourceInputReplayEventRecord, FilesystemSourceInputReplayRecord,
-    FilesystemSourceReadChainReplayRecord, MAX_FILESYSTEM_REPLAY_RETAINED_BYTES,
+    FilesystemSourceReadChainReplayRecord, InterpretOptions, MAX_FILESYSTEM_REPLAY_RETAINED_BYTES,
+    interpret_entry_with_options,
 };
+use psi_source::{SourceMap, SourceOrigin};
+use psi_source_files_to_tokens::Lexer;
+use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources;
+use psi_tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
+use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use std::{path::PathBuf, sync::Arc};
+
+const FILESYSTEM_HOST: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../source/library/std/filesystem_host.omg"
+));
 
 const KINDS_AND_TAGS: [(Kind, u16); 4] = [
     (Kind::Close, 8),
@@ -74,6 +90,52 @@ fn source_input() -> FilesystemSourceInputReplayRecord {
         chain,
     )])
     .unwrap()
+}
+
+fn checked_unknown_descriptor_read_file_metadata() -> psi_checked_trees::CheckedTrees {
+    const SOURCE: &str = r#"
+data Main { filesystem: FilesystemHost; result: i32; buffer: [u8; 144]; }
+
+machine Main::read_unknown(&mut self)
+reaches FilesystemHost
+{
+    self.result = self.filesystem.read_file_metadata(-1, &mut self.buffer);
+}
+"#;
+    let mut sources = SourceMap::default();
+    let filesystem_host_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/std/filesystem_host.omg"),
+            FILESYSTEM_HOST.to_owned(),
+            PathBuf::from("source/library/std"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let source_id = sources
+        .add_with_metadata(
+            PathBuf::from("tests/unknown_descriptor_read_file_metadata.omg"),
+            SOURCE.to_owned(),
+            PathBuf::from("tests"),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let filesystem_host_tokens = Lexer::new(FILESYSTEM_HOST)
+        .tokenize()
+        .expect("tokenize canonical filesystem host");
+    let mut syntax = parse_syntax_trees_with_id(filesystem_host_source_id, &filesystem_host_tokens)
+        .expect("parse canonical filesystem host");
+    let tokens = Lexer::new(SOURCE)
+        .tokenize()
+        .expect("tokenize read_file_metadata replay fixture");
+    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        .expect("parse read_file_metadata replay fixture");
+    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolve read_file_metadata replay fixture");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type read_file_metadata replay fixture");
+    lower_typed_trees(typed).expect("check read_file_metadata replay fixture")
 }
 
 #[test]
@@ -1119,6 +1181,311 @@ fn assert_tampered_read_rejected(attempt: FilesystemOperationAttempt) {
         EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
     assert!(
         FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations).is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_records_preserve_boundary_carriers_and_source_prefixes() {
+    let carrier = (0..FILESYSTEM_METADATA_API_CARRIER_BYTES)
+        .map(|index| (index % 251) as u8)
+        .collect::<Vec<_>>();
+    let record = ReadFileMetadataRecord::new(None, carrier.clone());
+    assert!(record.source_input().is_none());
+    assert_eq!(record.carrier(), carrier);
+
+    let without_source =
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_record(record).unwrap();
+    assert_eq!(without_source.attempts().len(), 1);
+    assert_eq!(without_source.attempts()[0].operation_tag(), 39);
+    assert_eq!(
+        unknown_descriptor_read_file_metadata_from_exact_attempt(&without_source.attempts()[0]),
+        Some(carrier.as_slice())
+    );
+    assert!(without_source.executes_replay_attempt(0));
+    assert!(!without_source.has_output_attempts());
+    assert!(without_source.expected_included_sources().is_empty());
+
+    let operation = &without_source.attempts()[0];
+    assert_eq!(
+        operation.provider,
+        FilesystemObservationProvider::RealScoped
+    );
+    assert_eq!(
+        operation.outcome,
+        Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(-1),
+            post_error: 9,
+        })
+    );
+    assert!(operation.logical_handle_output.is_none());
+    assert!(operation.retired_logical_handles.is_empty());
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        without_source.attempts().to_vec(),
+        Vec::new(),
+    );
+    let observed = FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+        &observations,
+    )
+    .unwrap();
+    assert_eq!(observed.attempts(), without_source.attempts());
+
+    let with_source = FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_record(
+        ReadFileMetadataRecord::new(Some(source_input()), carrier.clone()),
+    )
+    .unwrap();
+    assert_eq!(
+        with_source
+            .attempts()
+            .iter()
+            .map(FilesystemOperationAttempt::operation_tag)
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 39]
+    );
+    assert!((0..3).all(|index| !with_source.executes_replay_attempt(index)));
+    assert!(with_source.executes_replay_attempt(3));
+    assert!(!with_source.has_output_attempts());
+    assert_eq!(
+        unknown_descriptor_read_file_metadata_from_exact_attempt(&with_source.attempts()[3]),
+        Some(carrier.as_slice())
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        with_source.attempts().to_vec(),
+        Vec::new(),
+    );
+    let observed = FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+        &observations,
+    )
+    .unwrap();
+    assert_eq!(observed.attempts(), with_source.attempts());
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_executes_provider_free_and_tears_down_empty() {
+    let checked = checked_unknown_descriptor_read_file_metadata();
+    let replay = FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_record(
+        ReadFileMetadataRecord::new(None, vec![0; FILESYSTEM_METADATA_API_CARRIER_BYTES]),
+    )
+    .unwrap();
+
+    let outcome = interpret_entry_with_options(
+        &checked,
+        "Main::read_unknown",
+        &[],
+        InterpretOptions {
+            filesystem: FilesystemAccess::ReplayFilesystem(replay),
+            ..InterpretOptions::default()
+        },
+    );
+
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 0);
+    assert!(outcome.stdout.is_empty());
+    assert!(outcome.stderr.is_empty());
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_rejects_below_preparation_capacity() {
+    let short = vec![7; FILESYSTEM_METADATA_API_CARRIER_BYTES - 1];
+    let record = ReadFileMetadataRecord::new(None, short.clone());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_record(record).is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_read_file_metadata_attempt(short)],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+            &observations
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_observations_retain_complete_carrier() {
+    let mut carrier = vec![0; FILESYSTEM_METADATA_API_CARRIER_BYTES + 19];
+    carrier[0] = 11;
+    carrier[73] = 29;
+    *carrier.last_mut().unwrap() = 47;
+    let exact = unknown_descriptor_read_file_metadata_attempt(carrier.clone());
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![exact.clone()], Vec::new());
+    let replay = FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+        &observations,
+    )
+    .unwrap();
+    assert_eq!(replay.attempts(), &[exact]);
+    assert_eq!(
+        unknown_descriptor_read_file_metadata_from_exact_attempt(&replay.attempts()[0]),
+        Some(carrier.as_slice())
+    );
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_rejects_failure_and_handle_drift() {
+    let exact = unknown_descriptor_read_file_metadata_attempt(vec![
+        3;
+        FILESYSTEM_METADATA_API_CARRIER_BYTES
+    ]);
+
+    let mut changed = exact.clone();
+    changed.operation_tag = 38;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.provider = FilesystemObservationProvider::Virtual;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = None;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(0),
+        post_error: 9,
+    });
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(-1),
+        post_error: 13,
+    });
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands.push(FilesystemScalarOperand {
+        operand_ordinal: 2,
+        value: FilesystemScalarOperandValue::U64(0),
+    });
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs.clear();
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].operand_ordinal = 1;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].kind = FilesystemLogicalHandleKind::Find;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact;
+    changed.logical_handle_inputs[0].resolution = FilesystemLogicalHandleInputResolution::Null;
+    assert_tampered_read_file_metadata_rejected(changed);
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_rejects_carrier_drift() {
+    let exact = unknown_descriptor_read_file_metadata_attempt(vec![
+        5;
+        FILESYSTEM_METADATA_API_CARRIER_BYTES
+    ]);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions.clear();
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands.clear();
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0].operand_ordinal = 2;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].operand_ordinal = 2;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0].bytes[0] ^= 1;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].pre_bytes[0] ^= 1;
+    assert_tampered_read_file_metadata_rejected(changed);
+
+    let mut changed = exact;
+    changed.mutable_byte_operands[0].post_bytes[0] ^= 1;
+    assert_tampered_read_file_metadata_rejected(changed);
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_rejects_side_lanes_handoff_and_invalid_prefix() {
+    let exact = unknown_descriptor_read_file_metadata_attempt(vec![
+        7;
+        FILESYSTEM_METADATA_API_CARRIER_BYTES
+    ]);
+    for changed in nonempty_side_lane_attempts(exact.clone()) {
+        assert_tampered_read_file_metadata_rejected(changed);
+    }
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![exact.clone()],
+        vec![
+            BuildIncludedSource::from_coordinate(
+                FilesystemGrantRootIdentity::new(2).unwrap(),
+                b"generated.omg".to_vec(),
+                1,
+            )
+            .unwrap(),
+        ],
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+            &observations
+        )
+        .is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_seek_attempt(0, 0), exact],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+            &observations
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_enforces_aggregate_replay_limit() {
+    let oversized = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES / 3 + 1];
+    let record = ReadFileMetadataRecord::new(None, oversized.clone());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_record(record).is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_read_file_metadata_attempt(oversized)],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+            &observations
+        )
+        .is_err()
+    );
+}
+
+fn assert_tampered_read_file_metadata_rejected(attempt: FilesystemOperationAttempt) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+            &observations
+        )
+        .is_err()
     );
 }
 

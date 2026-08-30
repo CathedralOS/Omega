@@ -1,6 +1,7 @@
 use crate::{
-    BuildIncludedSource, EvaluationObservations, FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-    FilesystemByteOperand, FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
+    BuildIncludedSource, EvaluationObservations, FILESYSTEM_METADATA_API_CARRIER_BYTES,
+    FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemByteOperand,
+    FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
     FilesystemLogicalHandleKind, FilesystemMutableByteOperand,
     FilesystemMutableByteOperandResolution, FilesystemObservationProvider,
     FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
@@ -16,6 +17,7 @@ const WRITE_OPERATION_TAG: u16 = 5;
 const READ_AT_OPERATION_TAG: u16 = 6;
 const WRITE_AT_OPERATION_TAG: u16 = 7;
 const SEEK_OPERATION_TAG: u16 = 10;
+const READ_FILE_METADATA_OPERATION_TAG: u16 = 39;
 const SET_FILE_TIMES_OPERATION_TAG: u16 = 42;
 const SET_FILE_TIMES_MINIMUM_CARRIER_BYTES: usize = 32;
 
@@ -228,6 +230,40 @@ impl FilesystemInputUnknownDescriptorReadReplayRecord {
         Vec<u8>,
     ) {
         (self.source_input, self.kind, self.buffer)
+    }
+}
+
+/// Optional exact Source-input prefix followed by one `read_file_metadata`
+/// whose unknown descriptor deterministically fails with `EBADF`.
+///
+/// The complete authored mutable carrier is retained once here. Replay
+/// reconstructs equal resolution, provider-visible pre-state, and
+/// provider-visible post-state without retaining or consulting a filesystem
+/// provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+    carrier: Vec<u8>,
+}
+
+impl FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord {
+    pub fn new(source_input: Option<FilesystemSourceInputReplayRecord>, carrier: Vec<u8>) -> Self {
+        Self {
+            source_input,
+            carrier,
+        }
+    }
+
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
+    }
+
+    pub fn carrier(&self) -> &[u8] {
+        &self.carrier
+    }
+
+    fn into_parts(self) -> (Option<FilesystemSourceInputReplayRecord>, Vec<u8>) {
+        (self.source_input, self.carrier)
     }
 }
 
@@ -505,6 +541,32 @@ impl FilesystemReplay {
             observations,
             unknown_descriptor_read_attempt_is_exact,
             "read",
+        )
+    }
+
+    /// Construct the closed optional-Source plus one unknown-descriptor
+    /// `read_file_metadata` failure from typed compiler-owned evidence.
+    pub fn from_input_unknown_descriptor_read_file_metadata_record(
+        record: FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, carrier) = record.into_parts();
+        unknown_descriptor_failure_replay_from_record(
+            source_input,
+            unknown_descriptor_read_file_metadata_attempt(carrier),
+            unknown_descriptor_read_file_metadata_attempt_is_exact,
+            "read_file_metadata",
+        )
+    }
+
+    /// Validate observed evidence for an optional Source-input prefix followed
+    /// by one `read_file_metadata` failure on an unknown descriptor.
+    pub fn from_input_unknown_descriptor_read_file_metadata_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        unknown_descriptor_failure_replay_from_observations(
+            observations,
+            unknown_descriptor_read_file_metadata_attempt_is_exact,
+            "read_file_metadata",
         )
     }
 
@@ -859,6 +921,53 @@ pub(crate) fn unknown_descriptor_read_attempt(
     attempt
 }
 
+pub(crate) fn unknown_descriptor_read_file_metadata_from_exact_attempt(
+    attempt: &FilesystemOperationAttempt,
+) -> Option<&[u8]> {
+    let [resolution] = attempt.mutable_byte_operand_resolutions.as_slice() else {
+        return None;
+    };
+    let [provider_carrier] = attempt.mutable_byte_operands.as_slice() else {
+        return None;
+    };
+    (attempt.scalar_operands.is_empty()
+        && resolution.operand_ordinal == 1
+        && provider_carrier.operand_ordinal == 1
+        && resolution.bytes.len() >= FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && resolution.bytes == provider_carrier.pre_bytes
+        && resolution.bytes == provider_carrier.post_bytes
+        && unknown_descriptor_failure_has_exact_base_shape(
+            attempt,
+            READ_FILE_METADATA_OPERATION_TAG,
+        ))
+    .then_some(resolution.bytes.as_slice())
+}
+
+fn unknown_descriptor_read_file_metadata_attempt_is_exact(
+    attempt: &FilesystemOperationAttempt,
+) -> bool {
+    unknown_descriptor_read_file_metadata_from_exact_attempt(attempt).is_some()
+}
+
+pub(crate) fn unknown_descriptor_read_file_metadata_attempt(
+    carrier: Vec<u8>,
+) -> FilesystemOperationAttempt {
+    let resolution_carrier = carrier.clone();
+    let pre_carrier = carrier.clone();
+    let mut attempt =
+        unknown_descriptor_failure_attempt(READ_FILE_METADATA_OPERATION_TAG, Vec::new());
+    attempt.mutable_byte_operand_resolutions = vec![FilesystemMutableByteOperandResolution {
+        operand_ordinal: 1,
+        bytes: resolution_carrier,
+    }];
+    attempt.mutable_byte_operands = vec![FilesystemMutableByteOperand {
+        operand_ordinal: 1,
+        pre_bytes: pre_carrier,
+        post_bytes: carrier,
+    }];
+    attempt
+}
+
 pub(crate) fn unknown_descriptor_write_from_exact_attempt(
     attempt: &FilesystemOperationAttempt,
 ) -> Option<(FilesystemInputUnknownDescriptorWriteReplayKind, &[u8])> {
@@ -920,6 +1029,7 @@ pub(crate) fn unknown_descriptor_failure_attempt_is_exact(
     unknown_descriptor_operation_attempt_is_exact(attempt)
         || unknown_descriptor_seek_attempt_is_exact(attempt)
         || unknown_descriptor_read_attempt_is_exact(attempt)
+        || unknown_descriptor_read_file_metadata_attempt_is_exact(attempt)
         || unknown_descriptor_write_attempt_is_exact(attempt)
         || unknown_descriptor_write_operation_attempt_is_exact(attempt)
         || unknown_descriptor_set_file_times_attempt_is_exact(attempt)

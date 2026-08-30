@@ -101,6 +101,22 @@ fn unknown_descriptor_set_file_times_summary(times: Vec<u8>) -> BuildObservation
     summary
 }
 
+fn unknown_descriptor_read_file_metadata_summary(buffer: Vec<u8>) -> BuildObservationSummary {
+    let mut summary = summary(39);
+    summary.filesystem_operation_attempts[0].mutable_byte_operand_resolutions =
+        vec![BuildFilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: buffer.clone(),
+        }];
+    summary.filesystem_operation_attempts[0].mutable_byte_operands =
+        vec![BuildFilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: buffer.clone(),
+            post_bytes: buffer,
+        }];
+    summary
+}
+
 fn unknown_descriptor_read_summary(
     operation_tag: u16,
     buffer: Vec<u8>,
@@ -638,6 +654,95 @@ fn unknown_descriptor_write_payload_failures_reject_lane_drift() {
 
     let first = unknown_descriptor_write_payload_summary(5, vec![1, 2, 3], None);
     let second = unknown_descriptor_write_payload_summary(5, vec![1, 2, 4], None);
+    let first = capture_verified_build_filesystem_replay_record(&first, limits)
+        .unwrap()
+        .unwrap();
+    let second = capture_verified_build_filesystem_replay_record(&second, limits)
+        .unwrap()
+        .unwrap();
+    assert_ne!(first.commitment(), second.commitment());
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_failure_round_trips_exact_carrier() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    for buffer in [
+        vec![0; psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES],
+        vec![11; psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES + 19],
+    ] {
+        let summary = unknown_descriptor_read_file_metadata_summary(buffer.clone());
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .expect("exact unknown-descriptor read_file_metadata encodes")
+            .expect("verified read_file_metadata retains replay custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("exact unknown-descriptor read_file_metadata recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("exact read_file_metadata rehydrates through its typed constructor");
+
+        let [attempt] = replay.attempts() else {
+            panic!("unknown-descriptor read_file_metadata replay retains one attempt")
+        };
+        assert_eq!(attempt.operation_tag(), 39);
+        assert_eq!(
+            attempt.result(),
+            Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+                -1
+            ))
+        );
+        assert_eq!(attempt.post_error(), Some(9));
+        let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+            panic!("read_file_metadata retains one resolution-time carrier")
+        };
+        let [carrier] = attempt.mutable_byte_operands() else {
+            panic!("read_file_metadata retains one provider carrier")
+        };
+        assert_eq!(resolution.operand_ordinal(), 1);
+        assert_eq!(resolution.bytes(), buffer);
+        assert_eq!(carrier.operand_ordinal(), 1);
+        assert_eq!(carrier.pre_bytes(), buffer);
+        assert_eq!(carrier.post_bytes(), buffer);
+        assert!(!replay.has_output_attempts());
+    }
+}
+
+#[test]
+fn unknown_descriptor_read_file_metadata_failure_rejects_carrier_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let carrier = || vec![1; psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES];
+
+    let mut wrong_resolution_ordinal = unknown_descriptor_read_file_metadata_summary(carrier());
+    wrong_resolution_ordinal.filesystem_operation_attempts[0].mutable_byte_operand_resolutions[0]
+        .operand_ordinal = 2;
+    assert!(
+        capture_verified_build_filesystem_replay_record(&wrong_resolution_ordinal, limits).is_err()
+    );
+
+    let mut missing_resolution = unknown_descriptor_read_file_metadata_summary(carrier());
+    missing_resolution.filesystem_operation_attempts[0]
+        .mutable_byte_operand_resolutions
+        .clear();
+    assert!(capture_verified_build_filesystem_replay_record(&missing_resolution, limits).is_err());
+
+    let mut changed_pre = unknown_descriptor_read_file_metadata_summary(carrier());
+    changed_pre.filesystem_operation_attempts[0].mutable_byte_operands[0].pre_bytes[0] = 4;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_pre, limits).is_err());
+
+    let mut changed_post = unknown_descriptor_read_file_metadata_summary(carrier());
+    changed_post.filesystem_operation_attempts[0].mutable_byte_operands[0].post_bytes[2] = 4;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_post, limits).is_err());
+
+    let short = unknown_descriptor_read_file_metadata_summary(vec![
+        1;
+        psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+            - 1
+    ]);
+    assert!(capture_verified_build_filesystem_replay_record(&short, limits).is_err());
+
+    let first = unknown_descriptor_read_file_metadata_summary(carrier());
+    let mut changed = carrier();
+    changed[37] = 2;
+    let second = unknown_descriptor_read_file_metadata_summary(changed);
     let first = capture_verified_build_filesystem_replay_record(&first, limits)
         .unwrap()
         .unwrap();

@@ -342,7 +342,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 57);
+    assert_eq!(checked_observations.schema_version(), 58);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2481,6 +2481,119 @@ fn unknown_descriptor_write_payload_failures_replay_exact_authored_inputs() {
     }
 }
 
+#[test]
+fn unknown_descriptor_read_file_metadata_failure_replays_exact_authored_carrier() {
+    let fixtures = [
+        (
+            "read-file-metadata",
+            r#"    self.buffer[0] = 11;
+    self.buffer[23] = 29;
+    self.buffer[46] = 173;
+    self.buffer[4095] = 197;
+    self.code = self.filesystem.read_file_metadata(-1, &mut self.buffer);"#,
+            vec![39],
+        ),
+        (
+            "read-file-metadata-after-source",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    self.buffer[0] = 11;
+    self.buffer[23] = 29;
+    self.buffer[46] = 173;
+    self.buffer[4095] = 197;
+    self.code = self.filesystem.read_file_metadata(-1, &mut self.buffer);"#,
+            vec![2, 4, 8, 39],
+        ),
+    ];
+
+    for (label, body, operation_tags) in fixtures {
+        let (project, profile) =
+            rooted_build_probe_project(&format!("unknown-descriptor-{label}-replay"), body);
+        let compilation =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect("unknown-descriptor read_file_metadata should compile and replay");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("unknown-descriptor read_file_metadata retains observations");
+        assert!(summary.filesystem_replay_verdict().is_complete());
+        assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+        assert_eq!(
+            summary
+                .staged_output_tree()
+                .expect("failure-only metadata replay retains empty Output custody")
+                .entry_count(),
+            0
+        );
+        assert_eq!(
+            summary
+                .filesystem_operation_attempts()
+                .iter()
+                .map(|attempt| attempt.operation_tag())
+                .collect::<Vec<_>>(),
+            operation_tags
+        );
+        let attempt = summary.filesystem_operation_attempts().last().unwrap();
+        assert_eq!(attempt.operation_tag(), 39);
+        assert_eq!(attempt.result(), BuildFilesystemOperationResult::Scalar(-1));
+        assert_eq!(attempt.post_error(), 9);
+        let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+            panic!("failed read_file_metadata retains one resolution-time carrier")
+        };
+        let [carrier] = attempt.mutable_byte_operands() else {
+            panic!("failed read_file_metadata retains one provider carrier")
+        };
+        assert_eq!(resolution.operand_ordinal(), 1);
+        assert_eq!(resolution.bytes().len(), 4096);
+        assert_eq!(resolution.bytes()[0], 11);
+        assert_eq!(resolution.bytes()[23], 29);
+        assert_eq!(resolution.bytes()[46], 173);
+        assert_eq!(resolution.bytes()[4095], 197);
+        assert_eq!(carrier.operand_ordinal(), 1);
+        assert_eq!(carrier.pre_bytes(), resolution.bytes());
+        assert_eq!(carrier.post_bytes(), resolution.bytes());
+        assert!(attempt.metadata_observations().is_empty());
+        let [descriptor] = attempt.logical_handle_inputs() else {
+            panic!("failed read_file_metadata retains one descriptor input")
+        };
+        assert_eq!(
+            descriptor.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Unknown
+        );
+        assert!(attempt.authorized_paths().is_empty());
+        assert!(attempt.grant_refusals().is_empty());
+
+        let limits = BuildFilesystemReplayRecordLimits::default();
+        let record = capture_verified_build_filesystem_replay_record(summary, limits)
+            .expect("verified unknown-descriptor read_file_metadata must encode")
+            .expect("verified metadata failure retains review-only custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+                .expect("canonical unknown-descriptor metadata record must recover");
+        std::fs::write(
+            project.join("main.omg"),
+            "data Main { value: u64; changed: u8; }\n",
+        )
+        .expect("change host source after unknown-descriptor metadata capture");
+        let replayed = compile_to_checked_with_replay_record(
+            &project.join("main.omg"),
+            Some(profile.target_name()),
+            recovered,
+        )
+        .expect("unknown-descriptor metadata replay must not invoke the host provider");
+        assert_eq!(
+            replayed
+                .build_observation_summary()
+                .expect("replayed metadata retains observations")
+                .filesystem_operation_attempts(),
+            summary.filesystem_operation_attempts()
+        );
+
+        let _ = std::fs::remove_dir_all(project);
+    }
+}
+
 fn assert_unknown_descriptor_write_operation_failure_replay(
     label: &str,
     statement: &str,
@@ -3724,7 +3837,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 57);
+    assert_eq!(summary.schema_version(), 58);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -4625,7 +4738,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 57);
+    assert_eq!(summary.schema_version(), 58);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -4698,7 +4811,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 57);
+    assert_eq!(summary.schema_version(), 58);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

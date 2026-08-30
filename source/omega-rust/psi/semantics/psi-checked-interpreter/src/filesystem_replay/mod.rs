@@ -46,6 +46,7 @@ pub(crate) use handle_failures::unknown_descriptor_failure_attempt_is_exact;
 pub use handle_failures::{
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
+    FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
     FilesystemInputUnknownDescriptorReadReplayKind,
     FilesystemInputUnknownDescriptorReadReplayRecord,
     FilesystemInputUnknownDescriptorSeekReplayRecord,
@@ -58,9 +59,10 @@ pub use handle_failures::{
 #[cfg(test)]
 pub(crate) use handle_failures::{
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
-    unknown_descriptor_read_attempt, unknown_descriptor_read_from_exact_attempt,
-    unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
-    unknown_descriptor_set_file_times_attempt,
+    unknown_descriptor_read_attempt, unknown_descriptor_read_file_metadata_attempt,
+    unknown_descriptor_read_file_metadata_from_exact_attempt,
+    unknown_descriptor_read_from_exact_attempt, unknown_descriptor_seek_attempt,
+    unknown_descriptor_seek_from_exact_attempt, unknown_descriptor_set_file_times_attempt,
     unknown_descriptor_set_file_times_from_exact_attempt, unknown_descriptor_write_attempt,
     unknown_descriptor_write_from_exact_attempt, unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,

@@ -81,6 +81,25 @@ pub(super) fn unknown_descriptor_set_file_times_failure_shape_is_exact(
         && unknown_descriptor_failure_core_is_exact(shape)
 }
 
+pub(super) fn unknown_descriptor_read_file_metadata_failure_shape_is_exact(
+    shape: &AttemptShape<'_>,
+) -> bool {
+    let [(resolution_ordinal, resolution)] = shape.mutable_byte_resolutions.as_slice() else {
+        return false;
+    };
+    let [carrier] = shape.mutable_bytes.as_slice() else {
+        return false;
+    };
+    shape.operation == 39
+        && shape.scalars.is_empty()
+        && *resolution_ordinal == 1
+        && carrier.ordinal == 1
+        && resolution.len() >= psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && *resolution == carrier.pre
+        && carrier.pre == carrier.post
+        && unknown_descriptor_failure_core_is_exact(shape)
+}
+
 pub(super) fn unknown_descriptor_read_operation(operation: u16) -> bool {
     matches!(operation, 4 | 6)
 }
@@ -190,6 +209,18 @@ pub(super) fn validate_unknown_descriptor_set_file_times_failure_shape(
     } else {
         Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay unknown-descriptor set_file_times failure is internally inconsistent",
+        ))
+    }
+}
+
+pub(super) fn validate_unknown_descriptor_read_file_metadata_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_descriptor_read_file_metadata_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-descriptor read_file_metadata failure is internally inconsistent",
         ))
     }
 }

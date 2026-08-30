@@ -1717,6 +1717,16 @@ write-grant lookup rejects before sponsor accounting or host mutation.
 Provider-free replay must reproduce the attempt, namespace, and teardown before
 empty staged-output custody issues.
 
+Observation summary v58 and replay-record v39 additionally admit one failed
+tag-39 `read_file_metadata` on an unknown descriptor after the optional Source
+prefix. The row binds operand one's complete authored mutable carrier as equal
+resolution and provider pre/post states after the preparer's 144-byte
+metadata-ABI minimum. It fixes scoped-real provider, scalar
+`-1`, post-error `9`, and operand-zero `Descriptor/Unknown`; no metadata
+observation, other lane, or handoff is present. Compiler-owned descriptor
+lookup rejects before host metadata access. Provider-free replay must reproduce
+the attempt, namespace, and teardown before empty staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
