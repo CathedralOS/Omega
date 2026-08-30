@@ -221,20 +221,23 @@ Must own:
   monomorphic selected boundary uses retain the canonical empty application,
   and spelled operators retain complete closed inferred type bindings keyed by
   requirement owner, `Type` category, and declaration ordinal. Closed,
-  unbounded, type-only named calls use one pure structural judgment during
-  ordinary validation: operand inference must close the complete telescope,
-  and explicitly authored type arguments must exactly corroborate that
-  application. Validation retains the exact expression or statement use,
-  selected requirement, binder coordinates, and structural type handles;
-  checked lowering rejects any row that fails to rejoin the same selected use
-  and declaration telescope. Unit-returning named statement syntax is
+  type-only named calls use one pure structural judgment during ordinary
+  validation: operand inference must close the complete telescope, explicitly
+  authored type arguments must exactly corroborate that application, and each
+  closed argument must satisfy every declared copy/linear/carry property bound.
+  Validation retains the exact expression or statement use, selected
+  requirement, binder coordinates, and structural type handles; checked
+  lowering rejects any row that fails to rejoin the same selected use,
+  declaration telescope, or property-bound judgment. Property lookup prefers
+  exact nominal symbols; a same-spelled foreign declaration cannot supply the
+  bound. Unit-returning named statement syntax is
   normalized to a generated expression while preserving its authored call
   occurrence and source span. No display identity, digest, or marker that an
   audit happened participates.
 
-  Open caller binders, nested open arguments, unresolved nominal identity,
-  property-bounded applications, and constraints without a closed structural
-  replay remain unavailable rather than being mislabeled concrete. Const
+  Open caller binders, nested open arguments, unresolved nominal identity, and
+  constraints without a closed structural replay remain unavailable rather
+  than being mislabeled concrete. Const
   applications also remain unavailable until one checked row pairs the
   evaluated value with its exact declared carrier. D29's mention of `where`
   requirements means requirements expressible by the operator model; this

@@ -973,6 +973,7 @@ fn validate_state_statement_node(
             if let Some(state) = machine_symbols.state(state_name) {
                 crate::operators::validate_named_statement_operator_application(
                     program,
+                    symbols,
                     machine,
                     state,
                     statement_handle,
