@@ -231,6 +231,36 @@ fn set_open_snapshot_directory_read_only(
         .map_err(|error| io_error(path, error))
 }
 
+#[cfg(not(windows))]
+pub(crate) fn make_open_snapshot_root_read_only(
+    root: &CapabilityDirectory,
+    display_root: &Path,
+) -> Result<(), SourceResolveError> {
+    set_open_snapshot_directory_read_only(root, display_root)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn make_open_snapshot_root_publishable(
+    root: &CapabilityDirectory,
+    display_root: &Path,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    root.try_clone()
+        .map_err(|error| io_error(display_root, error))?
+        .into_std_file()
+        .set_permissions(std::fs::Permissions::from_mode(0o700))
+        .map_err(|error| io_error(display_root, error))
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn make_open_snapshot_root_publishable(
+    _root: &CapabilityDirectory,
+    _display_root: &Path,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
 #[cfg(not(unix))]
 fn set_open_snapshot_directory_read_only(
     _directory: &CapabilityDirectory,

@@ -43,6 +43,7 @@ pub(crate) fn publish_cache_directory(
         staged_name,
         publication_name,
         None,
+        || {},
     )
 }
 
@@ -95,6 +96,7 @@ pub(crate) fn publish_cache_directory_from_open_parent(
     staged_name: &OsStr,
     publication_name: &OsStr,
     expected_staged: Option<&CapabilityMetadata>,
+    on_renamed: impl FnOnce(),
 ) -> Result<(), SourceResolveError> {
     let staged_path = parent.join(staged_name);
     let publication_path = parent.join(publication_name);
@@ -132,6 +134,10 @@ pub(crate) fn publish_cache_directory_from_open_parent(
     directory
         .rename(staged_name, directory, publication_name)
         .map_err(|error| io_error(&publication_path, error))?;
+    // Retained-stage owners must retarget cleanup before any fallible work
+    // after the rename. A later identity or durability failure must remove the
+    // publication, not leave it behind under its new name.
+    on_renamed();
     let published_metadata = directory
         .symlink_metadata(publication_name)
         .map_err(|error| io_error(&publication_path, error))?;
@@ -278,14 +284,21 @@ impl PendingCacheEntry {
     ) -> Result<(), SourceResolveError> {
         let retained = self.verify_path_identity()?;
         drop(self.directory.take());
-        publish_cache_directory_from_open_parent(
+        let renamed = std::cell::Cell::new(false);
+        let publication_result = publish_cache_directory_from_open_parent(
             CacheCustodyKind::Git,
             cache_dir,
             &self.parent,
             &self.stage_name,
             entry_name,
             Some(&retained),
-        )?;
+            || renamed.set(true),
+        );
+        if renamed.get() {
+            self.stage_name = entry_name.to_os_string();
+            self.root = entry_root.to_path_buf();
+        }
+        publication_result?;
         let published = self
             .parent
             .symlink_metadata(entry_name)

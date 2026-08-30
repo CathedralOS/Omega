@@ -70,6 +70,22 @@ fn authenticated_member_snapshot_publishes_directly_in_workspace_member_lane() {
             .exists()
     );
     assert!(publication.join(GIT_SNAPSHOT_METADATA).is_file());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = |path: &Path| {
+            std::fs::symlink_metadata(path)
+                .expect("inspect published member mode")
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(&publication), 0o555);
+        assert_eq!(mode(&snapshot_root), 0o555);
+        assert_eq!(mode(&snapshot_root.join("main.omg")), 0o444);
+        assert_eq!(mode(&publication.join(GIT_SNAPSHOT_METADATA)), 0o444);
+    }
 
     drop(storage);
     let _ = std::fs::remove_dir_all(&repository);
