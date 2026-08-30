@@ -39,6 +39,12 @@ does not preselect transport helpers, force a proxy or SSH command, claim the
 actual endpoint route, or measure aggregate transport bytes. Those are host
 inputs, not package authority and not package identity.
 
+The acquisition owner freezes the primary Git path before package-controlled
+input is processed and supplies that absolute path here. This crate never
+performs a bare-name lookup from a package or repository working directory.
+The frozen primary coordinate does not close or attest the descendant helper
+graph selected by ordinary host Git configuration.
+
 This distinction prevents local object inspection from acquiring unnecessary
 authority without pretending that Omega can reproduce or safely broker the
 host's complete transport ecosystem.

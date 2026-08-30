@@ -1821,7 +1821,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 through Q5 still own
+  allowed; weakened Omega semantics are not. Q1 through Q4 still own
   unresolved full-spec compiler contracts. D25 unblocks the standalone source
   identity and application boundary, while D24 unblocks the Delta census
   implementation. None prevents implementation of independently settled
