@@ -187,6 +187,21 @@ fn prove_direct_subtract_relation(
     ) {
         return Some(proof);
     }
+    if let Some(proof) = prove_targeted_subtract_relation(
+        context,
+        goal,
+        integer_type,
+        &left,
+        &right,
+        &target,
+        lower,
+        false,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    ) {
+        return Some(proof);
+    }
     let mut candidates =
         add_endpoint_candidates(integer_type, &left, lower, assumptions, semantic_axioms);
     for candidate in
@@ -260,7 +275,112 @@ fn prove_direct_subtract_relation(
             return Some(proof);
         }
     }
-    None
+    prove_targeted_subtract_relation(
+        context,
+        goal,
+        integer_type,
+        &left,
+        &right,
+        &target,
+        lower,
+        true,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_targeted_subtract_relation(
+    context: &PropositionContext,
+    goal: &Proposition,
+    integer_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    target: &ScalarTerm,
+    lower: bool,
+    allow_relaxation: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    let operand_endpoints =
+        |operand: &ScalarTerm, endpoint_lower: bool, definitions: &mut DefinitionIndex| {
+            if let Some((actual, value)) = operand.integer_value() {
+                return (actual == integer_type)
+                    .then(|| {
+                        prove_add_operand_endpoint(
+                            context,
+                            integer_type,
+                            operand,
+                            value,
+                            endpoint_lower,
+                            assumptions,
+                            semantic_axioms,
+                            definitions,
+                        )
+                    })
+                    .flatten()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+            }
+            multiply::targeted_operand_endpoints(
+                context,
+                integer_type,
+                operand,
+                endpoint_lower,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            )
+        };
+    let left_endpoints = operand_endpoints(left, lower, definitions);
+    if left_endpoints.is_empty() {
+        return None;
+    }
+    let right_endpoints = operand_endpoints(right, !lower, definitions);
+    if right_endpoints.is_empty() {
+        return None;
+    }
+    let witness = IntegerAffineWitness {
+        root: left.clone(),
+        target: target.clone(),
+        definition_axioms: Vec::new(),
+        literal_axioms: Vec::new(),
+    };
+    let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
+    let mut relaxed = None;
+    for left_endpoint in left_endpoints {
+        for right_endpoint in &right_endpoints {
+            let evidence = ProofNode {
+                conclusion: Proposition::Conjunction(vec![
+                    left_endpoint.conclusion.clone(),
+                    right_endpoint.conclusion.clone(),
+                ]),
+                rule: ProofRule::ConjunctionIntroduction(vec![
+                    left_endpoint.clone(),
+                    right_endpoint.clone(),
+                ]),
+            };
+            let Ok(mapped) = map_integer_affine_bound(&form, &evidence.conclusion) else {
+                continue;
+            };
+            let mapped_proof = ProofNode {
+                conclusion: mapped.clone(),
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(evidence),
+                    witness: witness.clone(),
+                },
+            };
+            if &mapped == goal {
+                return Some(mapped_proof);
+            }
+            if relaxed.is_none() {
+                relaxed = relax_math_bound(goal, mapped_proof);
+            }
+        }
+    }
+    allow_relaxation.then_some(relaxed).flatten()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -447,6 +567,7 @@ fn prove_direct_add_relation(
         &right,
         &target,
         lower,
+        false,
         assumptions,
         semantic_axioms,
         definitions,
@@ -536,7 +657,19 @@ fn prove_direct_add_relation(
             return Some(proof);
         }
     }
-    None
+    prove_targeted_add_relation(
+        context,
+        goal,
+        integer_type,
+        &left,
+        &right,
+        &target,
+        lower,
+        true,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -548,6 +681,7 @@ fn prove_targeted_add_relation(
     right: &ScalarTerm,
     target: &ScalarTerm,
     lower: bool,
+    allow_relaxation: bool,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
@@ -596,6 +730,7 @@ fn prove_targeted_add_relation(
         literal_axioms: Vec::new(),
     };
     let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
+    let mut relaxed = None;
     for left_endpoint in left_endpoints {
         for right_endpoint in &right_endpoints {
             let evidence = ProofNode {
@@ -621,12 +756,12 @@ fn prove_targeted_add_relation(
             if &mapped == goal {
                 return Some(mapped_proof);
             }
-            if let Some(proof) = relax_math_bound(goal, mapped_proof) {
-                return Some(proof);
+            if relaxed.is_none() {
+                relaxed = relax_math_bound(goal, mapped_proof);
             }
         }
     }
-    None
+    allow_relaxation.then_some(relaxed).flatten()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -900,7 +1035,7 @@ pub(super) fn prove_add_operand_endpoint(
     } else {
         Proposition::LessOrEqual(operand.clone(), literal)
     };
-    bound::prove(
+    bound::prove_candidate_endpoint(
         context,
         &endpoint,
         assumptions,
