@@ -1167,9 +1167,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the equal parameter table and Complete-only publication. Explicit
       lifetimes, general type-position `Self`, Slice, returns, prefixes,
       clauses, and nonempty bodies remain implementation-incomplete. This
-      represents 105 of 113 parameter occurrences and 65 of 73 complete
-      parameter lists in current `C`; 40 headers now reach body parsing, but
-      zero roots complete because every reached body is nonempty. Keep exact
+      represents 105 of 113 root-header parameter occurrences and 65 of 73
+      complete root parameter lists in current `C`; 40 headers now reach body
+      parsing, but zero roots complete because every reached body is nonempty.
+      Keep exact
       modifier/access/flag/postorder/resource/reset vectors at the real Delta-
       compiler gate.
     - [x] Retain bracket slice syntax `[T]` through the existing shared type
@@ -1184,10 +1185,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
       spelling, and richer element types remain implementation-incomplete
       pending their general grammar rather than receiving closure-specific
       shortcuts.
-      The eight previously missing current `C` parameter occurrences are plain
-      bracket slices, so all 113 occurrences and all 73 parameter lists are now
-      representable; 41 headers reach body parsing, but zero roots complete
-      because every reached body remains nonempty. Keep exact bracket-kind,
+      The eight previously missing current `C` root-header parameter
+      occurrences are plain bracket slices, so all 113 occurrences and all 73
+      root parameter lists are now representable; 41 headers reach body parsing,
+      but zero roots complete because every reached body remains nonempty. Keep
+      exact bracket-kind,
       nesting, delimiter, postorder, resource, and reset vectors at the real
       Delta-compiler gate.
     - [x] Retain an ordinary machine's optional immediate `-> Type` on its
@@ -1354,6 +1356,28 @@ code, discover a closure, manufacture proof premises, or decide admission.
       type paths, field/value/delimiter spans, empty/trailing-comma behavior,
       capacity, reset, nested-incomplete, and Complete-only publication vectors
       at the real Delta-compiler gate.
+    - [x] Retain canonical source-ordered explicit states without forcing every
+      machine through a fabricated entry. A machine owns zero or one implicit
+      entry followed by its authored states; parameters, a return, implicit
+      statements, or an otherwise empty body require the entry, while a
+      signature-free explicit-state-only body does not. Every state owns its
+      exact authored name when present plus independent parameter, return-type,
+      and contiguous mixed-statement spans. Because one root may own multiple
+      states, `States` is independently exhaustible rather than hidden under
+      `Roots`. Retain the first canonical transition core over one path subject:
+      boolean, unsuffixed nonnegative decimal integer, and wildcard arms each
+      expand into one ordinary transition statement targeting a named zero-
+      argument state. `Statements` dominates the equal transition table;
+      subject paths use the existing expression and path-member arenas.
+      Computed or multiple subjects, richer patterns and guards, target
+      arguments, terminal/value/self targets, continuations, `match`, state
+      arrival contracts, and richer state bodies remain implementation-
+      incomplete rather than being skipped or misrejected. This completes
+      `Lexer::{is_whitespace,push_decoded}`, raising completed current `C` roots
+      from eighteen to twenty while all 54 representable headers still reach
+      the body boundary. Keep exact implicit-entry presence, state ordering,
+      per-state ownership, transition expansion, guard/target spans, resource,
+      reset, and partial-publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

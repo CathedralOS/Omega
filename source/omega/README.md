@@ -81,10 +81,11 @@ for bare named/Self/Unit, outer references, unqualified domains, inclusive
 literal ranges, and nested fixed arrays and slices. References may retain an
 exact explicit lifetime, and general `Self` uses the same `SelfType` base as
 receivers. Every parameter row records its canonical const/mutable/self flags;
-the implicit entry state owns the optional return node.
+the owning implicit or explicit state owns the optional return node.
 
 The retained nonempty-body slices include ordinary semicolon-terminated call
-statements without acknowledgements, evidence arguments, or result discard.
+statements without acknowledgements, evidence arguments, or result discard,
+plus a restricted canonical transition core.
 Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
 value arguments are exact name/self paths, booleans, unsuffixed nonnegative
@@ -104,28 +105,37 @@ without a decoded-byte mirror. Shallow struct literals accept an exact one-
 member record or two-member case type path and a comma-separated named field
 list with an optional trailing comma. Canonical adjacent fields without commas,
 nested struct literals, and richer field expressions remain incomplete until a
-bounded expression-frame design exists. The implicit
-entry state owns one contiguous mixed statement span. Richer expressions and
-statements stop the root as implementation-incomplete, and no body is skipped
-as opaque text.
+bounded expression-frame design exists. The implicit entry state and every
+authored `state` own independent parameter, return-type, and contiguous mixed-
+statement spans. A retained transition has one path subject and expands each
+boolean, unsuffixed nonnegative decimal integer, or wildcard arm into an
+ordinary statement targeting one named zero-argument state. Computed or
+multiple subjects, richer patterns and guards, target arguments,
+terminal/value/self targets, continuations, and `match` remain implementation-
+incomplete. Richer expressions and statements likewise stop the root as
+incomplete, and no body is skipped as opaque text.
 
-Each completed machine owns one implicit entry state and its contiguous
-parameter span, matching the canonical parser: a free machine uses the
-generated `entry` identity, while an attached machine names its entry with the
-final authored declaration-path member. Machine and domain paths share the
-general path-member arena, but a machine snapshots its path extent before
-parameter types can append domain members. A trailing parameter comma rejects
-as malformed. Constrained slice elements and the `Slice<T>` spelling, return
-types placed after clauses, generics, clause-bearing headers, and
-`boundary` forms; target declarations and public target-scoped combinations,
-other public roots, bodyless declarations, and other body forms remain
-incomplete. The parser never skips a body as opaque
+Each completed machine owns zero or one implicit entry followed by its explicit
+states in source order, matching the canonical parser. Parameters, a return,
+implicit statements, or an otherwise empty machine require the implicit entry;
+an explicit-state-only machine without those forms does not manufacture one. A
+free machine uses the generated `entry` identity, while an attached machine
+names its entry with the final authored declaration-path member. Machine and
+domain paths share the general path-member arena, but a machine snapshots its
+path extent before parameter types can append domain members. A trailing
+parameter comma rejects as malformed. Constrained slice elements and the
+`Slice<T>` spelling, return
+types placed after clauses, generics, clause-bearing headers, state arrival
+contracts, and `boundary` forms; target declarations and public target-scoped
+combinations, other public roots, bodyless declarations, and other body forms
+remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
-parameter occurrences and all 73 complete parameter lists are representable,
-and 54 headers reach body parsing. Eighteen are complete: four initial call-only
-roots, seven roots using the retained assignment slice, four target-provider
-roots using path-only static call arguments, the string-argument `psi` package
-build root, `Lexer::initialize`, and the canonical Omega package build root.
+machine-header parameter occurrences and all 73 root parameter lists are
+representable, and 54 headers reach body parsing. Twenty are complete: four
+initial call-only roots, seven roots using the retained assignment slice, four
+target-provider roots using path-only static call arguments, the string-argument
+`psi` package build root, `Lexer::initialize`, the canonical Omega package build root, and
+`Lexer::{is_whitespace,push_decoded}` through explicit states and transitions.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -155,17 +165,18 @@ lengths; numbered identities;
 field relevance; other public roots; and every other unimplemented valid form
 stop as implementation-incomplete rather than becoming false Omega rejections.
 
-The provisional backing tables hold 4,096 root/use/data/machine/implicit-state
-rows and 16,384 path-member/data-member/direct-field/payload-field/case/
-machine-parameter/type-node/constraint/statement/call/expression/argument/
+The provisional backing tables hold 4,096 root/use/data/machine/state rows and
+16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
+type-node/constraint/statement/call/assignment/transition/expression/argument/
 static-machine-argument/struct-literal/struct-field rows, plus 128 scratch
 array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting
-every count. Root capacity dominates use/data/machine/implicit-state capacity,
-while data-member capacity dominates direct-field/case capacity. Fields,
-parameters, and machine returns share the type-node table, making `TypeNodes`
+every count. Root capacity dominates use/data/machine capacity, while `States`
+becomes independently exhaustible as soon as one machine may own multiple
+states. Data-member capacity dominates direct-field/case capacity. Fields,
+parameters, and state returns share the type-node table, making `TypeNodes`
 independently exhaustible. Its equal ceiling dominates payload-field,
 machine-parameter, and constraint capacity in
 the current slice because every retained row of those kinds owns at least one
@@ -174,16 +185,17 @@ Import/domain paths, call receivers, and path expressions share the
 independently exhaustible path-member arena after each machine snapshots its
 declaration path. Every current call argument owns exactly one path-expression
 row, so
-`Expressions` dominates the equal argument table. Every call or assignment row
-owns one statement, so `Statements` dominates both equal statement-variant
-tables. Assignments own two expressions, making the expression table
-independently exhaustible. Every retained struct field owns one value expression
+`Expressions` dominates the equal argument table. Every call, assignment, or
+transition-arm row owns one statement, so `Statements` dominates all equal
+statement-variant tables. Assignments own two expressions, making the
+expression table independently exhaustible. Every retained struct field owns
+one value expression
 and every struct literal owns its expression node, so `Expressions` dominates
 both equal struct tables. Every static machine argument owns at least one
 same-capacity path-member row, so `PathMembers` dominates that table as well.
 The meaningful
-resource distinctions are therefore `Roots`, `PathMembers`, `DataMembers`,
-`TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`.
+resource distinctions are therefore `Roots`, `States`, `PathMembers`,
+`DataMembers`, `TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`.
 These are private compiler budgets to profile against the real compiler
 closure, not Omega source limits; exhaustion is retained for the future outer
 `Incomplete` mapping.
