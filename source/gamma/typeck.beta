@@ -24,7 +24,7 @@
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
-;          16777216 ERROR_NODE + ARENA [16 MiB,64 MiB)
+;          16777216 ERROR_NODE + ARENA [16 MiB,32 MiB)
 ; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
 ; AST nodes 4 words. Func entry 4 words
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
@@ -60,7 +60,9 @@ proc slurp() {
         word[2097136] = n
         word[2097144] = 0
         ; Keep one readable zero node as the return value of a failed allocation.
-        ; The real arena begins after it and grows to the 64 MiB raw-memory edge.
+        ; The real arena begins after it and ends at Beta's 32 MiB logical raw
+        ; memory edge; physical memory above that belongs to Alpha's hidden
+        ; return stack under the canonical Beta calling convention.
         word[16777216] = 0
         word[16777224] = 0
         word[16777232] = 0
@@ -248,7 +250,7 @@ proc parse_integer() {
 
 proc alloc(tag, f0, f1, f2) {
     let p = word[2097128]
-    state capacity { to write when (p <= 67108832)  to exhausted }
+    state capacity { to write when (p <= 33554400)  to exhausted }
     state write {
     word[p] = tag
     word[p + 8] = f0

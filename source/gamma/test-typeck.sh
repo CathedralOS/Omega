@@ -104,6 +104,12 @@ awk 'BEGIN {
 }' > "$T/function-capacity.gamma"
 reject_source function-capacity "$T/function-capacity.gamma"
 awk 'BEGIN {
+  printf "(def f ((x Int)) Int x) (def main () Int (f"
+  for (i = 0; i < 300000; i++) printf " 0"
+  print "))"
+}' > "$T/arena-capacity.gamma"
+reject_source arena-capacity "$T/arena-capacity.gamma"
+awk 'BEGIN {
   printf "(def main () Int "
   for (i = 0; i < 900; i++) printf "(let x%d 0 ", i
   printf "0"
