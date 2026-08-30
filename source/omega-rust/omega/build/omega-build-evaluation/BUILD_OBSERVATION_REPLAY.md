@@ -573,3 +573,21 @@ evidence of the observed and replayed attempts only. It does not claim that a
 host path is globally or durably absent. Successful removals, alternate errors,
 refused or unrooted paths, and mixtures with successful Output mutation remain
 non-receipted.
+
+## Unknown-descriptor `open_at` (summary v65, replay record v45)
+
+The failure-only grammar admits one tag-14 `open_at` after an optional exact
+Source-input prefix when its directory descriptor resolves to Omega's unknown
+synthetic descriptor. The typed row retains one nonempty portable relative
+component and the exact authored `i32` flags. Its scoped provider, scalar `-1`,
+post-error `9` (`bad descriptor`), unknown descriptor input, and all empty side
+lanes are fixed by the record type.
+
+Both evaluators reject this row through the compiler-owned descriptor table
+before path resolution, authorization, sponsor mutation, or host access.
+Provider-free replay therefore proves only that the same authored call receives
+Omega's modeled unknown-descriptor result. It claims no host path, credential,
+filesystem state, or operating-system security property. Nested or otherwise
+non-component names, alternate outcomes, resolved descriptors, and any rooted,
+authorized, refusal, output-handle, or generated-source evidence remain
+non-receipted.

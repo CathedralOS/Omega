@@ -46,6 +46,27 @@ pub(super) fn unknown_descriptor_seek_failure_shape_is_exact(shape: &AttemptShap
         && unknown_descriptor_failure_base_is_exact(shape)
 }
 
+pub(super) fn unknown_descriptor_open_at_failure_shape_is_exact(shape: &AttemptShape<'_>) -> bool {
+    let [(1, relative_component)] = shape.byte_operands.as_slice() else {
+        return false;
+    };
+    shape.operation == 14
+        && matches!(shape.scalars.as_slice(), [(2, ShapeScalar::I32(_))])
+        && relative_component_is_safe(relative_component)
+        && shape.mutable_byte_resolutions.is_empty()
+        && shape.mutable_bytes.is_empty()
+        && unknown_descriptor_failure_core_except_bytes_is_exact(shape)
+}
+
+fn relative_component_is_safe(bytes: &[u8]) -> bool {
+    !bytes.is_empty()
+        && bytes != b"."
+        && bytes != b".."
+        && !bytes.contains(&b'/')
+        && !bytes.contains(&b'\\')
+        && !bytes.contains(&0)
+}
+
 pub(super) fn unknown_descriptor_get_osfhandle_failure_shape_is_exact(
     shape: &AttemptShape<'_>,
 ) -> bool {
@@ -289,6 +310,18 @@ pub(super) fn validate_unknown_descriptor_get_osfhandle_failure_shape(
     } else {
         Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay unknown-descriptor get_osfhandle failure is internally inconsistent",
+        ))
+    }
+}
+
+pub(super) fn validate_unknown_descriptor_open_at_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_descriptor_open_at_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-descriptor open_at failure is internally inconsistent",
         ))
     }
 }

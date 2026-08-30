@@ -98,6 +98,7 @@ pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
     FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
     FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
+    FilesystemInputUnknownDescriptorOpenAtReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
     FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
