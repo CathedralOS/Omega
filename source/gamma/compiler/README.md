@@ -21,9 +21,9 @@ arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 101 procedures. With the fixed frontend
-gate entry, the compiled gate uses 102 of Beta's 128 procedure slots and
-compiles to 234,506 bytes. The remaining 27,634 bytes under
+The retained compiler source declares 100 procedures. With the fixed frontend
+gate entry, the compiled gate uses 101 of Beta's 128 procedure slots and
+compiles to 231,957 bytes. The remaining 30,183 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -85,6 +85,10 @@ packed-ASCII matcher rather than five dedicated procedures and an unrolled
 `bytes_*` suffix tree. The matcher still checks the following identifier
 boundary; focused controls keep builtin and keyword prefixes available as
 ordinary user spellings. This is compiler-size engineering, not a lexical rule.
+Top-level `data` lookahead now uses that same bounded matcher rather than a
+second hand-unrolled spelling check. Declared type and constructor names also
+share one predicate because D16 gives them identical capitalization and
+builtin exclusions; this does not merge their Q3-owned namespaces.
 
 An emitted Gamma program uses this Alpha-memory profile:
 

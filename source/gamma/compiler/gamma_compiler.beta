@@ -396,14 +396,9 @@ proc valid_value_name(off) {
     state yes { return 1 }
 }
 
-proc valid_declared_type_name(off) {
-    state first { to int_check when (is_upper(byte[2097152 + off]) == 1)  return 0 }
-    state int_check { to bytes_check when (name_is_packed(off, 7630409, 0, 3) == 0)  return 0 }
-    state bytes_check { to yes when (name_is_packed(off, 495623371074, 0, 5) == 0)  return 0 }
-    state yes { return 1 }
-}
-
-proc valid_constructor_name(off) {
+; Declared nominal types and constructors share D16's capitalization and
+; builtin-name exclusion even though Q3 may keep their namespaces separate.
+proc valid_nominal_name(off) {
     state first { to int_check when (is_upper(byte[2097152 + off]) == 1)  return 0 }
     state int_check { to bytes_check when (name_is_packed(off, 7630409, 0, 3) == 0)  return 0 }
     state bytes_check { to yes when (name_is_packed(off, 495623371074, 0, 5) == 0)  return 0 }
@@ -660,7 +655,7 @@ proc parse_pat() {
     state pcon {
         consume_expected('(')
         let coff = take_ident()
-        to pcon_name_ok when (valid_constructor_name(coff) == 1)
+        to pcon_name_ok when (valid_nominal_name(coff) == 1)
         mark_invalid_at(coff)
         to pcon_name_ok
     }
@@ -682,7 +677,7 @@ proc parse_pat() {
         return alloc(9, voff, 0, 0)                   ; PVAR
     }
     state nullcon {
-        to nullcon_ok when (valid_constructor_name(voff) == 1)
+        to nullcon_ok when (valid_nominal_name(voff) == 1)
         mark_invalid_at(voff)
         to nullcon_ok
     }
@@ -838,7 +833,7 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
     to keyword_ok
     state keyword_ok {
     let toff = take_ident()
-    to type_name_ok when (valid_declared_type_name(toff) == 1)
+    to type_name_ok when (valid_nominal_name(toff) == 1)
     mark_invalid_at(toff)
     to type_name_ok
     }
@@ -867,7 +862,7 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
     state body {
         consume_expected('(')
         let coff = take_ident()
-        to con_name_ok when (valid_constructor_name(coff) == 1)
+        to con_name_ok when (valid_nominal_name(coff) == 1)
         mark_invalid_at(coff)
         to con_name_ok
     }
@@ -908,16 +903,10 @@ proc is_data() {
         let save = word[2097144]
         adv()
         skip_ws()
-        let o = word[2097144]
-        word[2097144] = save         ; peek only
-        to c1 when (byte[2097152 + o] == 'd')
-        return 0
+        let r = name_is_packed(word[2097144], 1635017060, 0, 4)
+        word[2097144] = save
+        return r
     }
-    state c1 { to c2 when (byte[2097152 + o + 1] == 'a')  return 0 }
-    state c2 { to c3 when (byte[2097152 + o + 2] == 't')  return 0 }
-    state c3 { to c4 when (byte[2097152 + o + 3] == 'a')  return 0 }
-    state c4 { to yes when (is_ident_continue(byte[2097152 + o + 4]) == 0)  return 0 }
-    state yes { return 1 }
 }
 
 proc is_def() {
