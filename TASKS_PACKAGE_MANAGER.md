@@ -45,11 +45,14 @@ stop the item on one precise owner question before adding machinery.
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand, coverage-composition, and installation-issuance joins;
-  - **OWNER-BLOCKED — exact boundary-realization application evidence**;
-    production remains fail-closed rather than publishing a provisional
-    arity/string carrier. D28 authorizes no generic-coverage implementation
-    until a checked generic operator realization supplies a producer; generic
-    assertions remain non-authorizing;
+  - implement D29's exact boundary-application evidence: retain checked
+    type/const demands, close symbolic demands during final specialization,
+    recheck the role-specific realization and physical plan, and replace the
+    provisional arity/string coverage identity. Lifetime, machine, and
+    proposition operator applications remain fail-closed. D28 authorizes no
+    generic-coverage implementation until a checked generic operator
+    realization supplies a producer; generic assertions remain
+    non-authorizing;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -311,14 +314,16 @@ explicitly.
 
 - [ ] Complete generic/exact-application coverage for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Derive concrete static applications
-  from checked provider realizations, retain
-  normalized tagged telescope bindings, attach rows to production selected
-  plans, and add compiler-to-update tests. Keep compatibility failure when a
-  public family gains an uncovered coordinate. Exact-application coverage
-  remains owner-blocked. Generic coverage remains
-  unavailable until D28's checked producer exists. Package evidence must never
-  substitute declaration order, display signatures, ordinals, authored
-  assertions, or reach-selected subsets.
+  from checked uses, retain D29's normalized tagged type/const bindings, close
+  artifact-qualified symbolic demands during final specialization, recheck the
+  selected role-specific realization and concrete physical plan, attach rows
+  to production selected plans, and add compiler-to-update tests. Exercise the
+  canonical empty application as well as distinct/equivalent const values.
+  Keep compatibility failure when a public family gains an uncovered
+  coordinate. Universal generic coverage remains deliberately unimplemented
+  under D28; package evidence must never substitute declaration order, display
+  signatures, ordinals, authored assertions, bootstrap lowering, or
+  reach-selected subsets.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external

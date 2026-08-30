@@ -46,7 +46,7 @@ ambiguous owner row.
 The canonical compiler source now implements complete parsing, that identity
 census, a whole-program scan retaining the earliest absent named-type candidate,
 and pure symbolic Alpha encoding. It deliberately does not promote the
-candidate to `UnknownType` until Q4 fixes competition with the other
+candidate to `UnknownType` until Q3 fixes competition with the other
 type-formation failures. Remaining type/body checking, lowering, `main`, tape
 publication, and refinement are open implementation work.
 

@@ -765,10 +765,16 @@ Remaining:
   carries their structural arguments through package review and canonical
   encoding. Missing, stale, duplicate, cross-coordinate, reordered, and
   arity-drifting rows reject; generic coverage claims remain fail-closed.
-  Producing those exact rows from verified provider artifacts and proving
-  genuinely generic realization coverage remain work, alongside public-leaf
-  delegation/recursive redispatch and the external-leaf source-form migration
-  below.
+  D29 now fixes the production replacement: checked uses retain tagged
+  type/const demands, const values normalize in their declared carrier,
+  generic artifacts export only symbolic demand, and final specialization
+  issues coverage after the selected checked-body, intrinsic, or exact
+  external realization and its physical plan recheck. Empty telescopes use one
+  canonical empty application. Bootstrap lowering cannot issue authoritative
+  coverage. Producing those exact rows remains work; genuinely universal
+  realization coverage stays deliberately unimplemented under D28, alongside
+  public-leaf delegation/recursive redispatch and the external-leaf
+  source-form migration below.
 
   In the same migration, make external provider leaves bodyless `boundary
   machine ... satisfies ...` declarations. Infer compiler-intrinsic supply from

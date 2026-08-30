@@ -1118,6 +1118,45 @@ or emitted code. The production first rung is consequently exact-only. Generic
 requirements in core do not themselves justify a generic-coverage row, and no
 checked generic operator realization currently supplies one.
 
+The exact set begins at checked uses, not at provider assertions. Each use
+retains an ordered application against the selected requirement telescope.
+Application arguments are structurally tagged by category; binder owner,
+category, and ordinal are identity, while binder names and source spellings are
+not. Production currently admits type arguments and const arguments. A const
+argument is the canonical evaluated value in its declared carrier, so `2 + 2`
+and `4` select the same `4 : u64` application. Lifetime, static-machine, and
+proposition arguments remain fail-closed until their operator-specific
+substitution and replay rules exist.
+
+An application in still-generic code may refer to the enclosing artifact's
+typed binders. That is a symbolic demand, not coverage. Final composition
+substitutes reachable specialization arguments and publishes coverage only
+after every argument is closed and validated against its category, carrier,
+domain, bounds, and `where` requirements. Equal closed applications deduplicate
+only after their selected-plan, realization, semantic, target, admission, and
+physical joins succeed. Checked source-use coordinates remain independent
+provenance even when they share one coverage row.
+
+For a checked generic body, the compiler creates an ordinary authoritative
+machine specialization per distinct closed application and rechecks the
+substituted signature, contracts, effects, target restrictions, admissions,
+representation, layout, calling plan, and emitted execution. The retained
+coverage row carries the exact requirement, tagged application, strong
+selected-plan identity, and a role-tagged realization payload. The closed
+roles are specialized checked body, nongeneric checked body, exact compiler
+intrinsic, and externally admitted concrete authority. The role discriminant
+is part of canonical identity; role-specific fields are not optional members
+of one common payload.
+
+A declaration with no static telescope has one canonical empty application.
+It performs no substitution but still rejoins its exact selected plan and
+realization. Bodyless, opaque, external, and separately supplied realizations
+cannot borrow a checked template's authority; they require exact admitted
+authority for every application. Zero-commitment bootstrap lowering is not a
+coverage role. A builtin fallback that selects no boundary requirement emits
+no row, while an authoritative artifact rejects a demanded boundary operation
+that has not migrated from bootstrap lowering to a selected realization.
+
 A future universal row may be compiler-issued only for an exact checked Omega
 body validated on the pristine symbolic graph. Its typed telescope retains
 binder categories, declared domains and bounds, `where` requirements, and an
@@ -1129,17 +1168,16 @@ separately supplied realizations cannot acquire universal coverage from an
 authored claim and remain exact-only. A foreign universal contract would need
 a distinct independently recheckable verifier.
 
-The compiler foundation represents this as a non-authorizing indexed-
-application closure. It combines exact concrete demands with substituted,
-artifact-qualified symbolic demands and canonicalizes the reconstructed
-application set. Its existing generic coverage assertion is structural
-scaffolding, not evidence; production accepts only compiler-rechecked exact
-coverage. The closed structural result retains the selected closure, exact
-provider plan, application set, and asserted coverage, but it does not create a
-slot for each application or authorize execution. Deriving exact demand and
-coverage rows from verified artifacts and binding exact provider issuance
-occurrences at installation remain separate engineering steps, so this
-structural result alone grants no resident content or transfer authority.
+The compiler foundation currently represents the closure through a
+non-authorizing indexed-application scaffold. It combines exact concrete
+demands with substituted, artifact-qualified symbolic demands and canonicalizes
+the reconstructed set, but its arity/string schema and provider-asserted
+coverage are not D29 evidence. Production must replace those identities with
+the compiler-derived typed application and role-specific recheck above. The
+closed structural result does not create a slot for each application or
+authorize execution. Binding exact provider issuance occurrences at
+installation remains separate engineering work, so application coverage alone
+grants no resident content or transfer authority.
 Native realization also retains the exact nonzero selected-closure identity
 beside its source-free provider-plan projection. Component-candidate replay
 requires both to match independently, preventing indexed coverage or

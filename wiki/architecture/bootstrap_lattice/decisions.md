@@ -897,9 +897,8 @@ Every emitted application requires one closed compiler-recheckable coverage
 fact binding its tagged arguments, selected realization, and concrete physical
 obligations before publication. Exact applications remain mandatory even if a
 future checked generic realization has universal semantic evidence; universal
-checking never creates concrete instances or physical plans. The remaining
-owner decision chooses whether that fact specializes and rechecks one generic
-realization or names a separately checked concrete realization.
+checking never creates concrete instances or physical plans. D29 fixes that
+exact fact and its realization-specific checking rules.
 
 A future compiler-issued generic row is permitted only for an exact checked
 Omega body validated on the pristine pre-monomorphization graph under its
@@ -928,6 +927,70 @@ requires its own independently recheckable verifier and remains distinct from
 checked-body evidence. Provider-authored `generic` flags, one successful
 concrete compilation, toolchain strings, and compact fingerprints never prove
 universal coverage.
+
+## D29 — Compiler-issued exact boundary-application coverage
+
+One checked boundary-operator use produces a typed application demand rather
+than an arity plus display strings. An application binds each lifetime/static
+telescope position by category and canonical identity. Binder owner, category,
+and ordinal are identity inputs; names and source spellings are diagnostic
+only. A const argument is its evaluated value in its declared carrier, so
+equivalent expressions such as `2 + 2` and `4` denote the same `4 : u64`
+application. Type and const arguments are the first supported production
+categories. Lifetime, machine, and proposition applications remain explicitly
+fail-closed until an operator actually requires their exact substitution and
+replay rules.
+
+A use inside an unspecialized generic artifact may retain arguments referring
+to that artifact's own typed binders, but that row is demand rather than
+coverage. Final composition substitutes reachable specialization arguments
+and may publish coverage only after the application is closed. Every binder is
+assigned exactly once and satisfies its declared category, carrier, domain,
+bounds, and `where` requirements. Return shape, display text, or a producer
+assertion never fills a missing argument. Identical closed applications are
+deduplicated only after all semantic and physical joins succeed; individual
+checked-use coordinates remain separate provenance.
+
+A checked generic Omega realization is specialized once for each distinct
+closed demanded application through the ordinary authoritative machine-
+specialization path. The compiler rechecks the substituted signature,
+contracts, effects, target restrictions, and admissions, then establishes the
+concrete representation, layout, calling plan, and emitted execution. The
+coverage fact retains the exact requirement coordinate, tagged application,
+strong selected-provider-plan identity, and one role-tagged realization
+payload. The closed realization roles are specialized checked body,
+nongeneric checked body, compiler intrinsic, and externally admitted concrete
+authority. The role discriminant participates in canonical identity; roles do
+not share optional template, specialization, or external-authority fields.
+
+The empty telescope is one canonical empty application. It performs no
+substitution and is the ordinary cheap path for monomorphic boundary
+operators, but it still rejoins the exact selected plan and realization before
+authoritative publication. A compiler intrinsic retains its exact closed
+execution atom. A bodyless, external, opaque, or separately supplied
+realization has no body to specialize and therefore requires independently
+admitted concrete authority for each demanded application. Requiring authored
+concrete realizations for checked generic bodies would duplicate ordinary
+monomorphization and is not an alternate language rule.
+
+Zero-commitment bootstrap lowering is not an authoritative realization role.
+An ordinary builtin fallback that selects no boundary requirement emits no
+boundary-application coverage row. A resolved boundary operator that still
+uses bootstrap lowering may remain in an explicitly non-authoritative
+bootstrap profile, but it cannot publish exact realization coverage. An
+authority-bearing artifact must route that operation through a selected
+checked body, compiler intrinsic, or admitted external realization; it never
+fills a plan or specialization field with zero and never silently omits a
+demanded boundary application.
+
+Terminal and package replay recompute the closed application and its
+role-specific realization commitment from retained structural facts. They
+reject open or missing binders, category erasure, const-carrier drift,
+application/plan substitution, stale physical plans, unsupported binder
+categories, and any coverage row produced before its demand was closed. D28's
+future universal semantic row remains complementary: it can establish
+symbolic selection coverage, but every emitted artifact still carries D29's
+finite concrete applications and physical plans.
 
 ## Dependency order
 

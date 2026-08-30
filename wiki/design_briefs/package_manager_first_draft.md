@@ -1227,16 +1227,21 @@ incomplete recorded override. The projection never substitutes an overload
 display name, declaration order, or a runtime-layout-only type identity for
 this contract surface.
 
-Production exact package applications remain fail-closed. The owner question
-`Define exact boundary-realization application evidence` must first
-settle a tagged structural demand representation and its recheckable join to
-selected-realization evidence; an arity plus semantic strings is not sufficient
-authority, and a provisional type-only use carrier would pre-commit the wider
-static-binder design. Under D28, every emitted artifact retains this finite
-exact set even if a future checked generic body proves universal semantic
-selection coverage. No such checked generic operator realization exists today,
-so generic coverage remains deliberately unrepresented; provider assertions,
-bodyless supply, and one successful specialization grant nothing.
+Production exact package applications remain fail-closed until D29 is
+implemented. A checked use owns an ordered type/const application; const
+identity is its canonical evaluated value in the declared carrier. Generic
+artifacts may export typed symbolic demands, but coverage exists only after
+final substitution closes every binder and rejoins the exact selected plan.
+Checked generic bodies use ordinary authoritative specialization, while
+bodyless or external supply requires independently admitted concrete authority.
+The retained realization is a role-tagged sum rather than a common row with
+optional specialization fields. Empty telescopes have one cheap canonical
+empty application. Bootstrap lowering cannot publish authoritative coverage.
+Under D28, every emitted artifact retains this finite exact set even if a future
+checked generic body proves universal semantic selection coverage. No such
+checked generic operator realization exists today, so generic coverage remains
+deliberately unrepresented; provider assertions and one successful
+specialization grant nothing.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-

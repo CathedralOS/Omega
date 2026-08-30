@@ -168,6 +168,17 @@ visibility; a bodyless boundary machine, bounded row, or later selection cannot
 synthesize that identity. Its checked or external satisfier is resolved by the
 same exact provider-plan machinery as a trait requirement.
 
+D29 boundary-operator coverage enters Terminal only after final specialization
+has closed every checked demand. The source-free row retains the exact
+requirement coordinate, ordered tagged type/const application, strong selected-
+plan identity, concrete semantic and physical facts, and one role-tagged
+specialized-body, nongeneric-body, compiler-intrinsic, or external-authority
+payload. Terminal replay recomputes the application and the role-specific
+commitment; it never reconstructs either from source spellings, arity, compact
+fingerprints, or optional fields. Empty telescopes retain one canonical empty
+application. Open applications, unsupported binder categories, and zero-
+commitment bootstrap lowering reject authoritative publication.
+
 ## The cut
 
 `psi-checked-trees-to-terminal` is the sole executable semantic handoff.
