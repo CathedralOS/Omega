@@ -1040,6 +1040,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       arena, so no fake payload resource identity is added. Preserve
       `Complete`-only publication, relative source spans, authored root/member
       order, and Q7 neutrality.
+    - [x] Replace the named-only type row with a compact tagged type-node arena
+      and retain one unqualified `Base in Domain` suffix for direct and payload
+      fields. The constrained root points backward to its named base and to one
+      source-shaped domain constraint; import and domain components share the
+      bounded path-member arena. Unknown domain names remain valid syntax for
+      later resolution. Missing domain names reject syntactically, while
+      qualified/indexed/intersected domains, range constraints, recursive
+      types, generics, and other richer valid forms remain
+      implementation-incomplete. Reserve all type-node payload words in one
+      final-extensible record rather than allocating a full side arena per
+      future variant. Atomically check the one- or two-node requirement and
+      the optional path component before publishing a field row. `TypeNodes`
+      is now independently exhaustible; its equal ceiling dominates the
+      payload-field and constraint tables in this slice. Preserve the same
+      invocation-local view custody, relative spans, reset behavior,
+      `Complete`-only publication, and Q7 neutrality. Executed and exact-edge
+      resource vectors wait for the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
