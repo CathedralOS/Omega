@@ -47,7 +47,7 @@ use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use psi_typed_trees::statement::StatementNode;
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashSet;
 
 mod offset_bounds;
@@ -184,7 +184,7 @@ fn literal_indexed_recast_target_size(
         return primitive.scalar_byte_size();
     }
 
-    if literal_fixed_primitive_array_target_is_eligible(program, target_type) {
+    if nested_literal_fixed_primitive_array_target_is_eligible(program, target_type) {
         return shared_projection_type_representation(program, target_type).and_then(
             |representation| {
                 (representation.size > 0 && representation_is_exactly_tiled(&representation))
@@ -207,7 +207,7 @@ fn literal_indexed_recast_target_size(
         .filter(|size| *size > 0)
 }
 
-fn literal_fixed_primitive_array_target_is_eligible(
+fn nested_literal_fixed_primitive_array_target_is_eligible(
     program: &TypedTrees,
     target_type: TypeReferenceHandle,
 ) -> bool {
@@ -218,20 +218,32 @@ fn literal_fixed_primitive_array_target_is_eligible(
     else {
         return false;
     };
-    if *length == 0
-        || !matches!(
-            program.type_reference_table.type_reference(*element_type),
-            TypeReferenceNode::Named { .. }
-        )
-    {
+    if *length == 0 {
         return false;
     }
-    program
-        .primitive_type_reference(*element_type)
-        .is_some_and(|primitive| {
-            primitive != psi_typed_trees::types::PrimitiveType::Bool
-                && primitive.scalar_byte_size().is_some()
-        })
+
+    match program.type_reference_table.type_reference(*element_type) {
+        TypeReferenceNode::Named { .. } => exact_primitive_type(program, *element_type)
+            .is_some_and(|primitive| {
+                primitive != PrimitiveType::Bool && primitive.scalar_byte_size().is_some()
+            }),
+        TypeReferenceNode::FixedArray { .. } => {
+            nested_literal_fixed_primitive_array_target_is_eligible(program, *element_type)
+        }
+        _ => false,
+    }
+}
+
+fn exact_primitive_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    PrimitiveType::from_name(name.as_str()).filter(|primitive| name.as_str() == primitive.name())
 }
 
 fn closed_fact_free_record_symbol_is_eligible(

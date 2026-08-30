@@ -10538,14 +10538,15 @@ checked-result arithmetic decision listed below.
   helper-produced, and literal operands. Validated shared/mutable recasts over
   whole name/member places now publish the exact source loan too; indexed
   byte-region recasts with one exact literal offset into a fixed byte array and
-  either a fact-free primitive target, one nonzero literal fixed array of a
-  direct fact-free non-Boolean fixed-width primitive element, or one nonzero
-  closed acyclic tree of nongeneric, quotient-free, all-relevant fact-free
+  either a fact-free primitive target, one recursively nonzero literal fixed
+  array whose ultimate element is an exact fact-free non-Boolean fixed-width
+  primitive, or one nonzero closed acyclic tree of nongeneric, quotient-free,
+  all-relevant fact-free
   records now publish the complete validated half-open target footprint as one
   fixed-range loan. Array extent comes from the normalized exactly tiled
   representation; record padding remains covered. First/last/padding-byte
   mutations reject while immediate siblings remain disjoint. Runtime or merely
-  bounded offsets, slices, nested or record-element array targets,
+  bounded offsets, slices, record-element array targets,
   generic/invariant-bearing/erased/cased records, and other indexed recasts
   remain conservative.
   Scalar recast representation-set normalization and
