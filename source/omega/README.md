@@ -45,7 +45,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
+| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns the settled outer `OCREQ` envelope, strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented inner request or application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
 
 The four empty target declarations in `build.omg` are temporary compatibility
 scaffolding, not product architecture. Delete them as soon as immutable target
@@ -56,12 +56,15 @@ activation/reach closure lands, and normalize `windows_x64` to
 both descriptive compiler tapes remain absent. D18 fixes their logical sealed
 Omega request as a resolved package subject plus a bound invocation, complete
 deterministic build-visible snapshots, and the `OCOUT` compiler boundary. D25
-fixes their `OCREQ` v1 byte framing, committed subject binding, structural graph
-and closed-tree snapshot encoding, validation order, and shared 40-byte/
-source-coordinate-extended 48-byte `OCOUT` realization. No raw-single-file
-stdin convention may stand in for it. Each compiler derives and retains the
-admitted typed build checkpoint internally, evaluates the selected root build
-once, adds its generated source as a later one-way-visible stratum, and
+fixes their outer `OCREQ` v1 byte framing, committed subject binding,
+structural graph and closed-tree canonical requirements, validation order, and
+shared 40-byte/source-coordinate-extended 48-byte `OCOUT` shape. Q4 owns the
+missing inner field/tag tables, commitment preimage, failure codes, phase
+order, and scalar provisions; `D` currently validates only the settled outer
+envelope. No raw-single-file stdin convention may stand in for it. Each
+compiler derives and retains the admitted typed build checkpoint internally,
+evaluates the selected root build once, adds its generated source as a later
+one-way-visible stratum, and
 continues ordinary compilation. Dependencies contribute durable generated-
 source bundles rather than recursively executing their builds or retaining live
 partial compiler checkpoints.

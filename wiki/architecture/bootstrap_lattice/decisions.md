@@ -463,10 +463,12 @@ use request-byte offset; source diagnostics use canonical package order,
 source-unit order, and byte offset. Timing observations never enter semantic
 identity.
 
-D25 supplies the authoritative byte realization of this logical request and
-outcome. It retains each selected immutable source revision independently from
-the stable `PackageKey`, but deliberately gives no V1 wire identity to the
-future accepted `PackageInstance` carrier.
+D25 supplies the authoritative outer framing and canonical-content rules for
+this logical request and outcome. It retains each selected immutable source
+revision independently from the stable `PackageKey`, but deliberately gives no
+V1 wire identity to the future accepted `PackageInstance` carrier. Q4 owns the
+still-missing inner field/tag tables, commitment preimage, failure-code tables,
+phase order, and scalar provisions needed for one byte-interoperable wire.
 
 ## D19 — Gamma application adapters are selected by one sealed two-profile input
 
@@ -710,6 +712,12 @@ both Delta and Omega implementations can represent them. A Delta decoder reads
 the four raw bytes, rejects a set high bit before signed conversion or checked
 arithmetic, and therefore never turns hostile framing into a trap and outer
 `InternalFailure`.
+
+The identity, outer section extents, exact end, and canonical semantic contents
+in this decision are fixed. They do not by themselves assign every inner row's
+byte order, width, tag, or reserved fields, nor the closed failure/resource
+numbers. Q4 completes those physical tables before either compiler may claim a
+full V1 decoder or publisher.
 
 The subject encodes package rows in ascending recomputed
 `PackageKeyIdentity` order. Each row carries the structural package name and
