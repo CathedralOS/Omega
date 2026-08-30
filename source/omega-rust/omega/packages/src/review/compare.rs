@@ -1,12 +1,15 @@
 //! Exact capability comparison between an accepted baseline and a candidate.
 //!
-//! [`model`] owns the bounded conflict vocabulary, [`compare`] derives exact
-//! row changes, [`commitments`] binds those changes and the candidate closure,
-//! and [`format`] renders the fixed review form.
+//! [`model`] owns exact conflict values, [`limits`] bounds hostile inputs,
+//! [`error`] names fail-closed outcomes, and [`compare`] derives row changes.
+//! [`commitments`] binds those changes and the candidate closure; [`format`]
+//! renders the fixed review form.
 
 mod commitments;
 mod compare;
+mod error;
 mod format;
+mod limits;
 mod model;
 mod render_error;
 
