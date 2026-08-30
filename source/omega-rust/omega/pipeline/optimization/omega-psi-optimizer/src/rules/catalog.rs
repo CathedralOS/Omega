@@ -1,7 +1,7 @@
 //! The complete ordered Psi pass catalog.
 //!
 //! This file is intentionally declarative. Each entry points to one pass
-//! folder, whose own `catalog.rs` lists that pass's exact rule order.
+//! entrance, which visibly lists that pass's exact rule order.
 
 use std::sync::Arc;
 

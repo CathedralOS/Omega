@@ -2,9 +2,9 @@
 //!
 //! [`PSI_PASS_CATALOG`] is the only enable/disable and pass-order table. This
 //! entrance filters exact selections through it and returns one ordered
-//! registry per selected pass. Descend through `passes/<exact-pass>/catalog.rs`
-//! for rule order, then into named rule mechanics. Independent acceptance
-//! remains in `omega-optimization-validation`.
+//! registry per selected pass. Descend through `passes/<exact-pass>/mod.rs`
+//! for that pass's visible local rule order, then into named rule mechanics.
+//! Independent acceptance remains in `omega-optimization-validation`.
 
 mod catalog;
 mod passes;
