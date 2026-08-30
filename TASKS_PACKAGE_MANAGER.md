@@ -73,11 +73,18 @@ stop the item on one precise owner question before adding machinery.
     implementation availability guard, not exact payload or memory evidence;
   - add exact peak-live byte accounts only where the compiler owns a complete
     allocation lifetime. Evaluator `Text` backing payloads are landed. Keep the
-    remaining filesystem domains distinct: directory-enumeration
-    name/packed-record snapshots and retained find-cursor name snapshots.
-    Synchronous file-read transfer buffers already have one exact
-    pre-provider 16-MiB per-operation bound; do not add a peak receipt that
-    merely restates it. Do not add a generic filesystem-scratch,
+    remaining persistent filesystem domain distinct: retained find-cursor
+    name snapshots need one closure-wide live account because several cursors
+    can coexist. Each individual cursor is already capped at 16 MiB of exact
+    retained name payload. Complete synchronous directory enumeration now
+    truncates retained components to Omega std's existing 255-byte `DirEntry`
+    carrier and caps packed dirent bytes at 16 MiB per operation before
+    retaining each snapshot name and before allocating the packed buffer. That
+    extent strictly dominates the complete retained source-name payload. It
+    needs no duplicate name account or peak receipt. Synchronous
+    file-read transfer buffers likewise already have one exact pre-provider
+    16-MiB per-operation bound; do not add a peak receipt that merely restates
+    it. Do not add a generic filesystem-scratch,
     “temporary logical payload,” or memory ceiling: partial participation would
     misstate allocator/RSS containment. BuildLog bytes, canonical filesystem
     operation attempts, concurrently live filesystem handles and interpreter

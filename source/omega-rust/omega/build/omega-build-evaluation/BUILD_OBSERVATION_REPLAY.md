@@ -528,10 +528,16 @@ evaluator Text backing-payload account is now complete. Synchronous sequential
 and positioned file reads each admit one transfer buffer only after their
 requested length passes the exact 16-MiB transfer-count gate. A separate peak
 receipt would restate that existing per-operation bound without constraining
-another lifetime, so none is added. Remaining byte domains stay separate:
-directory-enumeration name/packed-record snapshots and retained find-cursor
-name snapshots. Partial instrumentation is not described as generic filesystem
-scratch or memory containment.
+another lifetime, so none is added. Complete synchronous directory enumeration
+truncates retained components to Omega std's existing 255-byte `DirEntry`
+carrier and caps packed dirent bytes at 16 MiB per operation before retaining
+each snapshot name and before allocating the packed buffer. Packed extent
+strictly dominates the complete retained source-name payload, so no duplicate
+name account is added. Each find-cursor snapshot has a separate 16-MiB
+retained-name ceiling, but retained find-cursor names remain a distinct
+closure-wide live-account task because multiple cursors can coexist. Partial
+instrumentation is not described as generic filesystem scratch or memory
+containment.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete

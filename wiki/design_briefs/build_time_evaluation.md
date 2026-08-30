@@ -788,12 +788,17 @@ receipt. Peak live cells receive the same treatment. Temporary bytes are not
 one honest generic domain: additional hard ceilings are introduced only for a
 named compiler-owned payload whose complete allocation lifetime can be charged
 before it becomes interpreter state and released exactly. Evaluator `Text`
-backing payloads now have that account. Remaining domains stay separate:
-directory-enumeration name/packed-record snapshots and retained find-cursor
-name snapshots. Synchronous file-read transfer buffers already have one exact
-pre-provider 16-MiB per-operation bound; another peak field would add no
-enforceable invariant. Allocator capacity, RSS, and process memory remain
-deployment policy rather than an Omega claim.
+backing payloads now have that account. Complete synchronous directory
+enumeration truncates retained components to Omega std's existing 255-byte
+`DirEntry` carrier and caps packed dirent payload at 16 MiB per operation
+before retaining each snapshot name and before allocating the packed buffer.
+That extent strictly dominates the complete retained source-name payload, so a
+duplicate name account adds no invariant. Retained find-cursor names have a
+16-MiB per-snapshot name ceiling, but still need a closure-wide live account
+because several cursors can coexist. Synchronous file-read transfer buffers
+already have one exact pre-provider 16-MiB per-operation bound; another peak
+field would add no enforceable invariant. Allocator capacity, RSS, and process
+memory remain deployment policy rather than an Omega claim.
 
 The root may raise or remove ceilings. Dependencies may publish expected usage
 but cannot grant themselves more. Evaluation code cannot inspect remaining

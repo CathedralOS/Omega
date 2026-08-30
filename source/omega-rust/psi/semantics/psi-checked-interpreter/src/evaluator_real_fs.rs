@@ -396,34 +396,71 @@ fn real_path(bytes: &[u8]) -> Option<PathBuf> {
     }
 }
 
-fn real_os_bytes(value: &std::ffi::OsStr) -> Option<Vec<u8>> {
+fn real_os_byte_slice(value: &std::ffi::OsStr) -> Option<&[u8]> {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
-        Some(value.as_bytes().to_vec())
+        Some(value.as_bytes())
     }
     #[cfg(not(unix))]
     {
-        value.to_str().map(|value| value.as_bytes().to_vec())
+        value.to_str().map(str::as_bytes)
     }
 }
 
-/// List a real directory as `(name, d_type)` entries for dirent packing:
-/// `.`/`..` first (native getdirentries reports them; the wrapper's decode
-/// skips them by name), then the immediate children SORTED for determinism --
-/// native order is filesystem-defined, so no program may rely on it. Errors
-/// map to the errno the caller reports: ENOTDIR for a non-directory fd,
-/// else the host's own code.
-fn real_dirent_entries(path: &Path) -> Result<Vec<(Vec<u8>, u8)>, i32> {
+fn real_os_bytes(value: &std::ffi::OsStr) -> Option<Vec<u8>> {
+    real_os_byte_slice(value).map(<[u8]>::to_vec)
+}
+
+#[derive(Clone, Copy)]
+enum DirectoryEntrySnapshotKind {
+    PackedRecords,
+    FindCursor,
+}
+
+/// List a real directory as `(name, d_type)` entries: `.`/`..` first, then
+/// immediate children sorted for deterministic interpreter behavior. The
+/// selected consumer decides whether to reserve only retained names or also
+/// the packed-dirent lane. Host failures remain errno results; compiler-owned
+/// snapshot ceilings are evaluator resource halts.
+fn real_directory_entries(
+    path: &Path,
+    snapshot_kind: DirectoryEntrySnapshotKind,
+) -> EvalResult<Result<Vec<(Vec<u8>, u8)>, i32>> {
     match std::fs::metadata(path) {
-        Ok(metadata) if !metadata.is_dir() => return Err(ENOTDIR),
+        Ok(metadata) if !metadata.is_dir() => return Ok(Err(ENOTDIR)),
         Ok(_) => {}
-        Err(error) => return Err(io_errno(&error)),
+        Err(error) => return Ok(Err(io_errno(&error))),
     }
+    let (mut name_bytes, mut record_bytes) = match snapshot_kind {
+        DirectoryEntrySnapshotKind::PackedRecords => {
+            let record_bytes = super::checked_directory_record_snapshot_total(0, 1)?;
+            (
+                None,
+                Some(super::checked_directory_record_snapshot_total(
+                    record_bytes,
+                    2,
+                )?),
+            )
+        }
+        DirectoryEntrySnapshotKind::FindCursor => {
+            let name_bytes = super::checked_directory_name_snapshot_total(0, 1)?;
+            (
+                Some(super::checked_directory_name_snapshot_total(name_bytes, 2)?),
+                None,
+            )
+        }
+    };
     let mut children: Vec<(Vec<u8>, u8)> = Vec::new();
-    let listing = std::fs::read_dir(path).map_err(|error| io_errno(&error))?;
+    let listing = match std::fs::read_dir(path) {
+        Ok(listing) => listing,
+        Err(error) => return Ok(Err(io_errno(&error))),
+    };
     for dir_entry in listing {
-        let dir_entry = dir_entry.map_err(|error| io_errno(&error))?;
+        let dir_entry = match dir_entry {
+            Ok(dir_entry) => dir_entry,
+            Err(error) => return Ok(Err(io_errno(&error))),
+        };
         let d_type = match dir_entry.file_type() {
             Ok(kind) if kind.is_dir() => 4,      // DT_DIR
             Ok(kind) if kind.is_symlink() => 10, // DT_LNK
@@ -431,13 +468,28 @@ fn real_dirent_entries(path: &Path) -> Result<Vec<(Vec<u8>, u8)>, i32> {
             Err(_) => 0,                         // DT_UNKNOWN
         };
         let file_name = dir_entry.file_name();
-        let bytes = real_os_bytes(&file_name).ok_or(EINVAL)?;
-        children.push((bytes, d_type));
+        let Some(bytes) = real_os_byte_slice(&file_name) else {
+            return Ok(Err(EINVAL));
+        };
+        let bytes = super::portable_directory_entry_name(bytes);
+        if let Some(current) = name_bytes {
+            name_bytes = Some(super::checked_directory_name_snapshot_total(
+                current,
+                bytes.len(),
+            )?);
+        }
+        if let Some(current) = record_bytes {
+            record_bytes = Some(super::checked_directory_record_snapshot_total(
+                current,
+                bytes.len(),
+            )?);
+        }
+        children.push((bytes.to_vec(), d_type));
     }
     children.sort();
     let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
     entries.extend(children);
-    Ok(entries)
+    Ok(Ok(entries))
 }
 
 /// `pread` emulation portable across hosts (std has no cross-platform
@@ -922,13 +974,16 @@ impl<'program> super::Evaluator<'program> {
                 let listed = {
                     let real = self.real_fs_mut();
                     match real.files.get(&fd) {
-                        Some(entry) => real_dirent_entries(&entry.path),
-                        None => Err(EBADF),
+                        Some(entry) => real_directory_entries(
+                            &entry.path,
+                            DirectoryEntrySnapshotKind::PackedRecords,
+                        ),
+                        None => Ok(Err(EBADF)),
                     }
-                };
+                }?;
                 match listed {
                     Ok(entries) => {
-                        let records = super::pack_dirent_records(&entries);
+                        let records = super::pack_dirent_records(&entries)?;
                         let start = position.initial.max(0) as usize;
                         let (chunk, next_position) =
                             super::dirent_record_chunk(&records, start, count.host);
@@ -970,13 +1025,15 @@ impl<'program> super::Evaluator<'program> {
                 // fresh handle, and fill the FIRST entry's find-data record.
                 let listed = match pattern.strip_suffix(b"/*") {
                     Some(dir_path) => match self.authorized_path(dir_path, false, 0) {
-                        Some(path) => real_dirent_entries(&path),
+                        Some(path) => {
+                            real_directory_entries(&path, DirectoryEntrySnapshotKind::FindCursor)
+                        }
                         None => {
                             return Ok(Value::Int(-1));
                         }
                     },
-                    None => Err(ENOENT),
-                };
+                    None => Ok(Err(ENOENT)),
+                }?;
                 match listed {
                     Ok(entries) => {
                         let mut queue: std::collections::VecDeque<(Vec<u8>, bool)> = entries
@@ -2537,6 +2594,23 @@ mod sponsor_provider_tests {
                 .expect("test grant identity is nonzero"),
             path,
         )
+    }
+
+    #[test]
+    fn real_directory_listing_keeps_host_failures_in_the_errno_lane() {
+        let directory = TestDirectory::new("directory-errno");
+        let missing = directory.0.join("missing");
+
+        for snapshot_kind in [
+            DirectoryEntrySnapshotKind::PackedRecords,
+            DirectoryEntrySnapshotKind::FindCursor,
+        ] {
+            match real_directory_entries(&missing, snapshot_kind) {
+                Ok(Err(errno)) => assert_ne!(errno, 0),
+                Ok(Ok(_)) => panic!("missing directory cannot enumerate"),
+                Err(_) => panic!("ordinary host failure is not a resource halt"),
+            }
+        }
     }
 
     #[test]
