@@ -524,11 +524,14 @@ concatenation copies before they become Text, filesystem scratch, RSS, and
 process-memory containment.
 
 There is deliberately no generic “temporary logical payload” ceiling. The
-evaluator Text backing-payload account is now complete. Remaining byte
-domains stay separate: filesystem read-transfer buffers, directory-enumeration
-name/packed-record snapshots, and retained find-cursor name snapshots. Partial
-instrumentation is not described as generic filesystem scratch or memory
-containment.
+evaluator Text backing-payload account is now complete. Synchronous sequential
+and positioned file reads each admit one transfer buffer only after their
+requested length passes the exact 16-MiB transfer-count gate. A separate peak
+receipt would restate that existing per-operation bound without constraining
+another lifetime, so none is added. Remaining byte domains stay separate:
+directory-enumeration name/packed-record snapshots and retained find-cursor
+name snapshots. Partial instrumentation is not described as generic filesystem
+scratch or memory containment.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete
