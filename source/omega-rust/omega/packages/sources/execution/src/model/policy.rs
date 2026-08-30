@@ -1,11 +1,7 @@
-use super::{
-    ResolverExecutionGuarantee, ResolverExecutionGuaranteeRow, ResolverExecutionNetworkTransport,
-    ResolverExecutionPhase,
-};
-use crate::network::ResolverExecutionEndpointRoutePolicy;
+use super::{ResolverExecutionGuarantee, ResolverExecutionGuaranteeRow, ResolverExecutionPhase};
 use std::path::{Path, PathBuf};
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 15;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 16;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
 
 /// Canonical configuration observation from the verified local execution backend.
@@ -17,12 +13,9 @@ const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
 pub struct ResolverExecutionPolicyObservation {
     pub(crate) backend: ResolverExecutionBackendIdentity,
     pub(crate) phase: ResolverExecutionPhase,
-    pub(crate) network_transport: Option<ResolverExecutionNetworkTransport>,
-    pub(crate) endpoint_route: Option<ResolverExecutionEndpointRoutePolicy>,
     pub(crate) generated_policy_sha256: Option<String>,
     pub(crate) resource_ceilings: ResolverExecutionResourceCeilings,
     pub(crate) executable: PathBuf,
-    pub(crate) additional_executables: Vec<PathBuf>,
     pub(crate) discovery_read_root: Option<PathBuf>,
     pub(crate) inspection_read_root: Option<PathBuf>,
     pub(crate) mutable_root: Option<PathBuf>,
@@ -38,14 +31,6 @@ impl ResolverExecutionPolicyObservation {
         self.phase
     }
 
-    pub const fn network_transport(&self) -> Option<ResolverExecutionNetworkTransport> {
-        self.network_transport
-    }
-
-    pub const fn endpoint_route(&self) -> Option<&ResolverExecutionEndpointRoutePolicy> {
-        self.endpoint_route.as_ref()
-    }
-
     pub fn generated_policy_sha256(&self) -> Option<&str> {
         self.generated_policy_sha256.as_deref()
     }
@@ -56,10 +41,6 @@ impl ResolverExecutionPolicyObservation {
 
     pub fn executable(&self) -> &Path {
         &self.executable
-    }
-
-    pub fn additional_executables(&self) -> &[PathBuf] {
-        &self.additional_executables
     }
 
     pub fn discovery_read_root(&self) -> Option<&Path> {
@@ -85,20 +66,6 @@ impl ResolverExecutionPolicyObservation {
         bytes.extend_from_slice(&RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION.to_le_bytes());
         encode_backend_identity(&mut bytes, &self.backend);
         bytes.push(self.phase.tag());
-        match self.network_transport {
-            Some(transport) => {
-                bytes.push(1);
-                bytes.push(transport.tag());
-            }
-            None => bytes.push(0),
-        }
-        match &self.endpoint_route {
-            Some(route) => {
-                bytes.push(1);
-                route.encode(&mut bytes);
-            }
-            None => bytes.push(0),
-        }
         match &self.generated_policy_sha256 {
             Some(identity) => {
                 bytes.push(1);
@@ -108,10 +75,6 @@ impl ResolverExecutionPolicyObservation {
         }
         self.resource_ceilings.encode(&mut bytes);
         encode_path(&mut bytes, &self.executable);
-        bytes.extend_from_slice(&(self.additional_executables.len() as u64).to_le_bytes());
-        for executable in &self.additional_executables {
-            encode_path(&mut bytes, executable);
-        }
         match &self.discovery_read_root {
             Some(root) => {
                 bytes.push(1);

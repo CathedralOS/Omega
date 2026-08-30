@@ -1,12 +1,10 @@
 #![cfg(unix)]
 
 use super::{
-    GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE,
-    GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT, GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE,
-    GitExecutionTransport, GitExecutor, LocalSourceLimits, ResolverExecutionPhase,
-    SOURCE_BYTE_ABSOLUTE_LIMIT, SourceResolveError, change_macos_acl,
-    git_resolution_captured_output_ceiling, git_resolution_network_transfer_ceiling,
-    run_git_output, sealed_git_command, temp_root, test_system_git_executor,
+    GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutionTransport,
+    GitExecutor, LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT,
+    SourceResolveError, change_macos_acl, git_resolution_captured_output_ceiling, run_git_output,
+    sealed_git_command, temp_root, test_system_git_executor,
     verify_macos_open_executable_acl_custody,
 };
 use std::ffi::OsStr;
@@ -54,16 +52,6 @@ fn git_executor_uses_committed_absolute_program_inherited_environment_and_explic
 
     let command = sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
         .expect("construct sealed fake Git command");
-    #[cfg(target_os = "macos")]
-    {
-        assert_eq!(command.get_program(), OsStr::new("/usr/bin/sandbox-exec"));
-        assert!(
-            command
-                .get_args()
-                .any(|argument| argument == fake_git.canonicalize().unwrap().as_os_str())
-        );
-    }
-    #[cfg(not(target_os = "macos"))]
     assert_eq!(command.get_program(), fake_git.canonicalize().unwrap());
     assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
 
@@ -313,18 +301,6 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         }),
         GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT
     );
-    assert_eq!(
-        git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
-        LocalSourceLimits::default().max_bytes + GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE
-    );
-    assert_eq!(
-        git_resolution_network_transfer_ceiling(LocalSourceLimits {
-            max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
-            ..LocalSourceLimits::default()
-        }),
-        GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT
-    );
-
     let root = temp_root("git-resolution-budget");
     std::fs::create_dir_all(&root).expect("create Git budget root");
     let fast_git = root.join("fast-git");

@@ -4,10 +4,8 @@ use crate::tree::ResolvedLocalSource;
 use omega_resolver_execution::ResolverExecutionPolicyObservation;
 use std::path::{Path, PathBuf};
 
-use super::accounting::{GitCapturedOutputObservation, GitNetworkTransferObservation};
-use super::execution::{
-    GitCommandExecutionObservation, GitExecutableIdentity, GitTransportExecutableIdentity,
-};
+use super::accounting::GitCapturedOutputObservation;
+use super::execution::{GitCommandExecutionObservation, GitExecutableIdentity};
 use super::resolution::GitSourceReceipt;
 use super::storage::GitRetainedStorageObservation;
 
@@ -26,13 +24,6 @@ pub struct ResolvedGitSource {
     /// Absolute parent Git executable identity observed before and after every launch.
     /// This is diagnostic custody, not certification of the executable.
     pub(crate) git_executable: GitExecutableIdentity,
-    /// Exact transport executable observed for HTTPS or SSH resolution.
-    /// The test-only file adapter retains no transport executable here.
-    pub(crate) transport_executable: Option<GitTransportExecutableIdentity>,
-    /// Fixed platform executables admitted in addition to Git and the selected
-    /// transport helper. Each identity binds its invocation path, canonical
-    /// target, and exact content digest.
-    pub(crate) execution_helper_executables: Vec<GitTransportExecutableIdentity>,
     /// Locally reconstructed native policy observations for every command
     /// configured during this resolution. These rows report which optional
     /// platform hardening was active; unavailable rows do not invalidate a
@@ -40,7 +31,6 @@ pub struct ResolvedGitSource {
     pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
     pub(crate) captured_output_observation: GitCapturedOutputObservation,
-    pub(crate) network_transfer_observation: GitNetworkTransferObservation,
     pub(crate) retained_storage_observation: GitRetainedStorageObservation,
     pub(crate) receipt: GitSourceReceipt,
 }
@@ -115,16 +105,8 @@ impl ResolvedGitSource {
         &self.git_executable
     }
 
-    pub const fn transport_executable(&self) -> Option<&GitTransportExecutableIdentity> {
-        self.transport_executable.as_ref()
-    }
-
     pub fn execution_policy_observations(&self) -> &[ResolverExecutionPolicyObservation] {
         &self.execution_policy_observations
-    }
-
-    pub fn execution_helper_executables(&self) -> &[GitTransportExecutableIdentity] {
-        &self.execution_helper_executables
     }
 
     pub fn command_execution_observations(&self) -> &[GitCommandExecutionObservation] {
@@ -135,21 +117,16 @@ impl ResolvedGitSource {
         &self.captured_output_observation
     }
 
-    pub const fn network_transfer_observation(&self) -> &GitNetworkTransferObservation {
-        &self.network_transfer_observation
-    }
-
-    /// Exact post-helper cache state accepted by the final capability-rooted
+    /// Exact post-resolution cache state accepted by the final capability-rooted
     /// custody walk. This does not claim a during-write disk quota.
     pub const fn retained_storage_observation(&self) -> &GitRetainedStorageObservation {
         &self.retained_storage_observation
     }
 
     /// Canonical receipt of one successful resolution, issued only after
-    /// source, cache, executable, policy, command, endpoint, and accounting
-    /// reconciliation all succeed. It records the platform hardening that was
-    /// actually present without claiming that ambient host authority was
-    /// excluded.
+    /// source, cache, executable, policy, command, and accounting reconciliation
+    /// all succeed. It records the platform hardening that was actually present
+    /// without claiming that ambient host authority was excluded.
     pub fn receipt(&self) -> &GitSourceReceipt {
         &self.receipt
     }
@@ -191,12 +168,9 @@ pub(crate) struct PendingResolvedGitSource {
     pub(crate) local: ResolvedLocalSource,
     pub(crate) workspace_projection: Option<GitWorkspaceProjectionCustody>,
     pub(crate) git_executable: GitExecutableIdentity,
-    pub(crate) transport_executable: Option<GitTransportExecutableIdentity>,
-    pub(crate) execution_helper_executables: Vec<GitTransportExecutableIdentity>,
     pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
     pub(crate) captured_output_observation: GitCapturedOutputObservation,
-    pub(crate) network_transfer_observation: GitNetworkTransferObservation,
 }
 
 #[cfg(test)]
@@ -214,12 +188,9 @@ impl PendingResolvedGitSource {
             local: resolved.local.clone(),
             workspace_projection: resolved.workspace_projection.clone(),
             git_executable: resolved.git_executable.clone(),
-            transport_executable: resolved.transport_executable.clone(),
-            execution_helper_executables: resolved.execution_helper_executables.clone(),
             execution_policy_observations: resolved.execution_policy_observations.clone(),
             command_execution_observations: resolved.command_execution_observations.clone(),
             captured_output_observation: resolved.captured_output_observation.clone(),
-            network_transfer_observation: resolved.network_transfer_observation.clone(),
         }
     }
 }

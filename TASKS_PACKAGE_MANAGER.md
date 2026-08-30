@@ -218,21 +218,6 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Integration fixtures
 
-- [ ] **HOST-ROUTED-SOURCE-TRANSPORT.** Implement the settled
-  `Host-routed network transport` contract in
-  `SOURCE_RESOLVER_SECURITY.md`. Remove the universal CONNECT helper, forced
-  HTTPS proxy and SSH command, preselected network transport/helper executable
-  graph, endpoint-route reconciliation, broker transfer accounting, and native
-  network-phase executable/write allowlists that block host-selected helpers.
-  Remove the corresponding descendant-executable, socket-peer, and transfer
-  fields from the universal `GitSourceReceipt` rather than recording zeroes.
-  Retain closed package-controlled protocols and execution surfaces, bounded
-  output/lifetime and whole-tree cleanup, uniform honest resource limits,
-  authenticated object and tree validation, immutable snapshot custody, and
-  the tighter local-only initialization/inspection policy. Any later hermetic
-  host/CI confinement claim uses separately typed evidence bound to the
-  universal receipt; packages cannot select it.
-
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
   accepted-lock absence and recovery, sealed representation mechanism/ABI,
   canonical network authority, broader receipted build operations and outputs,

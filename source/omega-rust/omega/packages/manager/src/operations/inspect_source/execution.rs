@@ -32,9 +32,6 @@ pub(crate) fn inspect_package_source_in_cache(
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
-                network_transfer_ceiling: None,
-                network_uploaded_bytes: None,
-                network_downloaded_bytes: None,
                 content_identity: resolved.content_identity,
                 file_count: resolved.file_count,
                 byte_count: resolved.byte_count,
@@ -43,7 +40,6 @@ pub(crate) fn inspect_package_source_in_cache(
         PackageSourceRequest::Git(request) => {
             let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
             let resolved = resolve_git_source_with_storage(&request, &storage, limits)?;
-            let network_transfer = resolved.network_transfer_observation();
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
@@ -51,9 +47,6 @@ pub(crate) fn inspect_package_source_in_cache(
                 requested_rev: Some(resolved.requested_revision().to_owned()),
                 resolved_commit: Some(resolved.commit().to_owned()),
                 resolved_tree: Some(resolved.tree().to_owned()),
-                network_transfer_ceiling: Some(network_transfer.ceiling()),
-                network_uploaded_bytes: Some(network_transfer.uploaded()),
-                network_downloaded_bytes: Some(network_transfer.downloaded()),
                 content_identity: resolved.local().content_identity.clone(),
                 file_count: resolved.local().file_count,
                 byte_count: resolved.local().byte_count,
@@ -77,9 +70,6 @@ fn inspect_package_source_in_lane(
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
-                network_transfer_ceiling: None,
-                network_uploaded_bytes: None,
-                network_downloaded_bytes: None,
                 content_identity: resolved.content_identity,
                 file_count: resolved.file_count,
                 byte_count: resolved.byte_count,
@@ -87,7 +77,6 @@ fn inspect_package_source_in_lane(
         }
         PackageSourceRequest::Git(request) => {
             let resolved = resolve_git_source_in_lane(&request, lane, limits)?;
-            let network_transfer = resolved.network_transfer_observation();
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
@@ -95,9 +84,6 @@ fn inspect_package_source_in_lane(
                 requested_rev: Some(resolved.requested_revision().to_owned()),
                 resolved_commit: Some(resolved.commit().to_owned()),
                 resolved_tree: Some(resolved.tree().to_owned()),
-                network_transfer_ceiling: Some(network_transfer.ceiling()),
-                network_uploaded_bytes: Some(network_transfer.uploaded()),
-                network_downloaded_bytes: Some(network_transfer.downloaded()),
                 content_identity: resolved.local().content_identity.clone(),
                 file_count: resolved.local().file_count,
                 byte_count: resolved.local().byte_count,
@@ -302,7 +288,10 @@ mod tests {
         assert_eq!(direct.file_count, 1);
         assert_eq!(direct.content_identity.len(), 64);
         assert!(direct.to_text().contains("package source inspection"));
-        assert!(direct.network_transfer_ceiling.is_none());
+        let report = direct.to_text();
+        assert!(!report.contains("broker transfer ceiling:"));
+        assert!(!report.contains("broker uploaded bytes:"));
+        assert!(!report.contains("broker downloaded bytes:"));
         assert_eq!(low_level.content_identity, direct.content_identity);
         assert_eq!(wrapped.content_identity, direct.content_identity);
 
@@ -352,10 +341,10 @@ mod tests {
             40
         );
         assert_eq!(inspection.resolved_tree.as_ref().expect("tree").len(), 40);
-        assert!(inspection.network_transfer_ceiling.is_some());
-        assert_eq!(inspection.network_uploaded_bytes, Some(0));
-        assert_eq!(inspection.network_downloaded_bytes, Some(0));
-        assert!(inspection.to_text().contains("broker transfer ceiling: "));
+        let report = inspection.to_text();
+        assert!(!report.contains("broker transfer ceiling:"));
+        assert!(!report.contains("broker uploaded bytes:"));
+        assert!(!report.contains("broker downloaded bytes:"));
 
         drop(storage);
         let _ = std::fs::remove_dir_all(&repository);

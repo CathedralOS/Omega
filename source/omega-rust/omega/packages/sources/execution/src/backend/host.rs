@@ -2,10 +2,6 @@ use super::ResolverExecutionBackend;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 use crate::confinement;
 use crate::model::ResolverExecutionBackendIdentity;
-use crate::network::{
-    ResolverExecutionEndpointRoute, ResolverExecutionRequestedEndpoint,
-    ResolverExecutionTransferBudget,
-};
 use std::io;
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
@@ -62,17 +58,6 @@ impl ResolverExecutionBackend {
 
     pub const fn identity(&self) -> &ResolverExecutionBackendIdentity {
         &self.identity
-    }
-
-    /// Open a compiler-owned loopback broker for one already-validated remote
-    /// destination. This does not establish transport trust or acceptance.
-    pub fn open_endpoint_route(
-        &self,
-        requested_endpoint: ResolverExecutionRequestedEndpoint,
-        transfer_budget: ResolverExecutionTransferBudget,
-    ) -> io::Result<ResolverExecutionEndpointRoute> {
-        self.verify()?;
-        ResolverExecutionEndpointRoute::open(requested_endpoint, transfer_budget)
     }
 
     pub fn verify(&self) -> io::Result<()> {

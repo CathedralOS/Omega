@@ -1,66 +1,18 @@
 use super::ResolverExecutionAuthorityRoots;
-use crate::model::{ResolverExecutionNetworkTransport, ResolverExecutionPhase};
-use crate::network::ResolverExecutionEndpointRoute;
-use crate::request::{
-    RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, require_absolute,
-    require_canonical_bounded_path, require_regular_file,
-};
+use crate::model::ResolverExecutionPhase;
+use crate::request::{require_absolute, require_canonical_bounded_path, require_regular_file};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub(super) fn validate_launch_request(
     executable: &Path,
-    additional_executables: &[PathBuf],
     phase: ResolverExecutionPhase,
-    network_transport: Option<ResolverExecutionNetworkTransport>,
-    endpoint_route: Option<&ResolverExecutionEndpointRoute>,
     roots: ResolverExecutionAuthorityRoots<'_>,
-) -> io::Result<Vec<PathBuf>> {
+) -> io::Result<()> {
     require_absolute(executable, "resolver executable")?;
     require_regular_file(executable, "resolver executable")?;
-    if additional_executables.len() > RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "resolver helper executable set exceeds its fixed limit",
-        ));
-    }
     require_canonical_bounded_path(executable, "resolver executable")?;
-    for helper in additional_executables {
-        require_absolute(helper, "resolver helper executable")?;
-        require_canonical_bounded_path(helper, "resolver helper executable")?;
-        require_regular_file(helper, "resolver helper executable")?;
-    }
-    let mut additional_executables = additional_executables.to_vec();
-    additional_executables.retain(|helper| helper != executable);
-    additional_executables.sort();
-    additional_executables.dedup();
-    match (phase.permits_network(), network_transport, endpoint_route) {
-        (true, Some(_), Some(_)) | (false, None, None) => {}
-        (true, None, _) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "networked resolver phase has no closed transport authority",
-            ));
-        }
-        (true, Some(_), None) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "networked resolver phase has no endpoint route",
-            ));
-        }
-        (false, Some(_), _) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "nonnetwork resolver phase received transport authority",
-            ));
-        }
-        (false, None, Some(_)) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "nonnetwork resolver phase received an endpoint route",
-            ));
-        }
-    }
+
     match (phase.requires_mutable_root(), roots.mutable_root) {
         (true, Some(root)) => {
             require_absolute(root, "resolver mutable root")?;
@@ -119,5 +71,5 @@ pub(super) fn validate_launch_request(
         (_, None) => {}
     }
 
-    Ok(additional_executables)
+    Ok(())
 }

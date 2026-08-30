@@ -39,10 +39,7 @@ pub use local::model::{
     LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
 };
 pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
-pub use observations::accounting::GitNetworkTransferObservation;
-pub use observations::execution::{
-    GitCommandInputCommitment, GitExecutableIdentity, GitTransportExecutableIdentity,
-};
+pub use observations::execution::{GitCommandInputCommitment, GitExecutableIdentity};
 pub use observations::resolution::GitSourceReceipt;
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageObservation;

@@ -1,7 +1,4 @@
-use omega_resolver_execution::{
-    ResolverExecutionCompletionObservation, ResolverExecutionEndpointObservation,
-    ResolverExecutionPhase,
-};
+use omega_resolver_execution::{ResolverExecutionCompletionObservation, ResolverExecutionPhase};
 use std::path::{Path, PathBuf};
 
 /// Exact standard input committed into one sealed Git command identity.
@@ -27,32 +24,6 @@ impl GitExecutableIdentity {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitTransportExecutableIdentity {
-    pub(crate) invocation_path: PathBuf,
-    pub(crate) path: PathBuf,
-    pub(crate) content_identity: String,
-}
-
-impl GitTransportExecutableIdentity {
-    /// Exact path through which Git selects this transport executable.
-    ///
-    /// HTTPS uses the install-owned `git-remote-https` entry while `path()`
-    /// names its canonical executable target. SSH is invoked directly through
-    /// the canonical path, so both paths are normally equal.
-    pub fn invocation_path(&self) -> &Path {
-        &self.invocation_path
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    pub fn content_identity(&self) -> &str {
-        &self.content_identity
-    }
-}
-
 /// Bounded result provenance for one successfully completed native Git
 /// command. This is locally constructed observation, not an admission receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +38,6 @@ pub struct GitCommandExecutionObservation {
     pub(crate) stdout_identity: String,
     pub(crate) stderr_length: u64,
     pub(crate) stderr_identity: String,
-    pub(crate) endpoint_observation: Option<ResolverExecutionEndpointObservation>,
     pub(crate) completion: ResolverExecutionCompletionObservation,
 }
 
@@ -110,10 +80,6 @@ impl GitCommandExecutionObservation {
 
     pub fn stderr_identity(&self) -> &str {
         &self.stderr_identity
-    }
-
-    pub const fn endpoint_observation(&self) -> Option<&ResolverExecutionEndpointObservation> {
-        self.endpoint_observation.as_ref()
     }
 
     pub const fn completion(&self) -> &ResolverExecutionCompletionObservation {

@@ -5,11 +5,7 @@ use super::custody::verify_git_executable_custody;
 use super::identity::{
     GitExecutableMetadataIdentity, hash_git_executable, observe_git_executable_metadata,
 };
-use super::selection::{
-    GitTransportExecutableObservation, open_https_transport_executable,
-    open_resolver_execution_helpers, open_ssh_transport_executable, system_git_candidates,
-    verify_git_transport_executable,
-};
+use super::selection::system_git_candidates;
 use crate::SourceResolveError;
 use crate::git::commands::capture::{BoundedCommandOutput, duration_millis};
 use crate::git::request::GitExecutionTransport;
@@ -18,21 +14,17 @@ use crate::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,
 };
 use crate::observations::accounting::{
-    GitCapturedOutputObservation, GitNetworkTransferObservation, git_captured_output_observation,
-    git_network_transfer_observation, git_resolution_captured_output_ceiling,
-    git_resolution_network_transfer_ceiling,
+    GitCapturedOutputObservation, git_captured_output_observation,
+    git_resolution_captured_output_ceiling,
 };
 use crate::observations::execution::{
     GitCommandExecutionObservation, GitCommandInputCommitment, GitExecutableIdentity,
 };
 use omega_resolver_execution::{
-    ResolverExecutionBackend, ResolverExecutionEndpointObservation,
-    ResolverExecutionEndpointOutcome, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
-    ResolverExecutionRequestedEndpoint, ResolverExecutionTransferBudget,
+    ResolverExecutionBackend, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
 };
 use sha2::{Digest, Sha256};
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -40,17 +32,13 @@ use std::time::{Duration, Instant};
 pub(crate) struct GitExecutor {
     pub(crate) identity: GitExecutableIdentity,
     pub(crate) metadata_identity: GitExecutableMetadataIdentity,
-    pub(crate) transport_executable: Option<GitTransportExecutableObservation>,
-    pub(crate) execution_helpers: Vec<GitTransportExecutableObservation>,
     pub(crate) execution_transport: GitExecutionTransport,
-    pub(crate) requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     pub(crate) started: Instant,
     pub(crate) timeout: Duration,
     pub(crate) launches: Cell<usize>,
     pub(crate) execution_policy_observations: RefCell<Vec<ResolverExecutionPolicyObservation>>,
     pub(crate) command_execution_observations: RefCell<Vec<GitCommandExecutionObservation>>,
     pub(crate) captured_output_budget: GitCapturedOutputBudget,
-    pub(crate) network_transfer_budget: ResolverExecutionTransferBudget,
     pub(crate) maximum_launches: usize,
     pub(crate) execution_backend: ResolverExecutionBackend,
 }
@@ -58,7 +46,6 @@ pub(crate) struct GitExecutor {
 impl GitExecutor {
     pub(crate) fn system(
         execution_transport: GitExecutionTransport,
-        requested_network_endpoint: ResolverExecutionRequestedEndpoint,
         limits: LocalSourceLimits,
     ) -> Result<Self, SourceResolveError> {
         for candidate in system_git_candidates() {
@@ -69,9 +56,7 @@ impl GitExecutor {
                     GIT_FIXED_COMMAND_ALLOWANCE,
                     GIT_RESOLUTION_TIMEOUT,
                     git_resolution_captured_output_ceiling(limits),
-                    git_resolution_network_transfer_ceiling(limits),
                     execution_transport,
-                    requested_network_endpoint,
                 );
             }
         }
@@ -85,9 +70,7 @@ impl GitExecutor {
             GIT_FIXED_COMMAND_ALLOWANCE,
             GIT_RESOLUTION_TIMEOUT,
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
-            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
-            test_file_network_endpoint(),
         )
     }
 
@@ -102,9 +85,7 @@ impl GitExecutor {
             maximum_launches,
             timeout,
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
-            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
-            test_file_network_endpoint(),
         )
     }
 
@@ -120,9 +101,7 @@ impl GitExecutor {
             maximum_launches,
             timeout,
             captured_output_ceiling,
-            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
-            test_file_network_endpoint(),
         )
     }
 
@@ -131,9 +110,7 @@ impl GitExecutor {
         maximum_launches: usize,
         timeout: Duration,
         captured_output_ceiling: u64,
-        network_transfer_ceiling: u64,
         execution_transport: GitExecutionTransport,
-        requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     ) -> Result<Self, SourceResolveError> {
         let started = Instant::now();
         if !path.is_absolute() {
@@ -154,41 +131,24 @@ impl GitExecutor {
         if observe_git_executable_metadata(&canonical)? != metadata_identity {
             return Err(SourceResolveError::GitExecutableChanged { path: canonical });
         }
-        let transport_executable = match execution_transport {
-            GitExecutionTransport::Ssh => Some(open_ssh_transport_executable(&canonical)?),
-            GitExecutionTransport::Https => Some(open_https_transport_executable(&canonical)?),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            GitExecutionTransport::File => None,
-        };
-        let execution_helpers = open_resolver_execution_helpers(execution_transport)?;
         let execution_backend = ResolverExecutionBackend::open().map_err(|error| {
             SourceResolveError::GitExecutionBoundaryInvalid {
                 message: error.to_string(),
             }
         })?;
-        let network_transfer_budget =
-            ResolverExecutionTransferBudget::new(network_transfer_ceiling).map_err(|error| {
-                SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: format!("cannot establish network-transfer budget: {error}"),
-                }
-            })?;
         Ok(Self {
             identity: GitExecutableIdentity {
                 path: canonical,
                 content_identity,
             },
             metadata_identity,
-            transport_executable,
-            execution_helpers,
             execution_transport,
-            requested_network_endpoint,
             started,
             timeout,
             launches: Cell::new(0),
             execution_policy_observations: RefCell::new(Vec::new()),
             command_execution_observations: RefCell::new(Vec::new()),
             captured_output_budget: GitCapturedOutputBudget::new(captured_output_ceiling),
-            network_transfer_budget,
             maximum_launches,
             execution_backend,
         })
@@ -201,12 +161,6 @@ impl GitExecutor {
             });
         }
         verify_git_executable_custody(&self.identity.path)?;
-        if let Some(transport_executable) = &self.transport_executable {
-            verify_git_transport_executable(transport_executable)?;
-        }
-        for helper in &self.execution_helpers {
-            verify_git_transport_executable(helper)?;
-        }
         self.execution_backend.verify().map_err(|error| {
             SourceResolveError::GitExecutionBoundaryInvalid {
                 message: error.to_string(),
@@ -221,21 +175,6 @@ impl GitExecutor {
             return Err(SourceResolveError::GitExecutableChanged {
                 path: self.identity.path.clone(),
             });
-        }
-        if let Some(transport_executable) = &self.transport_executable
-            && hash_git_executable(&transport_executable.identity.path)?
-                != transport_executable.identity.content_identity
-        {
-            return Err(SourceResolveError::GitExecutableChanged {
-                path: transport_executable.identity.path.clone(),
-            });
-        }
-        for helper in &self.execution_helpers {
-            if hash_git_executable(&helper.identity.path)? != helper.identity.content_identity {
-                return Err(SourceResolveError::GitExecutableChanged {
-                    path: helper.identity.path.clone(),
-                });
-            }
         }
         self.verify()?;
         self.verify_budget()
@@ -263,41 +202,6 @@ impl GitExecutor {
                         .to_owned(),
                 });
             }
-            let network_phase = matches!(
-                observation.phase(),
-                ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
-            );
-            let expected_network_transport =
-                network_phase.then(|| self.execution_transport.resolver_network_transport());
-            if observation.network_transport() != expected_network_transport {
-                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: "native policy observation transport authority does not match the validated source transport"
-                        .to_owned(),
-                });
-            }
-            let mut expected = BTreeSet::new();
-            if network_phase {
-                for executable in self
-                    .transport_executable
-                    .iter()
-                    .chain(self.execution_helpers.iter())
-                {
-                    expected.insert(executable.identity.invocation_path.clone());
-                    expected.insert(executable.identity.path.clone());
-                }
-            }
-            expected.remove(&self.identity.path);
-            let observed = observation
-                .additional_executables()
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<_>>();
-            if observed != expected {
-                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: "native policy observation executable paths do not match verified executable content custody"
-                        .to_owned(),
-                });
-            }
         }
         for (policy, command) in observations.iter().zip(command_observations.iter()) {
             if command.phase != policy.phase()
@@ -309,33 +213,6 @@ impl GitExecutor {
                     message: "native command outcome is not joined to its policy observation"
                         .to_owned(),
                 });
-            }
-            match (policy.endpoint_route(), &command.endpoint_observation) {
-                (Some(route), Some(endpoint)) if endpoint.route() == route => {
-                    #[cfg(not(any(test, feature = "test-fixtures")))]
-                    let requires_connection = true;
-                    #[cfg(any(test, feature = "test-fixtures"))]
-                    let requires_connection =
-                        self.execution_transport != GitExecutionTransport::File;
-                    if requires_connection
-                        && !endpoint.events().iter().any(|event| {
-                            event.outcome() == ResolverExecutionEndpointOutcome::Connected
-                        })
-                    {
-                        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                            message: "successful remote Git command did not traverse its compiler-owned endpoint route"
-                                .to_owned(),
-                        });
-                    }
-                }
-                (None, None) => {}
-                _ => {
-                    return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                        message:
-                            "native endpoint activity is not joined to its sealed route policy"
-                                .to_owned(),
-                    });
-                }
             }
         }
         Ok(())
@@ -357,30 +234,12 @@ impl GitExecutor {
         Ok(expected)
     }
 
-    pub(crate) fn network_transfer_observation(
-        &self,
-    ) -> Result<GitNetworkTransferObservation, SourceResolveError> {
-        let expected = git_network_transfer_observation(
-            &self.execution_policy_observations.borrow(),
-            &self.command_execution_observations.borrow(),
-            self.network_transfer_budget.ceiling(),
-        )?;
-        if expected.observed() != self.network_transfer_budget.observed() {
-            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                message: "Git network-transfer counter does not match retained endpoint outcomes"
-                    .to_owned(),
-            });
-        }
-        Ok(expected)
-    }
-
     pub(crate) fn record_command_execution(
         &self,
         phase: ResolverExecutionPhase,
         command_identity: String,
         input: GitCommandInputCommitment,
         output: &BoundedCommandOutput,
-        endpoint_observation: Option<ResolverExecutionEndpointObservation>,
     ) -> Result<(), SourceResolveError> {
         let completion = &output.completion;
         let policy = completion.policy();
@@ -417,7 +276,6 @@ impl GitExecutor {
             stdout_identity: format_sha256(&Sha256::digest(&output.stdout)),
             stderr_length: output.stderr.len() as u64,
             stderr_identity: format_sha256(&Sha256::digest(&output.stderr)),
-            endpoint_observation,
             completion: completion.clone(),
         };
         self.execution_policy_observations
@@ -427,12 +285,6 @@ impl GitExecutor {
             .borrow_mut()
             .push(observation);
         Ok(())
-    }
-
-    pub(crate) fn resolver_connect_helper(&self) -> Option<&GitTransportExecutableObservation> {
-        (self.execution_transport == GitExecutionTransport::Ssh)
-            .then(|| self.execution_helpers.last())
-            .flatten()
     }
 
     pub(crate) fn begin_launch(&self) -> Result<Duration, SourceResolveError> {
@@ -473,19 +325,9 @@ impl crate::custody::lock::CacheLockBudget for GitExecutor {
     }
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) fn test_file_network_endpoint() -> ResolverExecutionRequestedEndpoint {
-    ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
-        .expect("the fixed test endpoint is valid")
-}
-
 #[cfg(test)]
 pub(crate) fn test_system_git_executor(
     transport: GitExecutionTransport,
 ) -> Result<GitExecutor, SourceResolveError> {
-    GitExecutor::system(
-        transport,
-        test_file_network_endpoint(),
-        LocalSourceLimits::default(),
-    )
+    GitExecutor::system(transport, LocalSourceLimits::default())
 }

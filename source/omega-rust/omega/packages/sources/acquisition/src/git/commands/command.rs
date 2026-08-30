@@ -1,23 +1,16 @@
-//! Sealed Git command policy and platform-specific helper configuration.
+//! Sealed Git command policy over host-routed transport.
 
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::request::GitExecutionTransport;
 use crate::tree::filesystem::io_error;
-#[cfg(unix)]
-use omega_resolver_execution::RESOLVER_CONNECT_HELPER_BASENAME;
-use omega_resolver_execution::{
-    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_TARGET_ENVIRONMENT,
-    ResolverExecutionEndpointRoute, ResolverExecutionPhase, ResolverPreparedExecution,
-};
-use std::ffi::OsString;
+use omega_resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use std::path::Path;
 
-pub(crate) fn sealed_git_command_with_route(
+pub(crate) fn sealed_git_command(
     executor: &GitExecutor,
     working_directory: &Path,
     phase: ResolverExecutionPhase,
-    endpoint_route: Option<&ResolverExecutionEndpointRoute>,
 ) -> Result<ResolverPreparedExecution, SourceResolveError> {
     executor.verify()?;
     if !working_directory.is_absolute() {
@@ -38,25 +31,6 @@ pub(crate) fn sealed_git_command_with_route(
         });
     }
 
-    let network_phase = matches!(
-        phase,
-        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
-    );
-    let mut helper_executables = Vec::new();
-    if network_phase && let Some(helper) = &executor.transport_executable {
-        helper_executables.push(helper.identity.invocation_path.clone());
-        if helper.identity.path != helper.identity.invocation_path {
-            helper_executables.push(helper.identity.path.clone());
-        }
-    }
-    if network_phase {
-        for helper in &executor.execution_helpers {
-            helper_executables.push(helper.identity.invocation_path.clone());
-            if helper.identity.path != helper.identity.invocation_path {
-                helper_executables.push(helper.identity.path.clone());
-            }
-        }
-    }
     let mutable_root = match phase {
         ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
             Some(working_directory)
@@ -64,32 +38,17 @@ pub(crate) fn sealed_git_command_with_route(
         ResolverExecutionPhase::TransportDiscovery
         | ResolverExecutionPhase::RepositoryInspection => None,
     };
-    let network_transport =
-        network_phase.then(|| executor.execution_transport.resolver_network_transport());
     let command_result = match phase {
-        ResolverExecutionPhase::RepositoryInspection => {
-            executor.execution_backend.prepare_inspection(
-                &executor.identity.path,
-                &helper_executables,
-                working_directory,
-            )
-        }
-        ResolverExecutionPhase::TransportDiscovery => executor.execution_backend.prepare_discovery(
-            &executor.identity.path,
-            &helper_executables,
-            network_transport.expect("discovery transport derived from the closed phase"),
-            endpoint_route.expect("discovery route opened from the validated request"),
-            working_directory,
-        ),
+        ResolverExecutionPhase::RepositoryInspection => executor
+            .execution_backend
+            .prepare_inspection(&executor.identity.path, working_directory),
+        ResolverExecutionPhase::TransportDiscovery => executor
+            .execution_backend
+            .prepare_discovery(&executor.identity.path, working_directory),
         ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            executor.execution_backend.prepare_with_endpoint_route(
-                &executor.identity.path,
-                &helper_executables,
-                phase,
-                network_transport,
-                endpoint_route,
-                mutable_root,
-            )
+            executor
+                .execution_backend
+                .prepare(&executor.identity.path, phase, mutable_root)
         }
     };
     let mut command =
@@ -169,112 +128,7 @@ pub(crate) fn sealed_git_command_with_route(
             "-c",
             "filter.lfs.required=false",
         ]);
-    if network_phase && executor.execution_transport == GitExecutionTransport::Https {
-        let helper = executor
-            .transport_executable
-            .as_ref()
-            .expect("validated HTTPS executor retains its transport helper");
-        let helper_directory = helper
-            .identity
-            .invocation_path
-            .parent()
-            .expect("validated HTTPS helper has an absolute parent");
-        command.env("GIT_EXEC_PATH", helper_directory);
-        let route = endpoint_route.expect("networked HTTPS command retains an endpoint route");
-        command
-            .arg("-c")
-            .arg(format!("http.proxy={}", route.policy().http_proxy_url()));
-    }
-    if let Some(transport_executable) = &executor.transport_executable {
-        if network_phase && executor.execution_transport == GitExecutionTransport::Ssh {
-            let route = endpoint_route.expect("networked SSH command retains an endpoint route");
-            let connector = executor
-                .resolver_connect_helper()
-                .expect("validated SSH executor retains its CONNECT helper");
-            let connector_directory = connector
-                .identity
-                .invocation_path
-                .parent()
-                .expect("validated CONNECT helper has an absolute parent");
-            command
-                .env(
-                    "GIT_SSH_COMMAND",
-                    sealed_ssh_command(&transport_executable.identity.path),
-                )
-                .env("GIT_SSH_VARIANT", "ssh")
-                .env("PATH", prepend_to_search_path(connector_directory))
-                .env(
-                    RESOLVER_CONNECT_BROKER_ENVIRONMENT,
-                    route.policy().broker_endpoint().to_string(),
-                )
-                .env(
-                    RESOLVER_CONNECT_TARGET_ENVIRONMENT,
-                    route.policy().requested_endpoint().authority(),
-                );
-        }
-    }
     Ok(command)
-}
-
-#[cfg(test)]
-pub(crate) fn sealed_git_command(
-    executor: &GitExecutor,
-    working_directory: &Path,
-    phase: ResolverExecutionPhase,
-) -> Result<ResolverPreparedExecution, SourceResolveError> {
-    let route = if matches!(
-        phase,
-        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
-    ) {
-        Some(
-            executor
-                .execution_backend
-                .open_endpoint_route(
-                    executor.requested_network_endpoint.clone(),
-                    executor.network_transfer_budget.clone(),
-                )
-                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: format!("cannot open the compiler-owned endpoint route: {error}"),
-                })?,
-        )
-    } else {
-        None
-    };
-    sealed_git_command_with_route(executor, working_directory, phase, route.as_ref())
-}
-
-#[cfg(unix)]
-pub(crate) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
-    OsString::from(format!(
-        "{} -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oProxyUseFdpass=no -oProxyCommand={}",
-        ssh_executable.display(),
-        resolver_connect_helper_command_name(),
-    ))
-}
-
-#[cfg(unix)]
-fn resolver_connect_helper_command_name() -> String {
-    if cfg!(windows) {
-        format!("{RESOLVER_CONNECT_HELPER_BASENAME}.exe")
-    } else {
-        RESOLVER_CONNECT_HELPER_BASENAME.to_owned()
-    }
-}
-
-#[cfg(windows)]
-pub(crate) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
-    OsString::from(format!(
-        "\"{}\" -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0",
-        ssh_executable.display()
-    ))
-}
-
-fn prepend_to_search_path(directory: &Path) -> OsString {
-    let mut directories = vec![directory.to_path_buf()];
-    if let Some(path) = std::env::var_os("PATH") {
-        directories.extend(std::env::split_paths(&path));
-    }
-    std::env::join_paths(directories).unwrap_or_else(|_| directory.as_os_str().to_owned())
 }
 
 #[cfg(unix)]

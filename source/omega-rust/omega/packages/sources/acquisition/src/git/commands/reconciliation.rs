@@ -2,21 +2,6 @@
 
 use crate::SourceResolveError;
 
-pub(crate) fn reconcile_git_command_endpoint_result<T>(
-    result: Result<T, SourceResolveError>,
-    endpoint_result: Result<(), SourceResolveError>,
-    executable_result: Result<(), SourceResolveError>,
-    budget_result: Result<(), SourceResolveError>,
-) -> Result<T, SourceResolveError> {
-    match (result, endpoint_result, executable_result, budget_result) {
-        (Err(error @ SourceResolveError::GitCleanupFailed { .. }), _, _, _) => Err(error),
-        (_, Err(error), _, _) => Err(error),
-        (_, _, Err(error), _) => Err(error),
-        (_, _, _, Err(error)) => Err(error),
-        (result, Ok(()), Ok(()), Ok(())) => result,
-    }
-}
-
 pub(crate) fn reconcile_git_command_result<T>(
     result: Result<T, SourceResolveError>,
     executable_result: Result<(), SourceResolveError>,

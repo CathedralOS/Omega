@@ -21,7 +21,7 @@ src/
 ├── git/            Git transport adapter, authentication, and resolution
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
-│   ├── executable/     select and retain exact helper executables
+│   ├── executable/     select and retain the primary system Git executable
 │   ├── commands/       construct and reconcile bounded Git commands
 │   ├── objects/        authenticate commit/tree/blob object graphs
 │   │   └── batch/         bounded transfer, exact protocol, and request custody

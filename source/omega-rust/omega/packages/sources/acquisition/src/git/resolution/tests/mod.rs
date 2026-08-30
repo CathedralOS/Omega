@@ -12,10 +12,7 @@ use crate::git::request::*;
 use crate::identity::*;
 use crate::limits::*;
 use crate::observations::{
-    accounting::{git_resolution_captured_output_ceiling, git_resolution_network_transfer_ceiling},
-    execution::*,
-    resolution::*,
-    resolved::*,
+    accounting::git_resolution_captured_output_ceiling, execution::*, resolution::*, resolved::*,
 };
 use crate::snapshot::permissions::*;
 use crate::test_support::*;

@@ -16,7 +16,7 @@ use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::commands::capture::{
     ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
 };
-use crate::git::commands::command::sealed_git_command_with_route;
+use crate::git::commands::command::sealed_git_command;
 use crate::git::commands::identity::{
     git_command_configuration_identity, git_exact_input_identity,
 };
@@ -142,11 +142,10 @@ fn execute_git_blob_batch(
     entries: &mut [GitTreeEntry],
     stdout_limit: usize,
 ) -> Result<(), SourceResolveError> {
-    let mut command = sealed_git_command_with_route(
+    let mut command = sealed_git_command(
         executor,
         repository,
         ResolverExecutionPhase::RepositoryInspection,
-        None,
     )?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
@@ -170,7 +169,6 @@ fn execute_git_blob_batch(
         command_identity,
         input,
         &output,
-        None,
     )?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {

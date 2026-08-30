@@ -5,8 +5,7 @@
 
 use crate::model::{
     ResolverExecutionBackendIdentity, ResolverExecutionGuarantee,
-    ResolverExecutionGuaranteeDisposition, ResolverExecutionNetworkTransport,
-    ResolverExecutionPhase,
+    ResolverExecutionGuaranteeDisposition, ResolverExecutionPhase,
 };
 
 #[cfg(target_os = "linux")]
@@ -19,8 +18,6 @@ pub(crate) mod windows;
 pub(crate) fn guarantee_disposition(
     backend: &ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
-    _network_transport: Option<ResolverExecutionNetworkTransport>,
-    has_endpoint_route: bool,
     guarantee: ResolverExecutionGuarantee,
 ) -> ResolverExecutionGuaranteeDisposition {
     use ResolverExecutionBackendIdentity::{
@@ -30,14 +27,14 @@ pub(crate) fn guarantee_disposition(
     use ResolverExecutionGuarantee::{
         AddressSpaceConfined, AggregateResourcesConfined, CoreDumpsDenied, CpuTimeConfined,
         DescendantProcessesContained, ExecutablePathsConfined, FilesystemReadsConfined,
-        FilesystemWritesConfined, NetworkDenied, NetworkEndpointsConfined, OpenFilesConfined,
-        ProcessCountConfined, SingleFileSizeConfined,
+        FilesystemWritesConfined, NetworkDenied, OpenFilesConfined, ProcessCountConfined,
+        SingleFileSizeConfined,
     };
     use ResolverExecutionGuaranteeDisposition::{Enforced, NotRequired, Unavailable};
 
     match guarantee {
         FilesystemWritesConfined | ExecutablePathsConfined
-            if matches!(backend, MacosSeatbelt { .. }) =>
+            if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_network() =>
         {
             Enforced
         }
@@ -64,13 +61,6 @@ pub(crate) fn guarantee_disposition(
         }
         NetworkDenied if phase.permits_network() => NotRequired,
         NetworkDenied => Unavailable,
-        NetworkEndpointsConfined if !phase.permits_network() => NotRequired,
-        NetworkEndpointsConfined
-            if matches!(backend, MacosSeatbelt { .. }) && has_endpoint_route =>
-        {
-            Enforced
-        }
-        NetworkEndpointsConfined => Unavailable,
         CpuTimeConfined if matches!(backend, WindowsJobObject) => Enforced,
         CoreDumpsDenied | CpuTimeConfined | SingleFileSizeConfined | OpenFilesConfined => {
             match backend {

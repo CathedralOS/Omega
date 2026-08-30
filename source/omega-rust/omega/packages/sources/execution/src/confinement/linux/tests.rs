@@ -22,9 +22,7 @@ fn landlock_observation_does_not_overclaim_partial_write_or_execution_controls()
     let (_command, policy) = backend
         .command_with_observation(
             &shell,
-            &[],
             ResolverExecutionPhase::RepositoryInitialization,
-            None,
             Some(&root),
         )
         .expect("prepare Linux Landlock observation");
@@ -43,7 +41,6 @@ fn landlock_observation_does_not_overclaim_partial_write_or_execution_controls()
     for unavailable in [
         ResolverExecutionGuarantee::FilesystemReadsConfined,
         ResolverExecutionGuarantee::NetworkDenied,
-        ResolverExecutionGuarantee::NetworkEndpointsConfined,
     ] {
         assert_eq!(
             disposition(&policy, unavailable),
@@ -67,9 +64,7 @@ fn landlock_allows_mutable_root_and_denies_sibling_writes() {
     let (mut command, policy) = backend
         .command_with_observation(
             &shell,
-            &[],
             ResolverExecutionPhase::RepositoryInitialization,
-            None,
             Some(&mutable),
         )
         .expect("prepare Linux write canary");
@@ -98,7 +93,7 @@ fn landlock_allows_mutable_root_and_denies_sibling_writes() {
 }
 
 #[test]
-fn landlock_executes_only_the_exact_allowlist() {
+fn landlock_local_phases_execute_only_the_selected_program() {
     let Some(backend) = landlock_backend() else {
         return;
     };
@@ -106,11 +101,23 @@ fn landlock_executes_only_the_exact_allowlist() {
     let shell = canonical_executable("/bin/sh");
     let target = canonical_executable("/usr/bin/true");
 
-    let denied = run_executable_canary(&backend, &root, &shell, &target, &[]);
+    let denied = run_executable_canary(&backend, &root, &shell, &target);
     assert!(!denied.success(), "unlisted executable unexpectedly ran");
 
-    let allowed = run_executable_canary(&backend, &root, &shell, &target, &[target.clone()]);
-    assert!(allowed.success(), "listed executable was denied");
+    let (mut selected, policy) = backend
+        .command_with_inspection_read_root_observation(&target, &root)
+        .expect("prepare selected Linux executable canary");
+    selected
+        .env_clear()
+        .current_dir(&root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let allowed = spawn(selected, &policy)
+        .expect("spawn selected Linux executable")
+        .wait()
+        .expect("wait for selected Linux executable");
+    assert!(allowed.success(), "selected executable was denied");
     fs::remove_dir_all(root).expect("remove executable canary root");
 }
 
@@ -136,9 +143,7 @@ fn landlock_closes_ambient_writable_descriptors_before_exec() {
     let (mut command, policy) = backend
         .command_with_observation(
             &shell,
-            &[],
             ResolverExecutionPhase::RepositoryInitialization,
-            None,
             Some(&mutable),
         )
         .expect("prepare Linux descriptor canary");
@@ -180,10 +185,9 @@ fn run_executable_canary(
     root: &Path,
     shell: &Path,
     target: &Path,
-    additional_executables: &[PathBuf],
 ) -> std::process::ExitStatus {
     let (mut command, policy) = backend
-        .command_with_inspection_read_root_observation(shell, additional_executables, root)
+        .command_with_inspection_read_root_observation(shell, root)
         .expect("prepare Linux executable canary");
     command
         .args(["-c", r#""$1""#, "omega-resolver-linux-test"])
@@ -197,6 +201,37 @@ fn run_executable_canary(
         .expect("spawn Linux executable canary")
         .wait()
         .expect("wait for Linux executable canary")
+}
+
+#[test]
+fn network_phases_bypass_local_executable_and_write_allowlists() {
+    let Some(backend) = landlock_backend() else {
+        return;
+    };
+    let parent = temporary_directory("host-routed");
+    let discovery = parent.join("discovery");
+    fs::create_dir(&discovery).expect("create discovery root");
+    let host_state = parent.join("host-state");
+    let shell = canonical_executable("/bin/sh");
+    let (mut command, policy) = backend
+        .command_with_discovery_observation(&shell, &discovery)
+        .expect("prepare host-routed Linux discovery");
+    command
+        .args(["-c", "/usr/bin/touch \"$1\"", "omega-resolver-linux-test"])
+        .arg(&host_state)
+        .env_clear()
+        .current_dir(&discovery)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    let status = spawn(command, &policy)
+        .expect("spawn host-routed Linux discovery")
+        .wait()
+        .expect("wait for host-routed Linux discovery");
+    assert!(status.success());
+    assert!(host_state.is_file());
+    fs::remove_dir_all(parent).expect("remove host-routed root");
 }
 
 fn landlock_backend() -> Option<ResolverExecutionBackend> {

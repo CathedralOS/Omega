@@ -1,13 +1,9 @@
 use super::{
-    GIT_CACHE_REPOSITORY, GitExecutionTransport, LocalSourceLimits,
-    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_TARGET_ENVIRONMENT,
-    ResolverExecutionPhase, SourceResolveError, create_git_source, git_cache_entry_root,
-    local_git_request, resolve_git_source, run_test_git, sealed_git_command, sealed_ssh_command,
-    temp_root, test_system_git_executor,
+    GIT_CACHE_REPOSITORY, GitExecutionTransport, LocalSourceLimits, ResolverExecutionPhase,
+    SourceResolveError, create_git_source, git_cache_entry_root, local_git_request,
+    resolve_git_source, run_test_git, sealed_git_command, temp_root, test_system_git_executor,
 };
 use std::ffi::{OsStr, OsString};
-#[cfg(target_os = "macos")]
-use std::path::Path;
 
 #[test]
 fn git_cache_rejects_local_filter_configuration_without_running_it() {
@@ -41,18 +37,9 @@ fn git_cache_rejects_local_filter_configuration_without_running_it() {
 }
 
 #[test]
-fn git_commands_constrain_protocol_and_execution_without_disabling_host_authentication() {
+fn git_commands_close_package_protocols_without_overriding_host_transport() {
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
-    let helper_directory = executor
-        .transport_executable
-        .as_ref()
-        .expect("HTTPS transport helper")
-        .identity
-        .invocation_path
-        .parent()
-        .expect("HTTPS helper parent")
-        .to_path_buf();
     let working_directory = std::env::temp_dir()
         .canonicalize()
         .expect("canonical temporary directory");
@@ -67,111 +54,62 @@ fn git_commands_constrain_protocol_and_execution_without_disabling_host_authenti
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
 
-    let expected_environment = std::collections::BTreeMap::from([
-        (
-            OsString::from("GIT_ALLOW_PROTOCOL"),
-            Some(OsString::from("https")),
-        ),
-        (
-            OsString::from("GIT_ATTR_NOSYSTEM"),
-            Some(OsString::from("1")),
-        ),
-        (
-            OsString::from("GIT_EXEC_PATH"),
-            Some(helper_directory.into_os_string()),
-        ),
-        (
-            OsString::from("GIT_LFS_SKIP_SMUDGE"),
-            Some(OsString::from("1")),
-        ),
-        (
-            OsString::from("GIT_NO_LAZY_FETCH"),
-            Some(OsString::from("1")),
-        ),
-        (
-            OsString::from("GIT_PROTOCOL_FROM_USER"),
-            Some(OsString::from("0")),
-        ),
-        (
-            OsString::from("GIT_TERMINAL_PROMPT"),
-            Some(OsString::from("0")),
-        ),
-        (OsString::from("LANG"), Some(OsString::from("C"))),
-        (OsString::from("LC_ALL"), Some(OsString::from("C"))),
-    ]);
-    assert_eq!(environment, expected_environment);
-    #[cfg(target_os = "macos")]
-    {
-        assert_eq!(command.get_program(), OsStr::new("/usr/bin/sandbox-exec"));
-        assert!(
-            arguments
-                .iter()
-                .any(|argument| { Path::new(argument) == executor.identity.path.as_path() })
-        );
-    }
-    #[cfg(not(target_os = "macos"))]
+    assert_eq!(
+        environment,
+        std::collections::BTreeMap::from([
+            (
+                OsString::from("GIT_ALLOW_PROTOCOL"),
+                Some(OsString::from("https")),
+            ),
+            (
+                OsString::from("GIT_ATTR_NOSYSTEM"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_LFS_SKIP_SMUDGE"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_NO_LAZY_FETCH"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_PROTOCOL_FROM_USER"),
+                Some(OsString::from("0")),
+            ),
+            (
+                OsString::from("GIT_TERMINAL_PROMPT"),
+                Some(OsString::from("0")),
+            ),
+            (OsString::from("LANG"), Some(OsString::from("C"))),
+            (OsString::from("LC_ALL"), Some(OsString::from("C"))),
+        ])
+    );
     assert_eq!(command.get_program(), executor.identity.path.as_os_str());
     assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "--no-replace-objects")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.allow=never")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.ext.allow=never")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.http.allow=never")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.git.allow=never")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.file.allow=never")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.https.allow=always")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "protocol.ssh.allow=never")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "http.followRedirects=false")
-    );
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "fetch.recurseSubmodules=false")
-    );
-    assert!(arguments.iter().any(|argument| argument == "gc.auto=0"));
-    assert!(
-        arguments
-            .iter()
-            .any(|argument| argument == "maintenance.auto=false")
-    );
+    for required in [
+        "--no-replace-objects",
+        "protocol.allow=never",
+        "protocol.ext.allow=never",
+        "protocol.http.allow=never",
+        "protocol.git.allow=never",
+        "protocol.file.allow=never",
+        "protocol.https.allow=always",
+        "protocol.ssh.allow=never",
+        "http.followRedirects=false",
+        "fetch.recurseSubmodules=false",
+        "gc.auto=0",
+        "maintenance.auto=false",
+    ] {
+        assert!(
+            arguments.iter().any(|argument| argument == required),
+            "missing compiler-owned Git policy argument {required:?}"
+        );
+    }
 }
 
 #[test]
-fn git_commands_admit_only_the_request_transport() {
+fn each_request_transport_keeps_host_routing_and_closes_other_protocols() {
     let working_directory = std::env::temp_dir()
         .canonicalize()
         .expect("canonical temporary directory");
@@ -197,94 +135,24 @@ fn git_commands_admit_only_the_request_transport() {
             environment.get(OsStr::new("GIT_ALLOW_PROTOCOL")),
             Some(&Some(OsString::from(protocol)))
         );
-        match transport {
-            GitExecutionTransport::Https => {
-                let helper = executor
-                    .transport_executable
-                    .as_ref()
-                    .expect("HTTPS transport executable identity");
-                assert!(helper.identity.invocation_path.is_absolute());
-                assert!(helper.identity.path.is_absolute());
-                assert_eq!(helper.identity.content_identity.len(), 64);
-                let helper_directory = helper.identity.invocation_path.parent().unwrap();
-                assert_eq!(
-                    environment.get(OsStr::new("GIT_EXEC_PATH")),
-                    Some(&Some(helper_directory.as_os_str().to_owned()))
-                );
-                assert!(!environment.contains_key(OsStr::new("PATH")));
-                assert!(!environment.contains_key(OsStr::new("GIT_SSH_COMMAND")));
-                assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
-                assert!(!environment.contains_key(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT)));
-                assert!(!environment.contains_key(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT)));
-                assert!(
-                    arguments
-                        .iter()
-                        .any(|argument| { argument.starts_with("http.proxy=http://127.0.0.1:") })
-                );
-            }
-            GitExecutionTransport::Ssh => {
-                let transport_executable = executor
-                    .transport_executable
-                    .as_ref()
-                    .expect("SSH transport executable identity");
-                assert!(transport_executable.identity.path.is_absolute());
-                assert_eq!(transport_executable.identity.content_identity.len(), 64);
-                assert_eq!(
-                    environment.get(OsStr::new("GIT_SSH_COMMAND")),
-                    Some(&Some(sealed_ssh_command(
-                        &transport_executable.identity.path
-                    )))
-                );
-                assert_eq!(
-                    environment.get(OsStr::new("GIT_SSH_VARIANT")),
-                    Some(&Some(OsString::from("ssh")))
-                );
-                let connector = executor
-                    .resolver_connect_helper()
-                    .expect("SSH CONNECT helper identity");
-                let connector_parent = connector
-                    .identity
-                    .invocation_path
-                    .parent()
-                    .expect("CONNECT helper parent");
-                assert!(
-                    environment
-                        .get(OsStr::new("PATH"))
-                        .and_then(Option::as_ref)
-                        .is_some_and(|path| std::env::split_paths(path).next().as_deref()
-                            == Some(connector_parent))
-                );
-                assert_eq!(
-                    environment.get(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT)),
-                    Some(&Some(OsString::from("127.0.0.1:9")))
-                );
-                assert!(
-                    environment
-                        .get(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT))
-                        .and_then(Option::as_ref)
-                        .is_some_and(|endpoint| endpoint
-                            .to_string_lossy()
-                            .starts_with("127.0.0.1:"))
-                );
-                assert!(
-                    !arguments
-                        .iter()
-                        .any(|argument| argument.starts_with("http.proxy="))
-                );
-                assert!(!environment.contains_key(OsStr::new("GIT_EXEC_PATH")));
-            }
-            GitExecutionTransport::File => {
-                assert!(!environment.contains_key(OsStr::new("GIT_SSH_COMMAND")));
-                assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
-                assert!(!environment.contains_key(OsStr::new("GIT_EXEC_PATH")));
-                assert!(executor.transport_executable.is_none());
-                assert!(
-                    !arguments
-                        .iter()
-                        .any(|argument| argument.starts_with("http.proxy="))
-                );
-            }
+        for forbidden in [
+            "GIT_EXEC_PATH",
+            "GIT_SSH_COMMAND",
+            "GIT_SSH_VARIANT",
+            "PATH",
+            "OMEGA_RESOLVER_CONNECT_BROKER",
+            "OMEGA_RESOLVER_CONNECT_TARGET",
+        ] {
+            assert!(
+                !environment.contains_key(OsStr::new(forbidden)),
+                "host-routed command must not override {forbidden}"
+            );
         }
+        assert!(
+            !arguments
+                .iter()
+                .any(|argument| argument.starts_with("http.proxy="))
+        );
         for (configured, candidate) in [
             ("file", GitExecutionTransport::File),
             ("https", GitExecutionTransport::Https),

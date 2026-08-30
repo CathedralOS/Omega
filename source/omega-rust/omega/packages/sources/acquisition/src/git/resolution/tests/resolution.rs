@@ -17,7 +17,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved.command_execution_observations().len(),
         resolved.execution_policy_observations().len()
     );
-    assert_eq!(resolved.receipt().schema_version(), 8);
+    assert_eq!(resolved.receipt().schema_version(), 9);
     assert_eq!(resolved.receipt().identity().len(), 64);
     assert_eq!(
         resolved.receipt().command_count(),
@@ -42,23 +42,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     assert_eq!(
         resolved.receipt().captured_output_observed(),
         resolved.captured_output_observation().observed()
-    );
-    assert_eq!(
-        resolved.network_transfer_observation().ceiling(),
-        git_resolution_network_transfer_ceiling(LocalSourceLimits::default())
-    );
-    assert_eq!(resolved.network_transfer_observation().observed(), 0);
-    assert_eq!(
-        resolved.receipt().network_transfer_ceiling(),
-        resolved.network_transfer_observation().ceiling()
-    );
-    assert_eq!(
-        resolved.receipt().network_transfer_uploaded(),
-        resolved.network_transfer_observation().uploaded()
-    );
-    assert_eq!(
-        resolved.receipt().network_transfer_downloaded(),
-        resolved.network_transfer_observation().downloaded()
     );
     assert_eq!(resolved.retained_storage_observation().schema_version(), 1);
     assert_eq!(resolved.retained_storage_observation().identity().len(), 64);
@@ -115,22 +98,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         .is_err(),
         "final issuance must reject a completion detached from its command policy"
     );
-    let mut unjoined_endpoint = PendingResolvedGitSource::from_issued(&resolved);
-    unjoined_endpoint
-        .command_execution_observations
-        .iter_mut()
-        .find(|command| command.endpoint_observation.is_some())
-        .expect("resolved fixture retains a network command")
-        .endpoint_observation = None;
-    assert!(
-        issue_git_source_receipt(
-            &unjoined_endpoint,
-            LocalSourceLimits::default(),
-            resolved.retained_storage_observation(),
-        )
-        .is_err(),
-        "final issuance must reject endpoint activity detached from its route policy"
-    );
     let mut mismatched_output_accounting = PendingResolvedGitSource::from_issued(&resolved);
     mismatched_output_accounting
         .captured_output_observation
@@ -143,19 +110,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         )
         .is_err(),
         "final issuance must reject changed cumulative output accounting"
-    );
-    let mut mismatched_network_accounting = PendingResolvedGitSource::from_issued(&resolved);
-    mismatched_network_accounting
-        .network_transfer_observation
-        .uploaded += 1;
-    assert!(
-        issue_git_source_receipt(
-            &mismatched_network_accounting,
-            LocalSourceLimits::default(),
-            resolved.retained_storage_observation(),
-        )
-        .is_err(),
-        "final issuance must reject changed network-transfer accounting"
     );
     let mut mismatched_transport = PendingResolvedGitSource::from_issued(&resolved);
     mismatched_transport.transport_profile = GitTransportProfile::Https;
@@ -208,17 +162,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
                     && observation.mutable_root().is_none()
             )
     );
-    #[cfg(target_os = "macos")]
-    {
-        assert_eq!(resolved.execution_helper_executables().len(), 5);
-        assert!(
-            resolved
-                .execution_helper_executables()
-                .iter()
-                .all(|executable| executable.content_identity().len() == 64)
-        );
-    }
-
     let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
 }

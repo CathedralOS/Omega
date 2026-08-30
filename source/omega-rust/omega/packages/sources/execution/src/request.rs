@@ -1,7 +1,6 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub(crate) const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 
 pub(crate) fn require_absolute(path: &Path, name: &str) -> io::Result<()> {

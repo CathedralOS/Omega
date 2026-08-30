@@ -1,20 +1,14 @@
 use super::policy::SeatbeltPolicy;
 use crate::backend::{ResolverExecutionAuthorityRoots, ResolverExecutionBackend};
-use crate::model::{
-    ResolverExecutionBackendIdentity, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
-};
-use crate::network::ResolverExecutionEndpointRoutePolicy;
+use crate::model::{ResolverExecutionBackendIdentity, ResolverExecutionPhase};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 pub(crate) fn command(
     backend: &ResolverExecutionBackend,
     executable: &Path,
-    additional_executables: &[PathBuf],
     phase: ResolverExecutionPhase,
-    network_transport: Option<ResolverExecutionNetworkTransport>,
-    endpoint_route: Option<&ResolverExecutionEndpointRoutePolicy>,
     roots: ResolverExecutionAuthorityRoots<'_>,
 ) -> io::Result<(Command, Option<String>)> {
     let ResolverExecutionBackendIdentity::MacosSeatbelt {
@@ -26,14 +20,11 @@ pub(crate) fn command(
             "macOS resolver selected a non-Seatbelt backend",
         ));
     };
-    let policy = SeatbeltPolicy::construct(
-        executable,
-        additional_executables,
-        phase,
-        network_transport,
-        endpoint_route,
-        roots,
-    )?;
+    if phase.permits_network() {
+        return Ok((Command::new(executable), None));
+    }
+
+    let policy = SeatbeltPolicy::construct(executable, phase, roots)?;
     let policy_sha256 = policy.sha256();
 
     let mut command = Command::new(sandbox_executable);

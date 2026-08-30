@@ -1,21 +1,8 @@
 use crate::{
-    ResolverExecutionBackend, ResolverExecutionEndpointOutcome, ResolverExecutionEndpointRoute,
-    ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
-    ResolverExecutionNetworkTransport, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
-    ResolverExecutionRequestedEndpoint, ResolverExecutionTransferBudget,
+    ResolverExecutionBackend, ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
+    ResolverExecutionPhase, ResolverExecutionPolicyObservation,
 };
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
-
-fn loopback_route(backend: &ResolverExecutionBackend) -> ResolverExecutionEndpointRoute {
-    backend
-        .open_endpoint_route(
-            ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
-                .expect("construct loopback endpoint"),
-            ResolverExecutionTransferBudget::new(1024 * 1024).expect("construct transfer budget"),
-        )
-        .expect("open loopback endpoint route")
-}
 
 fn inspection_root() -> PathBuf {
     std::env::temp_dir()
@@ -23,8 +10,19 @@ fn inspection_root() -> PathBuf {
         .expect("canonical temporary inspection root")
 }
 
-mod https_confinement;
+fn disposition(
+    observation: &ResolverExecutionPolicyObservation,
+    guarantee: ResolverExecutionGuarantee,
+) -> ResolverExecutionGuaranteeDisposition {
+    observation
+        .guarantees()
+        .iter()
+        .find(|row| row.guarantee() == guarantee)
+        .expect("complete resolver guarantee row")
+        .disposition()
+}
+
+mod host_routed;
 mod initialization;
 mod inspection;
-mod network;
 mod policy_observation;

@@ -4,7 +4,6 @@ pub enum ResolverExecutionGuarantee {
     FilesystemWritesConfined,
     FilesystemReadsConfined,
     NetworkDenied,
-    NetworkEndpointsConfined,
     ExecutablePathsConfined,
     DescendantProcessesContained,
     CoreDumpsDenied,
@@ -17,11 +16,10 @@ pub enum ResolverExecutionGuarantee {
 }
 
 impl ResolverExecutionGuarantee {
-    pub(crate) const ALL: [Self; 13] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::FilesystemWritesConfined,
         Self::FilesystemReadsConfined,
         Self::NetworkDenied,
-        Self::NetworkEndpointsConfined,
         Self::ExecutablePathsConfined,
         Self::DescendantProcessesContained,
         Self::CoreDumpsDenied,
@@ -38,7 +36,6 @@ impl ResolverExecutionGuarantee {
             Self::FilesystemWritesConfined => 1,
             Self::FilesystemReadsConfined => 2,
             Self::NetworkDenied => 3,
-            Self::NetworkEndpointsConfined => 4,
             Self::ExecutablePathsConfined => 5,
             Self::DescendantProcessesContained => 6,
             Self::CoreDumpsDenied => 7,

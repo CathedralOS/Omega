@@ -267,40 +267,17 @@ pub(crate) fn first_regular_descendant(root: &Path) -> PathBuf {
 
 #[cfg(unix)]
 pub(crate) fn shell_command(script: &str) -> omega_resolver_execution::ResolverPreparedExecution {
-    use omega_resolver_execution::{
-        ResolverExecutionBackend, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
-        ResolverExecutionRequestedEndpoint, ResolverExecutionTransferBudget,
-    };
+    use omega_resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
 
     let backend = ResolverExecutionBackend::open().expect("open test resolver backend");
     let temporary_root = std::env::temp_dir()
         .canonicalize()
         .expect("canonicalize test temporary directory");
-    let route = backend
-        .open_endpoint_route(
-            ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
-                .expect("construct test endpoint"),
-            ResolverExecutionTransferBudget::new(1024).expect("construct test transfer budget"),
-        )
-        .expect("open test endpoint route");
-    let helpers = ["/bin/bash", "/bin/dd", "/bin/sleep"]
-        .into_iter()
-        .map(Path::new)
-        .filter(|path| path.exists())
-        .map(|path| path.canonicalize().expect("canonicalize test shell helper"))
-        .collect::<Vec<_>>();
     let shell = Path::new("/bin/sh")
         .canonicalize()
         .expect("canonicalize test shell");
     let mut command = backend
-        .prepare_with_endpoint_route(
-            &shell,
-            &helpers,
-            ResolverExecutionPhase::Fetch,
-            Some(ResolverExecutionNetworkTransport::Ssh),
-            Some(&route),
-            Some(&temporary_root),
-        )
+        .prepare(&shell, ResolverExecutionPhase::Fetch, Some(&temporary_root))
         .expect("prepare bounded test shell");
     command.current_dir(&temporary_root).args(["-c", script]);
     command

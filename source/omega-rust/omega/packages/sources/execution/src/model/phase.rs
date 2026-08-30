@@ -1,14 +1,17 @@
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResolverExecutionPhase {
-    /// Remote object-format and selector discovery. Network is available; disk
-    /// mutation is not.
+    /// Remote object-format and selector discovery. The selected Git process
+    /// and its host-selected descendants have ordinary host transport,
+    /// authentication, execution, and writable-state authority.
     TransportDiscovery,
     /// Creation of a new local bare repository. Only the supplied mutable root
     /// is writable; network is unavailable.
     RepositoryInitialization,
-    /// Fetch into an existing quarantine. Network and the supplied mutable root
-    /// are available.
+    /// Fetch into an existing quarantine. The selected Git process and its
+    /// host-selected descendants have ordinary host transport, authentication,
+    /// execution, and writable-state authority; the mutable root identifies
+    /// Omega's quarantine custody rather than an exclusive host-write grant.
     Fetch,
     /// Read-only object and tree inspection. Neither network nor filesystem
     /// mutation is available.
@@ -34,22 +37,6 @@ impl ResolverExecutionPhase {
             Self::RepositoryInitialization => 2,
             Self::Fetch => 3,
             Self::RepositoryInspection => 4,
-        }
-    }
-}
-
-/// Closed transport authority selected for a networked resolver phase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolverExecutionNetworkTransport {
-    Https,
-    Ssh,
-}
-
-impl ResolverExecutionNetworkTransport {
-    pub(super) const fn tag(self) -> u8 {
-        match self {
-            Self::Https => 1,
-            Self::Ssh => 2,
         }
     }
 }

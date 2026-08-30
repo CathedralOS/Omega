@@ -76,9 +76,6 @@ pub enum SourceResolveError {
         ceiling: u64,
         attempted: u64,
     },
-    GitResolutionNetworkTransferCeiling {
-        ceiling: u64,
-    },
     GitCleanupFailed {
         operation: String,
         message: String,
@@ -225,10 +222,6 @@ impl fmt::Display for SourceResolveError {
             Self::GitResolutionCapturedOutputLimit { ceiling, attempted } => write!(
                 output,
                 "Git source resolution attempted to capture {attempted} bytes across all commands, exceeding its {ceiling}-byte cumulative output ceiling"
-            ),
-            Self::GitResolutionNetworkTransferCeiling { ceiling } => write!(
-                output,
-                "Git source resolution reached its {ceiling}-byte broker-routed network-transfer ceiling"
             ),
             Self::GitCleanupFailed { operation, message } => write!(
                 output,
