@@ -653,8 +653,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `assert`, and `return expression?;` nodes own exact spans through their
     semicolon. The parser does not guess whether a postfix form is an assignable
     place, ordinary call, or final `never` call; resolved body checking owns
-    those D17 classifications. Bodies, states, and top-level declarations
-    remain the next syntax milestone.
+    those D17 classifications. Body and state assembly is closed below;
+    top-level declarations remain the final syntax milestone.
+  - [x] Implement state declarations, state bodies, and machine bodies with
+    exact brace spans and source-order tail-built statement/state lists.
+    Machine parsing advances one way from statements to an optional explicit
+    return/transition and then to states; after the first state only states or
+    the body close are admitted. A state body must close immediately after its
+    explicit terminal. Neutral postfix statements remain available for later
+    resolved `never` classification rather than becoming a parser guess.
+    Top-level declaration and whole-program parsing remain the final syntax
+    milestone.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
