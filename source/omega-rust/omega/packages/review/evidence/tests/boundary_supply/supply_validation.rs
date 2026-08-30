@@ -1,6 +1,71 @@
 use crate::support::*;
 
 #[test]
+fn external_top_level_requirement_supply_rejects_post_check_requirement_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data InterruptAcknowledgement [copy] { token: u64; }
+pub data LinuxCompletion {}
+
+pub boundary requirement InterruptAcknowledgement::complete(self);
+pub boundary requirement InterruptAcknowledgement::retry(self);
+
+machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
+    satisfies InterruptAcknowledgement::complete
+    via Binding::Syscall(60);
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("external top-level requirement drift fixture should check");
+    let wrong_requirement = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptAcknowledgement::retry")
+        .expect("alternate top-level requirement")
+        .symbol;
+    let satisfies = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "LinuxCompletion::complete")
+        .expect("external top-level realization")
+        .satisfies;
+    checked
+        .typed
+        .machine_trait_conformances
+        .span_mut_or_empty(satisfies)[0]
+        .requirement_symbol = wrong_requirement;
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("post-check top-level requirement drift must fail closed");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("top-level requirement realization")
+            && diagnostic.message.contains("drifted")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn unsupported_external_boundary_operator_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;

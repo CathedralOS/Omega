@@ -1,6 +1,7 @@
 //! Callable review, checked realization, and external supply.
 
 mod boundary_operators;
+mod boundary_requirements;
 mod conformances;
 mod external_supply;
 mod review;

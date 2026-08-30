@@ -21,6 +21,7 @@ pub enum PackageReviewExternalBinding {
 pub enum PackageReviewExternalRequirement {
     Trait(PackageReviewCallableConformance),
     Operator(PackageReviewOperatorCoordinate),
+    TopLevelRequirement(PackageReviewNominalIdentity),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -42,14 +43,24 @@ impl PackageReviewExternalExecutableSupply {
     pub const fn conformance(&self) -> Option<&PackageReviewCallableConformance> {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(conformance) => Some(conformance),
-            PackageReviewExternalRequirement::Operator(_) => None,
+            PackageReviewExternalRequirement::Operator(_)
+            | PackageReviewExternalRequirement::TopLevelRequirement(_) => None,
         }
     }
 
     pub const fn operator(&self) -> Option<&PackageReviewOperatorCoordinate> {
         match &self.requirement {
-            PackageReviewExternalRequirement::Trait(_) => None,
+            PackageReviewExternalRequirement::Trait(_)
+            | PackageReviewExternalRequirement::TopLevelRequirement(_) => None,
             PackageReviewExternalRequirement::Operator(operator) => Some(operator),
+        }
+    }
+
+    pub const fn top_level_requirement(&self) -> Option<&PackageReviewNominalIdentity> {
+        match &self.requirement {
+            PackageReviewExternalRequirement::Trait(_)
+            | PackageReviewExternalRequirement::Operator(_) => None,
+            PackageReviewExternalRequirement::TopLevelRequirement(requirement) => Some(requirement),
         }
     }
 

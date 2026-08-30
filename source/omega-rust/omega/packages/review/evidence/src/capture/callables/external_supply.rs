@@ -111,3 +111,62 @@ pub(super) fn project_external_binding(
         }
     }
 }
+
+pub(super) fn external_binding_matches_provider_binding(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    binding: &PackageReviewExternalBinding,
+    selected: &omega_effects::provider_plan::ProviderBinding,
+) -> bool {
+    let expected_machine_identity = compilation
+        .normalized_machine_overload_identity(machine)
+        .map(|identity| identity.identity())
+        .unwrap_or_default();
+    let expected_table = machine
+        .attached_data
+        .as_ref()
+        .map(|name| name.as_str())
+        .unwrap_or_default();
+    match (binding, selected) {
+        (
+            PackageReviewExternalBinding::Import { library, symbol },
+            omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
+                library: selected_library,
+                symbol: selected_symbol,
+            },
+        ) => library == selected_library && symbol == selected_symbol,
+        (
+            PackageReviewExternalBinding::Syscall { number },
+            omega_effects::provider_plan::ProviderBinding::Syscall {
+                number: selected_number,
+            },
+        ) => number == selected_number,
+        (
+            PackageReviewExternalBinding::CompilerIntrinsic,
+            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                machine: selected_machine,
+            },
+        ) => selected_machine == &expected_machine_identity,
+        (
+            PackageReviewExternalBinding::VtableSlot { index },
+            omega_effects::provider_plan::ProviderBinding::VtableSlot {
+                index: selected_index,
+            },
+        ) => index == selected_index,
+        (
+            PackageReviewExternalBinding::VtableField { field },
+            omega_effects::provider_plan::ProviderBinding::VtableField {
+                table,
+                field: selected_field,
+            },
+        ) => table == expected_table && field == selected_field,
+        (
+            PackageReviewExternalBinding::TableFunction { field },
+            omega_effects::provider_plan::ProviderBinding::TableFunction {
+                table,
+                field: selected_field,
+            },
+        ) => table == expected_table && field == selected_field,
+        _ => false,
+    }
+}

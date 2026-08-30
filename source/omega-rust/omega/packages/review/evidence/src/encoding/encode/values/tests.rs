@@ -8,19 +8,44 @@ use crate::record::{
     CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCollectionViewOperation, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, PackageReviewProviderFamilyApplicationCoverage,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
-    PackageReviewSyntheticSourceKind,
+    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewExternalBinding,
+    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewProviderFamilyApplicationCoverage, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority, PackageReviewSyntheticSourceKind,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
 
+use super::callables::encode_external_executable_supply_key;
 use super::expressions::encode_contract_expression;
 use super::identity::encode_nominal;
 use super::providers::{
     encode_compiler_intrinsic_execution, encode_provider_family, encode_provider_row,
 };
+
+#[test]
+fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
+    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
+    let nominal = |path: &str| PackageReviewNominalIdentity {
+        owner: PackageReviewNominalOwner::Package(package),
+        path: path.to_owned(),
+    };
+    let callable_path = "LinuxCompletion::complete";
+    let supply = PackageReviewExternalExecutableSupply {
+        callable: nominal(callable_path),
+        requirement: PackageReviewExternalRequirement::TopLevelRequirement(nominal(
+            "InterruptAcknowledgement::complete#exact",
+        )),
+        binding: PackageReviewExternalBinding::Syscall { number: 60 },
+    };
+    let mut encoder = Encoder::bounded(256);
+    encode_external_executable_supply_key(&mut encoder, &supply)
+        .expect("encode top-level external requirement key");
+    let encoded = encoder.finish().expect("bounded encoding");
+    let tag_offset = 1 + 32 + 8 + callable_path.len();
+    assert_eq!(encoded[tag_offset], 2);
+}
 
 pub(crate) fn normalized_import_row(
     export: &[u8],

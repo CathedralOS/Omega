@@ -107,6 +107,10 @@ pub(crate) fn encode_external_executable_supply_key(
             encoder.byte(1);
             encode_operator_coordinate(encoder, operator)
         }
+        PackageReviewExternalRequirement::TopLevelRequirement(requirement) => {
+            encoder.byte(2);
+            encode_nominal(encoder, requirement)
+        }
     }
 }
 
