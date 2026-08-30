@@ -1533,6 +1533,16 @@ the compiler write-grant lookup before host mutation; provider-free replay must
 reproduce the selected operation, namespace, and teardown before empty
 staged-output custody issues.
 
+Summary v55 and replay-record v36 additionally admit one failed tag-42
+`set_file_times` on an unknown descriptor after the optional Source prefix.
+The row binds operand one's complete authored mutable carrier as equal
+resolution and provider pre/post bytes, requires at least the 32-byte timespec
+pair, and fixes scoped-real provider, scalar `-1`, post-error `9`, and
+operand-zero `Descriptor/Unknown`; all other lanes and handoffs remain empty.
+Missing-descriptor rejection occurs at write-grant lookup before host mutation.
+Provider-free replay restores the exact carrier and must reproduce the attempt,
+namespace, and teardown before empty staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1578,10 +1588,10 @@ successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
-unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, and
-v53/v34 unknown-descriptor-seek, and v54/v35 unknown-descriptor-write grammars
-above may join them to verified operation
-replay and reproduced staged-output equality.
+unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, v53/v34
+unknown-descriptor-seek, v54/v35 unknown-descriptor-write, and v55/v36
+unknown-descriptor-set-file-times grammars above may join them to verified
+operation replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1610,10 +1620,10 @@ successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
-unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, and
-v53/v34 unknown-descriptor-seek, and v54/v35 unknown-descriptor-write grammars
-above supply canonical operation replay and
-retained observed inputs.
+unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, v53/v34
+unknown-descriptor-seek, v54/v35 unknown-descriptor-write, and v55/v36
+unknown-descriptor-set-file-times grammars above supply canonical operation
+replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

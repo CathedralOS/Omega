@@ -142,6 +142,91 @@ fn baseline_retains_unknown_descriptor_write_operation_replay_custody() {
     );
 }
 
+#[test]
+fn baseline_retains_unknown_descriptor_set_file_times_replay_custody() {
+    let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+    let project = std::env::temp_dir().join(format!(
+        "omega-review-baseline-unknown-set-file-times-{}-{sequence}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create set_file_times baseline fixture");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"use omega::language::std::filesystem_host;
+
+target windows_x64 { }
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+invokes FilesystemHost;
+{
+    builder.application("review-baseline-unknown-set-file-times");
+    let mut times: [u8; 32];
+    times[0] = 11;
+    times[16] = 29;
+    times[31] = 173;
+    let status: i32 = builder.filesystem.set_file_times(-1, &mut times);
+}
+"#,
+    )
+    .expect("write set_file_times baseline build");
+    std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
+        .expect("write set_file_times baseline source");
+    let compilation =
+        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .expect("compile set_file_times baseline fixture");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("set_file_times failure publishes build observations");
+    assert!(summary.filesystem_replay_verdict().is_complete());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+
+    let limits = ReviewOnlyBaselineLimits::default();
+    let replay =
+        capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
+            .expect("capture set_file_times replay record")
+            .expect("verified set_file_times failure retains replay custody");
+    let mut encoder = Encoder::bounded(limits.maximum_capsule_bytes);
+    encode_replay_record_option(&mut encoder, Some(&replay)).expect("frame set_file_times replay");
+    let framed = encoder
+        .finish()
+        .expect("finish set_file_times replay frame");
+    let mut decoder = Decoder::new(&framed);
+    let recovered = decode_replay_record_option(&mut decoder, limits)
+        .expect("recover set_file_times replay frame")
+        .expect("set_file_times replay frame is present");
+    decoder
+        .finish()
+        .expect("set_file_times replay consumes frame");
+    let rehydrated = rehydrate_review_only_build_filesystem_replay_record(
+        &recovered,
+        replay_record_limits(limits),
+    )
+    .expect("set_file_times baseline rehydrates through compiler replay custody");
+    let [attempt] = rehydrated.attempts() else {
+        panic!("set_file_times baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 42);
+    let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+        panic!("set_file_times baseline retains one resolution-time carrier")
+    };
+    let [carrier] = attempt.mutable_byte_operands() else {
+        panic!("set_file_times baseline retains one provider carrier")
+    };
+    assert_eq!(resolution.operand_ordinal(), 1);
+    assert_eq!(resolution.bytes().len(), 32);
+    assert_eq!(resolution.bytes()[0], 11);
+    assert_eq!(resolution.bytes()[16], 29);
+    assert_eq!(resolution.bytes()[31], 173);
+    assert_eq!(carrier.operand_ordinal(), 1);
+    assert_eq!(resolution.bytes(), carrier.pre_bytes());
+    assert_eq!(carrier.pre_bytes(), carrier.post_bytes());
+    assert!(!rehydrated.has_output_attempts());
+
+    let _ = std::fs::remove_dir_all(project);
+}
+
 fn assert_baseline_retains_unknown_descriptor_failure(
     label: &str,
     statement: &str,

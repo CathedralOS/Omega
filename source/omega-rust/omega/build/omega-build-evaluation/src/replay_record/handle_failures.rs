@@ -62,7 +62,32 @@ pub(super) fn unknown_descriptor_write_operation_failure_shape_is_exact(
     scalars_are_exact && unknown_descriptor_failure_base_is_exact(shape)
 }
 
+pub(super) fn unknown_descriptor_set_file_times_failure_shape_is_exact(
+    shape: &AttemptShape<'_>,
+) -> bool {
+    let [(resolution_ordinal, resolution)] = shape.mutable_byte_resolutions.as_slice() else {
+        return false;
+    };
+    let [carrier] = shape.mutable_bytes.as_slice() else {
+        return false;
+    };
+    shape.operation == 42
+        && shape.scalars.is_empty()
+        && *resolution_ordinal == 1
+        && carrier.ordinal == 1
+        && resolution.len() >= 32
+        && *resolution == carrier.pre
+        && carrier.pre == carrier.post
+        && unknown_descriptor_failure_core_is_exact(shape)
+}
+
 fn unknown_descriptor_failure_base_is_exact(shape: &AttemptShape<'_>) -> bool {
+    shape.mutable_byte_resolutions.is_empty()
+        && shape.mutable_bytes.is_empty()
+        && unknown_descriptor_failure_core_is_exact(shape)
+}
+
+fn unknown_descriptor_failure_core_is_exact(shape: &AttemptShape<'_>) -> bool {
     shape.provider == REAL_SCOPED_PROVIDER_TAG
         && shape.result == ShapeResult::Scalar(BAD_DESCRIPTOR_RESULT)
         && shape.post_error == BAD_DESCRIPTOR_ERROR
@@ -79,9 +104,7 @@ fn unknown_descriptor_failure_base_is_exact(shape: &AttemptShape<'_>) -> bool {
         && shape.returned_path_count == 0
         && shape.observed_regions.is_empty()
         && shape.metadata.is_empty()
-        && shape.mutable_byte_resolutions.is_empty()
         && shape.mutable_i64_resolutions.is_empty()
-        && shape.mutable_bytes.is_empty()
         && shape.mutable_i64s.is_empty()
         && shape.authorized_paths.is_empty()
         && shape.output.is_none()
@@ -97,6 +120,18 @@ pub(super) fn validate_unknown_descriptor_write_operation_failure_shape(
     } else {
         Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay unknown-descriptor write operation failure is internally inconsistent",
+        ))
+    }
+}
+
+pub(super) fn validate_unknown_descriptor_set_file_times_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_descriptor_set_file_times_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-descriptor set_file_times failure is internally inconsistent",
         ))
     }
 }

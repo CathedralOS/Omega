@@ -39,9 +39,11 @@ use duplicates::validate_output_duplicate_shapes;
 use handle_failures::{
     operand_free_unknown_descriptor_failure_shape_is_exact,
     operand_free_unknown_descriptor_operation, unknown_descriptor_seek_failure_shape_is_exact,
-    unknown_descriptor_write_operation, unknown_descriptor_write_operation_failure_shape_is_exact,
+    unknown_descriptor_set_file_times_failure_shape_is_exact, unknown_descriptor_write_operation,
+    unknown_descriptor_write_operation_failure_shape_is_exact,
     validate_operand_free_unknown_descriptor_failure_shape,
     validate_unknown_descriptor_seek_failure_shape,
+    validate_unknown_descriptor_set_file_times_failure_shape,
     validate_unknown_descriptor_write_operation_failure_shape,
 };
 use hard_links::{
@@ -53,7 +55,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 35;
+const VERSION: u16 = 36;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -218,6 +220,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                     operand_free_unknown_descriptor_failure_shape_is_exact(shape)
                         || unknown_descriptor_seek_failure_shape_is_exact(shape)
                         || unknown_descriptor_write_operation_failure_shape_is_exact(shape)
+                        || unknown_descriptor_set_file_times_failure_shape_is_exact(shape)
                 })
                 .map(|_| shapes.len() - 1)
         })
@@ -416,6 +419,33 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay unknown-descriptor write operation failure could not be rehydrated",
+            )
+        });
+    }
+    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 42
+    {
+        let [(1, times)] = shapes[operation_suffix_start]
+            .mutable_byte_resolutions
+            .as_slice()
+        else {
+            unreachable!("validated unknown-descriptor set_file_times retains one exact carrier")
+        };
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorSetFileTimesReplayRecord::new(
+                typed_source_record,
+                clone_bytes(times)?,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay unknown-descriptor set_file_times carrier could not be rehydrated",
+                )
+            })?;
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_set_file_times_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-descriptor set_file_times failure could not be rehydrated",
             )
         });
     }
@@ -1627,7 +1657,7 @@ fn validate_first_rung(
     while cursor < shapes.len() {
         if matches!(
             shapes[cursor].operation,
-            1 | 8 | 9 | 10 | 11 | 17 | 19 | 20 | 27 | 41 | 43 | 44 | 45 | 46 | 49
+            1 | 8 | 9 | 10 | 11 | 17 | 19 | 20 | 27 | 41 | 42 | 43 | 44 | 45 | 46 | 49
         ) {
             break;
         }
@@ -1701,7 +1731,7 @@ fn validate_first_rung(
         && shapes.first().is_some_and(|shape| {
             matches!(
                 shape.operation,
-                1 | 8 | 9 | 10 | 11 | 17 | 19 | 20 | 27 | 41 | 43 | 44 | 45 | 46 | 49
+                1 | 8 | 9 | 10 | 11 | 17 | 19 | 20 | 27 | 41 | 42 | 43 | 44 | 45 | 46 | 49
             )
         });
     if event_count == 0 && !begins_with_replay_suffix {
@@ -1724,6 +1754,10 @@ fn validate_first_rung(
             && unknown_descriptor_write_operation(shapes[cursor].operation)
         {
             validate_unknown_descriptor_write_operation_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 1 && shapes[cursor].operation == 42 {
+            validate_unknown_descriptor_set_file_times_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {

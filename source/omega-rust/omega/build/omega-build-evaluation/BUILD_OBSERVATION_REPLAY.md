@@ -324,3 +324,21 @@ values in a fresh virtual descriptor table and requires exact result, attempt,
 empty namespace, and teardown equality before issuing empty staged-output
 custody. Known or null handles, changed scalar types or ordinals, alternate
 errors, repetitions, and mixed lifecycles remain non-receipted.
+
+## Unknown-descriptor set-file-times (summary v55, replay record v36)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one tag-42 `set_file_times` call on an unknown descriptor.
+The row fixes the scoped-real provider, scalar `-1`, post-error `9`, and
+operand-zero `Descriptor/Unknown`. It retains operand one's complete authored
+mutable byte carrier at resolution time and as equal provider pre/post states;
+the carrier must contain at least the 32-byte timespec pair consumed by the
+evaluator. Every other evidence lane and generated-source handoff is empty.
+
+The real evaluator rejects the missing descriptor at write-grant lookup before
+host mutation and leaves the carrier unchanged. Provider-free replay restores
+the exact retained carrier, reproduces the same failure in a fresh virtual
+descriptor table, and requires exact attempt, empty namespace, and teardown
+equality before issuing empty staged-output custody. Short or changed carriers,
+alternate ordinals, handles, errors, repetitions, and mixed lifecycles remain
+non-receipted.

@@ -1687,6 +1687,16 @@ the compiler write-grant lookup before host mutation; provider-free replay must
 reproduce the selected operation, namespace, and teardown before empty
 staged-output custody issues.
 
+Observation summary v55 and replay-record v36 additionally admit one failed
+tag-42 `set_file_times` on an unknown descriptor after the optional Source
+prefix. The row binds operand one's complete authored mutable carrier as equal
+resolution and provider pre/post bytes, requires at least the 32-byte timespec
+pair, and fixes scoped-real provider, scalar `-1`, post-error `9`, and
+operand-zero `Descriptor/Unknown`; all other lanes and handoffs remain empty.
+Missing-descriptor rejection occurs at write-grant lookup before host mutation.
+Provider-free replay restores the exact carrier and must reproduce the attempt,
+namespace, and teardown before empty staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
