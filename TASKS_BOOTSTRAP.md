@@ -1015,19 +1015,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
       compact kind/index ledgers into separate live-prefix tables.
       Only `Complete` authorizes a consumer to inspect those tables; every
       other status may leave unowned partial prefixes and publishes no tree.
-      Other public roots and rich valid forms such as payload cases,
-      generic/array/qualified types, and numbered members or properties record
-      implementation-incomplete rather than a false rejection. No parser
+      At that checkpoint, other public roots and rich valid forms such as
+      payload cases, generic/array/qualified types, and numbered members or
+      properties record implementation-incomplete rather than a false
+      rejection. No parser
       helper machine, source/package identity, symbol or type resolution,
       public outcome code, or second file is introduced. Provisional backing
       tables retain at most 4,096 roots and 16,384 path or data members. Root
       capacity dominates the separate use/data tables, and data-member capacity
-      dominates the field/case/type-reference tables, so only `Roots`,
-      `PathMembers`, and `DataMembers` are meaningful resource distinctions.
+      dominates the direct-field/case tables.
       Governed built-ins and plausible richer suffixes remain incomplete until
       their full forms are retained. Exact/adjacent resource controls and the
       source-shaped positive/negative/incomplete vectors join the real
       Delta-compiler gate rather than a host executor.
+    - [x] Retain structured case payloads in that same parser invocation.
+      Cases own a contiguous span in one separate payload-field arena; empty,
+      multiple, trailing-comma payloads and an optional final case semicolon
+      share the direct-field name/colon/type control path through an explicit
+      destination mode. This slice deliberately accepts only the existing
+      bare named type leaf. Numbered identities, field relevance, and richer
+      payload types remain implementation-incomplete. Combined direct and
+      payload fields make the 16,384-row type-reference ceiling genuinely
+      independent; that ceiling dominates the equally sized payload-field
+      arena, so no fake payload resource identity is added. Preserve
+      `Complete`-only publication, relative source spans, authored root/member
+      order, and Q7 neutrality.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
