@@ -518,6 +518,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     same-named type/constructor, function/local, and disjoint-scope binders as
     positive canaries; and reject duplicate pattern binders without equality
     meaning.
+    - [x] Reject within-namespace global duplicates before type resolution and
+      reject every active-local conflict before environment mutation. The
+      bounded global pass reuses coverage scratch, checks hash collisions by
+      exact spelling, retains the earliest later-declaration coordinate across
+      namespaces, and keeps the 32,768-function capacity canary linear in
+      ordinary hash behavior. Exact-offset negatives and cross-namespace,
+      colliding-hash, branch, and arm positives are adjacent. Opaque global
+      identities, binder/parameter slots, and source-tag-to-lowering joins
+      remain open.
   - Implement D19's sealed application-profile input as part of the exact Gamma
     compilation question and reconstruction evidence. Generate exactly
     `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
@@ -544,9 +553,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 104 procedures; with the frontend
-    gate entry, the gate uses 105 of Beta's 128 procedure slots and compiles to
-    237,097 bytes, leaving 25,043 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 106 procedures; with the frontend
+    gate entry, the gate uses 107 of Beta's 128 procedure slots and compiles to
+    243,520 bytes, leaving 18,620 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.

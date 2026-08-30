@@ -11,20 +11,21 @@ The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
-runs all 82 frontend discriminators, checks exact emitter bytes plus sticky
+runs all 97 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup/structural-replay failures, executes six generated
 runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases,
-executes resolved-call, resolved-constructor, and resolved-local/let bridge
-payloads, compares five repeated payloads byte-identically, and executes 14
+executes separate ordinary/tail resolved-call, resolved-constructor, and
+resolved-local/let bridge payloads, compares six repeated payloads
+byte-identically, and executes 14
 compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 104 procedures. With the fixed frontend
-gate entry, the compiled gate uses 105 of Beta's 128 procedure slots and
-compiles to 237,097 bytes. The remaining 25,043 bytes under
+The retained compiler source declares 106 procedures. With the fixed frontend
+gate entry, the compiled gate uses 107 of Beta's 128 procedure slots and
+compiles to 243,520 bytes. The remaining 18,620 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -98,6 +99,18 @@ Top-level `data` lookahead now uses that same bounded matcher rather than a
 second hand-unrolled spelling check. Declared type and constructor names also
 share one predicate because D16 gives them identical capitalization and
 builtin exclusions; D20 keeps their semantic namespaces separate.
+
+D20 global collection now rejects the exact later duplicate independently in
+the type, constructor, and function namespaces before resolving declaration
+types. One bounded open-addressed pass per namespace reuses the match-coverage
+scratch, verifies every hash collision with exact source spelling, and retains
+the earliest conflicting source offset across namespaces. This avoids the
+quadratic declaration scan exposed by the 32,768-function capacity canary.
+The active local environment rejects a parameter, `let`, pattern field, or
+catch-all binder before mutation when its spelling is already active; existing
+push/pop boundaries preserve initializer, sibling-branch, and sibling-arm
+scope. Assigning opaque binder slots and connecting source tags to lowering
+remain open.
 
 An emitted Gamma program uses this Alpha-memory profile:
 

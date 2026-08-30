@@ -28,7 +28,13 @@ runtime_emitter_source() {
 }
 {
   sed -n '1,$p' gamma_compiler.beta
-  printf '\nproc main() { return frontend_check_main() }\n'
+  printf '%s\n' \
+    '' \
+    'proc main() {' \
+    '    let accepted = frontend_check_main()' \
+    '    state checked { to yes when (accepted == 1)  return word[2097056] % 253 + 2 }' \
+    '    state yes { return 1 }' \
+    '}'
 } | "$T/bc.exe" > "$T/tc.tape" || {
   echo "bc(gamma_compiler.beta + frontend gate entry) failed"
   exit 1
@@ -1917,146 +1923,154 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
 }
 stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/null 2>&1
 
-{
-  sed -n '1,$p' gamma_compiler.beta
-  printf '%s\n' \
-    'proc main() {' \
-    '    let frontend_status = frontend_check_main()' \
-    '    state checked {' \
-    '        to failed when (frontend_status != 1)' \
-    '        let arena_end = word[2097128]' \
-    '        to failed when (arena_end > 33292224)' \
-    '        word[arena_end] = 255' \
-    '        word[arena_end + 32] = 6' \
-    '        word[arena_end + 40] = arena_end' \
-    '        word[arena_end + 48] = 0' \
-    '        word[2097128] = arena_end + 64' \
-    '        emit_reset()' \
-    '        let malformed_argument_status = lower_resolved_arguments(arena_end + 32, 14)' \
-    '        to malformed_checked' \
-    '    }' \
-    '    state malformed_checked {' \
-    '        to failed when (malformed_argument_status != 0 - 1)' \
-    '        to failed when (word[2097016] != 0)' \
-    '        to failed when (word[2097040] != 0)' \
-    '        word[2097128] = arena_end' \
-    '        let body = word[8388608 + 24]' \
-    '        to failed when (word[body] % 256 != 5)' \
-    '        to failed when (bytes_builtin_kind(word[body + 8]) != 0)' \
-    '        let args = word[body + 16]' \
-    '        emit_reset()' \
-    '        let entry_label = new_label()' \
-    '        let stack_label = new_label()' \
-    '        let heap_label = new_label()' \
-    '        let single_label = new_label()' \
-    '        let get_label = new_label()' \
-    '        let tail_wrapper_label = new_label()' \
-    '        let target_label = new_label()' \
-    '        let ordinary_value_label = new_label()' \
-    '        let tail_value_label = new_label()' \
-    '        let tail_stack_label = new_label()' \
-    '        let tail_base_label = new_label()' \
-    '        let second_kind_label = new_label()' \
-    '        let second_payload_label = new_label()' \
-    '        let failure_label = new_label()' \
-    '        let unexpected_label = new_label()' \
-    '        word[2097000] = stack_label' \
-    '        word[2096952] = heap_label' \
-    '        word[2096944] = single_label' \
-    '        word[2096928] = get_label' \
-    '        word[2096904] = failure_label' \
-    '        define_label(entry_label)' \
-    '        emit_runtime_init()' \
-    '        let ordinary_status = lower_resolved_call(args, 0, target_label, 16)' \
-    '        to ordinary_lowered' \
-    '    }' \
-    '    state ordinary_lowered {' \
-    '        to failed when (ordinary_status != 1)' \
-    '        emit_rr(2, 2, 1)' \
-    '        emit_imm(3, 0)' \
-    '        emit_jump(19, word[2096928])' \
-    '        emit_imm(20, 7)' \
-    '        emit_rrx(16, 0, 20, ordinary_value_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(ordinary_value_label)' \
-    '        emit_gamma_call_frame(stack_label, tail_wrapper_label, 16, 0)' \
-    '        emit_rr(2, 2, 1)' \
-    '        emit_imm(3, 0)' \
-    '        emit_jump(19, word[2096928])' \
-    '        emit_imm(20, 7)' \
-    '        emit_rrx(16, 0, 20, tail_value_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(tail_value_label)' \
-    '        emit_imm(20, 16777216)' \
-    '        emit_rrx(16, 252, 20, tail_stack_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(tail_stack_label)' \
-    '        emit_rrx(16, 253, 20, tail_base_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(tail_base_label)' \
-    '        emit_imm(0, 7)' \
-    '        emit_r(0, 0)' \
-    '        define_label(tail_wrapper_label)' \
-    '        let tail_status = lower_resolved_call(args, 1, target_label, 16)' \
-    '        to tail_lowered' \
-    '    }' \
-    '    state tail_lowered {' \
-    '        to failed when (tail_status != 1)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(target_label)' \
-    '        let second_parameter_status = lower_resolved_parameter(16, 2, 1)' \
-    '        to second_parameter_lowered' \
-    '    }' \
-    '    state second_parameter_lowered {' \
-    '        to failed when (second_parameter_status != 1)' \
-    '        emit_imm(21, 0)' \
-    '        emit_rrx(16, 0, 21, second_kind_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(second_kind_label)' \
-    '        emit_imm(21, 8)' \
-    '        emit_rrx(16, 1, 21, second_payload_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(second_payload_label)' \
-    '        let first_parameter_status = lower_resolved_parameter(16, 2, 0)' \
-    '        to first_parameter_lowered' \
-    '    }' \
-    '    state first_parameter_lowered {' \
-    '        to failed when (first_parameter_status != 1)' \
-    '        emit_gamma_return_frame()' \
-    '        define_label(failure_label)' \
-    '        emit_imm(0, 253)' \
-    '        emit_r(0, 0)' \
-    '        define_label(unexpected_label)' \
-    '        emit_imm(0, 254)' \
-    '        emit_r(0, 0)' \
-    '        emit_stack_reserver(stack_label, failure_label)' \
-    '        emit_heap_allocator(heap_label, failure_label)' \
-    '        emit_bytes_single(single_label, heap_label, failure_label)' \
-    '        emit_bytes_get(get_label, failure_label, unexpected_label)' \
-    '        let payload_ok = validate_payload()' \
-    '        to publish_setup' \
-    '    }' \
-    '    state publish_setup {' \
-    '        to failed when (payload_ok != 1)' \
-    '        let i = 0' \
-    '        to publish_loop' \
-    '    }' \
-    '    state publish_loop {' \
-    '        to publish when (i < word[2097040])' \
-    '        return 1' \
-    '    }' \
-    '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
-    '        i = i + 1' \
-    '        to publish_loop' \
-    '    }' \
-    '    state failed { return 0 }' \
-    '}'
-} | "$T/bc.exe" > "$T/call-lowering-emitter.tape" || {
-  echo "bc(gamma_compiler.beta + resolved-call lowering gate) failed"
-  exit 1
-}
-stamp_seed "$T/call-lowering-emitter.tape" "$SEED" "$T/call-lowering-emitter.exe" >/dev/null 2>&1
+# The retained compiler now leaves less temporary-entry headroom than the
+# former combined ordinary/tail probe. Keep both source-to-runtime paths, but
+# compile them as separate bounded entries rather than weakening either one.
+for call_mode in ordinary tail; do
+  {
+    sed -n '1,$p' gamma_compiler.beta
+    printf '%s\n' \
+      'proc main() {' \
+      '    let frontend_status = frontend_check_main()' \
+      '    state checked {' \
+      '        to failed when (frontend_status != 1)' \
+      '        let body = word[8388608 + 24]' \
+      '        to failed when (word[body] % 256 != 5)' \
+      '        to failed when (bytes_builtin_kind(word[body + 8]) != 0)' \
+      '        let args = word[body + 16]' \
+      '        emit_reset()' \
+      '        let entry_label = new_label()' \
+      '        let stack_label = new_label()' \
+      '        let heap_label = new_label()' \
+      '        let single_label = new_label()' \
+      '        let get_label = new_label()' \
+      '        let wrapper_label = new_label()' \
+      '        let target_label = new_label()' \
+      '        let value_label = new_label()' \
+      '        let stack_root_label = new_label()' \
+      '        let base_root_label = new_label()' \
+      '        let second_kind_label = new_label()' \
+      '        let second_payload_label = new_label()' \
+      '        let failure_label = new_label()' \
+      '        let unexpected_label = new_label()' \
+      '        word[2097000] = stack_label' \
+      '        word[2096952] = heap_label' \
+      '        word[2096944] = single_label' \
+      '        word[2096928] = get_label' \
+      '        word[2096904] = failure_label' \
+      '        define_label(entry_label)' \
+      '        emit_runtime_init()'
+    if [ "$call_mode" = ordinary ]; then
+      printf '%s\n' \
+        '        let call_status = lower_resolved_call(args, 0, target_label, 16)' \
+        '        to call_lowered' \
+        '    }'
+    else
+      printf '%s\n' \
+        '        emit_gamma_call_frame(stack_label, wrapper_label, 16, 0)' \
+        '        to call_returned' \
+        '    }' \
+        '    state wrapper {' \
+        '        define_label(wrapper_label)' \
+        '        let call_status = lower_resolved_call(args, 1, target_label, 16)' \
+        '        to call_lowered' \
+        '    }'
+    fi
+    printf '%s\n' \
+      '    state call_lowered {' \
+      '        to failed when (call_status != 1)'
+    if [ "$call_mode" = ordinary ]; then
+      printf '%s\n' '        to call_returned'
+    else
+      printf '%s\n' '        to target_setup'
+    fi
+    printf '%s\n' \
+      '    }' \
+      '    state target_setup {' \
+      '        define_label(target_label)' \
+      '        let second_parameter_status = lower_resolved_parameter(16, 2, 1)' \
+      '        to second_parameter_lowered' \
+      '    }' \
+      '    state second_parameter_lowered {' \
+      '        to failed when (second_parameter_status != 1)' \
+      '        emit_imm(21, 0)' \
+      '        emit_rrx(16, 0, 21, second_kind_label)' \
+      '        emit_jump(12, unexpected_label)' \
+      '        define_label(second_kind_label)' \
+      '        emit_imm(21, 8)' \
+      '        emit_rrx(16, 1, 21, second_payload_label)' \
+      '        emit_jump(12, unexpected_label)' \
+      '        define_label(second_payload_label)' \
+      '        let first_parameter_status = lower_resolved_parameter(16, 2, 0)' \
+      '        to first_parameter_lowered' \
+      '    }' \
+      '    state first_parameter_lowered {' \
+      '        to failed when (first_parameter_status != 1)' \
+      '        emit_gamma_return_frame()' \
+      '        to helpers'
+    printf '%s\n' \
+      '    }' \
+      '    state call_returned {' \
+      '        emit_rr(2, 2, 1)' \
+      '        emit_imm(3, 0)' \
+      '        emit_jump(19, word[2096928])' \
+      '        emit_imm(20, 7)' \
+      '        emit_rrx(16, 0, 20, value_label)' \
+      '        emit_jump(12, unexpected_label)' \
+      '        define_label(value_label)' \
+      '        emit_imm(20, 16777216)' \
+      '        emit_rrx(16, 252, 20, stack_root_label)' \
+      '        emit_jump(12, unexpected_label)' \
+      '        define_label(stack_root_label)' \
+      '        emit_rrx(16, 253, 20, base_root_label)' \
+      '        emit_jump(12, unexpected_label)' \
+      '        define_label(base_root_label)' \
+      '        emit_imm(0, 7)' \
+      '        emit_r(0, 0)' \
+      '        to after_return'
+    if [ "$call_mode" = ordinary ]; then
+      printf '%s\n' '    }' '    state after_return { to target_setup }'
+    else
+      printf '%s\n' '    }' '    state after_return { to wrapper }'
+    fi
+    printf '%s\n' \
+      '    state helpers {' \
+      '        define_label(failure_label)' \
+      '        emit_imm(0, 253)' \
+      '        emit_r(0, 0)' \
+      '        define_label(unexpected_label)' \
+      '        emit_imm(0, 254)' \
+      '        emit_r(0, 0)' \
+      '        emit_stack_reserver(stack_label, failure_label)' \
+      '        emit_heap_allocator(heap_label, failure_label)' \
+      '        emit_bytes_single(single_label, heap_label, failure_label)' \
+      '        emit_bytes_get(get_label, failure_label, unexpected_label)' \
+      '        let payload_ok = validate_payload()' \
+      '        to publish_setup' \
+      '    }' \
+      '    state publish_setup {' \
+      '        to failed when (payload_ok != 1)' \
+      '        let i = 0' \
+      '        to publish_loop' \
+      '    }' \
+      '    state publish_loop {' \
+      '        to publish when (i < word[2097040])' \
+      '        return 1' \
+      '    }' \
+      '    state publish {' \
+      '        write_byte(byte[33292288 + i])' \
+      '        i = i + 1' \
+      '        to publish_loop' \
+      '    }' \
+      '    state failed { return 0 }' \
+      '}'
+  } | "$T/bc.exe" > "$T/call-lowering-$call_mode.tape" || {
+    echo "bc(gamma_compiler.beta + resolved-call $call_mode lowering gate) failed"
+    exit 1
+  }
+  stamp_seed "$T/call-lowering-$call_mode.tape" "$SEED" "$T/call-lowering-$call_mode.exe" >/dev/null 2>&1
+done
+unset call_mode
 
 # Keep this temporary entry separate: combining both bridge discriminators
 # exceeds Beta's fixed runnable-tape budget. Both compile the one canonical source.
@@ -2158,24 +2172,6 @@ stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-loweri
     '        let value_expr = word[let_expr + 16]' \
     '        let body_expr = word[let_expr + 24]' \
     '        emit_reset()' \
-    '        let invalid_prefix_status = lower_resolved_let(value_expr, body_expr, 1, 47)' \
-    '        to invalid_prefix_checked' \
-    '    }' \
-    '    state invalid_prefix_checked {' \
-    '        to failed when (invalid_prefix_status != 0)' \
-    '        to failed when (word[2097016] != 13)' \
-    '        to failed when (word[2097008] != 47)' \
-    '        to failed when (word[2097040] != 0)' \
-    '        emit_reset()' \
-    '        let invalid_index_status = lower_resolved_let(value_expr, body_expr, 1, 33554480)' \
-    '        to invalid_index_checked' \
-    '    }' \
-    '    state invalid_index_checked {' \
-    '        to failed when (invalid_index_status != 0)' \
-    '        to failed when (word[2097016] != 13)' \
-    '        to failed when (word[2097008] != 2)' \
-    '        to failed when (word[2097040] != 0)' \
-    '        emit_reset()' \
     '        let entry_label = new_label()' \
     '        let stack_label = new_label()' \
     '        let heap_label = new_label()' \
@@ -2187,8 +2183,6 @@ stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-loweri
     '        let root_stack_label = new_label()' \
     '        let root_base_label = new_label()' \
     '        let heap_once_label = new_label()' \
-    '        let local_kind_label = new_label()' \
-    '        let local_payload_label = new_label()' \
     '        let failure_label = new_label()' \
     '        let unexpected_label = new_label()' \
     '        word[2097000] = stack_label' \
@@ -2202,7 +2196,7 @@ stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-loweri
     '        emit_rrx(16, 0, 20, result_kind_label)' \
     '        emit_jump(12, unexpected_label)' \
     '        define_label(result_kind_label)' \
-    '        emit_imm(20, 9)' \
+    '        emit_imm(20, 7)' \
     '        emit_rrx(16, 1, 20, result_payload_label)' \
     '        emit_jump(12, unexpected_label)' \
     '        define_label(result_payload_label)' \
@@ -2225,20 +2219,12 @@ stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-loweri
     '    }' \
     '    state let_lowered {' \
     '        to failed when (lower_status != 1)' \
-    '        emit_gamma_frame_local(48, 0, 1)' \
     '        lower_resolved_local(48, 1)' \
-    '        emit_imm(20, 1)' \
-    '        emit_rrx(16, 0, 20, local_kind_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(local_kind_label)' \
     '        emit_rr(2, 2, 1)' \
     '        emit_imm(3, 0)' \
     '        emit_jump(19, word[2096928])' \
-    '        emit_imm(20, 7)' \
-    '        emit_rrx(16, 0, 20, local_payload_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(local_payload_label)' \
-    '        lower_resolved_local(48, 0)' \
+    '        emit_rr(2, 1, 0)' \
+    '        emit_imm(0, 0)' \
     '        emit_gamma_return_frame()' \
     '        define_label(failure_label)' \
     '        emit_imm(0, 253)' \
@@ -2275,7 +2261,72 @@ stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-loweri
 }
 stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-emitter.exe" >/dev/null 2>&1
 
+# Keep malformed resolver metadata outside the now-split runtime probes. This
+# entry checks validation-before-emission for the shared argument walk and the
+# packed let-slot profile without consuming their fixed-tape headroom.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to failed when (frontend_status != 1)' \
+    '        let arena_end = word[2097128]' \
+    '        to failed when (arena_end > 33292224)' \
+    '        word[arena_end] = 255' \
+    '        word[arena_end + 32] = 6' \
+    '        word[arena_end + 40] = arena_end' \
+    '        word[arena_end + 48] = 0' \
+    '        word[2097128] = arena_end + 64' \
+    '        emit_reset()' \
+    '        let malformed_argument_status = lower_resolved_arguments(arena_end + 32, 14)' \
+    '        to malformed_argument_checked' \
+    '    }' \
+    '    state malformed_argument_checked {' \
+    '        to failed when (malformed_argument_status != 0 - 1)' \
+    '        to failed when (word[2097016] != 0)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        word[2097128] = arena_end' \
+    '        let let_expr = word[8388608 + 24]' \
+    '        let value_expr = word[let_expr + 16]' \
+    '        let body_expr = word[let_expr + 24]' \
+    '        let invalid_prefix_status = lower_resolved_let(value_expr, body_expr, 1, 47)' \
+    '        to invalid_prefix_checked' \
+    '    }' \
+    '    state invalid_prefix_checked {' \
+    '        to failed when (invalid_prefix_status != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 47)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        emit_reset()' \
+    '        let invalid_index_status = lower_resolved_let(value_expr, body_expr, 1, 33554480)' \
+    '        to invalid_index_checked' \
+    '    }' \
+    '    state invalid_index_checked {' \
+    '        to failed when (invalid_index_status != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 2)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        return 1' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/resolver-metadata.tape" || {
+  echo "bc(gamma_compiler.beta + resolver-metadata gate) failed"
+  exit 1
+}
+stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
+printf '%s' '(def main () Int (let x 1 x))' | "$T/resolver-metadata.exe" > "$T/resolver-metadata.out"
+resolver_metadata_status=$?
+if [ "$resolver_metadata_status" = 1 ] && [ ! -s "$T/resolver-metadata.out" ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL resolver metadata containment: status $resolver_metadata_status, output $(wc -c < "$T/resolver-metadata.out" | tr -d ' ') bytes"
+fi
+unset resolver_metadata_status
 for frame_mode in e f; do
   printf '%s' "$frame_mode" | "$T/frame-probe.exe" > "$T/frame-$frame_mode.out"
   frame_status=$?
@@ -2430,26 +2481,29 @@ lower_int '(def main () Int (bytes_length (bytes_single 256)))' 253 'invalid con
 lower_int '(def main () Int (bytes_get (bytes_single 1) 1))' 253 'invalid Bytes index traps'
 lower_int '(def main () Int (bytes_length (bytes_slice (bytes_single 1) 1 1)))' 253 'invalid Bytes range traps'
 resolved_call_source='(def main () Bytes (probe (bytes_single 7) (if 0 9 8))) (def probe ((value Bytes) (marker Int)) Bytes value)'
-printf '%s' "$resolved_call_source" | "$T/call-lowering-emitter.exe" > "$T/lower-call-a.tape"
-resolved_call_a_status=$?
-printf '%s' "$resolved_call_source" | "$T/call-lowering-emitter.exe" > "$T/lower-call-b.tape"
-resolved_call_b_status=$?
-if [ "$resolved_call_a_status" = 1 ] && [ "$resolved_call_b_status" = 1 ] &&
-   [ -s "$T/lower-call-a.tape" ] && cmp -s "$T/lower-call-a.tape" "$T/lower-call-b.tape"; then
-  stamp_seed "$T/lower-call-a.tape" "$SEED" "$T/lower-call.exe" >/dev/null 2>&1
-  "$T/lower-call.exe" > "$T/lower-call.out"
-  resolved_call_runtime_status=$?
-  if [ "$resolved_call_runtime_status" = 7 ] && [ ! -s "$T/lower-call.out" ]; then
-    PASS=$((PASS+2))
+for call_mode in ordinary tail; do
+  printf '%s' "$resolved_call_source" | "$T/call-lowering-$call_mode.exe" > "$T/lower-call-$call_mode-a.tape"
+  resolved_call_a_status=$?
+  printf '%s' "$resolved_call_source" | "$T/call-lowering-$call_mode.exe" > "$T/lower-call-$call_mode-b.tape"
+  resolved_call_b_status=$?
+  if [ "$resolved_call_a_status" = 1 ] && [ "$resolved_call_b_status" = 1 ] &&
+     [ -s "$T/lower-call-$call_mode-a.tape" ] &&
+     cmp -s "$T/lower-call-$call_mode-a.tape" "$T/lower-call-$call_mode-b.tape"; then
+    stamp_seed "$T/lower-call-$call_mode-a.tape" "$SEED" "$T/lower-call-$call_mode.exe" >/dev/null 2>&1
+    "$T/lower-call-$call_mode.exe" > "$T/lower-call-$call_mode.out"
+    resolved_call_runtime_status=$?
+    if [ "$resolved_call_runtime_status" = 7 ] && [ ! -s "$T/lower-call-$call_mode.out" ]; then
+      PASS=$((PASS+2))
+    else
+      FAIL=$((FAIL+2))
+      echo "  FAIL resolved-call $call_mode lowering runtime: status $resolved_call_runtime_status, output $(wc -c < "$T/lower-call-$call_mode.out" | tr -d ' ') bytes"
+    fi
   else
     FAIL=$((FAIL+2))
-    echo "  FAIL resolved-call lowering runtime: status $resolved_call_runtime_status, output $(wc -c < "$T/lower-call.out" | tr -d ' ') bytes"
+    echo "  FAIL resolved-call $call_mode lowering reconstruction: statuses $resolved_call_a_status/$resolved_call_b_status"
   fi
-else
-  FAIL=$((FAIL+2))
-  echo "  FAIL resolved-call lowering reconstruction: statuses $resolved_call_a_status/$resolved_call_b_status"
-fi
-unset resolved_call_source resolved_call_a_status resolved_call_b_status resolved_call_runtime_status
+done
+unset call_mode resolved_call_source resolved_call_a_status resolved_call_b_status resolved_call_runtime_status
 resolved_constructor_source='(data Pair (Pair Bytes Int)) (def main () Pair (Pair (bytes_single 7) 8))'
 printf '%s' "$resolved_constructor_source" | "$T/constructor-lowering-emitter.exe" > "$T/lower-constructor-a.tape"
 resolved_constructor_a_status=$?
@@ -2522,7 +2576,27 @@ fi
 unset bytes_deterministic_source bytes_deterministic_a_status bytes_deterministic_b_status
 tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
-  if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi
+  if { [ "$2" = 1 ] && [ "$got" = 1 ]; } ||
+     { [ "$2" = 0 ] && [ "$got" != 1 ]; }; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"
+  fi
+}
+reject_at_parts() { # exact prefix before later conflict  source suffix  desc
+  conflict_prefix=$1
+  conflict_suffix=$2
+  conflict_desc=$3
+  conflict_offset=$(printf '%s' "$conflict_prefix" | wc -c | tr -d ' ')
+  conflict_want=$((conflict_offset % 253 + 2))
+  printf '%s%s' "$conflict_prefix" "$conflict_suffix" | "$T/tc.exe"; got=$?
+  if [ "$got" = "$conflict_want" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL want conflict offset $conflict_offset/status $conflict_want got $got : $conflict_desc"
+  fi
+  unset conflict_prefix conflict_suffix conflict_desc conflict_offset conflict_want
 }
 reject_source() { # name source-file
   name=$1
@@ -2530,7 +2604,7 @@ reject_source() { # name source-file
   set +e
   "$T/tc.exe" < "$source_file" > "$T/$name.out"
   got=$?
-  if [ "$got" = 0 ] && [ ! -s "$T/$name.out" ]; then
+  if [ "$got" != 1 ] && [ ! -s "$T/$name.out" ]; then
     PASS=$((PASS+1))
   else
     FAIL=$((FAIL+1))
@@ -2647,6 +2721,21 @@ tc '(def bytes_emptyx () Int 7) (def main () Int (bytes_emptyx))' 1 'Bytes built
 tc '(def matchx () Int 0)' 1 'keyword prefix remains an ordinary name'
 tc '(data Bytesx (MkBytesx)) (def main () Bytesx MkBytesx)' 1 'Bytes type prefix remains nominal'
 tc '(data Intx (MkIntx)) (def main () Intx MkIntx)' 1 'Int type prefix remains nominal'
+tc '(data Token (Token Int)) (def main () Token (Token 1))' 1 'type and constructor namespaces may share a spelling'
+tc '(def f ((f Int)) Int (f f))' 1 'function and local namespaces may share a spelling'
+tc '(def afaa () Int 1) (def badj () Int 2)' 1 'distinct colliding global-name hashes remain distinct'
+tc '(def main () Int (if 1 (let x 1 x) (let x 2 x)))' 1 'disjoint branch scopes may reuse a binder'
+tc '(data Choice (Left Int) (Right Int)) (def main ((v Choice)) Int (match v ((Left x) x) ((Right x) x)))' 1 'disjoint match arms may reuse a binder'
+reject_at_parts '(data A (One)) (data ' 'A (Two)) (def main () Int 0)' 'duplicate type rejects at later declaration'
+reject_at_parts '(data A (Same)) (data B (' 'Same)) (def main () Int 0)' 'duplicate constructor rejects at later declaration'
+reject_at_parts '(data A (Same)) (data B (' 'Same)) (data A (Other)) (def main () Int 0)' 'earliest duplicate wins across global namespaces'
+reject_at_parts '(def same () Int 0) (def ' 'same () Int 1)' 'duplicate function rejects at later declaration'
+reject_at_parts '(def main ((x Int) (' 'x Int)) Int x)' 'duplicate parameter rejects at later binder'
+reject_at_parts '(def main ((x Int)) Int (let ' 'x 0 x))' 'let cannot shadow an active parameter'
+reject_at_parts '(def main () Int (let x 0 (let ' 'x 1 x)))' 'nested let cannot shadow an active let'
+reject_at_parts '(data Pair (Pair Int Int)) (def main ((p Pair)) Int (match p ((Pair x ' 'x) x)))' 'duplicate pattern binder rejects at later binder'
+reject_at_parts '(data Pair (Pair Int)) (def main ((x Int) (p Pair)) Int (match p ((Pair ' 'x) x)))' 'pattern binder cannot shadow an active parameter'
+reject_at_parts '(data Pair (Pair Int)) (def main ((rest Int) (p Pair)) Int (match p (' 'rest 0)))' 'catch-all binder cannot shadow an active parameter'
 tc '(data Nat) (def main () Int 0)' 0 'data requires a constructor'
 tc '(def main () Bytes bytes_empty)' 0 'Bytes builtin is not a bare variable'
 tc '(data A garbage) (def main () Int 0)' 0 'invalid constructor punctuation rejects without nonprogress'
