@@ -1745,6 +1745,99 @@ proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
     state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
 }
 
+; Algebraic constructor tags are compiler-resolved private kinds >= 2. Fields
+; retain complete two-word values in source order. Odd field counts round their
+; vectors to the next 32-byte row so every heap allocation preserves the Bytes
+; descriptor alignment invariant. Nullary constructors carry payload zero and
+; allocate nothing.
+
+proc emit_gamma_constructor_value(heap_label, constructor_tag, field_count) {
+    state tag_low { to invalid_tag when (constructor_tag < 2)  to count_low }
+    state count_low { to invalid_count when (field_count < 0)  to empty_check }
+    state empty_check { to empty when (field_count == 0)  to allocate }
+    state empty {
+        emit_imm(0, constructor_tag)
+        emit_imm(1, 0)
+        return 1
+    }
+    state allocate {
+        let allocation_bytes = ((field_count + 1) / 2) * 32
+        emit_imm(2, allocation_bytes)
+        emit_jump(19, heap_label)
+        emit_rr(2, 6, 0)
+        let field_index = 0
+        to copy_loop
+    }
+    state copy_loop { to copy_field when (field_index < field_count)  to finish }
+    state copy_field {
+        let source_offset = (field_count - field_index - 1) * 16
+        let target_offset = field_index * 16
+        emit_rr(2, 7, 252)
+        emit_imm(8, source_offset)
+        emit_rr(3, 7, 8)
+        emit_rr(2, 8, 7)
+        emit_rr(10, 9, 8)
+        emit_imm(10, 8)
+        emit_rr(3, 8, 10)
+        emit_rr(10, 10, 8)
+        emit_rr(2, 11, 6)
+        emit_imm(12, target_offset)
+        emit_rr(3, 11, 12)
+        emit_rr(11, 11, 9)
+        emit_imm(12, 8)
+        emit_rr(3, 11, 12)
+        emit_rr(11, 11, 10)
+        field_index = field_index + 1
+        to copy_loop
+    }
+    state finish {
+        emit_imm(7, field_count * 16)
+        emit_rr(3, 252, 7)
+        emit_imm(0, constructor_tag)
+        emit_rr(2, 1, 6)
+        return 1
+    }
+    state invalid_tag { emit_fail_once(14, constructor_tag)  return 0 }
+    state invalid_count { emit_fail_once(14, field_count)  return 0 }
+}
+
+proc emit_gamma_field_load(field_count, field_index, internal_label) {
+    let below_heap = new_label()
+    state count_low { to invalid when (field_count <= 0)  to index_low }
+    state index_low { to invalid when (field_index < 0)  to index_high }
+    state index_high { to invalid when (field_index >= field_count)  to valid }
+    state valid {
+        let allocation_bytes = ((field_count + 1) / 2) * 32
+        emit_rr(2, 6, 1)
+        emit_imm(12, 16777248)
+        emit_rrx(15, 6, 12, internal_label)
+        emit_rrx(15, 6, 254, below_heap)
+        emit_jump(12, internal_label)
+        define_label(below_heap)
+        emit_rr(2, 13, 6)
+        emit_imm(14, allocation_bytes)
+        emit_rr(3, 13, 14)
+        emit_rrx(15, 13, 6, internal_label)
+        emit_rrx(15, 254, 13, internal_label)
+        emit_rr(2, 13, 6)
+        emit_imm(14, 16777216)
+        emit_rr(4, 13, 14)
+        emit_imm(14, 32)
+        emit_rr(7, 13, 14)
+        emit_rx(14, 13, internal_label)
+        emit_rr(2, 13, 6)
+        emit_imm(14, field_index * 16)
+        emit_rr(3, 13, 14)
+        emit_rr(2, 14, 13)
+        emit_rr(10, 0, 14)
+        emit_imm(15, 8)
+        emit_rr(3, 13, 15)
+        emit_rr(10, 1, 13)
+        return 1
+    }
+    state invalid { emit_fail_once(14, field_index)  return 0 }
+}
+
 proc emit_checked_add(entry_label, failure_label) {
     let left_negative = new_label()
     let both_negative = new_label()
