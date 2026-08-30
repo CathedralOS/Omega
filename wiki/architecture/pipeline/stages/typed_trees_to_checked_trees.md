@@ -408,15 +408,16 @@ Current ownership is:
   one exact literal index into a fixed byte array may instead publish the
   validated fact-free primitive, recursively literal fixed-array, or
   closed-record target footprint as a half-open `FixedRange`. Array eligibility
-  requires a nonzero literal length at every array level, one ultimate exact
-  fact-free non-Boolean fixed-width primitive element, and an exactly tiled
-  shared representation; record-element arrays remain fenced. Record
-  eligibility is exact-symbol, nonzero, nongeneric, quotient-free, acyclic,
-  all-relevant, and recursively fact-free; its normalized padding remains
-  covered. Runtime or
-  merely bounded offsets, slices, generic/invariant-bearing/erased/cased
-  records, and other indexed recasts stay fenced because an element path cannot
-  represent their complete target footprint.
+  requires a nonzero literal length at every array level and ends in either one
+  exact fact-free non-Boolean fixed-width primitive or an eligible closed
+  record. Primitive-terminal arrays require an exactly tiled shared
+  representation. Record-terminal arrays repeat the complete normalized padded
+  record extent. Record eligibility and representation recursion use exact
+  symbol identity and require a nonzero, nongeneric, quotient-free, acyclic,
+  all-relevant, recursively fact-free shape. Runtime or merely bounded offsets,
+  slices, records containing array fields, generic/invariant-bearing/erased/
+  cased records, and other indexed recasts stay fenced because an element path
+  cannot represent their complete target footprint.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),
