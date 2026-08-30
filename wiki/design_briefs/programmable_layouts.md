@@ -532,9 +532,14 @@ named conformance whose exact concrete policy/schema pair already owns a
 source-derived placed-view plan. Direct erased record fields absent from that
 physical plan must match the custody record by canonical path, exact normalized
 type, and multiplicity, while represented fields are forbidden there.
-Diagnostics retain the exact `Policy::plan` machine and represented
-offset/width decision. This is ordinary conformance checking only; recursive,
-case-dependent, planless, and establishment-operation custody remain open.
+One represented acyclic, non-generic, case-free checked-record field may also
+project its direct erased leaves through an authored nested custody record.
+The checker preserves each complete root-to-leaf path and rejects represented
+nested siblings using the enclosing field's exact plan entry. Diagnostics
+retain the exact `Policy::plan` machine and represented offset/width decision.
+This is ordinary conformance checking only; deeper recursion, zero-layout
+wrappers, arrays, generic, case-dependent, planless, and establishment-operation
+custody remain open.
 
 Remaining compiler and language work:
 
