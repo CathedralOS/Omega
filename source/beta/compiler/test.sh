@@ -224,6 +224,45 @@ incomplete() {
   fi
 }
 
+internal_mutant() {
+  name=$1
+  reason=$2
+  needle=$3
+  occurrence=$4
+  replacement=$5
+  source=$6
+  expected_coordinate=${7-}
+  mutant_source="$TMP/$name.alpha"
+  mutant_tape="$TMP/$name.compiler.tape"
+  mutant_executable="$TMP/$name.compiler"
+  if ! awk -v needle="$needle" -v occurrence="$occurrence" \
+      -v replacement="$replacement" '
+        $0 == needle {
+          seen++
+          if (seen == occurrence) { print replacement; changed++; next }
+        }
+        { print }
+        END { if (changed != 1) exit 1 }
+      ' "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$mutant_source" ||
+     ! "$ASSEMBLER" < "$mutant_source" > "$mutant_tape"; then
+    echo "FAIL $name: could not construct the single-site compiler mutant" >&2
+    fail=$((fail + 1))
+    return
+  fi
+  stamp_seed "$mutant_tape" "$SEED" "$mutant_executable" >/dev/null
+  set +e
+  printf '%s\n' "$source" | "$mutant_executable" > "$TMP/$name.out"
+  status=$?
+  set -e
+  if [ "$status" -eq 3 ] && expect_failure "$TMP/$name.out" "$status" \
+      "$reason" 0 0 "$expected_coordinate"; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: did not return canonical InternalFailure/$reason (status=$status)" >&2
+    fail=$((fail + 1))
+  fi
+}
+
 # Compile a valid source without running its artifact and pin the exact private
 # tape extent. This is used at the maximum runnable Alpha payload, where
 # execution would only add noise to the compiler-capacity check.
@@ -690,6 +729,23 @@ else
   echo "FAIL source_over_precedence: slurp refusal did not remain the first outcome" >&2
   fail=$((fail + 1))
 fi
+
+# Every closed InternalFailure reason has a positive producer test. The
+# production capacities remain unchanged; each temporary compiler lowers one
+# otherwise dominated invariant and must publish the exact canonical frame.
+internal_source='proc main() { return 0 }'
+internal_mutant internal_replay_rejected replay_rejected \
+  '        jnz   r0, internal_error' 1 '        jmp   internal_error' "$internal_source"
+internal_mutant internal_replay_length_mismatch replay_length_mismatch \
+  '        jeq   r1, r2, source_patch' 1 '        jlt   r1, r1, source_patch' "$internal_source"
+internal_mutant internal_replay_payload_overflow replay_payload_overflow \
+  '        jeq   r1, r2, eb_error' 1 '        jmp   eb_error' "$internal_source" 0
+internal_mutant internal_fixup_capacity fixup_capacity \
+  '        jeq   r7, r1, af_error' 1 '        jmp   af_error' "$internal_source" 0
+internal_mutant internal_pc_capacity internal_pc_capacity \
+  '        jlt   r6, r1, rip_store' 1 '        jmp   rip_error' "$internal_source" 0
+internal_mutant internal_post_validation_resolution post_validation_resolution \
+  '        jlt   r6, r1, rpc_store' 1 '        jmp   rpc_error' "$internal_source" 0
 
 echo "Beta compiler complete surface: $pass passed, $fail failed ($(wc -c < "$TMP/compiler.tape" | tr -d ' ')-byte compiler tape)"
 [ "$fail" -eq 0 ]
