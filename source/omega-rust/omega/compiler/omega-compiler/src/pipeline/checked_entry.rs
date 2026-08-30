@@ -530,8 +530,6 @@ struct CheckedFrontend {
     selected_target_machine_declarations:
         crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<psi_source::SourceId>,
-    boundary_calling_plan_realizations:
-        Vec<crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization>,
 }
 
 fn lower_checked_frontend(
@@ -569,16 +567,10 @@ fn lower_checked_frontend(
     // so the evaluator receives the same exact requirement identity that the
     // checker will subsequently validate and retain.
     psi_validation::resolve_dynamic_call_targets(&mut typed)?;
-    let boundary_calling_plan_realizations =
-        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
-            &mut typed,
-            package_inputs,
-        )?;
     Ok(CheckedFrontend {
         typed,
         selected_target_machine_declarations,
         build_source_id,
-        boundary_calling_plan_realizations,
     })
 }
 
@@ -789,9 +781,8 @@ fn compile_to_checked_inner_with_replay(
         Some(*selected)
     };
     let CheckedFrontend {
-        typed,
+        mut typed,
         selected_target_machine_declarations,
-        mut boundary_calling_plan_realizations,
         ..
     } = frontend;
     let selected_build_machine_identity = selected_build_machine_symbol
@@ -819,6 +810,16 @@ fn compile_to_checked_inner_with_replay(
     let build_observation_summary = computed_build_config.observation_summary;
     let optimization_report = computed_build_config.optimization_report_request;
     let build_config = computed_build_config.config;
+    let selected_native_target = selected_target_profile
+        .map(omega_target::TargetProfile::native_target)
+        .unwrap_or_else(omega_target::NativeTarget::host);
+    let mut boundary_calling_plan_realizations =
+        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
+            &mut typed,
+            selected_native_target,
+            &build_config.opaque_representation_selections,
+            package_inputs,
+        )?;
     let subsystem = build_config.subsystem;
     let optimization_selections = build_config.optimizations.clone();
     let optimization_selection_identity = optimization_selections.identity();

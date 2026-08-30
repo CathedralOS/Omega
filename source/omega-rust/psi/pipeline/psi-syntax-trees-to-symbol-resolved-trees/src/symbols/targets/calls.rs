@@ -350,6 +350,45 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     };
 }
 
+/// Resolve `Build::select_representation` arguments as declaration identity,
+/// not as executable static machines.
+pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
+    symbols: &SymbolTable,
+    argument: &mut psi_symbol_resolved_trees::expression::StaticMachineArgument,
+    opaque_argument: bool,
+) {
+    if argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+        || argument.application.is_some()
+    {
+        argument.symbol = SymbolHandle::invalid();
+        return;
+    }
+    let rendered = argument
+        .path
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let kinds = if opaque_argument {
+        &[SymbolKind::Data][..]
+    } else {
+        &[SymbolKind::Conformance][..]
+    };
+    let exact = argument.path.last().and_then(|name| {
+        symbols.find_top_level_by_name_and_kinds_from_source(&rendered, kinds, name.source_span())
+    });
+    argument.symbol = exact.unwrap_or_else(|| {
+        symbols
+            .find_descendant_by_path(
+                symbols.root(),
+                argument.path.iter().map(|member| member.as_str()),
+            )
+            .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
+            .unwrap_or_else(SymbolHandle::invalid)
+    });
+}
+
 /// Resolve a proof-static proposition-family binder argument. Unlike an
 /// executable call's machine selection, proposition arguments may name a
 /// lexical type/const binder, a concrete type, or a machine identity. The

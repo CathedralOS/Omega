@@ -168,6 +168,7 @@ fn extract_external_binding_rows_for_scope(
                 (None, Some(policy)) => {
                     crate::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
                         typed,
+                        native_target,
                         &plan.schema.trait_name,
                         &row.method,
                         &row.requirement_identity,
@@ -383,7 +384,9 @@ fn selected_source_boundary_entry_plan(
             matching_realizations.len()
         )));
     };
-    let validated = realization.replayed_validated_plan().map_err(|error| {
+    let (validated, application_report_fingerprint, application_commitment) = realization
+        .replayed_validated_application()
+        .map_err(|error| {
         Diagnostic::error(format!(
             "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` retained an invalid target calling-plan realization: {error}"
         ))
@@ -393,8 +396,8 @@ fn selected_source_boundary_entry_plan(
             "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
         )));
     }
-    if realization.report_fingerprint != validated.contract_report_fingerprint()
-        || realization.commitment.as_bytes() != validated.contract_commitment_digest()
+    if realization.report_fingerprint != application_report_fingerprint
+        || realization.commitment != application_commitment
     {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling-plan commitment behind its compact report fingerprint"

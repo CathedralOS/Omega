@@ -218,39 +218,28 @@ These tasks consume settled language and architecture decisions across package,
 compiler, and runtime owners. A task that still needs an owner decision says so
 explicitly.
 
-- [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Implement lazy representation demand for
-  runtime-relevant opaque boundary data. Add compiler-owned
-  `OpaqueRepresentation<Opaque>` with ordinary type-parameter spelling. A named
-  conformance such as `PicAckCarrier satisfies
-  OpaqueRepresentation<InterruptAcknowledgement>` declares an inert candidate;
-  typed `Build::select_representation<Opaque, Conformance>()` selects only that
-  already-authored relationship. The compiler derives the carrier's closed
-  representation rather than accepting source-authored sizes, alignments, ABI
-  classes, or numeric IDs.
+- [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
+  `omega-representation-planning` now owns exact build
+  selection and named-conformance closure. The compiler recognizes only the
+  toolchain `core/representation.omg` trait, rejects duplicate, mismatched,
+  lookalike, non-opaque, and non-closed-carrier selections, and derives a
+  by-value calling shape recursively from the concrete carrier. Calling-policy
+  evaluation now occurs after build evaluation, uses selected target pointer
+  geometry, rejects a missing by-value selection, leaves reference-only
+  pointees unbound, and commits the target, complete shape graph, and selected
+  conformance application into the calling-plan application identity.
 
-  Require one exact target-closed representation application before evaluating
-  any runtime by-value calling plan. References do not demand the pointee's
-  representation, and proof-erased boundary data demands none. Permit compiler-
-  sealed families such as `Ptr<T>` to resolve from target semantics without a
-  package candidate. Keep representation source, minting route, and domain
-  authority as separate evidence lanes. The opaque declaration owns semantic
-  multiplicity and terminal discharge; the carrier contributes only physical
-  movement and storage finalization, which must compose with rather than replace
-  that discharge.
+  Remaining work only:
 
-  Rejoin every producer and consumer to the same application. Retain its exact
-  identity in type layout, boundary signature, calling-plan application,
-  package review, artifact compatibility, and replacement-facing contracts.
-  A by-value exported descriptor is a mandatory static compatibility row:
-  independently replaceable providers must preserve it. A stable handle keeps
-  its own descriptor fixed while provider backing may vary and outstanding
-  non-copy handles pin their era; an unstable descriptor expands the replacement
-  cohort to consumers or rejects independent replacement. Missing, duplicate,
-  conflicting, stale, ambient, runtime-installation-selected, and policy-
-  invented representations reject. Add pass/fail coverage for inline interrupt
-  carriers, compiler-owned pointers, reference-only `EfiSystemTable`, proof-only
-  `Real`, wrong opaque subject, lookalike representation traits, provider drift,
-  descriptor replay drift, and illegal carrier cleanup/multiplicity changes.
+  - carry the same application into general type layout and physical
+    move/finalization planning, including cleanup and multiplicity checks;
+  - publish demanded/bound representation rows in package review and require
+    producer/consumer agreement;
+  - bind the application into artifacts, replacement compatibility, stable-
+    handle era rules, and independently replaceable provider contracts;
+  - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,
+    `EfiSystemTable`, provider drift, replay drift, and cleanup/multiplicity
+    canaries.
 
 - [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES — consume the projected profile
   columns downstream.** The syntax projector now closes unconditional and exact

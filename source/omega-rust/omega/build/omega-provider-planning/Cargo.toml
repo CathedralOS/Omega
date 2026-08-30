@@ -25,6 +25,7 @@ omega-external-roots = { path = "../../backend/runtime/omega-external-roots", op
 omega-layout = { path = "../../backend/omega-layout" }
 omega-package-compilation = { path = "../omega-package-compilation" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
+omega-representation-planning = { path = "../omega-representation-planning" }
 omega-target = { path = "../../representations/omega-target" }
 omega-task-plans = { path = "../../representations/omega-task-plans" }
 omega-trust-model = { path = "../omega-trust-model" }

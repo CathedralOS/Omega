@@ -709,6 +709,8 @@ fn checked_call_intrinsic(
         Some(Intrinsic::ByteSequencePredicate(predicate))
     } else if target == "select_provider" {
         Some(Intrinsic::BuildProviderSelection)
+    } else if target == "select_representation" {
+        Some(Intrinsic::BuildRepresentationSelection)
     } else if target.starts_with("accept_boundary#") {
         Some(Intrinsic::BuildBoundaryAcceptance)
     } else if target.starts_with("wire_compatibility#") {

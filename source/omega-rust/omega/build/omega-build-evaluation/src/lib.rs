@@ -61,6 +61,7 @@ use std::path::{Path, PathBuf};
 
 use omega_optimization_core::{Optimization, OptimizationSelections};
 use omega_provider_planning::{ProviderSelection, ProviderSelectionIdentity};
+use omega_representation_planning::OpaqueRepresentationSelection;
 
 use omega_build_output::{
     BuildStagedOutputTree, PackageGeneratedSource, ReplayedBuildOutputEntry, capture, empty,
@@ -282,6 +283,9 @@ pub struct BuildConfig {
     /// declarations harvested from the authoritative build machine; they are
     /// validated against derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
+    /// Exact named conformances activated as physical carriers for
+    /// boundary-opaque values. The compiler derives shape from each carrier.
+    pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     /// Chapter 21 channel/store compatibility demands. Each marker names the
     /// edge, format lineage, local and peer schemas, and the directional facts
     /// the final build requires.
@@ -1698,14 +1702,16 @@ pub fn validate_selected_program_entry_calling_plan(
         ("semantic", *semantic_realization),
         ("physical", *physical_realization),
     ] {
-        let validated = realization.replayed_validated_plan().map_err(|error| {
+        let (validated, application_report_fingerprint, application_commitment) = realization
+            .replayed_validated_application()
+            .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "target boundary schema `{schema_name}` retains an invalid {role} calling plan: {error}"
             ))]
         })?;
         if realization.exact_boundary_entry_plan() != validated.plan()
-            || realization.report_fingerprint != validated.contract_report_fingerprint()
-            || realization.commitment.as_bytes() != validated.contract_commitment_digest()
+            || realization.report_fingerprint != application_report_fingerprint
+            || realization.commitment != application_commitment
         {
             return Err(vec![Diagnostic::error(format!(
                 "target boundary schema `{schema_name}` does not retain exact {role} calling-plan identity and custody"
@@ -1965,6 +1971,7 @@ impl Default for BuildConfig {
             optimizations: OptimizationSelections::default(),
             grants: Vec::new(),
             provider_selections: Vec::new(),
+            opaque_representation_selections: Vec::new(),
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
         }
@@ -4107,6 +4114,8 @@ pub fn compute_build_config(
     })?;
     config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
     config.provider_selections = harvest_provider_selections(typed, machine)?;
+    config.opaque_representation_selections =
+        omega_representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
     let captured_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
@@ -4818,6 +4827,7 @@ fn extract_build_config(
             optimizations,
             grants: Vec::new(),
             provider_selections: Vec::new(),
+            opaque_representation_selections: Vec::new(),
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
         },

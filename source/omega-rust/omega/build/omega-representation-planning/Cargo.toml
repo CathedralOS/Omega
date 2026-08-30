@@ -1,0 +1,17 @@
+[package]
+name = "omega-representation-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_representation_planning"
+path = "src/lib.rs"
+
+[dependencies]
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }

@@ -1,7 +1,4 @@
-use omega_calling_conventions::{
-    CallSignature, CallingPolicy, EntryControl, EntryStack, MachineState, MachineStateSet,
-    Preemption, ValueShape,
-};
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape};
 use omega_compiler::compile_to_checked;
 use omega_provider_planning::calling_policy_plans::evaluate_calling_policy_plan;
 use omega_provider_planning::plans::{
@@ -22,6 +19,25 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     let main_path = directory.join("main.omg");
     fs::write(&main_path, source).expect("write calling-policy test program");
     main_path
+}
+
+fn write_project(name: &str, source: &str, build: &str) -> PathBuf {
+    let main = write_program(name, source);
+    fs::write(
+        main.parent().expect("project directory").join("build.omg"),
+        build,
+    )
+    .expect("write calling-policy build file");
+    main
+}
+
+fn compile_project_negative(name: &str, source: &str, build: &str) -> String {
+    compile_to_checked(&write_project(name, source, build), None)
+        .expect_err("negative opaque representation project must reject")
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn compile_std_negative(name: &str, source: &str) -> String {
@@ -516,6 +532,17 @@ const INTERRUPT_POLICY: &str = r#"
 use omega::language::std::calling;
 use omega::language::core::interrupt;
 
+data PicAckCarrier {
+    physical_root: u64;
+    execution: u64;
+    invocation: u64;
+    policy: u64;
+    acknowledgement: u64;
+}
+
+PicAckRepresentation:
+    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;
+
 data X86InterruptPolicy { }
 X86InterruptPolicyCallingPolicy: X86InterruptPolicy satisfies CallingPolicy;
 
@@ -531,6 +558,20 @@ machine X86InterruptPolicy::plan(
 
     state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition root < 256 {
+            true -> size(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].byte_size == 40 {
+            true -> alignment(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].alignment == 8 {
             true -> build(signature, root)
             _ -> reject()
         }
@@ -630,39 +671,24 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
 
-#[test]
-#[ignore = "TASKS_PACKAGE_MANAGER OPAQUE-BY-VALUE-BOUNDARY-ABI: implementation pending"]
-fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
-    let main_path = write_program("interrupt-entry", INTERRUPT_POLICY);
-    let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
-    let validated = evaluate_calling_policy_plan(
-        &checked.typed,
-        "X86InterruptPolicy::plan",
-        &CallSignature {
-            parameters: vec![ValueShape::integer(40, 8)],
-            result: None,
-        },
-    )
-    .expect("interrupt policy should validate");
-    let plan = validated.plan();
+const INTERRUPT_REPRESENTATION_BUILD: &str = r#"
+machine build(builder: &mut Build) {
+    builder.application("interrupt-entry");
+    builder.select_representation<
+        InterruptAcknowledgement,
+        PicAckRepresentation
+    >();
+}
+"#;
 
-    assert_eq!(plan.call.policy, CallingPolicy::SystemVAMD64);
-    assert_eq!(plan.call.entry_control, EntryControl::InterruptReturn);
-    assert_eq!(plan.state.stack, EntryStack::Dedicated { class: 1 });
-    assert_eq!(plan.state.preemption, Preemption::Masked);
-    let saved = MachineStateSet::new([
-        MachineState::GeneralRegisters,
-        MachineState::Flags,
-        MachineState::InstructionPointer,
-        MachineState::StackPointer,
-    ]);
-    assert_eq!(plan.state.saved_state, saved);
-    assert_eq!(plan.state.restored_state, saved);
-    assert!(
-        plan.state
-            .interrupted_state
-            .contains_all(saved.union(MachineStateSet::new([MachineState::VectorRegisters])))
+#[test]
+fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
+    let main_path = write_project(
+        "interrupt-entry",
+        INTERRUPT_POLICY,
+        INTERRUPT_REPRESENTATION_BUILD,
     );
+    let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
 
     let timer = checked
         .typed
@@ -672,10 +698,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .expect("TimerRoot boundary trait");
     let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, timer)
         .expect("TimerRoot service schema");
-    assert_eq!(
-        schema.methods[0].calling_plan_report_fingerprint,
-        Some(validated.contract_report_fingerprint())
-    );
+    assert!(schema.methods[0].calling_plan_report_fingerprint.is_some());
     let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
     assert_eq!(selected.name, "TimerProvider::satisfies::TimerRoot");
     let mask_plan =
@@ -975,6 +998,148 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
 }
 
 #[test]
+fn opaque_by_value_boundary_rejects_without_build_selection() {
+    let rendered = compile_project_negative(
+        "interrupt-missing-representation",
+        INTERRUPT_POLICY,
+        "machine build(builder: &mut Build) { builder.application(\"interrupt-entry\"); }",
+    );
+    assert!(
+        rendered.contains("InterruptAcknowledgement")
+            && rendered.contains("authoritative build selects no exact"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn reference_only_opaque_boundary_does_not_demand_representation_selection() {
+    let source = INTERRUPT_POLICY
+        .replace(
+            "boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {",
+            "boundary trait TimerRoot: Calling<X86InterruptPolicy> {\n    machine inspect(acknowledgement: &InterruptAcknowledgement);",
+        )
+        .replace("signature.shapes[root].byte_size == 40", "signature.shapes[root].byte_size == 8")
+        .replace(
+            "machine enter(acknowledgement: InterruptAcknowledgement in Pending)\n    reaches PortIo;",
+            "machine enter(acknowledgement: &InterruptAcknowledgement);",
+        )
+        .replace(
+            "machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)\n    satisfies InterruptEntry::enter\n    reaches PortIo\n{\n    acknowledgement.complete();\n}",
+            "machine TimerProvider::inspect(acknowledgement: &InterruptAcknowledgement)\n    satisfies TimerRoot::inspect\n{\n}",
+        )
+        .replace(
+            "machine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)\n    satisfies LookalikeEntry::enter\n    reaches PortIo\n{\n    acknowledgement.complete();\n}",
+            "machine LookalikeEntryProvider::enter(acknowledgement: &InterruptAcknowledgement)\n    satisfies LookalikeEntry::enter\n{\n}",
+        );
+    let main = write_project(
+        "interrupt-reference-only-representation",
+        &source,
+        "machine build(builder: &mut Build) { builder.application(\"interrupt-entry\"); }",
+    );
+    compile_to_checked(&main, None)
+        .expect("a reference-only opaque pointee must not demand representation closure");
+}
+
+#[test]
+fn opaque_representation_rejects_duplicate_build_selection() {
+    let duplicate = INTERRUPT_REPRESENTATION_BUILD.replace(
+        "    >();",
+        "    >();\n    builder.select_representation<InterruptAcknowledgement, PicAckRepresentation>();",
+    );
+    let rendered = compile_project_negative(
+        "interrupt-duplicate-representation",
+        INTERRUPT_POLICY,
+        &duplicate,
+    );
+    assert!(
+        rendered.contains("selects opaque representation") && rendered.contains("more than once"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn opaque_representation_rejects_conformance_for_another_opaque_type() {
+    let source = INTERRUPT_POLICY.replace(
+        "PicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;",
+        "pub boundary data OtherAcknowledgement [linear];\n\nPicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<OtherAcknowledgement>;",
+    );
+    let rendered = compile_project_negative(
+        "interrupt-mismatched-representation",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    assert!(
+        rendered.contains("represents `OtherAcknowledgement`")
+            && rendered.contains("InterruptAcknowledgement"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn opaque_representation_rejects_a_trait_lookalike() {
+    let source = INTERRUPT_POLICY.replace(
+        "PicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;",
+        "trait RepresentationLookalike<Opaque> { }\n\nPicAckRepresentation:\n    PicAckCarrier satisfies RepresentationLookalike<InterruptAcknowledgement>;",
+    );
+    let rendered = compile_project_negative(
+        "interrupt-lookalike-representation",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    assert!(
+        rendered.contains("does not satisfy the exact compiler-owned")
+            && rendered.contains("OpaqueRepresentation"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn changing_the_selected_opaque_conformance_reissues_the_calling_application() {
+    fn timer_calling_application(checked: &omega_compiler::CheckedCompilation) -> u64 {
+        let timer = checked
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "TimerRoot")
+            .expect("TimerRoot boundary trait");
+        omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, timer)
+            .expect("TimerRoot service schema")
+            .methods[0]
+            .calling_plan_report_fingerprint
+            .expect("TimerRoot calling application")
+    }
+
+    let first = compile_to_checked(
+        &write_project(
+            "interrupt-representation-identity-first",
+            INTERRUPT_POLICY,
+            INTERRUPT_REPRESENTATION_BUILD,
+        ),
+        None,
+    )
+    .expect("first representation application");
+    let alternate_source =
+        INTERRUPT_POLICY.replace("PicAckRepresentation:", "AlternatePicAckRepresentation:");
+    let alternate_build = INTERRUPT_REPRESENTATION_BUILD
+        .replace("PicAckRepresentation", "AlternatePicAckRepresentation");
+    let alternate = compile_to_checked(
+        &write_project(
+            "interrupt-representation-identity-alternate",
+            &alternate_source,
+            &alternate_build,
+        ),
+        None,
+    )
+    .expect("alternate representation application");
+
+    assert_ne!(
+        timer_calling_application(&first),
+        timer_calling_application(&alternate),
+        "an exact named-conformance substitution must reissue the calling application even when carrier shape is unchanged"
+    );
+}
+
+#[test]
 fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
     let main_path = write_program("accepted", POLICY);
     let checked = compile_to_checked(&main_path, None).expect("policy program should compile");
@@ -999,20 +1164,25 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
     let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
         .expect("Tick service schema");
     assert_eq!(schema.methods.len(), 1);
-    assert_eq!(
-        schema.methods[0].calling_plan_report_fingerprint,
-        Some(validated.contract_report_fingerprint())
+    let application_report = schema.methods[0]
+        .calling_plan_report_fingerprint
+        .expect("boundary method must publish its complete calling-plan application");
+    assert_ne!(
+        application_report,
+        validated.contract_report_fingerprint(),
+        "the retained application must bind target and semantic signature beside the accepted policy output"
     );
     let retained = checked
         .typed
         .boundary_calling_plans
         .iter()
-        .find(|identity| identity.report_fingerprint == validated.contract_report_fingerprint())
+        .find(|identity| identity.report_fingerprint == application_report)
         .expect("typed semantic identity for the published boundary contract");
     assert_ne!(retained.report_fingerprint, 0);
-    assert_eq!(
+    assert_ne!(
         retained.commitment.as_bytes(),
-        validated.contract_commitment_digest()
+        validated.contract_commitment_digest(),
+        "raw policy acceptance is not the complete target-closed application"
     );
 }
 

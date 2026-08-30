@@ -118,34 +118,12 @@ fn fixture_with_inventory(
         &CallSignature::default(),
     )
     .expect("empty ordinary boundary plan");
-    let fingerprint = validated.contract_report_fingerprint();
     let expected = validated.plan().clone();
-    let method = ServiceMethod {
-        name: METHOD_NAME.to_owned(),
-        requirement_owner: requirement_owner_name.to_owned(),
-        requirement_identity: requirement_identity.clone(),
-        calling_plan_report_fingerprint: Some(fingerprint),
-        calling_plan_commitment: Some(
-            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
-            ),
-        ),
-        ..Default::default()
-    };
-    let plan = ProviderPlan {
-        name: PLAN_NAME.to_owned(),
-        schema: ServiceSchema {
-            trait_name: SCHEMA_NAME.to_owned(),
-            trait_package_identity: None,
-            methods: vec![method],
-        },
-        ..Default::default()
-    };
-    let realization = BoundaryCallingPlanRealization {
+    let mut realization = BoundaryCallingPlanRealization {
         boundary_trait: schema_owner_symbol,
         boundary_arguments: Vec::new(),
         requirement_machine: requirement_symbol,
-        report_fingerprint: fingerprint,
+        report_fingerprint: validated.contract_report_fingerprint(),
         commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
             validated.contract_commitment_digest(),
         ),
@@ -162,6 +140,28 @@ fn fixture_with_inventory(
                 &CallSignature::default(),
             )
             .unwrap(),
+    };
+    let (_, fingerprint, commitment) = realization
+        .replayed_validated_application()
+        .expect("fixture application identity");
+    realization.report_fingerprint = fingerprint;
+    realization.commitment = commitment;
+    let method = ServiceMethod {
+        name: METHOD_NAME.to_owned(),
+        requirement_owner: requirement_owner_name.to_owned(),
+        requirement_identity: requirement_identity.clone(),
+        calling_plan_report_fingerprint: Some(fingerprint),
+        calling_plan_commitment: Some(commitment),
+        ..Default::default()
+    };
+    let plan = ProviderPlan {
+        name: PLAN_NAME.to_owned(),
+        schema: ServiceSchema {
+            trait_name: SCHEMA_NAME.to_owned(),
+            trait_package_identity: None,
+            methods: vec![method],
+        },
+        ..Default::default()
     };
     Fixture {
         typed,

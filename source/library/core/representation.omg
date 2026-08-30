@@ -1,0 +1,7 @@
+// Compiler-owned relationship between provider-backed opaque semantics and a
+// concrete physical carrier. The relationship is inert until the authoritative
+// build selects one exact named conformance. The carrier, not source-authored
+// ABI numbers, supplies representation.
+
+pub trait OpaqueRepresentation<Opaque> {
+}

@@ -277,6 +277,51 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 continue;
             }
 
+            // An opaque representation selection names semantic data and an
+            // already-authored conformance. No ABI values are accepted here.
+            if member.as_str() == "select_representation"
+                && rest.at_punctuation(PunctuationKind::Less)
+            {
+                let Some((machine_arguments, path_input)) =
+                    try_parse_static_machine_arguments(rest)?
+                else {
+                    return Err(rest.error_here(
+                        "`select_representation` requires an opaque data type and named conformance",
+                    ));
+                };
+                if machine_arguments.len() != 2
+                    || machine_arguments.iter().any(|argument| {
+                        argument.path.is_empty()
+                            || argument.application.is_some()
+                            || argument.const_literal.is_some()
+                            || argument.evidence_projection.is_some()
+                    })
+                {
+                    return Err(rest.error_here(
+                        "`select_representation` requires exactly two plain declaration paths",
+                    ));
+                }
+                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if !after_open.at_punctuation(PunctuationKind::RightParen) {
+                    return Err(after_open.error_here(
+                        "`select_representation` takes its opaque type and named conformance in angle brackets and no value arguments",
+                    ));
+                }
+                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                expression =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            receiver: expression,
+                            target: member,
+                            machine_arguments,
+                            arguments: HandleSpan::empty(),
+                            evidence_arguments: Box::default(),
+                            operational_acknowledgement: Default::default(),
+                        }));
+                continue;
+            }
+
             // CH21 EDGE-SPECIFIC WIRE COMPATIBILITY DEMAND:
             //
             // `b.require_wire_compatibility<
