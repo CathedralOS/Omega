@@ -192,8 +192,11 @@ does not yet fully satisfy this contract.
   selected-plan entrance over a historical scalar leaf and a 71-line structural
   entrance; structural ABI, call, declaration, settlement, and signature fields
   descend into named leaves below it.
-- Five production-classified leaves remain at 750-1,000 lines in register
-  allocation, machine planning, selected validation, rewriting, and lowering.
+- Spill-choice computation and normalized foreign-scalar boundary-call lowering
+  now retain cohesive 495- and 514-line production leaves while their focused
+  fixtures live in adjacent 280- and 259-line test leaves.
+- Three production-classified leaves remain at 750-1,000 lines in selected
+  validation, legalization source classification, and rewrite modeling.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of

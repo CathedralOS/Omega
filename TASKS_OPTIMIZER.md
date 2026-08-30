@@ -89,9 +89,14 @@ decision. Only true language-semantic questions belong in
 - [x] Split AArch64 MOVN proposal computation into a 95-line meaningful join
   over source admission, bounded selection, recipe, materialization, budget,
   and focused test leaves; its largest leaf is 328 lines.
+- [x] Extract spill-choice proposal fixtures from its cohesive 495-line
+  computation leaf into an adjacent 280-line focused test leaf without
+  changing proposal/replay behavior.
+- [x] Extract normalized foreign-scalar boundary-call fixtures from its
+  cohesive 514-line lowering leaf into an adjacent 259-line focused test leaf.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 5 production-classified leaves at 750+ lines. Continue with spill choice,
-  selected validation, rewrite, and remaining lowering leaves.
+  has 3 production-classified leaves at 750+ lines. Continue with selected
+  validation, legalization source classification, and rewrite modeling.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
   register-allocation, and selected-lowering matrices now mirror their
