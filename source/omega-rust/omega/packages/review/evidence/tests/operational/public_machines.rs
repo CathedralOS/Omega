@@ -6,14 +6,14 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
     package.write("main.omg", "pub machine Package::entry() { }\n");
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public machine should check");
@@ -154,7 +154,7 @@ invokes Host;
 }
 "#,
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     quiet.write("build.omg", build);
@@ -163,7 +163,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let compile = |package: &TempPackage| {
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("invocation comparison fixture should check")

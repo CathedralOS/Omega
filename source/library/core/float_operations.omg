@@ -19,8 +19,8 @@ use omega::language::core::float_format;
 use omega::language::core::float_meaning;
 use omega::language::core::targets::macos_arm64::float_impl;
 use omega::language::core::targets::linux_arm64::float_impl;
-use omega::language::core::targets::linux_x64::float_impl;
-use omega::language::core::targets::windows_x64::float_impl;
+use omega::language::core::targets::linux_x86_64::float_impl;
+use omega::language::core::targets::windows_x86_64::float_impl;
 
 // Nominal owner of the selected native float-operation provider closure.
 // Target-scoped leaves below satisfy exact overloaded boundary-operator

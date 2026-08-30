@@ -110,7 +110,7 @@ fn assert_runtime_canary(canary_name: &str, tag: &str) {
         "host build directory should be removed after execution"
     );
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_build = unique_build_dir(&format!("{tag}-{target}"));
         compile(CompileOptions {
             root_path: canary.join("main.omg"),

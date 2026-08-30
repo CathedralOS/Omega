@@ -74,7 +74,7 @@ fn graph_workbench_question() -> (
     )
     .expect("resolve graph-workbench source closure");
     let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x64", &temporary.join("build"))
+        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
             .expect("compile graph-workbench package reviews");
     let question = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
         &closure,
@@ -91,7 +91,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     let limits = CanonicalPackageReconstructionQuestionLimits::default();
 
     assert_eq!(question.entries().len(), closure.graph().packages().len());
-    assert_eq!(question.target_name(), "windows_x64");
+    assert_eq!(question.target_name(), "windows_x86_64");
     assert!(
         question
             .entries()

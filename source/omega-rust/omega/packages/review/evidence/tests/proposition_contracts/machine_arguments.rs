@@ -23,8 +23,8 @@ ensures result == apply<{selected}>(0);
     };
     package.write("main.omg", &source("chosen"));
     changed.write("main.omg", &source("alternate"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -111,8 +111,8 @@ requires apply<{binder}>(value) == apply<{binder}>(value)
         );
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
-target linux_x64 { }
+            r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -191,8 +191,8 @@ ensures result == inspect<identity<sample>>();
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

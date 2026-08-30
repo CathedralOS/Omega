@@ -30,8 +30,8 @@ pub machine consume()
 requires evidence: forwarded<i32>(1)
 { }
 "#;
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -228,8 +228,8 @@ pub proposition right_fact() evidence Evidence;
             "{prefix}pub machine consume()\nrequires right: right_fact()\nrequires left: left_fact()\n{{ }}\n"
         ),
     );
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -280,8 +280,8 @@ requires selected<{binding}.modulus>()
     };
     original.write("main.omg", &source("proof"));
     renamed.write("main.omg", &source("evidence"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

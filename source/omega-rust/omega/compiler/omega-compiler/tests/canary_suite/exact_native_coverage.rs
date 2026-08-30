@@ -861,7 +861,7 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
             compile(CanaryCompileSpec {
                 root_path: canary.join("main.omg"),
                 build_dir: Some(build),
-                target_name: Some("linux_x64".into()),
+                target_name: Some("linux_x86_64".into()),
                 product: CanaryCompileProduct::NativeArtifactAndPublish,
             }).expect("cross target should compile");
         }
@@ -870,14 +870,14 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
         #[test]
         fn cross_helper() {
             let canary = pass_canary("demo/cross-helper");
-            compile_canary_without_output_for_target(&canary, "uefi_x64").unwrap();
+            compile_canary_without_output_for_target(&canary, "uefi_x86_64").unwrap();
         }
     "#;
     let rooted = r#"
         #[test]
         fn rooted() {
             let canary = pass_canary("demo/rooted-target");
-            compile_rooted_canary_for_target(&canary, x64_build, "linux_x64").unwrap();
+            compile_rooted_canary_for_target(&canary, x64_build, "linux_x86_64").unwrap();
             compile_rooted_canary_for_target_with_auxiliary_artifacts(
                 &canary,
                 arm_build,
@@ -893,7 +893,7 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
         "root_path: source.join(\"main.omg\")",
     );
     let dynamic_target = cross.replace(
-        "target_name: Some(\"linux_x64\".into())",
+        "target_name: Some(\"linux_x86_64\".into())",
         "target_name: Some(target.into())",
     );
     let no_success = cross.replace(").expect(\"cross target should compile\");", ");");
@@ -926,18 +926,18 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
     ]);
 
     let owner = index
-        .unique_cross_target_owner("demo/cross", "linux_x64")
+        .unique_cross_target_owner("demo/cross", "linux_x86_64")
         .expect("one enabled exact direct-entry target owner should qualify");
     assert_eq!(owner.test_name, "cross");
     assert!(owner.source_path.ends_with("cross.rs"));
     assert!(
         index
-            .unique_cross_target_owner("demo/cross-helper", "uefi_x64")
+            .unique_cross_target_owner("demo/cross-helper", "uefi_x86_64")
             .is_some()
     );
     assert!(
         index
-            .unique_rooted_target_owner("demo/rooted-target", "linux_x64")
+            .unique_rooted_target_owner("demo/rooted-target", "linux_x86_64")
             .is_some()
     );
     assert!(
@@ -946,22 +946,22 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
             .is_some()
     );
     assert_eq!(
-        index.rooted_target_owner_count("demo/cross", "linux_x64"),
+        index.rooted_target_owner_count("demo/cross", "linux_x86_64"),
         0
     );
     assert_eq!(
-        index.cross_target_owner_count("demo/rooted-target", "linux_x64"),
+        index.cross_target_owner_count("demo/rooted-target", "linux_x86_64"),
         0
     );
 
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
     assert_eq!(
-        ambiguous.cross_target_owner_count("demo/cross", "linux_x64"),
+        ambiguous.cross_target_owner_count("demo/cross", "linux_x86_64"),
         2
     );
     assert!(
         ambiguous
-            .unique_cross_target_owner("demo/cross", "linux_x64")
+            .unique_cross_target_owner("demo/cross", "linux_x86_64")
             .is_none()
     );
 }

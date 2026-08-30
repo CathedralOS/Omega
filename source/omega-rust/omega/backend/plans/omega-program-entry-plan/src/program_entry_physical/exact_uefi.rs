@@ -1,17 +1,17 @@
 //! Exact UEFI x64 replay owned beside the physical entry-plan carrier.
 
 use omega_calling_conventions::{
-    validate_boundary_entry_plan, BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy,
-    EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState, MachineStateSet,
-    Preemption, RegisterSet, StatePlan, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement,
-    ValueShape,
+    BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
+    MachineRegime, MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet,
+    StatePlan, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
+    validate_boundary_entry_plan,
 };
 
 use super::ProgramEntryPhysicalContractPlan;
 
 const UEFI_X64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../library/std/targets/uefi_x64/entry.omg"
+    "/../../../../../library/std/targets/uefi_x86_64/entry.omg"
 ));
 
 /// Canonical checked-tree overload identity for `UefiPhysicalEntry::enter`.
@@ -32,8 +32,8 @@ pub const UEFI_X64_STATUS_TYPE_IDENTITY: &str = "named(name(EfiStatus))";
 
 /// Strong commitment to the exact closed UEFI target-package source compiled
 /// into this plan owner.
-pub fn exact_uefi_x64_physical_contract_package_source_digest(
-) -> super::ProgramEntryPhysicalContractPackageSourceDigest {
+pub fn exact_uefi_x64_physical_contract_package_source_digest()
+-> super::ProgramEntryPhysicalContractPackageSourceDigest {
     super::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
         omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
         UEFI_X64_TARGET_PACKAGE_SOURCE,
@@ -176,9 +176,11 @@ mod tests {
             128 * 1024,
         );
         assert_eq!(exact.guaranteed_entry_stack().required_alignment(), 16);
-        assert!(exact
-            .guaranteed_entry_stack()
-            .matches_exact_uefi_x64_entry_stack_guarantee());
+        assert!(
+            exact
+                .guaranteed_entry_stack()
+                .matches_exact_uefi_x64_entry_stack_guarantee()
+        );
 
         let mut requirement_drift = exact.clone();
         requirement_drift.requirement_identity =

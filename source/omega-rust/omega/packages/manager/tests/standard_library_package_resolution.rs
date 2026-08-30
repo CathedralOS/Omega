@@ -61,7 +61,7 @@ fn write_consumer(root: &Path, standard_library: Option<&Path>) {
     fs::write(
         root.join("build.omg"),
         format!(
-            r#"target windows_x64 {{ }}
+            r#"target windows_x86_64 {{ }}
 
 machine build(builder: &mut Build) {{
     builder.package("standard-library-consumer");
@@ -145,7 +145,7 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
         .expect("root source custody");
     let checked = compile_to_checked_with_packages(
         &root_snapshot.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         inputs,
     )
     .expect("the reconciled standard-library import should compile");
@@ -199,7 +199,7 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
 
     let diagnostics = compile_to_checked_with_packages(
         &root_snapshot.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         inputs,
     )
     .expect_err("an undeclared standard-library alias must not use bundled std");

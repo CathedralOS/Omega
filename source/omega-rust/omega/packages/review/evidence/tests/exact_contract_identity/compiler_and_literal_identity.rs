@@ -10,11 +10,11 @@ fn review_projects_width_landed_float_literals_by_exact_bits() {
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("width-landed float-literal contract should check");
@@ -67,11 +67,11 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("float landing-tamper fixture should check");
@@ -112,11 +112,11 @@ ensures result == 1.25
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("result-typed float contract should check");
@@ -163,11 +163,11 @@ pub trait Measures {
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("trait and operator result-float contracts should check");
@@ -185,11 +185,11 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("compiler-owned byte predicate should check");
@@ -243,11 +243,11 @@ fn review_projects_exact_compiler_builtin_function_identity() {
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("compiler builtin-function contract should check");
@@ -320,11 +320,11 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("builtin target-tamper fixture should check");
@@ -364,11 +364,11 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("raw-byte contract literal should check");
@@ -435,13 +435,13 @@ requires matrix({literal})
         );
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("nested array contract fixture should check");
@@ -492,13 +492,13 @@ requires values([source[0]])
     );
     nested.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
         &nested.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&nested.0),
     )
     .expect("array containing an indexed expression should check");

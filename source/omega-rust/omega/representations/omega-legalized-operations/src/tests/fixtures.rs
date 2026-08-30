@@ -70,7 +70,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         },
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
         fuel_schedule: FuelScheduleIdentity::new(1).expect("fuel schedule"),
-        target: NativeTarget::from_omega_target_name(Some("uefi_x64")).expect("UEFI target"),
+        target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
         entry: id(1),
         functions: Vec::new(),
         unit_functions: Vec::new(),

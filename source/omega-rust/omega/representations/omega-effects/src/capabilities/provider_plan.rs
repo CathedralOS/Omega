@@ -1888,7 +1888,7 @@ mod tests {
             name: "omega::host::standard::console".to_owned(),
             provider_type: "StandardConsole".to_owned(),
             provider_type_package_identity: None,
-            target: "windows_x64".to_owned(),
+            target: "windows_x86_64".to_owned(),
             schema,
             rows: vec![
                 ProviderPlanRow {
@@ -2822,12 +2822,12 @@ mod tests {
 
         let mut wrong_target =
             plan_with_binding(normalized_windows_import(b"kernel32.dll", b"WriteFile"));
-        wrong_target.target = "linux_x64".to_owned();
+        wrong_target.target = "linux_x86_64".to_owned();
         assert!(
             wrong_target
                 .validate_candidate_against_schema()
                 .iter()
-                .any(|error| error.contains("normalized import targets `windows_x64`"))
+                .any(|error| error.contains("normalized import targets `windows_x86_64`"))
         );
 
         for binding in [

@@ -18,14 +18,14 @@ pub boundary trait Worker {
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public trait suspension fixture should check");
@@ -82,14 +82,14 @@ pub boundary trait SchedulerAdmission {
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public trait termination fixture should check");
@@ -148,14 +148,14 @@ pub boundary trait SchedulerRuntime {
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let diagnostics = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect_err("ordinary visibility must reject a private profile in a public trait contract");

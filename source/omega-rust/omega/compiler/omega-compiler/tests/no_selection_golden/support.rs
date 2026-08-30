@@ -6,8 +6,12 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-pub(super) const HOSTED_NATIVE_TARGETS: [&str; 4] =
-    ["linux_x64", "linux_arm64", "macos_arm64", "windows_x64"];
+pub(super) const HOSTED_NATIVE_TARGETS: [&str; 4] = [
+    "linux_x86_64",
+    "linux_arm64",
+    "macos_arm64",
+    "windows_x86_64",
+];
 
 static BUILD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 

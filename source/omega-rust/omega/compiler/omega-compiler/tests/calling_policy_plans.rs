@@ -32,7 +32,7 @@ fn compile_std_negative(name: &str, source: &str) -> String {
         .join("source/library/std/tests")
         .join(format!(".callback-{name}-{}.omg", std::process::id()));
     fs::write(&path, source).expect("write hermetic callback source canary");
-    let result = compile_to_checked(&path, Some("windows_x64"));
+    let result = compile_to_checked(&path, Some("windows_x86_64"));
     fs::remove_file(&path).expect("remove hermetic callback source canary");
     result
         .expect_err("negative callback source canary must reject")
@@ -98,7 +98,7 @@ machine Main::main(&mut self) { }
 "#;
 
 const CALLBACK_MATERIALIZATION_POLICY: &str = r#"
-target windows_x64 {
+target windows_x86_64 {
 }
 
 use omega::language::core::layout;
@@ -253,7 +253,7 @@ fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
         CALLBACK_MATERIALIZATION_POLICY.trim_start_matches('\n'),
         "the source canary and its readable test fixture must remain identical"
     );
-    compile_to_checked(&main_path, Some("windows_x64"))
+    compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect("target-selected registrar should consume both exact closed layout demands");
 }
 
@@ -264,7 +264,7 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
         .nth(5)
         .unwrap()
         .join("source/library/std/tests/direct_callback_parameter.omg");
-    let checked = compile_to_checked(&main_path, Some("windows_x64"))
+    let checked = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect("target closure should place the declared direct callback parameter");
     let registrar = checked
         .typed
@@ -303,7 +303,7 @@ fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
     .unwrap()
     .replace("boundary trait HookRegistrar", "trait HookRegistrar");
     let main_path = write_program("direct-callback-nonboundary", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect_err("a non-boundary trait cannot declare a native callback parameter");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -327,7 +327,7 @@ fn direct_callback_parameter_requires_its_exact_nominal_binder() {
         "native callback procedure from Missing",
     );
     let main_path = write_program("direct-callback-missing-binder", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect_err("a direct callback cannot infer or invent its binder");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -343,7 +343,7 @@ fn callback_private_materialization_requires_an_explicit_cited_demand() {
         "    plan",
     );
     let main_path = write_program("callback-uncited-demand", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect_err("a nominal callback binder cannot assume an uncited private demand");
     let rendered = diagnostics
         .iter()
@@ -369,7 +369,7 @@ fn callback_private_materialization_rejects_a_foreign_layout_subject() {
             "OtherSpread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
         );
     let main_path = write_program("callback-wrong-layout", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect_err("a private slot cannot be cited by a foreign layout policy");
     let rendered = diagnostics
         .iter()
@@ -390,7 +390,7 @@ fn callback_private_materialization_rejects_an_ambiguous_requirement_path() {
         "boundary trait WindowProcedure {\n    machine call(message: u64) -> u64;\n    machine call(message: i64) -> u64;\n}",
     );
     let main_path = write_program("callback-ambiguous-requirement", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect_err("a signature-free callback requirement must resolve uniquely");
     let rendered = diagnostics
         .iter()

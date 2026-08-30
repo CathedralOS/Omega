@@ -18,7 +18,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
         let reviews = compile_resolved_package_reviews(
             &closure,
-            "windows_x64",
+            "windows_x86_64",
             &cache.join("compiler-build"),
         )
         .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));

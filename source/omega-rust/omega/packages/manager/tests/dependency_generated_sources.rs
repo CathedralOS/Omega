@@ -68,7 +68,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
 
     let reviews = compile_resolved_package_reviews(
         &closure,
-        "windows_x64",
+        "windows_x86_64",
         &temporary.join("compiler-build"),
     )
     .expect("dependency generated source should enter consumer compilation");

@@ -1,7 +1,7 @@
 use omega::language::core::extent;
 use omega::language::std::calling;
 
-// Target-owned UEFI physical contract. It remains a planned, non-invoked
+// Target-owned UEFI x86-64 physical contract. It remains a planned, non-invoked
 // surface until the settled target-runtime bootstrap adapter is built. That
 // adapter validates physical arrival, obtains image correspondence and
 // independent initial storage through scoped firmware providers, accounts for

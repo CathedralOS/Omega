@@ -9,14 +9,14 @@ fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public collection-length proposition should check");
@@ -70,14 +70,14 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public unary proposition should check");
@@ -168,14 +168,14 @@ requires buffer.len > 0
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("same-spelled package field contract should check");
@@ -229,8 +229,8 @@ requires (value as {target_type}) == 1
     };
     u16_cast.write("main.omg", &source("u16"));
     u32_cast.write("main.omg", &source("u32"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -298,8 +298,8 @@ fn review_casts_retain_public_semantic_domains_and_reject_private_exposure() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

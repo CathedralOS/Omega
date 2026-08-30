@@ -359,7 +359,7 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-bits-{target}-{}",
             std::process::id()
@@ -404,7 +404,7 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-integer-at-{target}-{}",
             std::process::id()
@@ -438,7 +438,7 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-integer-at-write-{target}-{}",
             std::process::id()
@@ -481,7 +481,7 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
     assert_eq!(output.status.code(), Some(72));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-integer-at-proved-write-{target}-{}",
             std::process::id()
@@ -616,7 +616,7 @@ fn plan_laid_record_view_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-view-{target}-{}",
             std::process::id()
@@ -658,7 +658,7 @@ fn plan_laid_fixed_array_record_view_exit_canary_runs() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-fixed-array-view-{target}-{}",
             std::process::id()
@@ -707,7 +707,7 @@ fn plan_laid_fixed_array_mutable_view_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-fixed-array-mutable-view-{target}-{}",
             std::process::id()
@@ -747,7 +747,7 @@ fn plan_laid_nested_fixed_array_mutable_view_exit_canary_runs() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-nested-array-mutable-view-{target}-{}",
             std::process::id()
@@ -786,7 +786,7 @@ fn plan_laid_nested_record_mutable_view_exit_canary_runs() {
         .expect("mutable plan-laid nested-record view should run");
     assert_eq!(output.status.code(), Some(70));
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_scratch = scratch.join(target);
         compile_rooted_canary_for_target(&canary, cross_scratch.join("out"), target).unwrap_or_else(
             |diagnostics| {
@@ -821,7 +821,7 @@ fn plan_laid_fixed_record_array_mutable_view_exit_canary_runs() {
         .expect("mutable plan-laid fixed-record-array view should run");
     assert_eq!(output.status.code(), Some(70));
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_scratch = scratch.join(target);
         compile_rooted_canary_for_target(&canary, cross_scratch.join("out"), target).unwrap_or_else(
             |diagnostics| {
@@ -867,7 +867,7 @@ fn plan_laid_mutable_record_view_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-plan-laid-mutable-view-{target}-{}",
             std::process::id()

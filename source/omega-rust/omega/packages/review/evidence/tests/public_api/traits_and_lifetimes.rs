@@ -23,7 +23,7 @@ pub boundary trait Service<Value>: Parent<Value> {
 }
 "#,
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -32,7 +32,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let compile = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public-trait fixture should check");
@@ -178,7 +178,7 @@ pub trait Parent<'source> {
 pub trait Child<'child>: Parent<'child> { }
 "#,
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -188,7 +188,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let compile = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public lifetime fixture should check");
@@ -282,11 +282,11 @@ fn public_trait_lifetime_declarations_validate_before_review() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let diagnostics = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect_err("invalid parent lifetime application must reject");

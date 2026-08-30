@@ -37,7 +37,7 @@ fn compiled_observation(
         format!(
             r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {{}}
+target windows_x86_64 {{}}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -59,7 +59,7 @@ let close_result: i32 = builder.filesystem.close(descriptor);
     )
     .unwrap();
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
-    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
         .unwrap()
         .build_observation_summary()
         .expect("filesystem build publishes observations")
@@ -88,7 +88,7 @@ fn compiled_handle_order_observation(reverse_close_order: bool) -> BuildObservat
         format!(
             r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {{}}
+target windows_x86_64 {{}}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -105,7 +105,7 @@ let second: i32 = builder.filesystem.open(input, 0);
     )
     .unwrap();
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
-    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
         .unwrap()
         .build_observation_summary()
         .expect("filesystem build publishes observations")
@@ -129,7 +129,7 @@ fn compiled_read_observation(input_bytes: &str) -> BuildObservationSummary {
         format!(
             r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {{}}
+target windows_x86_64 {{}}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -147,7 +147,7 @@ let close_result: i32 = builder.filesystem.close(descriptor);
     )
     .unwrap();
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
-    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
         .unwrap()
         .build_observation_summary()
         .expect("filesystem build publishes observations")
@@ -169,7 +169,7 @@ fn compiled_path_like_observation(target: &str) -> BuildObservationSummary {
         format!(
             r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {{}}
+target windows_x86_64 {{}}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -184,7 +184,7 @@ let result: i32 = builder.filesystem.symlink("{target}", link);
     )
     .unwrap();
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
-    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
         .unwrap()
         .build_observation_summary()
         .expect("filesystem build publishes observations")
@@ -209,7 +209,7 @@ fn compiled_read_link_observation(target: &str) -> BuildObservationSummary {
         project.join("build.omg"),
         r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {}
+target windows_x86_64 {}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -224,7 +224,7 @@ let result: i64 = builder.filesystem.read_link(link, &mut buffer, 32);
     )
     .unwrap();
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
-    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
         .unwrap()
         .build_observation_summary()
         .expect("read_link build publishes observations")
@@ -245,7 +245,7 @@ fn compiled_metadata_observation(main_source: &str) -> BuildObservationSummary {
         project.join("build.omg"),
         r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {}
+target windows_x86_64 {}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -260,7 +260,7 @@ let result: i32 = builder.filesystem.read_metadata(input, &mut buffer);
     )
     .unwrap();
     std::fs::write(project.join("main.omg"), main_source).unwrap();
-    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+    let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
         .unwrap()
         .build_observation_summary()
         .expect("metadata build publishes observations")

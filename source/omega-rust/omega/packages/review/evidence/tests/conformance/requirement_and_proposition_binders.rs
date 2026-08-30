@@ -9,8 +9,8 @@ fn review_projects_trait_requirement_identity_machine_parameter() {
     package.write("main.omg", "pub trait LocalSlot<machine Requirement> { }\n");
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -60,8 +60,8 @@ fn review_projects_alpha_normalized_public_conformance_binders() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -218,8 +218,8 @@ where proposition {relation}({left}: {carrier}, {right}: {right_type});
         "main.omg",
         &source("Carrier", "Relation", "left", "right", "u64"),
     );
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -292,8 +292,8 @@ where proposition Relation(const value: Carrier);
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -393,8 +393,8 @@ where proposition {alternate}(first: {carrier}, second: {carrier});
             "right",
         ),
     );
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -473,8 +473,8 @@ where proposition Relation(left: Carrier, right: Carrier);
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

@@ -17,8 +17,8 @@ ensures result == tag<{selected_type}>();
     };
     package.write("main.omg", &source("u64"));
     changed.write("main.omg", &source("i64"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -90,8 +90,8 @@ ensures result == constant<{selected_value}>();
     };
     package.write("main.omg", &source("0x07"));
     changed.write("main.omg", &source("0x08"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -153,8 +153,8 @@ fn review_projects_named_const_static_arguments_by_value_with_exact_source_custo
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -304,8 +304,8 @@ ensures result == constant<LIMIT>();
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -379,8 +379,8 @@ requires constant<{selected_const}>() == constant<{selected_const}>()
         "main.omg",
         &source("First", "Second", "Left", "Right", "First", "Right"),
     );
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -469,8 +469,8 @@ ensures result == tag<Wrapper<{nested_type}>>();
     };
     package.write("main.omg", &source("u64"));
     changed.write("main.omg", &source("i64"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

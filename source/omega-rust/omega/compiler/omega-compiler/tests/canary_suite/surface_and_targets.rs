@@ -107,7 +107,12 @@ fn filesystem_open_flags_are_not_provider_values() {
         "portable filesystem code must use semantic OpenOptions, not foreign provider constants"
     );
 
-    for target in ["windows_x64", "macos_arm64", "linux_x64", "linux_arm64"] {
+    for target in [
+        "windows_x86_64",
+        "macos_arm64",
+        "linux_x86_64",
+        "linux_arm64",
+    ] {
         let relative = format!("source/library/std/targets/{target}/filesystem_impl.omg");
         let source = fs::read_to_string(root.join(&relative))
             .unwrap_or_else(|error| panic!("read {relative}: {error}"));
@@ -121,7 +126,7 @@ fn filesystem_open_flags_are_not_provider_values() {
 #[test]
 fn linux_direct_syscall_wrappers_do_not_read_ambient_errno() {
     let root = repo_root();
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let relative = format!("source/library/std/targets/{target}/filesystem_impl.omg");
         let source = fs::read_to_string(root.join(&relative))
             .unwrap_or_else(|error| panic!("read {relative}: {error}"));
@@ -247,7 +252,7 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
     compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Windows x64 CLI MVP should compile to a PE executable");
@@ -287,7 +292,7 @@ fn windows_pe_ships_base_relocations_and_dynamicbase() {
     compile(CanaryCompileSpec {
         root_path: sample.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("cli_mvp should compile to a PE");
@@ -402,7 +407,7 @@ fn build_static_machine_selection_reaches_pe_subsystem() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("static machine selection in build.omg should compile to PE");
@@ -441,9 +446,9 @@ fn linux_x64_recent_encoder_canaries_compile() {
             canary_name.replace('/', "-"),
             std::process::id()
         ));
-        compile_single_file_hosted_main(&canary, &scratch, "linux_x64").unwrap_or_else(|error| {
-            panic!("{canary_name} should cross-compile for linux_x64: {error:?}")
-        });
+        compile_single_file_hosted_main(&canary, &scratch, "linux_x86_64").unwrap_or_else(
+            |error| panic!("{canary_name} should cross-compile for linux_x64: {error:?}"),
+        );
         let elf =
             fs::read(scratch.join("out").join("omega-program")).expect("linux_x64 ELF emitted");
         assert_eq!(&elf[0..4], b"\x7fELF", "ELF magic for {canary_name}");
@@ -464,7 +469,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     let scratch = std::env::temp_dir().join(format!("omega-x64-shlclamp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let count_domain = scratch.join("count-domain");
-    compile_single_file_hosted_main(&canary, &count_domain, "linux_x64")
+    compile_single_file_hosted_main(&canary, &count_domain, "linux_x86_64")
         .expect("at-width shift canary should cross-compile for linux_x64");
     let elf = fs::read(count_domain.join("out/omega-program")).expect("linux_x64 ELF emitted");
     // The plain width-correct shl (mov ecx, r11d + shl r10d, cl) runs the
@@ -489,7 +494,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // extension (mov r10d, r10d for unsigned width 4) -- no clamp between.
     let atwidth = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
     let atwidth_case = scratch.join("atwidth");
-    compile_single_file_hosted_main(&atwidth, &atwidth_case, "linux_x64")
+    compile_single_file_hosted_main(&atwidth, &atwidth_case, "linux_x86_64")
         .expect("at-width modular canary should cross-compile for linux_x64");
     let elf2 = fs::read(atwidth_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let operand_shl_then_extend = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xe2, 0x45, 0x89, 0xd2];
@@ -503,7 +508,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // width-correct shift (the new subword canary exercises u8 + i16).
     let subword = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
     let subword_case = scratch.join("subword");
-    compile_single_file_hosted_main(&subword, &subword_case, "linux_x64")
+    compile_single_file_hosted_main(&subword, &subword_case, "linux_x86_64")
         .expect("sub-word masked-count canary should cross-compile for linux_x64");
     let elf3 = fs::read(subword_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     for mask in [7u8, 15] {
@@ -520,7 +525,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // followed by the 64-bit shl and the u8 cmova clamp tail.
     let shl_sat = pass_canary("arithmetic/runtime_shl_saturating_exit");
     let shl_sat_case = scratch.join("shl-saturating");
-    compile_single_file_hosted_main(&shl_sat, &shl_sat_case, "linux_x64")
+    compile_single_file_hosted_main(&shl_sat, &shl_sat_case, "linux_x86_64")
         .expect("saturating shl canary should cross-compile for linux_x64");
     let elf_sat = fs::read(shl_sat_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let sat_cap_shl_clamp = [
@@ -546,7 +551,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // cmovae into the count register) must be gone.
     let shr = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
     let shr_case = scratch.join("shift-right-atwidth");
-    compile_single_file_hosted_main(&shr, &shr_case, "linux_x64")
+    compile_single_file_hosted_main(&shr, &shr_case, "linux_x86_64")
         .expect("at-width shr canary should cross-compile for linux_x64");
     let elf_shr = fs::read(shr_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let sar_32 = [0x44, 0x89, 0xd9, 0x41, 0xd3, 0xfa]; // mov ecx, r11d + sar r10d, cl
@@ -585,7 +590,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
 
     let trapping = pass_canary("arithmetic/runtime_trapping_shift_count_exit");
     let trapping_case = scratch.join("trapping");
-    compile_single_file_hosted_main(&trapping, &trapping_case, "linux_x64")
+    compile_single_file_hosted_main(&trapping, &trapping_case, "linux_x86_64")
         .expect("trapping shift canary should cross-compile for linux_x64");
     let elf4 = fs::read(trapping_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let guard = [0x49, 0x83, 0xfb, 32, 0x72, 0x02, 0x0f, 0x0b];
@@ -599,7 +604,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // then the signed upper bound of the shared tail.
     let min_idiom = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
     let min_idiom_case = scratch.join("sat-min-idiom");
-    compile_single_file_hosted_main(&min_idiom, &min_idiom_case, "linux_x64")
+    compile_single_file_hosted_main(&min_idiom, &min_idiom_case, "linux_x86_64")
         .expect("MIN idiom canary should cross-compile for linux_x64");
     let elf_min =
         fs::read(min_idiom_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
@@ -622,7 +627,7 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
     // followed by the loop-head compare and the lead load.
     let utf8_canary = pass_canary("wire/runtime_wire_utf8_invalid_refused_exit");
     let utf8_case = scratch.join("wire-utf8-refusal");
-    compile_single_file_hosted_main(&utf8_canary, &utf8_case, "linux_x64")
+    compile_single_file_hosted_main(&utf8_canary, &utf8_case, "linux_x86_64")
         .expect("utf8 refusal canary should cross-compile for linux_x64");
     let elf_utf8 = fs::read(utf8_case.join("out/omega-program")).expect("linux_x64 ELF emitted");
     let validator_head = [
@@ -652,7 +657,7 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
     compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".to_owned()),
+        target_name: Some("linux_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("linux_x64 cli_mvp should compile to an ELF executable");
@@ -690,14 +695,14 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     compile_rooted_canary_for_target_with_auxiliary_artifacts(
         &canary,
         build_dir.clone(),
-        "linux_x64",
+        "linux_x86_64",
     )
     .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
 
     let trust = fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("external-leaf syscall trust report should be emitted");
     assert!(
-        trust.contains("provider plan: linux_x64::satisfies::RawProcess ["),
+        trust.contains("provider plan: linux_x86_64::satisfies::RawProcess ["),
         "syscall leaf must travel through target-scoped provider admission reporting:\n{trust}"
     );
     let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
@@ -781,7 +786,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(win_dir.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("atomics_cross should compile for windows_x64");
@@ -883,7 +888,7 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
     compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".to_owned()),
+        target_name: Some("linux_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("linux_x64 dungeon crawler should compile to an ELF executable");
@@ -942,7 +947,7 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Windows x64 dungeon crawler should compile to a PE executable");

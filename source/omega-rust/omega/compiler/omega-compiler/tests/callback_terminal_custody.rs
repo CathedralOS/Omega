@@ -84,7 +84,7 @@ impl Fixture {
         CompileRequest::new(CompileOptions {
             root_path: self.main.clone(),
             build_dir: Some(self.root.join(format!("build-{tag}"))),
-            target_name: Some("windows_x64".to_owned()),
+            target_name: Some("windows_x86_64".to_owned()),
         })
         .with_requested_product(product)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
@@ -126,7 +126,7 @@ fn assert_custody_diagnostic(diagnostics: &[psi_diagnostics::Diagnostic], produc
 #[test]
 fn canonical_terminal_handoff_preserves_callback_placements_while_native_remains_fenced() {
     let fixture = Fixture::new();
-    let checked = compile_to_checked(&fixture.main, Some("windows_x64"))
+    let checked = compile_to_checked(&fixture.main, Some("windows_x86_64"))
         .expect("callback program should reach checked compilation");
     assert_eq!(checked.callback_placements().len(), 2);
     let expected_placements = checked.callback_placements().to_vec();

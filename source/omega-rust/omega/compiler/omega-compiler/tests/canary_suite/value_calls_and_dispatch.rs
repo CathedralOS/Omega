@@ -171,7 +171,7 @@ fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&cross_dir);
-    compile_rooted_canary_for_target(&canary, cross_dir.join("out"), "linux_x64")
+    compile_rooted_canary_for_target(&canary, cross_dir.join("out"), "linux_x86_64")
         .expect("view-linked-input aggregate write should cross-compile for linux_x64");
     let _ = fs::remove_dir_all(&cross_dir);
 }
@@ -657,7 +657,7 @@ fn runtime_exit_code_exit_canary_runs() {
 
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "macos_arm64"] {
+    for target in ["windows_x86_64", "macos_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-runtime-exit-code-{target}-{}",
             std::process::id()
@@ -1074,7 +1074,7 @@ fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
 #[test]
 fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_pass_through_exit");
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         compile_rooted_backend_canary_without_output_for_target(&canary, target).unwrap_or_else(
             |diagnostics| {
                 panic!(
@@ -1109,7 +1109,7 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 #[test]
 fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_rebound_direct_exit");
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         compile_rooted_backend_canary_without_output_for_target(&canary, target).unwrap_or_else(
             |diagnostics| {
                 panic!(

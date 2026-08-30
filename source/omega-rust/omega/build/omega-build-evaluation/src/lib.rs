@@ -5012,7 +5012,7 @@ mod tests {
     }
 
     #[test]
-    fn root_slot_owner_rejects_deployment_target_names() {
+    fn root_slot_owner_rejects_legacy_cli_aliases() {
         let config =
             config_with_root_bindings(&[("windows_x64::ProgramEntry", "Application::start")]);
 
@@ -5037,7 +5037,7 @@ mod tests {
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
-            "target profile `windows_x64` declares no required root slot `windows_x86_64::UndeclaredEntry`"
+            "target profile `windows_x86_64` declares no required root slot `windows_x86_64::UndeclaredEntry`"
         ));
     }
 
@@ -5052,7 +5052,7 @@ mod tests {
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
-            "selected target `windows_x64` has no bound required root slot `windows_x86_64::ProgramEntry`"
+            "selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`"
         ));
     }
 
@@ -5069,7 +5069,7 @@ mod tests {
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
-            "selected target `windows_x64` has more than one bound required root slot `windows_x86_64::ProgramEntry`"
+            "selected target `windows_x86_64` has more than one bound required root slot `windows_x86_64::ProgramEntry`"
         ));
     }
 }

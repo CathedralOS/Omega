@@ -1245,7 +1245,7 @@ fn metadata_observation_uses_each_selected_checked_target_layout() {
             ],
         ),
         (
-            "linux_x64",
+            "linux_x86_64",
             144,
             [
                 (0, 8),
@@ -1285,7 +1285,7 @@ fn metadata_observation_uses_each_selected_checked_target_layout() {
             ],
         ),
         (
-            "windows_x64",
+            "windows_x86_64",
             144,
             [
                 (0, 4),

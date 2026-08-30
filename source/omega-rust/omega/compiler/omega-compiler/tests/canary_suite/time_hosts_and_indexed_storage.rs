@@ -113,7 +113,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
     // GetTickCount64 has no arguments, while Darwin injects an immediate clock
     // ID before calling clock_gettime_nsec_np.
     let canary = pass_canary("host/runtime_tick_count_monotonic_exit");
-    for target in ["windows_x64", "macos_arm64"] {
+    for target in ["windows_x86_64", "macos_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-result-import-{target}-{}",
             std::process::id()
@@ -153,7 +153,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
     // Windows window_destroy(result, runtime hwnd) and Darwin
     // close(result, runtime fd) pin the result-plus-argument relocation class.
     for (target, canary_name) in [
-        ("windows_x64", "host/runtime_gui_foreground_window_exit"),
+        ("windows_x86_64", "host/runtime_gui_foreground_window_exit"),
         ("macos_arm64", "filesystem/native_close"),
     ] {
         let canary = pass_canary(canary_name);
@@ -234,7 +234,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
     // both return an integer pointer that the retained adapter dereferences
     // before writing the Omega result place.
     let canary = pass_canary("filesystem/native_errno");
-    for target in ["windows_x64", "macos_arm64"] {
+    for target in ["windows_x86_64", "macos_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-dereferenced-result-import-{target}-{}",
             std::process::id()
@@ -281,7 +281,10 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
     // the runtime argument/result places around `abs`.
     for (target, canary_name) in [
         ("macos_arm64", "providers/runtime_import_call_argument_exit"),
-        ("windows_x64", "capabilities/windows_provides_import_exit"),
+        (
+            "windows_x86_64",
+            "capabilities/windows_provides_import_exit",
+        ),
     ] {
         let canary = pass_canary(canary_name);
         let scratch = std::env::temp_dir().join(format!(
@@ -326,7 +329,7 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
     // milliseconds for sleep, and relocate the semantic Omega operands.
     // Compile-only here; runtime confirmation remains gated on Linux hosts.
     let canary = pass_canary("time/cross_linux_time_host");
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch =
             std::env::temp_dir().join(format!("omega-linux-time-{target}-{}", std::process::id()));
         compile_single_file_hosted_main(&canary, &scratch, target).unwrap_or_else(|diagnostics| {
@@ -359,7 +362,7 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
 #[test]
 fn cross_linux_value_syscalls_compile_on_both_architectures() {
     let canary = pass_canary("filesystem/cross_linux_value_syscalls");
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-linux-value-syscalls-{target}-{}",
             std::process::id()
@@ -387,7 +390,7 @@ fn cross_linux_value_syscalls_compile_on_both_architectures() {
                 .contains("\"origin\": \"compiler_body_outbound_syscall_result_data_arguments\""),
             "{target} result-bearing literal-backed syscalls must retain their exact data-object argument footprint"
         );
-        let expected_size = if target == "linux_x64" { 144 } else { 128 };
+        let expected_size = if target == "linux_x86_64" { 144 } else { 128 };
         assert!(
             report.contains(&format!(
                 "data StatLayout<StatRecord>: size {expected_size}, align 8"
@@ -568,7 +571,7 @@ fn runtime_time_host_native_exit_canary_runs() {
     let canary = pass_canary("time/runtime_time_host_native_exit");
     let scratch = std::env::temp_dir().join(format!("omega-time-host-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_target(&canary, scratch.clone(), "windows_x64")
+    compile_rooted_canary_for_target(&canary, scratch.clone(), "windows_x86_64")
         .expect("time host native canary should compile");
     let output = Command::new(scratch.join(executable_name()))
         .output()
@@ -666,7 +669,7 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
     );
     let scratch =
         std::env::temp_dir().join(format!("omega-fs-time-interop-win-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, "windows_x64")
+    compile_single_file_hosted_main(&canary, &scratch, "windows_x86_64")
         .expect("windows fs-time interop canary should compile natively");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()

@@ -113,10 +113,10 @@ pub machine terminate(console: Console, return_code: i32)
     }
 
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &compiler_workspace)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &compiler_workspace)
             .expect("compile baseline package evidence");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &compiler_workspace)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &compiler_workspace)
             .expect("compile candidate package evidence");
     let baseline = baseline_reviews
         .review(baseline_sources.graph().root())

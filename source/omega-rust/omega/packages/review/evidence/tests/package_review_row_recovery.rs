@@ -71,8 +71,8 @@ pub machine invoke_leaf()
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -456,8 +456,8 @@ fn read_u64(bytes: &[u8], offset: usize) -> u64 {
 
 fn host_target_name() -> Option<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("windows", "x86_64") => Some("windows_x64"),
-        ("linux", "x86_64") => Some("linux_x64"),
+        ("windows", "x86_64") => Some("windows_x86_64"),
+        ("linux", "x86_64") => Some("linux_x86_64"),
         ("linux", "aarch64") => Some("linux_arm64"),
         ("macos", "aarch64") => Some("macos_arm64"),
         _ => None,

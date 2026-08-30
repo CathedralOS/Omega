@@ -36,21 +36,21 @@ fn review_distinguishes_profiles_that_share_a_native_target() {
     package.write("main.omg", "machine local() { }\n");
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target uefi_x64 { }
+        r#"target windows_x86_64 { }
+target uefi_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let windows = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("Windows review fixture should check");
     let uefi = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("uefi_x64"),
+        Some("uefi_x86_64"),
         package_inputs(&package.0),
     )
     .expect("UEFI review fixture should check");
@@ -79,7 +79,7 @@ fn review_encoding_ignores_unreviewed_arena_insertion_order() {
         "main.omg",
         "machine unrelated() { }\nboundary machine host_ping();\n",
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -88,7 +88,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let compile = |package: &TempPackage| {
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("arena-order fixture should check")

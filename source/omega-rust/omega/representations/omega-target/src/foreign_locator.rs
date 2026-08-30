@@ -318,7 +318,7 @@ mod tests {
             normalize_foreign_locator(pe_name(), TargetProfile::WindowsX64)
                 .unwrap()
                 .non_authoritative_compatibility_fingerprint(),
-            0x610b_07e6_d96c_b8fc,
+            0xd6c3_45dc_fd2c_fba0,
             "the canonical PeByName fingerprint is stable",
         );
     }

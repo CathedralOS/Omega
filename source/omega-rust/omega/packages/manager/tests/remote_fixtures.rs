@@ -231,7 +231,7 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         assert_eq!(custody.resolution(), declared.resolution());
 
         let compiler_build = cache.join("compiler-build");
-        let reviews = compile_resolved_package_reviews(&closure, "windows_x64", &compiler_build)
+        let reviews = compile_resolved_package_reviews(&closure, "windows_x86_64", &compiler_build)
             .unwrap_or_else(|error| {
                 panic!(
                     "remote fixture {} should compile through package-aware review: {error:#?}",

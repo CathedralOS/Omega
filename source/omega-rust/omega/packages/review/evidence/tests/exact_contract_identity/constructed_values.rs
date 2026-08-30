@@ -24,13 +24,13 @@ requires has_outcome(Outcome::{case} {{ {case_fields} }})
         );
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("nominal constructor contract fixture should check");
@@ -124,13 +124,13 @@ requires hidden(Hidden { value: 1u64 })
     );
     private.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
         &private.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&private.0),
     )
     .expect_err("a public contract must reject a private constructor before review");
@@ -157,13 +157,13 @@ requires
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("indexed public contract fixture should check");
@@ -242,7 +242,7 @@ requires
     );
     let changed = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("changed indexed public contract fixture should check");
@@ -261,8 +261,8 @@ fn review_projects_exact_zero_value_targets_in_public_contracts() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

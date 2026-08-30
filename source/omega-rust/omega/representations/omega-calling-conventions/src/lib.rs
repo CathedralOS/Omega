@@ -1589,7 +1589,7 @@ mod binding_plan_tests {
         merge_external_binding_rows(
             &mut windows,
             &[normalized_import_row(
-                "windows_x64",
+                "windows_x86_64",
                 "AtomicForeign::invoke/name",
                 pe_name.clone(),
             )],
@@ -1608,7 +1608,7 @@ mod binding_plan_tests {
         merge_external_binding_rows(
             &mut mutated_windows,
             &[normalized_import_row(
-                "windows_x64",
+                "windows_x86_64",
                 "AtomicForeign::invoke/mutated",
                 changed.clone(),
             )],
@@ -1636,7 +1636,7 @@ mod binding_plan_tests {
         merge_external_binding_rows(
             &mut linux,
             &[normalized_import_row(
-                "linux_x64",
+                "linux_x86_64",
                 "AtomicForeign::invoke/versioned",
                 elf.clone(),
             )],
@@ -1667,14 +1667,14 @@ mod binding_plan_tests {
         let error = merge_external_binding_rows(
             &mut plan,
             &[normalized_import_row(
-                "linux_x64",
+                "linux_x86_64",
                 "AtomicForeign::invoke/ordinal",
                 locator,
             )],
         )
         .expect_err("target drift must fail closed");
-        assert!(error.contains("targets `windows_x64`"));
-        assert!(error.contains("external binding `AtomicForeign::invoke` targets `linux_x64`"));
+        assert!(error.contains("targets `windows_x86_64`"));
+        assert!(error.contains("external binding `AtomicForeign::invoke` targets `linux_x86_64`"));
         assert!(
             plan.bindings
                 .iter()
@@ -2387,7 +2387,7 @@ mod binding_plan_tests {
         let error = merge_external_binding_rows(
             &mut hosted,
             &[ExternalBindingRow {
-                target_name: "windows_x64".to_owned(),
+                target_name: "windows_x86_64".to_owned(),
                 trait_name: "UnresolvedService".to_owned(),
                 method: "invoke".to_owned(),
                 requirement_identity: "UnresolvedService::invoke".to_owned(),
@@ -2419,7 +2419,7 @@ mod binding_plan_tests {
         .plan()
         .clone();
         let row = |identity: &str, symbol: &str| ExternalBindingRow {
-            target_name: "windows_x64".to_owned(),
+            target_name: "windows_x86_64".to_owned(),
             trait_name: "Convert".to_owned(),
             method: "convert".to_owned(),
             requirement_identity: identity.to_owned(),
@@ -2756,7 +2756,7 @@ mod binding_plan_tests {
         merge_external_binding_rows(
             &mut abi,
             &[ExternalBindingRow {
-                target_name: "windows_x64".to_owned(),
+                target_name: "windows_x86_64".to_owned(),
                 trait_name: "SourceService".to_owned(),
                 method: "invoke".to_owned(),
                 requirement_identity: "SourceService::invoke".to_owned(),

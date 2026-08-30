@@ -156,7 +156,7 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
     .expect("resolve representation-TCB candidate");
     let representation_reviews = compile_resolved_package_reviews(
         &representation_sources,
-        "windows_x64",
+        "windows_x86_64",
         &scenario.build_root,
     )
     .expect("compile representation-TCB review");
@@ -240,7 +240,7 @@ reaches FilesystemHost
     .expect("resolve dangerous-slack candidate");
     let dangerous_slack_reviews = compile_resolved_package_reviews(
         &dangerous_slack_sources,
-        "windows_x64",
+        "windows_x86_64",
         &scenario.build_root,
     )
     .expect("compile dangerous-slack review");

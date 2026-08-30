@@ -2705,7 +2705,7 @@ fn runtime_gui_memory_dc_blit_exit_canary_runs() {
     let canary = pass_canary("host/runtime_gui_memory_dc_blit_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gui-blit-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x64")
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x86_64")
         .expect("gui memory-dc blit canary should compile from its Windows root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()

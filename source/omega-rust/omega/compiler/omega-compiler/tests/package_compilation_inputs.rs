@@ -67,7 +67,7 @@ fn compiler_consumes_retained_dependency_generated_source_without_a_physical_fil
     let dependency = tree.package("dependency-generated-producer");
     TempTree::write(
         root.join("build.omg"),
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("root-generated-consumer");
     builder.depend_as("dependency", Source::Path { location: "../dependency-generated-producer" });
@@ -116,7 +116,7 @@ pub machine consume_generated_value() -> u64 {
         .expect("consumer should receive the complete dependency bundle");
 
     let checked =
-        compile_to_checked_with_packages(&root.join("main.omg"), Some("windows_x64"), inputs)
+        compile_to_checked_with_packages(&root.join("main.omg"), Some("windows_x86_64"), inputs)
             .expect("retained generated dependency source should enter initial frontend loading");
     assert!(
         !dependency
@@ -1302,7 +1302,7 @@ machine misuse(resource: &mut Resource) {
     );
     TempTree::write(
         root.join("build.omg"),
-        "target windows_x64 { }\ntarget linux_x64 { }\ntarget linux_arm64 { }\ntarget macos_arm64 { }\nmachine build(builder: &mut Build) { builder.package(\"root\"); }\n",
+        "target windows_x86_64 { }\ntarget linux_x86_64 { }\ntarget linux_arm64 { }\ntarget macos_arm64 { }\nmachine build(builder: &mut Build) { builder.package(\"root\"); }\n",
     );
 
     let inputs = PackageCompilationInputs::new_package(
@@ -3347,8 +3347,8 @@ fn package_selection_admission_precedes_build_machine_side_effects() {
         root.join("build.omg"),
         r#"use omega::language::std::filesystem_host;
 
-target windows_x64 { }
-target linux_x64 { }
+target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 
@@ -3690,8 +3690,8 @@ machine Main::main(&mut self) {
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) {
@@ -3778,8 +3778,8 @@ fn native_package_product_retains_one_canonical_production_manifest() {
 
 fn host_target_name() -> Option<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("windows", "x86_64") => Some("windows_x64"),
-        ("linux", "x86_64") => Some("linux_x64"),
+        ("windows", "x86_64") => Some("windows_x86_64"),
+        ("linux", "x86_64") => Some("linux_x86_64"),
         ("linux", "aarch64") => Some("linux_arm64"),
         ("macos", "aarch64") => Some("macos_arm64"),
         _ => None,

@@ -1,7 +1,7 @@
 // Temporary compiler-discovery scaffolding. Delete these declarations together
 // when immutable CLI target activation supplies the selected profile directly.
-target windows_x64 { }
-target linux_x64 { }
+target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 

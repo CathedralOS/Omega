@@ -20,8 +20,8 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     );
     canonical.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -124,8 +124,8 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     );
     lookalike.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -158,8 +158,8 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
     package.write("main.omg", "boundary data InternalToken;\n");
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -196,8 +196,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     control.write("main.omg", "data InternalToken { }\n");
     control.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

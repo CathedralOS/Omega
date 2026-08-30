@@ -185,28 +185,31 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
 /// (PE32+/subsystem 10 from build.omg); target-specific instruction canaries
 /// use the smallest registered architecture target that proves their gate.
 const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
-    ("build/explicit_program_entry_binding", "windows_x64"),
-    ("build/receiver_bound_program_entry", "windows_x64"),
+    ("build/explicit_program_entry_binding", "windows_x86_64"),
+    ("build/receiver_bound_program_entry", "windows_x86_64"),
     (
         "build/static_machine_parameter_config_compile",
-        "windows_x64",
+        "windows_x86_64",
     ),
-    ("build/uefi_program_entry_storage_roots", "uefi_x64"),
-    ("inline_asm/asm_fences_compile", "linux_x64"),
-    ("inline_asm/asm_interrupt_control_compile", "linux_x64"),
-    ("inline_asm/asm_flags_compile", "linux_x64"),
-    ("inline_asm/asm_msr_compile", "linux_x64"),
-    ("inline_asm/asm_control_registers_compile", "linux_x64"),
-    ("inline_asm/asm_multi_instruction_block_compile", "uefi_x64"),
-    ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x64"),
-    ("targets/efi_vtable_call", "uefi_x64"),
-    ("targets/efi_vtable_field_call", "uefi_x64"),
-    ("targets/efi_out_param_call", "uefi_x64"),
-    ("targets/efi_ref_param_call_arg", "uefi_x64"),
-    ("targets/efi_small_aggregate_entry", "uefi_x64"),
-    ("targets/efi_large_result_entry", "uefi_x64"),
-    ("targets/efi_large_aggregate_entry", "uefi_x64"),
-    ("targets/efi_large_aggregate_stack_entry", "uefi_x64"),
+    ("build/uefi_program_entry_storage_roots", "uefi_x86_64"),
+    ("inline_asm/asm_fences_compile", "linux_x86_64"),
+    ("inline_asm/asm_interrupt_control_compile", "linux_x86_64"),
+    ("inline_asm/asm_flags_compile", "linux_x86_64"),
+    ("inline_asm/asm_msr_compile", "linux_x86_64"),
+    ("inline_asm/asm_control_registers_compile", "linux_x86_64"),
+    (
+        "inline_asm/asm_multi_instruction_block_compile",
+        "uefi_x86_64",
+    ),
+    ("inline_asm/asm_where_exact_clobbers_compile", "uefi_x86_64"),
+    ("targets/efi_vtable_call", "uefi_x86_64"),
+    ("targets/efi_vtable_field_call", "uefi_x86_64"),
+    ("targets/efi_out_param_call", "uefi_x86_64"),
+    ("targets/efi_ref_param_call_arg", "uefi_x86_64"),
+    ("targets/efi_small_aggregate_entry", "uefi_x86_64"),
+    ("targets/efi_large_result_entry", "uefi_x86_64"),
+    ("targets/efi_large_aggregate_entry", "uefi_x86_64"),
+    ("targets/efi_large_aggregate_stack_entry", "uefi_x86_64"),
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
@@ -216,46 +219,52 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/aarch64_small_result_entry", "linux_arm64"),
     ("targets/aarch64_hfa_result_entry", "linux_arm64"),
     ("targets/aarch64_large_result_entry", "linux_arm64"),
-    ("targets/sysv_small_aggregate_entry", "linux_x64"),
-    ("targets/sysv_erased_small_aggregate_entry", "linux_x64"),
-    ("targets/sysv_hfa_entry_argument", "linux_x64"),
-    ("targets/sysv_mixed_aggregate_entry", "linux_x64"),
-    ("targets/sysv_mixed_aggregate_stack_entry", "linux_x64"),
-    ("targets/sysv_small_aggregate_stack_entry", "linux_x64"),
-    ("targets/sysv_large_aggregate_entry", "linux_x64"),
-    ("targets/sysv_wide_aggregate_entry", "linux_x64"),
-    ("targets/sysv_large_hfa_result_entry", "linux_x64"),
-    ("targets/sysv_small_result_entry", "linux_x64"),
-    ("targets/sysv_hfa_result_entry", "linux_x64"),
-    ("targets/sysv_mixed_result_entry", "linux_x64"),
-    ("targets/sysv_wrapped_float_entry", "linux_x64"),
+    ("targets/sysv_small_aggregate_entry", "linux_x86_64"),
+    ("targets/sysv_erased_small_aggregate_entry", "linux_x86_64"),
+    ("targets/sysv_hfa_entry_argument", "linux_x86_64"),
+    ("targets/sysv_mixed_aggregate_entry", "linux_x86_64"),
+    ("targets/sysv_mixed_aggregate_stack_entry", "linux_x86_64"),
+    ("targets/sysv_small_aggregate_stack_entry", "linux_x86_64"),
+    ("targets/sysv_large_aggregate_entry", "linux_x86_64"),
+    ("targets/sysv_wide_aggregate_entry", "linux_x86_64"),
+    ("targets/sysv_large_hfa_result_entry", "linux_x86_64"),
+    ("targets/sysv_small_result_entry", "linux_x86_64"),
+    ("targets/sysv_hfa_result_entry", "linux_x86_64"),
+    ("targets/sysv_mixed_result_entry", "linux_x86_64"),
+    ("targets/sysv_wrapped_float_entry", "linux_x86_64"),
 ];
 
 const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
-    ("build/duplicate_program_entry_binding", "windows_x64"),
+    ("build/duplicate_program_entry_binding", "windows_x86_64"),
     (
         "build/hosted_program_entry_visible_parameter",
-        "windows_x64",
+        "windows_x86_64",
     ),
-    ("build/program_entry_receiver_not_zii", "windows_x64"),
-    ("build/program_entry_returns_value", "windows_x64"),
-    ("build/unknown_program_entry_binding", "windows_x64"),
-    ("build/uefi_program_entry_missing_storage_roots", "uefi_x64"),
-    ("build/uefi_program_entry_unqualified_image", "uefi_x64"),
+    ("build/program_entry_receiver_not_zii", "windows_x86_64"),
+    ("build/program_entry_returns_value", "windows_x86_64"),
+    ("build/unknown_program_entry_binding", "windows_x86_64"),
+    (
+        "build/uefi_program_entry_missing_storage_roots",
+        "uefi_x86_64",
+    ),
+    ("build/uefi_program_entry_unqualified_image", "uefi_x86_64"),
     (
         "build/uefi_program_entry_local_physical_contract",
-        "uefi_x64",
+        "uefi_x86_64",
     ),
-    ("build/uefi_program_entry_wrong_calling_policy", "uefi_x64"),
+    (
+        "build/uefi_program_entry_wrong_calling_policy",
+        "uefi_x86_64",
+    ),
     (
         "collections/deep_nested_runtime_indexed_write_rejected",
-        "linux_x64",
+        "linux_x86_64",
     ),
-    ("host/terminal_host_call_value", "linux_x64"),
-    ("calls/machine_self_call_recursion_rejected", "linux_x64"),
-    ("calls/guard_call_vs_call_rejected", "linux_x64"),
-    ("calls/guarded_value_call_terminal_rejected", "linux_x64"),
-    ("traits/runtime_dyn_varying_field_rejected", "linux_x64"),
+    ("host/terminal_host_call_value", "linux_x86_64"),
+    ("calls/machine_self_call_recursion_rejected", "linux_x86_64"),
+    ("calls/guard_call_vs_call_rejected", "linux_x86_64"),
+    ("calls/guarded_value_call_terminal_rejected", "linux_x86_64"),
+    ("traits/runtime_dyn_varying_field_rejected", "linux_x86_64"),
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
@@ -2412,18 +2421,21 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
 // Cross-compile their exact authored root on every development host instead
 // of selecting the development host or substituting the legacy entry seam.
 const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
-    ("filesystem/windows_raw_breadth_exit", "windows_x64"),
-    ("filesystem/windows_raw_roundtrip_exit", "windows_x64"),
-    ("host/runtime_user32_key_state_exit", "windows_x64"),
-    ("time/runtime_time_host_native_exit", "windows_x64"),
+    ("filesystem/windows_raw_breadth_exit", "windows_x86_64"),
+    ("filesystem/windows_raw_roundtrip_exit", "windows_x86_64"),
+    ("host/runtime_user32_key_state_exit", "windows_x86_64"),
+    ("time/runtime_time_host_native_exit", "windows_x86_64"),
     ("time/runtime_time_host_native_darwin_exit", "macos_arm64"),
-    ("providers/external_leaf_syscall_compile", "linux_x64"),
+    ("providers/external_leaf_syscall_compile", "linux_x86_64"),
     ("providers/external_leaf_syscall_compile", "linux_arm64"),
     ("providers/external_leaf_dllimport_compile", "macos_arm64"),
     ("providers/runtime_import_call_argument_exit", "macos_arm64"),
-    ("capabilities/windows_provides_import_exit", "windows_x64"),
-    ("host/runtime_gui_memory_dc_blit_exit", "windows_x64"),
-    ("filesystem/windows_canonicalize_exit", "windows_x64"),
+    (
+        "capabilities/windows_provides_import_exit",
+        "windows_x86_64",
+    ),
+    ("host/runtime_gui_memory_dc_blit_exit", "windows_x86_64"),
+    ("filesystem/windows_canonicalize_exit", "windows_x86_64"),
 ];
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
@@ -2578,8 +2590,8 @@ fn hosted_main_program_entry_build(target: &str) -> String {
 
 fn hosted_program_entry_owner(target: &str) -> &'static str {
     match target {
-        "windows_x64" => "windows_x86_64",
-        "linux_x64" => "linux_x86_64",
+        "windows_x86_64" => "windows_x86_64",
+        "linux_x86_64" => "linux_x86_64",
         "macos_arm64" => "macos_arm64",
         "linux_arm64" => "linux_arm64",
         _ => panic!("no hosted ProgramEntry root owner for target `{target}`"),
@@ -2611,12 +2623,12 @@ fn compile_single_file_hosted_main(
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 fn native_hosted_target() -> &'static str {
-    "windows_x64"
+    "windows_x86_64"
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn native_hosted_target() -> &'static str {
-    "linux_x64"
+    "linux_x86_64"
 }
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

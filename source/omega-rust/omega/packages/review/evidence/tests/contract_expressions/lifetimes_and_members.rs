@@ -29,8 +29,8 @@ requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
         &source("renamed_slot", "primary", "secondary", "primary"),
     );
     changed.write("main.omg", &source("slot", "left", "right", "right"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -114,8 +114,8 @@ requires {left_receiver}.left == {right_receiver}.right
     };
     original.write("main.omg", &source("first", "second"));
     changed.write("main.omg", &source("second", "first"));
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -206,14 +206,14 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public nominal-member proposition should check");
@@ -285,13 +285,13 @@ pub proposition selects_computed_member(value: i32) =
         );
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("computed nominal-member proposition should check");
@@ -342,13 +342,13 @@ pub proposition selects_case_member(value: i32) =
     );
     case_package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
         &case_package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&case_package.0),
     )
     .expect("computed case-member proposition should check");
@@ -382,8 +382,8 @@ fn review_projects_computed_nominal_member_receivers_in_checked_contracts() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

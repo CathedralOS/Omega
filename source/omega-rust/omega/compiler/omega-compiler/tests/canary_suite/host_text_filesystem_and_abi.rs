@@ -929,7 +929,12 @@ fn windows_set_file_time_exit_canary_runs() {
 #[test]
 fn filesystem_set_times_target_implementations_compile() {
     let canary = pass_canary("filesystem/windows_wrapper_set_times_exit");
-    for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
+    for target in [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+    ] {
         omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|d| panic!("set_times wrapper should check for {target}:\n{d:#?}"));
     }
@@ -981,7 +986,12 @@ fn windows_wrapper_set_times_exit_canary_runs() {
 #[test]
 fn filesystem_lock_target_implementations_compile() {
     let canary = pass_canary("filesystem/windows_wrapper_lock_exit");
-    for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
+    for target in [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+    ] {
         omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|d| panic!("lock wrappers should check for {target}:\n{d:#?}"));
     }
@@ -1066,7 +1076,7 @@ fn windows_canonicalize_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-win-canon-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x64")
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x86_64")
         .expect("windows canonicalize canary should compile from its Windows root");
 
     let output = Command::new(build_dir.join(executable_name()))
@@ -1348,12 +1358,12 @@ fn cross_windows_general_imports_compile() {
         let src_dir = scratch.join("src");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
+        fs::write(src_dir.join("build.omg"), "target windows_x86_64 {\n}\n")
             .expect("write windows target manifest");
         compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
-            target_name: Some("windows_x64".to_owned()),
+            target_name: Some("windows_x86_64".to_owned()),
             product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostic| {
@@ -1403,8 +1413,8 @@ fn cross_aarch64_stack_import_compiles_with_planned_layout() {
 fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
     let canary = pass_canary("capabilities/native_fixed_array_import_compile");
     for (target, expected_float) in [
-        ("windows_x64", "aggregate 16/4"),
-        ("linux_x64", "hfa4x32"),
+        ("windows_x86_64", "aggregate 16/4"),
+        ("linux_x86_64", "hfa4x32"),
         ("macos_arm64", "hfa4x32"),
     ] {
         let scratch = unique_no_output_build_dir();
@@ -1425,7 +1435,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             product: CanaryCompileProduct::NativeArtifactAndPublish,
         });
         if let Err(diagnostics) = compile_result {
-            let only_unbound_elf_imports = target == "linux_x64"
+            let only_unbound_elf_imports = target == "linux_x86_64"
                 && diagnostics.iter().all(|diagnostic| {
                     diagnostic
                         .message
@@ -1463,13 +1473,13 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
     fs::create_dir_all(&src_dir).expect("pointer/length scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
         .expect("copy pointer/length canary");
-    fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
+    fs::write(src_dir.join("build.omg"), "target windows_x86_64 {\n}\n")
         .expect("write windows_x64 target manifest");
 
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("pointer/length shape canary should compile for windows_x64");

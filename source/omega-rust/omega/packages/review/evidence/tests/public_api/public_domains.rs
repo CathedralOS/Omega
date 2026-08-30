@@ -12,7 +12,7 @@ fn public_domain_shape_changes_change_comparison_encoding() {
         "main.omg",
         "pub data Packet { value: u32; }\npub domain Packet::Prepared;\n",
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -21,7 +21,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let encode = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public-domain fixture should check");
@@ -53,8 +53,8 @@ pub operator + add(
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -145,7 +145,7 @@ pub domain<Carrier, const Index: Unit> Carrier::Tagged<Index>;
 pub domain<Value, const Tag: Unit> Value::Tagged<Tag>;
 "#,
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -154,7 +154,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let encode = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("generic public-domain fixture should check");
@@ -192,7 +192,7 @@ pub boundary trait SchedulerAdmission {
 }
 "#,
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     classified.write("build.omg", build);
@@ -201,7 +201,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let compile = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("routed public-domain fixture should check");
@@ -272,7 +272,7 @@ pub boundary trait BackupAdmission {{
         "main.omg",
         &source("BackupAdmission::grant, PrimaryAdmission::grant"),
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -281,7 +281,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let encode = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("multi-route public-domain fixture should check");
@@ -318,7 +318,7 @@ pub domain Socket::Usable = Socket::Trusted & Socket::Connected;
 pub domain u64::Portable = Carry::Portable;
 "#,
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -327,7 +327,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let compile = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public-domain alias fixture should check");

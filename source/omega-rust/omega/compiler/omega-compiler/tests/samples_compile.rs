@@ -90,8 +90,13 @@ fn compile_native_and_publish(
         .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
 }
 
-const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
-const GUI_SAMPLE_TARGETS: &[&str] = &["windows_x64", "macos_arm64"];
+const HOSTED_SAMPLE_TARGETS: &[&str] = &[
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64",
+    "macos_arm64",
+];
+const GUI_SAMPLE_TARGETS: &[&str] = &["windows_x86_64", "macos_arm64"];
 const EXPLICIT_ENTRY_BASIC_SAMPLES: &[&str] = &[
     "brightness_control",
     "cli_mvp",
@@ -390,9 +395,9 @@ fn host_target_name() -> &'static str {
     } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
         "linux_arm64"
     } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        "linux_x64"
+        "linux_x86_64"
     } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        "windows_x64"
+        "windows_x86_64"
     } else {
         panic!("unsupported host profile for native sample execution")
     }
@@ -477,8 +482,8 @@ fn host_root_owner() -> &'static str {
     match host_target_name() {
         "macos_arm64" => "macos_arm64",
         "linux_arm64" => "linux_arm64",
-        "linux_x64" => "linux_x86_64",
-        "windows_x64" => "windows_x86_64",
+        "linux_x86_64" => "linux_x86_64",
+        "windows_x86_64" => "windows_x86_64",
         _ => unreachable!("host_target_name returns one hosted target"),
     }
 }
@@ -746,7 +751,7 @@ fn all_samples_reach_checked_trees() {
         // EFI image; host-target checking cannot satisfy it. Mirrors
         // the canary suite's CROSS_TARGET_PASS_CANARIES.
         let target_name = if name.contains("uefi_hello") {
-            Some("uefi_x64".to_owned())
+            Some("uefi_x86_64".to_owned())
         } else {
             None
         };

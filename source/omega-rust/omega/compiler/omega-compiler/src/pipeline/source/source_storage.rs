@@ -167,7 +167,10 @@ mod tests {
             PathBuf::from("toolchain"),
         );
         for (source, expected_root) in [
-            ("toolchain/std/targets/uefi_x64/entry.omg", "toolchain/std"),
+            (
+                "toolchain/std/targets/uefi_x86_64/entry.omg",
+                "toolchain/std",
+            ),
             ("toolchain/core/targets/common.omg", "toolchain/core"),
             (
                 "toolchain/language/std/targets/legacy.omg",

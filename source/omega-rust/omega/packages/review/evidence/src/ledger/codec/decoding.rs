@@ -48,7 +48,7 @@ pub fn decode_ordinary_package_obligation_ledger(
     }
     let package = decoder.package_identity()?;
     let target_name = decoder.string(MAXIMUM_LEDGER_TARGET_BYTES)?;
-    let target = TargetProfile::from_omega_target_name(Some(&target_name)).map_err(|_| {
+    let target = TargetProfile::from_canonical_target_name(&target_name).map_err(|_| {
         OrdinaryPackageObligationLedgerRecoveryError::new(
             "ordinary package obligation ledger contains a noncanonical target",
         )

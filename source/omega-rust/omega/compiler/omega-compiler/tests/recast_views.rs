@@ -77,7 +77,7 @@ fn assert_exit_70(canary_rel: &str, tag: &str) {
 
 fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
     let canary = repo_root().join("tests/omega/pass").join(canary_rel);
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir =
             std::env::temp_dir().join(format!("omega-{tag}-{target}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&cross_dir);
