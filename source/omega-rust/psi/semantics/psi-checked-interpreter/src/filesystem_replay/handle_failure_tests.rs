@@ -7,12 +7,14 @@ use super::{
     FilesystemInputUnknownDescriptorSetFileTimesReplayRecord as SetFileTimesRecord,
     FilesystemInputUnknownDescriptorWriteOperationReplayKind as WriteKind,
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord as WriteRecord,
+    FilesystemInputUnknownDescriptorWriteReplayKind as PayloadWriteKind,
+    FilesystemInputUnknownDescriptorWriteReplayRecord as PayloadWriteRecord,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
     unknown_descriptor_read_attempt, unknown_descriptor_read_from_exact_attempt,
     unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
     unknown_descriptor_set_file_times_attempt,
-    unknown_descriptor_set_file_times_from_exact_attempt,
-    unknown_descriptor_write_operation_attempt,
+    unknown_descriptor_set_file_times_from_exact_attempt, unknown_descriptor_write_attempt,
+    unknown_descriptor_write_from_exact_attempt, unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,
 };
 use crate::{
@@ -1117,5 +1119,220 @@ fn assert_tampered_read_rejected(attempt: FilesystemOperationAttempt) {
         EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
     assert!(
         FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations).is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_writes_round_trip_exact_payloads_with_optional_source_prefix() {
+    let cases = [
+        (PayloadWriteKind::Sequential, 5),
+        (PayloadWriteKind::Positioned { offset: -47 }, 7),
+    ];
+    for (kind, tag) in cases {
+        let payload = vec![11, 29, 47, 83, 101];
+        let record = PayloadWriteRecord::new(None, kind, payload.clone());
+        assert!(record.source_input().is_none());
+        assert_eq!(record.kind(), kind);
+        assert_eq!(record.payload(), payload);
+
+        let replay = FilesystemReplay::from_input_unknown_descriptor_write_record(record).unwrap();
+        assert_eq!(replay.attempts().len(), 1);
+        assert_eq!(replay.attempts()[0].operation_tag(), tag);
+        assert_eq!(
+            unknown_descriptor_write_from_exact_attempt(&replay.attempts()[0]),
+            Some((kind, payload.as_slice()))
+        );
+        assert!(replay.executes_replay_attempt(0));
+        assert!(!replay.has_output_attempts());
+
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let observed =
+            FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations)
+                .unwrap();
+        assert_eq!(observed.attempts(), replay.attempts());
+
+        let with_source = FilesystemReplay::from_input_unknown_descriptor_write_record(
+            PayloadWriteRecord::new(Some(source_input()), kind, payload.clone()),
+        )
+        .unwrap();
+        assert_eq!(
+            with_source
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, tag]
+        );
+        assert!((0..3).all(|index| !with_source.executes_replay_attempt(index)));
+        assert!(with_source.executes_replay_attempt(3));
+        assert!(!with_source.has_output_attempts());
+
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            with_source.attempts().to_vec(),
+            Vec::new(),
+        );
+        let observed =
+            FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations)
+                .unwrap();
+        assert_eq!(observed.attempts(), with_source.attempts());
+    }
+
+    let empty = FilesystemReplay::from_input_unknown_descriptor_write_record(
+        PayloadWriteRecord::new(None, PayloadWriteKind::Sequential, Vec::new()),
+    )
+    .unwrap();
+    assert_eq!(
+        unknown_descriptor_write_from_exact_attempt(&empty.attempts()[0]),
+        Some((PayloadWriteKind::Sequential, &[][..]))
+    );
+}
+
+#[test]
+fn unknown_descriptor_write_records_enforce_aggregate_replay_limit() {
+    let oversized = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES];
+    let record = PayloadWriteRecord::new(None, PayloadWriteKind::Sequential, oversized);
+    assert!(FilesystemReplay::from_input_unknown_descriptor_write_record(record).is_err());
+
+    let oversized = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES];
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_write_attempt(
+            PayloadWriteKind::Sequential,
+            oversized,
+        )],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations).is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_write_observations_retain_payload_and_reject_shape_drift() {
+    let exact = unknown_descriptor_write_attempt(
+        PayloadWriteKind::Positioned { offset: -47 },
+        vec![1, 2, 3, 4],
+    );
+
+    let mut changed = exact.clone();
+    changed.byte_operands[0].bytes[0] ^= 1;
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![changed.clone()],
+        Vec::new(),
+    );
+    let changed_replay =
+        FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations).unwrap();
+    assert_eq!(
+        unknown_descriptor_write_from_exact_attempt(&changed_replay.attempts()[0]),
+        Some((
+            PayloadWriteKind::Positioned { offset: -47 },
+            changed.byte_operands[0].bytes.as_slice(),
+        ))
+    );
+
+    let mut changed = exact.clone();
+    changed.byte_operands[0].operand_ordinal = 2;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.byte_operands.clear();
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands[0].operand_ordinal = 1;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands[0].value = FilesystemScalarOperandValue::U64(47);
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands.clear();
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.operation_tag = 5;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.provider = FilesystemObservationProvider::Virtual;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(0),
+        post_error: 9,
+    });
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(-1),
+        post_error: 13,
+    });
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].operand_ordinal = 1;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].kind = FilesystemLogicalHandleKind::Find;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].resolution = FilesystemLogicalHandleInputResolution::Null;
+    assert_tampered_payload_write_rejected(changed);
+
+    let mut sequential =
+        unknown_descriptor_write_attempt(PayloadWriteKind::Sequential, vec![1, 2, 3, 4]);
+    sequential.scalar_operands.push(FilesystemScalarOperand {
+        operand_ordinal: 2,
+        value: FilesystemScalarOperandValue::I64(0),
+    });
+    assert_tampered_payload_write_rejected(sequential);
+}
+
+#[test]
+fn unknown_descriptor_write_observations_reject_side_lanes_handoff_and_non_source_prefix() {
+    let exact = unknown_descriptor_write_attempt(
+        PayloadWriteKind::Positioned { offset: i64::MIN },
+        vec![3, 5, 7],
+    );
+    for changed in nonempty_side_lane_attempts(exact.clone()) {
+        assert_tampered_payload_write_rejected(changed);
+    }
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![exact.clone()],
+        vec![
+            BuildIncludedSource::from_coordinate(
+                FilesystemGrantRootIdentity::new(2).unwrap(),
+                b"generated.omg".to_vec(),
+                1,
+            )
+            .unwrap(),
+        ],
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations).is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_seek_attempt(0, 0), exact],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations).is_err()
+    );
+}
+
+fn assert_tampered_payload_write_rejected(attempt: FilesystemOperationAttempt) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_write_observations(&observations).is_err()
     );
 }

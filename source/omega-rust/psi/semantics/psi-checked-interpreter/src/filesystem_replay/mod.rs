@@ -52,6 +52,8 @@ pub use handle_failures::{
     FilesystemInputUnknownDescriptorSetFileTimesReplayRecord,
     FilesystemInputUnknownDescriptorWriteOperationReplayKind,
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord,
+    FilesystemInputUnknownDescriptorWriteReplayKind,
+    FilesystemInputUnknownDescriptorWriteReplayRecord,
 };
 #[cfg(test)]
 pub(crate) use handle_failures::{
@@ -59,8 +61,8 @@ pub(crate) use handle_failures::{
     unknown_descriptor_read_attempt, unknown_descriptor_read_from_exact_attempt,
     unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
     unknown_descriptor_set_file_times_attempt,
-    unknown_descriptor_set_file_times_from_exact_attempt,
-    unknown_descriptor_write_operation_attempt,
+    unknown_descriptor_set_file_times_from_exact_attempt, unknown_descriptor_write_attempt,
+    unknown_descriptor_write_from_exact_attempt, unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,
 };
 pub use hard_links::{FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord};

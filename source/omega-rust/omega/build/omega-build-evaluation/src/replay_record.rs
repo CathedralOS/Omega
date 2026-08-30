@@ -42,10 +42,13 @@ use handle_failures::{
     unknown_descriptor_read_operation, unknown_descriptor_seek_failure_shape_is_exact,
     unknown_descriptor_set_file_times_failure_shape_is_exact, unknown_descriptor_write_operation,
     unknown_descriptor_write_operation_failure_shape_is_exact,
+    unknown_descriptor_write_payload_failure_shape_is_exact,
+    unknown_descriptor_write_payload_operation,
     validate_operand_free_unknown_descriptor_failure_shape,
     validate_unknown_descriptor_read_failure_shape, validate_unknown_descriptor_seek_failure_shape,
     validate_unknown_descriptor_set_file_times_failure_shape,
     validate_unknown_descriptor_write_operation_failure_shape,
+    validate_unknown_descriptor_write_payload_failure_shape,
 };
 use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
@@ -56,7 +59,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 37;
+const VERSION: u16 = 38;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -223,6 +226,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         || unknown_descriptor_write_operation_failure_shape_is_exact(shape)
                         || unknown_descriptor_set_file_times_failure_shape_is_exact(shape)
                         || unknown_descriptor_read_failure_shape_is_exact(shape)
+                        || unknown_descriptor_write_payload_failure_shape_is_exact(shape)
                 })
                 .map(|_| shapes.len() - 1)
         })
@@ -486,6 +490,34 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay unknown-descriptor read failure could not be rehydrated",
+            )
+        });
+    }
+    if shapes.len() - operation_suffix_start == 1
+        && unknown_descriptor_write_payload_operation(shapes[operation_suffix_start].operation)
+    {
+        use psi_checked_interpreter::FilesystemInputUnknownDescriptorWriteReplayKind as Kind;
+        let shape = &shapes[operation_suffix_start];
+        let kind = match (shape.operation, shape.scalars.as_slice()) {
+            (5, []) => Kind::Sequential,
+            (7, [(2, ShapeScalar::I64(offset))]) => Kind::Positioned { offset: *offset },
+            _ => unreachable!("validated unknown-descriptor write retains exact scalar operands"),
+        };
+        let [(1, payload)] = shape.byte_operands.as_slice() else {
+            unreachable!("validated unknown-descriptor write retains one exact payload")
+        };
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorWriteReplayRecord::new(
+                typed_source_record,
+                kind,
+                clone_bytes(payload)?,
+            );
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_write_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-descriptor write failure could not be rehydrated",
             )
         });
     }
@@ -1697,7 +1729,25 @@ fn validate_first_rung(
     while cursor < shapes.len() {
         if matches!(
             shapes[cursor].operation,
-            1 | 4 | 6 | 8 | 9 | 10 | 11 | 17 | 19 | 20 | 27 | 41 | 42 | 43 | 44 | 45 | 46 | 49
+            1 | 4
+                | 5
+                | 6
+                | 7
+                | 8
+                | 9
+                | 10
+                | 11
+                | 17
+                | 19
+                | 20
+                | 27
+                | 41
+                | 42
+                | 43
+                | 44
+                | 45
+                | 46
+                | 49
         ) {
             break;
         }
@@ -1771,7 +1821,25 @@ fn validate_first_rung(
         && shapes.first().is_some_and(|shape| {
             matches!(
                 shape.operation,
-                1 | 4 | 6 | 8 | 9 | 10 | 11 | 17 | 19 | 20 | 27 | 41 | 42 | 43 | 44 | 45 | 46 | 49
+                1 | 4
+                    | 5
+                    | 6
+                    | 7
+                    | 8
+                    | 9
+                    | 10
+                    | 11
+                    | 17
+                    | 19
+                    | 20
+                    | 27
+                    | 41
+                    | 42
+                    | 43
+                    | 44
+                    | 45
+                    | 46
+                    | 49
             )
         });
     if event_count == 0 && !begins_with_replay_suffix {
@@ -1803,6 +1871,12 @@ fn validate_first_rung(
         if shapes.len() - cursor == 1 && unknown_descriptor_read_operation(shapes[cursor].operation)
         {
             validate_unknown_descriptor_read_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 1
+            && unknown_descriptor_write_payload_operation(shapes[cursor].operation)
+        {
+            validate_unknown_descriptor_write_payload_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {

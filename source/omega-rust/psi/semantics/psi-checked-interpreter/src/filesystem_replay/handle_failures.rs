@@ -1,6 +1,6 @@
 use crate::{
     BuildIncludedSource, EvaluationObservations, FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-    FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
+    FilesystemByteOperand, FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
     FilesystemLogicalHandleKind, FilesystemMutableByteOperand,
     FilesystemMutableByteOperandResolution, FilesystemObservationProvider,
     FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
@@ -12,7 +12,9 @@ use crate::{
 const UNKNOWN_DESCRIPTOR_RESULT: i64 = -1;
 const BAD_DESCRIPTOR_ERROR: i32 = 9;
 const READ_OPERATION_TAG: u16 = 4;
+const WRITE_OPERATION_TAG: u16 = 5;
 const READ_AT_OPERATION_TAG: u16 = 6;
+const WRITE_AT_OPERATION_TAG: u16 = 7;
 const SEEK_OPERATION_TAG: u16 = 10;
 const SET_FILE_TIMES_OPERATION_TAG: u16 = 42;
 const SET_FILE_TIMES_MINIMUM_CARRIER_BYTES: usize = 32;
@@ -229,6 +231,81 @@ impl FilesystemInputUnknownDescriptorReadReplayRecord {
     }
 }
 
+/// One immutable-payload write whose unknown descriptor deterministically
+/// fails with `EBADF`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemInputUnknownDescriptorWriteReplayKind {
+    Sequential,
+    Positioned { offset: i64 },
+}
+
+impl FilesystemInputUnknownDescriptorWriteReplayKind {
+    const fn operation_tag(self) -> u16 {
+        match self {
+            Self::Sequential => WRITE_OPERATION_TAG,
+            Self::Positioned { .. } => WRITE_AT_OPERATION_TAG,
+        }
+    }
+
+    fn scalar_operands(self) -> Vec<FilesystemScalarOperand> {
+        match self {
+            Self::Sequential => Vec::new(),
+            Self::Positioned { offset } => vec![FilesystemScalarOperand {
+                operand_ordinal: 2,
+                value: FilesystemScalarOperandValue::I64(offset),
+            }],
+        }
+    }
+}
+
+/// Optional exact Source-input prefix followed by one write whose unknown
+/// descriptor deterministically fails with `EBADF`.
+///
+/// The exact authored immutable payload is retained directly. Its length is
+/// neither represented by a synthetic scalar nor inferred from an Output tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownDescriptorWriteReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+    kind: FilesystemInputUnknownDescriptorWriteReplayKind,
+    payload: Vec<u8>,
+}
+
+impl FilesystemInputUnknownDescriptorWriteReplayRecord {
+    pub fn new(
+        source_input: Option<FilesystemSourceInputReplayRecord>,
+        kind: FilesystemInputUnknownDescriptorWriteReplayKind,
+        payload: Vec<u8>,
+    ) -> Self {
+        Self {
+            source_input,
+            kind,
+            payload,
+        }
+    }
+
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
+    }
+
+    pub const fn kind(&self) -> FilesystemInputUnknownDescriptorWriteReplayKind {
+        self.kind
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+
+    fn into_parts(
+        self,
+    ) -> (
+        Option<FilesystemSourceInputReplayRecord>,
+        FilesystemInputUnknownDescriptorWriteReplayKind,
+        Vec<u8>,
+    ) {
+        (self.source_input, self.kind, self.payload)
+    }
+}
+
 /// One write-gated scalar operation whose unknown descriptor deterministically
 /// fails with `EBADF`. Each variant retains only its authored scalar values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -428,6 +505,32 @@ impl FilesystemReplay {
             observations,
             unknown_descriptor_read_attempt_is_exact,
             "read",
+        )
+    }
+
+    /// Construct the closed optional-Source plus one unknown-descriptor write
+    /// failure from typed compiler-owned evidence.
+    pub fn from_input_unknown_descriptor_write_record(
+        record: FilesystemInputUnknownDescriptorWriteReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, kind, payload) = record.into_parts();
+        unknown_descriptor_failure_replay_from_record(
+            source_input,
+            unknown_descriptor_write_attempt(kind, payload),
+            unknown_descriptor_write_attempt_is_exact,
+            "write",
+        )
+    }
+
+    /// Validate observed evidence for an optional Source-input prefix followed
+    /// by one write failure on an unknown descriptor.
+    pub fn from_input_unknown_descriptor_write_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        unknown_descriptor_failure_replay_from_observations(
+            observations,
+            unknown_descriptor_write_attempt_is_exact,
+            "write",
         )
     }
 
@@ -756,6 +859,49 @@ pub(crate) fn unknown_descriptor_read_attempt(
     attempt
 }
 
+pub(crate) fn unknown_descriptor_write_from_exact_attempt(
+    attempt: &FilesystemOperationAttempt,
+) -> Option<(FilesystemInputUnknownDescriptorWriteReplayKind, &[u8])> {
+    let kind = match (attempt.operation_tag, attempt.scalar_operands.as_slice()) {
+        (WRITE_OPERATION_TAG, []) => FilesystemInputUnknownDescriptorWriteReplayKind::Sequential,
+        (
+            WRITE_AT_OPERATION_TAG,
+            [
+                FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::I64(offset),
+                },
+            ],
+        ) => FilesystemInputUnknownDescriptorWriteReplayKind::Positioned { offset: *offset },
+        _ => return None,
+    };
+    let [payload] = attempt.byte_operands.as_slice() else {
+        return None;
+    };
+    (payload.operand_ordinal == 1
+        && attempt.mutable_byte_operand_resolutions.is_empty()
+        && attempt.mutable_byte_operands.is_empty()
+        && unknown_descriptor_failure_has_exact_core_shape(attempt, kind.operation_tag()))
+    .then_some((kind, payload.bytes.as_slice()))
+}
+
+fn unknown_descriptor_write_attempt_is_exact(attempt: &FilesystemOperationAttempt) -> bool {
+    unknown_descriptor_write_from_exact_attempt(attempt).is_some()
+}
+
+pub(crate) fn unknown_descriptor_write_attempt(
+    kind: FilesystemInputUnknownDescriptorWriteReplayKind,
+    payload: Vec<u8>,
+) -> FilesystemOperationAttempt {
+    let mut attempt =
+        unknown_descriptor_failure_attempt(kind.operation_tag(), kind.scalar_operands());
+    attempt.byte_operands = vec![FilesystemByteOperand {
+        operand_ordinal: 1,
+        bytes: payload,
+    }];
+    attempt
+}
+
 fn unknown_descriptor_write_operation_attempt_is_exact(
     attempt: &FilesystemOperationAttempt,
 ) -> bool {
@@ -774,6 +920,7 @@ pub(crate) fn unknown_descriptor_failure_attempt_is_exact(
     unknown_descriptor_operation_attempt_is_exact(attempt)
         || unknown_descriptor_seek_attempt_is_exact(attempt)
         || unknown_descriptor_read_attempt_is_exact(attempt)
+        || unknown_descriptor_write_attempt_is_exact(attempt)
         || unknown_descriptor_write_operation_attempt_is_exact(attempt)
         || unknown_descriptor_set_file_times_attempt_is_exact(attempt)
 }
@@ -791,6 +938,14 @@ fn unknown_descriptor_failure_has_exact_base_shape(
     attempt: &FilesystemOperationAttempt,
     operation_tag: u16,
 ) -> bool {
+    attempt.byte_operands.is_empty()
+        && unknown_descriptor_failure_has_exact_core_shape(attempt, operation_tag)
+}
+
+fn unknown_descriptor_failure_has_exact_core_shape(
+    attempt: &FilesystemOperationAttempt,
+    operation_tag: u16,
+) -> bool {
     matches!(
         attempt,
         FilesystemOperationAttempt {
@@ -801,7 +956,7 @@ fn unknown_descriptor_failure_has_exact_base_shape(
                 post_error: BAD_DESCRIPTOR_ERROR,
             }),
             scalar_operands: _,
-            byte_operands,
+            byte_operands: _,
             path_like_operands,
             rooted_path_operand_resolutions,
             returned_paths,
@@ -817,7 +972,6 @@ fn unknown_descriptor_failure_has_exact_base_shape(
             retired_logical_handles,
             grant_refusals,
         } if *observed_operation_tag == operation_tag
-            && byte_operands.is_empty()
             && path_like_operands.is_empty()
             && rooted_path_operand_resolutions.is_empty()
             && returned_paths.is_empty()

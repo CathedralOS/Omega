@@ -414,7 +414,7 @@ fn absent_output_remove_replays_its_exact_failure_without_a_tree_entry() {
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert_eq!(summary.schema_version(), 56);
+    assert_eq!(summary.schema_version(), 57);
     let [remove] = summary.filesystem_operation_attempts() else {
         panic!("absent remove retains one exact attempt")
     };
@@ -536,7 +536,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 56);
+    assert_eq!(summary.schema_version(), 57);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
