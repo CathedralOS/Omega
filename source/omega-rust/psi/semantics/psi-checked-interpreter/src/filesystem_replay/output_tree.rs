@@ -84,13 +84,13 @@ impl FilesystemOutputTreeEntryReplayRecord {
     }
 }
 
-/// Typed Source-input plus ordered Output-tree replay grammar.
+/// Typed optional Source-input plus ordered Output-tree replay grammar.
 ///
 /// This is the common owner for directory-only, file-only, and mixed trees.
 /// The older specialized records remain supported as convenience façades.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemInputOutputTreeReplayRecord {
-    source_input: FilesystemSourceInputReplayRecord,
+    source_input: Option<FilesystemSourceInputReplayRecord>,
     output_entries: Vec<FilesystemOutputTreeEntryReplayRecord>,
     expected_included_sources: Vec<BuildIncludedSource>,
 }
@@ -102,6 +102,30 @@ impl FilesystemInputOutputTreeReplayRecord {
         expected_included_sources: Vec<BuildIncludedSource>,
     ) -> Result<Self, String> {
         let source_attempts = source_input_record_attempts(source_input.clone());
+        Self::validated(
+            Some(source_input),
+            source_attempts,
+            output_entries,
+            expected_included_sources,
+        )
+    }
+
+    /// Construct an exact ordered Output tree with no Source filesystem
+    /// events. Generated-source ordinals therefore begin at the first Output
+    /// attempt rather than after a synthetic Source prefix.
+    pub fn output_only(
+        output_entries: Vec<FilesystemOutputTreeEntryReplayRecord>,
+        expected_included_sources: Vec<BuildIncludedSource>,
+    ) -> Result<Self, String> {
+        Self::validated(None, Vec::new(), output_entries, expected_included_sources)
+    }
+
+    fn validated(
+        source_input: Option<FilesystemSourceInputReplayRecord>,
+        source_attempts: Vec<FilesystemOperationAttempt>,
+        output_entries: Vec<FilesystemOutputTreeEntryReplayRecord>,
+        expected_included_sources: Vec<BuildIncludedSource>,
+    ) -> Result<Self, String> {
         validate_output_tree_records(
             &source_attempts,
             &output_entries,
@@ -114,8 +138,8 @@ impl FilesystemInputOutputTreeReplayRecord {
         })
     }
 
-    pub const fn source_input(&self) -> &FilesystemSourceInputReplayRecord {
-        &self.source_input
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
     }
 
     pub fn output_entries(&self) -> &[FilesystemOutputTreeEntryReplayRecord] {
@@ -129,7 +153,7 @@ impl FilesystemInputOutputTreeReplayRecord {
     pub(crate) fn into_parts(
         self,
     ) -> (
-        FilesystemSourceInputReplayRecord,
+        Option<FilesystemSourceInputReplayRecord>,
         Vec<FilesystemOutputTreeEntryReplayRecord>,
         Vec<BuildIncludedSource>,
     ) {

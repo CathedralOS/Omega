@@ -2588,10 +2588,10 @@ impl FilesystemReplay {
         })
     }
 
-    /// Validate one observed Source-input prefix followed by one or more exact
-    /// Output files, each with create, exact rooted-descriptor operations,
-    /// bounded immediately retired duplicates, and close, plus an exact ordered
-    /// subset of explicit generated-source handoffs.
+    /// Validate an optional observed Source-input prefix followed by one or
+    /// more exact Output entries, plus an exact ordered subset of explicit
+    /// generated-source handoffs. A present Source prefix retains the same
+    /// closed validation grammar as a source-bearing replay.
     pub fn from_input_output_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
@@ -2606,14 +2606,11 @@ impl FilesystemReplay {
             .iter()
             .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27))
             .ok_or_else(|| {
-                "bounded filesystem replay requires Source inputs before Output chains".to_owned()
+                "bounded filesystem replay requires one or more exact Output entries".to_owned()
             })?;
-        if output_start == 0 {
-            return Err(
-                "bounded filesystem replay requires Source inputs before Output chains".to_owned(),
-            );
+        if output_start > 0 {
+            validate_source_input_attempts(&attempts[..output_start])?;
         }
-        validate_source_input_attempts(&attempts[..output_start])?;
         let output_entries = output_tree_entries_from_attempts(&attempts[output_start..])?;
         validate_observed_output_tree_records(
             &attempts[..output_start],
@@ -2644,14 +2641,14 @@ impl FilesystemReplay {
         })
     }
 
-    /// Construct the bounded Source-input plus ordered Output-tree grammar
-    /// from typed compiler-owned records. Directory and complete file entries
-    /// retain their authored order.
+    /// Construct the bounded optional-Source-input plus ordered Output-tree
+    /// grammar from typed compiler-owned records. Directory and complete file
+    /// entries retain their authored order.
     pub fn from_input_output_tree_record(
         record: FilesystemInputOutputTreeReplayRecord,
     ) -> Result<Self, String> {
         let (source_input, output_entries, expected_included_sources) = record.into_parts();
-        let mut attempts = source_input_record_attempts(source_input);
+        let mut attempts = source_input.map_or_else(Vec::new, source_input_record_attempts);
         for entry in output_entries {
             match entry {
                 FilesystemOutputTreeEntryReplayRecord::Directory(directory) => {
