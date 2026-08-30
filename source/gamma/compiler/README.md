@@ -13,11 +13,12 @@ and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
 runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup failures, executes six generated runtime-containment programs,
-and exercises 16 checked-`Int` paths. It publishes no compiler artifact.
+exercises 16 checked-`Int` paths, and runs 12 source-to-code lowering cases. It
+publishes no compiler artifact.
 
-The retained compiler source declares 83 procedures. With the fixed frontend
-gate entry, the compiled gate uses 84 of Beta's 128 procedure slots and compiles
-to 159,104 bytes. The remaining 103,036 bytes under
+The retained compiler source declares 84 procedures. With the fixed frontend
+gate entry, the compiled gate uses 85 of Beta's 128 procedure slots and compiles
+to 165,571 bytes. The remaining 96,569 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -98,11 +99,23 @@ checks negative and arithmetic-wrap requests; no helper relies on Alpha's
 undefined out-of-range memory behavior.
 
 Directly emitted signed-add, subtract, multiply, divide, and remainder helpers
-return through `r0` and transfer every arithmetic overflow, zero divisor, and
-`INT64_MIN / -1` case to the supplied terminal failure label before Alpha can
-trap. Their executed probe covers ordinary negative division/remainder, both
+use a private scalar ABI through `r0` and transfer every arithmetic overflow,
+zero divisor, and `INT64_MIN / -1` case to the supplied terminal failure label
+before Alpha can trap. General lowering moves that scalar into the `Int` payload
+in `r1` and restores kind `0` in `r0`. Their executed probe covers ordinary
+negative division/remainder, both
 addition and subtraction overflow directions, multiplication overflow and the
 valid `INT64_MIN * 1` edge, and both exceptional division/remainder classes.
+
+The first retained lowering slice consumes already checked closed `Int` trees
+with literals and all seven primitive operators. It emits nested evaluation
+left-to-right, spills intermediates through the guarded explicit stack, calls
+the checked helpers, and reconstructs `(kind,payload)` results. Its adjacent
+gate feeds real Gamma declarations through the canonical parser and type
+checker, executes the emitted Alpha tapes for ordinary/nested arithmetic and
+both comparison results, pins balanced stack restoration, and observes
+contained overflow. This is pipeline material for general expression lowering;
+no partial Gamma compiler or subset artifact is published.
 
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them

@@ -497,6 +497,85 @@ if [ "$int_emitter_status" != 1 ] || [ ! -s "$T/int-probe.tape" ]; then
 fi
 stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
 
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to failed when (frontend_status != 1)' \
+    '        emit_reset()' \
+    '        let entry_label = new_label()' \
+    '        let stack_label = new_label()' \
+    '        let add_label = new_label()' \
+    '        let sub_label = new_label()' \
+    '        let mul_label = new_label()' \
+    '        let div_label = new_label()' \
+    '        let mod_label = new_label()' \
+    '        let failure_label = new_label()' \
+    '        let kind_ok_label = new_label()' \
+    '        let stack_ok_label = new_label()' \
+    '        let unexpected_label = new_label()' \
+    '        word[2097000] = stack_label' \
+    '        word[2096992] = add_label' \
+    '        word[2096984] = sub_label' \
+    '        word[2096976] = mul_label' \
+    '        word[2096968] = div_label' \
+    '        word[2096960] = mod_label' \
+    '        define_label(entry_label)' \
+    '        emit_runtime_init()' \
+    '        let body = word[8388608 + 24]' \
+    '        let lower_status = lower_closed_int_expr(body)' \
+    '        to lowered' \
+    '    }' \
+    '    state lowered {' \
+    '        to failed when (lower_status != 1)' \
+    '        emit_imm(8, 0)' \
+    '        emit_rrx(16, 0, 8, kind_ok_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(kind_ok_label)' \
+    '        emit_imm(8, 16777216)' \
+    '        emit_rrx(16, 252, 8, stack_ok_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(stack_ok_label)' \
+    '        emit_r(0, 1)' \
+    '        define_label(failure_label)' \
+    '        emit_imm(0, 253)' \
+    '        emit_r(0, 0)' \
+    '        define_label(unexpected_label)' \
+    '        emit_imm(0, 254)' \
+    '        emit_r(0, 0)' \
+    '        emit_stack_reserver(stack_label, failure_label)' \
+    '        emit_checked_add(add_label, failure_label)' \
+    '        emit_checked_sub(sub_label, failure_label)' \
+    '        emit_checked_mul(mul_label, failure_label)' \
+    '        emit_checked_div(div_label, failure_label)' \
+    '        emit_checked_mod(mod_label, failure_label)' \
+    '        let payload_ok = validate_payload()' \
+    '        to publish_setup' \
+    '    }' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/lowering-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + closed Int lowering gate) failed"
+  exit 1
+}
+stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
 "$T/emitter.exe" > "$T/emitter.out"
 emitter_status=$?
@@ -526,6 +605,42 @@ for int_mode in a A B s S T m M N O d D E r R F; do
     echo "  FAIL checked Int $int_mode: status $int_status, output $(wc -c < "$T/int-$int_mode.out" | tr -d ' ') bytes"
   fi
 done
+LOWER_CASE=0
+lower_int() { # Gamma program  expected generated status  description
+  LOWER_CASE=$((LOWER_CASE+1))
+  printf '%s' "$1" | "$T/lowering-emitter.exe" > "$T/lower-$LOWER_CASE.tape"
+  lower_compile_status=$?
+  if [ "$lower_compile_status" != 1 ] || [ ! -s "$T/lower-$LOWER_CASE.tape" ]; then
+    FAIL=$((FAIL+1))
+    echo "  FAIL lower $3: compiler status $lower_compile_status"
+    return
+  fi
+  stamp_seed "$T/lower-$LOWER_CASE.tape" "$SEED" "$T/lower-$LOWER_CASE.exe" >/dev/null 2>&1 || {
+    FAIL=$((FAIL+1))
+    echo "  FAIL lower $3: emitted tape could not be stamped"
+    return
+  }
+  "$T/lower-$LOWER_CASE.exe" > "$T/lower-$LOWER_CASE.out"
+  lower_runtime_status=$?
+  if [ "$lower_runtime_status" = "$2" ] && [ ! -s "$T/lower-$LOWER_CASE.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL lower $3: status $lower_runtime_status, output $(wc -c < "$T/lower-$LOWER_CASE.out" | tr -d ' ') bytes"
+  fi
+}
+lower_int '(def main () Int 7)' 7 'literal'
+lower_int '(def main () Int (+ 2 (* 3 4)))' 14 'nested left-to-right arithmetic'
+lower_int '(def main () Int (- 9 4))' 5 'subtraction'
+lower_int '(def main () Int (* 6 7))' 42 'multiplication'
+lower_int '(def main () Int (/ 7 2))' 3 'division'
+lower_int '(def main () Int (% 7 4))' 3 'remainder'
+lower_int '(def main () Int (eq 5 5))' 1 'equal true'
+lower_int '(def main () Int (eq 5 6))' 0 'equal false'
+lower_int '(def main () Int (lt -1 0))' 1 'less true'
+lower_int '(def main () Int (lt 2 1))' 0 'less false'
+lower_int '(def main () Int (+ 9223372036854775807 1))' 253 'lowered addition overflow'
+lower_int '(def main () Int (/ -9223372036854775808 -1))' 253 'lowered division overflow'
 tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi
