@@ -7,8 +7,16 @@ emits platform-independent Alpha tape:
 delta_compiler.gamma → delta_compiler_bytecode.tape
 ```
 
-That implementation does not yet exist. D17 fixes the language it must accept,
-so this is now an implementation gap rather than a design-blocked surface.
+The source now exists as an incomplete implementation. Its retained first
+milestone owns the exact D17 rejection/outcome sums and complete lexical phase:
+it validates every source byte before scanning all tokens and literals, returns
+the exact lexical reason and packed offset, and retains no host-generated token
+ledger. It type-checks through the current Gamma frontend gate.
+
+It deliberately has no `main`, emitted placeholder, or canonical tape. Parsing,
+whole-closure collection, type/control checking, direct Alpha lowering, and
+final publication remain implementation gaps. The existing source is therefore
+not yet a compiler edge and no validation may describe it as one.
 
 The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
 restricted Delta-written native compiler prototype are deleted rather than
@@ -41,8 +49,8 @@ The active migration order lives in
 
 ## Deletion condition
 
-This currently empty implementation owner is retained because its exact path is
-part of the canonical lattice contract. Delete any future child subtree that
-does not reconstruct, implement, or test
+This implementation owner is retained because its exact path is part of the
+canonical lattice contract. Delete any child subtree that does not reconstruct,
+implement, or test
 `delta_compiler.gamma → delta_compiler_bytecode.tape`; replace the owner only
 atomically with a changed, explicitly ruled lattice topology.
