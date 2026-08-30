@@ -17,6 +17,29 @@ pub(super) fn validate_contract_facts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_contracts = program.state_signature_contracts(requirement);
+    validate_callable_contract_refinement(
+        program,
+        label,
+        parameter.name.as_str(),
+        required_contracts,
+        actual_contracts,
+        required_parameters,
+        actual_parameters,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_callable_contract_refinement(
+    program: &TypedTrees,
+    label: &str,
+    requirement_identity: &str,
+    required_contracts: &[SignatureContract],
+    actual_contracts: &[SignatureContract],
+    required_parameters: &[StateParameter],
+    actual_parameters: &[StateParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
@@ -39,7 +62,7 @@ pub(super) fn validate_contract_facts(
         if !valid {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: its {} facts are not a conservative refinement",
-                parameter.name,
+                requirement_identity,
                 contract_kind_name(&kind)
             )));
         }
@@ -47,7 +70,7 @@ pub(super) fn validate_contract_facts(
     validate_crash_contract_refinement(
         program,
         label,
-        parameter,
+        requirement_identity,
         required_contracts,
         actual_contracts,
         required_parameters,
@@ -60,7 +83,7 @@ pub(super) fn validate_contract_facts(
 fn validate_crash_contract_refinement(
     program: &TypedTrees,
     label: &str,
-    parameter: &TypeParameter,
+    requirement_identity: &str,
     required_contracts: &[SignatureContract],
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
@@ -104,7 +127,7 @@ fn validate_crash_contract_refinement(
             };
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: its `crashes {cause:?}` routes are not contained by the required crash ceiling",
-                parameter.name,
+                requirement_identity,
             )));
         }
     }
