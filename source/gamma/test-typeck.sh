@@ -78,6 +78,27 @@ dd if=/dev/zero bs="$table_pad_size" count=1 2>/dev/null | tr '\000' 'x' >> "$T/
 printf '\n(def later () Int 7)' >> "$T/table-disjoint.gamma"
 accept_source table-disjoint "$T/table-disjoint.gamma"
 unset table_prefix_size table_pad_size
+# Cross the retired interpreter's 512-value scratch bound. Gamma arity is a
+# language property, so frontend parsing/checking must not recurse once per row
+# or inherit that oracle-private ceiling.
+awk 'BEGIN {
+  printf "(def wide ("
+  for (i = 0; i < 600; i++) printf "(p%d Int)", i
+  printf ") Int p599) (def main () Int (wide"
+  for (i = 0; i < 600; i++) printf " %d", i
+  print "))"
+}' > "$T/wide-call.gamma"
+accept_source wide-call "$T/wide-call.gamma"
+awk 'BEGIN {
+  printf "(data Wide (Mk"
+  for (i = 0; i < 600; i++) printf " Int"
+  printf ")) (def make () Wide (Mk"
+  for (i = 0; i < 600; i++) printf " %d", i
+  printf ")) (def last ((w Wide)) Int (match w ((Mk"
+  for (i = 0; i < 600; i++) printf " x%d", i
+  print ") x599)))"
+}' > "$T/wide-constructor.gamma"
+accept_source wide-constructor "$T/wide-constructor.gamma"
 # fixed D16 program/declaration grammar and exact source exhaustion
 tc '' 0 'empty program'
 tc '; comment only' 0 'comment-only program'
