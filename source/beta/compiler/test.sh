@@ -344,6 +344,9 @@ accept guarded_true 'proc main() { let a = 5 state start { to yes when a < 10 re
 accept guarded_grouped 'proc main() { let a = 5 state start { to yes when (a < 10) return 0 } state yes { return 42 } }' 42
 accept guarded_false 'proc main() { let a = 15 state start { to yes when a < 10 return 7 } state yes { return 42 } }' 7
 accept state_loop 'proc main() { let n = 10 let s = 0 let i = 1 state loop { to body when i <= n return s } state body { s = s + i i = i + 1 to loop } }' 55
+accept nested_state_dfs_fallthrough 'proc main() { state outer { state child { let x = 42 } } state next { return x } }' 42
+accept alternate_path_initialization 'proc main() { to assigned when read_byte() state initialize { let x = 1 to join } state assigned { x = 2 to join } state join { return x } }' 2
+accept unreachable_initialized_read 'proc main() { return 7 state declared { let x = 1 } state dead { return x } }' 7
 accept scoped_states 'proc main() { return f() } proc f() { state same { return 42 } } proc g() { state same { return 1 } }' 42
 accept shared_state_spelling 'proc main() { let shared = 1 state shared { return 42 } }' 42
 accept adversarial_labels 'proc main() { state main { return _L0() } } proc _L0() { state foo__bar { return 42 } } proc foo__bar() { return 0 }' 42
@@ -436,7 +439,7 @@ reject single_equal_expression 'proc main() { return 1 = 1 }'
 reject single_bang_expression 'proc main() { return 1 ! 2 }'
 reject chained_comparison 'proc main() { return 1 < 2 < 3 }'
 reject split_less_equal 'proc main() { return 1 < = 2 }'
-reject unknown_state 'proc main() { to nowhere return 0 }'
+reject unknown_state 'proc main() { to nowhere }'
 reject duplicate_state 'proc main() { state x { return 1 } state x { return 2 } }'
 reject cross_proc_state 'proc main() { to x return 0 } proc f() { state x { return 1 } }'
 reject reserved_state 'proc main() { state state { return 0 } }'
@@ -449,6 +452,14 @@ reject unterminated_emit 'proc main() { emit("unterminated) return 0 }'
 reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
 reject decimal_overflow 'proc main() { return 18446744073709551616 }'
 reject bad_character "proc main() { return '\\x' }"
+reject ordinary_after_state 'proc main() { state child { } return 0 }'
+reject ordinary_after_nested_state 'proc main() { state child { state nested { } return 0 } }'
+reject ordinary_after_return 'proc main() { return 0 let x = 1 }'
+reject ordinary_after_unconditional_transition 'proc main() { to done let x = 1 state done { return 0 } }'
+reject skipped_initialization 'proc main() { to bypass when read_byte() state initialize { let x = 1 to join } state bypass { to join } state join { return x } }'
+reject traversal_order_initialization 'proc main() { to head state initialize { let x = 1 to head } state head { to initialize when read_byte() return x } }'
+reject self_initializer 'proc main() { let x = x return 0 }'
+reject assignment_before_declaration 'proc main() { x = 1 let x = 2 return x }'
 
 reject_noncanonical_frame() {
   name=$1
@@ -530,6 +541,28 @@ accept load_nesting_limit "$deep_load_64" 0
 deep_load_65=$(printf '%s' "$deep_load_64" | sed 's/return /return word[/; s/ }$/] }/')
 incomplete load_nesting_extent syntax_depth 64 65 "$deep_load_65"
 
+nested_states_64='proc main() {'
+i=0
+while [ "$i" -lt 64 ]; do nested_states_64="${nested_states_64} state s${i} {"; i=$((i + 1)); done
+nested_states_64="${nested_states_64} return 1"
+i=0
+while [ "$i" -lt 64 ]; do nested_states_64="${nested_states_64} }"; i=$((i + 1)); done
+nested_states_64="${nested_states_64} }"
+accept state_nesting_limit "$nested_states_64" 1
+nested_states_65=$(printf '%s' "$nested_states_64" | sed 's/ return 1/ state overflow { return 1 }/')
+incomplete state_nesting_extent syntax_depth 64 65 "$nested_states_65"
+
+mixed_state_depth_64='proc main() { state nested { return '
+i=0
+while [ "$i" -lt 63 ]; do mixed_state_depth_64="${mixed_state_depth_64}("; i=$((i + 1)); done
+mixed_state_depth_64="${mixed_state_depth_64}1"
+i=0
+while [ "$i" -lt 63 ]; do mixed_state_depth_64="${mixed_state_depth_64})"; i=$((i + 1)); done
+mixed_state_depth_64="${mixed_state_depth_64} } }"
+accept mixed_state_nesting_limit "$mixed_state_depth_64" 1
+mixed_state_depth_65=$(printf '%s' "$mixed_state_depth_64" | sed 's/return /return (/; s/ } }$/) } }/')
+incomplete mixed_state_nesting_extent syntax_depth 64 65 "$mixed_state_depth_65"
+
 # A fixed emit body lets the gate hit Alpha's 262140-byte runnable payload
 # exactly. The second source requests 262141 bytes and must publish nothing.
 tape_limit=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21829; i++) printf "a"; print "\") return 1 + 1 }" }')
@@ -562,21 +595,21 @@ procs_128=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 127; 
 accept procedure_limit "$procs_128" 0
 procs_129="$procs_128 proc overflow() { return 0 }"
 incomplete procedure_extent procedure_rows 128 129 "$procs_129"
-states_128=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" }')
+states_128=$(awk 'BEGIN { printf "proc main() { return 0"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " }" }')
 accept state_proc_limit "$states_128" 0
-states_129=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " return 0 }" }')
+states_129=$(awk 'BEGIN { printf "proc main() { return 0"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " }" }')
 incomplete state_proc_extent procedure_state_rows 128 129 "$states_129"
-states_1024=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" } }')
+states_1024=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() { return 0"; else printf "proc p%d() { return 0", p; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " }" } }')
 accept state_global_limit "$states_1024" 0
 states_1025="$states_1024 proc extra() { state overflow { return 0 } }"
 incomplete state_global_extent global_state_rows 1024 1025 "$states_1025"
-edges_256=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 256; i++) printf " to done"; print " state done { return 0 } }" }')
+edges_256=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 256; i++) printf " to done when 0"; print " state done { return 0 } }" }')
 accept edge_proc_limit "$edges_256" 0
-edges_257=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 257; i++) printf " to done"; print " state done { return 0 } }" }')
+edges_257=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 257; i++) printf " to done when 0"; print " state done { return 0 } }" }')
 incomplete edge_proc_extent procedure_edge_rows 256 257 "$edges_257"
-edges_1024=$(awk 'BEGIN { for (p = 0; p < 4; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 256; i++) printf " to done"; print " state done { return 0 } }" } }')
+edges_1024=$(awk 'BEGIN { for (p = 0; p < 4; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 256; i++) printf " to done when 0"; print " state done { return 0 } }" } }')
 accept edge_global_limit "$edges_1024" 0
-edges_1025="$edges_1024 proc extra_edges() { to done state done { return 0 } }"
+edges_1025="$edges_1024 proc extra_edges() { to done when 0 state done { return 0 } }"
 incomplete edge_global_extent global_edge_rows 1024 1025 "$edges_1025"
 
 # The 32768-fixup and 65536-internal-label arrays are secondary corruption

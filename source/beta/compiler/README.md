@@ -41,8 +41,8 @@ parallel assembly semantics, not an admission premise. The exact source/tape
 certificate remains open under OWNER Q5 (the exact Alpha-to-Beta edge) in
 `OWNER_QUESTIONS.md`.
 
-The committed artifact is 22,552 bytes with SHA-256
-`869eef1cc0ae0ca78a5e3860ff85b4c9f659d968bd27856a2f889d976b77de3a`.
+The committed artifact is 26,810 bytes with SHA-256
+`98099d90d95a98d4448fb376ded3d274cd35aaaabec918342f247ab0f82ac3ef`.
 The byte comparison, not the convenient digest, governs repository identity.
 
 ## Compiler boundary outcome
@@ -107,9 +107,8 @@ compiled Beta program and never to this compiler carrier.
 ## Current compiler resource profile
 
 The selected compiler profile fixes the following private ceilings before tape
-publication. The compiler currently enforces every row except state-block
-participation in the combined syntax-depth row, whose missing guard is tracked
-under **BETA-FLATTENED-CFG-INITIALIZATION**. These ceilings bound the
+publication. The compiler enforces every row below, including state-block
+participation in the combined syntax-depth budget. These ceilings bound the
 implementation accepted by the current edge. Exceeding any independently
 reachable row below is `Incomplete`, never invalid Beta source. The focused
 gate checks the exact resource code, limit, requested amount, and canonical
@@ -127,12 +126,11 @@ failure framing at each adjacent refusal.
 | Transitions | 256 per procedure; 1,024 total |
 | Emitted runnable Alpha payload | 262,140 bytes |
 
-These are compiler-profile ceilings, not Beta language limits. In particular,
-state nesting remains a recursive language form; this compiler must extend its
-existing checked `DEPTH` accounting to that parser path and report profile
-exhaustion as `Incomplete` rather than reject otherwise valid Beta.
-Parentheses, calls, loads, and state bodies consume one combined recursion
-budget because they compose on the same Alpha parser call path.
+These are compiler-profile ceilings, not Beta language limits. State nesting
+remains a recursive language form. Parentheses, calls, loads, and state bodies
+consume one combined checked recursion budget because they compose on the same
+Alpha parser call path; exhaustion reports `Incomplete` rather than rejecting
+otherwise valid Beta or exhausting the Alpha return stack.
 
 The generated data stack is separately guarded in `[262144,1048576)` and every
 procedure reserves at least its caller-frame word, as specified in
