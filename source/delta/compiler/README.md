@@ -41,15 +41,16 @@ Whole-closure collection, type/control checking, AST-to-symbolic-Alpha lowering,
 `main`, and final publication remain implementation gaps. The existing source
 is therefore not yet a compiler edge and no validation may describe it as one.
 
-D22 fixes the collection phase's namespace and ordinary local rules. Q7 still
-blocks the complete collector on transition-arm binder scope and the exact
-ordering/coordinate of `InvalidBoundary` against duplicate-name issues. No
-partial collector is retained while those accepted-language rules are open.
+D22 fixes the collection phase's namespaces and ordinary local rules. D24
+completes the collector contract for transition-arm binders and exact
+same-phase `InvalidBoundary`/`DuplicateName` ordering. The implementation must
+collect all syntactic binders before type checking and may not infer an owner
+kind from an ambiguous owner table.
 
 ## Contract-derived conformance plan
 
 This is the compact case matrix for the eventual adjacent executable gate. It
-derives from D17, D22, and `LANGUAGE.md`; it is not an unrun corpus and records
+derives from D17, D22, D24, and `LANGUAGE.md`; it is not an unrun corpus and records
 no execution evidence. Cases become executable only through the real
 Gamma-written compiler and its selected D19 adapter.
 
@@ -57,7 +58,7 @@ Gamma-written compiler and its selected D19 adapter.
 | --- | --- | --- |
 | Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
-| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry and distinct states | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let; active machine/state/local shadowing; globally earliest later declaration independent of a later type/body error |
+| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
 | Type and body checking | forward owners/machines/states; finite records/sums/arrays; views only in admitted positions; complete scalar and sum transitions | every reason from `UnknownType` through `NonexhaustiveSum`, at the first offending type, expression, statement, pattern, or control target; exact `Console`, `Main`, and entry shapes |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 262,140-byte cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
@@ -79,9 +80,14 @@ D22 rows already settled by the third line include these discriminator pairs:
   parameters and lets conflict only in their active body; and
 - entry and sibling state bodies may reuse local spellings.
 
-Q7 owns the remaining census rows: mutual and outer-environment conflicts for
-transition payload binders, sibling-arm reuse, and competition between
-`InvalidBoundary` and `DuplicateName`, including a boundary/data-ambiguous owner.
+D24 adds separate transition-binder controls: sibling arms may reuse a spelling,
+while one arm cannot reference another arm's binder (`UnknownName`); duplicate
+binders within one arm and collisions with each active outer-local class are
+`DuplicateName`. An unknown case or wrong payload arity does not suppress that
+earlier census, so the suite also pins the two-round
+`DuplicateName`-then-`ArityMismatch` result. Mixed collection controls cover
+both source orderings of unrelated `DuplicateName` and `InvalidBoundary`, plus
+a boundary/data-ambiguous owner that produces only its duplicate until repaired.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,

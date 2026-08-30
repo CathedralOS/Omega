@@ -185,11 +185,13 @@ wrapping or saturating placement, generic parameter, or package/module form.
 Checking is whole-closure and two-pass. After parsing, the first pass performs
 one complete scoped identity census before type formation. It collects type
 owners, machines, boundary members, fields or cases and their payload names,
-machine and state parameters, states, and `let` binders. Every duplicate-name
-failure belongs to this declaration-collection phase. Across all scoped
-duplicate pairs, `DuplicateName` reports the first byte of the globally earliest
-later declaration. Collection records an ordered local identity without making
-that local visible before its initializer completes.
+machine and state parameters, states, `let` binders, and every syntactic
+transition payload binder. Every duplicate-name failure belongs to this
+declaration-collection phase. Across all scoped duplicate pairs,
+`DuplicateName` reports the first byte of the globally earliest later
+declaration. Collection records identities without granting visibility: a
+`let` remains unavailable in its initializer, and a transition binder is
+visible only in its arm's continuation.
 
 The second pass resolves types, owners, machines, calls, states, and bodies.
 Top-level declarations and states within a machine may be referenced before
@@ -214,7 +216,12 @@ qualified machine's owner as a boundary trait, the declaration rejects as
 `InvalidBoundary` whether or not its member name exists. Duplicate member
 signatures inside the boundary declaration remain `DuplicateName`. Qualified
 machine bodies on data owners are ordinary machine identities and must be
-unique under that owner.
+unique under that owner. `InvalidBoundary` is anchored at the first byte of the
+authored qualified machine declaration and competes with every `DuplicateName`
+candidate by smallest packed coordinate in the same collection phase.
+Classification requires one unique owner identity. A boundary/data owner
+collision contributes `DuplicateName`; qualified bodies under that ambiguous
+spelling contribute no inferred owner-kind failure.
 
 Delta v1 permits no active local shadowing. Machine parameters are active
 throughout the invocation. A state parameter is active only in that state body.
@@ -224,6 +231,15 @@ or state body. A state parameter or `let` may not reuse an active machine
 parameter, state parameter, or earlier local. Entry and distinct state bodies
 have disjoint local environments and may reuse spellings. Locals cannot cross a
 state transfer except as explicitly evaluated state arguments.
+
+Transition payload binders are mutually unique within one arm and cannot reuse
+an active machine parameter, state parameter, or earlier `let`. They are visible
+only in that arm's continuation. Distinct arms are disjoint and may reuse the
+same spelling; a sibling-arm reference is `UnknownName`. Every syntactic binder
+participates in collection even when later checking finds an unknown case or
+wrong payload arity, so an earlier-phase `DuplicateName` may be followed by
+`ArityMismatch` after the duplicate is repaired. `DuplicatePattern` applies to
+repeated transition selectors or cases, never to repeated binder spellings.
 
 A `data` declaration is exactly one of:
 
@@ -396,7 +412,9 @@ failing phase is reported. Coordinates are exact:
 - an unterminated literal reports its opening quote;
 - an unexpected end, missing entry, or whole-program omission reports the
   source extent;
-- a duplicate reports the later declaration; and
+- a duplicate reports the later declaration;
+- an invalid boundary body reports the first byte of its authored qualified
+  machine declaration; and
 - a body error reports the first token of the offending expression or
   statement.
 

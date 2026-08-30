@@ -614,11 +614,7 @@ declaration remain `DuplicateName`; qualified bodies on data owners are ordinary
 owner-qualified machine identities. Lookup never acquires first-wins or last-
 wins meaning from collector traversal.
 
-D22 does not decide transition-arm binder shadowing/scope or the exact
-coordinate and competition rule between `InvalidBoundary` and a separate
-collection-phase duplicate. Those narrow rules remain open in the owner question
-`Complete Delta's census rules for transition binders and failures`; they must not
-be inferred from collector traversal or used to justify a partial census.
+D22's transition-arm binder and collection-failure gaps are completed by D24.
 
 ## D23 — AlphaBootstrapV2 admits a one-MiB tape through a coherent checker profile
 
@@ -661,6 +657,40 @@ coupling, but that is a separately specified checker/input change rather than an
 unstated part of V2. Real Gamma and Delta artifacts are measured under V2 before
 any further capacity revision; continued pressure first reopens subject custody,
 not the Alpha instruction set.
+
+## D24 — Delta transition binders complete the scoped identity census
+
+Every syntactic transition payload binder is an ordinary local-value
+declaration in D22's pre-type census. Binders in one arm are mutually unique and
+cannot reuse an active machine parameter, state parameter, or earlier `let` from
+the containing entry or state body. They become visible only while checking
+that arm's continuation. Distinct arms are disjoint and may reuse spellings; a
+reference to another arm's binder is therefore `UnknownName`, not a binder-
+specific failure.
+
+Collection records every binder independently of later pattern validity. An
+unknown case or wrong payload arity does not suppress binder census, so duplicate
+syntactic binders report the earlier-phase `DuplicateName` before `UnknownName`,
+`ArityMismatch`, `DuplicatePattern`, or exhaustiveness checking can apply.
+`DuplicatePattern` remains the body/control failure for repeated transition
+selectors or cases; it never owns a repeated binder spelling. This intentional
+two-round diagnosis follows D17's fixed phase ordering.
+
+`DuplicateName` and `InvalidBoundary` both belong to declaration collection.
+Every candidate is anchored at the first byte of its offending declaration:
+the later declaration for a duplicate and the authored qualified machine
+declaration for `InvalidBoundary`. The compiler reports the smallest packed
+coordinate across both candidate families, independent of collector traversal
+or reason-table order.
+
+Boundary classification occurs only after the complete owner census and only
+for an owner with one unique identity. A uniquely boundary-owned authored body
+contributes `InvalidBoundary` whether or not its member name exists. A spelling
+declared as both boundary and data has no owner kind: it contributes its
+`DuplicateName`, while qualified bodies under that ambiguous spelling contribute
+no inferred boundary failure. Fixing the owner collision may consequently
+reveal `InvalidBoundary` on a later compile; the compiler never avoids that
+two-round diagnosis by choosing a first owner row.
 
 ## Dependency order
 
