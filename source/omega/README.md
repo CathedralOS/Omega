@@ -130,6 +130,13 @@ target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
 incomplete. Richer expressions and statements likewise stop the root as
 incomplete, and no body is skipped as opaque text.
+Local-data statements retain canonical `let [mut] name: Type [= expression];`
+syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
+immutable local named `mut`. Locals share the borrow-capable type engine and the
+same left-associated path/Boolean/decimal-integer/string/shallow-struct `+`/`-`
+expression path as assignments; absent initializers are represented by an
+explicit presence bit rather than a valid-looking handle. Call, cast, indexed,
+unary, grouped, and other richer initializers remain implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or one path-indexed expression with a path index. The statement
@@ -152,20 +159,24 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 54 headers reach body parsing. Thirty are complete: four
+representable, and 56 headers reach body parsing. Thirty-six are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
 root, `Lexer::{is_whitespace,push_decoded}` through explicit states and
 transitions, and `ConsoleNativeProvider::{write,write_line}` through exact
-satisfies and reach clauses, plus `Lexer::emit_punctuation` through retained
-addition. `Lexer::is_identifier_start`, `Lexer::is_identifier_continue`, and
+satisfies and reach clauses, plus `Lexer::tokenize` through the same ordinary
+call/assignment/transition statement grammar and `Lexer::emit_punctuation`
+through retained addition. `Lexer::is_identifier_start`,
+`Lexer::is_identifier_continue`, and
 `Lexer::hex_digit_value` complete through precedence-aware transition subjects
 and subtraction. `SourceUnit::append` and `TokenStream::push_decoded` complete
 through retained indexed assignment places. `SourceUnit::byte_or_nul` completes
 through the same indexed expression in terminal value position, and
 `TokenStream::push` completes once its indexed place and named transition-target
-argument are both retained.
+argument are both retained. `Lexer::{retain_token,classify_keyword,
+lex_identifier,lex_whitespace,consume_suffix}` complete through canonical local
+bindings and the shared additive initializer path.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -197,7 +208,7 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
-machine-clause/type-node/constraint/statement/call/assignment/transition/
+machine-clause/type-node/constraint/statement/call/assignment/local-data/transition/
 expression/binary-expression/indexed-expression/argument/static-machine-
 argument/struct-literal/struct-field rows,
 plus 128 scratch
@@ -217,9 +228,11 @@ Import/domain paths, call receivers, and path expressions share the
 independently exhaustible path-member arena after each machine snapshots its
 declaration path. Every retained call or transition-target argument owns one
 expression row, so `Expressions` dominates the equal argument table. Every
-call, assignment, or
+call, assignment, local-data statement, or
 transition-arm row owns one statement, so `Statements` dominates all equal
-statement-variant tables. Assignments own two expressions, making the
+statement-variant tables. Every local owns at least one type node, so
+`TypeNodes` also dominates the equal local-data table. Assignments own two
+expressions, making the
 expression table independently exhaustible. Every retained struct field owns
 one value expression
 and every struct literal owns its expression node, so `Expressions` dominates
