@@ -277,7 +277,7 @@ pub struct BuildConfig {
     /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
     /// from the build machine's marker calls (grants are declarations,
     /// not runtime effects; the evaluator serves the marker as a no-op).
-    pub grants: Vec<String>,
+    pub grants: Vec<omega_trust_model::AuthoredRootGrant>,
     /// PRV4c: explicit provider-type choices for boundary slots. These are
     /// declarations harvested from the authoritative build machine; they are
     /// validated against derived candidates before selection grants anything.
@@ -4221,8 +4221,20 @@ pub fn harvest_provider_selections(
 fn harvest_root_grants(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
-) -> Vec<String> {
-    let mut grants: Vec<String> = Vec::new();
+) -> Vec<omega_trust_model::AuthoredRootGrant> {
+    let mut grants = Vec::new();
+    let mut record = |selector: &str, source_span: psi_source::SourceSpan| {
+        if !grants
+            .iter()
+            .any(|grant: &omega_trust_model::AuthoredRootGrant| grant.selector == selector)
+        {
+            grants.push(omega_trust_model::AuthoredRootGrant {
+                selector: selector.to_owned(),
+                selecting_machine: machine.symbol,
+                source_span,
+            });
+        }
+    };
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             let handles: Vec<psi_typed_trees::expression::ExpressionHandle> = match statement {
@@ -4231,10 +4243,8 @@ fn harvest_root_grants(
                 }
                 psi_typed_trees::statement::StatementNode::Call(call) => {
                     // A statement-level call keeps the marker in its target.
-                    if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
-                        && !grants.iter().any(|existing| existing == path)
-                    {
-                        grants.push(path.to_owned());
+                    if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#") {
+                        record(path, call.source_span);
                     }
                     Vec::new()
                 }
@@ -4244,9 +4254,8 @@ fn harvest_root_grants(
                 if let psi_typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(handle)
                     && let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
-                    && !grants.iter().any(|existing| existing == path)
                 {
-                    grants.push(path.to_owned());
+                    record(path, typed.expression_table.source_span(handle));
                 }
             }
         }
