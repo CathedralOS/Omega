@@ -614,6 +614,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         coordination_marker: "pub fn validate_selected_instructions",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/mod.rs",
+        coordination_marker: "pub(super) fn validate_selected_blocks",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/mod.rs",
         coordination_marker: "pub fn analyze_pre_allocation_machine_effects",
     },
@@ -920,4 +924,17 @@ pub(super) const REQUIRED_TRANSLATION_ERROR_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/parameter/mod.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/terminal.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/validation.rs",
+];
+
+/// Selected-block replay keeps one roster/entry/return join above exact block
+/// shapes and the shared instruction-row comparator.
+pub(super) const REQUIRED_SELECTED_BLOCK_VALIDATION_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/return_routes.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/immediate_return.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/parameter_return.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/exact_binary_return.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/active_resident_exact_add_chain_return.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/instruction_projection.rs",
 ];

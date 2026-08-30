@@ -65,6 +65,14 @@ Structural selection separately joins ABI layout, optional whole-root call,
 and return. Catalog omission rejects and ambiguity names both conflicting
 families; neither path falls back to transitional assignment.
 
+Independent selected-block validation enters through a 39-line join that
+checks the three-block source roster, replays entry control, and then routes
+the exact return family. It descends into immediate, parameter, exact-binary,
+active-resident exact-add-chain, and shared instruction-projection leaves.
+Those leaves reconstruct custody without calling construction helpers and
+retain the existing mismatch precedence, instruction IDs, register schedule,
+successor order, provenance, effects, and fuel rejection order.
+
 The disjoint unoptimized ranked-`u32` lane now reaches ordinary object custody
 without borrowing its machine-code producer as a validator. Each ISA owns an
 opaque decoder result for its exact countdown body; the image boundary joins
