@@ -536,9 +536,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 98 procedures; with the frontend
-    gate entry, the gate uses 99 of Beta's 128 procedure slots and compiles to
-    229,538 bytes, leaving 32,602 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 100 procedures; with the frontend
+    gate entry, the gate uses 101 of Beta's 128 procedure slots and compiles to
+    231,723 bytes, leaving 30,417 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -641,6 +641,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     tail return, and require byte-identical reconstruction. The tag-5 source
     connection, callee metadata assignment, and binder slots remain Q3-blocked;
     this seam introduces no resolved-AST serialization or subset compiler.
+  - [x] Bridge already-resolved constructor applications into the eventual
+    expression backend without assigning Q3-blocked spelling or declaration
+    identity. Calls and constructors now share one guarded canonical argument
+    routine: validate the complete forward arena list before emission, lower each
+    child non-tail exactly once, spill each complete value through the guarded
+    stack, and derive arity from that list. The constructor seam validates only
+    the resolver-supplied opaque kind `>= 2`, then delegates source-order field
+    copying, nullary construction, heap rounding, and allocation containment to
+    the existing algebraic-value ABI. Execute one mixed `Bytes`/`Int` result,
+    recover its second field, restore the root stack, and require byte-identical
+    reconstruction. A focused malformed-child discriminator requires failure
+    with no emitter error or payload, preventing an incomplete lowering from
+    being mistaken for zero arity. The tag-7 source connection remains
+    Q3-blocked; no parallel verifier, serialized resolved tree, or duplicate
+    list walk is retained.
   - [x] Establish the dormant profile-parameterized sealed-input reader without
     selecting Q2's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
@@ -736,9 +751,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   compiler source is an accepted compiler artifact. The retained gates pass 48
   interpreter cases, the fail-closed arena case, 82 compiler-frontend cases,
   one exact emitter probe, six executed runtime-containment probes, 16 checked
-  `Int` paths, 31 source-to-code lowering cases, one resolved-call bridge
-  payload, three byte-determinism comparisons, 14 compact-`Bytes` runtime
-  paths, two arbitrary-arity/frame-ABI
+  `Int` paths, 31 source-to-code lowering cases, one resolved-call and one
+  resolved-constructor bridge payload, four byte-determinism comparisons, 14
+  compact-`Bytes` runtime paths, two arbitrary-arity/frame-ABI
   paths, three algebraic-value ABI paths, eight sealed-input runtime paths, one
   sealed-input reconstruction comparison, and 106 independent differential
   cases.

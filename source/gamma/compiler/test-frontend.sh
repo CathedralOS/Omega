@@ -1828,6 +1828,22 @@ stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/nu
     '    let frontend_status = frontend_check_main()' \
     '    state checked {' \
     '        to failed when (frontend_status != 1)' \
+    '        let arena_end = word[2097128]' \
+    '        to failed when (arena_end > 33292224)' \
+    '        word[arena_end] = 255' \
+    '        word[arena_end + 32] = 6' \
+    '        word[arena_end + 40] = arena_end' \
+    '        word[arena_end + 48] = 0' \
+    '        word[2097128] = arena_end + 64' \
+    '        emit_reset()' \
+    '        let malformed_argument_status = lower_resolved_arguments(arena_end + 32, 14)' \
+    '        to malformed_checked' \
+    '    }' \
+    '    state malformed_checked {' \
+    '        to failed when (malformed_argument_status != 0 - 1)' \
+    '        to failed when (word[2097016] != 0)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        word[2097128] = arena_end' \
     '        let body = word[8388608 + 24]' \
     '        to failed when (word[body] % 256 != 5)' \
     '        to failed when (bytes_builtin_kind(word[body + 8]) != 0)' \
@@ -1939,6 +1955,92 @@ stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/nu
   exit 1
 }
 stamp_seed "$T/call-lowering-emitter.tape" "$SEED" "$T/call-lowering-emitter.exe" >/dev/null 2>&1
+
+# Keep this temporary entry separate: combining both bridge discriminators
+# exceeds Beta's fixed runnable-tape budget. Both compile the one canonical source.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to failed when (frontend_status != 1)' \
+    '        let body = word[8388608 + 24]' \
+    '        to failed when (word[body] % 256 != 7)' \
+    '        let args = word[body + 16]' \
+    '        emit_reset()' \
+    '        let entry_label = new_label()' \
+    '        let stack_label = new_label()' \
+    '        let heap_label = new_label()' \
+    '        let single_label = new_label()' \
+    '        let kind_label = new_label()' \
+    '        let stack_root_label = new_label()' \
+    '        let field_kind_label = new_label()' \
+    '        let field_payload_label = new_label()' \
+    '        let failure_label = new_label()' \
+    '        let unexpected_label = new_label()' \
+    '        word[2097000] = stack_label' \
+    '        word[2096952] = heap_label' \
+    '        word[2096944] = single_label' \
+    '        define_label(entry_label)' \
+    '        emit_runtime_init()' \
+    '        let lower_status = lower_resolved_constructor(args, 42)' \
+    '        to lowered' \
+    '    }' \
+    '    state lowered {' \
+    '        to failed when (lower_status != 1)' \
+    '        emit_imm(20, 42)' \
+    '        emit_rrx(16, 0, 20, kind_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(kind_label)' \
+    '        emit_imm(20, 16777216)' \
+    '        emit_rrx(16, 252, 20, stack_root_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(stack_root_label)' \
+    '        emit_gamma_field_load(2, 1, unexpected_label)' \
+    '        emit_imm(20, 0)' \
+    '        emit_rrx(16, 0, 20, field_kind_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(field_kind_label)' \
+    '        emit_imm(20, 8)' \
+    '        emit_rrx(16, 1, 20, field_payload_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(field_payload_label)' \
+    '        emit_imm(0, 7)' \
+    '        emit_r(0, 0)' \
+    '        define_label(failure_label)' \
+    '        emit_imm(0, 253)' \
+    '        emit_r(0, 0)' \
+    '        define_label(unexpected_label)' \
+    '        emit_imm(0, 254)' \
+    '        emit_r(0, 0)' \
+    '        emit_stack_reserver(stack_label, failure_label)' \
+    '        emit_heap_allocator(heap_label, failure_label)' \
+    '        emit_bytes_single(single_label, heap_label, failure_label)' \
+    '        let payload_ok = validate_payload()' \
+    '        to publish_setup' \
+    '    }' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/constructor-lowering-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + resolved-constructor lowering gate) failed"
+  exit 1
+}
+stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-lowering-emitter.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
 for frame_mode in e f; do
@@ -2115,6 +2217,28 @@ else
   echo "  FAIL resolved-call lowering reconstruction: statuses $resolved_call_a_status/$resolved_call_b_status"
 fi
 unset resolved_call_source resolved_call_a_status resolved_call_b_status resolved_call_runtime_status
+resolved_constructor_source='(data Pair (Pair Bytes Int)) (def main () Pair (Pair (bytes_single 7) 8))'
+printf '%s' "$resolved_constructor_source" | "$T/constructor-lowering-emitter.exe" > "$T/lower-constructor-a.tape"
+resolved_constructor_a_status=$?
+printf '%s' "$resolved_constructor_source" | "$T/constructor-lowering-emitter.exe" > "$T/lower-constructor-b.tape"
+resolved_constructor_b_status=$?
+if [ "$resolved_constructor_a_status" = 1 ] && [ "$resolved_constructor_b_status" = 1 ] &&
+   [ -s "$T/lower-constructor-a.tape" ] &&
+   cmp -s "$T/lower-constructor-a.tape" "$T/lower-constructor-b.tape"; then
+  stamp_seed "$T/lower-constructor-a.tape" "$SEED" "$T/lower-constructor.exe" >/dev/null 2>&1
+  "$T/lower-constructor.exe" > "$T/lower-constructor.out"
+  resolved_constructor_runtime_status=$?
+  if [ "$resolved_constructor_runtime_status" = 7 ] && [ ! -s "$T/lower-constructor.out" ]; then
+    PASS=$((PASS+2))
+  else
+    FAIL=$((FAIL+2))
+    echo "  FAIL resolved-constructor lowering runtime: status $resolved_constructor_runtime_status, output $(wc -c < "$T/lower-constructor.out" | tr -d ' ') bytes"
+  fi
+else
+  FAIL=$((FAIL+2))
+  echo "  FAIL resolved-constructor lowering reconstruction: statuses $resolved_constructor_a_status/$resolved_constructor_b_status"
+fi
+unset resolved_constructor_source resolved_constructor_a_status resolved_constructor_b_status resolved_constructor_runtime_status
 deterministic_source='(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))'
 printf '%s' "$deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
 deterministic_a_status=$?

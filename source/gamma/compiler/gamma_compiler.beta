@@ -2415,20 +2415,20 @@ proc lower_bytes_builtin(kind, args) {
     }
 }
 
-; Lower an ordinary or tail call after the resolver has supplied its opaque
-; target label and complete fixed frame prefix. The canonical source-order
-; argument list is already statically checked; this seam deliberately does not
-; inspect or resolve the call spelling. Complete `(kind,payload)` results are
-; retained across the stack-reserver call in r6/r7 because that helper returns
-; its reservation base in r0. Q3 alone owns the later tag-5 source connection.
+; Validate and lower one canonical source-order argument list shared by the
+; resolved call and constructor seams. Validation completes before emission;
+; each expression then lowers non-tail exactly once and its complete
+; `(kind,payload)` pair survives the stack-reserver call through r6/r7. The
+; returned nonnegative count is derived from the list rather than supplied by
+; either caller. A malformed compiler-owned list records the caller's private
+; failure class; an unsupported child lowering returns -1 without publication.
 
-proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes) {
+proc lower_resolved_arguments(args, failure_code) {
     let cursor = args
-    let parameter_count = 0
+    let argument_count = 0
     let arena_end = word[2097128]
-    state prefix_low { to invalid_profile when (callee_prefix_bytes < 16)  to prefix_aligned }
-    state prefix_aligned { to invalid_profile when (callee_prefix_bytes % 16 != 0)  to prefix_high }
-    state prefix_high { to invalid_profile when (callee_prefix_bytes > 16515072)  to arena_low }
+    state failure_call { to arena_low when (failure_code == 13)  to failure_constructor }
+    state failure_constructor { to arena_low when (failure_code == 14)  to invalid_failure_code }
     state arena_low { to invalid_list when (arena_end < 16777248)  to arena_high }
     state arena_high { to invalid_list when (arena_end > 33292288)  to arena_aligned }
     state arena_aligned { to invalid_list when ((arena_end - 16777248) % 32 != 0)  to validate_loop }
@@ -2448,7 +2448,8 @@ proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes)
         to validate_advance
     }
     state validate_advance {
-        parameter_count = parameter_count + 1
+        to invalid_list when (argument_count == 1032192)
+        argument_count = argument_count + 1
         cursor = next_cursor
         to validate_loop
     }
@@ -2459,7 +2460,7 @@ proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes)
     state argument_loop { to argument when (cursor != 0)  to dispatch }
     state argument {
         to argument_lowered when (lower_expr(word[cursor + 8], 0) == 1)
-        return 0
+        return 0 - 1
     }
     state argument_lowered {
         emit_rr(2, 6, 0)
@@ -2471,6 +2472,25 @@ proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes)
         cursor = word[cursor + 16]
         to argument_loop
     }
+    state dispatch { return argument_count }
+    state invalid_list { emit_fail_once(failure_code, cursor)  return 0 - 1 }
+    state invalid_failure_code { emit_fail_once(14, failure_code)  return 0 - 1 }
+}
+
+; Lower an ordinary or tail call after the resolver has supplied its opaque
+; target label and complete fixed frame prefix. This seam deliberately does not
+; inspect or resolve the call spelling. Q3 alone owns the later tag-5 source
+; connection.
+
+proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes) {
+    state prefix_low { to invalid_profile when (callee_prefix_bytes < 16)  to prefix_aligned }
+    state prefix_aligned { to invalid_profile when (callee_prefix_bytes % 16 != 0)  to prefix_high }
+    state prefix_high { to invalid_profile when (callee_prefix_bytes > 16515072)  to arguments }
+    state arguments {
+        let parameter_count = lower_resolved_arguments(args, 13)
+        to failed when (parameter_count < 0)
+        to dispatch
+    }
     state dispatch { to tail when (tail_position != 0)  to ordinary }
     state ordinary {
         return emit_gamma_call_frame(word[2097000], callee_label,
@@ -2480,8 +2500,25 @@ proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes)
         return emit_gamma_tail_frame(callee_prefix_bytes, parameter_count,
                                      callee_label, word[2096904])
     }
-    state invalid_list { emit_fail_once(13, cursor)  return 0 }
+    state failed { return 0 }
     state invalid_profile { emit_fail_once(13, callee_prefix_bytes)  return 0 }
+}
+
+; Lower one constructor application after the resolver supplies only its
+; opaque runtime kind. Constructor arguments are always non-tail. Spelling,
+; declaration identity, and the eventual tag-7 source connection remain Q3's
+; responsibility.
+
+proc lower_resolved_constructor(args, constructor_tag) {
+    state tag { to invalid_tag when (constructor_tag < 2)  to arguments }
+    state arguments {
+        let field_count = lower_resolved_arguments(args, 14)
+        to failed when (field_count < 0)
+        return emit_gamma_constructor_value(word[2096952], constructor_tag,
+                                            field_count)
+    }
+    state failed { return 0 }
+    state invalid_tag { emit_fail_once(14, constructor_tag)  return 0 }
 }
 
 proc lower_expr(expr, tail_position) {
