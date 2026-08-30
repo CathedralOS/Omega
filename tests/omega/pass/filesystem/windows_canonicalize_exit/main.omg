@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER canonicalize
 // contract on windows (windows session slices 4a/4d): msvcrt has no realpath,
-// so the windows_x64 impl composes CreateFileA(FILE_FLAG_BACKUP_SEMANTICS),
+// so the windows_x86_64 impl composes CreateFileA(FILE_FLAG_BACKUP_SEMANTICS),
 // GetFinalPathNameByHandleA (flags 0 = the \\?\-prefixed DOS path, exactly
 // Rust's windows canonicalize spelling), CloseHandle. This supports files AND
 // directories. Dual-engine with

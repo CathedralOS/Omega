@@ -1,4 +1,4 @@
-// std::time rung 5: the TimeHost seam bound NATIVELY on windows_x64 --
+// std::time rung 5: the TimeHost seam bound NATIVELY on windows_x86_64 --
 // QueryPerformanceCounter/-Frequency and GetSystemTimePreciseAsFileTime as
 // OUT-PARAM u64 imports, plus the two wall-clock calibration CONSTANTS
 // lowered with no call at all (PlatformCallData::ConstantResult).

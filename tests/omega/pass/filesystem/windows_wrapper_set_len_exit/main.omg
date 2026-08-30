@@ -1,4 +1,4 @@
-// RUN CANARY (exit 70) -- `set_len` UNFENCED on windows_x64 (2026-07-08). The raw
+// RUN CANARY (exit 70) -- `set_len` UNFENCED on windows_x86_64 (2026-07-08). The raw
 // seam now binds msvcrt `_chsize_s(fd, __int64 size)` (ftruncate's analogue, the
 // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit long).
 // Discriminating: create an empty file, EXTEND it to 10 bytes with set_len, then

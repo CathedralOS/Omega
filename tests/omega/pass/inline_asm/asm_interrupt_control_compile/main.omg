@@ -1,4 +1,4 @@
-// COMPILE CANARY (linux_x64 freestanding): CLI/STI carry MachineControl reach,
+// COMPILE CANARY (linux_x86_64 freestanding): CLI/STI carry MachineControl reach,
 // require the boot-root machine-owner discharge, record their distinct IF
 // transitions, and emit exact x86 opcodes. The suite also selects linux_arm64
 // for this source and pins the target-specific refusal.
@@ -13,7 +13,7 @@ machine Main::main(&mut self) reaches MachineControl {
     }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

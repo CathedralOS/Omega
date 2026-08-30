@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER hard-link
 // contract on windows (windows session slice 3): msvcrt has no link(2),
-// so the windows_x64 impl rides the designed create_hard_link seam op
+// so the windows_x86_64 impl rides the designed create_hard_link seam op
 // (kernel32 CreateHardLinkA -- Win32 arg order (NEW link, existing) plus
 // the NULL security-attributes arg, BOOL result). Engine-agnostic
 // assertions only: the hermetic model COPIES bytes (no inode table), so

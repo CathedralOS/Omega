@@ -1,5 +1,5 @@
 // Frontier registration for the target-scoped external leaves below.
-target uefi_x64 {
+target uefi_x86_64 {
 }
 
 machine build(builder: &mut Build) {

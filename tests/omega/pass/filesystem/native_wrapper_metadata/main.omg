@@ -5,7 +5,7 @@
 // from the Windows thread). The `meta.len == 0` symptom decomposed into TWO
 // selection bugs, both visible in this
 // canary's cross-compiled backend_report and both reproduced+fixed natively on
-// windows_x64 with pure-language twins:
+// windows_x86_64 with pure-language twins:
 //  (2B) the decode arm's straight-line statements (`let len = ...` byte
 //       assembly) were emitted ABOVE the entry's `stat` host call, so the
 //       terminal copied a pre-stat ZII stat_buf — right tag, zero payload.

@@ -5,4 +5,4 @@ terminates;
 {
 }
 
-target linux_x64 { }
+target linux_x86_64 { }

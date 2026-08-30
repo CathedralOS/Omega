@@ -3,7 +3,7 @@
 // flip through img0.bmp / img1.bmp / img2.bmp (loaded fresh from disk on every
 // flip -- the fs raw seam at work); ESC or the X button closes.
 //
-// The whole pipeline is Omega end to end on windows_x64: msvcrt _open/_read/
+// The whole pipeline is Omega end to end on windows_x86_64: msvcrt _open/_read/
 // _close pull the file bytes, a pure-Omega decoder walks the 24bpp bottom-up
 // BMP pixel array into a top-down 32bpp [i32; 4096] framebuffer with RUNNING
 // COUNTERS (src marches +3 through the file; dst walks visual rows from the

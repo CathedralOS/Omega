@@ -16,10 +16,10 @@ machine SecondProvider::choose() -> i32 satisfies Pick::choose {
 }
 
 data FirstTargetPackage { }
-windows_x64 machine FirstTargetPackage::provider_defaults(defaults: &mut FirstTargetPackage) {
+windows_x86_64 machine FirstTargetPackage::provider_defaults(defaults: &mut FirstTargetPackage) {
     defaults.select_provider<Pick, FirstProvider>();
 }
-linux_x64 machine FirstTargetPackage::provider_defaults(defaults: &mut FirstTargetPackage) {
+linux_x86_64 machine FirstTargetPackage::provider_defaults(defaults: &mut FirstTargetPackage) {
     defaults.select_provider<Pick, FirstProvider>();
 }
 linux_arm64 machine FirstTargetPackage::provider_defaults(defaults: &mut FirstTargetPackage) {
@@ -30,10 +30,10 @@ macos_arm64 machine FirstTargetPackage::provider_defaults(defaults: &mut FirstTa
 }
 
 data SecondTargetPackage { }
-windows_x64 machine SecondTargetPackage::provider_defaults(defaults: &mut SecondTargetPackage) {
+windows_x86_64 machine SecondTargetPackage::provider_defaults(defaults: &mut SecondTargetPackage) {
     defaults.select_provider<Pick, SecondProvider>();
 }
-linux_x64 machine SecondTargetPackage::provider_defaults(defaults: &mut SecondTargetPackage) {
+linux_x86_64 machine SecondTargetPackage::provider_defaults(defaults: &mut SecondTargetPackage) {
     defaults.select_provider<Pick, SecondProvider>();
 }
 linux_arm64 machine SecondTargetPackage::provider_defaults(defaults: &mut SecondTargetPackage) {

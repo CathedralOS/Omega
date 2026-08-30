@@ -1,4 +1,4 @@
-// COMPILE CANARY (linux_x64 freestanding): control-register access uses
+// COMPILE CANARY (linux_x86_64 freestanding): control-register access uses
 // structured, exact-u64 value flow and exposes the realized scratch clobbers.
 use omega::language::core::assembly;
 
@@ -18,7 +18,7 @@ machine Main::main(&mut self) reaches MachineControl {
     }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

@@ -6,7 +6,7 @@ machine build(builder: &mut Build) {
     builder.subsystem = Subsystem::Gui;
 }
 
-target windows_x64 {
+target windows_x86_64 {
 }
 
 target macos_arm64 {

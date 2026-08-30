@@ -7,15 +7,15 @@ boundary trait RawProcess {
     machine exit(code: i32);
 }
 
-linux_x64 machine process_id_leaf() -> i64
+linux_x86_64 machine process_id_leaf() -> i64
     satisfies RawProcess::process_id
     via Binding::Syscall(39);
 
-linux_x64 machine process_group_leaf(id: i64) -> i64
+linux_x86_64 machine process_group_leaf(id: i64) -> i64
     satisfies RawProcess::process_group
     via Binding::Syscall(121);
 
-linux_x64 machine exit_leaf(code: i32)
+linux_x86_64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
     via Binding::Syscall(60);
 

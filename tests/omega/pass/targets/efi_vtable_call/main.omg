@@ -11,7 +11,7 @@
 // greeting text is a utf16"..." literal (CHAR16 code units).
 
 boundary trait TextOutput { machine output_string(this: addr, text: addr); }
-uefi_x64 machine text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableSlot(1);
+uefi_x86_64 machine text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableSlot(1);
 data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;

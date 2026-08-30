@@ -1,4 +1,4 @@
-// RUN CANARY (exit 70) -- `exists` / `try_exists` UNFENCED on windows_x64 as a
+// RUN CANARY (exit 70) -- `exists` / `try_exists` UNFENCED on windows_x86_64 as a
 // side effect of the stat migration (2026-07-08). Both are STAT-based: they call
 // `read_metadata` and consult only its return code (not the decoded record), so
 // wiring msvcrt `_stat64` made them work natively -- no extra seam work. Was

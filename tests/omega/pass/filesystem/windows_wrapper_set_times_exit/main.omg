@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the portable Filesystem::set_times
-// wrapper selected through its windows_x64 implementation. This is deliberately
+// wrapper selected through its windows_x86_64 implementation. This is deliberately
 // a VALUE call into an enum field on an explicitly read/write handle. The latter
 // is load-bearing: Win32 SetFileTime requires writable-attributes authority,
 // while Filesystem::open is intentionally read-only. The metadata round-trip

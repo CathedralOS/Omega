@@ -1,4 +1,4 @@
-// EXTERNAL-LEAF import, END TO END on hosted windows_x64 (extern brief §12,
+// EXTERNAL-LEAF import, END TO END on hosted windows_x86_64 (extern brief §12,
 // hosted-consumption rung 2): a bodyless satisfying machine binds the boundary
 // requirement to `Binding::DllImport("msvcrt.dll", "abs")`, and
 // the call rides the GENERAL value-returning Win64 import encoder with the

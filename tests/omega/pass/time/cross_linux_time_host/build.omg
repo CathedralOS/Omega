@@ -1,5 +1,5 @@
 // Cross-target structural pin. Native confirmation remains a Linux-host task.
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

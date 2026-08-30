@@ -1,9 +1,9 @@
 // array_index_from_call build file.
 
-target windows_x64 {
+target windows_x86_64 {
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

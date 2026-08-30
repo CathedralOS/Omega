@@ -1,4 +1,4 @@
-// RUN CANARY (exit 70) -- the FIRST windows_x64-native fs raw-seam roundtrip:
+// RUN CANARY (exit 70) -- the FIRST windows_x86_64-native fs raw-seam roundtrip:
 // create -> write -> close -> open -> read -> close -> verify bytes -> remove
 // -> ENOENT+errno probe. The seam lowers through msvcrt (_creat/_write/_close/
 // _open/_read/_unlink/_errno) via the general Win64 import call; `errno`

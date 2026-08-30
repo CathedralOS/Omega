@@ -712,10 +712,11 @@ Remaining:
   `linux_x64`, `windows_x64`, and `uefi_x64` remain input-only CLI aliases and
   normalize immediately to `linux_x86_64`, `windows_x86_64`, and
   `uefi_x86_64`; source declarations and recovered canonical evidence reject
-  the aliases. The remaining mechanical test-corpus migration must replace its
-  authored legacy target blocks before the native CLI canary is green. The
-  broader role-specific closure, runtime-reach ceiling, provider migration,
-  and eventual deletion of transitional target blocks remain open.
+  the aliases. The authored `tests/omega`, `tests/fixtures`, and `samples`
+  corpora now use only canonical profile spellings too. The native CLI canary
+  passes target discovery and reaches its independently open checked-plan
+  closure. The broader role-specific closure, runtime-reach ceiling, provider
+  migration, and eventual deletion of transitional target blocks remain open.
 
   **BOUNDARY-OPERATOR-FAMILY-SELECTION** must extend the typed build selection
   subject from one boundary-trait type to either an exact boundary trait or an

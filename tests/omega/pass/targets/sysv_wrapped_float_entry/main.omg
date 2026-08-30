@@ -9,5 +9,5 @@ boundary machine Main::main(&mut self, input: WrappedFloat) -> WrappedFloat {
     self.output = input;
     transition { _ -> (self.output) }
 }
-target linux_x64 {
+target linux_x86_64 {
 }

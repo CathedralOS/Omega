@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70) -- the ERGONOMIC Filesystem wrapper natively on
-// windows_x64: every result SHAPE the wrapper produces, asserted end to end.
+// windows_x86_64: every result SHAPE the wrapper produces, asserted end to end.
 //   write_all           -> UnitResult::Ok            (create+write+close)
 //   create_new existing -> OpenResult::Error{kind}   kind == AlreadyExists
 //   open                -> OpenResult::Ok{File}      the STRUCT payload, USED:

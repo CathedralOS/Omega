@@ -1,4 +1,4 @@
-// COMPILE CANARY (linux_x64 freestanding): MSR access is structured around a
+// COMPILE CANARY (linux_x86_64 freestanding): MSR access is structured around a
 // u32 index and u64 value, carries machine-control reach, and exposes the full
 // realized register clobber set.
 use omega::language::core::assembly;
@@ -14,7 +14,7 @@ machine Main::main(&mut self) reaches MachineControl {
     }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

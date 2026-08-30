@@ -20,5 +20,5 @@ boundary machine Main::main(
     transition { _ -> (0) }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }

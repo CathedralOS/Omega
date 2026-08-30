@@ -14,5 +14,5 @@ boundary machine Main::main(&mut self, pair: FloatPair) -> i32 {
     transition { _ -> (0) }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }

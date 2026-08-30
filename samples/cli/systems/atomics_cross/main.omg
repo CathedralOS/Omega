@@ -12,7 +12,7 @@
 //   compare_exchange(15,99)  -> prior==15 (match), counter==99
 //   Publish store/Receive load and GlobalOrder store/load round-trip
 //
-// Verified on the host (windows_x64) by execution; the aarch64 LDADD/CASAL
+// Verified on the host (windows_x86_64) by execution; the aarch64 LDADD/CASAL
 // paths are verified by cross-emission + disassembly (this box cannot run them).
 
 use omega::language::std::console;

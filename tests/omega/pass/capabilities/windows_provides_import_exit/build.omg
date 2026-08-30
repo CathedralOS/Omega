@@ -1,5 +1,5 @@
 // Windows authored-import runtime canary: select the exact supported entry.
-target windows_x64 { }
+target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.application("windows-provides-import-exit");

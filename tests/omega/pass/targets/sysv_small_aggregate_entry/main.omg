@@ -12,5 +12,5 @@ boundary machine Main::main(&mut self, tag: u64, pair: Pair) -> i32 {
     transition { _ -> (0) }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }

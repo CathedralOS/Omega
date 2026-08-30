@@ -1,9 +1,9 @@
 // shapes_area build sketch. Needs only stdout + process.exit.
 
-target windows_x64 {
+target windows_x86_64 {
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {
