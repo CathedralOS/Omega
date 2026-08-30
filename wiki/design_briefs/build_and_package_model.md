@@ -1511,8 +1511,9 @@ teardown, and matching staged-output commitment or sponsored custody. The
 compiler fails closed if complete replay lacks source replay or staged-output
 custody. Observation identity binds the verdict schema and disposition with
 the retained attempts, handoffs, and tree. This evidence is neither an audit
-attestation nor package admission; process CPU, memory, and remaining
-whole-session quotas remain separate.
+attestation nor package admission. Host CPU and RSS controls are deployment
+availability policy; they do not strengthen the evidence or turn review into
+authority.
 
 Summary v53 and replay-record v34 additionally admit an optional exact Source
 prefix followed by one failed tag-10 `seek` on an unknown descriptor. The row
@@ -1638,13 +1639,14 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
-The same disposable review session now owns a separate version-1 deterministic
-evaluation sponsor across the closure: 100,000,000 total evaluator fuel units,
+The same disposable review session now owns a separate version-2 deterministic
+evaluation sponsor across the closure: 100,000,000 total evaluator fuel units
+and 16 MiB of compiler-owned BuildLog bytes,
 with the ordinary 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings retained for initial evaluation and replay. Usage
-receipt v2 binds both ceilings and records initial and replay charges
-separately; the compiler rejects a successful closure whose retained charges
-do not exactly reconcile with the shared account. This closes
+receipt v3 binds the fuel and BuildLog ceilings and records initial and replay
+charges separately; the compiler rejects a successful closure whose retained
+charges do not exactly reconcile with the shared sponsor. This closes
 dependency self-budgeting and closure amplification for deterministic work. It
 does not bound process CPU or memory.
 These summary fields are compiler-issued execution evidence kept outside

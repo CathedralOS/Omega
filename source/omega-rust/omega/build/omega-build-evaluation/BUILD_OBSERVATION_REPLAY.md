@@ -285,9 +285,9 @@ custody. Package observation identity binds the verdict schema and disposition
 alongside the exact attempts, handoffs, and tree commitment.
 
 This is compiler-issued observation evidence, not package admission authority
-and not proof that a human or LLM performed an audit. Process CPU, memory, and
-remaining whole-session quotas stay separate gates before package policy may
-treat the evidence as authority-bearing.
+and not proof that a human or LLM performed an audit. Host CPU and RSS controls
+may protect CI availability, but they do not strengthen this evidence or turn
+review into admission authority.
 
 ## Unknown-descriptor seek (summary v53, replay record v34)
 
@@ -467,6 +467,14 @@ interpreter retains its newline-terminated bytes in a dedicated observation
 lane, separate from runtime Console stdout and stderr, and the complete lane is
 bound into build-observation identity. It grants no boundary-service reach and
 does not change the realized filesystem observation class.
+
+Package review debits every retained byte, including the newline, from one
+16-MiB compiler-owned account shared by initial evaluation, automatic replay,
+and the complete resolved closure. A write that would exceed the account
+rejects before changing the retained log; output is never truncated. Usage
+schema v3 records initial and replay BuildLog bytes, and successful closure
+review requires their exact reconciliation with the shared account. This
+limits retained BuildLog custody only; it is not resident-memory containment.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete

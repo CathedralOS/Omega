@@ -1,6 +1,11 @@
 use omega_build_evaluation::BuildObservationClass;
-use omega_compiler::compile_to_checked_with_packages;
+use omega_compiler::{
+    compile_to_checked_with_packages, compile_to_checked_with_packages_in_sponsored_build_session,
+};
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use psi_checked_interpreter::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
+};
 use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::PathBuf;
@@ -106,6 +111,15 @@ fn compile_package_build_log() {
         observation.build_log(),
         format!("{BUILD_LOG_LINE}\n").as_bytes()
     );
+    let usage = checked
+        .build_evaluation_usage()
+        .expect("BuildLog execution retains deterministic usage");
+    assert_eq!(usage.usage_schema_version, 3);
+    assert_eq!(
+        usage.build_log_bytes,
+        u64::try_from(BUILD_LOG_LINE.len() + 1).expect("short test log")
+    );
+    assert_eq!(usage.replay_build_log_bytes, 0);
     assert!(observation.filesystem_operation_attempts().is_empty());
     assert!(observation.staged_output_tree().is_none());
 }
@@ -136,6 +150,50 @@ fn compiler_owned_build_log_executes_in_a_package_without_console_reach() {
         stdout.lines().any(|line| line == BUILD_LOG_LINE),
         "BuildLog::write_line did not emit the exact captured line\nstdout:\n{stdout}\nstderr:\n{stderr}",
     );
+}
+
+#[test]
+fn sponsored_build_log_rejects_atomically_at_the_exact_closure_ceiling() {
+    let project = PackageProject::new("ceiling");
+    project.write("main.omg", "pub data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("build-log-ceiling");
+    builder.log.write_line("build: compiler-owned log");
+}
+"#,
+    );
+    let build_root = project.0.join("build");
+    fs::create_dir(&build_root).expect("create sponsored build root");
+    let filesystem_sponsor = FilesystemSponsor::new(&build_root).expect("sponsor build root");
+    let build_log_ceiling = u64::try_from(BUILD_LOG_LINE.len()).expect("short test log");
+    let evaluation_sponsor = BuildEvaluationSponsor::new(
+        BuildEvaluationSponsorLimits::new(1_000_000, build_log_ceiling)
+            .expect("nonzero test ceilings"),
+    );
+
+    let diagnostics = compile_to_checked_with_packages_in_sponsored_build_session(
+        &project.main(),
+        &build_root,
+        None,
+        project.package_inputs(92),
+        filesystem_sponsor,
+        evaluation_sponsor.clone(),
+    )
+    .expect_err("newline must exceed the exact BuildLog ceiling");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains(&format!(
+            "aggregate BuildLog sponsor exhausted at {build_log_ceiling} bytes"
+        )),
+        "{rendered}"
+    );
+    assert_eq!(evaluation_sponsor.consumed_build_log_bytes(), 0);
 }
 
 #[test]

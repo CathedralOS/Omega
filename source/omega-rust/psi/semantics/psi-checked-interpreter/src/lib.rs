@@ -180,7 +180,7 @@ impl EvaluationUsageSchemaIdentity {
 }
 
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
-    EvaluationUsageSchemaIdentity(2);
+    EvaluationUsageSchemaIdentity(3);
 
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
@@ -193,6 +193,7 @@ pub struct EvaluationUsage {
     schedule: EvaluationStepScheduleIdentity,
     fuel_units: u64,
     fuel_ceiling: u64,
+    build_log_bytes: u64,
     result_cells: u64,
 }
 
@@ -5816,6 +5817,7 @@ impl EvaluationUsage {
             schedule: CURRENT_EVALUATION_STEP_SCHEDULE,
             fuel_units: 0,
             fuel_ceiling,
+            build_log_bytes: 0,
             result_cells: 0,
         }
     }
@@ -5837,6 +5839,11 @@ impl EvaluationUsage {
         self.fuel_ceiling
     }
 
+    /// Bytes emitted through the compiler-owned BuildLog facet.
+    pub const fn build_log_bytes(self) -> u64 {
+        self.build_log_bytes
+    }
+
     /// Number of value cells retained by the successful evaluation result.
     /// Scalar and unit roots count as one cell; each structured value counts
     /// its root plus every recursively retained field, payload, or element.
@@ -5851,6 +5858,11 @@ impl EvaluationUsage {
 
     fn set_fuel_ceiling(&mut self, fuel_ceiling: u64) {
         self.fuel_ceiling = fuel_ceiling;
+    }
+
+    fn charge_build_log_bytes(&mut self, bytes: u64) -> Option<()> {
+        self.build_log_bytes = self.build_log_bytes.checked_add(bytes)?;
+        Some(())
     }
 
     fn record_result_cells(&mut self, result_cells: u64) {

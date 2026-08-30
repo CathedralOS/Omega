@@ -24,6 +24,10 @@ pub enum CompileResolvedPackageReviewsError {
         reported: Option<u64>,
         sponsored: u64,
     },
+    BuildLogAccountingMismatch {
+        reported: Option<u64>,
+        sponsored: u64,
+    },
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
@@ -92,6 +96,13 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             } => write!(
                 formatter,
                 "package-review build usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
+            ),
+            Self::BuildLogAccountingMismatch {
+                reported,
+                sponsored,
+            } => write!(
+                formatter,
+                "package-review BuildLog usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
             ),
             Self::BuildStagingCleanup { path, error, prior } => {
                 write!(

@@ -81,17 +81,11 @@ fn free_build_root_composes_an_ordinary_free_helper_contract() {
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     project.write(
         "build.omg",
-        r#"use omega::language::std::console;
-
-machine configure(builder: &mut Build)
-reaches Console
-{
+        r#"machine configure(builder: &mut Build) {
     builder.freestanding = false;
 }
 
-machine build(builder: &mut Build)
-reaches Console
-{
+machine build(builder: &mut Build) {
     builder.application("free-helper-composition");
     configure(builder);
 }

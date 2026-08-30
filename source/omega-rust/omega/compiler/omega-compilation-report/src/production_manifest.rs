@@ -6,7 +6,7 @@ use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V3\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V4\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -65,18 +65,31 @@ impl ProductionCompilationSubject {
         match (
             build_evaluation_usage.sponsor_schema_version,
             build_evaluation_usage.session_fuel_ceiling,
+            build_evaluation_usage.session_build_log_byte_ceiling,
         ) {
-            (None, None) => {}
-            (Some(_), Some(0)) => {
+            (None, None, None) => {}
+            (Some(_), Some(0), Some(_)) => {
                 return Err("production compilation subject has a zero session fuel ceiling");
             }
-            (Some(_), Some(session_ceiling)) => {
+            (Some(_), Some(_), Some(0)) => {
+                return Err("production compilation subject has a zero session BuildLog ceiling");
+            }
+            (Some(_), Some(session_ceiling), Some(build_log_ceiling)) => {
                 let consumed = build_evaluation_usage
                     .fuel_units
                     .checked_add(build_evaluation_usage.replay_fuel_units)
                     .ok_or("production compilation subject build fuel overflowed")?;
                 if consumed > session_ceiling {
                     return Err("production compilation subject exceeded its session fuel ceiling");
+                }
+                let build_log = build_evaluation_usage
+                    .build_log_bytes
+                    .checked_add(build_evaluation_usage.replay_build_log_bytes)
+                    .ok_or("production compilation subject BuildLog accounting overflowed")?;
+                if build_log > build_log_ceiling {
+                    return Err(
+                        "production compilation subject exceeded its session BuildLog ceiling",
+                    );
                 }
             }
             _ => {
@@ -257,17 +270,24 @@ fn canonical_manifest_bytes(
     bytes.extend_from_slice(&usage.usage_schema_version.to_le_bytes());
     bytes.extend_from_slice(&usage.step_schedule_marker.to_le_bytes());
     bytes.extend_from_slice(&usage.invocation_fuel_ceiling.to_le_bytes());
-    match (usage.sponsor_schema_version, usage.session_fuel_ceiling) {
-        (Some(schema), Some(ceiling)) => {
+    match (
+        usage.sponsor_schema_version,
+        usage.session_fuel_ceiling,
+        usage.session_build_log_byte_ceiling,
+    ) {
+        (Some(schema), Some(fuel_ceiling), Some(build_log_ceiling)) => {
             bytes.push(1);
             bytes.extend_from_slice(&schema.to_le_bytes());
-            bytes.extend_from_slice(&ceiling.to_le_bytes());
+            bytes.extend_from_slice(&fuel_ceiling.to_le_bytes());
+            bytes.extend_from_slice(&build_log_ceiling.to_le_bytes());
         }
-        (None, None) => bytes.push(0),
+        (None, None, None) => bytes.push(0),
         _ => unreachable!("validated production subject has paired sponsor identity"),
     }
     bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
     bytes.extend_from_slice(&usage.replay_fuel_units.to_le_bytes());
+    bytes.extend_from_slice(&usage.build_log_bytes.to_le_bytes());
+    bytes.extend_from_slice(&usage.replay_build_log_bytes.to_le_bytes());
     bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
     bytes.extend_from_slice(subject.build_observation_identity.as_bytes());
     bytes.push(target_profile_tag(subject.target_profile));

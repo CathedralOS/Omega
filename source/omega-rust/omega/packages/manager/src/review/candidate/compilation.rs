@@ -259,5 +259,21 @@ fn compile_resolved_package_reviews_in_session(
             },
         );
     }
+    let reported_build_log = reviews.iter().try_fold(0_u64, |total, review| {
+        let Some(usage) = review.build_evaluation_usage() else {
+            return Some(total);
+        };
+        total
+            .checked_add(usage.build_log_bytes)
+            .and_then(|total| total.checked_add(usage.replay_build_log_bytes))
+    });
+    if reported_build_log != Some(evaluation_sponsor.consumed_build_log_bytes()) {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildLogAccountingMismatch {
+                reported: reported_build_log,
+                sponsored: evaluation_sponsor.consumed_build_log_bytes(),
+            },
+        );
+    }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }

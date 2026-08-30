@@ -312,10 +312,17 @@ pub struct BuildEvaluationUsage {
     /// Aggregate deterministic fuel available to the complete sponsored
     /// review session. Dependencies cannot alter this value.
     pub session_fuel_ceiling: Option<u64>,
+    /// Aggregate compiler-owned BuildLog bytes available to the complete
+    /// sponsored review session.
+    pub session_build_log_byte_ceiling: Option<u64>,
     /// Fuel consumed by the initial build-machine evaluation.
     pub fuel_units: u64,
     /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
     pub replay_fuel_units: u64,
+    /// BuildLog bytes emitted by initial evaluation.
+    pub build_log_bytes: u64,
+    /// BuildLog bytes emitted by exact replay, or zero when no replay ran.
+    pub replay_build_log_bytes: u64,
     pub result_cells: u64,
 }
 
@@ -3257,11 +3264,9 @@ pub fn compute_build_config(
         validate_immutable_build_target(typed, target_vocabulary)?;
     }
 
-    // The build gate admits exactly the pinned standard staging slots from
-    // build_and_package_model.md: FilesystemHost and Console. These are
-    // canonical boundary-service identities, never lowercase compatibility
-    // categories. Custom boundary wrappers are distinct services and refuse
-    // unless the build contract is deliberately extended.
+    // The build gate admits only the pinned standard staging service from
+    // build_and_package_model.md. BuildLog is a compiler-owned facet, not the
+    // runtime Console boundary. Custom boundary wrappers remain distinct.
     let effect_plan = psi_effects::infer_operational_may(typed);
     let service_plan = psi_effects::infer_service_reaches(typed, &effect_plan);
     let transitive = service_plan
@@ -3285,10 +3290,7 @@ pub fn compute_build_config(
             transitive_names.join(", "),
         );
     }
-    const ALLOWED_BUILD_SERVICES: &[(&str, &str)] = &[
-        ("FilesystemHost", "filesystem_host.omg"),
-        ("Console", "console.omg"),
-    ];
+    const ALLOWED_BUILD_SERVICES: &[(&str, &str)] = &[("FilesystemHost", "filesystem_host.omg")];
     let disallowed: Vec<&str> = transitive
         .iter()
         .filter(|service| {
@@ -3436,9 +3438,8 @@ pub fn compute_build_config(
     };
 
     // Omega owns the grant decision. Psi owns the target-neutral interpreter
-    // entry selected by that explicit mode. Console needs the granted entry so
-    // its output can be served, but it must not incidentally install real
-    // filesystem authority.
+    // entry selected by that explicit mode. BuildLog remains available in
+    // either mode without granting a runtime boundary service.
     let execution_mode = if transitive.is_empty() {
         BuildMachineExecutionMode::Pure
     } else {
@@ -4214,8 +4215,12 @@ pub fn compute_build_config(
                 .map(|sponsor| sponsor.limits().schema_version()),
             session_fuel_ceiling: evaluation_sponsor
                 .map(|sponsor| sponsor.limits().maximum_fuel_units()),
+            session_build_log_byte_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
             fuel_units: usage.fuel_units(),
             replay_fuel_units: replay_usage.map_or(0, |usage| usage.fuel_units()),
+            build_log_bytes: usage.build_log_bytes(),
+            replay_build_log_bytes: replay_usage.map_or(0, |usage| usage.build_log_bytes()),
             result_cells: usage.result_cells(),
         }),
         observation_summary: Some(BuildObservationSummary {

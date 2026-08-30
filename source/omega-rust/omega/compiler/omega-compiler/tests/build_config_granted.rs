@@ -274,19 +274,17 @@ fn declared_filesystem_build_machine_stages_at_compile_time() {
     std::fs::write(
         project.join("build.omg"),
         format!(
-            r#"use omega::language::std::console;
-use omega::language::std::filesystem_host;
+            r#"use omega::language::std::filesystem_host;
 
 target {target} {{}}
 
 machine build(builder: &mut Build)
 reaches
-    FilesystemHost + Console
+    FilesystemHost
 {{
     builder.application("filesystem-staging");
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
-    let mut console: Console;
-    console.write_line("build: staging");
+    builder.log.write_line("build: staging");
     let source_path: &[u8] in Path = builder.source.resolve("inputs/table.txt");
     let mut buffer: [u8; 6];
     let source_descriptor: i32 = builder.filesystem.open(source_path, 0);
@@ -335,11 +333,12 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_usage = checked
         .build_evaluation_usage()
         .expect("build machine evaluation must publish precursor usage");
-    assert_eq!(checked_usage.usage_schema_version, 2);
+    assert_eq!(checked_usage.usage_schema_version, 3);
     assert_eq!(checked_usage.step_schedule_marker, 1);
     assert_eq!(checked_usage.invocation_fuel_ceiling, 10_000_000);
     assert_eq!(checked_usage.sponsor_schema_version, None);
     assert_eq!(checked_usage.session_fuel_ceiling, None);
+    assert_eq!(checked_usage.session_build_log_byte_ceiling, None);
     assert!(checked_usage.fuel_units > 0);
     assert!(checked_usage.fuel_units <= checked_usage.invocation_fuel_ceiling);
     assert!(checked_usage.replay_fuel_units <= checked_usage.invocation_fuel_ceiling);
@@ -588,7 +587,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         build_dir: Some(build_dir.clone()),
         target_name: Some(profile.target_name().to_owned()),
     })
-    .expect("declared filesystem+console build.omg should produce Terminal Psi");
+    .expect("declared filesystem build.omg should produce Terminal Psi");
     assert!(!report.wrote_output());
     let terminal = psi_terminal_codec::decode_module(
         report
@@ -5748,7 +5747,7 @@ fn handed_off_generated_source_must_pass_the_final_frontend() {
 }
 
 #[test]
-fn console_only_build_machine_receives_no_real_filesystem_provider() {
+fn runtime_console_is_not_a_package_build_service() {
     let profile = omega_target::TargetProfile::host();
     let project = std::env::temp_dir().join(format!(
         "omega-build-config-console-only-{}",
@@ -5756,11 +5755,6 @@ fn console_only_build_machine_receives_no_real_filesystem_provider() {
     ));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(&project).expect("create project directory");
-
-    let non_directory = project.join("not-a-directory");
-    std::fs::write(&non_directory, "blocks accidental build-root creation")
-        .expect("create build-root blocker");
-    let unavailable_build_root = non_directory.join("nested-build-root");
 
     std::fs::write(
         project.join("build.omg"),
@@ -5795,22 +5789,20 @@ reaches Console
         Vec::new(),
     )
     .expect("single-package compiler input");
-    let checked = compile_to_checked_with_packages_in_build_dir(
+    let diagnostics = compile_to_checked_with_packages_in_build_dir(
         &project.join("main.omg"),
-        &unavailable_build_root,
+        &project.join("build"),
         Some(profile.target_name()),
         package_inputs,
     )
-    .expect("console-only build must not attempt to install real filesystem authority");
-
-    let observations = checked
-        .build_observation_summary()
-        .expect("console-only build publishes observation evidence");
-    assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
-    assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
-    assert!(observations.filesystem_operation_attempts().is_empty());
-    assert!(observations.staged_output_tree().is_none());
-    assert!(!unavailable_build_root.exists());
+    .expect_err("runtime Console must not be admitted as a package build service");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(rendered.contains("Console"), "{rendered}");
+    assert!(rendered.contains("FilesystemHost"), "{rendered}");
 
     let _ = std::fs::remove_dir_all(&project);
 }
