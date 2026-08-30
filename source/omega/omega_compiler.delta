@@ -355,6 +355,8 @@ data OmegaMachineSyntax {
     first_state: i32;
     state_count: i32;
     is_public: i32;
+    has_target: i32;
+    target: OmegaRelativeSpan;
     start: i32;
     end: i32;
 }
@@ -491,6 +493,9 @@ data OmegaParser {
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
     machine_is_public: i32;
+    machine_has_target: i32;
+    machine_target_start: i32;
+    machine_target_end: i32;
     machine_has_return_type: i32;
     machine_return_type: i32;
     machine_parameter_is_const: i32;
@@ -2557,9 +2562,10 @@ machine OmegaLexScan::validate_lexical(
 // positions; no purpose or preflight fact escapes this invocation.
 //
 // The retained syntax currently owns ordinary `use path::member;`, basic
-// `[pub] data` roots, and `[pub]` empty-body machine roots with state parameters
-// and an optional immediate return type. Data fields, parameters, and returns
-// share named, outer-reference, domain-qualified, range-refined, and nested fixed-
+// `[pub] data` roots, and `[pub]`/target-scoped empty-body machine roots with
+// state parameters and an optional immediate return type. Data fields,
+// parameters, and returns share named, outer-reference, domain-qualified,
+// range-refined, and nested fixed-
 // array/slice type syntax; parameters additionally retain their canonical
 // simple modifiers, binding references, and receivers.
 // Rich valid syntax stops as Incomplete rather than becoming a false Omega
@@ -2622,6 +2628,9 @@ machine OmegaParser::parse_view(
     self.machine_parameter_has_more = 0;
     self.machine_path_member_count = 0;
     self.machine_is_public = 0;
+    self.machine_has_target = 0;
+    self.machine_target_start = 0;
+    self.machine_target_end = 0;
     self.machine_has_return_type = 0;
     self.machine_return_type = 0;
     self.machine_parameter_is_const = 0;
@@ -2783,6 +2792,7 @@ machine OmegaParser::parse_view(
             35 -> machine_binding_access_or_name_token()
             36 -> machine_binding_name_token()
             37 -> type_reference_access_or_type_token()
+            38 -> target_machine_token()
             _ -> internal_failure()
         }
     }
@@ -2947,6 +2957,7 @@ machine OmegaParser::parse_view(
                 source.len
             )
             37 -> type_missing_at_view_end()
+            38 -> incomplete_at_end()
             _ -> internal_failure()
         }
     }
@@ -3009,6 +3020,7 @@ machine OmegaParser::parse_view(
     state root_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Keyword -> root_keyword()
+            OmegaTokenKind::Identifier -> begin_target_machine_root()
             _ -> incomplete_root()
         }
     }
@@ -3056,7 +3068,37 @@ machine OmegaParser::parse_view(
 
     state begin_machine_root() {
         self.item_start = self.scan.token_start;
-        transition true { true -> begin_machine(0) }
+        transition true { true -> begin_unscoped_machine(0) }
+    }
+
+    state begin_unscoped_machine(is_public: i32) {
+        self.machine_has_target = 0;
+        self.machine_target_start = 0;
+        self.machine_target_end = 0;
+        transition true { true -> begin_machine(is_public) }
+    }
+
+    state begin_target_machine_root() {
+        self.item_start = self.scan.token_start;
+        self.machine_has_target = 1;
+        self.machine_target_start = self.scan.token_start;
+        self.machine_target_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(38) }
+    }
+
+    state target_machine_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> target_machine_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state target_machine_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Machine -> begin_machine(0)
+            _ -> incomplete_root()
+        }
     }
 
     state begin_machine(is_public: i32) {
@@ -3639,6 +3681,10 @@ machine OmegaParser::parse_view(
             self.machine_state_count;
         self.machine_items[self.machine_count].state_count = 1;
         self.machine_items[self.machine_count].is_public = self.machine_is_public;
+        self.machine_items[self.machine_count].has_target = self.machine_has_target;
+        self.machine_items[self.machine_count].target.start =
+            self.machine_target_start;
+        self.machine_items[self.machine_count].target.end = self.machine_target_end;
         self.machine_items[self.machine_count].start = self.item_start;
         self.machine_items[self.machine_count].end = self.scan.token_end;
         self.roots[self.root_count].kind = OmegaRootKind::Machine;
@@ -3666,7 +3712,7 @@ machine OmegaParser::parse_view(
     state public_root_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::Data -> begin_data(1)
-            OmegaKeywordKind::Machine -> begin_machine(1)
+            OmegaKeywordKind::Machine -> begin_unscoped_machine(1)
             _ -> incomplete_root()
         }
     }

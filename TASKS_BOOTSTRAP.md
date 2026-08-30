@@ -1218,6 +1218,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the current total from 41 to 49; their bodies are nonempty, so no root
       completes. Keep exact direct/public reset, span, visibility, capacity,
       mixed-order, and publication vectors at the real Delta-compiler gate.
+    - [x] Retain canonical identifier-led target-scoped machines as ordinary
+      machine rows with an exact optional target-selector span. A target prefix
+      must be followed by the `machine` keyword, then enters the same root
+      capacity, path, signature, body, implicit-state, and publication path as
+      every unscoped machine. No target is selected or activated during parsing,
+      no target ABI enters the bootstrap lattice, and the four empty `target`
+      declarations in `build.omg` remain deletion-bound scaffolding rather than
+      motivation for a second root model. Public target-scoped combinations and
+      non-machine identifier-led roots remain implementation-incomplete. Of the
+      20 current target-scoped machines, 16 stop later at unimplemented clauses;
+      the four `provider_defaults` headers now reach their nonempty bodies,
+      raising the current body-boundary total from 49 to 53 without completing a
+      root. Keep exact target span/presence, unscoped-reset, malformed-prefix,
+      capacity, mixed-order, and publication vectors at the real Delta-compiler
+      gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
