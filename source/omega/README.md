@@ -72,7 +72,12 @@ public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from
 the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
-remain later phases. The list retains canonical optional `const` and leading
+remain later phases. A source-ordered machine-clause ledger retains exact
+non-generic `satisfies Trait::requirement` bindings and nonempty `reaches`
+ceilings over comma- or plus-separated service identifiers. Generic satisfies
+arguments, aliases, external `via` bindings, empty or installation-bound reach
+rows, and other machine clauses remain incomplete. The parameter list retains
+canonical optional `const` and leading
 `mut`, consuming or borrowed `self`, and shared/mutable/write-only
 binding-reference forms.
 Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
@@ -124,18 +129,20 @@ names its entry with the final authored declaration-path member. Machine and
 domain paths share the general path-member arena, but a machine snapshots its
 path extent before parameter types can append domain members. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
-`Slice<T>` spelling, return
-types placed after clauses, generics, clause-bearing headers, state arrival
-contracts, and `boundary` forms; target declarations and public target-scoped
+`Slice<T>` spelling, return types placed after clauses, generics, remaining
+machine-clause forms, state arrival contracts, and `boundary` forms; target
+declarations and public target-scoped
 combinations, other public roots, bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 54 headers reach body parsing. Twenty are complete: four
+representable, and 54 headers reach body parsing. Twenty-two are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
-`psi` package build root, `Lexer::initialize`, the canonical Omega package build root, and
-`Lexer::{is_whitespace,push_decoded}` through explicit states and transitions.
+`psi` package build root, `Lexer::initialize`, the canonical Omega package build
+root, `Lexer::{is_whitespace,push_decoded}` through explicit states and
+transitions, and `ConsoleNativeProvider::{write,write_line}` through exact
+satisfies and reach clauses.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -167,7 +174,8 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
-type-node/constraint/statement/call/assignment/transition/expression/argument/
+machine-clause/type-node/constraint/statement/call/assignment/transition/
+expression/argument/
 static-machine-argument/struct-literal/struct-field rows, plus 128 scratch
 array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
@@ -193,6 +201,8 @@ one value expression
 and every struct literal owns its expression node, so `Expressions` dominates
 both equal struct tables. Every static machine argument owns at least one
 same-capacity path-member row, so `PathMembers` dominates that table as well.
+Every retained machine clause owns at least one path member, so `PathMembers`
+also dominates the equal clause ledger.
 The meaningful
 resource distinctions are therefore `Roots`, `States`, `PathMembers`,
 `DataMembers`, `TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`.

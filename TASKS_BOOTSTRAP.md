@@ -1378,6 +1378,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the body boundary. Keep exact implicit-entry presence, state ordering,
       per-state ownership, transition expansion, guard/target spans, resource,
       reset, and partial-publication vectors at the real Delta-compiler gate.
+    - [x] Retain the first source-shaped machine clause ledger instead of
+      treating header clauses as disposable punctuation. Exact non-generic
+      `satisfies Trait::requirement` bindings and nonempty `reaches` ceilings
+      over comma- or plus-separated service identifiers append in source order,
+      and each machine owns their contiguous span. Every clause consumes at
+      least one path-member row, so `PathMembers` dominates the equal clause
+      table without another resource class. Generic satisfies arguments,
+      aliases, external `via` bindings, empty or installation-bound reach rows,
+      adjacency-separated services, and all other clauses remain
+      implementation-incomplete. This completes
+      `ConsoleNativeProvider::{write,write_line}`, raising completed current
+      `C` roots from twenty to twenty-two while body-boundary coverage remains
+      54 of 73. Keep exact clause/member/order/delimiter, no-parentheses header,
+      resource, reset, and Complete-only publication vectors at the real Delta-
+      compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
