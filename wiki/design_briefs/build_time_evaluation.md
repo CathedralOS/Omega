@@ -751,6 +751,16 @@ evaluator rejects at descriptor grant lookup before host mutation, and virtual
 replay must reproduce the complete attempt and teardown before empty
 staged-output custody issues.
 
+Summary v55 and filesystem replay-record v36 add the corresponding exact
+mutable-carrier row for tag-42 `set_file_times` on an unknown descriptor. The
+compiler binds operand one's complete authored carrier as equal resolution and
+provider pre/post bytes, requires at least the 32-byte timespec pair, and fixes
+scoped-real provider, scalar `-1`, post-error `9`, and
+`Descriptor/Unknown`; all other lanes and handoffs are empty. Descriptor grant
+lookup rejects before host mutation. Virtual replay restores the exact carrier
+and must reproduce the complete attempt and teardown before empty staged-output
+custody issues.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

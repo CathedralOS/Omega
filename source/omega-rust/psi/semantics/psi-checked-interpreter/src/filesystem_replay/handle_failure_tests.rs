@@ -2,10 +2,13 @@ use super::{
     FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
     FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
     FilesystemInputUnknownDescriptorSeekReplayRecord as SeekRecord,
+    FilesystemInputUnknownDescriptorSetFileTimesReplayRecord as SetFileTimesRecord,
     FilesystemInputUnknownDescriptorWriteOperationReplayKind as WriteKind,
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord as WriteRecord,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
     unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
+    unknown_descriptor_set_file_times_attempt,
+    unknown_descriptor_set_file_times_from_exact_attempt,
     unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,
 };
@@ -25,7 +28,7 @@ use crate::{
     FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
     FilesystemRootedPathOperandResolution, FilesystemScalarOperand, FilesystemScalarOperandValue,
     FilesystemSourceInputReplayEventRecord, FilesystemSourceInputReplayRecord,
-    FilesystemSourceReadChainReplayRecord,
+    FilesystemSourceReadChainReplayRecord, MAX_FILESYSTEM_REPLAY_RETAINED_BYTES,
 };
 
 const KINDS_AND_TAGS: [(Kind, u16); 4] = [
@@ -669,6 +672,197 @@ fn assert_tampered_write_operation_rejected(attempt: FilesystemOperationAttempt)
         EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
     assert!(
         FilesystemReplay::from_input_unknown_descriptor_write_operation_observations(&observations)
+            .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_set_file_times_record_round_trips_with_optional_source_prefix() {
+    let times = (0_u8..40).collect::<Vec<_>>();
+    let record = SetFileTimesRecord::new(None, times.clone()).unwrap();
+    assert!(record.source_input().is_none());
+    assert_eq!(record.times(), times);
+
+    let without_source =
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_record(record).unwrap();
+    assert_eq!(without_source.attempts().len(), 1);
+    assert_eq!(without_source.attempts()[0].operation_tag(), 42);
+    assert_eq!(
+        unknown_descriptor_set_file_times_from_exact_attempt(&without_source.attempts()[0]),
+        Some(times.as_slice())
+    );
+    assert!(without_source.executes_replay_attempt(0));
+    assert!(!without_source.has_output_attempts());
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        without_source.attempts().to_vec(),
+        Vec::new(),
+    );
+    let observed =
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
+            .unwrap();
+    assert_eq!(observed.attempts(), without_source.attempts());
+
+    let with_source = FilesystemReplay::from_input_unknown_descriptor_set_file_times_record(
+        SetFileTimesRecord::new(Some(source_input()), times.clone()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        with_source
+            .attempts()
+            .iter()
+            .map(FilesystemOperationAttempt::operation_tag)
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 42]
+    );
+    assert!((0..3).all(|index| !with_source.executes_replay_attempt(index)));
+    assert!(with_source.executes_replay_attempt(3));
+    assert!(!with_source.has_output_attempts());
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        with_source.attempts().to_vec(),
+        Vec::new(),
+    );
+    let observed =
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
+            .unwrap();
+    assert_eq!(observed.attempts(), with_source.attempts());
+}
+
+#[test]
+fn unknown_descriptor_set_file_times_record_rejects_short_and_oversized_carriers() {
+    assert!(SetFileTimesRecord::new(None, vec![0; 31]).is_err());
+
+    let oversized = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES / 3 + 1];
+    let record = SetFileTimesRecord::new(None, oversized.clone()).unwrap();
+    assert!(FilesystemReplay::from_input_unknown_descriptor_set_file_times_record(record).is_err());
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_set_file_times_attempt(oversized)],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
+            .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_set_file_times_observations_reject_failure_and_carrier_drift() {
+    let exact = unknown_descriptor_set_file_times_attempt(vec![7; 40]);
+
+    let mut changed = exact.clone();
+    changed.operation_tag = 41;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.provider = FilesystemObservationProvider::Virtual;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(0),
+        post_error: 9,
+    });
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(-1),
+        post_error: 13,
+    });
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands.push(FilesystemScalarOperand {
+        operand_ordinal: 2,
+        value: FilesystemScalarOperandValue::U64(40),
+    });
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0].operand_ordinal = 2;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].operand_ordinal = 2;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions.clear();
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands.clear();
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0].bytes[0] ^= 1;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].pre_bytes[0] ^= 1;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].post_bytes[0] ^= 1;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0]
+        .bytes
+        .truncate(31);
+    changed.mutable_byte_operands[0].pre_bytes.truncate(31);
+    changed.mutable_byte_operands[0].post_bytes.truncate(31);
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].operand_ordinal = 1;
+    assert_tampered_set_file_times_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].resolution = FilesystemLogicalHandleInputResolution::Null;
+    assert_tampered_set_file_times_rejected(changed);
+
+    for changed in nonempty_side_lane_attempts(exact) {
+        assert_tampered_set_file_times_rejected(changed);
+    }
+}
+
+#[test]
+fn unknown_descriptor_set_file_times_observations_reject_handoff_and_non_source_prefix() {
+    let exact = unknown_descriptor_set_file_times_attempt(vec![3; 32]);
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![exact.clone()],
+        vec![
+            BuildIncludedSource::from_coordinate(
+                FilesystemGrantRootIdentity::new(2).unwrap(),
+                b"generated.omg".to_vec(),
+                1,
+            )
+            .unwrap(),
+        ],
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
+            .is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_seek_attempt(0, 0), exact],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
+            .is_err()
+    );
+}
+
+fn assert_tampered_set_file_times_rejected(attempt: FilesystemOperationAttempt) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
             .is_err()
     );
 }

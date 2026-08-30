@@ -47,6 +47,7 @@ pub use handle_failures::{
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
     FilesystemInputUnknownDescriptorSeekReplayRecord,
+    FilesystemInputUnknownDescriptorSetFileTimesReplayRecord,
     FilesystemInputUnknownDescriptorWriteOperationReplayKind,
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord,
 };
@@ -54,6 +55,8 @@ pub use handle_failures::{
 pub(crate) use handle_failures::{
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
     unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
+    unknown_descriptor_set_file_times_attempt,
+    unknown_descriptor_set_file_times_from_exact_attempt,
     unknown_descriptor_write_operation_attempt,
     unknown_descriptor_write_operation_from_exact_attempt,
 };
