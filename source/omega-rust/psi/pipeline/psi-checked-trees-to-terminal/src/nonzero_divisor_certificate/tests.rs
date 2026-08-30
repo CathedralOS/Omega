@@ -4727,15 +4727,15 @@ fn exact_division_goal_proves_two_definition_affine_safe_divisor() {
 }
 
 #[test]
-fn exact_division_goal_proves_three_through_five_definition_affine_safe_divisors() {
+fn exact_division_goal_proves_three_through_six_definition_affine_safe_divisors() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let context = PropositionContext::from_value_types((1..=8).map(|id| {
+    let context = PropositionContext::from_value_types((1..=9).map(|id| {
         (
             ValueId::new(id).expect("value id"),
             ScalarType::Integer(signed),
         )
     }))
-    .expect("eight i8 values");
+    .expect("nine i8 values");
     let exact_division_goal = |divisor: ScalarTerm| {
         Proposition::Disjunction(vec![
             Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
@@ -4750,10 +4750,12 @@ fn exact_division_goal_proves_three_through_five_definition_affine_safe_divisors
     let four_step_goal = exact_division_goal(value(7, signed));
     let five_step_goal = exact_division_goal(value(8, signed));
     let six_step_goal = exact_division_goal(value(2, signed));
+    let seven_step_goal = exact_division_goal(value(9, signed));
     let three_step_root_bound = Proposition::LessOrEqual(integer(signed, -2), value(3, signed));
     let four_step_root_bound = Proposition::LessOrEqual(integer(signed, -3), value(3, signed));
     let five_step_root_bound = Proposition::LessOrEqual(integer(signed, -4), value(3, signed));
     let six_step_root_bound = Proposition::LessOrEqual(integer(signed, -5), value(3, signed));
+    let seven_step_root_bound = Proposition::LessOrEqual(integer(signed, -6), value(3, signed));
     let definitions = [
         Proposition::Equal(
             value(4, signed),
@@ -4784,6 +4786,11 @@ fn exact_division_goal_proves_three_through_five_definition_affine_safe_divisors
             value(2, signed),
             ScalarTerm::exact_integer_add(signed, value(8, signed), integer(signed, 1))
                 .expect("sixth exact add"),
+        ),
+        Proposition::Equal(
+            value(9, signed),
+            ScalarTerm::exact_integer_add(signed, value(2, signed), integer(signed, 1))
+                .expect("seventh exact add"),
         ),
     ];
 
@@ -4862,15 +4869,97 @@ fn exact_division_goal_proves_three_through_five_definition_affine_safe_divisors
         .is_none(),
         "a reversed five-definition word cannot claim canonical custody",
     );
+    let six_step_proof = prove_canonical_integer_proposition(
+        &context,
+        &six_step_goal,
+        std::slice::from_ref(&six_step_root_bound),
+        &definitions,
+    )
+    .expect("six-definition affine word proves the positive divisor arm");
+    let ProofRule::DisjunctionIntroduction { disjunct, index } = &six_step_proof.rule else {
+        panic!("six-definition affine divisor selects one canonical arm")
+    };
+    assert_eq!(*index, 1);
+    let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
+        panic!("six-definition affine divisor uses the affine-bound rule")
+    };
+    assert_eq!(witness.root, value(3, signed));
+    assert_eq!(witness.target, value(2, signed));
+    assert_eq!(witness.definition_axioms, vec![0, 1, 2, 3, 4, 5]);
+    accept_certificate(
+        &context,
+        &six_step_goal,
+        std::slice::from_ref(&six_step_root_bound),
+        &definitions,
+        &six_step_proof,
+    )
+    .expect("the checker independently replays the six-definition certificate");
+
     assert!(
         prove_canonical_integer_proposition(
             &context,
             &six_step_goal,
-            &[six_step_root_bound],
+            std::slice::from_ref(&six_step_root_bound),
+            &definitions[..5],
+        )
+        .is_none(),
+        "an incomplete six-definition word cannot prove divisor safety",
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &six_step_goal,
+            std::slice::from_ref(&six_step_root_bound),
+            &[
+                definitions[5].clone(),
+                definitions[4].clone(),
+                definitions[3].clone(),
+                definitions[2].clone(),
+                definitions[1].clone(),
+                definitions[0].clone(),
+            ],
+        )
+        .is_none(),
+        "a reversed six-definition word cannot claim canonical custody",
+    );
+
+    let mut redirected_definitions = definitions[..6].to_vec();
+    redirected_definitions[5] = Proposition::Equal(
+        value(9, signed),
+        ScalarTerm::exact_integer_add(signed, value(8, signed), integer(signed, 1))
+            .expect("redirected sixth exact add"),
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &six_step_goal,
+            std::slice::from_ref(&six_step_root_bound),
+            &redirected_definitions,
+        )
+        .is_none(),
+        "a redirected sixth definition cannot complete the target word",
+    );
+    assert!(
+        accept_certificate(
+            &context,
+            &six_step_goal,
+            std::slice::from_ref(&six_step_root_bound),
+            &redirected_definitions,
+            &six_step_proof,
+        )
+        .is_err(),
+        "a certificate word cannot replay against stale definition evidence",
+    );
+
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &seven_step_goal,
+            std::slice::from_ref(&seven_step_root_bound),
             &definitions,
         )
         .is_none(),
-        "a six-definition word remains outside the bounded certificate frontier",
+        "a seven-definition word remains outside the bounded certificate frontier",
     );
 }
 
