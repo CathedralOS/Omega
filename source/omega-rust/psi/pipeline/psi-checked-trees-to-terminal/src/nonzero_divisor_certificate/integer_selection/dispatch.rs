@@ -610,9 +610,12 @@ fn prove_direct_add_relation(
         ) else {
             continue;
         };
-        let right_bound =
+        let Some(right_bound) =
             exact_add_operand_value(integer_type, &right, assumptions, semantic_axioms)
-                .or_else(|| add_complement(integer_type, left_bound, lower))?;
+                .or_else(|| add_complement(integer_type, left_bound, lower))
+        else {
+            continue;
+        };
         let Some(right_proof) = prove_add_operand_endpoint(
             context,
             integer_type,
@@ -638,7 +641,9 @@ fn prove_direct_add_relation(
             definition_axioms: Vec::new(),
             literal_axioms: Vec::new(),
         };
-        let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
+        let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+            continue;
+        };
         let mapped = match map_integer_affine_bound(&form, &evidence.conclusion) {
             Ok(mapped) => mapped,
             Err(_) => continue,
