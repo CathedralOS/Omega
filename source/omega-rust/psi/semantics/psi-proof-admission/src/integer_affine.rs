@@ -3167,6 +3167,80 @@ mod tests {
     }
 
     #[test]
+    fn direct_multiply_requires_oriented_zero_evidence_for_exact_zero_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap();
+        let checked = check_integer_affine_witness(
+            &context,
+            &[],
+            &IntegerAffineWitness {
+                root: left.clone(),
+                target: ScalarTerm::exact_integer_multiply(
+                    integer_type,
+                    left.clone(),
+                    right.clone(),
+                )
+                .unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        )
+        .expect("direct multiply witness");
+        let zero = literal(integer_type, 0);
+        let product = IntegerMathTerm::Multiply(
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(1).unwrap(),
+            }),
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(2).unwrap(),
+            }),
+        );
+        let lower = Proposition::Conjunction(vec![
+            Proposition::Truth,
+            Proposition::Truth,
+            Proposition::LessOrEqual(zero.clone(), right.clone()),
+            Proposition::LessOrEqual(right.clone(), zero.clone()),
+        ]);
+        assert_eq!(
+            map_integer_affine_bound(&checked, &lower),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Signed(0)),
+                product.clone(),
+            )),
+        );
+        let upper = Proposition::Conjunction(vec![
+            Proposition::Truth,
+            Proposition::Truth,
+            Proposition::LessOrEqual(right.clone(), zero.clone()),
+            Proposition::LessOrEqual(zero, right.clone()),
+        ]);
+        assert_eq!(
+            map_integer_affine_bound(&checked, &upper),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                product,
+                IntegerMathTerm::literal(IntegerValue::Signed(0)),
+            )),
+        );
+
+        let one_equality = Proposition::Equal(right, literal(integer_type, 1));
+        let unoriented_nonzero = Proposition::Conjunction(vec![
+            Proposition::Truth,
+            Proposition::Truth,
+            one_equality.clone(),
+            one_equality,
+        ]);
+        assert!(map_integer_affine_bound(&checked, &unoriented_nonzero).is_err());
+    }
+
+    #[test]
     fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = value(1, integer_type);

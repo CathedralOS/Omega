@@ -10,7 +10,7 @@ use psi_proof_admission::{
 };
 
 use super::super::affine_custody::DefinitionIndex;
-use super::super::integer_evidence::cited_facts;
+use super::super::integer_evidence::{cited_facts, closed_integer_relation};
 use super::dispatch::{
     add_endpoint_candidates, lower_add_math_leaf, prove_add_operand_endpoint, relax_math_bound,
 };
@@ -340,6 +340,58 @@ fn multiply_operand_endpoints(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Vec<ProofNode> {
+    let mut proofs = targeted_operand_endpoints(
+        context,
+        integer_type,
+        operand,
+        lower,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    );
+    if proofs.is_empty() {
+        let carrier = if lower {
+            integer_type.minimum_value()
+        } else {
+            integer_type.maximum_value()
+        };
+        if let Some(proof) = prove_add_operand_endpoint(
+            context,
+            integer_type,
+            operand,
+            carrier,
+            lower,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        ) {
+            proofs.push(proof);
+        }
+    }
+    proofs
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn targeted_operand_endpoints(
+    context: &PropositionContext,
+    integer_type: IntegerType,
+    operand: &ScalarTerm,
+    lower: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Vec<ProofNode> {
+    if matches!(
+        operand,
+        ScalarTerm::Integer { scalar_type, .. } if *scalar_type == integer_type
+    ) {
+        return vec![ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Primitive(psi_proof_admission::PrimitiveJudgment::Truth),
+        }];
+    }
+    let mut proofs =
+        direct_cited_operand_endpoints(integer_type, operand, lower, assumptions, semantic_axioms);
     let affine_proofs = prove_multiply_affine_operand_endpoints(
         context,
         integer_type,
@@ -354,7 +406,14 @@ fn multiply_operand_endpoints(
         .is_empty()
         .then(|| targeted_multiply_operand_prefix_witnesses(context, semantic_axioms, operand))
         .unwrap_or_default();
-    let mut proofs = affine_proofs;
+    for affine_proof in affine_proofs {
+        if !proofs
+            .iter()
+            .any(|proof| proof.conclusion == affine_proof.conclusion)
+        {
+            proofs.push(affine_proof);
+        }
+    }
     if let Some(proof) = prefix_witnesses.iter().find_map(|witness| {
         prove_targeted_remainder_prefix_endpoint(context, operand, witness, lower, semantic_axioms)
     }) {
@@ -377,21 +436,97 @@ fn multiply_operand_endpoints(
     {
         proofs.push(proof);
     }
-    if proofs.is_empty() {
-        proofs.extend(candidates.iter().copied().filter_map(|bound_value| {
-            prove_add_operand_endpoint(
-                context,
-                integer_type,
-                operand,
-                bound_value,
-                lower,
-                assumptions,
-                semantic_axioms,
-                definitions,
-            )
-        }));
+    proofs
+}
+
+fn direct_cited_operand_endpoints(
+    integer_type: IntegerType,
+    operand: &ScalarTerm,
+    lower: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let mut proofs = Vec::new();
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        if let Some(proof) =
+            oriented_landed_zero_endpoint(integer_type, operand, lower, citation.proof(fact))
+        {
+            proofs.push(proof);
+            continue;
+        }
+        let matches = match fact {
+            Proposition::Equal(left, right) => {
+                (left == operand
+                    && right
+                        .integer_value()
+                        .is_some_and(|(actual, _)| actual == integer_type))
+                    || (right == operand
+                        && left
+                            .integer_value()
+                            .is_some_and(|(actual, _)| actual == integer_type))
+            }
+            Proposition::LessOrEqual(left, right) if lower => {
+                right == operand
+                    && left
+                        .integer_value()
+                        .is_some_and(|(actual, _)| actual == integer_type)
+            }
+            Proposition::LessOrEqual(left, right) => {
+                left == operand
+                    && right
+                        .integer_value()
+                        .is_some_and(|(actual, _)| actual == integer_type)
+            }
+            _ => false,
+        };
+        if matches
+            && !proofs
+                .iter()
+                .any(|proof: &ProofNode| &proof.conclusion == fact)
+        {
+            proofs.push(citation.proof(fact));
+        }
     }
     proofs
+}
+
+fn oriented_landed_zero_endpoint(
+    integer_type: IntegerType,
+    operand: &ScalarTerm,
+    lower: bool,
+    equality: ProofNode,
+) -> Option<ProofNode> {
+    let Proposition::Equal(left, right) = &equality.conclusion else {
+        return None;
+    };
+    let literal = if left == operand {
+        right
+    } else if right == operand {
+        left
+    } else {
+        return None;
+    };
+    let (actual_type, value) = literal.integer_value()?;
+    if actual_type != integer_type
+        || !matches!(value, IntegerValue::Signed(0) | IntegerValue::Unsigned(0))
+    {
+        return None;
+    }
+    let closed =
+        closed_integer_relation(Proposition::LessOrEqual(literal.clone(), literal.clone()))?;
+    let conclusion = if lower {
+        Proposition::LessOrEqual(literal.clone(), operand.clone())
+    } else {
+        Proposition::LessOrEqual(operand.clone(), literal.clone())
+    };
+    Some(ProofNode {
+        conclusion,
+        rule: ProofRule::IntegerLessOrEqualSubstitution {
+            relation: Box::new(closed),
+            equality: Box::new(equality),
+            endpoint: usize::from(lower),
+        },
+    })
 }
 
 fn prove_multiply_affine_operand_endpoints(
