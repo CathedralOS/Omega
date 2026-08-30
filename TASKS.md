@@ -9273,7 +9273,18 @@ reach or trust, and private proof improvements do not change public identity.
   out-of-bounds, reordered-cleanup, wrong-length/layout/stride/offset, codec,
   object, image, and installation tampering reject. Static residual count again
   does not change the exact five call/return fuel units; no runtime liveness
-  bitmap or cleanup loop is introduced. `[[T; 5]; 2]` remains fenced.
+  bitmap or cleanup loop is introduced.
+
+  The following exact nested successor is also closed. The same carrier admits
+  `[[T; 5]; 2]` with one literal leaf move from each outer element and eight
+  live residual leaves in decreasing outer-then-inner order. Every custody and
+  replay layer retains the authored two-call order, nested type graph, 80-byte
+  outer layout, 40-byte outer stride, exact leaf offsets, and eight cleanup
+  actions on all five native targets. Missing, duplicate, same-outer,
+  out-of-bounds, reordered-cleanup, wrong-length/layout/stride/offset, codec,
+  object, image, and installation tampering reject. Fuel remains exactly five
+  call/return units without runtime liveness state or a cleanup loop;
+  `[[T; 6]; 2]` remains fenced.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
   uninitialized mutable `[T; 3]`, with `T` the exact empty, unqualified,
@@ -9344,7 +9355,7 @@ reach or trust, and private proof improvements do not change public identity.
   `[T; 10]` and wider prefixes remain fail closed without runtime liveness state
   or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 4]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 5]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 9]` to deeper canonical fuel/action
   ordinals.
 

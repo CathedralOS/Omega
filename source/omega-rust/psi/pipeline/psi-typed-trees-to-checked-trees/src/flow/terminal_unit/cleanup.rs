@@ -1153,7 +1153,7 @@ pub(super) fn partial_affine_residuals(
             {
                 let CheckedUnitStructuralTypeShape::FixedArray {
                     element_type_identity: leaf_type_identity,
-                    length: inner_length @ (3 | 4),
+                    length: inner_length @ (3 | 4 | 5),
                 } = &types.get(element_type_identity)?.shape
                 else {
                     return None;
@@ -1168,7 +1168,8 @@ pub(super) fn partial_affine_residuals(
                         _ => None,
                     })
                     .collect::<BTreeMap<_, _>>();
-                let mut residuals = Vec::with_capacity(if *inner_length == 3 { 4 } else { 6 });
+                let mut residuals =
+                    Vec::with_capacity(usize::try_from(2 * (*inner_length - 1)).ok()?);
                 for outer in (0_u64..2).rev() {
                     let moved_inner = *moved_by_outer.get(&outer)?;
                     for inner in (0_u64..*inner_length).rev() {
@@ -1362,7 +1363,7 @@ fn exact_nested_affine_array_moves(
 ) -> bool {
     let Some(CheckedUnitStructuralTypeShape::FixedArray {
         element_type_identity: leaf_type_identity,
-        length: inner_length @ (3 | 4),
+        length: inner_length @ (3 | 4 | 5),
     }) = types.get(inner_type_identity).map(|shape| &shape.shape)
     else {
         return false;
@@ -1379,7 +1380,7 @@ fn exact_nested_affine_array_moves(
         .filter_map(|(path, moved_type)| match path.as_slice() {
             [
                 CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2 | 3)),
+                CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2 | 3 | 4)),
             ] if *inner < *inner_length && moved_type == leaf_type_identity => Some(*outer),
             _ => None,
         })
@@ -1437,7 +1438,7 @@ fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
             [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
                 | [
                     CheckedUnitStructuralPathSegment::FixedIndex(0 | 1),
-                    CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3),
+                    CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4),
                 ]
         )
 }
