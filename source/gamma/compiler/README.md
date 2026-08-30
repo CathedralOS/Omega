@@ -44,13 +44,13 @@ load and store, so resolved variables, lets, and future pattern binders reuse
 one containment rule. The resolved let seam validates its packed
 `(prefix,index)` profile before emitting its initializer, evaluates that
 initializer once outside tail position, stores the complete value, and passes
-the caller's tail context to its body. Q2 still owns assigning source binders
-and references to those indexes; this ABI chooses no scope or shadowing rule.
+the caller's tail context to its body. D20 assigns source binders and references
+to those indexes without active lexical shadowing; the ABI chooses neither.
 Resolved parameters use the frame's already-fixed reverse physical order: a
 guarded accessor validates the complete prefix, parameter count, and opaque
 source-order index, and requires their combined extent to stay inside the
-explicit-stack profile before loading one pair. Q2 later assigns references to
-those indexes but does not own or alter their runtime placement.
+explicit-stack profile before loading one pair. D20 assigns references to those
+indexes but does not own or alter their runtime placement.
 
 ## Implementation shape
 
@@ -97,7 +97,7 @@ ordinary user spellings. This is compiler-size engineering, not a lexical rule.
 Top-level `data` lookahead now uses that same bounded matcher rather than a
 second hand-unrolled spelling check. Declared type and constructor names also
 share one predicate because D16 gives them identical capitalization and
-builtin exclusions; this does not merge their Q2-owned namespaces.
+builtin exclusions; D20 keeps their semantic namespaces separate.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
@@ -125,7 +125,7 @@ field-pointer extent/alignment before loads. Odd field counts round to a
 32-byte heap row, preserving the compact `Bytes` descriptor alignment across
 mixed allocations. The adjacent probe covers 600 fields, nested and nullary
 values, malformed private pointers, and the exact heap edge. Source
-constructor-tag and pattern-slot assignment remains Q2-blocked. The resolved
+constructor-tag and pattern-slot assignment must now implement D20. The resolved
 constructor seam shares the call seam's single guarded argument routine rather
 than retaining a second list verifier; it consumes only an opaque resolved kind
 and does not assign source identity. Its focused failure discriminator also
@@ -180,7 +180,8 @@ The focused executable bridge carries a `Bytes` initializer and an `Int` body
 through separate slots in a real 48-byte frame, observes the stored byte,
 restores the root frame, rejects malformed prefix/index profiles with zero
 payload, and reconstructs the same tape twice. Connecting source tag 1 or 4 to
-these seams remains Q2-blocked; no source spelling or shadowing choice is made.
+these seams must implement D20's exact local environment; the ABI makes no
+additional source-spelling or scope choice.
 
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them
@@ -197,8 +198,8 @@ with the root stack and frame restored. `if` and the resolved
 let seam already preserve their tail-position bit; future selected-match
 lowering must propagate the same transfer so terminating tail recursion grows
 neither Gamma activations nor Alpha's hidden return stack. Connecting tag-5 source call
-spellings, callee metadata, and binder slots to the seam still waits for Q2's
-deterministic source-identity ruling; no resolved AST is serialized or executed.
+spellings, callee metadata, and binder slots to the seam must implement D20's
+deterministic source identities; no resolved AST is serialized or executed.
 
 `Bytes` uses a compact immutable rope/view representation with closed descriptor
 kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
@@ -230,11 +231,11 @@ branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
 
-Q2 blocks the final declaration/binder resolver policy. D19 has removed the
-application-profile owner block; implementing its adapters still gates final
-tape publication. Neither fact authorizes a subset compiler or blocks the
-strict parser, private target ABI, runtime helpers, direct emitter, or
-profile-independent lowering described above.
+D20 fixes the final declaration/binder resolver policy. D19 fixes application-
+profile selection; implementing the resolver, complete lowering, and adapters
+still gates final tape publication. No incomplete slice authorizes a subset
+compiler or blocks the settled parser, private target ABI, runtime helpers,
+direct emitter, or profile-independent lowering described above.
 
 Any future validation placed here must reconstruct the exact
 Beta-source-to-Alpha-tape edge for `gamma_compiler.beta`. Generic evidence,

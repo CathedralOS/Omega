@@ -46,6 +46,12 @@ private exhaustion, internal failure, and the selected external observation
 contract. Gamma source receives no general I/O primitive and matching names do
 not select `DCOUT`.
 
+D20 fixes the resolver beneath those profiles. Types, constructors, functions,
+and local values occupy four grammar-selected namespaces. Globals are unique
+within their own namespace; local bindings cannot shadow an active binding but
+may reuse names in disjoint scopes. Collection precedes mutually visible type
+resolution, and duplicates reject at the exact later declaration or binder.
+
 ## Current migration
 
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
