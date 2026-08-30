@@ -71,11 +71,13 @@ machines retain an arbitrary name-like path, optional parentheses containing a
 comma-separated state-parameter list, and an immediately empty body. The list
 retains canonical optional `const` and leading `mut`, consuming or borrowed
 `self`, and shared/mutable/write-only binding-reference forms. Non-receiver
-parameters retain `name: Type`; their type, data fields, and case-payload fields
-share one engine for bare named, outer elided-lifetime references, unqualified
-domains, inclusive literal ranges, and nested fixed arrays and slices. Self
-receivers materialize a `SelfType` base and optional outer Reference node. Every
-parameter row records its canonical const/mutable/self flags.
+parameters retain `name: Type`. Non-receiver parameter types, data fields,
+case-payload fields, and immediate machine return types share one engine for
+bare named, outer elided-lifetime references, unqualified domains, inclusive
+literal ranges, and nested fixed arrays and slices. Self receivers materialize
+a `SelfType` base and optional outer Reference node. Every parameter row records
+its canonical const/mutable/self flags; the implicit entry state owns the optional return
+node.
 
 Each completed machine owns one implicit empty entry state and its contiguous
 parameter span, matching the canonical parser: a free machine uses the
@@ -84,12 +86,13 @@ final authored declaration-path member. Machine and domain paths share the
 general path-member arena, but a machine snapshots its path extent before
 parameter types can append domain members. A trailing parameter comma rejects
 as malformed. Explicit reference lifetimes, general type-position `Self`,
-constrained slice elements and the `Slice<T>` spelling, returns, generics,
-clauses, `pub`/`boundary`/target-scoped forms, bodyless declarations, and
-nonempty bodies remain incomplete; the parser never skips a body as opaque
-syntax. In the current 72-root `C` closure, all 112
+constrained slice elements and the `Slice<T>` spelling, return types placed
+after clauses, generics, clause-bearing headers, and
+`pub`/`boundary`/target-scoped forms; bodyless declarations and nonempty bodies
+remain incomplete. The parser never skips a body as opaque syntax. In the
+current 72-root `C` closure, all 112
 parameter occurrences and all 72 complete parameter lists are representable,
-and 40 headers reach body parsing. Every reached body is nonempty, so zero current
+and 41 headers reach body parsing. Every reached body is nonempty, so zero current
 `C` roots complete.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -125,11 +128,11 @@ machine-parameter/type-node/constraint rows, plus 128 scratch array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting
-every count. Root
-capacity dominates use/data/machine/implicit-state capacity, while data-member
-capacity dominates direct-field/case capacity. Direct and payload fields share
-the type-node table, making `TypeNodes` independently exhaustible; its equal
-ceiling dominates payload-field, machine-parameter, and constraint capacity in
+every count. Root capacity dominates use/data/machine/implicit-state capacity,
+while data-member capacity dominates direct-field/case capacity. Fields,
+parameters, and machine returns share the type-node table, making `TypeNodes`
+independently exhaustible. Its equal ceiling dominates payload-field,
+machine-parameter, and constraint capacity in
 the current slice because every retained row of those kinds owns at least one
 type node.
 Import and domain paths share the independently exhaustible path-member arena.
