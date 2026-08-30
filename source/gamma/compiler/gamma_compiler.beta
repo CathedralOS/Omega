@@ -31,6 +31,7 @@
 ;          2096952 HEAP_LABEL 2096944 BYTES_SINGLE_LABEL
 ;          2096936 BYTES_LENGTH_LABEL 2096928 BYTES_GET_LABEL
 ;          2096920 BYTES_SLICE_LABEL 2096912 BYTES_CONCAT_LABEL
+;          2096904 CALL_RESOURCE_LABEL
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -1620,11 +1621,15 @@ proc emit_stack_reserver(entry_label, failure_label) {
 ; above the 48 MiB heap ceiling, making hidden-stack overlap unreachable. Tail
 ; calls copy their already-evaluated arguments upward, inherit the caller
 ; cursor, replace the frame in place, and jump directly to the resolved callee.
+; Compiler-owned prefix and field profiles are capped by the 16,515,072-byte
+; explicit-stack extent before their 16-byte count arithmetic is evaluated.
 
 proc emit_gamma_call_frame(stack_label, callee_label, prefix_bytes, parameter_count) {
     state prefix_low { to invalid when (prefix_bytes < 16)  to prefix_aligned }
-    state prefix_aligned { to invalid when (prefix_bytes % 16 != 0)  to count_low }
-    state count_low { to invalid_count when (parameter_count < 0)  to valid }
+    state prefix_aligned { to invalid when (prefix_bytes % 16 != 0)  to prefix_high }
+    state prefix_high { to invalid when (prefix_bytes > 16515072)  to count_low }
+    state count_low { to invalid_count when (parameter_count < 0)  to count_high }
+    state count_high { to invalid_count when (parameter_count > 1032192)  to valid }
     state valid {
         emit_rr(2, 6, 253)
         emit_rr(2, 7, 252)
@@ -1656,8 +1661,10 @@ proc emit_gamma_return_frame() {
 proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
                            failure_label) {
     state target_low { to invalid_target when (target_prefix_bytes < 16)  to target_aligned }
-    state target_aligned { to invalid_target when (target_prefix_bytes % 16 != 0)  to count_low }
-    state count_low { to invalid_count when (parameter_count < 0)  to setup }
+    state target_aligned { to invalid_target when (target_prefix_bytes % 16 != 0)  to target_high }
+    state target_high { to invalid_target when (target_prefix_bytes > 16515072)  to count_low }
+    state count_low { to invalid_count when (parameter_count < 0)  to count_high }
+    state count_high { to invalid_count when (parameter_count > 1032192)  to setup }
     state setup {
         emit_rr(2, 6, 253)
         emit_word_load(7, 6, 0)
@@ -1707,7 +1714,8 @@ proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
 
 proc emit_gamma_constructor_value(heap_label, constructor_tag, field_count) {
     state tag_low { to invalid_tag when (constructor_tag < 2)  to count_low }
-    state count_low { to invalid_count when (field_count < 0)  to empty_check }
+    state count_low { to invalid_count when (field_count < 0)  to count_high }
+    state count_high { to invalid_count when (field_count > 1032192)  to empty_check }
     state empty_check { to empty when (field_count == 0)  to allocate }
     state empty {
         emit_imm(0, constructor_tag)
@@ -1749,7 +1757,8 @@ proc emit_gamma_constructor_value(heap_label, constructor_tag, field_count) {
 
 proc emit_gamma_field_load(field_count, field_index, internal_label) {
     let below_heap = new_label()
-    state count_low { to invalid when (field_count <= 0)  to index_low }
+    state count_low { to invalid when (field_count <= 0)  to count_high }
+    state count_high { to invalid when (field_count > 1032192)  to index_low }
     state index_low { to invalid when (field_index < 0)  to index_high }
     state index_high { to invalid when (field_index >= field_count)  to valid }
     state valid {
@@ -2283,11 +2292,11 @@ proc validate_payload() {
 ; This is the eventual expression dispatcher with its first retained lowering
 ; slice, not an accepted subset compiler. It currently consumes already checked
 ; trees containing literals, the seven primitive operators,
-; conditionals, and the six closed Bytes builtins. The tail-position bit is
-; behaviorally inert until ordinary call lowering lands, but conditionals
-; already preserve it for both arms. Runtime intermediate values use the
-; explicit stack so compile-time expression depth does not become a generated
-; register limit.
+; conditionals, and the six closed Bytes builtins. Conditionals preserve the
+; tail-position bit for both arms; the resolved-call seam below consumes it,
+; while connecting tag-5 source calls to resolved metadata waits for Q3.
+; Runtime intermediate values use the explicit stack so compile-time expression
+; depth does not become a generated register limit.
 
 proc lower_bytes_builtin(kind, args) {
     state dispatch {
@@ -2404,6 +2413,75 @@ proc lower_bytes_builtin(kind, args) {
         emit_rr(2, 1, 0)
         return emit_imm(0, 1)
     }
+}
+
+; Lower an ordinary or tail call after the resolver has supplied its opaque
+; target label and complete fixed frame prefix. The canonical source-order
+; argument list is already statically checked; this seam deliberately does not
+; inspect or resolve the call spelling. Complete `(kind,payload)` results are
+; retained across the stack-reserver call in r6/r7 because that helper returns
+; its reservation base in r0. Q3 alone owns the later tag-5 source connection.
+
+proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes) {
+    let cursor = args
+    let parameter_count = 0
+    let arena_end = word[2097128]
+    state prefix_low { to invalid_profile when (callee_prefix_bytes < 16)  to prefix_aligned }
+    state prefix_aligned { to invalid_profile when (callee_prefix_bytes % 16 != 0)  to prefix_high }
+    state prefix_high { to invalid_profile when (callee_prefix_bytes > 16515072)  to arena_low }
+    state arena_low { to invalid_list when (arena_end < 16777248)  to arena_high }
+    state arena_high { to invalid_list when (arena_end > 33292288)  to arena_aligned }
+    state arena_aligned { to invalid_list when ((arena_end - 16777248) % 32 != 0)  to validate_loop }
+    state validate_loop { to validate_node when (cursor != 0)  to validate_extent }
+    state validate_node {
+        to invalid_list when (cursor < 16777248)
+        to invalid_list when (cursor > arena_end - 32)
+        to invalid_list when ((cursor - 16777248) % 32 != 0)
+        to invalid_list when (word[cursor] % 256 != 6)
+        let expression = word[cursor + 8]
+        let next_cursor = word[cursor + 16]
+        to invalid_list when (expression < 16777248)
+        to invalid_list when (expression >= cursor)
+        to invalid_list when ((expression - 16777248) % 32 != 0)
+        to validate_advance when (next_cursor == 0)
+        to invalid_list when (next_cursor <= cursor)
+        to validate_advance
+    }
+    state validate_advance {
+        parameter_count = parameter_count + 1
+        cursor = next_cursor
+        to validate_loop
+    }
+    state validate_extent {
+        cursor = args
+        to argument_loop
+    }
+    state argument_loop { to argument when (cursor != 0)  to dispatch }
+    state argument {
+        to argument_lowered when (lower_expr(word[cursor + 8], 0) == 1)
+        return 0
+    }
+    state argument_lowered {
+        emit_rr(2, 6, 0)
+        emit_rr(2, 7, 1)
+        emit_imm(2, 16)
+        emit_jump(19, word[2097000])
+        emit_word_store(0, 0, 6)
+        emit_word_store(0, 8, 7)
+        cursor = word[cursor + 16]
+        to argument_loop
+    }
+    state dispatch { to tail when (tail_position != 0)  to ordinary }
+    state ordinary {
+        return emit_gamma_call_frame(word[2097000], callee_label,
+                                     callee_prefix_bytes, parameter_count)
+    }
+    state tail {
+        return emit_gamma_tail_frame(callee_prefix_bytes, parameter_count,
+                                     callee_label, word[2096904])
+    }
+    state invalid_list { emit_fail_once(13, cursor)  return 0 }
+    state invalid_profile { emit_fail_once(13, callee_prefix_bytes)  return 0 }
 }
 
 proc lower_expr(expr, tail_position) {

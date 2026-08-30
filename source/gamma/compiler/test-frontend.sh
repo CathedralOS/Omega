@@ -1821,6 +1821,125 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
 }
 stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/null 2>&1
 
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to failed when (frontend_status != 1)' \
+    '        let body = word[8388608 + 24]' \
+    '        to failed when (word[body] % 256 != 5)' \
+    '        to failed when (bytes_builtin_kind(word[body + 8]) != 0)' \
+    '        let args = word[body + 16]' \
+    '        emit_reset()' \
+    '        let entry_label = new_label()' \
+    '        let stack_label = new_label()' \
+    '        let heap_label = new_label()' \
+    '        let single_label = new_label()' \
+    '        let get_label = new_label()' \
+    '        let tail_wrapper_label = new_label()' \
+    '        let target_label = new_label()' \
+    '        let ordinary_value_label = new_label()' \
+    '        let tail_value_label = new_label()' \
+    '        let tail_stack_label = new_label()' \
+    '        let tail_base_label = new_label()' \
+    '        let second_kind_label = new_label()' \
+    '        let second_payload_label = new_label()' \
+    '        let failure_label = new_label()' \
+    '        let unexpected_label = new_label()' \
+    '        word[2097000] = stack_label' \
+    '        word[2096952] = heap_label' \
+    '        word[2096944] = single_label' \
+    '        word[2096928] = get_label' \
+    '        word[2096904] = failure_label' \
+    '        define_label(entry_label)' \
+    '        emit_runtime_init()' \
+    '        let ordinary_status = lower_resolved_call(args, 0, target_label, 16)' \
+    '        to ordinary_lowered' \
+    '    }' \
+    '    state ordinary_lowered {' \
+    '        to failed when (ordinary_status != 1)' \
+    '        emit_rr(2, 2, 1)' \
+    '        emit_imm(3, 0)' \
+    '        emit_jump(19, word[2096928])' \
+    '        emit_imm(20, 7)' \
+    '        emit_rrx(16, 0, 20, ordinary_value_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(ordinary_value_label)' \
+    '        emit_gamma_call_frame(stack_label, tail_wrapper_label, 16, 0)' \
+    '        emit_rr(2, 2, 1)' \
+    '        emit_imm(3, 0)' \
+    '        emit_jump(19, word[2096928])' \
+    '        emit_imm(20, 7)' \
+    '        emit_rrx(16, 0, 20, tail_value_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(tail_value_label)' \
+    '        emit_imm(20, 16777216)' \
+    '        emit_rrx(16, 252, 20, tail_stack_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(tail_stack_label)' \
+    '        emit_rrx(16, 253, 20, tail_base_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(tail_base_label)' \
+    '        emit_imm(0, 7)' \
+    '        emit_r(0, 0)' \
+    '        define_label(tail_wrapper_label)' \
+    '        let tail_status = lower_resolved_call(args, 1, target_label, 16)' \
+    '        to tail_lowered' \
+    '    }' \
+    '    state tail_lowered {' \
+    '        to failed when (tail_status != 1)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(target_label)' \
+    '        emit_word_load(20, 253, 16)' \
+    '        emit_imm(21, 0)' \
+    '        emit_rrx(16, 20, 21, second_kind_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(second_kind_label)' \
+    '        emit_word_load(20, 253, 24)' \
+    '        emit_imm(21, 8)' \
+    '        emit_rrx(16, 20, 21, second_payload_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(second_payload_label)' \
+    '        emit_word_load(0, 253, 32)' \
+    '        emit_word_load(1, 253, 40)' \
+    '        emit_gamma_return_frame()' \
+    '        define_label(failure_label)' \
+    '        emit_imm(0, 253)' \
+    '        emit_r(0, 0)' \
+    '        define_label(unexpected_label)' \
+    '        emit_imm(0, 254)' \
+    '        emit_r(0, 0)' \
+    '        emit_stack_reserver(stack_label, failure_label)' \
+    '        emit_heap_allocator(heap_label, failure_label)' \
+    '        emit_bytes_single(single_label, heap_label, failure_label)' \
+    '        emit_bytes_get(get_label, failure_label, unexpected_label)' \
+    '        let payload_ok = validate_payload()' \
+    '        to publish_setup' \
+    '    }' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/call-lowering-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + resolved-call lowering gate) failed"
+  exit 1
+}
+stamp_seed "$T/call-lowering-emitter.tape" "$SEED" "$T/call-lowering-emitter.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
 for frame_mode in e f; do
   printf '%s' "$frame_mode" | "$T/frame-probe.exe" > "$T/frame-$frame_mode.out"
@@ -1975,6 +2094,27 @@ lower_int '(def main () Int (+ 1 (bytes_get (bytes_slice (bytes_concat (bytes_si
 lower_int '(def main () Int (bytes_length (bytes_single 256)))' 253 'invalid constructed byte traps'
 lower_int '(def main () Int (bytes_get (bytes_single 1) 1))' 253 'invalid Bytes index traps'
 lower_int '(def main () Int (bytes_length (bytes_slice (bytes_single 1) 1 1)))' 253 'invalid Bytes range traps'
+resolved_call_source='(def main () Bytes (probe (bytes_single 7) (if 0 9 8))) (def probe ((value Bytes) (marker Int)) Bytes value)'
+printf '%s' "$resolved_call_source" | "$T/call-lowering-emitter.exe" > "$T/lower-call-a.tape"
+resolved_call_a_status=$?
+printf '%s' "$resolved_call_source" | "$T/call-lowering-emitter.exe" > "$T/lower-call-b.tape"
+resolved_call_b_status=$?
+if [ "$resolved_call_a_status" = 1 ] && [ "$resolved_call_b_status" = 1 ] &&
+   [ -s "$T/lower-call-a.tape" ] && cmp -s "$T/lower-call-a.tape" "$T/lower-call-b.tape"; then
+  stamp_seed "$T/lower-call-a.tape" "$SEED" "$T/lower-call.exe" >/dev/null 2>&1
+  "$T/lower-call.exe" > "$T/lower-call.out"
+  resolved_call_runtime_status=$?
+  if [ "$resolved_call_runtime_status" = 7 ] && [ ! -s "$T/lower-call.out" ]; then
+    PASS=$((PASS+2))
+  else
+    FAIL=$((FAIL+2))
+    echo "  FAIL resolved-call lowering runtime: status $resolved_call_runtime_status, output $(wc -c < "$T/lower-call.out" | tr -d ' ') bytes"
+  fi
+else
+  FAIL=$((FAIL+2))
+  echo "  FAIL resolved-call lowering reconstruction: statuses $resolved_call_a_status/$resolved_call_b_status"
+fi
+unset resolved_call_source resolved_call_a_status resolved_call_b_status resolved_call_runtime_status
 deterministic_source='(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))'
 printf '%s' "$deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
 deterministic_a_status=$?
