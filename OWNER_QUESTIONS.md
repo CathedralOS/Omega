@@ -331,3 +331,55 @@ join lands.
   compare provider assertions with compiler demand and rename equality
   “coverage.” None establishes that the selected realization implements the
   demanded application.
+
+## Q6 — Total Delta receiver and callable ambiguity
+
+### Context
+
+Delta's grammar permits `&mut self` in the input list of both qualified and
+unqualified machine declarations. A qualified data-owner machine gives `self`
+an obvious nominal owner, but the contract assigns no type or storage owner to
+`self` in an unqualified machine.
+
+D22 also deliberately separates machine identity from data-member identity. A
+sum case and qualified machine may therefore both have the spelling
+`Owner::name`, and the shared postfix grammar can add the same argument list to
+either. The contract says ambiguous state/callable continuation resolution
+rejects, but does not total ordinary expression-call ambiguity or assign its
+reason and coordinate.
+
+### Problem statement
+
+Fix the body-resolution judgment for:
+
+1. `&mut self` on an unqualified machine, including the type of `self` if it is
+   valid or the rejection reason and coordinate if it is not;
+2. `Owner::name(...)` when exactly one constructor or qualified machine exists;
+3. the same expression when both identities exist under D22's distinct
+   namespaces; and
+4. whether ordinary expression and transition-continuation ambiguity share one
+   reason/anchor or remain context-specific.
+
+### Proposed direction
+
+Admit receivers only on uniquely resolved data-owner machines. Reject an
+unqualified receiver as `TypeMismatch` at its authored `&`; a qualified unknown
+owner remains `UnknownName` at the owner spelling. Preserve constructor and
+machine lookup independently. When both exact callable identities match one
+qualified expression, reject at the expression start: use `TypeMismatch` in an
+ordinary value context and `InvalidControlTarget` in a transition continuation.
+Do not use expected-result typing, arity, declaration order, or a preferred
+namespace to choose one candidate.
+
+### Alternates
+
+- Acceptable: make an unqualified receiver a distinct explicit global-storage
+  capability, provided its nominal type, initialization, aliasing, and lowering
+  are specified rather than inferred from `Main`.
+- Acceptable: reserve qualification syntactically for constructors or for
+  machines and provide an unambiguous spelling for the other class, as an
+  explicit Delta grammar revision.
+- Tempting but wrong: let arity or expected return type select a candidate,
+  choose constructors or machines by traversal order, silently treat
+  unqualified `self` as `Main`, or collapse D22's namespaces inside one lookup
+  table.

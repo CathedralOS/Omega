@@ -2931,6 +2931,7 @@ tc '(def f ((f Int)) Int (f f))' 1 'function and local namespaces may share a sp
 tc '(def afaa () Int 1) (def badj () Int 2)' 1 'distinct colliding global-name hashes remain distinct'
 tc '(def main () Int (if 1 (let x 1 x) (let x 2 x)))' 1 'disjoint branch scopes may reuse a binder'
 tc '(data Choice (Left Int) (Right Int)) (def main ((v Choice)) Int (match v ((Left x) x) ((Right x) x)))' 1 'disjoint match arms may reuse a binder'
+tc '(data Choice (Left) (Right)) (def nested ((a Choice) (b Choice)) Int (match a (Left (match b (Left 1) (Right 2))) (Right (match b (Left 3) (Right 4)))))' 1 'nested matches over one nominal type preserve outer coverage'
 reject_at_parts '(data A (One)) (data ' 'A (Two)) (def main () Int 0)' 'duplicate type rejects at later declaration'
 reject_at_parts '(data A (Same)) (data B (' 'Same)) (def main () Int 0)' 'duplicate constructor rejects at later declaration'
 reject_at_parts '(data A (Same)) (data B (' 'Same)) (data A (Other)) (def main () Int 0)' 'earliest duplicate wins across global namespaces'

@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | resolve Q4 entry diagnostics, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q6 callable ambiguity, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1168,6 +1168,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
     all final-phase candidates by packed coordinate and merge the eventual Q4
     entry candidates before accepting one resolved program; traversal and wire
     reason order must not select the diagnostic.
+  - [x] **IMPLEMENTATION — DELTA RESOLUTION-CATALOG FOUNDATION.** Build one
+    source-ordered row per already formed top-level declaration while retaining
+    the original AST owner for boundary members, fields/cases, machine bodies,
+    and states. Qualified machine rows resolve their data owner or retain the
+    exact unknown owner; unqualified rows remain explicitly ownerless. Exact
+    owner, unqualified/qualified machine, boundary-member, data-member, and
+    machine-local state lookups consume those rows without numeric node IDs or
+    a second flattened syntax tree. Structural type equality compares nominal
+    names and semantic array lengths, and a neutral final-phase bucket retains
+    every reason tied at the smallest coordinate until Q4/Q6 settle
+    composition. The foundation type-checks through the real Gamma frontend;
+    it claims no completed body judgment or behavioral execution.
+  - [ ] **OWNER-BLOCKED — Q6 DELTA RECEIVER/CALLABLE AMBIGUITY.** Do not assign
+    a type to unqualified `&mut self`, or choose between a same-spelled
+    constructor and qualified machine by expected type, arity, or traversal.
+    Q6 blocks only those cases; retain both callable lookups and continue every
+    unambiguous body/control judgment.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
     complete body/control checking and the final nonaliasing generated-program
     map exist, derive its selected static-storage limit and expand only
