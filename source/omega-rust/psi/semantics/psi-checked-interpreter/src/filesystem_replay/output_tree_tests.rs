@@ -1,10 +1,10 @@
 use crate::{
-    BuildIncludedSource, FilesystemGrantRootIdentity, FilesystemInputOutputTreeReplayRecord,
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputFileReplayRecord,
-    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
-    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
-    FilesystemOutputWriteReplayRecord, FilesystemReplay, FilesystemReplayReadKind,
-    FilesystemReplayReadRecord, FilesystemSourceInputReplayEventRecord,
+    BuildIncludedSource, EvaluationObservations, FilesystemGrantRootIdentity,
+    FilesystemInputOutputTreeReplayRecord, FilesystemOutputDirectoryReplayRecord,
+    FilesystemOutputFileReplayRecord, FilesystemOutputHardLinkReplayKind,
+    FilesystemOutputHardLinkReplayRecord, FilesystemOutputSymlinkReplayRecord,
+    FilesystemOutputTreeEntryReplayRecord, FilesystemOutputWriteReplayRecord, FilesystemReplay,
+    FilesystemReplayReadKind, FilesystemReplayReadRecord, FilesystemSourceInputReplayEventRecord,
     FilesystemSourceInputReplayRecord, FilesystemSourceReadChainReplayRecord,
 };
 
@@ -80,6 +80,99 @@ fn hard_link(
         FilesystemOutputHardLinkReplayRecord::new(kind, root(2), existing.to_vec(), path.to_vec())
             .expect("output hard link"),
     )
+}
+
+#[test]
+fn output_only_tree_round_trips_exact_mixed_entries_and_handoff() {
+    let entries = vec![
+        directory(b"generated"),
+        file(b"generated/artifact", 1, b"bytes"),
+        symlink(b"generated/symbolic", b"artifact"),
+        hard_link(
+            FilesystemOutputHardLinkReplayKind::Portable,
+            b"generated/artifact",
+            b"generated/alias",
+        ),
+    ];
+    let included = BuildIncludedSource::from_coordinate(root(2), b"generated/artifact".to_vec(), 4)
+        .expect("handoff follows the Output close with no Source prefix");
+    let record =
+        FilesystemInputOutputTreeReplayRecord::output_only(entries, vec![included.clone()])
+            .expect("mixed Output-only tree");
+    assert!(record.source_input().is_none());
+
+    let replay = FilesystemReplay::from_input_output_tree_record(record)
+        .expect("Output-only tree fits replay custody");
+    assert_eq!(
+        replay
+            .attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![11, 1, 5, 8, 20, 19]
+    );
+    assert!(
+        (0..replay.attempts().len()).all(|index| replay.executes_output_attempt(index)),
+        "every Output-only attempt executes against the replay namespace"
+    );
+    assert_eq!(replay.expected_included_sources(), &[included.clone()]);
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        replay.attempts().to_vec(),
+        vec![included.clone()],
+    );
+    let decoded = FilesystemReplay::from_input_output_observations(&observations)
+        .expect("observed Output-only tree retains the exact grammar");
+    assert_eq!(decoded.output_entries().len(), 4);
+    assert_eq!(decoded.output_directories().len(), 1);
+    assert_eq!(decoded.output_files().len(), 1);
+    assert_eq!(decoded.output_symlinks().len(), 1);
+    assert_eq!(decoded.output_hard_links().len(), 1);
+    assert_eq!(decoded.expected_included_sources(), &[included]);
+}
+
+#[test]
+fn output_only_tree_rejects_empty_output_and_early_handoff() {
+    assert!(FilesystemInputOutputTreeReplayRecord::output_only(Vec::new(), Vec::new()).is_err());
+    assert!(FilesystemSourceInputReplayRecord::new(Vec::new()).is_err());
+
+    let early = BuildIncludedSource::from_coordinate(root(2), b"artifact".to_vec(), 2)
+        .expect("coordinate shape is valid before tree ordering is checked");
+    assert!(
+        FilesystemInputOutputTreeReplayRecord::output_only(
+            vec![file(b"artifact", 1, b"bytes")],
+            vec![early],
+        )
+        .is_err()
+    );
+
+    let empty = EvaluationObservations::from_filesystem_operation_attempts(Vec::new(), Vec::new());
+    assert!(FilesystemReplay::from_input_output_observations(&empty).is_err());
+}
+
+#[test]
+fn output_only_observations_reject_malformed_source_like_prefixes() {
+    let output = FilesystemReplay::from_input_output_tree_record(
+        FilesystemInputOutputTreeReplayRecord::output_only(
+            vec![file(b"artifact", 2, b"bytes")],
+            Vec::new(),
+        )
+        .expect("Output-only file record"),
+    )
+    .expect("Output-only file replay");
+    let source =
+        FilesystemReplay::from_source_input_record(source_input()).expect("complete Source record");
+
+    for malformed_prefix in [
+        vec![source.attempts()[0].clone()],
+        vec![source.attempts()[1].clone()],
+    ] {
+        let mut attempts = malformed_prefix;
+        attempts.extend_from_slice(output.attempts());
+        let observations =
+            EvaluationObservations::from_filesystem_operation_attempts(attempts, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
 }
 
 #[test]
