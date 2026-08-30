@@ -40,7 +40,8 @@ fn dead_scalar_family(operation: &O) -> Option<DeadScalarFamily> {
         | O::WrappingIntegerRemainder { .. }
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. } => Some(DeadScalarFamily::ProofCertified),
-        O::EstablishPayloadlessCase { .. }
+        O::WriteOnlyPrimitiveStore { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
@@ -253,7 +254,8 @@ pub(super) fn dead_scalar_shape(
             scalar_type,
             ..
         } => Some((*psi_operation, *result, ScalarType::Integer(*scalar_type))),
-        O::EstablishPayloadlessCase { .. }
+        O::WriteOnlyPrimitiveStore { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }

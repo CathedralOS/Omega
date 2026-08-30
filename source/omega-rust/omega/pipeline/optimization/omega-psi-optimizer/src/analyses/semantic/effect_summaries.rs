@@ -293,7 +293,8 @@ fn operation_effect(
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. }
         | O::SaturatingIntegerMultiply { .. } => (EffectClass::PureScalar, No, No, No, No),
-        O::EstablishPayloadlessCase { .. }
+        O::WriteOnlyPrimitiveStore { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::BooleanStructuralField { .. }
