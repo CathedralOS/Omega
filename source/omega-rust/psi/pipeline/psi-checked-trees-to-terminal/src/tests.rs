@@ -34,6 +34,40 @@ fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {
 }
 
 #[test]
+fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_rejection() {
+    let checked = checked_source(
+        r#"
+            data Main {}
+            machine Main::launch() {}
+        "#,
+    );
+    let custody = vec![(11u64, "first"), (29u64, "second")];
+    let produced =
+        produce_terminal_artifact_with_callback_custody(&checked, "Main::launch", custody.clone())
+            .expect("opaque callback custody crosses canonical Terminal production");
+    assert_eq!(produced.callback_custody(), &custody);
+    produced.artifact().validate().expect("canonical artifact");
+    let (_, returned) = produced.into_parts();
+    assert_eq!(returned, custody);
+
+    let swapped = vec![(29u64, "second"), (11u64, "first")];
+    let produced =
+        produce_terminal_artifact_with_callback_custody(&checked, "Main::launch", swapped.clone())
+            .expect("opaque callback custody preserves caller-provided order");
+    assert_eq!(produced.callback_custody(), &swapped);
+
+    let rejected =
+        produce_terminal_artifact_with_callback_custody(&checked, "Main::missing", custody.clone())
+            .expect_err("missing Terminal machine rejects transactionally");
+    assert!(matches!(
+        rejected.error(),
+        TerminalArtifactProductionError::Lowering(LoweringError::MachineNotFound(_))
+    ));
+    let (_, returned) = rejected.into_parts();
+    assert_eq!(returned, custody);
+}
+
+#[test]
 fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
     let checked = checked_source(
         r#"

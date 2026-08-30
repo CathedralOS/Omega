@@ -206,6 +206,60 @@ pub struct LoweredTerminalPsi {
     pub debug_map: Option<TerminalDebugMap>,
 }
 
+/// Canonical Terminal artifact coupled to an opaque callback-use sidecar.
+///
+/// Psi does not interpret target-owned callback placement. This carrier only
+/// makes the canonical producer's custody boundary explicit: the caller gives
+/// the complete sidecar by value and receives the same value beside the
+/// artifact. It grants no registration, invocation, address, or lifetime
+/// authority.
+#[derive(Debug, PartialEq, Eq)]
+#[must_use = "Terminal production must preserve callback-use custody"]
+pub struct ProducedTerminalArtifactWithCallbackCustody<C> {
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    callback_custody: C,
+}
+
+impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
+    pub const fn artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub const fn callback_custody(&self) -> &C {
+        &self.callback_custody
+    }
+
+    pub fn into_parts(self) -> (psi_terminal_codec::CanonicalTerminalArtifact, C) {
+        (self.artifact, self.callback_custody)
+    }
+}
+
+/// Transactional rejection from callback-aware Terminal production.
+///
+/// The checked tree and selected machine are borrowed inputs. The only owned
+/// input is the callback sidecar, so rejection returns it exactly for retry or
+/// diagnosis instead of silently discarding it.
+#[derive(Debug)]
+#[must_use = "Terminal production rejection returns callback-use custody"]
+pub struct CallbackCustodyTerminalArtifactProductionError<C> {
+    error: TerminalArtifactProductionError,
+    callback_custody: C,
+}
+
+impl<C> CallbackCustodyTerminalArtifactProductionError<C> {
+    pub const fn error(&self) -> &TerminalArtifactProductionError {
+        &self.error
+    }
+
+    pub const fn callback_custody(&self) -> &C {
+        &self.callback_custody
+    }
+
+    pub fn into_parts(self) -> (TerminalArtifactProductionError, C) {
+        (self.error, self.callback_custody)
+    }
+}
+
 /// Durable source-to-Terminal join for one checked `ProgramEntry`.
 ///
 /// The source-signature identity is computed by the build-owned declaration
@@ -1012,6 +1066,32 @@ pub fn produce_terminal_artifact(
         lowered.debug_map.as_ref(),
     )
     .map_err(TerminalArtifactProductionError::Artifact)
+}
+
+/// Produce the canonical source-free artifact without losing the caller's
+/// exact callback-use sidecar.
+///
+/// The sidecar remains opaque because callback placement is target-owned Omega
+/// evidence rather than Terminal-Psi vocabulary. Success and rejection both
+/// return it by value in its original order.
+pub fn produce_terminal_artifact_with_callback_custody<C>(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    callback_custody: C,
+) -> Result<
+    ProducedTerminalArtifactWithCallbackCustody<C>,
+    CallbackCustodyTerminalArtifactProductionError<C>,
+> {
+    match produce_terminal_artifact(checked, machine_name) {
+        Ok(artifact) => Ok(ProducedTerminalArtifactWithCallbackCustody {
+            artifact,
+            callback_custody,
+        }),
+        Err(error) => Err(CallbackCustodyTerminalArtifactProductionError {
+            error,
+            callback_custody,
+        }),
+    }
 }
 
 /// Produce a canonical Terminal artifact while retaining the exact checked

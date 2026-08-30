@@ -49,9 +49,9 @@ fn terminal_report(
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.into_inner();
-    reject_unconsumed_callback_placements("terminal-artifact", &checked)?;
     let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
+    let callback_placements = checked.callback_placements().to_vec();
     let entry_machine = checked
         .selected_program_entry_machine()
         .ok_or_else(|| {
@@ -60,14 +60,22 @@ fn terminal_report(
             )]
         })?
         .to_owned();
+    let produced = psi_checked_trees_to_terminal::produce_terminal_artifact_with_callback_custody(
+        &checked,
+        &entry_machine,
+        callback_placements,
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "terminal-artifact production failed: {}",
+            error.error(),
+        ))]
+    })?;
+    let (artifact, callback_placements) = produced.into_parts();
     let artifact =
-        psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "terminal-artifact production failed: {error}"
-                ))]
-            })?;
-    CompileReport::from_artifact(
+        omega_compilation_report::RetainedTerminalArtifact::new(artifact, callback_placements)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    CompileReport::from_retained_terminal_artifact(
         request.options.root_path,
         source_file_count,
         artifact,

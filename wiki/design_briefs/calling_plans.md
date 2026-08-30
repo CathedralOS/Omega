@@ -991,14 +991,17 @@ summaries, so a collision-equal plan substitution rejects. The compact inbound,
 registrar, and ordered-thunk fingerprints remain compatibility/report data;
 they do not authorize a callback, relocation, or installed entry.
 
-The canonical checked-to-Terminal producer does not yet accept that retained
-callback-placement sidecar. Check-only compilation therefore remains valid,
-while the product driver rejects nonempty sidecars for both Terminal and native
-artifact requests before invoking the Terminal producer. The diagnostic names
-the exact row count and canonical callback overloads. This is a custody fence,
-not a claim that the rows are unsupported or may be cleared; it can be removed
-only when the canonical Terminal handoff explicitly consumes and preserves
-every row.
+The canonical checked-to-Terminal producer accepts the retained callback-
+placement sidecar as an opaque by-value custody input and returns it unchanged
+and in the same order on success or rejection. The compiler's Terminal product
+retains that sidecar beside the source-free artifact, exposes borrowed
+observation, and permits only a consuming transfer of both parts together.
+Checked provenance and canonical row order come from the private driver route;
+the report carrier validates each row but does not attempt to reconstruct its
+origin. Check-only compilation remains valid. Native artifact requests remain
+fenced until native realization explicitly consumes every row. This custody
+route grants no registration, invocation, address, lifetime, or publication
+authority.
 
 The identity row additionally pins two separate normalized public-contract
 endpoints: the callback requirement capsule and the selected machine's declared

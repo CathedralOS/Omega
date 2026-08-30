@@ -159,6 +159,96 @@ fn exact_add_goal_derives_embedded_literal_endpoints_in_both_orders() {
 }
 
 #[test]
+fn exact_subtract_goal_serializes_independent_and_joint_guards() {
+    let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(signed))),
+    )
+    .unwrap();
+    let left = value(1, signed);
+    let right = value(2, signed);
+    let difference = psi_core::IntegerMathTerm::Subtract(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: signed,
+            value: ValueId::new(1).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: signed,
+            value: ValueId::new(2).unwrap(),
+        }),
+    );
+    let lower_goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+        difference.clone(),
+    );
+    let independent = prove_canonical_integer_proposition(
+        &context,
+        &lower_goal,
+        &[
+            Proposition::LessOrEqual(integer(signed, -100), left.clone()),
+            Proposition::LessOrEqual(right.clone(), integer(signed, 20)),
+        ],
+        &[],
+    )
+    .expect("oppositely oriented endpoints prove subtraction");
+    let ProofRule::IntegerAffineBound { root_bound, .. } = independent.rule else {
+        panic!("direct subtraction uses the checked affine rule")
+    };
+    assert!(matches!(
+        root_bound.rule,
+        ProofRule::ConjunctionIntroduction(ref parts) if parts.len() == 2
+    ));
+
+    let complement = value(3, signed);
+    let definition = Proposition::Equal(
+        complement.clone(),
+        ScalarTerm::exact_integer_add(signed, integer(signed, -128), right.clone()).unwrap(),
+    );
+    let correlated = prove_canonical_integer_proposition(
+        &context,
+        &lower_goal,
+        &[Proposition::LessOrEqual(complement, left)],
+        std::slice::from_ref(&definition),
+    )
+    .expect("MIN plus right guard proves subtraction lower bound");
+    let ProofRule::IntegerAffineBound { witness, .. } = correlated.rule else {
+        panic!("correlated subtraction uses the checked affine rule")
+    };
+    assert_eq!(witness.definition_axioms, vec![0]);
+    assert_eq!(witness.literal_axioms, vec![None]);
+
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let context = two_value_context(unsigned);
+    let left = value(1, unsigned);
+    let right = value(2, unsigned);
+    let goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+        psi_core::IntegerMathTerm::Subtract(
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: unsigned,
+                value: ValueId::new(1).unwrap(),
+            }),
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: unsigned,
+                value: ValueId::new(2).unwrap(),
+            }),
+        ),
+    );
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        &[Proposition::LessOrEqual(right.clone(), left)],
+        &[],
+    )
+    .expect("unsigned right <= left guard proves subtraction");
+    let ProofRule::IntegerAffineBound { witness, .. } = proof.rule else {
+        panic!("unsigned joint guard uses the checked affine rule")
+    };
+    assert_eq!(witness.root, right);
+    assert!(witness.definition_axioms.is_empty());
+}
+
+#[test]
 fn unsigned_affine_exact_cast_bound_uses_existing_ordered_transform_rule() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let root = value(1, integer_type);

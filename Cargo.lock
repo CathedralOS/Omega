@@ -452,6 +452,7 @@ dependencies = [
 name = "omega-compilation-report"
 version = "0.1.0"
 dependencies = [
+ "omega-backend-plan",
  "omega-build-evaluation",
  "omega-image",
  "omega-native-artifact",

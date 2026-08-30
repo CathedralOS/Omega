@@ -474,8 +474,8 @@ impl CanonicalScalarGoal {
     }
 
     /// Project canonical goals whose proposition vocabulary is fully settled.
-    /// Exact subtraction and multiplication remain explicit typed carriers
-    /// until their operation-specific projection rows land.
+    /// Exact multiplication remains an explicit typed carrier until its
+    /// operation-specific projection row lands.
     pub fn kernel_proposition(&self) -> Result<Option<Proposition>, OperationSemanticError> {
         let proposition = match self {
             Self::ExactCastRepresentable {
@@ -511,18 +511,106 @@ impl CanonicalScalarGoal {
             Self::ExactArithmeticRepresentable {
                 integer_type,
                 expression,
-            } => {
-                let ScalarTerm::ExactIntegerAdd { .. } = expression else {
-                    return Ok(None);
-                };
-                exact_add_representability_proposition(*integer_type, expression)?
-            }
+            } => match expression {
+                ScalarTerm::ExactIntegerAdd { .. } => {
+                    exact_add_representability_proposition(*integer_type, expression)?
+                }
+                ScalarTerm::ExactIntegerSubtract { .. } => {
+                    exact_subtract_representability_proposition(*integer_type, expression)?
+                }
+                _ => return Ok(None),
+            },
         };
         proposition
             .validate()
             .map_err(OperationSemanticError::InvalidProposition)?;
         Ok(Some(proposition))
     }
+}
+
+fn exact_subtract_representability_proposition(
+    integer_type: IntegerType,
+    expression: &ScalarTerm,
+) -> Result<Proposition, OperationSemanticError> {
+    if integer_type.carrier() != IntegerCarrier::Fixed {
+        return Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(
+            integer_type,
+        ));
+    }
+    let ScalarTerm::ExactIntegerSubtract {
+        scalar_type,
+        left,
+        right,
+    } = expression
+    else {
+        unreachable!("exact-subtract projection is selected by expression shape")
+    };
+    if *scalar_type != integer_type {
+        return Err(
+            OperationSemanticError::ExactArithmeticExpressionTypeMismatch {
+                declared: integer_type,
+                actual: ScalarType::Integer(*scalar_type),
+            },
+        );
+    }
+    if left.scalar_type() != ScalarType::Integer(integer_type)
+        || right.scalar_type() != ScalarType::Integer(integer_type)
+    {
+        return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
+            declared: integer_type,
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    let mathematical_left = fixed_integer_math_term(
+        integer_type,
+        left,
+        |_| unreachable!("exact-subtract operand types were checked together"),
+        OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
+    )?;
+    let mathematical_right = fixed_integer_math_term(
+        integer_type,
+        right,
+        |_| unreachable!("exact-subtract operand types were checked together"),
+        OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
+    )?;
+    if let (
+        ScalarTerm::Integer {
+            value: left_value, ..
+        },
+        ScalarTerm::Integer {
+            value: right_value, ..
+        },
+    ) = (left.as_ref(), right.as_ref())
+    {
+        return Ok(
+            if integer_type.exact_sub(*left_value, *right_value).is_some() {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            },
+        );
+    }
+    if matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+        || left == right
+    {
+        return Ok(Proposition::Truth);
+    }
+
+    let difference =
+        IntegerMathTerm::Subtract(Box::new(mathematical_left), Box::new(mathematical_right));
+    let mut bounds = Vec::with_capacity(2);
+    bounds.push(Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::literal(integer_type.minimum_value()),
+        difference.clone(),
+    ));
+    if integer_type.sign() == IntegerSign::Signed {
+        bounds.push(Proposition::IntegerMathLessOrEqual(
+            difference,
+            IntegerMathTerm::literal(integer_type.maximum_value()),
+        ));
+    }
+    Ok(canonical_conjunction(bounds))
 }
 
 fn exact_add_representability_proposition(
@@ -1925,7 +2013,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_subtract_and_multiply_remain_unprojected() {
+    fn exact_multiply_remains_unprojected() {
         let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let left = ScalarTerm::value(
             ValueId::new(24).expect("left"),
@@ -1935,19 +2023,135 @@ mod tests {
             ValueId::new(25).expect("right"),
             ScalarType::Integer(integer),
         );
-        for expression in [
-            ScalarTerm::exact_integer_subtract(integer, left.clone(), right.clone()).unwrap(),
-            ScalarTerm::exact_integer_multiply(integer, left.clone(), right).unwrap(),
+        let expression = ScalarTerm::exact_integer_multiply(integer, left, right).unwrap();
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: integer,
+                expression,
+            }
+            .kernel_proposition(),
+            Ok(None),
+        );
+    }
+
+    #[test]
+    fn exact_subtract_projects_canonical_mathematical_carrier_bounds() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left_id = ValueId::new(31).expect("left");
+        let right_id = ValueId::new(32).expect("right");
+        let difference = IntegerMathTerm::Subtract(
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: signed,
+                value: left_id,
+            }),
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: signed,
+                value: right_id,
+            }),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: signed,
+                expression: ScalarTerm::exact_integer_subtract(
+                    signed,
+                    ScalarTerm::value(left_id, ScalarType::Integer(signed)),
+                    ScalarTerm::value(right_id, ScalarType::Integer(signed)),
+                )
+                .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Conjunction(vec![
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                    difference.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    difference,
+                    IntegerMathTerm::literal(IntegerValue::Signed(127)),
+                ),
+            ]))),
+        );
+
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let left_id = ValueId::new(33).expect("left");
+        let right_id = ValueId::new(34).expect("right");
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: unsigned,
+                expression: ScalarTerm::exact_integer_subtract(
+                    unsigned,
+                    ScalarTerm::value(left_id, ScalarType::Integer(unsigned)),
+                    ScalarTerm::value(right_id, ScalarType::Integer(unsigned)),
+                )
+                .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                IntegerMathTerm::Subtract(
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: unsigned,
+                        value: left_id,
+                    }),
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: unsigned,
+                        value: right_id,
+                    }),
+                ),
+            ))),
+        );
+    }
+
+    #[test]
+    fn exact_subtract_folds_closed_and_right_zero_identity_forms() {
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        for (left, right, expected) in [
+            (-120, 7, Proposition::Truth),
+            (-121, 8, Proposition::Falsehood),
         ] {
             assert_eq!(
                 CanonicalScalarGoal::ExactArithmeticRepresentable {
                     integer_type: integer,
-                    expression,
+                    expression: ScalarTerm::exact_integer_subtract(
+                        integer,
+                        ScalarTerm::integer(integer, IntegerValue::Signed(left)).unwrap(),
+                        ScalarTerm::integer(integer, IntegerValue::Signed(right)).unwrap(),
+                    )
+                    .unwrap(),
                 }
                 .kernel_proposition(),
-                Ok(None),
+                Ok(Some(expected)),
             );
         }
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: integer,
+                expression: ScalarTerm::exact_integer_subtract(
+                    integer,
+                    ScalarTerm::value(
+                        ValueId::new(35).expect("value"),
+                        ScalarType::Integer(integer),
+                    ),
+                    ScalarTerm::integer(integer, IntegerValue::Signed(0)).unwrap(),
+                )
+                .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Truth)),
+        );
+        let value = ScalarTerm::value(
+            ValueId::new(38).expect("same value"),
+            ScalarType::Integer(integer),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: integer,
+                expression: ScalarTerm::exact_integer_subtract(integer, value.clone(), value,)
+                    .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Truth)),
+        );
     }
 
     #[test]
@@ -2118,6 +2322,68 @@ mod tests {
                         i8_type,
                         ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
                         ScalarTerm::integer(i8_type, IntegerValue::Signed(2)).unwrap(),
+                    )
+                    .unwrap(),
+                ),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand),
+        );
+    }
+
+    #[test]
+    fn exact_subtract_rejects_malformed_declared_and_operand_types() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let address = IntegerType::address(64).expect("address");
+        let i8_value = ScalarTerm::value(
+            ValueId::new(36).expect("i8 value"),
+            ScalarType::Integer(i8_type),
+        );
+        let i16_value = ScalarTerm::value(
+            ValueId::new(37).expect("i16 value"),
+            ScalarType::Integer(i16_type),
+        );
+        let malformed = |scalar_type, left, right| ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        };
+        assert!(matches!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: address,
+                expression: malformed(address, i8_value.clone(), i8_value.clone()),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(actual))
+                if actual == address
+        ));
+        assert!(matches!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: malformed(i16_type, i8_value.clone(), i8_value.clone()),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticExpressionTypeMismatch { .. })
+        ));
+        assert!(matches!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: malformed(i8_type, i8_value.clone(), i16_value),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch { .. })
+        ));
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: malformed(
+                    i8_type,
+                    i8_value.clone(),
+                    ScalarTerm::exact_integer_add(
+                        i8_type,
+                        i8_value,
+                        ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
                     )
                     .unwrap(),
                 ),

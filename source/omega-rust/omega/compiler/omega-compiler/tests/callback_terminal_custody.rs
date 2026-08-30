@@ -13,14 +13,17 @@ satisfies WindowProcedure::call
 {
 }
 
-data Main {
+data RegistrarUser {
     registrar: WindowRegistrar;
     specification: Spread<ForeignRecord>;
 }
 
-machine Main::main(&mut self) {
+machine RegistrarUser::configure(&mut self) {
     WindowRegistrar::register<CallbackProvider::call, CallbackProvider::call>(&self.specification);
 }
+
+data Main { }
+machine Main::main() { }
 "#;
 
 struct Fixture {
@@ -121,18 +124,39 @@ fn assert_custody_diagnostic(diagnostics: &[psi_diagnostics::Diagnostic], produc
 }
 
 #[test]
-fn canonical_terminal_handoff_rejects_unconsumed_callback_placements() {
+fn canonical_terminal_handoff_preserves_callback_placements_while_native_remains_fenced() {
     let fixture = Fixture::new();
     let checked = compile_to_checked(&fixture.main, Some("windows_x64"))
         .expect("callback program should reach checked compilation");
     assert_eq!(checked.callback_placements().len(), 2);
+    let expected_placements = checked.callback_placements().to_vec();
 
     compile(fixture.request(RequestedCompileProduct::Check, "check"))
         .expect("check-only compilation retains callback placements without executing them");
 
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
-        .expect_err("Terminal production cannot silently discard callback placements");
-    assert_custody_diagnostic(&terminal, "terminal-artifact");
+        .expect("Terminal production preserves every callback placement beside the artifact");
+    assert_eq!(
+        terminal.terminal_callback_placements(),
+        Some(expected_placements.as_slice()),
+    );
+    let retained = terminal
+        .into_retained_terminal_artifact()
+        .expect("Terminal report transfers artifact and callback sidecar together");
+    let (artifact, returned_placements) = retained.into_parts();
+    assert_eq!(returned_placements, expected_placements);
+
+    let mut swapped_placements = returned_placements;
+    swapped_placements.swap(0, 1);
+    let retained =
+        omega_compilation_report::RetainedTerminalArtifact::new(artifact, swapped_placements)
+            .expect("the structural report carrier does not reconstruct checked row provenance");
+    assert_ne!(retained.callback_placements(), expected_placements);
+
+    let (artifact, mut drifted_placements) = retained.into_parts();
+    drifted_placements[0].boundary_calling_plan_report_fingerprint ^= 1;
+    omega_compilation_report::RetainedTerminalArtifact::new(artifact, drifted_placements)
+        .expect_err("callback placement mutation cannot re-enter retained Terminal custody");
 
     let native = compile(fixture.request(RequestedCompileProduct::NativeArtifact, "native"))
         .expect_err("native production cannot silently discard callback placements");
