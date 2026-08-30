@@ -219,27 +219,30 @@ Must own:
 
   The implemented first cohort is narrower than the completed D29 contract:
   monomorphic selected boundary uses retain the canonical empty application,
-  and spelled operators retain complete closed inferred type bindings keyed by
-  requirement owner, `Type` category, and declaration ordinal. Closed,
-  type-only named calls use one pure structural judgment during ordinary
-  validation: operand inference must close the complete telescope, explicitly
-  authored type arguments must exactly corroborate that application, and each
-  closed argument must satisfy every declared copy/linear/carry property bound.
-  Validation retains the exact expression or statement use, selected
-  requirement, binder coordinates, and structural type handles; checked
-  lowering rejects any row that fails to rejoin the same selected use,
-  declaration telescope, or property-bound judgment. Property lookup prefers
-  exact nominal symbols; a same-spelled foreign declaration cannot supply the
-  bound. Unit-returning named statement syntax is
+  while spelled and named operators retain complete closed inferred type/const
+  bindings keyed by requirement owner, category, and declaration ordinal. One
+  structural operand judgment is shared by spelling selection and application
+  derivation, including repeated and nested fixed-array const positions and
+  synthesized generic-data origins. Explicit type and integer const arguments
+  must exactly corroborate the complete operand-derived application; they do
+  not fill missing binders. Type arguments satisfy every declared
+  copy/linear/carry property bound. Const arguments retain a display-independent
+  canonical evaluated value beside the exact declared carrier, which validation
+  decodes and checks for carrier identity and integer range. Validation retains
+  the exact expression or statement use and selected requirement; checked
+  lowering replays the declaration telescope, bounds, const carrier/value, and,
+  for retained named expression uses, reconstructs the application from the
+  selected operands. Property lookup prefers exact nominal symbols; a
+  same-spelled foreign declaration cannot supply a bound or const carrier.
+  Unit-returning named statement syntax is
   normalized to a generated expression while preserving its authored call
   occurrence and source span. No display identity, digest, or marker that an
   audit happened participates.
 
-  Open caller binders, nested open arguments, unresolved nominal identity, and
+  Open caller binders, nested open arguments, return-only or forwarded consts,
+  unresolved nominal identity, named explicit const declarations, and
   constraints without a closed structural replay remain unavailable rather
-  than being mislabeled concrete. Const
-  applications also remain unavailable until one checked row pairs the
-  evaluated value with its exact declared carrier. D29's mention of `where`
+  than being mislabeled concrete. D29's mention of `where`
   requirements means requirements expressible by the operator model; this
   work does not incidentally invent a general operator `where` surface.
   Missing rows are not coverage and cannot be filled from the pre-D29 indexed-

@@ -186,7 +186,7 @@ fn validate_expression_call_bounds(
                 )
             })
             .collect::<Vec<_>>();
-        match crate::operators::validate_named_operator_type_application(
+        match crate::operators::validate_named_operator_application(
             program,
             symbols,
             operator,

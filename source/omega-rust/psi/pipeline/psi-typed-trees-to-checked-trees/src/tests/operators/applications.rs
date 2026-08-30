@@ -1,5 +1,6 @@
 use super::*;
 
+mod const_arguments;
 mod property_bounds;
 
 #[test]
@@ -40,7 +41,7 @@ fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
     program.push_operator(operator);
 
     assert!(
-        psi_typed_trees::operator::closed_operator_type_application_for_operands(
+        psi_typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &program.operators()[0],
             &[Some(foreign_type), Some(foreign_type)],
@@ -92,7 +93,7 @@ fn exact_operator_application_rejects_unresolved_nominal_argument() {
     program.push_operator(operator);
 
     assert!(
-        psi_typed_trees::operator::closed_operator_type_application_for_operands(
+        psi_typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &program.operators()[0],
             &[Some(unresolved_type), Some(unresolved_type)],
@@ -104,11 +105,7 @@ fn exact_operator_application_rejects_unresolved_nominal_argument() {
 #[test]
 fn exact_operator_application_rejects_unsupported_binder_categories() {
     let mut program = psi_typed_trees::TypedTrees::default();
-    let const_carrier = named_type(&mut program, "u64");
     let unsupported = [
-        psi_typed_trees::data::TypeParameterKind::Const {
-            type_reference: const_carrier,
-        },
         psi_typed_trees::data::TypeParameterKind::Machine {
             contract: Default::default(),
         },
@@ -131,7 +128,7 @@ fn exact_operator_application_rejects_unsupported_binder_categories() {
             },
         );
         assert!(
-            psi_typed_trees::operator::closed_operator_type_application_for_operands(
+            psi_typed_trees::operator::closed_operator_application_for_operands(
                 &program,
                 &operator,
                 &[],
@@ -146,7 +143,7 @@ fn exact_operator_application_rejects_unsupported_binder_categories() {
         .lifetime_parameters
         .push(Identifier::generated("'value"));
     assert!(
-        psi_typed_trees::operator::closed_operator_type_application_for_operands(
+        psi_typed_trees::operator::closed_operator_application_for_operands(
             &program,
             &lifetime_operator,
             &[],
@@ -235,6 +232,9 @@ fn checked_boundary_type_application_retains_declaration_order() {
                 *binder_ordinal,
                 checked.typed.primitive_type_reference(*type_reference),
             ),
+            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { .. } => {
+                panic!("type-only application retained a const argument")
+            }
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -551,6 +551,9 @@ fn checked_boundary_type_application_ignores_binder_renames() {
                         .package_qualified_type_identity(*type_reference)
                         .into_string(),
                 ),
+                psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const { .. } => {
+                    panic!("type-only application retained a const argument")
+                }
             })
             .collect::<Vec<_>>()
     };

@@ -47,21 +47,22 @@ stop the item on one precise owner question before adding machinery.
     provider-demand, coverage-composition, and installation-issuance joins;
   - finish D29's exact boundary-application evidence. Checked lowering now
     retains the canonical empty application for monomorphic selected boundary
-    operators and exact owner/category/ordinal/structural-type custody for the
-    closed inferred spelled-operator cohort. Ordinary call validation now also
-    retains and checked lowering structurally rejoins the closed, unbounded,
-    type-only named-operator cohort, whether inferred or explicitly
-    corroborated by the operands. Unit-returning statement syntax survives its
-    existing expression normalization with exact authored-selection custody;
-    retained statement calls have a distinct exact use coordinate. Open,
-    or unresolved types remain demand work rather than being mislabeled
-    concrete. Closed named type applications now discharge every declared
-    copy/linear/carry property bound through the shared compiler judgment and
-    replay that judgment during checked rejoin. Remaining work is evaluated
-    const value plus declared-carrier binding,
-    artifact-qualified symbolic demand and final substitution, role-specific
-    realization replay, D32's optimized-projection-to-physical-child join, and
-    replacement of the provisional arity/string coverage identity. The
+    operators and ordered tagged type/const applications for closed spelled and
+    named uses. Type bindings retain exact structural custody and discharge
+    declared copy/linear/carry bounds. Const bindings retain a display-free
+    canonical evaluated value beside the exact declared carrier; fixed-array
+    positions, repeated/nested occurrences, and synthesized generic-instance
+    origins share the same operand matcher. Explicit integer arguments only
+    corroborate the operand-derived value. Validation and checked lowering
+    replay category, binder, carrier, value, bounds, selected use, and named-
+    expression operand reconstruction. Unit-returning statement syntax survives
+    its existing expression normalization with exact authored-selection custody; retained
+    statement calls have a distinct exact use coordinate. Open, forwarded,
+    return-only, or unresolved applications remain demand work rather than
+    being mislabeled concrete. Remaining work is artifact-qualified symbolic
+    demand and final substitution, role-specific realization replay, D32's
+    optimized-projection-to-physical-child join, and replacement of the
+    provisional arity/string coverage identity. The
     physical child must bind its exact Terminal parent and surviving optimized
     operation occurrence, and the complete child set must match the derived
     surviving occurrence set. Equal applications may share one semantic parent
