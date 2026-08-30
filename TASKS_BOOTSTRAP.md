@@ -1167,8 +1167,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the equal parameter table and Complete-only publication. Explicit
       lifetimes, general type-position `Self`, Slice, returns, prefixes,
       clauses, and nonempty bodies remain implementation-incomplete. This
-      represents 104 of 112 parameter occurrences and 64 of 72 complete
-      parameter lists in current `C`; 39 headers now reach body parsing, but
+      represents 105 of 113 parameter occurrences and 65 of 73 complete
+      parameter lists in current `C`; 40 headers now reach body parsing, but
       zero roots complete because every reached body is nonempty. Keep exact
       modifier/access/flag/postorder/resource/reset vectors at the real Delta-
       compiler gate.
@@ -1185,8 +1185,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       pending their general grammar rather than receiving closure-specific
       shortcuts.
       The eight previously missing current `C` parameter occurrences are plain
-      bracket slices, so all 112 occurrences and all 72 parameter lists are now
-      representable; 40 headers reach body parsing, but zero roots complete
+      bracket slices, so all 113 occurrences and all 73 parameter lists are now
+      representable; 41 headers reach body parsing, but zero roots complete
       because every reached body remains nonempty. Keep exact bracket-kind,
       nesting, delimiter, postorder, resource, and reset vectors at the real
       Delta-compiler gate.
@@ -1202,7 +1202,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       prefixed roots, bodyless declarations, and nonempty bodies remain
       implementation-incomplete. Five current `C` roots have simple returns,
       but four are already stopped by target prefixes; the remaining private
-      root now reaches body parsing, raising the current total from 40 to 41
+      root now reaches body parsing, raising the current total from 41 to 42
       without claiming a completed root. Keep exact arrow/type/delimiter,
       consumer-isolation, resource, reset, and state-publication vectors at the
       real Delta-compiler gate.
@@ -1215,7 +1215,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       declaration kinds remain implementation-incomplete instead of silently
       losing visibility. All eight public machine roots in current `C` have
       otherwise representable headers, so they now reach body parsing and raise
-      the current total from 41 to 49; their bodies are nonempty, so no root
+      the current total from 42 to 50; their bodies are nonempty, so no root
       completes. Keep exact direct/public reset, span, visibility, capacity,
       mixed-order, and publication vectors at the real Delta-compiler gate.
     - [x] Retain canonical identifier-led target-scoped machines as ordinary
@@ -1229,7 +1229,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       non-machine identifier-led roots remain implementation-incomplete. Of the
       20 current target-scoped machines, 16 stop later at unimplemented clauses;
       the four `provider_defaults` headers now reach their nonempty bodies,
-      raising the current body-boundary total from 49 to 53 without completing a
+      raising the current body-boundary total from 50 to 54 without completing a
       root. Keep exact target span/presence, unscoped-reset, malformed-prefix,
       capacity, mixed-order, and publication vectors at the real Delta-compiler
       gate.
@@ -1244,7 +1244,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       violation through the ordinary private type diagnostics. Reference node
       demand and postorder are unchanged; the retired `&relaxed` spelling now
       rejects instead of masquerading as future syntax. Current `C` signatures
-      use neither form, so body-boundary coverage remains 53 of 72; this is
+      use neither form, so body-boundary coverage remains 54 of 73; this is
       full-language progress rather than a closure-shaped shortcut. Keep exact
       Self nesting, bare-versus-structural domain, lifetime ordering/span,
       access, reset, postorder, and consumer-isolation vectors at the real
@@ -1256,7 +1256,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       domain suffix while a structural outer bracket may take one, matching the
       canonical parser. Unit consumes the already-counted one base TypeNode and
       needs no arena, resource class, or consumer branch. Current `C` signatures
-      do not use Unit, so body-boundary coverage remains 53 of 72. Keep exact
+      do not use Unit, so body-boundary coverage remains 54 of 73. Keep exact
       delimiter/EOF, nested bracket, reference, domain, reset, postorder, and
       consumer-isolation vectors at the real Delta-compiler gate.
     - [x] Retain the first honest nonempty machine bodies: zero or more ordinary
@@ -1278,7 +1278,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the equal current argument-handle table, and call/argument paths reuse
       PathMembers only after the declaration path is snapshotted. This completes
       four real current `C` roots—`Lexer::{append_source_byte,reject,push_token}`
-      and `Parser::parse`—while all 53 representable headers still reach the
+      and `Parser::parse`—while all 54 representable headers still reach the
       body boundary. Keep exact receiver/target/argument spans, trailing-comma,
       malformed delimiter, capacity, reset, multi-statement, mixed-root, and
       Complete-only publication vectors at the real Delta-compiler gate.
@@ -1297,7 +1297,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       completes seven more real current `C` roots—`SourceUnit::clear`,
       `TokenStream::{clear,reject}`, `SyntaxTrees::{clear,reject}`,
       `Parser::initialize`, and `Parser::initialize_cursor`—raising completed
-      roots from four to eleven while all 53 representable headers still reach
+      roots from four to eleven while all 54 representable headers still reach
       the body boundary. Keep exact path-kind, literal-span, delimiter,
       expression/statement-capacity, reset, mixed-call/assignment, and partial-
       publication vectors at the real Delta-compiler gate.
@@ -1309,13 +1309,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
       arguments. Qualified paths are retained, while const arguments, evidence
       projections, nested static applications, lifetime arguments, empty or
       trailing-comma lists, and non-call comparison uses of `<` remain
-      implementation-incomplete. `StaticArguments` is independently
-      exhaustible because one call may own multiple rows; it does not overload
-      `Expressions` or invent a generic-instantiation phase during parsing.
+      implementation-incomplete. Every retained static argument owns at least
+      one same-capacity path-member row, so `PathMembers` dominates the static-
+      argument table; no unreachable resource distinction is invented. The
+      lane does not overload `Expressions` or instantiate generics during
+      parsing.
       This completes all four target-scoped
       `ConsoleNativeProvider::provider_defaults` roots, raising completed
       current `C` roots from eleven to fifteen while body-boundary coverage
-      remains 53 of 72. Keep exact path/list/delimiter, static-versus-value
+      remains 54 of 73. Keep exact path/list/delimiter, static-versus-value
       ownership, capacity, reset, and Complete-only publication vectors at the
       real Delta-compiler gate.
     - [x] Share one retained primary-literal path between call arguments and
@@ -1331,13 +1333,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
       arrays, struct literals, casts, indexing, and nested calls remain
       implementation-incomplete. This completes the real `psi` package build
       root (`builder.package("psi");`), raising completed current `C` roots from
-      fifteen to sixteen while body-boundary coverage remains 53 of 72. Keep
+      fifteen to sixteen while body-boundary coverage remains 54 of 73. Keep
       exact literal/span/decoded-length, consumer/delimiter, capacity, reset,
       and partial-publication vectors at the real Delta-compiler gate.
     - [x] Retain shallow named struct literals as ordinary expression nodes for
       call arguments and assignment values. Accept the canonical one-member
-      record or two-member case type path, empty or named-field bodies,
-      multiple fields, and a trailing comma; each field owns its exact name
+      record or two-member case type path, empty or comma-separated named-field
+      bodies, multiple fields, and a trailing comma; each field owns its exact name
       span and one value handle from the already-retained path/boolean/decimal-
       integer/string primary slice. The struct expression points to a dedicated
       row owning its exact type-member and contiguous field spans. Every field
@@ -1348,7 +1350,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       design exists; no recursive scratch state may overwrite an outer literal.
       This completes `Lexer::initialize` and the canonical Omega package build
       root, raising completed current `C` roots from sixteen to eighteen while
-      body-boundary coverage remains 53 of 72. Keep exact record-versus-case
+      body-boundary coverage remains 54 of 73. Keep exact record-versus-case
       type paths, field/value/delimiter spans, empty/trailing-comma behavior,
       capacity, reset, nested-incomplete, and Complete-only publication vectors
       at the real Delta-compiler gate.
