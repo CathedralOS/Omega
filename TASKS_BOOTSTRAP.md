@@ -1424,6 +1424,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       body-boundary coverage remains 54 of 73. Keep exact precedence,
       associativity, reduction-depth, mixed-primary, resource, reset, and
       Complete-only publication vectors at the real Delta-compiler gate.
+    - [x] Retain the first indexed assignment place as an ordinary expression
+      composition: one self/name/member base path, one self/name/member path
+      index, and an exact bracket span materialize a dedicated `(base, index)`
+      row selected by the assignment target handle. Base and index remain
+      independently retained path expressions; no array bound, element type,
+      or assignability decision occurs during parsing. Every indexed row owns
+      its tagged expression node, so `Expressions` dominates the equal table.
+      Literal/computed/multiple indices, chained indexing, indexed values,
+      postfix members, and compound assignment remain implementation-
+      incomplete. This completes `SourceUnit::append` and
+      `TokenStream::{push,push_decoded}`, raising completed current `C` roots
+      from twenty-six to twenty-nine while body-boundary coverage remains 54 of
+      73. Keep exact base/index/bracket/equal spans, expression/path capacity,
+      richer-postfix incompleteness, reset, and Complete-only publication
+      vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
