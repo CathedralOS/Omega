@@ -23,9 +23,9 @@ arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 106 procedures. With the fixed frontend
-gate entry, the compiled gate uses 107 of Beta's 128 procedure slots and
-compiles to 244,257 bytes. The remaining 17,883 bytes under
+The retained compiler source declares 107 procedures. With the fixed frontend
+gate entry, the compiled gate uses 108 of Beta's 128 procedure slots and
+compiles to 249,220 bytes. The remaining 12,920 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -41,7 +41,7 @@ outer resource outcomes; they never change Gamma meaning.
 
 Fixed frame locals use zero-based opaque indexes into the aligned two-word
 slots after the frame header. One shared validator and guarded emitter own both
-load and store, so resolved variables, lets, and future pattern binders reuse
+load and store, so resolved variables, lets, and pattern binders reuse
 one containment rule. The resolved let seam validates its packed
 `(prefix,index)` profile before emitting its initializer, evaluates that
 initializer once outside tail position, stores the complete value, and passes
@@ -112,8 +112,12 @@ push/pop boundaries preserve initializer, sibling-branch, and sibling-arm
 scope. Checked ordinary calls, constructor applications, and constructor
 patterns retain their exact one-based function or constructor table identity
 directly in the source AST; zero remains reserved for unresolved/builtin nodes.
-Assigning opaque binder slots, function labels/frame profiles, and connecting
-those identities to lowering remain open.
+The same lexical environment now assigns source-order parameter indexes and
+fixed local slots to parameters, lets, pattern fields, catch-alls, and every
+variable reference. Disjoint scopes reuse local slots, while each function
+retains its return type, maximum live-local count, and exact parameter count in
+one packed profile word. Runtime labels/frame prefixes and connecting these
+resolved identities to lowering remain open.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
