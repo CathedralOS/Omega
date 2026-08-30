@@ -7406,18 +7406,18 @@ Owners:
   reusable `CheckedTrees` receipt; exceptional, interactive, report-bearing,
   slow float/cast/policy, numeric-conversion, rendering, coercion, and automaton
   owners remain unchanged, with exact-owner pins stable.
-  The compiler now owns an additive `NativeCompilationWithCheckedReceipt` seam:
+  The compiler now owns a private `NativeCompilationWithCheckedReceipt` seam:
   native realization borrows the exact targetful `CheckedCompilation` produced
   by that invocation, then the sealed non-clone carrier retains it beside the
   ordinary native report. Construction rejoins source count, target profile,
   native target, retained artifact, and any production manifest before custody
-  escapes; native publication preserves the checked half, while legacy compile/
-  report APIs remain unchanged. A four-target no-selection native regression
+  escapes; the sole public `compile(request)` entry consumes the pair into its
+  ordinary report. A crate-local four-target no-selection native regression
   rejoins source count and target identity, consumes the paired report, and
-  independently replays the retained artifact. The profiled plain record-view
-  migration remains fenced on an existing native-coverage gap: its three-state
-  attached entry has
-  byte stores, recast projection, conversion, locals, and conditional control,
+  independently replays the retained artifact without adding a test-only public
+  compile wrapper. The profiled plain record-view migration remains fenced on
+  an existing native-coverage gap: its three-state attached entry has byte
+  stores, recast projection, conversion, locals, and conditional control,
   while the current exact checked structural-Unit carrier retains only
   signatures plus no-code return/jump/conditional terminators. Admitting that
   source through the existing carrier would erase work. Closing the gap requires

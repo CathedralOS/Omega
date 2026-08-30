@@ -125,17 +125,16 @@ a report continue to use full emission. This keeps observability selectable at
 the orchestration boundary without turning report generation into language
 semantics or duplicating policy through every representation stage.
 
-One additive compiler-owned native observation seam retains the exact targetful
+One private compiler-owned native observation seam retains the exact targetful
 `CheckedCompilation` beside the ordinary native `CompileReport` from the same
 invocation. Native realization borrows that checked value before the sealed,
 non-clone carrier is formed; construction rejoins source count, target profile,
-native target, retained artifact, and any production manifest. Publication may
-consume the retained artifact while preserving the checked receipt. The lower
-compilation-report crate does not depend on compiler representations, and the
-legacy compile surface simply consumes the checked half when its caller does
-not request it. This receipt supports an interpreter oracle without repeating
-semantic compilation; it grants no backend, publication, or runtime authority
-to checked trees.
+native target, retained artifact, and any production manifest. The sole public
+`compile(request)` entry consumes the checked half when it returns the ordinary
+report; the lower compilation-report crate does not depend on compiler
+representations. Crate-local verification may inspect the pair without growing
+a test-only production wrapper. The receipt grants no backend, publication, or
+runtime authority to checked trees.
 
 `RequestedCompileProduct::NativeArtifact` is a distinct stopping boundary. It
 runs the Psi-owned checked frontend and canonical Terminal producer, then gives
