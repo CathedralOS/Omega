@@ -1104,8 +1104,11 @@ requirement, conformance, and one-state Unit realization must be concrete and
 non-generic; the public requirement is limited to one subjectless named input
 and one subjectless unconditional named output. The call exposes the
 requirement selector and a fresh opaque witness even if the realization
-forwards its local input or publishes stronger direct-call outputs. Free
-callers, defaults, direct calls through a conformance name, inherited
+forwards its local input or publishes stronger direct-call outputs. The exact
+realization may come from the selected conformance's trait default; each
+conformance keeps a distinct closed-application commitment and generated
+realization identity, and an inline override takes precedence. Free callers,
+direct calls through a conformance name, inherited
 requirement rows, wider or subject-bearing public lanes, scalar results, and
 dynamic named-witness calls remain unavailable until their complete carriers
 land.

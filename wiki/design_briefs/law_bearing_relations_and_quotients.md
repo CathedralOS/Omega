@@ -783,14 +783,17 @@ be specialized to one concrete named conformance whose direct requirement and re
 non-generic one-state Unit callables. The requirement owns exactly one
 subjectless named input and one subjectless unconditional named output.
 Specialization retains the exact closed application and row before rewriting
-the executable target. Checked call composition imports only requirement-owned
-facts, and proof-output selection uses the requirement's proposition,
-interface, lane, and public selector. The caller receives a fresh opaque term;
+the executable target. The selected row may be an inline realization or the
+trait's exact default realization. Default reuse remains conformance-scoped:
+each closed application retains its own commitment and generated realization,
+and an inline override takes precedence. Checked call composition imports only
+requirement-owned facts, and proof-output selection uses the requirement's
+proposition, interface, lane, and public selector. The caller receives a fresh opaque term;
 the satisfier's local alias, appended strengthening, forwarded term, and
 producer provenance remain private. Terminal retains the normalized public
 requirement separately from the owner-scoped application and concrete runtime
 callee, and verification rejoins all three without adding evidence arguments,
-storage, operations, or fuel. Free callers, defaults, inherited requirement
+storage, operations, or fuel. Free callers, inherited requirement
 rows, generic public surfaces, subject-bearing or wider named lanes, direct
 conformance-name calls, scalar results, and dynamic dispatch remain closed.
 

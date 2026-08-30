@@ -9847,7 +9847,12 @@ Remaining N6/N8 work:
   `requires` lane and one subjectless unconditional named `ensures` lane.
   Monomorphization retains the call-local closed application and exact
   requirement-to-realization row instead of replacing public proof identity
-  with the executable satisfier. Checked call composition imports only the
+  with the executable satisfier. The same bounded lane now accepts the
+  selected conformance's exact trait-default realization as well as an inline
+  realization. Default rows remain owner-scoped: two conformances reuse the
+  authored default through distinct closed-application commitments and
+  generated realization identities, while an exact inline override wins.
+  Checked call composition imports only the
   requirement contract, while the runtime call still targets the private
   realization. The captured output is a fresh opaque requirement-level term:
   satisfier-local input aliases, concrete strengthening selectors, forwarding
@@ -9860,14 +9865,14 @@ Remaining N6/N8 work:
   requirement lanes: incoming alias renames are compatible and outgoing
   selector renames are breaking, while private call-site dispatch remains
   implementation content. Generic trait/requirement/satisfier or proposition
-  telescopes, inherited requirement rows, defaults, direct named-conformance
+  telescopes, inherited requirement rows, direct named-conformance
   calls, scalar results, subject-bearing lanes, additional unnamed or wider
   public contract rows, free callers, and dynamic dispatch remain fail closed.
-  Next extend defaults, broader static
-  calls, and runtime trait dispatch. A satisfying machine must assign every inherited
-  output on each applicable ordinary exit and may not omit, rename, weaken, or
-  replace it. Direct concrete calls may retain authored strengthening; calls
-  through the requirement expose only the pinned requirement surface.
+  Next extend broader static calls and runtime trait dispatch. A satisfying
+  machine must assign every inherited output on each applicable ordinary exit
+  and may not omit, rename, weaken, or replace it. Direct concrete calls may
+  retain authored strengthening; calls through the requirement expose only the
+  pinned requirement surface.
 
   Dynamic dispatch produces an opaque requirement-level witness. Its declared
   proposition and evidence interface are available, while the selected
