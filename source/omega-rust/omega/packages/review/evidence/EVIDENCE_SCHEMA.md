@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 93 and row schema version 51. This file
+The canonical review schema is version 94 and row schema version 52. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -118,3 +118,14 @@ diagnostic display becomes value identity. A private const exposed through a
 public contract, a missing canonical declaration value, a non-integer value,
 or a changed selection rejects. This acceptance expansion is schema v93 / row
 v51 and introduces no new expression atom or recovery-grammar revision.
+
+Nongeneric, lifetime-free fixed-token boundary operators backed by one exact
+selected `CheckedAdapter` may enter package review only when their declaration
+has a dispatch-supported shape. The closed local gate admits arithmetic and
+comparison tokens with exactly two normalized operands, plus two-operand
+indexing; range and every other token/arity shape remain fail-closed. The
+existing selected-plan join still binds the exact operator coordinate to the
+checked adapter. External, aliased, bodyless, generic, and lifetime-bearing
+neighbors remain outside this admission slice. This acceptance-boundary
+expansion is schema v94 / row v52 and introduces no new canonical row atom or
+recovery-grammar revision.

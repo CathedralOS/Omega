@@ -2,6 +2,45 @@ use crate::record::PackageReviewExternalBinding;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 
+pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(spelling) = operator.spelling else {
+        return Ok(());
+    };
+    let operand_count = compilation.operator_parameters(operator).len();
+    let supported = operand_count == 2
+        && matches!(
+            spelling,
+            psi_language_core::OperatorSpelling::Add
+                | psi_language_core::OperatorSpelling::Subtract
+                | psi_language_core::OperatorSpelling::Multiply
+                | psi_language_core::OperatorSpelling::Divide
+                | psi_language_core::OperatorSpelling::Modulo
+                | psi_language_core::OperatorSpelling::Equal
+                | psi_language_core::OperatorSpelling::NotEqual
+                | psi_language_core::OperatorSpelling::Less
+                | psi_language_core::OperatorSpelling::LessEqual
+                | psi_language_core::OperatorSpelling::Greater
+                | psi_language_core::OperatorSpelling::GreaterEqual
+                | psi_language_core::OperatorSpelling::Index
+        );
+    if !supported {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed checked adapter `{}` realizes fixed-token boundary operator `{}` with unsupported dispatch shape `{}` and {operand_count} normalized operands",
+            machine.name,
+            psi_typed_trees::operator::boundary_operator_requirement_identity(
+                &compilation.typed,
+                operator,
+            ),
+            spelling.symbol(),
+        ))]);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_selected_boundary_operator_checked_adapter(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,

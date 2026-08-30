@@ -2,6 +2,7 @@ use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::boundary_operators::{
+    validate_fixed_token_checked_adapter_dispatch_shape,
     validate_selected_boundary_operator_checked_adapter,
     validate_selected_boundary_operator_external_supply,
 };
@@ -247,10 +248,27 @@ pub(super) fn project_callable_conformances(
                 ))]);
             }
             if operator.is_boundary && operator.spelling.is_some() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` before checked-adapter token dispatch is represented",
-                    machine.name, conformance.name, requirement_name
-                ))]);
+                if conformance.alias.is_some() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` through an alias not represented by checked-adapter token dispatch",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                }
+                if !operator.lifetime_parameters.is_empty()
+                    || !compilation.operator_type_parameters(operator).is_empty()
+                    || !machine.lifetime_parameters.is_empty()
+                    || !machine.type_parameters.is_empty()
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes generic or lifetime-parameterized fixed-token boundary operator `{}::{}` not represented by checked-adapter token dispatch",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                }
+                validate_fixed_token_checked_adapter_dispatch_shape(
+                    compilation,
+                    machine,
+                    operator,
+                )?;
             }
             if operator.is_boundary {
                 validate_selected_boundary_operator_checked_adapter(

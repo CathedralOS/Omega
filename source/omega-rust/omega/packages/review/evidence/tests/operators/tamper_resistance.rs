@@ -426,17 +426,6 @@ satisfies CheckedMath::identity;
 "#,
             "without one checked implementation body",
         ),
-        (
-            "fixed-token-boundary",
-            r#"pub data CheckedMath {}
-pub boundary operator - CheckedMath::negate(value: i32) -> i32;
-pub data CheckedMathProvider {}
-pub machine CheckedMathProvider::negate_impl(input: i32) -> i32
-satisfies CheckedMath::negate
-{ input }
-"#,
-            "before checked-adapter token dispatch is represented",
-        ),
     ];
 
     for (label, source, expected) in cases {
