@@ -145,8 +145,11 @@ corruption guards: each row requires emitted reference or control bytes, so the
 payload ceiling is binding first. Reaching either while the payload bound still
 holds is therefore `InternalFailure`, not an advertised resource refusal.
 `test.sh` pins practical source limits at the exact accepted boundary and the
-adjacent fail-closed case; it also pins the last valid byte/word raw-memory
-addresses and generated-stack containment.
+adjacent fail-closed case. Single-site temporary compiler mutations lower each
+otherwise dominated invariant and positively exercise all six closed
+`InternalFailure` producers without adding production test hooks. The gate also
+pins the last valid byte/word raw-memory addresses and generated-stack
+containment.
 
 ## Retention inventory
 

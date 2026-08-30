@@ -170,7 +170,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 186 cases in about five seconds on the development host.
+  surface gate runs 192 cases in about six seconds on the development host.
   The largest current retained Beta output, the 236,076-byte checker tape,
   leaves 26,064 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
@@ -185,7 +185,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
     reserved intrinsic names, and disjoint callable procedure regions. The
-    focused suite now passes 186 cases, including signed division/remainder,
+    focused suite now passes 192 cases, including signed division/remainder,
     trap-prefix, sealed EOF/write, and left-to-right side-effect discriminators;
     the canonical tape passes the generic structural checker.
   - [x] Replace emitted Alpha text plus an external assembler invocation with
@@ -218,7 +218,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     nested states. The Alpha compiler and independent reference now share the
     recursive block formation, depth-first flattening, exact transition-prefix
     facts, reachability, and fixed-point must-initialization judgment. The
-    focused compiler surface passes 186 cases, including subtree fallthrough,
+    focused compiler surface passes 192 cases, including subtree fallthrough,
     alternate-path establishment, unreachable-block handling, loop-carried
     joins, invalid block shapes, skipped initialization, and traversal-order
     controls; the reference differential and exhaustive-I/O gates agree over
@@ -270,9 +270,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     The Alpha compiler now records the first decisive typed outcome, emits the
     exact 40-byte `BCOUT` frame only after all fields are fixed, and leaves
     successful tape bytes unwrapped. `outcomes-v1.tsv` owns the closed tables;
-    the focused gate consumes them and passes 186 language, ceiling, framing,
-    partial-output/trap, and runtime-separation cases. The rebuilt 26,751-byte
-    compiler artifact passes exact reconstruction and structural validation.
+    the focused gate consumes them and passes 192 language, ceiling, framing,
+    partial-output/trap, runtime-separation, and internal-producer cases. All
+    six closed internal reasons are positively exercised through single-site
+    temporary compiler mutations that lower otherwise dominated invariants;
+    production has no test hook. The rebuilt 26,751-byte compiler artifact
+    passes exact reconstruction and structural validation.
   - [ ] **DESIGN-BLOCKED — OWNER Q9:** Freeze Beta v1's byte-level lexical
     contract: source decoding, identifier/digit alphabets, trivia bytes, and
     direct character-literal bytes. The Alpha compiler and Python reference
