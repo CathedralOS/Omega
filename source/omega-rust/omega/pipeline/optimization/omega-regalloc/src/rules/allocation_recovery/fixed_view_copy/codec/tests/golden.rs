@@ -2,11 +2,13 @@ use sha2::{Digest, Sha256};
 
 use crate::FixedViewCopyPolicy;
 
-use super::plan;
+use super::{super::encode_v4, plan};
 
 #[test]
 fn artifact_v4_bytes_are_stable() {
-    let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
+    let encoded = encode_v4(&plan(
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+    ));
     assert_eq!(encoded.len(), 1_314);
     assert_eq!(
         <[u8; 32]>::from(Sha256::digest(&encoded)),

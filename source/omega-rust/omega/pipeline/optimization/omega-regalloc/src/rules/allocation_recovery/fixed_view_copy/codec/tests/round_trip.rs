@@ -1,6 +1,6 @@
 use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 
-use super::plan;
+use super::{super::encode_v4, plan};
 
 #[test]
 fn artifact_round_trips_both_policies_and_full_transformed_custody() {
@@ -20,4 +20,12 @@ fn artifact_round_trips_both_policies_and_full_transformed_custody() {
             7
         );
     }
+}
+
+#[test]
+fn artifact_v4_decodes_with_an_empty_structural_roster() {
+    let plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
+    let decoded = FixedViewCopyPlan::decode(&encode_v4(&plan)).unwrap();
+    assert_eq!(decoded, plan);
+    assert!(decoded.transformed.structural_unit_functions.is_empty());
 }

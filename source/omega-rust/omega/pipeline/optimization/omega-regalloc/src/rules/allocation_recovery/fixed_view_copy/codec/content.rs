@@ -9,15 +9,16 @@ use crate::{
 use super::{
     copy::{decode_copy, encode_copy},
     primitives::{Cursor, length},
-    selected::{decode_selected_plan, encode_selected_plan},
+    selected::{decode_selected_plan_v4, decode_selected_plan_v5, encode_selected_plan_v5},
 };
 
 pub(super) struct DecodedContent {
     pub(super) plan: FixedViewCopyPlan,
     pub(super) expected_transformed: SelectedInstructionPlanIdentity,
+    pub(super) transformed_payload_matches: bool,
 }
 
-pub(super) fn encode(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+fn encode_prefix(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
@@ -39,10 +40,33 @@ pub(super) fn encode(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
         )
         .bytes(),
     );
-    encode_selected_plan(bytes, &plan.transformed);
 }
 
-pub(super) fn decode(cursor: &mut Cursor<'_>) -> Result<DecodedContent, FixedViewCopyDecodeError> {
+#[cfg(test)]
+pub(super) fn encode_v4(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+    encode_prefix(bytes, plan);
+    super::selected::encode_selected_plan_v4(bytes, &plan.transformed);
+}
+
+pub(super) fn encode_v5(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+    encode_prefix(bytes, plan);
+    encode_selected_plan_v5(bytes, &plan.transformed);
+}
+
+struct DecodedPrefix {
+    source_selected: SelectedInstructionPlanIdentity,
+    source_ranges: LiveRangeIdentity,
+    source_legality: AllocationLegalityIdentity,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    allocator_availability: AllocatorAvailabilityIdentity,
+    policy: FixedViewCopyPolicy,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+    usage: omega_optimization_core::OptimizationWorkUsage,
+    copies: Vec<crate::FixedViewCopy>,
+    expected_transformed: SelectedInstructionPlanIdentity,
+}
+
+fn decode_prefix(cursor: &mut Cursor<'_>) -> Result<DecodedPrefix, FixedViewCopyDecodeError> {
     let source_selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
     let source_ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
     let source_legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
@@ -63,20 +87,54 @@ pub(super) fn decode(cursor: &mut Cursor<'_>) -> Result<DecodedContent, FixedVie
         copies.push(decode_copy(cursor)?);
     }
     let expected_transformed = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-    let transformed = decode_selected_plan(cursor)?;
+    Ok(DecodedPrefix {
+        source_selected,
+        source_ranges,
+        source_legality,
+        register_environment,
+        allocator_availability,
+        policy,
+        budget,
+        usage,
+        copies,
+        expected_transformed,
+    })
+}
+
+pub(super) fn decode_v4(
+    cursor: &mut Cursor<'_>,
+) -> Result<DecodedContent, FixedViewCopyDecodeError> {
+    let prefix = decode_prefix(cursor)?;
+    finish(prefix, decode_selected_plan_v4(cursor)?, true)
+}
+
+pub(super) fn decode_v5(
+    cursor: &mut Cursor<'_>,
+) -> Result<DecodedContent, FixedViewCopyDecodeError> {
+    let prefix = decode_prefix(cursor)?;
+    let decoded = decode_selected_plan_v5(cursor)?;
+    finish(prefix, decoded.plan, decoded.payload_matches)
+}
+
+fn finish(
+    prefix: DecodedPrefix,
+    transformed: omega_selected_instructions::SelectedInstructionPlan,
+    transformed_payload_matches: bool,
+) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     Ok(DecodedContent {
         plan: FixedViewCopyPlan {
-            source_selected,
-            source_ranges,
-            source_legality,
-            register_environment,
-            allocator_availability,
-            policy,
-            budget,
-            usage,
-            copies,
+            source_selected: prefix.source_selected,
+            source_ranges: prefix.source_ranges,
+            source_legality: prefix.source_legality,
+            register_environment: prefix.register_environment,
+            allocator_availability: prefix.allocator_availability,
+            policy: prefix.policy,
+            budget: prefix.budget,
+            usage: prefix.usage,
+            copies: prefix.copies,
             transformed,
         },
-        expected_transformed,
+        expected_transformed: prefix.expected_transformed,
+        transformed_payload_matches,
     })
 }

@@ -150,6 +150,15 @@ fragment, object, and callable stages sit above that taxonomy. Adding another
 recovery rule therefore adds a source leaf and catalog disposition, not a new
 publication vertical.
 
+Fixed-view-copy artifacts use one small version-admitting codec entrance.
+Legacy V4 remains decode-only and byte-stable, with no structural-function
+roster. V5 descends through a scalar selected-plan leaf and a structural
+subtree whose signature, ABI/calling plan, declarations, boundary settlements,
+call, effects, ownership, and return fields are explicit. Its outer envelope
+binds both the legacy semantic identity and the exact canonical V5 content;
+this closes caller/callee call-plan fields that independent validation checks
+but the selected semantic identity does not fully cover.
+
 ## Where to enter the source
 
 ```text

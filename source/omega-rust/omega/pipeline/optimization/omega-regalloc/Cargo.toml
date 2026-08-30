@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-optimization-core = { path = "../../../representations/omega-optimization-core" }
 omega-optimization-unit = { path = "../../../representations/omega-optimization-unit" }
 omega-abstract-operations = { path = "../../../representations/omega-abstract-operations" }
+omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
 omega-register-model = { path = "../../../representations/omega-register-model" }
 omega-target = { path = "../../../representations/omega-target" }
 omega-legalized-operations = { path = "../../../representations/omega-legalized-operations" }

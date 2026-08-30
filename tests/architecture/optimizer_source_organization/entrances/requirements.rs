@@ -689,7 +689,7 @@ pub(crate) fn is_required_coordination_entrance(path: &str) -> bool {
         .any(|entrance| entrance.path == path)
 }
 
-/// The v4 codec remains a visible semantic ladder below its protocol entrance.
+/// The V4/V5 codec remains a visible semantic ladder below its protocol entrance.
 pub(super) const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/content.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/copy.rs",
@@ -700,6 +700,13 @@ pub(super) const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/block.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/instruction.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/provenance.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/scalar.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/signature.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/call.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/calling.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/declarations.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/settlements.rs",
 ];
 
 /// The optimization-manifest entrance routes directly to one leaf per stable
