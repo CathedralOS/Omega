@@ -629,8 +629,7 @@ fn validate_static_requirement_dispatch(
         || dispatch.declaring_trait_identity.is_empty()
         || dispatch.requirement_identity.is_empty()
         || dispatch.realization_identity.is_empty()
-        || invocation.evidence_arguments.len() != 1
-        || invocation.outputs.len() != 1
+        || invocation.outputs.is_empty()
         || !machines.contains_key(&dispatch.realization)
         || !matches!(
             (invocation.runtime_result, invocation.runtime_call),
@@ -682,13 +681,13 @@ fn validate_static_requirement_dispatch(
                 application.binder_arguments.is_empty() && application.arguments.is_empty()
             })
     };
-    let argument = &invocation.evidence_arguments[0];
-    let output = &invocation.outputs[0];
-    if !proposition_is_bounded(argument.callee_proposition)
-        || !proposition_is_bounded(argument.instantiated_proposition)
-        || !proposition_is_bounded(output.callee_proposition)
-        || !proposition_is_bounded(output.instantiated_proposition)
-    {
+    if invocation.evidence_arguments.iter().any(|argument| {
+        !proposition_is_bounded(argument.callee_proposition)
+            || !proposition_is_bounded(argument.instantiated_proposition)
+    }) || invocation.outputs.iter().any(|output| {
+        !proposition_is_bounded(output.callee_proposition)
+            || !proposition_is_bounded(output.instantiated_proposition)
+    }) {
         return Err(invalid());
     }
     Ok(())

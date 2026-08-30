@@ -155,6 +155,56 @@ const STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE: &str = r#"
     }
 "#;
 
+const PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+
+    trait Producer {
+        machine Self::produce(&self)
+        requires public_first: ready()
+        requires public_second: ready()
+        ensures first_copy: ready()
+        ensures second_copy: ready()
+        ensures third_copy: ready();
+    }
+
+    data Token {}
+
+    TokenProducer: Token satisfies Producer {
+        machine produce(&self)
+        requires local_first: ready()
+        requires local_second: ready()
+        ensures first_copy: ready()
+        ensures second_copy: ready()
+        ensures third_copy: ready()
+        {
+            first_copy = local_first;
+            second_copy = local_first;
+            third_copy = local_second;
+        }
+    }
+
+    data Root {}
+
+    machine Root::invoke<Element, Order: Element satisfies Producer>(
+        &self,
+        value: &Element
+    )
+    requires incoming_first: ready()
+    requires incoming_second: ready()
+    {
+        let (; first_copy: first, second_copy: second, third_copy: third) =
+            Order::produce(value; incoming_first, incoming_second);
+    }
+
+    machine Root::caller(&self, value: &Token)
+    requires incoming_first: ready()
+    requires incoming_second: ready()
+    {
+        self.invoke<Token, TokenProducer>(value; incoming_first, incoming_second);
+    }
+"#;
+
 const STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -1766,6 +1816,141 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         psi_terminal_verifier::validate_module_representation(&widened_application),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
+}
+
+#[test]
+fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness() {
+    let checked = check(PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
+    let checked_invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|_| invocation)
+        })
+        .expect("one checked plural static requirement proof-output call");
+    let machine_name = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| {
+            (selection.machine == checked_invocation.caller_machine_symbol)
+                .then_some(selection.name.clone())
+        })
+        .expect("the plural specialized requirement caller is terminal-selected");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, &machine_name)
+        .expect("plural static requirement proof outputs should cross Terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one plural static requirement proof-output invocation expected")
+    };
+    assert!(invocation.static_requirement_dispatch.is_some());
+    assert_eq!(invocation.evidence_arguments.len(), 2);
+    assert_eq!(invocation.outputs.len(), 3);
+    assert_eq!(
+        invocation
+            .evidence_arguments
+            .iter()
+            .map(|argument| argument.input_position)
+            .collect::<Vec<_>>(),
+        vec![0, 1]
+    );
+    assert_eq!(
+        invocation
+            .outputs
+            .iter()
+            .map(|output| (output.output_position, output.output_field.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(0, "first_copy"), (1, "second_copy"), (2, "third_copy")]
+    );
+    assert!(
+        invocation
+            .outputs
+            .iter()
+            .all(|output| output.forwarded_input_position.is_none()
+                && output.callee_output.is_none()
+                && output.output.is_some()),
+        "static dispatch must expose only fresh public output identities"
+    );
+    let output_terms = invocation
+        .outputs
+        .iter()
+        .map(|output| output.output.expect("fresh static output term"))
+        .collect::<Vec<_>>();
+    assert!(output_terms.windows(2).all(|pair| pair[0] != pair[1]));
+    assert!(invocation
+        .evidence_arguments
+        .iter()
+        .all(|argument| { !output_terms.contains(&argument.source) }));
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("encode plural static semantics");
+    let proof_bytes =
+        encode_proof_bundle(&lowered.proof_bundle).expect("encode plural static proof bundle");
+    let decoded_semantic = decode_module(&semantic_bytes).expect("decode plural static semantics");
+    let decoded_proof =
+        decode_proof_bundle(&proof_bytes).expect("decode plural static proof bundle");
+    assert_eq!(decoded_semantic, lowered.semantic_module);
+    assert_eq!(decoded_proof, lowered.proof_bundle);
+    psi_terminal_verifier::verify_module(
+        &decoded_semantic,
+        &decoded_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("plural subjectless static named-witness lanes verify");
+
+    let rejects = |label: &str, module: &psi_terminal::TerminalModule| {
+        let result = psi_terminal_verifier::validate_module_representation(module);
+        assert!(
+            matches!(
+                result,
+                Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+            ),
+            "{label} mutation must reject as an invalid proof-output call, got {result:?}"
+        );
+    };
+
+    let mut reordered_arguments = lowered.semantic_module.clone();
+    reordered_arguments.proof_output_calls[0]
+        .evidence_arguments
+        .swap(0, 1);
+    rejects("argument order", &reordered_arguments);
+
+    let mut reordered_outputs = lowered.semantic_module.clone();
+    reordered_outputs.proof_output_calls[0].outputs.swap(0, 1);
+    rejects("output order", &reordered_outputs);
+
+    let mut wrong_proposition = lowered.semantic_module.clone();
+    wrong_proposition.proof_output_calls[0].outputs[2].instantiated_proposition =
+        psi_core::PropositionId::new(999).expect("forged proposition identity");
+    rejects("proposition", &wrong_proposition);
+
+    let mut wrong_interface = lowered.semantic_module.clone();
+    let third_output = wrong_interface.proof_output_calls[0].outputs[2]
+        .output
+        .expect("third output term");
+    wrong_interface
+        .evidence_terms
+        .iter_mut()
+        .find(|term| term.id == third_output)
+        .expect("third output declaration")
+        .interface
+        .trait_identity
+        .push_str("::forged");
+    assert_eq!(
+        psi_terminal_verifier::validate_module_representation(&wrong_interface),
+        Err(psi_terminal_verifier::ModuleError::EvidenceTermInterfaceMismatch(third_output))
+    );
+
+    let mut reused_output = lowered.semantic_module.clone();
+    let first_output = reused_output.proof_output_calls[0].outputs[0].output;
+    reused_output.proof_output_calls[0].outputs[1].output = first_output;
+    rejects("freshness", &reused_output);
 }
 
 #[test]
