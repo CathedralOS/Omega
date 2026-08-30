@@ -1,11 +1,14 @@
 use super::{
     FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
     FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
+    FilesystemInputUnknownDescriptorReadReplayKind as ReadKind,
+    FilesystemInputUnknownDescriptorReadReplayRecord as ReadRecord,
     FilesystemInputUnknownDescriptorSeekReplayRecord as SeekRecord,
     FilesystemInputUnknownDescriptorSetFileTimesReplayRecord as SetFileTimesRecord,
     FilesystemInputUnknownDescriptorWriteOperationReplayKind as WriteKind,
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord as WriteRecord,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
+    unknown_descriptor_read_attempt, unknown_descriptor_read_from_exact_attempt,
     unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
     unknown_descriptor_set_file_times_attempt,
     unknown_descriptor_set_file_times_from_exact_attempt,
@@ -864,5 +867,255 @@ fn assert_tampered_set_file_times_rejected(attempt: FilesystemOperationAttempt) 
     assert!(
         FilesystemReplay::from_input_unknown_descriptor_set_file_times_observations(&observations)
             .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_read_records_round_trip_exact_carriers_with_optional_source_prefix() {
+    let cases = [
+        (ReadKind::Sequential { count: 3 }, 4),
+        (
+            ReadKind::Positioned {
+                count: 4,
+                offset: -47,
+            },
+            6,
+        ),
+    ];
+    for (kind, tag) in cases {
+        let buffer = vec![11, 29, 47, 83, 101];
+        let record = ReadRecord::new(None, kind, buffer.clone()).unwrap();
+        assert!(record.source_input().is_none());
+        assert_eq!(record.kind(), kind);
+        assert_eq!(record.buffer(), buffer);
+
+        let replay = FilesystemReplay::from_input_unknown_descriptor_read_record(record).unwrap();
+        assert_eq!(replay.attempts().len(), 1);
+        assert_eq!(replay.attempts()[0].operation_tag(), tag);
+        assert_eq!(
+            unknown_descriptor_read_from_exact_attempt(&replay.attempts()[0]),
+            Some((kind, buffer.as_slice()))
+        );
+        assert!(replay.executes_replay_attempt(0));
+        assert!(!replay.has_output_attempts());
+
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let observed =
+            FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations)
+                .unwrap();
+        assert_eq!(observed.attempts(), replay.attempts());
+
+        let with_source = FilesystemReplay::from_input_unknown_descriptor_read_record(
+            ReadRecord::new(Some(source_input()), kind, buffer.clone()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            with_source
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, tag]
+        );
+        assert!((0..3).all(|index| !with_source.executes_replay_attempt(index)));
+        assert!(with_source.executes_replay_attempt(3));
+        assert!(!with_source.has_output_attempts());
+
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            with_source.attempts().to_vec(),
+            Vec::new(),
+        );
+        let observed =
+            FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations)
+                .unwrap();
+        assert_eq!(observed.attempts(), with_source.attempts());
+    }
+}
+
+#[test]
+fn unknown_descriptor_read_records_reject_count_capacity_and_aggregate_size_drift() {
+    let empty = FilesystemReplay::from_input_unknown_descriptor_read_record(
+        ReadRecord::new(None, ReadKind::Sequential { count: 0 }, Vec::new()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        unknown_descriptor_read_from_exact_attempt(&empty.attempts()[0]),
+        Some((ReadKind::Sequential { count: 0 }, &[][..]))
+    );
+
+    assert!(ReadRecord::new(None, ReadKind::Sequential { count: 4 }, vec![0; 3]).is_err());
+    assert!(
+        ReadRecord::new(
+            None,
+            ReadKind::Positioned {
+                count: u64::MAX,
+                offset: 0,
+            },
+            Vec::new(),
+        )
+        .is_err()
+    );
+
+    let oversized = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES / 3 + 1];
+    let record = ReadRecord::new(None, ReadKind::Sequential { count: 0 }, oversized).unwrap();
+    assert!(FilesystemReplay::from_input_unknown_descriptor_read_record(record).is_err());
+
+    let oversized = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES / 3 + 1];
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_read_attempt(
+            ReadKind::Sequential { count: 0 },
+            oversized,
+        )],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations).is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_read_observations_reject_operation_scalar_and_failure_drift() {
+    let exact = unknown_descriptor_read_attempt(
+        ReadKind::Positioned {
+            count: 3,
+            offset: -47,
+        },
+        vec![1, 2, 3, 4],
+    );
+
+    let mut changed = exact.clone();
+    changed.operation_tag = 4;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.provider = FilesystemObservationProvider::Virtual;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(0),
+        post_error: 9,
+    });
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(-1),
+        post_error: 13,
+    });
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands[0].operand_ordinal = 1;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands[0].value = FilesystemScalarOperandValue::I64(3);
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands[1].operand_ordinal = 2;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].operand_ordinal = 1;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].kind = FilesystemLogicalHandleKind::Find;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].resolution = FilesystemLogicalHandleInputResolution::Null;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact;
+    changed.scalar_operands.pop();
+    assert_tampered_read_rejected(changed);
+}
+
+#[test]
+fn unknown_descriptor_read_observations_reject_carrier_and_count_drift() {
+    let exact =
+        unknown_descriptor_read_attempt(ReadKind::Sequential { count: 3 }, vec![7, 11, 13, 17]);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands[0].value = FilesystemScalarOperandValue::U64(5);
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0].operand_ordinal = 2;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].operand_ordinal = 2;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions.clear();
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands.clear();
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operand_resolutions[0].bytes[0] ^= 1;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.mutable_byte_operands[0].pre_bytes[0] ^= 1;
+    assert_tampered_read_rejected(changed);
+
+    let mut changed = exact;
+    changed.mutable_byte_operands[0].post_bytes[0] ^= 1;
+    assert_tampered_read_rejected(changed);
+}
+
+#[test]
+fn unknown_descriptor_read_observations_reject_side_lanes_handoff_and_non_source_prefix() {
+    let exact = unknown_descriptor_read_attempt(
+        ReadKind::Positioned {
+            count: 2,
+            offset: i64::MIN,
+        },
+        vec![3, 5, 7],
+    );
+    for changed in nonempty_side_lane_attempts(exact.clone()) {
+        assert_tampered_read_rejected(changed);
+    }
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![exact.clone()],
+        vec![
+            BuildIncludedSource::from_coordinate(
+                FilesystemGrantRootIdentity::new(2).unwrap(),
+                b"generated.omg".to_vec(),
+                1,
+            )
+            .unwrap(),
+        ],
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations).is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_seek_attempt(0, 0), exact],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations).is_err()
+    );
+}
+
+fn assert_tampered_read_rejected(attempt: FilesystemOperationAttempt) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_read_observations(&observations).is_err()
     );
 }

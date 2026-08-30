@@ -761,6 +761,15 @@ lookup rejects before host mutation. Virtual replay restores the exact carrier
 and must reproduce the complete attempt and teardown before empty staged-output
 custody issues.
 
+Summary v56 and filesystem replay-record v37 add exact failed tag-4 `read` and
+tag-6 `read_at` rows on an unknown descriptor. The compiler binds the authored
+`u64` count, the positioned read's `i64` offset, and operand one's complete
+unchanged mutable carrier, with the count bounded by that carrier. Scoped-real
+provider, scalar `-1`, post-error `9`, and `Descriptor/Unknown` are fixed; no
+failed transfer region, other lane, or handoff is present. Compiler-owned
+descriptor lookup rejects before a host read, and virtual replay must reproduce
+the exact attempt and teardown before empty staged-output custody issues.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

@@ -1697,6 +1697,16 @@ Missing-descriptor rejection occurs at write-grant lookup before host mutation.
 Provider-free replay restores the exact carrier and must reproduce the attempt,
 namespace, and teardown before empty staged-output custody issues.
 
+Observation summary v56 and replay-record v37 additionally admit one failed
+tag-4 `read` or tag-6 `read_at` on an unknown descriptor after the optional
+Source prefix. The row binds the authored `u64` count, the positioned read's
+`i64` offset, and operand one's complete unchanged mutable carrier, with the
+count bounded by that carrier. It fixes scoped-real provider, scalar `-1`,
+post-error `9`, and operand-zero `Descriptor/Unknown`; no failed transfer
+region, other lane, or handoff is present. Compiler-owned descriptor lookup
+rejects before a host read. Provider-free replay must reproduce the attempt,
+namespace, and teardown before empty staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
