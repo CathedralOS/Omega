@@ -394,6 +394,26 @@ member whose own package declaration matches. The resolved member path is
 retained as navigation/replay custody and as the base for relative dependencies,
 but it is not `PackageKey` identity.
 
+Network transport is host-routed. The resolver invokes the selected system Git
+under the invoking user's ordinary Git/SSH configuration, descendant-execution,
+filesystem, credential, and network authority. Package source selects only the
+validated locator and revision; it cannot select credentials, helpers, proxy
+policy, hooks, filters, submodules, redirects, or arbitrary Git arguments. The
+universal path therefore does not force a compiler-owned proxy or SSH command,
+pre-enumerate host transport/helper identities, or claim the actual socket peer
+or aggregate network-byte count. Uniform command lifetime, captured-output,
+process-tree cleanup, and honest native resource controls remain valid because
+they apply without interpreting the host's helper graph.
+
+The universal `GitSourceReceipt` binds the requested endpoint, primary Git
+invocation and outcome, authenticated commit/tree, validated materialization,
+and immutable snapshot. A deliberately hermetic deployment may attach a
+separately typed confinement-evidence carrier to that receipt, but package
+source cannot select it and stronger deployment evidence never forks package
+or source identity. Local-only repository initialization and inspection may
+retain tighter execution/write confinement because they have no ambient
+transport-helper requirement.
+
 The source resolver owns one syntax-neutral authenticated tree session. It
 opens the exact root declaration, accepts bounded member paths from the
 manager's Omega-aware planner, batch-opens those exact member declarations, and
@@ -870,9 +890,11 @@ an exact application family covering every verifier-reconstructed concrete or
 symbolic demand. Generic applications are not overload coordinates.
 
 Production does not yet publish exact static-application demand or
-`ExactApplications` coverage. Q6 must first settle one tagged structural
-application representation and its recheckable join to selected-realization
-evidence; a provisional type-only use carrier would pre-commit that design.
+`ExactApplications` coverage. The owner question `Define exact
+boundary-realization application evidence` must first settle one tagged
+structural application representation and its recheckable join to
+selected-realization evidence; a provisional type-only use carrier would
+pre-commit that design.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not

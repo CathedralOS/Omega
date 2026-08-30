@@ -91,84 +91,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q2 — Delegate package transport helper authority to the host
-
-### Context
-
-Package transport routing is settled as an ambient host concern. User and
-system Git/SSH configuration, credential helpers, agents, identity files,
-known-host policy, proxies, and the invoking environment are ordinary host
-inputs. Omega owns the accepted locator and protocol surface, package-controlled
-Git arguments, authenticated Git object graph, immutable snapshot, bounded
-command lifecycle, and exact source receipt. It does not own host credential
-custody or network topology.
-
-The implementation still forces HTTPS through an Omega localhost CONNECT
-broker and SSH through an Omega `ProxyCommand`. Removing only those overrides
-does not finish the settled contract: macOS Seatbelt and Linux Landlock still
-permit execution only from a compiler-preselected path set and confine writes
-to the quarantine root. Host-selected `core.sshCommand`, `ProxyCommand`,
-credential helpers, askpass programs, keychain tools, and noninteractive
-known-host updates may therefore remain blocked even though ordinary Git and
-SSH configuration is nominally inherited.
-
-### Problem statement
-
-Choose the remaining native child-policy boundary for networked Git phases.
-Omega cannot both promise ordinary ambient Git/SSH behavior and pre-enumerate
-every executable and writable host location that arbitrary trusted host
-configuration may use. Parsing configuration does not close the set: includes,
-shell commands, helper protocols, platform services, and helper-specific state
-can select further behavior. Reproducing or brokering those mechanisms would
-turn the package manager into a partial Git/SSH/credential provider without
-making the invoking host more trustworthy.
-
-### Proposed direction
-
-For networked discovery and fetch, invoke the selected system Git under the
-user's ordinary descendant-execution, filesystem, credential, and network
-authority. Delete the CONNECT helper, forced HTTPS proxy, forced SSH command,
-preselected SSH/helper executable set, broker transfer accounting, and native
-claims that those ambient helper effects are confined. Keep only controls that
-do not alter host transport behavior: closed package-selected protocols,
-noninteractive execution, disabled repository hooks/replacements/redirects/
-filters/submodules, bounded captured output and command lifetime, process-group
-cleanup and honest native resource limits, quarantine publication, authenticated
-object-graph validation, immutable snapshots, and exact locator/source receipts.
-
-The universal receipt should bind the normalized requested endpoint, primary
-Git executable, command construction and outcome, and final source. It must not
-claim an observed socket peer, descendant helper identity, or network byte
-ceiling that the universal path no longer measures. Non-network repository
-initialization and inspection may retain their existing closed write and
-execution policy because they have no ambient transport-helper requirement.
-Stronger containment belongs to an explicitly selected host/CI environment,
-outside package-authored semantics.
-
-### Alternates
-
-- Acceptable: drop native confinement for every Git phase, retaining only
-  process lifecycle/resource controls and post-fetch validation. This is
-  simpler and matches ordinary package-manager behavior, at the cost of giving
-  local-only Git phases more ambient authority than they strictly need.
-- Acceptable: retain a closed transport backend only as an explicitly selected
-  host/CI profile that rejects unsupported ambient configuration up front.
-  Package declarations cannot select it, and its receipts must remain distinct
-  from the universal host-routed path.
-- Acceptable but likely needless: discover and allow a bounded exact helper set
-  for a deliberately restricted deployment profile. Failure to close the set
-  must reject that profile rather than silently fall back or affect ordinary
-  desktop resolution.
-- Tempting but wrong: implement Git proxy discovery, SSH jump hosts,
-  `ProxyCommand`, credential brokers, and platform key custody inside Omega to
-  preserve a universal confinement claim.
-- Tempting but wrong: remove only the command-scoped proxy overrides while
-  native executable or write confinement still silently blocks the host
-  configuration they expose.
-- Tempting but wrong: retain zero-valued broker observations or a configured
-  transfer ceiling as if either measured ambient host traffic.
-
-## Q3 — Define the device-operation source contract
+## Q2 — Define the device-operation source contract
 
 ### Context
 
@@ -221,7 +144,7 @@ consumed candidate unchanged for retry.
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
 
-## Q4 — Attribute selected opaque representations across package reviews
+## Q3 — Attribute selected opaque representations across package reviews
 
 ### Context
 
@@ -278,7 +201,7 @@ already occurred.
   or a lockfile string "agreement" without rejoining the exact declarations
   and strong compiler-issued application.
 
-## Q5 — Establish generic boundary-realization coverage
+## Q4 — Establish generic boundary-realization coverage
 
 ### Context
 
@@ -323,7 +246,7 @@ explicitly admitted generic implementation contract.
   from one successful application, or call a compiler/toolchain/version string
   a certificate that universal checking occurred.
 
-## Q6 — Define exact boundary-realization application evidence
+## Q5 — Define exact boundary-realization application evidence
 
 ### Context
 
@@ -357,7 +280,7 @@ checks for that specialization. Retain the exact requirement coordinate,
 selected plan and realization, binder schema, tagged arguments, and rechecked
 specialization identity. Deduplicate and order only after those joins succeed.
 
-Keep this distinct from Q5: checking a finite demanded set does not establish
+Keep this distinct from Q4: checking a finite demanded set does not establish
 universal generic coverage. Initially supporting only ordinary type binders is
 acceptable if every other telescope category remains explicitly fail-closed.
 
@@ -371,7 +294,7 @@ acceptable if every other telescope category remains explicitly fail-closed.
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
 
-## Q7 — Freeze the standalone Omega compiler request and outcome wire
+## Q6 — Freeze the standalone Omega compiler request and outcome wire
 
 ### Context
 
@@ -433,7 +356,7 @@ class, ordered first by phase and then by D18's request or source coordinate.
   infer product/target/source identity from filenames, or let `D` and `C`
   choose separate convenient encodings.
 
-## Q8 — Choose the Gamma compiler's Alpha tape capacity policy
+## Q7 — Choose the Gamma compiler's Alpha tape capacity policy
 
 ### Context
 
@@ -497,7 +420,7 @@ Gamma exception.
   helper at runtime, add a source-pattern shortcut or jet, or omit Gamma
   features from the published compiler.
 
-## Q9 — Complete Delta's census rules for transition binders and failures
+## Q8 — Complete Delta's census rules for transition binders and failures
 
 ### Context
 

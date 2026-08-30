@@ -44,8 +44,8 @@ stop the item on one precise owner question before adding machinery.
     compiler-intrinsic ownership, and
     installation joins beyond the landed selected-provider upper-bound and
     realized-reach evidence;
-  - **OWNER-BLOCKED — Q5:** generic boundary-realization coverage;
-  - **OWNER-BLOCKED — Q6:** exact boundary-realization specialization and
+  - **OWNER-BLOCKED — Q4:** generic boundary-realization coverage;
+  - **OWNER-BLOCKED — Q5:** exact boundary-realization specialization and
     tagged static-application demand and coverage evidence; production remains
     fail-closed rather than publishing a provisional use-side carrier;
   - complete exact semantic-subject commitments, certificate closure, and
@@ -218,13 +218,20 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Integration fixtures
 
-- [ ] **DESIGN-BLOCKED — OWNER Q2: HOST-ROUTED-SOURCE-TRANSPORT.** Remove the
-  universal CONNECT broker and false direct-route/transfer claims, then apply
-  the owner-selected child-policy boundary for host-configured Git/SSH helpers.
-  Forced proxy overrides and native policy that silently blocks the ambient
-  helpers exposed after their removal are one coupled transport problem; do
-  not preserve either by expanding Omega into a proxy, SSH, credential, or
-  host-configuration provider.
+- [ ] **HOST-ROUTED-SOURCE-TRANSPORT.** Implement the settled
+  `Host-routed network transport` contract in
+  `SOURCE_RESOLVER_SECURITY.md`. Remove the universal CONNECT helper, forced
+  HTTPS proxy and SSH command, preselected network transport/helper executable
+  graph, endpoint-route reconciliation, broker transfer accounting, and native
+  network-phase executable/write allowlists that block host-selected helpers.
+  Remove the corresponding descendant-executable, socket-peer, and transfer
+  fields from the universal `GitSourceReceipt` rather than recording zeroes.
+  Retain closed package-controlled protocols and execution surfaces, bounded
+  output/lifetime and whole-tree cleanup, uniform honest resource limits,
+  authenticated object and tree validation, immutable snapshot custody, and
+  the tighter local-only initialization/inspection policy. Any later hermetic
+  host/CI confinement claim uses separately typed evidence bound to the
+  universal receipt; packages cannot select it.
 
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
   accepted-lock absence and recovery, sealed representation mechanism/ABI,
