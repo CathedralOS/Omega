@@ -638,7 +638,8 @@ mod tests {
             let artifact = artifact(target);
             let admitted = admitted(&artifact, target);
             let exact_bytes = admitted.output().bytes.clone();
-            let exact_fingerprint = admitted.assembled_file_compatibility_fingerprint();
+            let report_fingerprint =
+                admitted.non_authoritative_assembled_file_compatibility_fingerprint();
 
             let emission = emit_admitted_dynamic_elf_image(&artifact, admitted).unwrap();
             validate_dynamic_elf_image_emission(&artifact, &emission).unwrap();
@@ -646,8 +647,8 @@ mod tests {
             assert_eq!(
                 emission
                     .admitted()
-                    .assembled_file_compatibility_fingerprint(),
-                exact_fingerprint,
+                    .non_authoritative_assembled_file_compatibility_fingerprint(),
+                report_fingerprint,
             );
             assert_eq!(emission.output().final_image_imports, 2);
             assert!(emission.output().format.contains("dynamic-executable"));
@@ -659,7 +660,8 @@ mod tests {
         let source = artifact(TargetProfile::LinuxX64);
         let admitted = admitted(&source, TargetProfile::LinuxX64);
         let exact_bytes = admitted.output().bytes.clone();
-        let exact_fingerprint = admitted.assembled_file_compatibility_fingerprint();
+        let report_fingerprint =
+            admitted.non_authoritative_assembled_file_compatibility_fingerprint();
         let wrong_artifact = artifact(TargetProfile::LinuxArm64);
 
         let error = emit_admitted_dynamic_elf_image(&wrong_artifact, admitted).unwrap_err();
@@ -667,8 +669,8 @@ mod tests {
         assert!(diagnostic.to_string().contains("target does not match"));
         assert_eq!(admitted.output().bytes, exact_bytes);
         assert_eq!(
-            admitted.assembled_file_compatibility_fingerprint(),
-            exact_fingerprint,
+            admitted.non_authoritative_assembled_file_compatibility_fingerprint(),
+            report_fingerprint,
         );
     }
 
@@ -677,7 +679,8 @@ mod tests {
         let mut artifact = artifact(TargetProfile::LinuxX64);
         let admitted = admitted(&artifact, TargetProfile::LinuxX64);
         let exact_bytes = admitted.output().bytes.clone();
-        let exact_fingerprint = admitted.assembled_file_compatibility_fingerprint();
+        let report_fingerprint =
+            admitted.non_authoritative_assembled_file_compatibility_fingerprint();
         artifact.text_bytes[0] ^= 1;
 
         let error = emit_admitted_dynamic_elf_image(&artifact, admitted).unwrap_err();
@@ -689,8 +692,8 @@ mod tests {
         );
         assert_eq!(admitted.output().bytes, exact_bytes);
         assert_eq!(
-            admitted.assembled_file_compatibility_fingerprint(),
-            exact_fingerprint,
+            admitted.non_authoritative_assembled_file_compatibility_fingerprint(),
+            report_fingerprint,
         );
     }
 
@@ -699,7 +702,8 @@ mod tests {
         let mut artifact = artifact(TargetProfile::LinuxX64);
         let admitted = admitted(&artifact, TargetProfile::LinuxX64);
         let exact_bytes = admitted.output().bytes.clone();
-        let exact_fingerprint = admitted.assembled_file_compatibility_fingerprint();
+        let report_fingerprint =
+            admitted.non_authoritative_assembled_file_compatibility_fingerprint();
         artifact.object.layout.normalized_imports[0].locator = normalize_foreign_locator(
             ForeignLocatorCandidate::ElfVersioned {
                 object: b"libproduction-emitter.so".to_vec(),
@@ -719,8 +723,8 @@ mod tests {
         );
         assert_eq!(admitted.output().bytes, exact_bytes);
         assert_eq!(
-            admitted.assembled_file_compatibility_fingerprint(),
-            exact_fingerprint,
+            admitted.non_authoritative_assembled_file_compatibility_fingerprint(),
+            report_fingerprint,
         );
     }
 
