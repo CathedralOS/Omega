@@ -104,6 +104,19 @@ pub struct ConventionalSumLayoutReport {
     pub align: u64,
 }
 
+/// One direct runtime-relevant pure-sum occurrence inside a conventional
+/// record materialization layout.
+///
+/// The outer field identity is retained per occurrence, rather than deducing
+/// rows from the nested schema, because the same sum type may appear more than
+/// once and each occurrence may select a different case.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalSumFieldLayoutReport {
+    pub field: String,
+    pub member_identity: Option<u64>,
+    pub layout: ConventionalSumLayoutReport,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns

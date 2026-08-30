@@ -346,25 +346,30 @@ case/payload names as presentation while retaining authored ordinal and
 complete geometry; replay and short-destination rejection leave the destination
 unchanged.
 
-The first nested rung admits exactly one direct runtime-relevant conventional
-pure-sum field in one closed non-generic `[copy]` record. `omega-layout`
-projects its whole-field outer `LayoutPlanReport` and complete conventional
-nested-sum report from the same built target runtime layout; source still gains
-no tag/case placement vocabulary. A distinct non-clone carrier retains the
-outer typed value, exact outer report, direct field identity, complete nested
-report, selected case identity and ordinal, target byte order, and final staged
-bytes. Replay revalidates the current typed program, compares both reports
-hash-free, reconstructs the selected nested bytes, reconstructs the zero-padded
-outer bytes, and copies only after every check succeeds.
+The direct nested rung admits the complete nonempty authored-order set of
+direct runtime-relevant conventional pure-sum fields in one closed non-generic
+`[copy]` record. `omega-layout` projects the whole-field outer
+`LayoutPlanReport` and one per-occurrence field-identity plus complete
+conventional nested-sum report from the same built target runtime layout;
+source still gains no tag/case placement vocabulary. Repeated occurrences of
+the same sum type remain distinct and may select different cases. A distinct
+non-clone carrier retains the outer typed value, exact outer report, every
+ordered direct field identity, every complete nested report and selected case
+identity/ordinal, target byte order, and final staged bytes. Replay revalidates
+the current typed program, rejects missing, extra, reordered, or duplicated
+occurrence rows, compares every report hash-free, reconstructs every selected
+nested buffer, reconstructs the zero-padded outer bytes, and performs one copy
+only after every check succeeds. Erased direct sum fields remain outside the
+runtime occurrence set.
 
-Multiple direct sum fields, arrays of sums, sums behind another record, mixed
-common-field/case shapes, and sums whose all-case geometry requires a target
-capsule remain later rungs. The same NaN, generic/opaque/quotient, reference,
-slice, Text, dynamic, atomic, and non-copy fences remain in force. None of these
-slices narrows the legacy typed-owned materialization API or establishes
-evaluator admission, quotient canonicalization, producer-origin chains, or
-proof authority. Carried quotient representatives, richer origin diagnostics,
-and target-dependent const application remain later slices.
+Arrays of sums, sums behind another record, mixed common-field/case shapes, and
+sums whose all-case geometry requires a target capsule remain later rungs. The
+same NaN, generic/opaque/quotient, reference, slice, Text, dynamic, atomic, and
+non-copy fences remain in force. None of these slices narrows the legacy
+typed-owned materialization API or establishes evaluator admission, quotient
+canonicalization, producer-origin chains, or proof authority. Carried quotient
+representatives, richer origin diagnostics, and target-dependent const
+application remain later slices.
 
 The second judgment is value-sensitive and structural over the realized value,
 not merely its outer type. It traverses the active sum case and its actual
