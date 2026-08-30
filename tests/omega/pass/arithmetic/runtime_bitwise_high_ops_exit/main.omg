@@ -5,8 +5,8 @@
 //   (a >> 28) & 0xF == 0xF (top-nibble extract),  a ^ 0xFFFFFFFF == 0x0F0F0F0F (bitwise NOT via XOR).
 // Each is chained; exits 70 iff all hold.
 //
-// NOTE: `~` (unary bitwise NOT) is not a recognized operator ("unsupported punctuation"); the XOR
-// with an all-ones mask shown here is the equivalent and is what this canary uses.
+// This canary deliberately keeps the all-ones XOR spelling so it independently
+// exercises binary XOR; unary `~` is ordinary supported Omega syntax.
 use omega::language::std::console;
 
 data Main {

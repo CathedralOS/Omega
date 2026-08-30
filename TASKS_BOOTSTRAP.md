@@ -1689,6 +1689,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
       completed current `C` roots from fifty-five to fifty-six. All 56 roots
       that reach body parsing are now complete; the remaining seventeen stop
       in their headers.
+    - [x] Generalize that same prefix stack from logical `!` to the canonical
+      fixed-width integer complement `~` without a second unary reducer.
+      Transition subjects, assignment values, local initializers, and ordinary
+      call arguments select `LogicalNot` or `BitwiseNot` at the three shared
+      operand dispatches, then retain the exact operator span and unwind the
+      same inside-out prefix stack. Mixed and nested prefixes therefore keep
+      canonical precedence and share the existing 128-entry
+      `ExpressionDepth` failure boundary. Unary call operands and consumers not
+      yet joined to the shared reducer remain implementation-incomplete rather
+      than receiving a consumer-specific shortcut. This is full-language
+      parser progress and changes no current `C` root count. Exact nesting,
+      precedence, depth, reset, and no-partial-publication vectors remain at
+      the unavailable real Delta-compiler gate.
     - [x] Retain the first closed external-leaf declaration as one coherent
       source-shaped form: `satisfies Trait::requirement via
       Binding::CompilerIntrinsic;`. The satisfying clause owns explicit
@@ -1736,6 +1749,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
       73 of 73 complete roots: 57 bodyful machines and sixteen bodyless external
       leaves. This is parser coverage of the current `C` closure, not semantic,
       lowering, emission, or full-spec parser closure for `D`.
+    - [x] Complete the canonical range bound-presence/inclusivity matrix through
+      that same indexed-expression builder. `[..]`, `[..end]`, `[..=end]`,
+      `[start..]`, `[start..end]`, and `[start..=end]` now retain independent
+      start/end presence, ordinary retained path/self/decimal bound handles,
+      exact separator spans, and the inclusive-end bit before constructing the
+      shared indexed node. Either inclusive spelling without an end is an exact
+      syntax failure rather than `Incomplete`; a second range separator in the
+      end expression cannot be mistaken for the outer close. `Expressions`
+      still dominates the equal range and indexed tables, so this adds no
+      resource kind. Arbitrary richer bound expressions and nested/chained
+      indexing remain implementation-incomplete. The current `C` census is
+      unchanged; exact shape, malformed-inclusive, capacity, reset, and
+      publication vectors remain assigned to the real Delta-compiler gate.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
