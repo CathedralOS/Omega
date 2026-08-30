@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 69;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 70;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2674,6 +2674,19 @@ const fn errno_tag(operation_tag: u16) -> bool {
     operation_tag == 50
 }
 
+const fn unknown_descriptor_bad_descriptor_failure_tag(operation_tag: u16) -> bool {
+    operand_free_unknown_descriptor_operation_tag(operation_tag)
+        || operation_tag == 10
+        || unknown_descriptor_open_at_tag(operation_tag)
+        || unknown_descriptor_unlink_at_tag(operation_tag)
+        || unknown_descriptor_read_dir_tag(operation_tag)
+        || unknown_descriptor_write_operation_tag(operation_tag)
+        || unknown_descriptor_set_file_times_tag(operation_tag)
+        || unknown_descriptor_read_operation_tag(operation_tag)
+        || unknown_descriptor_write_payload_operation_tag(operation_tag)
+        || unknown_descriptor_read_file_metadata_tag(operation_tag)
+}
+
 fn complete_no_output_failure_suffix_is_recognized(
     attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
     suffix_start: usize,
@@ -2698,7 +2711,7 @@ fn complete_no_output_failure_suffix_is_recognized(
         [failure, error_read] => {
             (unknown_native_handle_mutation_tag(failure.operation_tag())
                 && get_last_error_tag(error_read.operation_tag()))
-                || (operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
+                || (unknown_descriptor_bad_descriptor_failure_tag(failure.operation_tag())
                     && errno_tag(error_read.operation_tag()))
         }
         _ => false,
@@ -3642,12 +3655,12 @@ pub fn compute_build_config(
             source_input_replay_prefix_end(attempts).filter(|end| *end < attempts.len())
         {
             if attempts.len() - operation_suffix_start == 2
-                && operand_free_unknown_descriptor_operation_tag(
+                && unknown_descriptor_bad_descriptor_failure_tag(
                     attempts[operation_suffix_start].operation_tag(),
                 )
                 && errno_tag(attempts[operation_suffix_start + 1].operation_tag())
             {
-                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_with_errno_observations(
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_failure_with_errno_observations(
                     measured.observations(),
                 )
                 .ok()

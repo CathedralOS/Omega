@@ -56,7 +56,7 @@ pub(super) fn summary(operation_tag: u16) -> BuildObservationSummary {
     }
 }
 
-fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservationSummary {
+pub(super) fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservationSummary {
     let mut summary = summary(10);
     summary.filesystem_operation_attempts[0].scalar_operands = vec![
         BuildFilesystemScalarOperand {
@@ -71,7 +71,7 @@ fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservation
     summary
 }
 
-fn unknown_descriptor_at_summary(
+pub(super) fn unknown_descriptor_at_summary(
     operation_tag: u16,
     relative_component: Vec<u8>,
     flags: i32,
@@ -88,14 +88,14 @@ fn unknown_descriptor_at_summary(
     summary
 }
 
-fn unknown_descriptor_get_osfhandle_summary() -> BuildObservationSummary {
+pub(super) fn unknown_descriptor_get_osfhandle_summary() -> BuildObservationSummary {
     let mut summary = summary(30);
     summary.filesystem_operation_attempts[0].result = BuildFilesystemOperationResult::Scalar(-2);
     summary.filesystem_operation_attempts[0].post_error = 0;
     summary
 }
 
-fn unknown_native_handle_close_summary() -> BuildObservationSummary {
+pub(super) fn unknown_native_handle_close_summary() -> BuildObservationSummary {
     let mut summary = summary(29);
     summary.filesystem_operation_attempts[0].result = BuildFilesystemOperationResult::Scalar(0);
     summary.filesystem_operation_attempts[0].post_error = 6;
@@ -135,7 +135,7 @@ fn unknown_native_handle_final_path_summary() -> BuildObservationSummary {
     summary
 }
 
-fn unknown_descriptor_write_summary(
+pub(super) fn unknown_descriptor_write_summary(
     operation_tag: u16,
     values: &[BuildFilesystemScalarOperandValue],
 ) -> BuildObservationSummary {
@@ -152,7 +152,7 @@ fn unknown_descriptor_write_summary(
     summary
 }
 
-fn unknown_descriptor_set_file_times_summary(times: Vec<u8>) -> BuildObservationSummary {
+pub(super) fn unknown_descriptor_set_file_times_summary(times: Vec<u8>) -> BuildObservationSummary {
     let mut summary = summary(42);
     summary.filesystem_operation_attempts[0].mutable_byte_operand_resolutions =
         vec![BuildFilesystemMutableByteOperandResolution {
@@ -168,7 +168,9 @@ fn unknown_descriptor_set_file_times_summary(times: Vec<u8>) -> BuildObservation
     summary
 }
 
-fn unknown_descriptor_read_file_metadata_summary(buffer: Vec<u8>) -> BuildObservationSummary {
+pub(super) fn unknown_descriptor_read_file_metadata_summary(
+    buffer: Vec<u8>,
+) -> BuildObservationSummary {
     let mut summary = summary(39);
     summary.filesystem_operation_attempts[0].mutable_byte_operand_resolutions =
         vec![BuildFilesystemMutableByteOperandResolution {
@@ -184,7 +186,7 @@ fn unknown_descriptor_read_file_metadata_summary(buffer: Vec<u8>) -> BuildObserv
     summary
 }
 
-fn unknown_descriptor_read_summary(
+pub(super) fn unknown_descriptor_read_summary(
     operation_tag: u16,
     buffer: Vec<u8>,
     scalar_values: &[BuildFilesystemScalarOperandValue],
@@ -212,7 +214,7 @@ fn unknown_descriptor_read_summary(
     summary
 }
 
-fn unknown_descriptor_write_payload_summary(
+pub(super) fn unknown_descriptor_write_payload_summary(
     operation_tag: u16,
     payload: Vec<u8>,
     offset: Option<i64>,

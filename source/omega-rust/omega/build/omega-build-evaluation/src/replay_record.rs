@@ -21,6 +21,7 @@ mod directories;
 #[cfg(test)]
 mod directory_tests;
 mod duplicates;
+mod exact_failure_rehydration;
 #[cfg(test)]
 mod handle_failure_tests;
 mod handle_failures;
@@ -47,25 +48,18 @@ mod source_directory_tests;
 mod symlinks;
 
 use descriptor_error_state_failures::{
-    descriptor_operation_with_errno_shapes_are_exact,
-    validate_descriptor_operation_with_errno_shapes,
+    unknown_descriptor_failure_with_errno_operations,
+    unknown_descriptor_failure_with_errno_shapes_are_exact,
+    validate_unknown_descriptor_failure_with_errno_shapes,
 };
 use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
+use exact_failure_rehydration::{
+    exact_single_failure_shape_is_supported, rehydrate_exact_single_failure_shape,
+};
 use handle_failures::{
-    operand_free_unknown_descriptor_failure_shape_is_exact,
-    operand_free_unknown_descriptor_operation,
-    unknown_descriptor_get_osfhandle_failure_shape_is_exact,
-    unknown_descriptor_open_at_failure_shape_is_exact,
-    unknown_descriptor_read_failure_shape_is_exact,
-    unknown_descriptor_read_file_metadata_failure_shape_is_exact,
-    unknown_descriptor_read_operation, unknown_descriptor_seek_failure_shape_is_exact,
-    unknown_descriptor_set_file_times_failure_shape_is_exact,
-    unknown_descriptor_unlink_at_failure_shape_is_exact, unknown_descriptor_write_operation,
-    unknown_descriptor_write_operation_failure_shape_is_exact,
-    unknown_descriptor_write_payload_failure_shape_is_exact,
-    unknown_descriptor_write_payload_operation, unknown_native_handle_close_failure_shape_is_exact,
-    unknown_native_handle_final_path_failure_shape_is_exact,
+    operand_free_unknown_descriptor_operation, unknown_descriptor_read_operation,
+    unknown_descriptor_write_operation, unknown_descriptor_write_payload_operation,
     validate_operand_free_unknown_descriptor_failure_shape,
     validate_unknown_descriptor_get_osfhandle_failure_shape,
     validate_unknown_descriptor_open_at_failure_shape,
@@ -88,19 +82,16 @@ use native_error_state_failures::{
     validate_native_mutation_with_last_error_shapes,
 };
 use native_mutation_failures::{
-    UnknownNativeHandleMutationShape, unknown_native_handle_mutation_failure_shape_is_exact,
-    unknown_native_handle_mutation_shape, validate_unknown_native_handle_mutation_failure_shape,
+    UnknownNativeHandleMutationShape, unknown_native_handle_mutation_shape,
+    validate_unknown_native_handle_mutation_failure_shape,
 };
-use read_dir_failures::{
-    unknown_descriptor_read_dir_failure_shape_is_exact,
-    validate_unknown_descriptor_read_dir_failure_shape,
-};
+use read_dir_failures::validate_unknown_descriptor_read_dir_failure_shape;
 use read_links::{rehydrate_source_read_link_shape, validate_source_read_link_shape};
 use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 49;
+const VERSION: u16 = 50;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -330,28 +321,13 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         })
         .or_else(|| {
             shapes.len().checked_sub(2).filter(|suffix_start| {
-                descriptor_operation_with_errno_shapes_are_exact(&shapes[*suffix_start..])
+                unknown_descriptor_failure_with_errno_shapes_are_exact(&shapes[*suffix_start..])
             })
         })
         .or_else(|| {
             shapes
                 .last()
-                .filter(|shape| {
-                    operand_free_unknown_descriptor_failure_shape_is_exact(shape)
-                        || unknown_descriptor_seek_failure_shape_is_exact(shape)
-                        || unknown_descriptor_open_at_failure_shape_is_exact(shape)
-                        || unknown_descriptor_unlink_at_failure_shape_is_exact(shape)
-                        || unknown_descriptor_read_dir_failure_shape_is_exact(shape)
-                        || unknown_descriptor_write_operation_failure_shape_is_exact(shape)
-                        || unknown_descriptor_set_file_times_failure_shape_is_exact(shape)
-                        || unknown_descriptor_read_failure_shape_is_exact(shape)
-                        || unknown_descriptor_write_payload_failure_shape_is_exact(shape)
-                        || unknown_descriptor_read_file_metadata_failure_shape_is_exact(shape)
-                        || unknown_descriptor_get_osfhandle_failure_shape_is_exact(shape)
-                        || unknown_native_handle_close_failure_shape_is_exact(shape)
-                        || unknown_native_handle_final_path_failure_shape_is_exact(shape)
-                        || unknown_native_handle_mutation_failure_shape_is_exact(shape)
-                })
+                .filter(|shape| exact_single_failure_shape_is_supported(shape))
                 .map(|_| shapes.len() - 1)
         })
         .unwrap_or(shapes.len());
@@ -471,375 +447,27 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         });
     }
     if shapes.len() - operation_suffix_start == 2
-        && descriptor_operation_with_errno_shapes_are_exact(&shapes[operation_suffix_start..])
+        && unknown_descriptor_failure_with_errno_shapes_are_exact(&shapes[operation_suffix_start..])
     {
-        let kind = rehydrate_operand_free_unknown_descriptor_kind(
-            shapes[operation_suffix_start].operation,
-        )?;
-        let operation =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayRecord::new(
-                typed_source_record,
-                kind,
-            );
-        let pair = psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord::new(
-            operation,
-        );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_with_errno_record(
-            pair,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay descriptor operation and errno sequence could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1
-        && operand_free_unknown_descriptor_operation(shapes[operation_suffix_start].operation)
-    {
-        let kind = rehydrate_operand_free_unknown_descriptor_kind(
-            shapes[operation_suffix_start].operation,
-        )?;
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayRecord::new(
-                typed_source_record,
-                kind,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay operand-free unknown-descriptor failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 10
-    {
-        let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
-            shapes[operation_suffix_start].scalars.as_slice()
-        else {
-            unreachable!("validated unknown-descriptor seek retains exact scalar operands")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorSeekReplayRecord::new(
-                typed_source_record,
-                *offset,
-                *whence,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_seek_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor seek failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 14
-    {
-        let shape = &shapes[operation_suffix_start];
-        let [(1, relative_component)] = shape.byte_operands.as_slice() else {
-            unreachable!("validated unknown-descriptor open_at retains one exact component")
-        };
-        let [(2, ShapeScalar::I32(flags))] = shape.scalars.as_slice() else {
-            unreachable!("validated unknown-descriptor open_at retains exact flags")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorOpenAtReplayRecord::new(
-                typed_source_record,
-                clone_bytes(relative_component)?,
-                *flags,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay unknown-descriptor open_at record is inconsistent",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_open_at_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor open_at failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 15
-    {
-        let shape = &shapes[operation_suffix_start];
-        let [(1, relative_component)] = shape.byte_operands.as_slice() else {
-            unreachable!("validated unknown-descriptor unlink_at retains one exact component")
-        };
-        let [(2, ShapeScalar::I32(flags))] = shape.scalars.as_slice() else {
-            unreachable!("validated unknown-descriptor unlink_at retains exact flags")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorUnlinkAtReplayRecord::new(
-                typed_source_record,
-                clone_bytes(relative_component)?,
-                *flags,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay unknown-descriptor unlink_at record is inconsistent",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_unlink_at_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor unlink_at failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 23
-    {
-        let shape = &shapes[operation_suffix_start];
-        let [(2, ShapeScalar::U64(requested_count))] = shape.scalars.as_slice() else {
-            unreachable!("validated unknown-descriptor read_dir retains exact requested count")
-        };
-        let [(1, buffer)] = shape.mutable_byte_resolutions.as_slice() else {
-            unreachable!("validated unknown-descriptor read_dir retains exact buffer")
-        };
-        let [(3, position)] = shape.mutable_i64_resolutions.as_slice() else {
-            unreachable!("validated unknown-descriptor read_dir retains exact position")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorReadDirReplayRecord::new(
-                typed_source_record,
-                *requested_count,
-                clone_bytes(buffer)?,
-                *position,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay unknown-descriptor read_dir record is inconsistent",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_dir_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor read_dir failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1
-        && unknown_descriptor_write_operation(shapes[operation_suffix_start].operation)
-    {
-        use psi_checked_interpreter::FilesystemInputUnknownDescriptorWriteOperationReplayKind as Kind;
-        let shape = &shapes[operation_suffix_start];
-        let kind = match (shape.operation, shape.scalars.as_slice()) {
-            (17, [(1, ShapeScalar::U32(mode))]) => Kind::SetFilePermissions { mode: *mode },
-            (41, [(1, ShapeScalar::I64(length))]) => Kind::SetLength { length: *length },
-            (46, [(1, ShapeScalar::I32(operation))]) => Kind::LockFile {
-                operation: *operation,
-            },
-            (49, [(1, ShapeScalar::I32(uid)), (2, ShapeScalar::I32(gid))]) => {
-                Kind::ChangeFileOwner {
-                    uid: *uid,
-                    gid: *gid,
-                }
-            }
-            _ => unreachable!(
-                "validated unknown-descriptor write operation retains exact scalar operands"
-            ),
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorWriteOperationReplayRecord::new(
-                typed_source_record,
-                kind,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_write_operation_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor write operation failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 42
-    {
-        let [(1, times)] = shapes[operation_suffix_start]
-            .mutable_byte_resolutions
-            .as_slice()
-        else {
-            unreachable!("validated unknown-descriptor set_file_times retains one exact carrier")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorSetFileTimesReplayRecord::new(
-                typed_source_record,
-                clone_bytes(times)?,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay unknown-descriptor set_file_times carrier could not be rehydrated",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_set_file_times_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor set_file_times failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1
-        && unknown_descriptor_read_operation(shapes[operation_suffix_start].operation)
-    {
-        use psi_checked_interpreter::FilesystemInputUnknownDescriptorReadReplayKind as Kind;
-        let shape = &shapes[operation_suffix_start];
-        let kind = match (shape.operation, shape.scalars.as_slice()) {
-            (4, [(2, ShapeScalar::U64(count))]) => Kind::Sequential { count: *count },
-            (6, [(2, ShapeScalar::U64(count)), (3, ShapeScalar::I64(offset))]) => {
-                Kind::Positioned {
-                    count: *count,
-                    offset: *offset,
-                }
-            }
-            _ => unreachable!("validated unknown-descriptor read retains exact scalar operands"),
-        };
-        let [(1, buffer)] = shape.mutable_byte_resolutions.as_slice() else {
-            unreachable!("validated unknown-descriptor read retains one exact carrier")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorReadReplayRecord::new(
-                typed_source_record,
-                kind,
-                clone_bytes(buffer)?,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay unknown-descriptor read carrier could not be rehydrated",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor read failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1
-        && unknown_descriptor_write_payload_operation(shapes[operation_suffix_start].operation)
-    {
-        use psi_checked_interpreter::FilesystemInputUnknownDescriptorWriteReplayKind as Kind;
-        let shape = &shapes[operation_suffix_start];
-        let kind = match (shape.operation, shape.scalars.as_slice()) {
-            (5, []) => Kind::Sequential,
-            (7, [(2, ShapeScalar::I64(offset))]) => Kind::Positioned { offset: *offset },
-            _ => unreachable!("validated unknown-descriptor write retains exact scalar operands"),
-        };
-        let [(1, payload)] = shape.byte_operands.as_slice() else {
-            unreachable!("validated unknown-descriptor write retains one exact payload")
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorWriteReplayRecord::new(
-                typed_source_record,
-                kind,
-                clone_bytes(payload)?,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_write_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor write failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 39
-    {
-        let [(1, buffer)] = shapes[operation_suffix_start]
-            .mutable_byte_resolutions
-            .as_slice()
-        else {
-            unreachable!(
-                "validated unknown-descriptor read_file_metadata retains one exact carrier"
-            )
-        };
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord::new(
-                typed_source_record,
-                clone_bytes(buffer)?,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor read_file_metadata failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 30
-    {
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord::new(
-                typed_source_record,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor get_osfhandle failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 29
-    {
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownNativeHandleCloseHandleReplayRecord::new(
-                typed_source_record,
-            );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_close_handle_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-native-handle close failure could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 31
-    {
-        let shape = &shapes[operation_suffix_start];
-        let [(1, buffer)] = shape.mutable_byte_resolutions.as_slice() else {
-            unreachable!("validated unknown-native-handle final path retains one exact carrier")
-        };
-        let [
-            (2, ShapeScalar::U64(capacity)),
-            (3, ShapeScalar::U32(flags)),
-        ] = shape.scalars.as_slice()
-        else {
-            unreachable!("validated unknown-native-handle final path retains exact scalars")
-        };
-        let typed_record = psi_checked_interpreter::FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord::new(
+        let replay = rehydrate_exact_single_failure_shape(
             typed_source_record,
-            clone_bytes(buffer)?,
-            *capacity,
-            *flags,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-native-handle final path record is inconsistent",
-            )
-        })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_final_path_name_by_handle_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-native-handle final path failure could not be rehydrated",
-            )
-        });
+            &shapes[operation_suffix_start],
+        )?;
+        return replay
+            .with_immediate_errno_after_unknown_descriptor_failure()
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay descriptor operation and errno sequence could not be rehydrated",
+                )
+            });
+    }
+    if shapes.len() - operation_suffix_start == 1
+        && exact_single_failure_shape_is_supported(&shapes[operation_suffix_start])
+    {
+        return rehydrate_exact_single_failure_shape(
+            typed_source_record,
+            &shapes[operation_suffix_start],
+        );
     }
     if shapes.len() - operation_suffix_start == 2
         && native_mutation_with_last_error_shapes_are_exact(&shapes[operation_suffix_start..])
@@ -864,29 +492,6 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay native mutation and last-error sequence could not be rehydrated",
-            )
-        });
-    }
-    if shapes.len() - operation_suffix_start == 1
-        && matches!(shapes[operation_suffix_start].operation, 32 | 33 | 34)
-    {
-        let kind = rehydrate_unknown_native_handle_mutation_kind(&shapes[operation_suffix_start])?;
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayRecord::new(
-                typed_source_record,
-                kind,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay unknown-native-handle mutation record is inconsistent",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_mutation_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-native-handle mutation failure could not be rehydrated",
             )
         });
     }
@@ -2246,10 +1851,9 @@ fn validate_first_rung(
     }
     if cursor < shapes.len() {
         if shapes.len() - cursor == 2
-            && operand_free_unknown_descriptor_operation(shapes[cursor].operation)
-            && shapes[cursor + 1].operation == 50
+            && unknown_descriptor_failure_with_errno_operations(&shapes[cursor..])
         {
-            validate_descriptor_operation_with_errno_shapes(&shapes[cursor..])?;
+            validate_unknown_descriptor_failure_with_errno_shapes(&shapes[cursor..])?;
             return Ok(());
         }
         if shapes.len() - cursor == 1

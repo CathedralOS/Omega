@@ -4,6 +4,7 @@ use super::handle_failures::{
     FilesystemInputUnknownDescriptorOperationReplayRecord, unknown_descriptor_operation_attempt,
     unknown_descriptor_operation_from_exact_attempt,
 };
+use super::unknown_descriptor_bad_descriptor_failure_attempt_is_exact;
 use crate::{
     BuildIncludedSource, EvaluationObservations, FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
     FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
@@ -47,7 +48,9 @@ impl FilesystemReplay {
         attempts.push(unknown_descriptor_operation_attempt(kind));
         attempts.push(errno_after_bad_descriptor_attempt());
         validate_filesystem_replay_size(&attempts)?;
-        validate_descriptor_operation_with_errno_attempts(&attempts, &[])?;
+        validate_descriptor_failure_with_errno_attempts(&attempts, &[], |attempt| {
+            unknown_descriptor_operation_from_exact_attempt(attempt).is_some()
+        })?;
         Ok(Self {
             attempts: attempts.into(),
             expected_included_sources: std::sync::Arc::from([]),
@@ -66,9 +69,68 @@ impl FilesystemReplay {
         }
         let attempts = observations.filesystem_operation_attempts();
         validate_filesystem_replay_size(attempts)?;
-        validate_descriptor_operation_with_errno_attempts(
+        validate_descriptor_failure_with_errno_attempts(
             attempts,
             observations.build_included_sources(),
+            |attempt| unknown_descriptor_operation_from_exact_attempt(attempt).is_some(),
+        )?;
+        Ok(Self {
+            attempts: attempts.to_vec().into(),
+            expected_included_sources: std::sync::Arc::from([]),
+        })
+    }
+
+    /// Append immediate `errno` to any already exact unknown-descriptor replay
+    /// whose modeled failure sets `EBADF`.
+    pub fn with_immediate_errno_after_unknown_descriptor_failure(self) -> Result<Self, String> {
+        if !self.expected_included_sources.is_empty() {
+            return Err(
+                "filesystem replay failed descriptor operation and errno read cannot hand off generated sources"
+                    .to_owned(),
+            );
+        }
+        let mut attempts = self.attempts.to_vec();
+        let (failure, source_attempts) = attempts.split_last().ok_or_else(|| {
+            "filesystem replay requires one bad-descriptor failure before errno".to_owned()
+        })?;
+        if !source_attempts.is_empty() {
+            validate_source_input_attempts(source_attempts)?;
+        }
+        if !unknown_descriptor_bad_descriptor_failure_attempt_is_exact(failure) {
+            return Err(
+                "filesystem replay errno requires an exact unknown-descriptor EBADF failure"
+                    .to_owned(),
+            );
+        }
+        attempts.push(errno_after_bad_descriptor_attempt());
+        validate_filesystem_replay_size(&attempts)?;
+        validate_descriptor_failure_with_errno_attempts(
+            &attempts,
+            &[],
+            unknown_descriptor_bad_descriptor_failure_attempt_is_exact,
+        )?;
+        Ok(Self {
+            attempts: attempts.into(),
+            expected_included_sources: std::sync::Arc::from([]),
+        })
+    }
+
+    /// Validate any exact unknown-descriptor `EBADF` failure followed
+    /// immediately by `errno`, after an optional exact Source prefix.
+    pub fn from_input_unknown_descriptor_failure_with_errno_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        if observations.filesystem_operation_schema_version()
+            != FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION
+        {
+            return Err("filesystem replay observation schema is not current".to_owned());
+        }
+        let attempts = observations.filesystem_operation_attempts();
+        validate_filesystem_replay_size(attempts)?;
+        validate_descriptor_failure_with_errno_attempts(
+            attempts,
+            observations.build_included_sources(),
+            unknown_descriptor_bad_descriptor_failure_attempt_is_exact,
         )?;
         Ok(Self {
             attempts: attempts.to_vec().into(),
@@ -77,9 +139,10 @@ impl FilesystemReplay {
     }
 }
 
-fn validate_descriptor_operation_with_errno_attempts(
+fn validate_descriptor_failure_with_errno_attempts(
     attempts: &[FilesystemOperationAttempt],
     included_sources: &[BuildIncludedSource],
+    failure_is_exact: fn(&FilesystemOperationAttempt) -> bool,
 ) -> Result<(), String> {
     if !included_sources.is_empty() {
         return Err(
@@ -94,7 +157,7 @@ fn validate_descriptor_operation_with_errno_attempts(
     if !source_attempts.is_empty() {
         validate_source_input_attempts(source_attempts)?;
     }
-    if unknown_descriptor_operation_from_exact_attempt(&attempts[suffix_start]).is_none()
+    if !failure_is_exact(&attempts[suffix_start])
         || !errno_after_bad_descriptor_attempt_is_exact(&attempts[suffix_start + 1])
     {
         return Err(
@@ -158,8 +221,7 @@ pub(crate) fn ordered_descriptor_error_state_attempt_is_replayed(
     attempt_index.checked_sub(1).is_some_and(|operation_index| {
         attempts
             .get(operation_index)
-            .and_then(unknown_descriptor_operation_from_exact_attempt)
-            .is_some()
+            .is_some_and(unknown_descriptor_bad_descriptor_failure_attempt_is_exact)
             && attempts
                 .get(attempt_index)
                 .is_some_and(errno_after_bad_descriptor_attempt_is_exact)

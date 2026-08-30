@@ -285,6 +285,25 @@ its existing modeled failure leaves post-error at `0`. This receipts only
 Omega evaluator sequencing; it claims no custody of host thread-local state,
 descriptors, credentials, or operating-system policy.
 
+## Immediate bad-descriptor `errno` (summary v70, replay record v50)
+
+The ordered grammar extends to every already-receipted exact
+unknown-descriptor failure whose modeled post-error is `9`: seek; `open_at`
+and `unlink_at`; directory reads; scalar write operations; file-time mutation;
+sequential and positioned reads and writes; and descriptor metadata reads, in
+addition to the operand-free family. The failure row retains its existing exact
+authored operands, unchanged mutable carriers, scoped-real provider, scalar
+`-1`, and sole `Descriptor/Unknown` input. The immediate tag-50 `errno` row
+remains operand-free, scoped-real, scalar `9`, post-error `9`, and empty in
+every evidence and handoff lane.
+
+Tag-30 `get_osfhandle` remains excluded because it does not establish modeled
+error `9`; native-handle failures remain in the separate error-`6` grammar.
+Standalone, delayed, reordered, altered, or repeated reads remain
+non-receipted. This binds compiler-evaluator sequencing only; it claims no
+custody of host thread-local state, descriptors, credentials, or
+operating-system policy.
+
 ## Closed replay verdict (summary v52, replay record v33)
 
 The observation summary replaces two independently representable replay flags

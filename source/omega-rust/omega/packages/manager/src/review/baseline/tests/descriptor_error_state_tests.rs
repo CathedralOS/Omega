@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "descriptor_error_state_tests/operand_bearing_errno_tests.rs"]
+mod operand_bearing_errno_tests;
+
 #[test]
 fn baseline_retains_ordered_unknown_descriptor_failure_and_errno_replay_custody() {
     let fixtures = [

@@ -8,7 +8,11 @@ use crate::{
     BuildObservationClass,
 };
 
-fn summary(buffer: Vec<u8>, requested_count: u64, position: i64) -> BuildObservationSummary {
+pub(super) fn summary(
+    buffer: Vec<u8>,
+    requested_count: u64,
+    position: i64,
+) -> BuildObservationSummary {
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
         ceiling: BuildObservationClass::Volatile,
