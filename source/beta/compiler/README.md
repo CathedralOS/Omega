@@ -84,6 +84,21 @@ boundary. On every non-complete outcome, stdout is exactly one canonical
 | 24..31 | resource limit, little-endian `u64`; zero outside `Incomplete` |
 | 32..39 | requested amount, little-endian `u64`; zero outside `Incomplete` |
 
+Source coordinates are consumed-prefix boundaries in the compiler's fixed
+first-decisive traversal. They range from zero through the exact source extent:
+an outer-envelope failure records the offending unconsumed byte; an immediate
+scanner/parser/formation failure records the current boundary after all
+successfully consumed bytes and trivia; and a failure decidable only after
+whole-program validation records the then-current boundary, ordinarily the
+source extent. Thus a source coordinate is stable evidence of where the
+streaming decision occurred, not a promise that every rejection names the
+first byte of a human-selected token. Source-profile refusals use the same
+boundary before the refused admission. Emitted-payload coordinates identify
+the first unpublishable payload byte, and internal-row coordinates are
+zero-based private row indexes. The focused gate pins the numeric coordinate of
+every retained failure producer, including the exact trailing LF supplied by
+its string-input helpers.
+
 `0xFF` is permanently never an Alpha opcode, so a failure frame cannot be a
 runnable payload. Unknown versions, kinds, coordinate spaces, reason/resource
 codes, nonzero reserved bytes, noncanonical unused fields, or disagreement

@@ -98,12 +98,12 @@ expect_failure() {
   expected_name=$3
   expected_limit=$4
   expected_requested=$5
-  expected_coordinate=${6-}
+  expected_coordinate=$6
   decode_failure "$frame" "$halt_tag" &&
     [ "$decoded_name" = "$expected_name" ] &&
     [ "$decoded_limit" -eq "$expected_limit" ] &&
     [ "$decoded_requested" -eq "$expected_requested" ] &&
-    { [ -z "$expected_coordinate" ] || [ "$decoded_coordinate" -eq "$expected_coordinate" ]; }
+    [ "$decoded_coordinate" -eq "$expected_coordinate" ]
 }
 
 "$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/compiler.tape"
@@ -192,7 +192,7 @@ accept_trap_prefix() {
 reject() {
   name=$1
   source=$2
-  expected_coordinate=${3-}
+  expected_coordinate=$3
   set +e
   printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
   status=$?
@@ -228,7 +228,7 @@ incomplete() {
   limit=$3
   requested=$4
   source=$5
-  expected_coordinate=${6-}
+  expected_coordinate=$6
   set +e
   printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
   status=$?
@@ -248,7 +248,7 @@ internal_mutant() {
   occurrence=$4
   replacement=$5
   source=$6
-  expected_coordinate=${7-}
+  expected_coordinate=$7
   mutant_source="$TMP/$name.alpha"
   mutant_tape="$TMP/$name.compiler.tape"
   mutant_executable="$TMP/$name.compiler"
@@ -497,57 +497,57 @@ else
 fi
 
 reject missing_expression 'proc main() { return }' 21
-reject malformed_late_proc 'proc main() { return 42 } proc other('
-reject keyword_boundary 'procedure main() { return 42 }'
-reject wrong_entry 'proc answer() { return 42 }'
-reject parameterized_main 'proc main(x) { return x }'
-reject duplicate_proc 'proc main() { return 1 } proc main() { return 2 }'
-reject duplicate_parameter 'proc main() { return f(1, 2) } proc f(x, x) { return x }'
-reject duplicate_local 'proc main() { let x = 1 let x = 2 return x }'
-reject reserved_local 'proc main() { let return = 1 return 0 }'
-reject reserved_read_proc 'proc read_byte() { return 1 } proc main() { return 0 }'
-reject reserved_write_proc 'proc write_byte(x) { return x } proc main() { return 0 }'
-reject reserved_read_local 'proc main() { let read_byte = 1 return read_byte }'
-reject reserved_write_local 'proc main() { let write_byte = 1 return write_byte }'
-reject reserved_read_state 'proc main() { state read_byte { return 0 } }'
-reject reserved_write_state 'proc main() { state write_byte { return 0 } }'
-reject unknown_variable 'proc main() { return x }'
-reject unknown_assignment 'proc main() { x = 1 return x }'
-reject unknown_call 'proc main() { return nope() }'
-reject arity_mismatch 'proc main() { return f(1) } proc f(a, b) { return a + b }'
-reject five_parameters 'proc main() { return 0 } proc f(a, b, c, d, e) { return a }'
-reject five_arguments 'proc main() { return f(1, 2, 3, 4, 5) } proc f(a, b, c, d) { return a }'
-reject single_equal_expression 'proc main() { return 1 = 1 }'
-reject single_bang_expression 'proc main() { return 1 ! 2 }'
-reject chained_comparison 'proc main() { return 1 < 2 < 3 }'
-reject missing_parameter_comma 'proc f(a b) { return a } proc main() { return f(1, 2) }'
-reject trailing_parameter_comma 'proc f(a,) { return a } proc main() { return f(1) }'
-reject missing_argument_comma 'proc f(a, b) { return a } proc main() { return f(1 2) }'
-reject trailing_argument_comma 'proc f(a) { return a } proc main() { return f(1,) }'
-reject split_less_equal 'proc main() { return 1 < = 2 }'
-reject unknown_state 'proc main() { to nowhere }'
-reject duplicate_state 'proc main() { state x { return 1 } state x { return 2 } }'
-reject cross_proc_state 'proc main() { to x } proc f() { state x { return 1 } }'
-reject reserved_state 'proc main() { state state { return 0 } }'
-reject read_arity 'proc main() { return read_byte(1) }'
-reject write_arity_zero 'proc main() { return write_byte() }'
-reject write_arity_two 'proc main() { return write_byte(1, 2) }'
-reject bad_memory_load 'proc main() { return byte[1 }'
-reject bad_memory_store 'proc main() { word[1] 42 return 0 }'
-reject unterminated_emit 'proc main() { emit("unterminated) return 0 }'
-reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
-reject bad_emit_single_quote_escape "proc main() { emit(\"bad\\'\") return 0 }"
-reject decimal_overflow 'proc main() { return 18446744073709551616 }'
-reject bad_character "proc main() { return '\\x' }"
-reject bad_character_double_quote_escape "proc main() { return '\\\"' }"
-reject ordinary_after_state 'proc main() { state child { } return 0 }'
-reject ordinary_after_nested_state 'proc main() { state child { state nested { } return 0 } }'
-reject ordinary_after_return 'proc main() { return 0 let x = 1 }'
-reject ordinary_after_unconditional_transition 'proc main() { to done let x = 1 state done { return 0 } }'
-reject skipped_initialization 'proc main() { to bypass when read_byte() state initialize { let x = 1 to join } state bypass { to join } state join { return x } }'
-reject traversal_order_initialization 'proc main() { to head state initialize { let x = 1 to head } state head { to initialize when read_byte() return x } }'
-reject self_initializer 'proc main() { let x = x return 0 }'
-reject assignment_before_declaration 'proc main() { x = 1 let x = 2 return x }'
+reject malformed_late_proc 'proc main() { return 42 } proc other(' 38
+reject keyword_boundary 'procedure main() { return 42 }' 0
+reject wrong_entry 'proc answer() { return 42 }' 28
+reject parameterized_main 'proc main(x) { return x }' 26
+reject duplicate_proc 'proc main() { return 1 } proc main() { return 2 }' 36
+reject duplicate_parameter 'proc main() { return f(1, 2) } proc f(x, x) { return x }' 42
+reject duplicate_local 'proc main() { let x = 1 let x = 2 return x }' 34
+reject reserved_local 'proc main() { let return = 1 return 0 }' 29
+reject reserved_read_proc 'proc read_byte() { return 1 } proc main() { return 0 }' 16
+reject reserved_write_proc 'proc write_byte(x) { return x } proc main() { return 0 }' 18
+reject reserved_read_local 'proc main() { let read_byte = 1 return read_byte }' 32
+reject reserved_write_local 'proc main() { let write_byte = 1 return write_byte }' 33
+reject reserved_read_state 'proc main() { state read_byte { return 0 } }' 29
+reject reserved_write_state 'proc main() { state write_byte { return 0 } }' 30
+reject unknown_variable 'proc main() { return x }' 23
+reject unknown_assignment 'proc main() { x = 1 return x }' 16
+reject unknown_call 'proc main() { return nope() }' 30
+reject arity_mismatch 'proc main() { return f(1) } proc f(a, b) { return a + b }' 58
+reject five_parameters 'proc main() { return 0 } proc f(a, b, c, d, e) { return a }' 45
+reject five_arguments 'proc main() { return f(1, 2, 3, 4, 5) } proc f(a, b, c, d) { return a }' 36
+reject single_equal_expression 'proc main() { return 1 = 1 }' 24
+reject single_bang_expression 'proc main() { return 1 ! 2 }' 24
+reject chained_comparison 'proc main() { return 1 < 2 < 3 }' 27
+reject missing_parameter_comma 'proc f(a b) { return a } proc main() { return f(1, 2) }' 9
+reject trailing_parameter_comma 'proc f(a,) { return a } proc main() { return f(1) }' 9
+reject missing_argument_comma 'proc f(a, b) { return a } proc main() { return f(1 2) }' 51
+reject trailing_argument_comma 'proc f(a) { return a } proc main() { return f(1,) }' 48
+reject split_less_equal 'proc main() { return 1 < = 2 }' 25
+reject unknown_state 'proc main() { to nowhere }' 27
+reject duplicate_state 'proc main() { state x { return 1 } state x { return 2 } }' 42
+reject cross_proc_state 'proc main() { to x } proc f() { state x { return 1 } }' 55
+reject reserved_state 'proc main() { state state { return 0 } }' 25
+reject read_arity 'proc main() { return read_byte(1) }' 33
+reject write_arity_zero 'proc main() { return write_byte() }' 33
+reject write_arity_two 'proc main() { return write_byte(1, 2) }' 37
+reject bad_memory_load 'proc main() { return byte[1 }' 28
+reject bad_memory_store 'proc main() { word[1] 42 return 0 }' 22
+reject unterminated_emit 'proc main() { emit("unterminated) return 0 }' 45
+reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }' 24
+reject bad_emit_single_quote_escape "proc main() { emit(\"bad\\'\") return 0 }" 24
+reject decimal_overflow 'proc main() { return 18446744073709551616 }' 21
+reject bad_character "proc main() { return '\\x' }" 21
+reject bad_character_double_quote_escape "proc main() { return '\\\"' }" 21
+reject ordinary_after_state 'proc main() { state child { } return 0 }' 30
+reject ordinary_after_nested_state 'proc main() { state child { state nested { } return 0 } }' 45
+reject ordinary_after_return 'proc main() { return 0 let x = 1 }' 23
+reject ordinary_after_unconditional_transition 'proc main() { to done let x = 1 state done { return 0 } }' 22
+reject skipped_initialization 'proc main() { to bypass when read_byte() state initialize { let x = 1 to join } state bypass { to join } state join { return x } }' 131
+reject traversal_order_initialization 'proc main() { to head state initialize { let x = 1 to head } state head { to initialize when read_byte() return x } }' 118
+reject self_initializer 'proc main() { let x = x return 0 }' 24
+reject assignment_before_declaration 'proc main() { x = 1 let x = 2 return x }' 16
 
 reject_noncanonical_frame() {
   name=$1
@@ -606,7 +606,7 @@ while [ "$i" -lt 64 ]; do deep_64="${deep_64})"; i=$((i + 1)); done
 deep_64="${deep_64} }"
 accept nesting_limit "$deep_64" 1
 deep_65=$(printf '%s' "$deep_64" | sed 's/return /return (/; s/ }$/) }/')
-incomplete nesting_extent syntax_depth 64 65 "$deep_65"
+incomplete nesting_extent syntax_depth 64 65 "$deep_65" 86
 
 nested_calls_64='proc main() { return '
 i=0
@@ -617,7 +617,7 @@ while [ "$i" -lt 64 ]; do nested_calls_64="${nested_calls_64})"; i=$((i + 1)); d
 nested_calls_64="${nested_calls_64} } proc identity(x) { return x }"
 accept call_nesting_limit "$nested_calls_64" 1
 nested_calls_65=$(printf '%s' "$nested_calls_64" | sed 's/return /return identity(/; s/ } proc identity/) } proc identity/')
-incomplete call_nesting_extent syntax_depth 64 65 "$nested_calls_65"
+incomplete call_nesting_extent syntax_depth 64 65 "$nested_calls_65" 605
 
 deep_load_64='proc main() { return '
 i=0
@@ -628,7 +628,7 @@ while [ "$i" -lt 64 ]; do deep_load_64="${deep_load_64}]"; i=$((i + 1)); done
 deep_load_64="${deep_load_64} }"
 accept load_nesting_limit "$deep_load_64" 0
 deep_load_65=$(printf '%s' "$deep_load_64" | sed 's/return /return word[/; s/ }$/] }/')
-incomplete load_nesting_extent syntax_depth 64 65 "$deep_load_65"
+incomplete load_nesting_extent syntax_depth 64 65 "$deep_load_65" 345
 
 nested_states_64='proc main() {'
 i=0
@@ -639,7 +639,7 @@ while [ "$i" -lt 64 ]; do nested_states_64="${nested_states_64} }"; i=$((i + 1))
 nested_states_64="${nested_states_64} }"
 accept state_nesting_limit "$nested_states_64" 1
 nested_states_65=$(printf '%s' "$nested_states_64" | sed 's/ return 1/ state overflow { return 1 }/')
-incomplete state_nesting_extent syntax_depth 64 65 "$nested_states_65"
+incomplete state_nesting_extent syntax_depth 64 65 "$nested_states_65" 788
 
 mixed_state_depth_64='proc main() { state nested { return '
 i=0
@@ -650,7 +650,7 @@ while [ "$i" -lt 63 ]; do mixed_state_depth_64="${mixed_state_depth_64})"; i=$((
 mixed_state_depth_64="${mixed_state_depth_64} } }"
 accept mixed_state_nesting_limit "$mixed_state_depth_64" 1
 mixed_state_depth_65=$(printf '%s' "$mixed_state_depth_64" | sed 's/return /return (/; s/ } }$/) } }/')
-incomplete mixed_state_nesting_extent syntax_depth 64 65 "$mixed_state_depth_65"
+incomplete mixed_state_nesting_extent syntax_depth 64 65 "$mixed_state_depth_65" 100
 
 # A fixed emit body lets the gate hit Alpha's 262140-byte runnable payload
 # exactly. The second source requests 262141 bytes and must publish nothing.
@@ -676,7 +676,7 @@ status=$?
 set -e
 if [ "$status" -eq 2 ] && decode_failure "$TMP/expression_output_extent.out" "$status" &&
    [ "$decoded_name" = payload_bytes ] && [ "$decoded_limit" -eq 262140 ] &&
-   [ "$decoded_requested" -gt 262140 ]; then
+   [ "$decoded_requested" -gt 262140 ] && [ "$decoded_coordinate" -eq 262140 ]; then
   pass=$((pass + 1))
 else
   echo "FAIL expression_output_extent: did not return canonical payload Incomplete" >&2
@@ -685,31 +685,31 @@ fi
 slots_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " let v%d = %d", i, i; print " return v63 }" }')
 accept slot_limit "$slots_64" 63
 slots_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
-incomplete slot_extent frame_slot_rows 64 65 "$slots_65"
+incomplete slot_extent frame_slot_rows 64 65 "$slots_65" 839
 calls_1024=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1024; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
 accept call_global_limit "$calls_1024" 0
 calls_1025=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1025; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
-incomplete call_global_extent call_rows 1024 1025 "$calls_1025"
+incomplete call_global_extent call_rows 1024 1025 "$calls_1025" 9243
 procs_128=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 127; i++) printf "proc p%d() { return %d }\n", i, i }')
 accept procedure_limit "$procs_128" 0
 procs_129="$procs_128 proc overflow() { return 0 }"
-incomplete procedure_extent procedure_rows 128 129 "$procs_129"
+incomplete procedure_extent procedure_rows 128 129 "$procs_129" 3249
 states_128=$(awk 'BEGIN { printf "proc main() { return 0"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " }" }')
 accept state_proc_limit "$states_128" 0
 states_129=$(awk 'BEGIN { printf "proc main() { return 0"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " }" }')
-incomplete state_proc_extent procedure_state_rows 128 129 "$states_129"
+incomplete state_proc_extent procedure_state_rows 128 129 "$states_129" 1843
 states_1024=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() { return 0"; else printf "proc p%d() { return 0", p; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " }" } }')
 accept state_global_limit "$states_1024" 0
 states_1025="$states_1024 proc extra() { state overflow { return 0 } }"
-incomplete state_global_extent global_state_rows 1024 1025 "$states_1025"
+incomplete state_global_extent global_state_rows 1024 1025 "$states_1025" 14695
 edges_256=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 256; i++) printf " to done when 0"; print " state done { return 0 } }" }')
 accept edge_proc_limit "$edges_256" 0
 edges_257=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 257; i++) printf " to done when 0"; print " state done { return 0 } }" }')
-incomplete edge_proc_extent procedure_edge_rows 256 257 "$edges_257"
+incomplete edge_proc_extent procedure_edge_rows 256 257 "$edges_257" 3861
 edges_1024=$(awk 'BEGIN { for (p = 0; p < 4; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 256; i++) printf " to done when 0"; print " state done { return 0 } }" } }')
 accept edge_global_limit "$edges_1024" 0
 edges_1025="$edges_1024 proc extra_edges() { to done when 0 state done { return 0 } }"
-incomplete edge_global_extent global_edge_rows 1024 1025 "$edges_1025"
+incomplete edge_global_extent global_edge_rows 1024 1025 "$edges_1025" 15542
 
 # The 32768-fixup and 65536-internal-label arrays are secondary corruption
 # guards rather than independently reachable source-profile limits: every row
@@ -763,9 +763,9 @@ fi
 # otherwise dominated invariant and must publish the exact canonical frame.
 internal_source='proc main() { return 0 }'
 internal_mutant internal_replay_rejected replay_rejected \
-  '        jnz   r0, internal_error' 1 '        jmp   internal_error' "$internal_source"
+  '        jnz   r0, internal_error' 1 '        jmp   internal_error' "$internal_source" 25
 internal_mutant internal_replay_length_mismatch replay_length_mismatch \
-  '        jeq   r1, r2, source_patch' 1 '        jlt   r1, r1, source_patch' "$internal_source"
+  '        jeq   r1, r2, source_patch' 1 '        jlt   r1, r1, source_patch' "$internal_source" 133
 internal_mutant internal_replay_payload_overflow replay_payload_overflow \
   '        jeq   r1, r2, eb_error' 1 '        jmp   eb_error' "$internal_source" 0
 internal_mutant internal_fixup_capacity fixup_capacity \
