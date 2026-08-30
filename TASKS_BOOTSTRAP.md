@@ -848,6 +848,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
+  - [ ] **OWNER-BLOCKED — Q7.** Freeze the canonical sealed Omega compiler
+    request: package/source closure, source identities, product/target/admission
+    inputs, explicit bootstrap Alpha-tape product, and compiler outcome framing.
+    This blocks `D`'s executable entry, source custody, package lookup, and
+    publication. It does not block final boundary-independent internals such as
+    the complete Alpha encoder.
+  - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
+    complete closed opcode-shape table, paired-`i32` representation of arbitrary
+    64-bit immediates, instruction-atomic capacity checks, bounded address
+    fixups, and the exact four-byte descriptive length prefix. It deliberately
+    has no `Main`, source protocol, package lookup, publication, or placeholder
+    compiler result while Q7 is open. Final lowering must replay the finished
+    payload structurally before publication; the raw reserved-write helpers are
+    internal construction primitives, not a second artifact interface.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
