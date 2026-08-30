@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | resolve Q6 entry diagnostics, complete body/control checking and lowering, resolve Q5 before physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | resolve Q5 entry diagnostics, complete body/control checking and lowering, resolve Q4 before physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -611,19 +611,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     neither resource path commits `r254` or a partial descriptor. Exact and
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
-  - [ ] **OWNER-BLOCKED — Q4 Beta call-row profile for the complete Gamma
+  - [ ] **OWNER-BLOCKED — Q3 Beta call-row profile for the complete Gamma
     compiler.** The retained source consumes exactly 994 of D23's 1,024
     non-builtin call rows before a production entry or either adapter. A focused
     adjacent probe admits thirty further calls and refuses the thirty-first as
     canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
     total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
     publication, or silently revise the Alpha-written compiler profile.
-  - [ ] **OWNER-BLOCKED — Q3 GCOUT boundary priority and schema coordinates.**
-    Before publishing the canonical compiler boundary, fix exact-end versus
-    oversized-source priority, exact request-field coordinates, and the total
-    partition/priority/absence coordinate for schema rejection codes 19 through
-    21. This does not block shared emitted-runtime support or construction of
-    either adapter after successful request and schema admission.
+  - [x] **D33 — BOUNDED GCOUT ADMISSION AND TOTAL SCHEMA DIAGNOSIS.** Check the
+    fixed header and profile before the selected source provision; reject an
+    oversized declared length at request byte 12 without consuming its body;
+    and perform body exact-end validation only for admitted lengths. Retain all
+    schema reason/coordinate candidates and apply category order 19/20/21,
+    truthful none-or-source coordinates, and the normative table's request-
+    profile availability. The completed adapter and gate must reject a code
+    impossible for the originating request rather than treating a detached
+    GCOUT frame as sufficient context.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
@@ -1141,27 +1144,27 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
     Gamma-profile schema check. This establishes nominal plumbing only and
     claims no storage-demand calculation or refusal behavior.
-  - [ ] **OWNER-BLOCKED — Q6 DELTA ENTRY-SHAPE TOTALITY.** The accepted
+  - [ ] **OWNER-BLOCKED — Q5 DELTA ENTRY-SHAPE TOTALITY.** The accepted
     `Console`/`Main`/`Main::main` headline is fixed, but `MissingEntry` versus
     `InvalidEntry`, absent-component and malformed-component coordinates,
     boundary member order/binder-name sensitivity, and ties with ordinary
     body/control failures are not total. Retain entry candidates for the final
     phase, but do not promote a rejection or publish golden coordinates until
-    Q6 settles them. This does not block the independent expression, statement,
+    Q5 settles them. This does not block the independent expression, statement,
     state, transition, and return judgments.
   - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
     type owner, callable, constructor, field, state, and control target against
     the complete census and formed shape graph. Check ordered initialization,
     value/place/call classification, arity and type equality, terminal and
     return obligations, duplicate patterns, and sum exhaustiveness. Accumulate
-    all final-phase candidates by packed coordinate and merge the eventual Q6
+    all final-phase candidates by packed coordinate and merge the eventual Q5
     entry candidates before accepting one resolved program; traversal and wire
     reason order must not select the diagnostic.
-  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q5 AND INCOMPLETE CHECK/LOWERING: D31
+  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q4 AND INCOMPLETE CHECK/LOWERING: D31
     APPLICATION STATIC STORAGE.** After complete body/control checking and the
     final nonaliasing generated-program map exist, derive its selected static-
     storage limit and expand only reachable roots. Then implement exact
-    attributed/aggregate refusal and no-publication canaries. Q5 must first
+    attributed/aggregate refusal and no-publication canaries. Q4 must first
     settle how a valid nested-array demand above Gamma `INT64_MAX` and the
     fixed `DCOUT` scalar field is represented; do not trap, choose saturation
     privately, impose a Delta validity limit, or report a traversal prefix.

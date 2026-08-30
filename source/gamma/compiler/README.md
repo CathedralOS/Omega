@@ -161,10 +161,22 @@ do not derive from this compiler's separate 4-MiB source buffer.
 The compiler edge uses `GCOUT` magic `[FF 47 43 4F 55 54 01 00]`; the
 generated Delta-compiler edge uses `DCOUT` magic
 `[FF 44 43 4F 55 54 01 00]`. Both retain the common 40-byte failure frame and
-halt tags 0 through 3. `GCREQ` validation precedes Gamma source processing, so
-a malformed or unknown profile reports a request-byte coordinate before any
-source defect; selected-profile schema mismatch reports the exact Gamma-source
-coordinate after resolution.
+halt tags 0 through 3. `GCREQ` validation obtains the fixed header, validates
+magic/version/reserved bytes and the profile, then enforces the selected
+profile's declared source provision before reading the body and one exact-end
+probe. Unknown profile anchors at request byte 8; source exhaustion anchors at
+byte 12 with the declared length as `requested`; admitted body truncation or a
+trailing byte is `malformed_request` at the first missing or extra request byte.
+This bounded order prevents a four-byte length from forcing unprovisioned input
+consumption.
+
+After the ordinary frontend succeeds, schema reasons use category priority 19
+missing entry, 20 wrong present entry, then 21 nominal profile schema. Missing
+facts use coordinate space `none`; a wrong `main` anchors at its declaration
+name; present malformed profile members anchor at their declaration or
+constructor name. Within one category absence precedes located defects, then
+located defects use their earliest coordinate. Code 21 is legal only for
+`DeltaCompilerV1`; `ConformanceBytesV1` has no additional nominal schema.
 
 The embedded profile and outcome constants project exactly to:
 
@@ -176,8 +188,12 @@ The embedded profile and outcome constants project exactly to:
 The gate must compare every row rather than merely parse those files. They are
 not inputs read by the completed offline compiler. `gcout-v1.tsv` deliberately
 publishes authored semantic rejection classes instead of the frontend's private
-parser states or its historical one-bit `INVALID_TYPE`. `dcout-v1.tsv` retains
-D17 codes 1 through 26 unchanged.
+parser states or its historical one-bit `INVALID_TYPE`. Its
+`profile_context` column uses `unselected` before a valid profile exists and
+otherwise enumerates the permitted profile IDs. The originating request and
+frame are checked together; a detached GCOUT frame cannot validate this column
+because it does not repeat the profile ID. `dcout-v1.tsv` retains D17 codes 1
+through 26 unchanged.
 
 The compiler's exact V1 resource limits are:
 

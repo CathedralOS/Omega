@@ -150,70 +150,7 @@ compiler phases explicitly.
   Rust request, let `D` define one private layout and `C` another, or postpone
   reason/resource numbers until publication code happens to need them.
 
-## Q3 — Complete GCOUT boundary priority and schema coordinates
-
-### Context
-
-D30 fixes the physical `GCREQ` envelope, profile registry, compiler-resource
-limits, `GCOUT` table, and broad phase order. The standalone Beta-written Gamma
-compiler must therefore produce one byte-identical failure frame for every
-request. Two boundary cases still admit incompatible implementations.
-
-A declared Gamma-source length above 4 MiB may also describe a truncated or
-trailing request. D30 does not say whether exact-end framing wins before the
-`source_bytes` resource check, nor which request byte identifies an unknown
-profile or oversized length field. After a valid frontend pass, codes 19
-through 21 distinguish `missing_entry`, `entry_schema_mismatch`, and
-`profile_schema_mismatch`, but a missing declaration has no authored byte and
-the present schema validators can discover several defects at once.
-
-### Problem statement
-
-Fix one deterministic compiler-boundary judgment covering:
-
-1. whether exact request truncation/trailing-byte validation precedes an
-   oversized declared Gamma-source length;
-2. the exact `GCREQ` coordinate for malformed framing, unknown profile, and
-   `source_bytes` exhaustion;
-3. the precise partition between `missing_entry`, `entry_schema_mismatch`, and
-   `profile_schema_mismatch` for both V1 profiles;
-4. the coordinate used when a required entry, type, constructor, or reason is
-   absent; and
-5. deterministic priority when multiple entry/profile schema defects coexist.
-
-These are public offline-compiler interoperability requirements, not gate-only
-diagnostics: independently built admitted Gamma compilers must emit the same
-`GCOUT` frame for the same request.
-
-### Proposed direction
-
-Validate the complete structural envelope and exact end first. Report a first
-missing or trailing byte as `malformed_request`; then reject an unknown profile
-at byte 8; then report an oversized declared source as
-`Incomplete(source_bytes)` at byte 12 with the declared value as `requested`.
-Treat a zero-based source EOF position as an admissible schema coordinate for
-a missing required declaration. Classify a missing `main` as `missing_entry`,
-a present `main` with the wrong signature as `entry_schema_mismatch`, and every
-other selected-profile nominal-shape or reason-bijection defect as
-`profile_schema_mismatch`. Retain all schema candidates and choose the earliest
-coordinate, breaking exact-coordinate ties by codes 19, 20, then 21.
-
-### Alternates
-
-- Acceptable: let a self-contained oversized length field win immediately,
-  provided its coordinate and priority over truncated/trailing bodies are
-  explicit and every implementation can decide it without buffering beyond
-  the selected resource limit.
-- Acceptable: reserve a non-source coordinate space for absent declarations,
-  provided `gcout-v1.tsv` and the frame contract are revised together rather
-  than calling EOF a source byte implicitly.
-- Acceptable: use a fixed schema-category priority rather than earliest source
-  order, provided every defect combination and coordinate is total.
-- Tempting but wrong: expose whichever row the current validator encounters
-  first, use coordinate zero for every absence, merge the three settled codes,
-  or defer the choice to adapter-emission order.
-
-## Q4 — Give the complete Gamma compiler an explicit Beta call-row profile
+## Q3 — Give the complete Gamma compiler an explicit Beta call-row profile
 
 ### Context
 
@@ -270,7 +207,7 @@ select the smallest measured power-of-two profile that is.
   publish before validation, generate Beta source or Alpha bytes on the host,
   add an Alpha opcode, or treat the 1,024-row refusal as invalid Gamma source.
 
-## Q5 — Represent Delta storage demand beyond Gamma Int
+## Q4 — Represent Delta storage demand beyond Gamma Int
 
 ### Context
 
@@ -330,7 +267,7 @@ wording explicitly rather than silently saturating an implementation result.
   clamp privately while documentation still claims exactness, or classify the
   valid Delta type as `InvalidArrayLength`.
 
-## Q6 — Total Delta entry-shape diagnostics
+## Q5 — Total Delta entry-shape diagnostics
 
 ### Context
 

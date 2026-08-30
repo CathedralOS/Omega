@@ -48,7 +48,9 @@ The first edge includes D19's sealed profile ID in its exact compilation
 question and checks the source-owned outcome/reason schema before emitting the
 `DCOUT` adapter; source names do not select that boundary. D30 gives that
 question its exact `GCREQ` byte envelope, profile IDs and maxima, generated
-runtime observations, and `GCOUT`/`DCOUT` tables.
+runtime observations, and `GCOUT`/`DCOUT` tables. D33 fixes the bounded request
+suborder and total GCOUT schema diagnosis before either implementation may
+publish that boundary.
 
 ## Delta v1
 

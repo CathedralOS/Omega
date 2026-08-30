@@ -39,11 +39,11 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
 Remaining body/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. Q6 blocks promotion of the
+final publication remain implementation gaps. Q5 blocks promotion of the
 incomplete entry-diagnostic judgment. D31's profile-independent
 structural type-formation judgment is now implemented; its physical storage
 realization remains later than complete checking and is additionally blocked
-on Q5's over-`Int` demand representation. The existing source is therefore not
+on Q4's over-`Int` demand representation. The existing source is therefore not
 yet a compiler edge and no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
@@ -71,7 +71,7 @@ containment edges. Recursion checks each edge with a visited-owner graph walk,
 marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. The winning candidate is
 now promoted after successful census. Body/control checking remains the next
-semantic phase. Entry facts may be retained alongside it, but Q6 must total
+semantic phase. Entry facts may be retained alongside it, but Q5 must total
 their reasons, anchors, and ties before the shared final-phase candidate is
 promoted.
 

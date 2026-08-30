@@ -3280,8 +3280,12 @@ proc lower_expr(expr, tail_position) {
 ;
 ; These checks consume only resolved D20 identities and author no candidate
 ; payload. D30 fixes the compilation-request envelope, exact profile maxima,
-; and GCOUT/DCOUT tables; embedding them and emitting the selected adapter
-; remain outside this slice.
+; and GCOUT/DCOUT tables. D33 requires the completed boundary to retain every
+; schema (reason, coordinate) candidate, apply category order 19/20/21, use
+; coordinate space none for absent facts, and validate code availability
+; against the originating request profile. These Boolean validators do not yet
+; implement that public judgment; embedding it and emitting the selected
+; adapter remain outside this slice.
 
 proc validate_d19_conformance_schema() {
     let function_index = 0

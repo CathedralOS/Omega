@@ -67,7 +67,9 @@ helpers, resolved expression lowering, and profile-neutral whole-function
 label/body emission. It also validates both exact D19 source schemas and the
 26-code Delta rejection bijection without declaration-order authority. D30
 fixes the physical `GCREQ`, profile limits, generated-runtime observations, and
-`GCOUT`/`DCOUT` tables. The adapters remain incomplete and there is no published
+`GCOUT`/`DCOUT` tables. D33 fixes bounded length admission before body exact-end
+work, total schema-category priority, absence coordinates, and request-profile
+code availability. The adapters remain incomplete and there is no published
 tape. Its
 251,142-byte historical fixed gate exhausted the former V1 Alpha ceiling before
 those later slices and the D19 adapters. D23 therefore selects the coherent
