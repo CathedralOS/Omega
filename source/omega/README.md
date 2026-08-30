@@ -125,8 +125,8 @@ paths are retained exactly; const arguments, evidence projections, nested
 static applications, lifetime arguments, and empty or trailing-comma static
 lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
-place path or one path-indexed place with a path, decimal, or canonical range
-over the retained path/decimal bound slice; current values are
+place path followed by zero or more indexes, each with a path, decimal, or
+canonical range over the retained path/decimal bound slice; current values are
 self-member paths, qualified-name paths, booleans, unsuffixed nonnegative
 decimal integer literals, or strings. Integer
 spelling is retained by source span and is not evaluated during parsing;
@@ -146,7 +146,12 @@ extent without manufacturing a group syntax node. Recursive logical `!`,
 fixed-width integer complement `~`, and arithmetic negation `-` prefixes wrap
 a completed operand from the admitted primary, group, and cast slice before
 that value enters the binary frame; borrow/reference and other contextual
-unary forms remain incomplete.
+unary forms remain incomplete. Postfix indexing may start from a retained path
+in any framed-value consumer or continue a completed literal, call, cast, or
+indexed value. Repeated brackets retain a left-to-right expression chain; each
+bracket independently reuses the canonical index/range representation. An
+index operand that itself contains indexing remains incomplete until the parser
+owns a bounded nested-index context stack.
 Shallow struct literals
 accept an exact one-member record or two-member case type path and a comma-
 separated named field list with an optional trailing comma. Canonical adjacent
@@ -165,8 +170,8 @@ distinction between `Type::Case` and `Type::Case {}` plus exact binding and
 field spelling for later resolution. Current named targets own a contiguous
 argument-expression span
 over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
-strings, shallow struct literals, and path bases indexed by a path or decimal
-integer. An index may instead use any canonical bound-presence/inclusivity
+strings, shallow struct literals, and path bases followed by one or more path
+or decimal indexes. An index may instead use any canonical bound-presence/inclusivity
 shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
@@ -181,8 +186,8 @@ incomplete, and no body is skipped as opaque text.
 Local-data statements retain canonical `let [mut] name: Type [= expression];`
 syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
 immutable local named `mut`. Locals share the borrow-capable type engine and the
-same bounded expression reducer as assignments, including one path-indexed
-expression with a path or decimal index and the same canonical range shapes;
+same bounded expression reducer as assignments, including repeatable postfix
+indexing with path or decimal indexes and the same canonical range shapes;
 absent initializers are represented by an explicit presence bit rather than a
 valid-looking handle. Ordinary call
 initializers share the statement-call target, static-argument, runtime-argument,
@@ -195,12 +200,13 @@ the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix. Ordinary assignment, local, and call-argument casts may
 also wrap a completed grouped primary and then continue through the shared
 binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
-expressions, nested/chained indexing, and other richer initializers remain
+expressions, nested indexing inside an index operand, and other richer
+initializers remain
 implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
-integer, string, or one path-indexed expression with a path, decimal, or
-canonical range index. The statement points directly to the shared
+integer, string, or a path followed by one or more indexes with path, decimal,
+or canonical range operands. The statement points directly to the shared
 expression node; indexing has no assignment-only syntax representation.
 
 Each completed machine owns zero or one implicit entry followed by its explicit

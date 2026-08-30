@@ -577,6 +577,8 @@ data OmegaUnaryExpressionSyntax {
 }
 
 data OmegaIndexedExpressionSyntax {
+    // Repeated postfix indexes form a chain through base; they are never
+    // flattened into a second child ledger.
     base: i32;
     index: i32;
     start: i32;
@@ -7943,10 +7945,26 @@ machine OmegaParser::parse_view(
 
     state indexed_expression_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBracket -> begin_postfix_indexed_expression()
             OmegaPunctuationKind::Equal -> begin_indexed_assignment_value()
             OmegaPunctuationKind::RightBrace -> retain_expression_statement()
             _ -> incomplete_root()
         }
+    }
+
+    state begin_postfix_indexed_expression() {
+        self.indexed_base_expression = self.expression_result;
+        self.indexed_start = self.expression_result_start;
+        self.indexed_index_is_range_start = 0;
+        self.indexed_range_has_start = 0;
+        self.indexed_range_start_expression = 0;
+        self.indexed_range_has_end = 0;
+        self.indexed_range_end_expression = 0;
+        self.indexed_range_end_inclusive = 0;
+        self.indexed_range_parsing_end = 0;
+        self.expression_consumer = OmegaExpressionConsumer::IndexedIndex;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(74) }
     }
 
     state begin_indexed_assignment_value() {
@@ -8416,6 +8434,12 @@ machine OmegaParser::parse_view(
 
     state begin_path_indexed_expression() {
         transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument ->
+                retain_path_indexed_base()
+            OmegaExpressionConsumer::AssignmentValue ->
+                retain_path_indexed_base()
+            OmegaExpressionConsumer::TransitionSubject ->
+                retain_path_indexed_base()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_path_indexed_base()
             OmegaExpressionConsumer::TransitionTargetArgument ->
@@ -9658,6 +9682,36 @@ machine OmegaParser::parse_view(
     }
 
     state primary_expression_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBracket ->
+                begin_completed_indexed_expression()
+            _ -> primary_expression_end_consumer_punctuation()
+        }
+    }
+
+    state begin_completed_indexed_expression() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument ->
+                begin_completed_indexed_value()
+            OmegaExpressionConsumer::AssignmentValue ->
+                begin_completed_indexed_value()
+            OmegaExpressionConsumer::TransitionSubject ->
+                begin_completed_indexed_value()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                begin_completed_indexed_value()
+            OmegaExpressionConsumer::TransitionTargetArgument ->
+                begin_completed_indexed_value()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_completed_indexed_value() {
+        self.indexed_result_consumer = self.expression_consumer;
+        self.indexed_is_value = 1;
+        transition true { true -> begin_postfix_indexed_expression() }
+    }
+
+    state primary_expression_end_consumer_punctuation() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument ->
                 finish_framed_primary()

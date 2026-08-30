@@ -1968,21 +1968,39 @@ code, discover a closure, manufacture proof premises, or decide admission.
       syntax failure rather than `Incomplete`; a second range separator in the
       end expression cannot be mistaken for the outer close. `Expressions`
       still dominates the equal range and indexed tables, so this adds no
-      resource kind. Arbitrary richer bound expressions and nested/chained
-      indexing remain implementation-incomplete. The current `C` census is
-      unchanged; exact shape, malformed-inclusive, capacity, reset, and
-      publication vectors remain assigned to the real Delta-compiler gate.
+      resource kind. At that checkpoint, arbitrary richer bound expressions
+      and nested/chained indexing remained implementation-incomplete. The
+      current `C` census was unchanged; exact shape, malformed-inclusive,
+      capacity, reset, and publication vectors remain assigned to the real
+      Delta-compiler gate.
+    - [x] Generalize that indexed-expression builder into a true repeatable
+      postfix over the retained framed-value lane. Ordinary assignment values,
+      local initializers, call arguments, transition subjects, and transition-
+      target arguments may begin indexing from a path and may continue a
+      completed literal, call, cast, or indexed value with another bracket;
+      indexed assignment/terminal places may likewise continue with another
+      bracket before their final `=` or state close. Every link owns one
+      source-shaped indexed row whose base is the preceding expression handle,
+      so `value[first][second]` is a left-to-right chain rather than a flattened
+      special form. Each bracket reuses the complete six-shape range builder,
+      exact spans, and existing `Expressions` domination, adding no syntax
+      variant or resource. An index operand that itself contains indexing still
+      remains implementation-incomplete: supporting `outer[inner[index]]`
+      requires a bounded nested-index context stack rather than overwriting the
+      live outer builder. The current `C` census is unchanged; exact chain,
+      precedence, assignment-place, capacity, reset, and no-partial-publication
+      vectors remain assigned to the real Delta-compiler gate.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 still owns an unresolved
-  full-spec Omega contract. D31 unblocks the earlier Delta compiler's
-  type-formation implementation, while Q2 blocks the standalone Omega
-  compiler's exact inner wire and failure profile. D25 fixes that edge's
-  logical request and outer envelope, and D24 unblocks the Delta census
-  implementation. None prevents implementation of independently settled
-  source-shaped parser slices.
+  allowed; weakened Omega semantics are not. Q1 blocks the proof-only
+  `FloatMeaning` equality/source-correspondence slice. D31 unblocks the earlier
+  Delta compiler's type-formation implementation, while Q2 blocks the
+  standalone Omega compiler's exact inner wire and failure profile.
+  D25 fixes that edge's logical request and outer envelope, and D24 unblocks the
+  Delta census implementation. None prevents implementation of independently
+  settled source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full
