@@ -39,7 +39,7 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
 Remaining type/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. Q3 owns the type-formation cases
+final publication remain implementation gaps. Q2 owns the type-formation cases
 that D17 does not yet classify exactly; the existing source is therefore not
 yet a compiler edge and no validation may describe it as one.
 
@@ -64,7 +64,7 @@ accumulating the earliest potential `UnknownType` coordinate independent of
 traversal order. It preserves the collected native syntax rather than
 serializing a resolved tree. The candidate is not yet promoted to a rejection:
 data-shape, recursive-value, placement, entry, and body judgments remain
-separate, and Q3 blocks their exact within-phase composition.
+separate, and Q2 blocks their exact within-phase composition.
 
 ## Contract-derived conformance plan
 
@@ -135,8 +135,9 @@ backend was less economical than authoring the specified direct components.
 - compile under D19's sealed `DeltaCompilerV1` profile, which checks the exact
   source-owned entry/outcome schema and a total constructor-to-code bijection
   before emission;
-- let the generated adapter own `DCOUT`, its profile-owned explicit reason-code
-  table, and outer `Incomplete`/`InternalFailure` outcomes;
+- let the generated adapter implement D30's 4-MiB input profile,
+  1,048,572-byte output maximum, exact `DCOUT` identity/table, and outer
+  `Incomplete`/`InternalFailure` outcomes;
 - compile it with `gamma_compiler_bytecode.tape`;
 - emit one exact Alpha tape without external older-rung semantic tools;
 - reconstruct Gamma source and Alpha artifact semantics independently;

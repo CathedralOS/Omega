@@ -30,6 +30,9 @@
 ;          14680096 ARG_SCRATCH [4 KiB; 512 values)  14684192 VTAIL_SENTINEL
 ;          16777216 HEAP [16 MiB,32 MiB)
 ; All addresses are logical Beta raw-memory addresses inside the 32 MiB profile.
+; Its legacy statuses 252 source exhaustion, 253 argument exhaustion, 254 arena
+; exhaustion, and 255 invalid source are oracle-private. D30's generated-program
+; observation block does not interpret them.
 ; AST/value nodes are 2-4 words [tag,f0,f1,f2]. Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
 ;

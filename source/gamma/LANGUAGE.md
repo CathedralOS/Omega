@@ -169,11 +169,32 @@ exact Gamma source. The ID is part of compilation identity and reconstruction
 evidence. It is not Gamma syntax, an ambient host flag, a filename convention,
 or a property inferred from source names.
 
-Version 1 has exactly two profiles. Each declares one exact maximum sealed-input
-extent satisfying `0 <= maximum <= INT64_MAX`. The compiler validates that
-bound as profile metadata before adapter emission; an admitted input can
-therefore always become a valid Gamma `Bytes`. An input exceeding the selected
-maximum is profile-owned `Incomplete`, not a Gamma trap.
+The canonical version-1 request is one exact length-delimited byte sequence:
+
+```text
+0..7    [47 43 52 45 51 01 00 00]  (`GCREQ`, version 1, reserved)
+8..11   application-profile ID, little-endian u32
+12..15  Gamma-source byte length, little-endian u32
+16..    exact Gamma-source bytes; exact end of request
+```
+
+The consuming compiler artifact's embedded metadata owns the profile-ID set.
+Version 1 assigns `1` to `ConformanceBytesV1` and `2` to
+`DeltaCompilerV1`; zero and every ID unknown to that artifact reject. A later
+ID does not require a new envelope version, while a representation change does.
+The exact request and selected embedded metadata participate in compilation
+identity. Profile facts are never repeated as request claims or inferred from
+source, filenames, or ambient invocation state.
+
+Each profile declares one exact maximum sealed-input extent satisfying
+`0 <= maximum <= INT64_MAX`. Both version-1 profiles select 4,194,304 bytes.
+`ConformanceBytesV1` also selects a 4,194,304-byte maximum successful output;
+`DeltaCompilerV1` selects AlphaBootstrapV2's 1,048,572-byte raw-tape maximum.
+The compiler validates those facts before adapter emission; an admitted input
+can therefore always become a valid Gamma `Bytes`. An input or output exceeding
+the selected maximum is profile-owned `Incomplete`, not a Gamma trap. These
+application limits are distinct from the Beta-written compiler's own 4-MiB
+Gamma-source resource even where their numeric values coincide.
 
 The two profiles are:
 
@@ -227,6 +248,33 @@ as follows:
 of `DeltaCompileOutcome`: they occur precisely when pure `main` does not return a
 source-authored value. No failure path publishes partial artifact bytes.
 
+### Conformance observation profile
+
+`ConformanceBytesV1` writes no byte until the complete returned `Bytes` has
+passed descriptor, logical-length, traversal, and output-extent preflight. Halt
+0 publishes exactly that value. Every recognized failure publishes empty
+stdout. The generated-program status block is:
+
+```text
+132  Alpha VM illegal-instruction trap
+248  InternalFailure
+249  AuthoredTrap
+250  StackExhausted
+251  MemoryContainmentViolation
+252  HeapExhausted
+253  InputExtent
+254  OutputExtent
+255  unassigned and noncanonical
+```
+
+Status 132 is the Alpha VM refusing an illegal instruction, not a Gamma
+language trap. Status 249 is a deliberate generated-code observation of one of
+Gamma's closed authored trap conditions. Status 255 remains unavailable so a
+shell or harness projection of `-1` cannot imitate an admitted internal
+failure. Divergence produces no terminal observation. The temporary
+`interp.beta` oracle predates this block and retains private statuses interpreted
+only by its own harness; they are not generated-program authority.
+
 ## Compiler boundary family
 
 Canonical compiler edges share the boundary discipline settled for the Beta
@@ -242,8 +290,25 @@ Each accepted-language edge owns its magic, version, reason/resource/internal
 tables, and coordinate vocabulary. `BCOUT` remains Beta-specific; the Gamma and
 Delta compiler edges use their own identities (`GCOUT` and `DCOUT`). One
 parameterized decoder may validate all profiles, but no profile may interpret
-another profile's frame. Generated-program statuses such as 250 and 251 are
-separate runtime observations, not compiler-boundary cases.
+another profile's frame. `GCOUT` V1 is
+`[FF 47 43 4F 55 54 01 00]`; `DCOUT` V1 is
+`[FF 44 43 4F 55 54 01 00]`. Their coordinate spaces are:
+
+```text
+GCOUT  0 none, 1 Gamma source, 2 emitted payload, 3 internal row, 4 GCREQ
+DCOUT  0 none, 1 Delta source, 2 emitted payload, 3 internal row
+```
+
+`GCREQ` validation precedes Gamma lexing, declaration/type/match checking,
+selected-profile schema validation, and lowering/emission. A malformed or
+unknown profile therefore wins before any source defect and reports a request
+coordinate; a selected-profile schema mismatch reports its exact source
+coordinate. The closed tables are `compiler/gcout-v1.tsv`,
+`compiler/dcout-v1.tsv`, `compiler/profiles-v1.tsv`, and
+`compiler/conformance-observations-v1.tsv`. They are checked projections of
+constants embedded in the compiler artifact, not files consulted by the
+completed offline runtime. Generated-program statuses 248 through 254 remain
+separate runtime observations, never compiler-boundary cases.
 
 ## Compilation requirements
 

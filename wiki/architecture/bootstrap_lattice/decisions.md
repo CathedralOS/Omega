@@ -466,7 +466,7 @@ identity.
 D25 supplies the authoritative outer framing and canonical-content rules for
 this logical request and outcome. It retains each selected immutable source
 revision independently from the stable `PackageKey`, but deliberately gives no
-V1 wire identity to the future accepted `PackageInstance` carrier. Q4 owns the
+V1 wire identity to the future accepted `PackageInstance` carrier. Q3 owns the
 still-missing inner field/tag tables, commitment preimage, failure-code tables,
 phase order, and scalar provisions needed for one byte-interoperable wire.
 
@@ -716,7 +716,7 @@ arithmetic, and therefore never turns hostile framing into a trap and outer
 The identity, outer section extents, exact end, and canonical semantic contents
 in this decision are fixed. They do not by themselves assign every inner row's
 byte order, width, tag, or reserved fields, nor the closed failure/resource
-numbers. Q4 completes those physical tables before either compiler may claim a
+numbers. Q3 completes those physical tables before either compiler may claim a
 full V1 decoder or publisher.
 
 The subject encodes package rows in ascending recomputed
@@ -999,6 +999,93 @@ categories, and any coverage row produced before its demand was closed. D28's
 future universal semantic row remains complementary: it can establish
 symbolic selection coverage, but every emitted artifact still carries D29's
 finite concrete applications and physical plans.
+
+## D30 — Physical Gamma application profiles and compiler boundaries
+
+One canonical Gamma compilation request is the exact byte sequence
+
+```text
+0..7    [47 43 52 45 51 01 00 00]  (`GCREQ`, version 1, reserved)
+8..11   application-profile ID, little-endian u32
+12..15  Gamma-source byte length, little-endian u32
+16..    exact Gamma-source bytes; exact end of request
+```
+
+Version 1 assigns `1` to `ConformanceBytesV1` and `2` to
+`DeltaCompilerV1`. Zero and every ID unknown to the consuming compiler
+artifact reject. The compiler artifact owns the embedded profile registry, so
+an older artifact correctly rejects a later ID; adding a value does not by
+itself revise the envelope. The exact request bytes, selected registry row,
+registry version, compiler artifact, and emitted adapter participate in
+compilation identity. Profile metadata is not redundantly repeated in the
+request and is never inferred from source, names, paths, or ambient flags.
+
+Both V1 generated applications admit at most 4,194,304 sealed input bytes.
+`ConformanceBytesV1` admits at most 4,194,304 successful output bytes;
+`DeltaCompilerV1` admits at most 1,048,572 successful tape bytes, the committed
+`AlphaBootstrapV2` raw-tape maximum. These are application-profile policies
+except for the derived tape maximum. The Beta-written Gamma compiler's own
+4,194,304-byte Gamma-source ceiling is a distinct compiler resource even when
+the numbers coincide. Generated applications use the committed 15-MiB Gamma
+stack and 112-MiB immutable heap. Exact and adjacent refusal canaries accompany
+every selected maximum.
+
+Envelope validation precedes Gamma lexing, declaration and type checking,
+selected-profile schema checking, and lowering/emission. An unknown or
+malformed profile therefore wins before any Gamma-source defect and reports a
+`GCREQ`-byte coordinate; an entry or profile-schema mismatch reports its exact
+Gamma-source coordinate. `GCOUT` V1 uses magic
+`[FF 47 43 4F 55 54 01 00]`; `DCOUT` V1 uses
+`[FF 44 43 4F 55 54 01 00]`. Both retain the common 40-byte compiler-failure
+frame and halt tags 0 Complete, 1 Reject, 2 Incomplete, and 3 InternalFailure.
+Their coordinate spaces are respectively:
+
+```text
+GCOUT: 0 none, 1 Gamma source, 2 emitted payload, 3 internal row, 4 GCREQ
+DCOUT: 0 none, 1 Delta source, 2 emitted payload, 3 internal row
+```
+
+The closed tables in `source/gamma/compiler/gcout-v1.tsv` and
+`dcout-v1.tsv` are normative. `GCOUT` exposes authored semantic rejection
+classes rather than the compiler's private parser states or former one-bit
+failure flag. Its compiler-resource limits are 4,194,304 source bytes, 65,536
+total type rows, 65,536 constructor rows, 32,768 function rows, 65,536 active
+environment rows, 65,536 coverage rows, 114,294,752 syntax-arena bytes, 1,024
+parse levels, 65,535 live local slots, 65,536 labels, 116,508 fixups, and
+1,048,572 payload bytes. `DCOUT` retains D17 rejection codes 1 through 26
+unchanged and distinguishes its 4-MiB input, 15-MiB stack, 112-MiB heap, and
+1,048,572-byte output resources. Limit and requested fields carry the exact
+selected values; changing a producer layout does not silently renumber the
+stable resource classes.
+
+`ConformanceBytesV1` is a generated-program observation rather than a compiler
+boundary. It publishes stdout only after the complete returned `Bytes` passes
+the 4-MiB preflight. Halt 0 publishes exactly that value; every recognized
+failure publishes no bytes. The common generated-program block is 248
+InternalFailure, 249 AuthoredTrap, 250 StackExhausted, 251
+MemoryContainmentViolation, 252 HeapExhausted, 253 InputExtent, and 254
+OutputExtent. Alpha's illegal-instruction trap remains 132. Status 255 is
+unassigned and noncanonical so a shell's projection of `-1` cannot masquerade
+as a declared failure. Divergence has no terminal observation. The temporary
+`interp.beta` oracle predates this block; its private 252-through-255 meanings are
+interpreted only by its own harness and grant no generated-program authority.
+
+`DeltaCompilerV1` translates generated-runtime conditions into `DCOUT`:
+input, stack, heap, and output exhaustion become Incomplete; a Gamma trap,
+memory-containment violation, malformed return, invalid rejection offset,
+replay disagreement, or adapter contradiction becomes InternalFailure. A
+returned `Complete` publishes only the fully preflighted raw tape, and a
+returned `Reject` publishes the corresponding D17 frame. No failure publishes
+a partial artifact.
+
+`profiles-v1.tsv`, `conformance-observations-v1.tsv`, `gcout-v1.tsv`, and
+`dcout-v1.tsv` are checked projections of constants embedded in the compiler
+artifact, not runtime host inputs. Gates compare every projected row with the
+embedded constants so documentation and executable meaning cannot drift. An
+accidental implementation fact may be replaced, a profile fact may change
+through a coordinated version revision, and a semantic invariant changes only
+for an articulated language reason; settled records do not forbid a better
+long-term design.
 
 ## Dependency order
 

@@ -1,0 +1,11 @@
+# status	name	stdout
+0	returned_bytes	exact_returned_bytes
+132	alpha_vm_trap	empty
+248	internal_failure	empty
+249	authored_trap	empty
+250	stack_exhausted	empty
+251	memory_containment_violation	empty
+252	heap_exhausted	empty
+253	input_extent	empty
+254	output_extent	empty
+255	noncanonical	reject_observation

@@ -39,8 +39,9 @@ whole-function label/body emission, and a dormant profile-parameterized
 sealed-input reader. D19 fixes its two possible application contracts and D20's
 resolver is implemented. The compiler now validates both exact D19 entry
 schemas and the declaration-order-independent 26-code Delta rejection
-bijection, but Q2's physical profile facts, adapter completion, remaining
-lowering, and publication remain open. Complete
+bijection. D30 fixes `GCREQ`, both profile IDs and maxima, the generated-runtime
+observation block, and the exact `GCOUT`/`DCOUT` identities and tables. Adapter
+completion, remaining lowering, and publication remain open. Complete
 fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an

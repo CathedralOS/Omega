@@ -46,7 +46,9 @@ Every output above is canonical Alpha tape. A host-specific VM seed may execute
 or package it, but native container bytes do not replace the tape identity.
 The first edge includes D19's sealed profile ID in its exact compilation
 question and checks the source-owned outcome/reason schema before emitting the
-`DCOUT` adapter; source names do not select that boundary.
+`DCOUT` adapter; source names do not select that boundary. D30 gives that
+question its exact `GCREQ` byte envelope, profile IDs and maxima, generated
+runtime observations, and `GCOUT`/`DCOUT` tables.
 
 ## Delta v1
 
