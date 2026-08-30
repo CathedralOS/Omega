@@ -24,6 +24,7 @@ src/
 │   ├── executable/     select and retain exact helper executables
 │   ├── commands/       construct and reconcile bounded Git commands
 │   ├── objects/        authenticate commit/tree/blob object graphs
+│   │   └── batch/         bounded transfer, exact protocol, and request custody
 │   ├── resolution/     acquire, authenticate, materialize, and issue custody
 │   ├── snapshot.rs     Git-specific authenticated tree materialization
 │   └── workspace/      syntax-neutral workspace declaration exchange
