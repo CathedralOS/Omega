@@ -67,6 +67,18 @@ pub fn derive_checked_operator_realization_contracts(
     operators::derive_checked_operator_realization_contracts(program)
 }
 
+/// Rederive one exact compiler-owned collection view from the final typed
+/// program and the checked environments that own its expression. Package
+/// review uses this compiler-internal seam to reject a retained intrinsic fact
+/// that no longer agrees with its receiver and call shape.
+pub fn derive_checked_collection_view_intrinsic(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
+    authored_selections::derive_checked_collection_view_intrinsic(program, facts, expression)
+}
+
 #[cfg(test)]
 pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
 

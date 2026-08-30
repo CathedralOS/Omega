@@ -915,6 +915,21 @@ from the resulting computed nominal value is rejoined to its exact finalized
 member-selection row. The existing constructor and member expression encoding
 already carries the complete semantic identity, so this custody completion does
 not change review schema bytes.
+Review v91 and canonical row v49 extend that exact member lane to checked
+`requires` and `ensures` whose computed receiver is already in the closed
+structural expression vocabulary. Projection recursively retains the receiver,
+rejoins one public-interface member selection to the typed declaration, and
+derives any case identity from that declaration. Missing, duplicate,
+redirected, or typed-symbol-mismatched custody rejects.
+Review v92 and canonical row v50 admit compiler-owned shared-slice,
+mutable-slice, text-view, and bytes calls in already-checked public facts. The
+existing call row retains the receiver and a new closed operation target.
+Projection requires one public-interface call selection and one retained
+checked intrinsic fact, then freshly rederives the operation from the final
+typed receiver and checked owner environments. Same-spelled package callables
+remain nominal. This does not widen the compiler's denotational-call surface;
+unsupported call compositions still reject before package review. Recovery
+remains v14.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings

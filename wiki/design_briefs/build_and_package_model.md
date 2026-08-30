@@ -2145,6 +2145,17 @@ from that selected declaration. Missing, duplicate, redirected, or typed-
 symbol-mismatched custody rejects. This reuses the existing member row and does
 not broaden admission to arbitrary computed or aggregate expressions.
 
+Package review v92/canonical row v50 admits the compiler-owned collection-view
+call family in public contracts: shared slice, mutable slice, text view, and
+bytes. The structural call row retains the receiver and exact operation.
+Projection requires one public-interface call selection and one retained
+checked intrinsic fact, freshly rederives the operation from the final typed
+receiver and checked owner environments, and requires all three identities to
+agree. Package-authored lookalikes remain nominal. Missing, duplicate,
+redirected, or stale call custody rejects; recovery remains v14. This does not
+widen the call compositions accepted by checking; it retains views only in
+public facts that already pass the compiler's denotational-call rules.
+
 The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a
 trusted component rewriting typed state and checked facts; it is not a reason
@@ -2896,8 +2907,8 @@ public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
 signature identity. Symbolic const declarations or expressions,
 proposition/evidence static arguments, quotient calls, true nested
-machine/conformance applications, other compiler-intrinsic calls, computed
-members whose receivers are not in the closed expression vocabulary,
+machine/conformance applications, unrepresented compiler-intrinsic calls,
+computed members whose receivers are not in the closed expression vocabulary,
 proposition-argument members without their checked join, and unsupported
 aggregate expression forms fail closed.
 Contract

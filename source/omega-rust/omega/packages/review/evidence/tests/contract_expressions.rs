@@ -1,5 +1,7 @@
 mod support;
 
+#[path = "contract_expressions/collection_views.rs"]
+mod collection_views;
 #[path = "contract_expressions/intrinsics_and_casts.rs"]
 mod intrinsics_and_casts;
 #[path = "contract_expressions/lifetimes_and_members.rs"]

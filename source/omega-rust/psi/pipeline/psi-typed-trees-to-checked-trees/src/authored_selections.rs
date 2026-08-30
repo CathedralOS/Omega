@@ -9,6 +9,9 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::{TypedTrees, expression::ExpressionNode};
 
 mod contexts;
+mod review;
+
+pub(crate) use review::derive_checked_collection_view_intrinsic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CheckedResolution {
