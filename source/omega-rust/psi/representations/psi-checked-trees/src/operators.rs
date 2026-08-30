@@ -5,6 +5,7 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::signature::SignatureContract;
+use psi_typed_trees::statement::StatementHandle;
 use psi_typed_trees::types::TypeReferenceHandle;
 
 pub use psi_numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
@@ -90,10 +91,18 @@ pub struct CheckedNamedOperatorUseFact {
 /// argument vector is the canonical monomorphic application.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryOperatorApplicationDemand {
-    pub expression: ExpressionHandle,
-    pub origin: CheckedValueOrigin,
+    pub site: CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_symbol: SymbolHandle,
     pub arguments: Vec<CheckedBoundaryOperatorApplicationArgument>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedBoundaryOperatorApplicationUseSite {
+    Expression {
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    },
+    Statement(StatementHandle),
 }
 
 /// Ordered typed static binding. Binder owner/category/ordinal are semantic;

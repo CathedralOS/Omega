@@ -44,6 +44,7 @@ pub(crate) fn validate_value_position_calls(
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_env: &ValueEnv,
+    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
@@ -58,6 +59,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 assignment.value,
+                boundary_operator_applications,
                 diagnostics,
             );
             // target is a place (Name/Member/Indexed), no calls to validate
@@ -74,6 +76,7 @@ pub(crate) fn validate_value_position_calls(
                     writable_roots,
                     value_env,
                     *argument,
+                    boundary_operator_applications,
                     diagnostics,
                 );
             }
@@ -88,6 +91,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 *expression,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -101,6 +105,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 local_data.initial_value,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -115,6 +120,7 @@ pub(crate) fn validate_value_position_calls(
                     writable_roots,
                     value_env,
                     guard,
+                    boundary_operator_applications,
                     diagnostics,
                 );
             }
@@ -135,6 +141,7 @@ pub(crate) fn validate_value_position_calls(
                                 writable_roots,
                                 value_env,
                                 *argument,
+                                boundary_operator_applications,
                                 diagnostics,
                             );
                         }
@@ -149,6 +156,7 @@ pub(crate) fn validate_value_position_calls(
                             writable_roots,
                             value_env,
                             *expression,
+                            boundary_operator_applications,
                             diagnostics,
                         );
                     }
@@ -444,6 +452,7 @@ fn scan_expression_calls(
     writable_roots: &WritableRoots<'_, '_>,
     value_env: &ValueEnv,
     expression: ExpressionHandle,
+    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -577,6 +586,7 @@ fn scan_expression_calls(
             writable_roots,
             value_env,
             atomic.value,
+            boundary_operator_applications,
             diagnostics,
         ),
         ExpressionNode::Call(call) => {
@@ -589,7 +599,9 @@ fn scan_expression_calls(
                 symbols,
                 writable_roots,
                 value_env,
+                expression,
                 &call,
+                boundary_operator_applications,
                 diagnostics,
             );
             // Recurse into the receiver and arguments (nested calls).
@@ -603,6 +615,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     call.receiver,
+                    boundary_operator_applications,
                     diagnostics,
                 );
             }
@@ -616,6 +629,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     *argument,
+                    boundary_operator_applications,
                     diagnostics,
                 );
             }
@@ -641,6 +655,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 binary.left,
+                boundary_operator_applications,
                 diagnostics,
             );
             scan_expression_calls(
@@ -652,6 +667,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 binary.right,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -673,6 +689,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 cast.value,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -690,6 +707,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 indexed.collection,
+                boundary_operator_applications,
                 diagnostics,
             );
             scan_expression_calls(
@@ -701,6 +719,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 indexed.index,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -714,6 +733,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 member.receiver,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -727,6 +747,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 inner.target,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -760,6 +781,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 unary.operand,
+                boundary_operator_applications,
                 diagnostics,
             );
         }
@@ -775,6 +797,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     *element,
+                    boundary_operator_applications,
                     diagnostics,
                 );
             }
@@ -791,6 +814,7 @@ fn scan_expression_calls(
                     writable_roots,
                     value_env,
                     field.value,
+                    boundary_operator_applications,
                     diagnostics,
                 );
             }
@@ -805,6 +829,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 range.start,
+                boundary_operator_applications,
                 diagnostics,
             );
             scan_expression_calls(
@@ -816,6 +841,7 @@ fn scan_expression_calls(
                 writable_roots,
                 value_env,
                 range.end,
+                boundary_operator_applications,
                 diagnostics,
             );
         }

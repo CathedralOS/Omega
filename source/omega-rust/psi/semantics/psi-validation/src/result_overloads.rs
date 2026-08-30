@@ -185,6 +185,8 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
         call.target_symbol = selected;
     }
     for (state_symbol, statements, index, call, selected) in operator_statement_updates {
+        let source_span = call.source_span;
+        let authored_call_selection = call.authored_call_selection;
         let receiver_members = program
             .statement_table
             .name_path_members(call.receiver)
@@ -229,6 +231,14 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
                 }));
+        program
+            .expression_table
+            .set_source_span(expression, source_span);
+        if let Some(occurrence) = authored_call_selection {
+            program
+                .expression_table
+                .attach_authored_selection_occurrences(expression, [occurrence]);
+        }
         let type_reference = program
             .operators()
             .iter()
