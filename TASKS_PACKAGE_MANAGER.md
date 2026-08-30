@@ -97,9 +97,9 @@ closed. Compiler-issued package review remains non-admitting.
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the existing exact
   Source-input/empty-Output grammar, including nonempty exact Output trees with
   an empty Source-event prefix (without fabricating a Source observation), and
-  ordered successful
-  Source-rooted `read_link` events with exact complete-or-truncated inert target
-  bytes, and repeated direct-child
+  ordered successful Source directory-enumeration chains with exact record-byte
+  and cursor carriers, Source-rooted `read_link` events with exact
+  complete-or-truncated inert target bytes, and repeated direct-child
   `create`/zero-or-more full sequential-or-positioned writes, exact successful
   seeks, successful length changes, descriptor-scoped permission and timestamp
   changes, bounded immediately retired successful descriptor duplicates, and

@@ -144,8 +144,8 @@ fn only_read_link_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.returned_path_count == 1
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
         && attempt.inputs.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()

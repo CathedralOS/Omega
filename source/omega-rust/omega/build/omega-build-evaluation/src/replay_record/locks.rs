@@ -63,9 +63,9 @@ fn only_output_lock_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
         && attempt.mutable_byte_resolutions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64s.is_empty()
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()

@@ -29,13 +29,13 @@ fn exact_read_link_shape() -> AttemptShape<'static> {
         observed_regions: Vec::new(),
         metadata: Vec::new(),
         mutable_byte_resolutions: vec![(1, &PRE_STATE)],
-        mutable_i64_resolution_count: 0,
+        mutable_i64_resolutions: Vec::new(),
         mutable_bytes: vec![ShapeMutableBytes {
             ordinal: 1,
             pre: &PRE_STATE,
             post: &POST_STATE,
         }],
-        mutable_i64_count: 0,
+        mutable_i64s: Vec::new(),
         authorized_paths: vec![ShapeAuthorizedPath {
             ordinal: 0,
             access: 0,
