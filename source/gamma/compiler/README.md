@@ -11,7 +11,7 @@ The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
-runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
+runs all 82 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup/structural-replay failures, executes six generated
 runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, compares
@@ -20,9 +20,9 @@ arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 101 procedures. With the fixed frontend
-gate entry, the compiled gate uses 102 of Beta's 128 procedure slots and
-compiles to 239,213 bytes. The remaining 22,927 bytes under
+The retained compiler source declares 97 procedures. With the fixed frontend
+gate entry, the compiled gate uses 98 of Beta's 128 procedure slots and
+compiles to 222,452 bytes. The remaining 39,688 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -72,6 +72,12 @@ This is coordinate custody for later absorption, not an oracle-owned diagnostic
 format: the final compiler maps it through `GCOUT`'s fixed rejection table and
 publication boundary. The Q2-selected generated-program application profile is
 a separate concern.
+
+Closed keyword, builtin, and builtin-type recognition shares one exact
+packed-ASCII matcher rather than five dedicated procedures and an unrolled
+`bytes_*` suffix tree. The matcher still checks the following identifier
+boundary; focused controls keep builtin and keyword prefixes available as
+ordinary user spellings. This is compiler-size engineering, not a lexical rule.
 
 An emitted Gamma program uses this Alpha-memory profile:
 

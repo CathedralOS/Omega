@@ -533,9 +533,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 101 procedures; with the frontend
-    gate entry, the gate uses 102 of Beta's 128 procedure slots and compiles to
-    239,213 bytes, leaving 22,927 bytes below Alpha's runnable payload ceiling
+    tape budget. The retained source declares 97 procedures; with the frontend
+    gate entry, the gate uses 98 of Beta's 128 procedure slots and compiles to
+    222,452 bytes, leaving 39,688 bytes below Alpha's runnable payload ceiling
     for lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
     application adapter. Reserve `r252`/`r253` for the downward stack and frame
@@ -645,11 +645,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
     admitting jump-skipped inline data. Pin unknown opcode, truncated immediate,
     interior target, and repeated-replay scratch clearing as sticky internal
     failures after fixup resolution.
+  - [x] Compact the frontend's closed identifier recognition before treating
+    tape pressure as an architecture problem. Replace five dedicated keyword/
+    builtin/type recognizers and the hand-unrolled `bytes_*` suffix tree with
+    one exact packed-ASCII matcher. Preserve identifier-boundary checks and pin
+    `bytes_emptyx`, `matchx`, `Bytesx`, and `Intx` as ordinary user spellings.
+    This recovers 16,761 tape bytes and four procedure slots without changing
+    Gamma meaning or emitted code.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 78-case gate now live in `gamma_compiler.beta` and its
+    constructor table and 82-case gate now live in `gamma_compiler.beta` and its
     adjacent validation; no standalone checker source remains.
   - [x] Close the first strict-parser slice in the reusable front end: require a
     nonempty function-declaration sequence and exact source exhaustion; check
@@ -708,7 +715,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   duplicate checker source, and keep `interp.beta` only as a bounded semantic
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
   compiler source is an accepted compiler artifact. The retained gates pass 48
-  interpreter cases, the fail-closed arena case, 78 compiler-frontend cases,
+  interpreter cases, the fail-closed arena case, 82 compiler-frontend cases,
   one exact emitter probe, six executed runtime-containment probes, 16 checked
   `Int` paths, 31 source-to-code lowering cases, two byte-determinism
   comparisons, 14 compact-`Bytes` runtime paths, two arbitrary-arity/frame-ABI
