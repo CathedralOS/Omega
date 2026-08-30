@@ -34,6 +34,7 @@
 ;          2096904 CALL_RESOURCE_LABEL
 ;          2096896 NEXT_LOCAL_SLOT 2096888 MAX_LOCAL_SLOTS
 ;          2096880 CURRENT_FRAME_PREFIX 2096872 CURRENT_PARAMETER_COUNT
+;          2096864 RUNTIME_INTERNAL_LABEL
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -2688,6 +2689,263 @@ proc lower_resolved_let(value_expr, body_expr, tail_position, frame_local_profil
     state invalid_profile { emit_fail_once(13, frame_local_profile)  return 0 }
 }
 
+; A selected match consumes only checked, resolver-owned AST metadata. Validate
+; the complete arm spine, arm/pattern nodes, constructor identities, exact field
+; arities, and every resolved binder slot before lowering the scrutinee. Forward
+; arena links make this walk total without a visited set. The label budget
+; includes one join, two control labels per constructor arm, and the private
+; field-pointer containment label allocated by each field load.
+
+proc validate_resolved_match(arms, frame_prefix_bytes) {
+    let cursor = arms
+    let seen = 0
+    let required_labels = 1
+    let arena_end = word[2097128]
+    state prefix {
+        to invalid when (frame_prefix_bytes < 16)
+        to invalid when (frame_prefix_bytes % 16 != 0)
+        to invalid when (frame_prefix_bytes > 15728640)
+        to invalid when (arena_end < 16777248)
+        to invalid when (arena_end > 131072000)
+        to arm_loop
+    }
+    state arm_loop { to arm when (cursor != 0)  to finish }
+    state arm {
+        to invalid when (cursor < 16777248)
+        to invalid when (cursor > arena_end - 32)
+        to invalid when ((cursor - 16777248) % 32 != 0)
+        to invalid when (word[cursor] % 256 != 6)
+        let arm_node = word[cursor + 8]
+        let next_cursor = word[cursor + 16]
+        to invalid when (arm_node < 16777248)
+        to invalid when (arm_node > arena_end - 32)
+        to invalid when ((arm_node - 16777248) % 32 != 0)
+        to invalid when (arm_node >= cursor)
+        to invalid when (word[arm_node] % 256 != 11)
+        to next_check when (next_cursor != 0)
+        to arm_children
+    }
+    state next_check { to invalid when (next_cursor <= cursor)  to arm_children }
+    state arm_children {
+        let pattern = word[arm_node + 8]
+        let body = word[arm_node + 16]
+        to invalid when (pattern < 16777248)
+        to invalid when (pattern > arena_end - 32)
+        to invalid when ((pattern - 16777248) % 32 != 0)
+        to invalid when (body < 16777248)
+        to invalid when (body > arena_end - 32)
+        to invalid when ((body - 16777248) % 32 != 0)
+        to invalid when (pattern >= arm_node)
+        to invalid when (body >= arm_node)
+        let body_tag = word[body] % 256
+        to invalid when (body_tag == 6)
+        to invalid when (body_tag > 8)
+        let pattern_tag = word[pattern] % 256
+        to catchall when (pattern_tag == 9)
+        to constructor when (pattern_tag == 10)
+        to invalid
+    }
+    state catchall {
+        let catchall_identity = word[pattern + 16]
+        to invalid when (catchall_identity == 0)
+        to invalid when (word[pattern + 24] != 0)
+        to invalid when (next_cursor != 0)
+        to invalid when (catchall_identity - 1 >= (frame_prefix_bytes - 16) / 16)
+        to advance
+    }
+    state constructor {
+        let constructor_identity = word[pattern + 24]
+        to invalid when (constructor_identity == 0)
+        to invalid when (constructor_identity > word[2097096])
+        required_labels = required_labels + 2
+        let pattern_fields = word[pattern + 16]
+        let declared_fields = word[6815744 + (constructor_identity - 1) * 24 + 16]
+        let field_count = 0
+        to field_loop
+    }
+    state field_loop {
+        to pattern_field when (pattern_fields != 0)
+        to invalid when (declared_fields != 0)
+        to advance
+    }
+    state pattern_field { to field when (declared_fields != 0)  to invalid }
+    state field {
+        to invalid when (pattern_fields < 16777248)
+        to invalid when (pattern_fields > arena_end - 32)
+        to invalid when ((pattern_fields - 16777248) % 32 != 0)
+        to invalid when (declared_fields < 16777248)
+        to invalid when (declared_fields > arena_end - 32)
+        to invalid when ((declared_fields - 16777248) % 32 != 0)
+        to invalid when (pattern_fields >= pattern)
+        to invalid when (word[pattern_fields] % 256 != 6)
+        to invalid when (word[declared_fields] % 256 != 6)
+        to invalid when (field_count == 983040)
+        let binder_identity = word[pattern_fields + 24]
+        to invalid when (binder_identity == 0)
+        to invalid when (binder_identity - 1 >= (frame_prefix_bytes - 16) / 16)
+        let next_pattern_field = word[pattern_fields + 16]
+        let next_declared_field = word[declared_fields + 16]
+        to next_pattern_check when (next_pattern_field != 0)
+        to next_declared_dispatch
+    }
+    state next_pattern_check {
+        to invalid when (next_pattern_field <= pattern_fields)
+        to next_declared_dispatch
+    }
+    state next_declared_dispatch {
+        to next_declared_check when (next_declared_field != 0)
+        to field_advance
+    }
+    state next_declared_check {
+        to invalid when (next_declared_field <= declared_fields)
+        to field_advance
+    }
+    state field_advance {
+        pattern_fields = next_pattern_field
+        declared_fields = next_declared_field
+        field_count = field_count + 1
+        required_labels = required_labels + 1
+        to field_loop
+    }
+    state advance {
+        seen = 1
+        cursor = next_cursor
+        to arm_loop
+    }
+    state finish {
+        to invalid when (seen == 0)
+        to label_exhausted when (required_labels > 65536 - word[2097032])
+        return 1
+    }
+    state label_exhausted { emit_fail_once(3, word[2097032])  return 0 }
+    state invalid { emit_fail_once(14, cursor)  return 0 }
+}
+
+; Evaluate the scrutinee exactly once and retain its complete value in r20/r21.
+; Constructor tests follow source arm order and use the same one-based identity
+; to runtime-kind map as constructor construction. Only a selected arm binds
+; values and runs. Pattern fields are loaded and stored in source order; a
+; catch-all stores the original pair. Every selected body inherits the caller's
+; tail-position bit, so a tail call replaces the current frame as usual.
+
+proc lower_resolved_match(scrutinee, arms, tail_position, internal_label) {
+    state tail_zero { to internal_low when (tail_position == 0)  to tail_one }
+    state tail_one { to internal_low when (tail_position == 1)  to invalid_profile }
+    state internal_low { to invalid_profile when (internal_label < 0)  to internal_high }
+    state internal_high {
+        to invalid_profile when (internal_label >= word[2097032])
+        to scrutinee_node
+    }
+    state scrutinee_node {
+        to invalid_scrutinee when (scrutinee < 16777248)
+        to invalid_scrutinee when (scrutinee > word[2097128] - 32)
+        to invalid_scrutinee when ((scrutinee - 16777248) % 32 != 0)
+        let scrutinee_tag = word[scrutinee] % 256
+        to invalid_scrutinee when (scrutinee_tag == 6)
+        to invalid_scrutinee when (scrutinee_tag > 8)
+        let metadata_ok = validate_resolved_match(arms, word[2096880])
+        to metadata
+    }
+    state metadata { to invalid_metadata when (metadata_ok != 1)  to lower_scrutinee }
+    state lower_scrutinee {
+        to scrutinee_lowered when (lower_expr(scrutinee, 0) == 1)
+        return 0
+    }
+    state scrutinee_lowered {
+        emit_rr(2, 20, 0)
+        emit_rr(2, 21, 1)
+        let done_label = new_label()
+        let cursor = arms
+        to arm_loop
+    }
+    state arm_loop { to arm when (cursor != 0)  to no_match }
+    state arm {
+        let arm_node = word[cursor + 8]
+        let pattern = word[arm_node + 8]
+        let body = word[arm_node + 16]
+        let next_cursor = word[cursor + 16]
+        to catchall when (word[pattern] % 256 == 9)
+        to constructor
+    }
+    state catchall {
+        emit_rr(2, 0, 20)
+        emit_rr(2, 1, 21)
+        let catchall_identity = word[pattern + 16]
+        let catchall_store = emit_gamma_frame_local(word[2096880],
+                                                     catchall_identity - 1, 1)
+        to catchall_stored
+    }
+    state catchall_stored { to failed when (catchall_store != 1)  to lower_body }
+    state constructor {
+        let constructor_identity = word[pattern + 24]
+        let selected_label = new_label()
+        let next_label = new_label()
+        emit_imm(22, constructor_identity + 1)
+        emit_rrx(16, 20, 22, selected_label)
+        emit_jump(12, next_label)
+        define_label(selected_label)
+        let pattern_fields = word[pattern + 16]
+        let field_count = 0
+        let count_cursor = pattern_fields
+        to count_fields
+    }
+    state count_fields {
+        to count_field when (count_cursor != 0)
+        let field_index = 0
+        to bind_fields
+    }
+    state count_field {
+        field_count = field_count + 1
+        count_cursor = word[count_cursor + 16]
+        to count_fields
+    }
+    state bind_fields { to bind_field when (pattern_fields != 0)  to lower_body }
+    state bind_field {
+        emit_rr(2, 1, 21)
+        let load_status = emit_gamma_field_load(field_count, field_index,
+                                                internal_label)
+        to field_loaded
+    }
+    state field_loaded { to failed when (load_status != 1)  to store_field }
+    state store_field {
+        let binder_identity = word[pattern_fields + 24]
+        let store_status = emit_gamma_frame_local(word[2096880],
+                                                  binder_identity - 1, 1)
+        to field_stored
+    }
+    state field_stored {
+        to failed when (store_status != 1)
+        pattern_fields = word[pattern_fields + 16]
+        field_index = field_index + 1
+        to bind_fields
+    }
+    state lower_body {
+        to body_lowered when (lower_expr(body, tail_position) == 1)
+        return 0
+    }
+    state body_lowered {
+        emit_jump(12, done_label)
+        cursor = next_cursor
+        to arm_advance
+    }
+    state arm_advance {
+        to define_next when (word[pattern] % 256 == 10)
+        to arm_loop
+    }
+    state define_next {
+        define_label(next_label)
+        to arm_loop
+    }
+    state no_match {
+        emit_jump(12, internal_label)
+        return define_label(done_label)
+    }
+    state invalid_profile { emit_fail_once(14, internal_label)  return 0 }
+    state invalid_scrutinee { emit_fail_once(14, scrutinee)  return 0 }
+    state invalid_metadata { return 0 }
+    state failed { return 0 }
+}
+
 proc lower_expr(expr, tail_position) {
     let tag = word[expr] % 256
     state literal_check { to literal when (tag == 0)  to variable_check }
@@ -2733,11 +2991,16 @@ proc lower_expr(expr, tail_position) {
                                    encoded_label - 1, callee_prefix)
     }
     state bytes_expr { return lower_bytes_builtin(builtin, word[expr + 16]) }
-    state constructor_check { to constructor_expr when (tag == 7)  return 0 }
+    state constructor_check { to constructor_expr when (tag == 7)  to match_check }
     state constructor_expr {
         let constructor_identity = word[expr + 24]
         to resolved_invalid when (constructor_identity == 0)
         return lower_resolved_constructor(word[expr + 16], constructor_identity + 1)
+    }
+    state match_check { to match_expr when (tag == 8)  return 0 }
+    state match_expr {
+        return lower_resolved_match(word[expr + 8], word[expr + 16],
+                                    tail_position, word[2096864])
     }
     state resolved_invalid { emit_fail_once(13, word[expr] / 256)  return 0 }
     state if_expr {
