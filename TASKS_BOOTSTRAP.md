@@ -1044,6 +1044,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     type-checks through the Gamma frontend. Runtime behavior remains owned by
     the dependency-blocked real-compiler suite below; no host collector was
     introduced.
+  - [x] Begin D17 type formation with the declaration-order-independent portion
+    that is already exact. After successful D22/D24 census, validate every
+    named type in boundary signatures, record fields, sum payloads, machine and
+    state parameters, returns, and `let` declarations against the complete
+    owner table. Retain the globally earliest unknown spelling candidate at its
+    exact type start beside the collected native syntax for later shape,
+    recursion, body, and lowering passes. Do not promote that candidate to a
+    rejection before Q5 fixes its priority against other type-formation
+    failures. The source type-checks through the full Gamma frontend gate;
+    behavioral canaries remain dependency-blocked on the real Gamma compiler
+    edge.
+  - [ ] **OWNER-BLOCKED — Q5 DELTA TYPE FORMATION.** Settle zero-length arrays,
+    empty data declarations, forbidden `never`/view placements, `Console` type
+    placement, and same-coordinate failure priority before implementing the
+    remaining type-formation judgment. Do not derive these language results
+    from host layout or traversal order.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and

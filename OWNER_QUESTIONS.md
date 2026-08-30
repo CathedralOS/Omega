@@ -183,6 +183,7 @@ acceptable if every other telescope category remains explicitly fail-closed.
 - Tempting but wrong: call a canonical list of use-site strings coverage,
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
+
 ## Q4 — Fix the physical D19 Gamma application profiles
 
 ### Context
@@ -241,3 +242,58 @@ application profile's outcomes.
 - Tempting but wrong: assume 4 MiB because the current Gamma source reader uses
   that ceiling, derive wire codes from constructor order, reuse `BCOUT` magic,
   or let `main`/type names select the profile.
+
+## Q5 — Complete Delta v1 type-formation rejection rules
+
+### Context
+
+D17 fixes Delta's type forms, declaration shapes, phase ordering, closed reject
+set, and exact source-coordinate principle. The Gamma-written compiler can now
+scan every named type against the complete D22/D24 owner census. Several
+remaining type-formation cases do not have one exact result in the normative
+contract, so implementing them would silently amend Delta v1.
+
+`NAT` admits zero, but `InvalidArrayLength` has no stated triggering set. A
+`data` must be exactly a record or sum, but the empty declaration has neither a
+fixed classification nor an error coordinate. `never` and views have forbidden
+positions, but the contract does not assign every such occurrence to
+`TypeMismatch`, `InvalidDataShape`, or `EscapingView`. It also does not settle
+ties when an outer forbidden form and a nested unknown or recursive type begin
+at the same or competing type-formation coordinates.
+
+### Problem statement
+
+Fix one complete type-formation judgment covering:
+
+1. the admitted array-length set and exact `InvalidArrayLength` coordinate;
+2. empty and mixed field/case declarations under `InvalidDataShape`;
+3. the exact rejection reason and coordinate for `never` and views in every
+   field, payload, parameter, local, array, view, and return position;
+4. whether the boundary owner `Console` is a general named capability type or
+   is admitted only at the exact `Main.console` boundary position; and
+5. deterministic reason selection when multiple type-formation defects share
+   the earliest authored coordinate.
+
+### Proposed direction
+
+Admit array lengths `1..INT32_MAX`; reject zero at its literal as
+`InvalidArrayLength`. Reject empty or mixed `data` declarations as
+`InvalidDataShape` at the declaration name. Use `TypeMismatch` for `never` in
+non-return positions and `EscapingView` at the outermost forbidden view token;
+an earlier outer placement failure wins over defects nested inside that form.
+Treat `Console` as a sealed capability type admitted only for the exact
+`Main.console` field fixed by D17, with other placements classified by the
+boundary/entry-shape check rather than ordinary nominal type formation.
+
+### Alternates
+
+- Acceptable: admit zero-length arrays, provided `InvalidArrayLength` receives
+  another exact, source-reachable definition or is removed in a D17 revision.
+- Acceptable: permit an empty record with an explicit zero-initialized meaning,
+  provided it cannot also acquire an empty-sum interpretation.
+- Acceptable: use one dedicated placement reason for all forbidden `never` and
+  view occurrences, provided its coordinates and within-phase priority are
+  total.
+- Tempting but wrong: infer these results from a host layout, historical
+  compiler, likely use by `D`, or whichever recursive check happens to run
+  first.
