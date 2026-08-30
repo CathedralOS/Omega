@@ -790,7 +790,7 @@ pub(super) fn ordinary_projected_call_is_supported(
             (
                 [
                     CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2 | 3 | 4)),
+                    CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2 | 3 | 4 | 5)),
                 ],
                 TypeReferenceNode::FixedArray {
                     element_type,
@@ -801,7 +801,7 @@ pub(super) fn ordinary_projected_call_is_supported(
                 matches!(
                     program.type_reference_table.type_reference(*element_type),
                     TypeReferenceNode::FixedArray {
-                        length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5)),
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5 | 6)),
                         ..
                     } if u64::try_from(*inner_length).is_ok_and(|length| *inner < length)
                 )

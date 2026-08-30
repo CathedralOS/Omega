@@ -1077,7 +1077,7 @@ fn append_expected_partial_residuals(
         };
         let psi_terminal::StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4 | 5),
+            length: inner_length @ (3 | 4 | 5 | 6),
         } = declarations.get(&element)?.shape
         else {
             return None;

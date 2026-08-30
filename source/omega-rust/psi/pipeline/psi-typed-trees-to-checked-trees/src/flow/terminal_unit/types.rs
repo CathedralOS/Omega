@@ -1135,7 +1135,7 @@ impl<'program> ShapeCollector<'program> {
             TypeReferenceNode::FixedArray {
                 element_type: leaf_type,
                 length:
-                    psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5)),
+                    psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5 | 6)),
             } if *length == 2 => Some((*leaf_type, *inner_length)),
             _ => None,
         };

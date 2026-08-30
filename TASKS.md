@@ -9354,8 +9354,19 @@ reach or trust, and private proof improvements do not change public identity.
   actions on all five native targets. Missing, duplicate, same-outer,
   out-of-bounds, reordered-cleanup, wrong-length/layout/stride/offset, codec,
   object, image, and installation tampering reject. Fuel remains exactly five
-  call/return units without runtime liveness state or a cleanup loop;
-  `[[T; 6]; 2]` remains fenced.
+  call/return units without runtime liveness state or a cleanup loop.
+
+  The next exact nested successor is now closed. The same carrier admits
+  `[[T; 6]; 2]` with one distinct literal leaf move from each outer element and
+  ten live residual leaves in decreasing outer-then-inner order. Checked
+  production through Terminal codec/interpreter replay, Omega lowering,
+  optimization validation, five-target layout and machine emission, object,
+  image, and installation replay retain the authored two-call order, 96-byte
+  outer layout, 48-byte outer stride, exact offsets, and five fuel units.
+  Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup, wrong-
+  length/layout/stride/offset, codec, object, image, and installation mutations
+  reject. `[[T; 7]; 2]` and wider forms remain fenced without runtime liveness
+  state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
   uninitialized mutable `[T; 3]`, with `T` the exact empty, unqualified,
@@ -9436,7 +9447,7 @@ reach or trust, and private proof improvements do not change public identity.
   `[T; 11]` and wider prefixes remain fail closed without runtime liveness state
   or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 5]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 6]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 10]` to deeper canonical fuel/action
   ordinals.
 
