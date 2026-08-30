@@ -674,6 +674,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     exact source through trivia to EOF. `delta_parse_program_syntax` now parses
     every D17 grammar form without claiming collection, type/control checking,
     lowering, or a compiler artifact.
+  - [ ] **OWNER-BLOCKED — Q5.** Collect exact Delta declaration identities and
+    reject the earliest duplicate before type formation. D17 does not yet fix
+    whether type owners and machines share a namespace, whether boundary
+    members collide with qualified machine bodies, or whether parameters and
+    ordered locals participate in the early collection phase. Do not retain a
+    collector that guesses those accepted-language and rejection-priority
+    rules.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
