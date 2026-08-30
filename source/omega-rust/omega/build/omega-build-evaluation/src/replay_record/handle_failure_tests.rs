@@ -104,7 +104,7 @@ pub(super) fn unknown_native_handle_close_summary() -> BuildObservationSummary {
     summary
 }
 
-fn unknown_native_handle_final_path_summary() -> BuildObservationSummary {
+pub(super) fn unknown_native_handle_final_path_summary() -> BuildObservationSummary {
     let mut summary = summary(31);
     let carrier = vec![17; 47];
     summary.filesystem_operation_attempts[0].result = BuildFilesystemOperationResult::Scalar(0);

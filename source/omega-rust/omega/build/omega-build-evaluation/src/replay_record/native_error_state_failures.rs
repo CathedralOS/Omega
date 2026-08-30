@@ -1,5 +1,9 @@
 //! Exact ordered native-handle failure and last-error replay shapes.
 
+use super::handle_failures::{
+    unknown_native_handle_close_failure_shape_is_exact,
+    unknown_native_handle_final_path_failure_shape_is_exact,
+};
 use super::native_mutation_failures::unknown_native_handle_mutation_failure_shape_is_exact;
 use super::{AttemptShape, BuildFilesystemReplayRecordError, ShapeResult};
 
@@ -7,24 +11,30 @@ const GET_LAST_ERROR_OPERATION_TAG: u16 = 35;
 const REAL_SCOPED_PROVIDER_TAG: u8 = 2;
 const INVALID_HANDLE_ERROR: i32 = 6;
 
-pub(super) fn native_mutation_with_last_error_shapes_are_exact(
+pub(super) fn unknown_native_handle_failure_with_last_error_shapes_are_exact(
     shapes: &[AttemptShape<'_>],
 ) -> bool {
-    matches!(shapes, [mutation, error_read]
-        if unknown_native_handle_mutation_failure_shape_is_exact(mutation)
+    matches!(shapes, [failure, error_read]
+        if unknown_native_handle_invalid_handle_failure_shape_is_exact(failure)
             && last_error_after_invalid_handle_shape_is_exact(error_read))
 }
 
-pub(super) fn validate_native_mutation_with_last_error_shapes(
+pub(super) fn validate_unknown_native_handle_failure_with_last_error_shapes(
     shapes: &[AttemptShape<'_>],
 ) -> Result<(), BuildFilesystemReplayRecordError> {
-    if native_mutation_with_last_error_shapes_are_exact(shapes) {
+    if unknown_native_handle_failure_with_last_error_shapes_are_exact(shapes) {
         Ok(())
     } else {
         Err(BuildFilesystemReplayRecordError::new(
-            "filesystem replay native mutation and last-error sequence is internally inconsistent",
+            "filesystem replay native-handle failure and last-error sequence is internally inconsistent",
         ))
     }
+}
+
+fn unknown_native_handle_invalid_handle_failure_shape_is_exact(shape: &AttemptShape<'_>) -> bool {
+    unknown_native_handle_close_failure_shape_is_exact(shape)
+        || unknown_native_handle_final_path_failure_shape_is_exact(shape)
+        || unknown_native_handle_mutation_failure_shape_is_exact(shape)
 }
 
 fn last_error_after_invalid_handle_shape_is_exact(shape: &AttemptShape<'_>) -> bool {

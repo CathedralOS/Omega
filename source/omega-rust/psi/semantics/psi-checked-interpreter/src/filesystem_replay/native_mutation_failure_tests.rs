@@ -84,6 +84,30 @@ reaches FilesystemHost
     let error: i32 = self.filesystem.get_last_error();
     transition { _ -> (error) }
 }
+
+data CloseHandleMain { filesystem: FilesystemHost; result: i32; }
+
+machine CloseHandleMain::probe(&mut self) -> i32
+reaches FilesystemHost
+{
+    self.result = self.filesystem.close_handle(-1);
+    let error: i32 = self.filesystem.get_last_error();
+    transition { _ -> (error) }
+}
+
+data FinalPathMain {
+    filesystem: FilesystemHost;
+    result: i64;
+    buffer: [u8; 4];
+}
+
+machine FinalPathMain::probe(&mut self) -> i32
+reaches FilesystemHost
+{
+    self.result = self.filesystem.final_path_name_by_handle(-1, &mut self.buffer, 4, 0);
+    let error: i32 = self.filesystem.get_last_error();
+    transition { _ -> (error) }
+}
 "#;
 
 pub(super) fn kinds() -> [(Kind, u16); 3] {

@@ -78,8 +78,8 @@ use hard_links::{
 };
 use locks::validate_output_lock_shapes;
 use native_error_state_failures::{
-    native_mutation_with_last_error_shapes_are_exact,
-    validate_native_mutation_with_last_error_shapes,
+    unknown_native_handle_failure_with_last_error_shapes_are_exact,
+    validate_unknown_native_handle_failure_with_last_error_shapes,
 };
 use native_mutation_failures::{
     UnknownNativeHandleMutationShape, unknown_native_handle_mutation_shape,
@@ -91,7 +91,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 50;
+const VERSION: u16 = 51;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -316,7 +316,9 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 12 | 19 | 20 | 27))
         .or_else(|| {
             shapes.len().checked_sub(2).filter(|suffix_start| {
-                native_mutation_with_last_error_shapes_are_exact(&shapes[*suffix_start..])
+                unknown_native_handle_failure_with_last_error_shapes_are_exact(
+                    &shapes[*suffix_start..],
+                )
             })
         })
         .or_else(|| {
@@ -470,30 +472,21 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         );
     }
     if shapes.len() - operation_suffix_start == 2
-        && native_mutation_with_last_error_shapes_are_exact(&shapes[operation_suffix_start..])
+        && unknown_native_handle_failure_with_last_error_shapes_are_exact(
+            &shapes[operation_suffix_start..],
+        )
     {
-        let kind = rehydrate_unknown_native_handle_mutation_kind(&shapes[operation_suffix_start])?;
-        let mutation =
-            psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayRecord::new(
-                typed_source_record,
-                kind,
-            )
+        let replay = rehydrate_exact_single_failure_shape(
+            typed_source_record,
+            &shapes[operation_suffix_start],
+        )?;
+        return replay
+            .with_immediate_last_error_after_unknown_native_handle_failure()
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
-                    "filesystem replay native mutation and last-error record is inconsistent",
+                    "filesystem replay native-handle failure and last-error sequence could not be rehydrated",
                 )
-            })?;
-        let pair = psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord::new(
-            mutation,
-        );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_mutation_with_last_error_record(
-            pair,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay native mutation and last-error sequence could not be rehydrated",
-            )
-        });
+            });
     }
     if shapes[operation_suffix_start..]
         .iter()
@@ -1916,10 +1909,10 @@ fn validate_first_rung(
             return Ok(());
         }
         if shapes.len() - cursor == 2
-            && matches!(shapes[cursor].operation, 32 | 33 | 34)
+            && matches!(shapes[cursor].operation, 29 | 31 | 32 | 33 | 34)
             && shapes[cursor + 1].operation == 35
         {
-            validate_native_mutation_with_last_error_shapes(&shapes[cursor..])?;
+            validate_unknown_native_handle_failure_with_last_error_shapes(&shapes[cursor..])?;
             return Ok(());
         }
         if shapes.len() - cursor == 1 && matches!(shapes[cursor].operation, 32 | 33 | 34) {

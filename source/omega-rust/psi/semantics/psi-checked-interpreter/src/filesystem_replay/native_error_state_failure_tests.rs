@@ -1,4 +1,6 @@
 use super::{
+    FilesystemInputUnknownNativeHandleCloseHandleReplayRecord as CloseRecord,
+    FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord as FinalPathRecord,
     FilesystemInputUnknownNativeHandleMutationReplayRecord as MutationRecord,
     FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord as PairRecord,
     native_error_state_failures::{
@@ -7,6 +9,8 @@ use super::{
     },
     native_mutation_failure_tests::{checked_fixture, kinds},
     native_mutation_failures::unknown_native_handle_mutation_attempt,
+    unknown_native_handle_close_handle_attempt,
+    unknown_native_handle_final_path_name_by_handle_attempt,
 };
 use crate::{
     EvaluationObservations, FilesystemAccess, FilesystemObservationProvider,
@@ -112,11 +116,125 @@ fn each_ordered_pair_executes_without_a_provider() {
     }
 }
 
+#[test]
+fn every_exact_unknown_native_handle_failure_accepts_immediate_last_error() {
+    let mut cases = vec![
+        (
+            29,
+            FilesystemReplay::from_input_unknown_native_handle_close_handle_record(
+                CloseRecord::new(None),
+            )
+            .unwrap(),
+        ),
+        (
+            31,
+            FilesystemReplay::from_input_unknown_native_handle_final_path_name_by_handle_record(
+                FinalPathRecord::new(None, vec![0; 4], 4, 0).unwrap(),
+            )
+            .unwrap(),
+        ),
+    ];
+    cases.extend(kinds().into_iter().map(|(kind, tag)| {
+        (
+            tag,
+            FilesystemReplay::from_input_unknown_native_handle_mutation_record(
+                MutationRecord::new(None, kind).unwrap(),
+            )
+            .unwrap(),
+        )
+    }));
+
+    for (failure_tag, failure) in cases {
+        let replay = failure
+            .with_immediate_last_error_after_unknown_native_handle_failure()
+            .expect("exact invalid-handle failure accepts its immediate error-state read");
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(crate::FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![failure_tag, 35]
+        );
+        assert!((0..2).all(|index| replay.executes_replay_attempt(index)));
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let observed = FilesystemReplay::from_input_unknown_native_handle_failure_with_last_error_observations(
+            &observations,
+        )
+        .expect("generic observed invalid-handle pair is admitted");
+        assert_eq!(observed.attempts(), replay.attempts());
+    }
+}
+
+#[test]
+fn close_and_final_path_error_pairs_execute_without_a_provider() {
+    for (entry, replay) in [
+        (
+            "CloseHandleMain::probe",
+            FilesystemReplay::from_input_unknown_native_handle_close_handle_record(
+                CloseRecord::new(None),
+            )
+            .unwrap(),
+        ),
+        (
+            "FinalPathMain::probe",
+            FilesystemReplay::from_input_unknown_native_handle_final_path_name_by_handle_record(
+                FinalPathRecord::new(None, vec![0; 4], 4, 0).unwrap(),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let replay = replay
+            .with_immediate_last_error_after_unknown_native_handle_failure()
+            .unwrap();
+        let outcome = interpret_entry_with_options(
+            &checked_fixture(),
+            entry,
+            &[],
+            InterpretOptions {
+                filesystem: FilesystemAccess::ReplayFilesystem(replay),
+                ..InterpretOptions::default()
+            },
+        );
+        assert_eq!(outcome.error, None, "{entry}");
+        assert_eq!(outcome.exit_code, 6, "{entry}");
+    }
+}
+
+#[test]
+fn generic_native_error_pair_rejects_drift_and_non_native_failure() {
+    let error_read = get_last_error_after_invalid_handle_attempt();
+    let mut changed_close = unknown_native_handle_close_handle_attempt();
+    changed_close.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(0),
+        post_error: 5,
+    });
+    assert_rejected_generic(vec![changed_close, error_read.clone()]);
+
+    let final_path = unknown_native_handle_final_path_name_by_handle_attempt(vec![0; 4], 4, 0);
+    assert_rejected_generic(vec![error_read.clone(), final_path]);
+    assert_rejected_generic(vec![error_read]);
+}
+
 fn assert_rejected(attempts: Vec<crate::FilesystemOperationAttempt>) {
     let observations =
         EvaluationObservations::from_filesystem_operation_attempts(attempts, Vec::new());
     assert!(
         FilesystemReplay::from_input_unknown_native_handle_mutation_with_last_error_observations(
+            &observations,
+        )
+        .is_err()
+    );
+}
+
+fn assert_rejected_generic(attempts: Vec<crate::FilesystemOperationAttempt>) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(attempts, Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_native_handle_failure_with_last_error_observations(
             &observations,
         )
         .is_err()
