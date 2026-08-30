@@ -81,13 +81,17 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let original = TempPackage::new();
     original.write(
         "main.omg",
-        r#"pub data Token [copy] { value: u64; }
+        r#"pub const LIMIT: u64 = 7;
+pub data Token [copy] { value: u64; }
+pub machine constant<const Value: u64>() -> u64 { 0 }
 pub machine observes_computed_member(value: u64)
 requires (Token { value: value }).value == value
 {}
 pub machine observes_collection_view(bytes: [u8; 4])
 requires valid_utf8(bytes.as_slice())
 {}
+boundary machine observes_named_const() -> u64
+ensures result == constant<LIMIT>();
 "#,
     );
     original.write("build.omg", build);
@@ -211,13 +215,17 @@ requires valid_utf8(bytes.as_slice())
     let changed = TempPackage::new();
     changed.write(
         "main.omg",
-        r#"pub data Token [copy] { value: i64; }
+        r#"pub const LIMIT: u64 = 8;
+pub data Token [copy] { value: i64; }
+pub machine constant<const Value: u64>() -> u64 { 0 }
 pub machine observes_computed_member(value: i64)
 requires (Token { value: value }).value == value
 {}
 pub machine observes_collection_view(bytes: [u8; 4])
 requires valid_utf8(bytes.as_slice())
 {}
+boundary machine observes_named_const() -> u64
+ensures result == constant<LIMIT>();
 "#,
     );
     changed.write("build.omg", build);

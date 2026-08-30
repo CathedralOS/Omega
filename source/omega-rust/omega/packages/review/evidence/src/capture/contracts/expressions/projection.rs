@@ -19,6 +19,7 @@ use super::operators::{
 };
 use super::static_arguments::{
     contract_call_static_parameter_kinds, project_contract_static_argument,
+    require_exact_named_const_static_argument_selections,
 };
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
@@ -243,6 +244,12 @@ pub(crate) fn project_contract_expression_with_substitutions(
                     context.subject_kind, context.subject_name
                 ))]);
             }
+            require_exact_named_const_static_argument_selections(
+                compilation,
+                context,
+                expression,
+                &call.machine_arguments,
+            )?;
             // Call-site suspend/block acknowledgement is diagnostic audit
             // metadata, explicitly outside contract identity. Fact-position
             // calls have already been checked as total and pure.

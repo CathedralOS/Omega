@@ -68,10 +68,11 @@ Must own:
   spans; this stage does not reconstruct them from source text.
 - Recording every source-backed static argument path recursively. A resolved
   conformance uses the conformance kind; every other selected type, machine, or
-  forwarded binder uses the common static-argument kind. Literal arguments
-  select no declaration, and named const reduction retains its declaration in
-  the separate const-substitution custody path. An unresolved static path is an
-  explicit late obligation, never an omitted row.
+  forwarded binder or named const uses the common static-argument kind.
+  Literal arguments select no declaration. A named const in ordinary
+  expression position still retains its declaration in the separate
+  const-substitution custody path. An unresolved static path is an explicit
+  late obligation, never an omitted row.
 - Propagating declaration exposure while lowering source expressions. Public
   declaration contracts and predicates retain public-interface custody while
   executable machine states and bodies remain private. Proof-membership facts

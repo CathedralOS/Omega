@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 92 and row schema version 50. This file
+The canonical review schema is version 93 and row schema version 51. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -109,3 +109,12 @@ expression owns receiver and argument identity. The new target vocabulary is
 schema v92 / row v50; canonical-row recovery remains v14. This does not widen
 the call compositions accepted by checking; it retains collection views only
 inside public facts that already pass the compiler's denotational rules.
+
+A named public const supplied to a const-generic contract call retains one
+exact public-interface static-argument selection to the const declaration.
+Projection rejoins that symbol to exactly one checked public const and decodes
+its closed canonical integer encoding; neither the source identifier nor the
+diagnostic display becomes value identity. A private const exposed through a
+public contract, a missing canonical declaration value, a non-integer value,
+or a changed selection rejects. This acceptance expansion is schema v93 / row
+v51 and introduces no new expression atom or recovery-grammar revision.

@@ -227,6 +227,10 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if conformance.is_valid() {
             return conformance;
         }
+        let constant = top_level_symbol_by_kinds(symbols, &[SymbolKind::Const], target.as_str());
+        if constant.is_valid() {
+            return constant;
+        }
         let concrete_type = top_level_symbol_by_kinds(
             symbols,
             &[SymbolKind::BuiltinType, SymbolKind::Data],
@@ -243,6 +247,14 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
+    let constant = top_level_symbol_by_kinds(
+        symbols,
+        &[SymbolKind::Const],
+        &format!("{owner}::{}", target.as_str()),
+    );
+    if constant.is_valid() {
+        return constant;
+    }
     call_target_for_attached_data(symbols, &owner, target.as_str())
 }
 
