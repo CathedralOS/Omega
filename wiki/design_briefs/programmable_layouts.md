@@ -91,14 +91,16 @@ inner image plus the outer image before one atomic copy; it does not flatten
 child placement into the outer schema or expose programmable tag placement.
 Repeated uses of one inner type remain occurrence-distinct. Deeper paths,
 zero-length or nested sum arrays, mixed common-field/case shapes, and target-
-dependent sum geometry remain excluded. One further exact-one fixed-depth
-report composes an outer whole-record plan and occurrence with the unchanged
-singular one-level report, admitting only
-`Outer -> Middle -> Leaf -> direct sums`. Its consumer composes the existing
-one-level carrier and reconstructs all three images before one atomic copy.
-Plural or deeper chains and every competing sum-reachable occurrence remain
-excluded; no child placement is flattened or exposed as programmable tag
-placement.
+dependent sum geometry remain excluded. One further fixed-depth report retains
+the outer whole-record plan once and composes each exact outer occurrence with
+the unchanged plural one-level report, admitting the complete nonempty
+authored-order set of `Outer -> Middle -> Leaf -> direct sums` chains. Its
+consumer composes one existing plural one-level carrier per outer occurrence
+and reconstructs every leaf and middle image plus the outer image before one
+atomic copy. The earlier singular surfaces remain exact-one wrappers. Deeper
+chains and every shallower, array-mediated, or enclosing direct-sum occurrence
+remain excluded; no child placement is flattened or exposed as programmable
+tag placement.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
