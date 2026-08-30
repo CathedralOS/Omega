@@ -346,7 +346,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Declaration tables are range-checked and immutable before the first checked
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
-    definitional meaning.
+    definitional meaning. The independent reference now also decodes the exact
+    `OMGCHK1` frame, reserves the same raw constructors, builds the same
+    source/tape trees, and agrees on framed equality, mutation, computation,
+    constructor-spoofing, and unframed-name controls.
   - [ ] **ALPHA-BETA-COMPOSED-CERTIFICATE:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact

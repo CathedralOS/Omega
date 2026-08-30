@@ -72,6 +72,12 @@ binds a derivation proposition to exact bytes without trusting a hash or a
 shell-generated literal, but a caller still needs a checked artifact-specific
 ledger proving the intended relation.
 
+The independent Python reference decodes this same frame and constructs the
+same raw byte trees, allowing the eventual artifact-owned proof gate to require
+logical agreement over identical `source` and `tape` constants. It remains a
+diagnostic implementation: it does not reproduce the authoritative runtime
+resource profile and cannot admit an artifact.
+
 Definitional equality uses the permanent arena for parsed declarations and raw
 subjects. The checker records the closed arena range occupied by its immutable,
 already-normal subject trees; normalization preserves pointers in that range,
