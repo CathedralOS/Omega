@@ -509,19 +509,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     calls, exhaustive matches and complete static rejection of every
     nonexhaustive shape, checked `Int` traps, every `Bytes` operation, and
     invalid byte/range access.
-  - **OWNER-BLOCKED — Q3:** freeze global declaration identity, duplicate
+  - **OWNER-BLOCKED — Q2:** freeze global declaration identity, duplicate
     binder handling, lexical scope, and shadowing before the canonical resolver
     assigns meaning to ambiguous source. This blocks resolver/type-checker
     completion only; source-envelope validation, strict grammar parsing, target
     ABI work, and profile-independent emission machinery remain unblocked.
-  - Implement the Gamma compiler's `GCOUT` boundary and generate each selected
-    compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
-    supplies sealed `Bytes`, validates structured returned rejection values,
-    owns private failures, and never emits partial artifact bytes.
-    **OWNER-BLOCKED — Q2:** select how the exact Gamma compilation question
-    carries the generated application profile. This blocks adapter publication
-    and the final tape, not the complete profile-independent front end,
-    lowering, or emitter.
+  - Implement D19's sealed application-profile input as part of the exact Gamma
+    compilation question and reconstruction evidence. Generate exactly
+    `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
+    `DeltaCompilerV1` (`main : Bytes -> DeltaCompileOutcome`) adapters. The
+    latter validates the exact resolved source-owned outcome schema and a total
+    bijection between every `DeltaRejectReason` constructor and the
+    profile-owned `DCOUT` v1 table before emission. A mismatch rejects through
+    `GCOUT`; no adapter may retain an unhandled case. Both adapters supply
+    sealed `Bytes`, own their closed external observation/resource profiles,
+    preflight output, and never publish partial bytes.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,11.5 MiB)` for 32,768 fixups,
@@ -542,7 +544,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
-  - [x] Establish the emitted runtime containment floor without selecting Q2's
+  - [x] Establish the emitted runtime containment floor before selecting D19's
     application adapter. Reserve `r252`/`r253` for the downward stack and frame
     base and `r254`/`r255` for the upward heap and its limit. Directly emit heap
     and stack reservation helpers that reject negative, overflowed, and
@@ -552,7 +554,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     requests, and heap-addition/stack-subtraction wrap; no case enters Alpha's
     undefined out-of-range memory behavior.
   - [x] Establish the private arbitrary-arity Gamma frame ABI independently of
-    Q3's unresolved source identities. Retain complete two-word values; lay out
+    Q2's unresolved source identities. Retain complete two-word values; lay out
     previous-frame and caller-cursor words, fixed local slots, and reverse-
     positioned source-order parameters in one downward explicit frame. Ordinary
     calls use Alpha `call`/`ret`, but every live return owns at least a 16-byte
@@ -565,9 +567,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     frames, preserve a pending caller spill across non-tail return, carry 600
     nonzero-kind arguments, and distinguish an exact 256 KiB tail landing from
     the adjacent aligned resource failure before relocation. Reject malformed
-    compiler-owned frame profiles before emitting bytes. Q3 still blocks
+    compiler-owned frame profiles before emitting bytes. Q2 still blocks
     assigning calls and binder slots from ambiguous source, not this ABI.
-  - [x] Establish one Q3-neutral fixed-local access inside that frame ABI.
+  - [x] Establish one Q2-neutral fixed-local access inside that frame ABI.
     Compiler-resolved local indexes address complete two-word values only in
     the aligned prefix after the frame header; one shared emitter expands both
     load and store through the canonical word helpers. It validates the full
@@ -577,10 +579,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     the final local of a 48-byte prefix; its existing parameter and root-frame
     checks prove non-overlap and restoration. Focused controls reject a
     misaligned prefix, the adjacent local index, and an unknown mode with no
-    payload. Q3 still owns source binder/reference-to-slot assignment, scope,
+    payload. Q2 still owns source binder/reference-to-slot assignment, scope,
     and shadowing. Until that ruling produces canonical arm/slot metadata, do
     not retain a tag-only or binderless match-lowering scaffold.
-  - [x] Establish one Q3-neutral resolved-parameter accessor inside the same
+  - [x] Establish one Q2-neutral resolved-parameter accessor inside the same
     frame ABI. Validate the complete fixed prefix, bounded parameter count, and
     opaque source-order index before emission; require the combined fixed-plus-
     parameter extent to remain within the explicit-stack profile; then load the
@@ -590,10 +592,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Focused controls
     reject a malformed prefix, negative count, adjacent index, and one parameter
     beyond the combined extent under the private frame failure with zero payload.
-    Q3 still owns mapping source references to parameter indexes, not their
+    Q2 still owns mapping source references to parameter indexes, not their
     runtime placement.
   - [x] Establish the private arbitrary-arity algebraic-value ABI without
-    assigning Q3-blocked source constructor identities. Consume an opaque
+    assigning Q2-blocked source constructor identities. Consume an opaque
     resolved kind `>= 2`, copy complete argument pairs from the guarded stack
     into a source-order immutable field vector, return `(kind,pointer)`, and
     represent nullary constructors without allocation. Round odd field counts
@@ -603,7 +605,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access. Execute a 600-field nonzero-kind vector, nested and nullary values,
     first/last field order, malformed private pointer containment, and exact
     final-row versus adjacent heap exhaustion. Reject malformed compiler-owned
-    constructor profiles before emitting bytes. Q3 still blocks connecting
+    constructor profiles before emitting bytes. Q2 still blocks connecting
     constructor spellings and pattern binders to these resolved tags/slots.
   - [x] Directly emit checked signed-add, subtract, multiply, divide, and
     remainder helpers. Ordinary results return in `r0`; both overflow
@@ -626,8 +628,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     raw payloads. This is general-pipeline material and publishes no subset
     compiler or tape.
   - [x] Establish the compact immutable `Bytes` runtime representation and its
-    private helper ABI without selecting Q2's application adapter. Reserve one
-    canonical zeroed `EMPTY` descriptor, allocate fixed 32-byte `LEAF`,
+    private helper ABI before selecting either D19 application adapter. Reserve
+    one canonical zeroed `EMPTY` descriptor, allocate fixed 32-byte `LEAF`,
     `CONCAT`, and `SLICE` rows, preserve empty/full identities, and traverse
     ropes and nested slices iteratively. Validate every descriptor before a
     load; route invalid authored bytes, indices, and ranges to the supplied trap
@@ -636,7 +638,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Execute all six operations, cross-boundary and nested slices, a 1,024-node
     rope, 12 invalid/malformed cases, and exact-last-row versus adjacent
     allocation exhaustion.
-    **OWNER-BLOCKED — Q6:** classify `bytes_concat` when its compact logical
+    **OWNER-BLOCKED — Q5:** classify `bytes_concat` when its compact logical
     length exceeds signed `Int`; the helper accepts a separately selected
     checked-add terminal and otherwise remains complete.
   - [x] Lower all six statically checked `bytes_*` forms through the eventual
@@ -647,13 +649,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     every form, nested ropes, a cross-rope slice, exact-end zero slicing, lazy
     conditional `Bytes` branches, an outer `Int` spill, and invalid byte/index/
     range traps. Recompile one nested `Bytes` source twice and require identical
-    raw payloads. Q6's logical-length overflow is intentionally not asserted.
+    raw payloads. Q5's logical-length overflow is intentionally not asserted.
     Focused emitter/runtime probes compile the canonical emitter section alone
     so unrelated frontend growth cannot force those diagnostics past Beta's
     fixed payload ceiling; the actual lowering probe still compiles the whole
     canonical source.
   - [x] Bridge already-resolved ordinary and tail calls into the eventual
-    expression backend without assigning a Q3-blocked source identity. Consume
+    expression backend without assigning a Q2-blocked source identity. Consume
     the canonical source-order argument list, lower every argument non-tail
     exactly once, preserve complete `(kind,payload)` pairs across guarded
     16-byte spills, and select the existing ordinary-call or replacement-frame
@@ -664,10 +666,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     compact two-argument mixed-kind payload through both paths, recover the
     source-order values in the callee, restore the root stack/frame after the
     tail return, and require byte-identical reconstruction. The tag-5 source
-    connection, callee metadata assignment, and binder slots remain Q3-blocked;
+    connection, callee metadata assignment, and binder slots remain Q2-blocked;
     this seam introduces no resolved-AST serialization or subset compiler.
   - [x] Bridge already-resolved constructor applications into the eventual
-    expression backend without assigning Q3-blocked spelling or declaration
+    expression backend without assigning Q2-blocked spelling or declaration
     identity. Calls and constructors now share one guarded canonical argument
     routine: validate the complete forward arena list before emission, lower each
     child non-tail exactly once, spill each complete value through the guarded
@@ -679,10 +681,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reconstruction. A focused malformed-child discriminator requires failure
     with no emitter error or payload, preventing an incomplete lowering from
     being mistaken for zero arity. The tag-7 source connection remains
-    Q3-blocked; no parallel verifier, serialized resolved tree, or duplicate
+    Q2-blocked; no parallel verifier, serialized resolved tree, or duplicate
     list walk is retained.
   - [x] Bridge already-resolved local references and lets into the eventual
-    expression backend without assigning Q3-blocked source identity. Reuse the
+    expression backend without assigning Q2-blocked source identity. Reuse the
     fixed-frame validator and emitter for complete two-word loads and stores;
     encode the let's bounded `(prefix,index)` metadata in one private scalar to
     respect Beta's four-argument call limit. Validate that profile before any
@@ -692,9 +694,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     frame, recover both values from distinct slots, restore the root stack/base,
     reject malformed prefix and adjacent-index profiles with zero payload, and
     require byte-identical reconstruction. Source tag-1/tag-4 connection,
-    binder-to-slot assignment, scope, and shadowing remain Q3-blocked.
-  - [x] Establish the dormant profile-parameterized sealed-input reader without
-    selecting Q2's application profile. The emitted helper consumes stdin once,
+    binder-to-slot assignment, scope, and shadowing remain Q2-blocked.
+  - [x] Establish the dormant profile-parameterized sealed-input reader before
+    selecting D19's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
     without heap movement, and otherwise commits one flat `LEAF` descriptor and
     `r254` only after EOF and complete 32-byte-aligned extent validation. Exact
@@ -704,8 +706,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     maximum-zero, exact/adjacent heap, and malformed private-heap paths; require
     repeated emission to be byte-identical and reject a negative emitter
     profile before emitting bytes.
-    Q2 still owns which profile supplies the maximum, which entry receives the
-    value, and all result/wire publication.
+    D19 now fixes which two profiles may supply the maximum, which entry receives
+    the value, and which result/wire contract applies; their exact constants and
+    adapter emission remain implementation work above.
   - [x] Replay the complete fixed-up Alpha payload before publication without
     trusting the emitter call sequence. Clear and rebuild a private one-byte
     instruction-start map in the otherwise unused `[11.5 MiB,11.75 MiB)`
@@ -726,7 +729,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Reuse that packed matcher for top-level `data` lookahead and merge the
     byte-identical declared-type/constructor spelling validators into one
     nominal-name predicate. D16 gives both forms the same capitalization and
-    `Int`/`Bytes` exclusions even though Q3 may keep their namespaces separate.
+    `Int`/`Bytes` exclusions even though Q2 may keep their namespaces separate.
     The then-complete 170-case gate was unchanged; the retained compiler drops one
     procedure and 2,549 compiled bytes without changing accepted names,
     source coordinates, or later identity ownership.
@@ -774,7 +777,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reusable front end. Constructor fields, parameters, and function results
     retain source spellings during the single strict parse and resolve only
     after every nominal declaration exists, so forward and mutually recursive
-    data types now implement D16. Q3 still owns duplicate declaration identity.
+    data types now implement D16. Q2 still owns duplicate declaration identity.
   - [x] Preserve source-coordinate custody through the reusable front end.
     Every syntax node now retains its zero-based starting byte offset, outer
     envelope rejection records the offending byte before tokenization, and
@@ -782,7 +785,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     typed subexpression share one sticky first-source-failure coordinate. The
     Boolean oracle does not publish a compiler frame; the direct compiler must
     absorb this metadata into its accepted-language rejection table and final
-    `GCOUT` boundary after Q2 is ruled.
+    `GCOUT` boundary under D19's selected profile.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
@@ -812,7 +815,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     error/type sentinel to compare equal.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `gamma_compiler.beta` and missing
   tape.** Check the exact Beta-source-to-Alpha-tape refinement and all resource
-  outcomes after lowering and the Q2 adapter are complete. Measure
+  outcomes after lowering and both D19 adapters are complete. Measure
   representative compiler-sized inputs; a 12-hour ceiling is emergency
   containment, not acceptable normal performance.
 
@@ -913,7 +916,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Alpha's payload cap. Profile the real `D` closure; terrible performance,
     unacceptable heap pressure, or pressure to extend Alpha instructions is an
     owner-escalation trigger, not permission for a hidden alternate backend.
-  - [ ] **OWNER-BLOCKED — Q4.** Collect exact Delta declaration identities and
+  - [ ] **OWNER-BLOCKED — Q3.** Collect exact Delta declaration identities and
     reject the earliest duplicate before type formation. D17 does not yet fix
     whether type owners and machines share a namespace, whether boundary
     members collide with qualified machine bodies, or whether parameters and
@@ -921,7 +924,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     collector that guesses those accepted-language and rejection-priority
     rules.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
-  conformance directly from settled portions of the Delta contract. Q4 blocks
+  conformance directly from settled portions of the Delta contract. Q3 blocks
   duplicate-identity and dependent rejection-priority vectors, not independent
   lexical, syntax, encoder, or resource cases. Do not recreate cases that
   merely pin quirks of the removed translator or materialize another unrun
@@ -1575,7 +1578,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1, Q8, Q9, and Q10 still own
+  allowed; weakened Omega semantics are not. Q1, Q6, Q7, and Q8 still own
   unresolved full-spec compiler contracts, but they do not block continued
   implementation of settled parser, semantic, and lowering slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
@@ -1589,8 +1592,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] **OWNER-BLOCKED — Q7.** Publish one deterministic package-resolved Omega
-  closure `C` rooted at
+- [ ] **IMPLEMENTATION-INCOMPLETE — D18 fixes the canonical request.** Publish
+  one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
   adjacent tools are excluded unless truly required.
@@ -1601,8 +1604,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   mismatched standalone source-snapshot/census command, compiler route, schemas,
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
-  itself is complete; do not revive an inspection-only precursor. Q7 blocks
-  final source custody and publication, not continued authoring of the closure.
+  itself is complete; do not revive an inspection-only precursor. D18 fixes
+  final source custody and publication; only implementation completion remains.
 - [ ] Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

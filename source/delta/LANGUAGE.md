@@ -390,8 +390,11 @@ not derived from Gamma constructor order:
 ```
 
 Zero and unknown codes are noncanonical. Reordering the authored Gamma sum does
-not change this table. Changing the closed reason set requires an explicit
-`DCOUT` version decision.
+not change this table. D19's `DeltaCompilerV1` profile owns the table and checks
+it as a bijection before adapter emission: every exact source-declared
+constructor has one unique in-range code, and every row identifies one exact
+constructor. Changing the closed reason set requires an explicit D17/profile
+and `DCOUT` version decision.
 
 `TrapKind` is exactly:
 
@@ -443,15 +446,20 @@ have such a finite private ceiling only if it reports it fail-closed as
 The Gamma-written Delta compiler exposes pure:
 
 ```text
-main : Bytes -> DeltaCompileOutcome
+(data DeltaCompileOutcome
+  (Complete Bytes)
+  (Reject DeltaRejectReason Int))
 
-DeltaCompileOutcome =
-    Complete(Bytes)
-  | Reject(DeltaRejectReason, Int)
+(def main ((source Bytes)) DeltaCompileOutcome ...)
 ```
 
 `main` can return only a complete Alpha tape or one typed Delta rejection. The
-generated adapter owns sealed input and the `DCOUT` boundary. Halt tags are 0
+sealed Gamma compilation request selects D19's `DeltaCompilerV1`; source names
+alone select no boundary. Before emission, the Gamma compiler requires the
+exact displayed source-owned nominal schema and the complete checked reason-code
+bijection. A mismatch rejects through `GCOUT` rather than producing an adapter
+with an unhandled runtime case. The generated adapter owns sealed input and the
+`DCOUT` boundary. Halt tags are 0
 Complete, 1 Reject, 2 Incomplete, and 3 InternalFailure. Complete stdout is the
 unwrapped Alpha tape. Every failure uses the versioned `DCOUT` diagnostic frame
 and publishes no tape bytes. Adapter resource exhaustion and traps produce tags

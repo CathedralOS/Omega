@@ -54,8 +54,11 @@ backend was less economical than authoring the specified direct components.
   [`../LANGUAGE.md`](../LANGUAGE.md);
 - expose pure `main : Bytes -> DeltaCompileOutcome`, with only
   `Complete(Bytes)` and `Reject(DeltaRejectReason, Int)` authored outcomes;
-- let the generated adapter own `DCOUT`, its explicit reason-code table, and
-  outer `Incomplete`/`InternalFailure` outcomes;
+- compile under D19's sealed `DeltaCompilerV1` profile, which checks the exact
+  source-owned entry/outcome schema and a total constructor-to-code bijection
+  before emission;
+- let the generated adapter own `DCOUT`, its profile-owned explicit reason-code
+  table, and outer `Incomplete`/`InternalFailure` outcomes;
 - compile it with `gamma_compiler_bytecode.tape`;
 - emit one exact Alpha tape without external older-rung semantic tools;
 - reconstruct Gamma source and Alpha artifact semantics independently;

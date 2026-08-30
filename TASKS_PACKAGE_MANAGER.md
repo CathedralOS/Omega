@@ -218,7 +218,7 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Integration fixtures
 
-- [ ] **DESIGN-BLOCKED — OWNER Q5: HOST-ROUTED-SOURCE-TRANSPORT.** Remove the
+- [ ] **DESIGN-BLOCKED — OWNER Q4: HOST-ROUTED-SOURCE-TRANSPORT.** Remove the
   universal CONNECT broker and false direct-route/transfer claims, then apply
   the owner-selected child-policy boundary for host-configured Git/SSH helpers.
   Forced proxy overrides and native policy that silently blocks the ambient

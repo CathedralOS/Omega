@@ -38,6 +38,11 @@
   (Complete Bytes)
   (Reject DeltaRejectReason Int))
 
+; D19's sealed DeltaCompilerV1 profile selects no boundary from these names.
+; After main exists, the Gamma compiler resolves this source-owned nominal
+; schema and checks the complete DeltaRejectReason-to-DCOUT-code bijection
+; before it may emit the application adapter.
+
 (data DeltaLexicalOutcome
   (LexicallyValid)
   (LexicallyRejected DeltaRejectReason Int))

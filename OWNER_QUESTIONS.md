@@ -91,62 +91,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q2 — Select the generated Gamma application profile
-
-### Context
-
-D16 fixes Gamma as a pure typed language and fixes the Beta-written Gamma
-compiler as a direct Gamma-to-Alpha compiler. Gamma programs have no byte I/O;
-an emitted application therefore needs a generated adapter. The Delta compiler
-customer requires the `DCOUT` adapter and reason table fixed by D17, while
-ordinary Gamma conformance programs need different entry and observation
-profiles. `GCOUT` governs rejection by the Gamma compiler itself and does not
-select the adapter of the program it emits.
-
-The canonical Gamma compiler invocation is presently described as consuming
-Gamma source and producing Alpha tape. The fixed Gamma grammar contains no
-trusted application-profile declaration, and Alpha tape has no ambient command
-line from which the emitted program can recover one.
-
-### Problem statement
-
-Choose how a canonical Gamma compilation selects the generated program's entry
-declaration, argument construction, result validation, and boundary profile.
-The choice must keep the source question and reconstructed compiler edge exact.
-It cannot infer boundary authority from package-controlled declaration or type
-names. Hardwiring `DCOUT` would make the compiler unable to compile the general
-Gamma programs required by its own language suite.
-
-This blocks only adapter publication and the final compiler tape. The complete
-lexer, parser, resolver, type checker, typed IR, profile-independent lowering,
-and emitter remain implementation work under D16.
-
-### Proposed direction
-
-Make the application profile an explicit, sealed compiler input alongside the
-Gamma source. Use a closed profile ID whose specification owns the entry
-signature, generated adapter, boundary identity, and exact reason-code table.
-The compiler validates the selected profile against the resolved entry type
-before emission. The first production profile is D17's Delta compiler; compact
-closed profiles may serve Gamma language conformance. Include the profile ID in
-the exact compilation question and reconstruction evidence rather than in
-ordinary Gamma syntax.
-
-### Alternates
-
-- Acceptable: publish separately identified compiler artifacts whose only
-  difference is one fixed generated adapter, provided every artifact and edge
-  binds that profile explicitly and shares the same checked Gamma semantics.
-- Acceptable: add an explicit compiler-owned application declaration to Gamma,
-  provided it is ruled as language syntax and cannot counterfeit another
-  boundary merely by naming its types or constructors.
-- Tempting but wrong: infer `DCOUT` from declarations named `main`, `Complete`,
-  `Reject`, or `DeltaCompileOutcome`.
-- Tempting but wrong: hardwire the general Gamma compiler to the Delta customer,
-  use an ambient host flag absent from the reconstructed edge, or let a script
-  rewrite the emitted tape afterward.
-
-## Q3 — Freeze Gamma declaration identity and lexical scope
+## Q2 — Freeze Gamma declaration identity and lexical scope
 
 ### Context
 
@@ -196,7 +141,7 @@ built-ins remain reserved as already required by D16.
 - Tempting but wrong: allow duplicate pattern binders to imply equality without
   adding an explicit pattern rule and executable comparison semantics.
 
-## Q4 — Freeze Delta declaration namespaces and duplicate phase
+## Q3 — Freeze Delta declaration namespaces and duplicate phase
 
 ### Context
 
@@ -265,7 +210,7 @@ the globally earliest later declaration in the collection phase.
   happens to encounter first without preserving the frozen phase priority and
   minimum packed coordinate.
 
-## Q5 — Delegate package transport helper authority to the host
+## Q4 — Delegate package transport helper authority to the host
 
 ### Context
 
@@ -342,7 +287,7 @@ outside package-authored semantics.
 - Tempting but wrong: retain zero-valued broker observations or a configured
   transfer ceiling as if either measured ambient host traffic.
 
-## Q6 — Classify Gamma `Bytes` logical-length overflow
+## Q5 — Classify Gamma `Bytes` logical-length overflow
 
 ### Context
 
@@ -384,7 +329,7 @@ descriptor before the check completes.
   `Incomplete`, rely on eventual physical allocation to make it unreachable,
   or silently flatten ropes until a private resource limit decides meaning.
 
-## Q7 — Define the device-operation source contract
+## Q6 — Define the device-operation source contract
 
 ### Context
 
@@ -437,7 +382,7 @@ consumed candidate unchanged for retry.
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
 
-## Q8 — Attribute selected opaque representations across package reviews
+## Q7 — Attribute selected opaque representations across package reviews
 
 ### Context
 
@@ -494,7 +439,7 @@ already occurred.
   or a lockfile string "agreement" without rejoining the exact declarations
   and strong compiler-issued application.
 
-## Q9 — Establish generic boundary-realization coverage
+## Q8 — Establish generic boundary-realization coverage
 
 ### Context
 
