@@ -39,9 +39,10 @@ D19 makes the generated application adapter a sealed compilation input rather
 than Gamma syntax. `ConformanceBytesV1` selects pure
 `main : Bytes -> Bytes`; `DeltaCompilerV1` selects the source-owned pure
 `main : Bytes -> DeltaCompileOutcome`. The latter sum contains success, a
-structured Delta rejection, and D31's attributed/aggregate application-static-
-storage refusals. Its profile-owned reason-code table is checked as a complete
-bijection over the exact resolved constructors before emission. A generated
+structured Delta rejection, and D31/D34's attributed/aggregate bounded-witness
+application-static-storage refusals. Its profile-owned reason-code table is
+checked as a complete bijection over the exact resolved constructors before
+emission. A generated
 Alpha adapter owns sealed byte I/O, validates the sole source-authored
 Incomplete resource, and owns every private exhaustion, internal failure, and
 selected external observation. Gamma source receives no general I/O primitive

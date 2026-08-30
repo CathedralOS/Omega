@@ -39,12 +39,12 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
 Remaining body/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. Q5 blocks promotion of the
-incomplete entry-diagnostic judgment. D31's profile-independent
-structural type-formation judgment is now implemented; its physical storage
-realization remains later than complete checking and is additionally blocked
-on Q4's over-`Int` demand representation. The existing source is therefore not
-yet a compiler edge and no validation may describe it as one.
+final publication remain implementation gaps. Q4 blocks promotion of the
+incomplete entry-diagnostic judgment. D31's profile-independent structural
+type-formation judgment is now implemented; its physical storage realization
+remains later than complete checking, with D34 now fixing its over-`Int` demand
+representation. The existing source is therefore not yet a compiler edge and
+no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
 completes the collector contract for transition-arm binders and exact
@@ -71,7 +71,7 @@ containment edges. Recursion checks each edge with a visited-owner graph walk,
 marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. The winning candidate is
 now promoted after successful census. Body/control checking remains the next
-semantic phase. Entry facts may be retained alongside it, but Q5 must total
+semantic phase. Entry facts may be retained alongside it, but Q4 must total
 their reasons, anchors, and ties before the shared final-phase candidate is
 promoted.
 
@@ -126,10 +126,14 @@ outer return type, views only as parameter/local roots, and `Console` only at
 at its declaration name, every misplaced `never`, every forbidden outer view,
 and every other `Console` placement. Nested defects beneath a forbidden view do
 not displace its outer `EscapingView`; structurally impossible same-anchor
-reason collisions are internal contradictions. Storage-profile controls cover
-an unused oversized type, one reachable decisive array with a source
-coordinate, and aggregate-only exhaustion with no coordinate. Both storage
-refusals preserve exact `(limit, requested)` and publish no tape.
+reason collisions are internal contradictions. D34 storage-profile controls cover
+an unused oversized type, nested and disjoint individually excessive arrays,
+one reachable decisive array with its length-literal coordinate, and
+aggregate-only record/sum/root exhaustion with no coordinate. Exact demands
+remain exact; larger demands use D34's `INT64_MAX` witness. Both storage
+refusals require `requested > limit` and publish no tape. Adjacent controls
+exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
+demand without taking a Gamma trap.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
@@ -152,14 +156,14 @@ backend was less economical than authoring the specified direct components.
 - author `delta_compiler.gamma` against D17 and
   [`../LANGUAGE.md`](../LANGUAGE.md);
 - expose pure `main : Bytes -> DeltaCompileOutcome`, with `Complete(Bytes)`,
-  `Reject(DeltaRejectReason, Int)`, and D31's attributed/aggregate
+  `Reject(DeltaRejectReason, Int)`, and D31/D34's attributed/aggregate
   application-static-storage refusal outcomes;
 - compile under D19's sealed `DeltaCompilerV1` profile, which checks the exact
   source-owned entry/outcome schema and a total constructor-to-code bijection
   before emission;
 - let the generated adapter implement D30's 4-MiB input profile,
   1,048,572-byte output maximum, exact `DCOUT` identity/table, and outer
-  `Incomplete`/`InternalFailure` outcomes, including validation of D31's sole
+  `Incomplete`/`InternalFailure` outcomes, including validation of D31/D34's sole
   source-authored `Incomplete` resource;
 - compile it with `gamma_compiler_bytecode.tape`;
 - emit one exact Alpha tape without external older-rung semantic tools;

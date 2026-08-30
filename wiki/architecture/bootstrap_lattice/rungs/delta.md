@@ -43,11 +43,14 @@ binders, disjoint arm scope, and declaration-start ordering between
 `DuplicateName` and `InvalidBoundary`; owner kind is never inferred from an
 ambiguous owner row.
 
-D31 fixes type formation: arrays admit `1..INT32_MAX`, empty data is one
-zero-field record, mixed data rejects, `never`/view/`Console` placement has one
+D31 fixes type formation and D34 fixes its realizability report: arrays admit
+`1..INT32_MAX`, empty data is one zero-field record, mixed data rejects,
+`never`/view/`Console` placement has one
 structural reason and coordinate, and traversal never chooses a diagnostic.
 Valid source that exceeds one selected application-static-storage profile
-produces attributed or aggregate outer `Incomplete`, never a Delta rejection.
+produces deterministic attributed or aggregate outer `Incomplete`, using an
+exact demand while representable and `INT64_MAX` as the canonical larger-
+demand witness, never a Delta rejection.
 
 The canonical compiler source now implements complete parsing, that identity
 census, D31's profile-independent structural type formation, and pure symbolic
@@ -55,9 +58,9 @@ Alpha encoding. The formed program retains explicit record/sum classification
 and direct value-containment edges; candidate selection covers array length,
 shape, placement, unknown owners, and recursive value cycles by exact source
 coordinate. Remaining body/control checking, lowering, `main`, tape
-publication, and refinement are open implementation work. Q5 blocks the
-incomplete entry-diagnostic judgment. Physical storage refusal additionally
-waits on the final nonaliasing map and Q4's over-`Int` demand representation.
+publication, and refinement are open implementation work. Q4 blocks the
+incomplete entry-diagnostic judgment. D34 has settled physical storage
+refusal; its implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns

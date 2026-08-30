@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | resolve Q5 entry diagnostics, complete body/control checking and lowering, resolve Q4 before physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | resolve Q4 entry diagnostics, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1144,30 +1144,38 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
     Gamma-profile schema check. This establishes nominal plumbing only and
     claims no storage-demand calculation or refusal behavior.
-  - [ ] **OWNER-BLOCKED — Q5 DELTA ENTRY-SHAPE TOTALITY.** The accepted
+  - [x] **D34 — BOUNDED APPLICATION-STATIC-STORAGE WITNESS.** Preserve D31's
+    profile-independent validity and existing V1 outcome/frame. Require the
+    selected limit below `INT64_MAX`; report exact demand while representable
+    and `INT64_MAX` otherwise; compute through nontrapping
+    `Exact | Overflowed` addition/multiplication; and select an attributed
+    array structurally by outermost then packed coordinate. Composition-only
+    excess remains aggregate with no coordinate. Reserved frame bytes stay
+    zero and no refusal publishes tape bytes.
+  - [ ] **OWNER-BLOCKED — Q4 DELTA ENTRY-SHAPE TOTALITY.** The accepted
     `Console`/`Main`/`Main::main` headline is fixed, but `MissingEntry` versus
     `InvalidEntry`, absent-component and malformed-component coordinates,
     boundary member order/binder-name sensitivity, and ties with ordinary
     body/control failures are not total. Retain entry candidates for the final
     phase, but do not promote a rejection or publish golden coordinates until
-    Q5 settles them. This does not block the independent expression, statement,
+    Q4 settles them. This does not block the independent expression, statement,
     state, transition, and return judgments.
   - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
     type owner, callable, constructor, field, state, and control target against
     the complete census and formed shape graph. Check ordered initialization,
     value/place/call classification, arity and type equality, terminal and
     return obligations, duplicate patterns, and sum exhaustiveness. Accumulate
-    all final-phase candidates by packed coordinate and merge the eventual Q5
+    all final-phase candidates by packed coordinate and merge the eventual Q4
     entry candidates before accepting one resolved program; traversal and wire
     reason order must not select the diagnostic.
-  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q4 AND INCOMPLETE CHECK/LOWERING: D31
-    APPLICATION STATIC STORAGE.** After complete body/control checking and the
-    final nonaliasing generated-program map exist, derive its selected static-
-    storage limit and expand only reachable roots. Then implement exact
-    attributed/aggregate refusal and no-publication canaries. Q4 must first
-    settle how a valid nested-array demand above Gamma `INT64_MAX` and the
-    fixed `DCOUT` scalar field is represented; do not trap, choose saturation
-    privately, impose a Delta validity limit, or report a traversal prefix.
+  - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
+    complete body/control checking and the final nonaliasing generated-program
+    map exist, derive its selected static-storage limit and expand only
+    reachable roots. Implement D34's bounded arithmetic, deterministic
+    attributed/aggregate refusal, exact-versus-witness boundary, zero-factor
+    path, adapter validation, and no-publication canaries. Do not trap, choose
+    undocumented saturation, impose a Delta validity limit, or report a
+    traversal prefix.
 - [x] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and

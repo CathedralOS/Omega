@@ -67,8 +67,8 @@ The committed tree still has two important gaps:
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
   D31 structural type formation, and symbolic Alpha encoding. Remaining
-  Q5-blocked entry diagnostics, body/control checking, Q4-blocked physical
-  storage refusal, lowering, tape publication, and refinement are still open.
+  Q4-blocked entry diagnostics, body/control checking, D34 physical storage
+  refusal, lowering, tape publication, and refinement are still open.
   The restricted
   Delta-written native compiler prototype was also deleted: it was neither that
   compiler nor the full Omega closure `D` and had no economical unit-level

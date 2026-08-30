@@ -207,67 +207,7 @@ select the smallest measured power-of-two profile that is.
   publish before validation, generate Beta source or Alpha bytes on the host,
   add an Alpha opcode, or treat the 1,024-row refusal as invalid Gamma source.
 
-## Q4 — Represent Delta storage demand beyond Gamma Int
-
-### Context
-
-D31 keeps every authored array length in `1..INT32_MAX` valid independently of
-one application profile, then requires a selected realization to report the
-exact complete reachable static-storage demand when it exceeds that profile.
-The source-owned `StorageIncompleteAt` and `StorageIncompleteTotal` outcomes
-carry signed 64-bit Gamma `Int` values, while the fixed 40-byte `DCOUT` frame
-has one scalar `requested` field. A valid reachable type with three nested
-maximum-length arrays already has a mathematical element count above both
-`INT64_MAX` and the frame's unsigned 64-bit range before record or element size
-is applied.
-
-The structural type-formation pass is independent of this issue. Physical
-storage refusal occurs only after successful checking and the final
-nonaliasing generated-program map, but that later implementation cannot
-construct D31's required exact payload for every valid Delta program.
-
-### Problem statement
-
-Choose one total representation and wire rule for an application-static-
-storage demand that exceeds Gamma `Int` or the current `DCOUT` scalar:
-
-1. revise the fixed refusal payload to carry a canonical arbitrary-precision
-   magnitude from Gamma through `DCOUT`;
-2. revise D31 so the scalar is a canonical exceeded-demand witness rather than
-   the exact total; or
-3. impose a new source-semantic storage-demand ceiling despite D31's current
-   profile-independent validity rule.
-
-The choice must preserve deterministic attributed-versus-aggregate selection,
-prove the reported amount exceeds the selected limit, publish no tape prefix,
-and never turn checked Gamma overflow or traversal order into the outcome.
-
-### Proposed direction
-
-Keep the version-1 fixed outcome and frame, but define this resource's
-`requested` scalar as `min(exact_demand, INT64_MAX)` and require the selected
-application-static-storage limit to be below `INT64_MAX`. Representable demands
-remain exact; `INT64_MAX` is the canonical exceeded-demand witness for every
-larger mathematical total. The compiler computes with checked bounded-demand
-arithmetic that distinguishes exact values from the overflow class without
-attempting a trapping Gamma multiplication. This changes D31's “exact total”
-wording explicitly rather than silently saturating an implementation result.
-
-### Alternates
-
-- Acceptable: change the source outcome to a canonical magnitude `Bytes` and
-  introduce a versioned `DCOUT` tail or successor frame that carries it,
-  provided the adapter validates canonicality and the complete magnitude
-  before publication.
-- Acceptable: add a distinct overflow constructor and fixed wire code instead
-  of overloading `requested`, provided attributed/aggregate coordinates and
-  the selected limit remain explicit.
-- Tempting but wrong: trap on demand multiplication, return
-  `InternalFailure`, report the traversal prefix that first crossed the limit,
-  clamp privately while documentation still claims exactness, or classify the
-  valid Delta type as `InvalidArrayLength`.
-
-## Q5 — Total Delta entry-shape diagnostics
+## Q4 — Total Delta entry-shape diagnostics
 
 ### Context
 

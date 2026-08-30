@@ -138,8 +138,8 @@ publication.
 
 D19 schema admission now resolves the exact `main` signature for both profiles.
 For `DeltaCompilerV1` it additionally validates the two source-owned nominal
-types, the exact `Complete`/`Reject` and D31 storage-refusal field lists, all 26
-nullary rejection constructors, and the fixed code bijection without using
+types, the exact `Complete`/`Reject` and D31/D34 storage-refusal field lists,
+all 26 nullary rejection constructors, and the fixed code bijection without using
 declaration order or runtime constructor kinds. D30 now fixes the physical
 sealed request, exact profile maxima, Conformance observations, and complete
 `GCOUT`/`DCOUT` tables.
@@ -359,8 +359,9 @@ and adjacent source/heap limits, zero capacity, unchanged heap publication on
 either resource failure, internal containment, no output, and byte-identical
 reconstruction. D19 now fixes the
 two closed profiles, their selected entries, result validation, and wire
-ownership, while D30 fixes their exact maxima and physical boundaries and D31
-adds the checked application-static-storage resource. Adapter
+ownership, while D30 fixes their exact maxima and physical boundaries, D31
+adds the checked application-static-storage resource, and D34 fixes its
+bounded witness and deterministic attribution. Adapter
 emission remains implementation work.
 
 The direct emitter owns byte/word append, label definition, and
