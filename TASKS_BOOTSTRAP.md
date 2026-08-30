@@ -1507,7 +1507,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       initialized/uninitialized, type/expression consumer isolation, capacity,
       reset, and Complete-only publication vectors at the real Delta-compiler
       gate.
-    - [ ] Retain ordinary call expressions as expression nodes and share their
+    - [x] Retain ordinary call expressions as expression nodes and share their
       receiver, target, static-argument, runtime-argument, and delimiter parser
       with call statements without reusing the statement-only flattened row as
       a fake initializer. This is the current first blocker in twelve of the
@@ -1517,13 +1517,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
       lex_punctuation,reject_raw_string_candidate,is_raw_string_candidate}`.
       Preserve general expression ownership and leave chained calls and other
       richer postfix forms incomplete until their shared representation lands.
+      This completes `Lexer::{lex_line_comment,lex_block_comment,
+      copy_source_to_decoded,is_raw_string_candidate}`, raising completed
+      current `C` roots from thirty-six to forty while body-boundary coverage
+      remains 56 of 73. `reject_raw_string_candidate` advances to an additive
+      ordinary call argument rather than being counted prematurely.
+    - [ ] Generalize the existing additive expression engine into ordinary call
+      arguments rather than adding an argument-only binary parser. This is the
+      current first blocker for `Lexer::{validate_utf8,dot_starts_float,
+      reject_raw_string_candidate,lex_next}` and should complete all four roots
+      while preserving each call's contiguous argument-handle span.
     - [ ] Generalize indexed expressions into the local-initializer lane for
-      `Parser::{parse_data,skip_trivia,parse_roots}`; generalize additive
-      ordinary call arguments for `Lexer::{validate_utf8,dot_starts_float,
-      lex_next}`; retain qualified case guards for `Lexer::digit_in_base`; and
-      retain the already-specified cast form in transition-target arguments for
-      `Parser::load_current`. Each is an ordinary syntax capability, not a
-      closure-specific rewrite.
+      `Parser::{parse_data,skip_trivia,parse_roots}` and to advance
+      `Lexer::span_equals`. Retain assignment-RHS casts for
+      `Lexer::{decode_at,lex_cooked_string,consume_digits,lex_number,
+      lex_punctuation}`, qualified case/destructure guards for `Main::main` and
+      `Lexer::digit_in_base`, and the already-specified cast form in transition-
+      target arguments for `Parser::load_current`. Each is an ordinary syntax
+      capability, not a closure-specific rewrite.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
