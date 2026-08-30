@@ -159,10 +159,10 @@ builder.depend_as("linear_algebra", Source::Git {
 
 The spelling may omit selection as shorthand for `Root`, but projection
 normalizes it immediately to explicit `Root`. Acquisition and selection remain
-separate internally: two selected members at one revision share one authenticated
+separate internally: two selected members at one revision share one content-verified
 repository fetch, tree, and `SourceIdentity`.
 
-For `Named`, the resolver authenticates the repository root, projects only its
+For `Named`, the resolver verifies the repository root, projects only its
 declared member paths, reads each member's own `builder.package` declaration, and
 requires one exact name match. It never recursively searches for `build.omg` or
 accepts a caller-authored member path. The resolved member path is retained as
@@ -170,9 +170,9 @@ navigation/replay custody and as the base for relative dependencies, but it does
 not enter `PackageKey`; relocating the member does not replace the package.
 
 Omega syntax remains a manager responsibility: source acquisition exposes
-bounded authenticated declaration bytes to the manager planner and receives
+bounded verified declaration bytes to the manager planner and receives
 only validated member paths and the selected path in return. Source then opens
-and publishes the selected subtree from the already authenticated graph. The
+and publishes the selected subtree from the already verified graph. The
 raw declarations remain replay evidence outside the compilation root.
 
 Target-conditioned requests use those same operations under exact branches of
@@ -2218,7 +2218,7 @@ than package identity. Git adapters now follow this path for both repository
 roots and declared named workspace members. They preserve acquisition and
 package selection independently from the resolved commit/tree/content tuple,
 share exact acquisitions within one traversal, and confine member-relative Path
-rows to the authenticated root's declared members. This is resolver custody only—not lock
+rows to the verified root's declared members. This is resolver custody only—not lock
 encoding, compiler evidence, admission, or `PackageInstance` construction—and
 the ordinary obligation ledger intentionally remains source-selector-free.
 Git dependency requests now normalize omitted selection to `Root` and retain
