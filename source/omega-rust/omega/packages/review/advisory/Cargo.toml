@@ -1,0 +1,13 @@
+[package]
+name = "omega-package-advisory"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_package_advisory"
+path = "src/lib.rs"
+
+[dependencies]
+omega-package-manager = { path = "../../manager" }
+sha2 = "0.10.9"

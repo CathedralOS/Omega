@@ -9,18 +9,20 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const PACKAGE_ROOT_ENTRIES: &[&str] = &[
-    "Cargo.toml",
     "README.md",
-    "advisory",
-    "evidence",
-    "source",
-    "source-execution",
-    "src",
-    "tests",
+    "manager",
+    "review",
+    "sources",
 ];
-const PACKAGE_CRATES: &[&str] = &[".", "advisory", "evidence", "source", "source-execution"];
+const PACKAGE_CRATES: &[&str] = &[
+    "manager",
+    "review/advisory",
+    "review/evidence",
+    "sources/acquisition",
+    "sources/execution",
+];
 const MANAGER_OWNERS: &[&str] = &["declarations", "operations", "resolution", "review"];
-const EVIDENCE_OWNERS: &[&str] = &["encoding", "evidence", "obligations", "projection"];
+const EVIDENCE_OWNERS: &[&str] = &["capture", "encoding", "ledger", "record"];
 const MAX_PRODUCTION_LEAF_LINES: usize = 525;
 const MAX_TEST_LEAF_LINES: usize = 800;
 const MAX_ENTRANCE_LINES: usize = 160;
@@ -104,7 +106,7 @@ fn assert_documented_owners(crate_root: &Path, owners: &[&str]) {
 }
 
 #[test]
-fn packages_is_the_manager_crate_and_advertises_its_supporting_areas() {
+fn packages_exposes_one_reader_route_per_subsystem_responsibility() {
     let packages = package_root();
     let expected = PACKAGE_ROOT_ENTRIES
         .iter()
@@ -114,11 +116,17 @@ fn packages_is_the_manager_crate_and_advertises_its_supporting_areas() {
 
     let readme = fs::read_to_string(packages.join("README.md"))
         .expect("read package subsystem README entrance");
-    assert!(readme.starts_with("# Omega Package Manager"));
-    for area_name in ["src", "advisory", "evidence", "source", "source-execution"] {
+    assert!(readme.starts_with("# Omega Package Subsystem"));
+    for area_name in ["manager", "review", "sources"] {
         assert!(
             readme.contains(&format!("{area_name}/")),
             "packages/README.md must advertise {area_name}"
+        );
+    }
+    for group in ["review", "sources"] {
+        assert!(
+            packages.join(group).join("README.md").is_file(),
+            "package responsibility group `{group}` needs a reader entrance"
         );
     }
     for crate_name in PACKAGE_CRATES {
@@ -132,22 +140,23 @@ fn packages_is_the_manager_crate_and_advertises_its_supporting_areas() {
 #[test]
 fn manager_and_compiler_evidence_have_exact_reader_entrances() {
     let packages = package_root();
-    assert_documented_owners(&packages, MANAGER_OWNERS);
-    assert_documented_owners(&packages.join("evidence"), EVIDENCE_OWNERS);
+    assert_documented_owners(&packages.join("manager"), MANAGER_OWNERS);
+    assert_documented_owners(&packages.join("review/evidence"), EVIDENCE_OWNERS);
 }
 
 #[test]
 fn ordinary_compilation_handoff_belongs_to_resolution_not_review() {
     let packages = package_root();
-    let compiler_input = packages.join("src/resolution/compiler_input.rs");
+    let manager = packages.join("manager");
+    let compiler_input = manager.join("src/resolution/compiler_input.rs");
     assert!(compiler_input.is_file());
     assert!(
-        !packages.join("src/review/candidate/inputs.rs").exists(),
+        !manager.join("src/review/candidate/inputs.rs").exists(),
         "ordinary compiler input construction must not be hidden under package review",
     );
 
     for path in [
-        packages.join("src/operations/prepare_project.rs"),
+        manager.join("src/operations/prepare_project.rs"),
         compiler_input,
     ] {
         let source = fs::read_to_string(&path)
@@ -162,7 +171,7 @@ fn ordinary_compilation_handoff_belongs_to_resolution_not_review() {
 
 #[test]
 fn stable_package_evidence_excludes_compiler_private_projection_handles() {
-    let evidence = package_root().join("evidence/src/evidence");
+    let evidence = package_root().join("review/evidence/src/record");
     for path in rust_files(&evidence) {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -178,8 +187,8 @@ fn stable_package_evidence_excludes_compiler_private_projection_handles() {
 
 #[test]
 fn stable_evidence_and_encoding_exclude_compiler_representations() {
-    let package = package_root().join("evidence/src");
-    for owner in ["evidence", "encoding"] {
+    let package = package_root().join("review/evidence/src");
+    for owner in ["record", "encoding"] {
         for path in rust_files(&package.join(owner)) {
             let source = fs::read_to_string(&path)
                 .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -196,7 +205,7 @@ fn stable_evidence_and_encoding_exclude_compiler_representations() {
 
 #[test]
 fn package_evidence_encoding_has_one_canonical_encoder_owner() {
-    let encoding = package_root().join("evidence/src/encoding");
+    let encoding = package_root().join("review/evidence/src/encoding");
     assert_eq!(
         directory_entries(&encoding),
         BTreeSet::from([
@@ -231,7 +240,7 @@ fn package_evidence_encoding_has_one_canonical_encoder_owner() {
 
 #[test]
 fn source_tests_live_with_their_owners() {
-    let source = package_root().join("source/src");
+    let source = package_root().join("sources/acquisition/src");
     assert!(
         !source.join("tests").exists(),
         "package source must not recover a crate-wide wildcard test hub"
@@ -254,7 +263,7 @@ fn source_tests_live_with_their_owners() {
 
 #[test]
 fn package_source_has_shared_owners_and_one_way_adapter_dependencies() {
-    let crate_root = package_root().join("source");
+    let crate_root = package_root().join("sources/acquisition");
     let source = crate_root.join("src");
     let readme = fs::read_to_string(crate_root.join("README.md"))
         .expect("read package-source README entrance");
