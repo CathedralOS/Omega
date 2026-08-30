@@ -2,6 +2,150 @@
 
 use super::*;
 
+fn exact_unsigned_add_certificate(
+    integer: psi_core::IntegerType,
+    left: psi_core::ValueId,
+    right: psi_core::ValueId,
+    left_value: psi_core::IntegerValue,
+    right_value: psi_core::IntegerValue,
+    left_axiom: usize,
+    right_axiom: usize,
+    identity: u64,
+) -> psi_proof_admission::EvidenceRoute {
+    use psi_core::{EvidenceIdentity, IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
+    use psi_proof_admission::{
+        CertificateEnvelope, IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule,
+        ProofSystemMarker,
+    };
+
+    let scalar_type = ScalarType::Integer(integer);
+    let left_id = left;
+    let right_id = right;
+    let left = ScalarTerm::value(left, scalar_type);
+    let right = ScalarTerm::value(right, scalar_type);
+    let left_literal = ScalarTerm::integer(integer, left_value).unwrap();
+    let right_literal = ScalarTerm::integer(integer, right_value).unwrap();
+    let target = ScalarTerm::exact_integer_add(integer, left.clone(), right.clone()).unwrap();
+    let sum = IntegerMathTerm::Add(
+        Box::new(IntegerMathTerm::MathValue {
+            source_type: integer,
+            value: left_id,
+        }),
+        Box::new(IntegerMathTerm::MathValue {
+            source_type: integer,
+            value: right_id,
+        }),
+    );
+    let exact_sum = integer.exact_add(left_value, right_value).unwrap();
+    let tight = IntegerMathTerm::literal(exact_sum);
+    let goal = Proposition::IntegerMathLessOrEqual(
+        sum.clone(),
+        IntegerMathTerm::literal(integer.maximum_value()),
+    );
+    let left_equality = Proposition::Equal(left.clone(), left_literal);
+    let right_equality = Proposition::Equal(right.clone(), right_literal.clone());
+    let right_bound = Proposition::LessOrEqual(right, right_literal.clone());
+    let tight_bound = ProofNode {
+        conclusion: Proposition::IntegerMathLessOrEqual(sum, tight.clone()),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: Proposition::Conjunction(vec![
+                    left_equality.clone(),
+                    right_bound.clone(),
+                ]),
+                rule: ProofRule::ConjunctionIntroduction(vec![
+                    ProofNode {
+                        conclusion: left_equality,
+                        rule: ProofRule::SemanticAxiom { index: left_axiom },
+                    },
+                    ProofNode {
+                        conclusion: right_bound,
+                        rule: ProofRule::IntegerLessOrEqualSubstitution {
+                            relation: Box::new(ProofNode {
+                                conclusion: Proposition::LessOrEqual(
+                                    right_literal.clone(),
+                                    right_literal,
+                                ),
+                                rule: ProofRule::Primitive(
+                                    PrimitiveJudgment::ClosedIntegerRelation,
+                                ),
+                            }),
+                            equality: Box::new(ProofNode {
+                                conclusion: right_equality,
+                                rule: ProofRule::SemanticAxiom { index: right_axiom },
+                            }),
+                            endpoint: 0,
+                        },
+                    },
+                ]),
+            }),
+            witness: IntegerAffineWitness {
+                root: left,
+                target,
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    psi_proof_admission::EvidenceRoute::CertificateDerived(CertificateEnvelope {
+        identity: EvidenceIdentity::new(identity).unwrap(),
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof: ProofNode {
+            conclusion: goal,
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(tight_bound),
+                middle_less_or_equal_right: Box::new(ProofNode {
+                    conclusion: Proposition::IntegerMathLessOrEqual(
+                        tight,
+                        IntegerMathTerm::literal(integer.maximum_value()),
+                    ),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+            },
+        },
+    })
+}
+
+fn exact_unsigned_shift_count_certificate(
+    value_type: psi_core::IntegerType,
+    count_type: psi_core::IntegerType,
+    count: psi_core::ValueId,
+    count_axiom: usize,
+    identity: u64,
+) -> psi_proof_admission::EvidenceRoute {
+    use psi_core::{EvidenceIdentity, IntegerValue, Proposition, ScalarTerm, ScalarType};
+    use psi_proof_admission::{
+        CertificateEnvelope, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    };
+
+    let count = ScalarTerm::value(count, ScalarType::Integer(count_type));
+    let zero = ScalarTerm::integer(count_type, IntegerValue::Unsigned(0)).unwrap();
+    let maximum = ScalarTerm::integer(
+        count_type,
+        IntegerValue::Unsigned(u128::from(value_type.bits() - 1)),
+    )
+    .unwrap();
+    let goal = Proposition::LessOrEqual(count.clone(), maximum.clone());
+    psi_proof_admission::EvidenceRoute::CertificateDerived(CertificateEnvelope {
+        identity: EvidenceIdentity::new(identity).unwrap(),
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof: ProofNode {
+            conclusion: goal,
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(ProofNode {
+                    conclusion: Proposition::LessOrEqual(zero.clone(), maximum),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+                equality: Box::new(ProofNode {
+                    conclusion: Proposition::Equal(count, zero),
+                    rule: ProofRule::SemanticAxiom { index: count_axiom },
+                }),
+                endpoint: 0,
+            },
+        },
+    })
+}
+
 fn remainder_by_one_certificate(
     integer: psi_core::IntegerType,
     divisor: psi_core::ValueId,
@@ -196,7 +340,6 @@ pub(super) fn verified_compatible_policy_cse_unit() -> VerifiedPsiOptimizationUn
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
     };
-    use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
         Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
         TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
@@ -298,7 +441,16 @@ pub(super) fn verified_compatible_policy_cse_unit() -> VerifiedPsiOptimizationUn
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
-            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            route: exact_unsigned_add_certificate(
+                integer,
+                right,
+                left,
+                IntegerValue::Unsigned(8),
+                IntegerValue::Unsigned(7),
+                1,
+                0,
+                457,
+            ),
         }],
     };
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
@@ -321,7 +473,6 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
     };
-    use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
         Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
         TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
@@ -347,7 +498,10 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
     let result = ValueId::new(516).unwrap();
     let obligation = ObligationId::new(517).unwrap();
     let zero = ValueId::new(527).unwrap();
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let value_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let count_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(value_type);
+    let count_scalar_type = ScalarType::Integer(count_type);
     let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -392,12 +546,12 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
                     id: join,
                     parameters: vec![
                         declaration(join_a, scalar_type),
-                        declaration(join_b, scalar_type),
+                        declaration(join_b, count_scalar_type),
                     ],
                     operations: vec![Operation {
                         id: OperationId::new(518).unwrap(),
                         result: OperationResult::Scalar(declaration(redundant, scalar_type)),
-                        kind: OperationKind::ExactIntegerShiftLeft {
+                        kind: OperationKind::ExactIntegerShiftRight {
                             value: join_a,
                             count: join_b,
                             obligation,
@@ -415,7 +569,7 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
                     operations: vec![Operation {
                         id: OperationId::new(520).unwrap(),
                         result: OperationResult::Scalar(declaration(left_leader, scalar_type)),
-                        kind: OperationKind::WrappingIntegerShiftLeft {
+                        kind: OperationKind::WrappingIntegerShiftRight {
                             value: left_a,
                             count: zero,
                         },
@@ -432,9 +586,9 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(528).unwrap(),
-                        result: OperationResult::Scalar(declaration(zero, scalar_type)),
+                        result: OperationResult::Scalar(declaration(zero, count_scalar_type)),
                         kind: OperationKind::IntegerConstant {
-                            value: IntegerValue::Signed(0),
+                            value: IntegerValue::Unsigned(0),
                         },
                     }],
                     terminator: Terminator::Conditional {
@@ -459,7 +613,7 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
                     operations: vec![Operation {
                         id: OperationId::new(524).unwrap(),
                         result: OperationResult::Scalar(declaration(right_leader, scalar_type)),
-                        kind: OperationKind::WrappingIntegerShiftLeft {
+                        kind: OperationKind::WrappingIntegerShiftRight {
                             value: right_a,
                             count: zero,
                         },
@@ -485,7 +639,13 @@ pub(super) fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizati
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
-            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            route: exact_unsigned_shift_count_certificate(
+                value_type,
+                count_type,
+                join_b,
+                2,
+                517,
+            ),
         }],
     };
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
@@ -510,7 +670,6 @@ pub(super) fn verified_exact_add_unit_with_right(
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
     };
-    use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
         Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
         TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
@@ -606,7 +765,16 @@ pub(super) fn verified_exact_add_unit_with_right(
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
-            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            route: exact_unsigned_add_certificate(
+                integer,
+                left,
+                right,
+                IntegerValue::Unsigned(7),
+                right_constant,
+                0,
+                1,
+                419,
+            ),
         }],
     };
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
