@@ -180,7 +180,7 @@ impl EvaluationUsageSchemaIdentity {
 }
 
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
-    EvaluationUsageSchemaIdentity(6);
+    EvaluationUsageSchemaIdentity(7);
 
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
@@ -196,6 +196,7 @@ pub struct EvaluationUsage {
     build_log_bytes: u64,
     filesystem_operation_attempts: u64,
     peak_live_cells: u64,
+    peak_live_text_bytes: u64,
     result_cells: u64,
     result_text_bytes: u64,
 }
@@ -5823,6 +5824,7 @@ impl EvaluationUsage {
             build_log_bytes: 0,
             filesystem_operation_attempts: 0,
             peak_live_cells: 0,
+            peak_live_text_bytes: 0,
             result_cells: 0,
             result_text_bytes: 0,
         }
@@ -5861,6 +5863,12 @@ impl EvaluationUsage {
         self.peak_live_cells
     }
 
+    /// Maximum logical bytes held by interpreter Text backing buffers during
+    /// this invocation. This is not Vec capacity or process-memory usage.
+    pub const fn peak_live_text_bytes(self) -> u64 {
+        self.peak_live_text_bytes
+    }
+
     /// Number of value cells retained by the successful evaluation result.
     /// Scalar and unit roots count as one cell; each structured value counts
     /// its root plus every recursively retained field, payload, or element.
@@ -5894,6 +5902,10 @@ impl EvaluationUsage {
 
     fn record_peak_live_cells(&mut self, peak_live_cells: u64) {
         self.peak_live_cells = peak_live_cells;
+    }
+
+    fn record_peak_live_text_bytes(&mut self, peak_live_text_bytes: u64) {
+        self.peak_live_text_bytes = peak_live_text_bytes;
     }
 
     fn record_result_custody(&mut self, result_cells: u64, result_text_bytes: u64) {

@@ -479,7 +479,7 @@ limits retained BuildLog custody only; it is not resident-memory containment.
 The same sponsor permits at most 65,536 canonical filesystem operation attempts
 across initial evaluation, automatic replay, and the complete package closure.
 The evaluator charges before appending a pending attempt row, retains exact
-initial and replay counts in usage schema v6, and successful closure review
+initial and replay counts in current usage schema v7, and successful closure review
 reconciles both counts with the shared account. This bounds observation-vector
 cardinality; it does not claim a bound on resident memory.
 
@@ -507,17 +507,28 @@ evaluator allocation or resident memory.
 Sponsor schema v6 additionally permits at most 1,048,576 semantic interpreter
 cells live concurrently across the closure. Every cell reserves before its
 allocation. Reference and place aliases share that allocation and reservation;
-the final alias releases both. Usage schema v6 retains each invocation's peak
+the final alias releases both. Usage schema v7 retains each invocation's peak
 and the monotonically observed session peak. Successful closure review
 reconciles the session peak exactly and requires zero live cell leases. This is
 a semantic allocation-cardinality bound, not a fabricated byte size, allocator
 capacity, RSS limit, or hostile-process containment claim.
 
-There is deliberately no generic “temporary logical payload” ceiling. Exact
-peak-live byte accounts may be added only for named compiler-owned lifetimes,
-including evaluator Text backing payloads, filesystem scratch buffers, and
-retained find-cursor name snapshots. Partial instrumentation is not described
-as memory containment.
+Sponsor schema v7 additionally permits at most 64 MiB of logical bytes in live
+interpreter Text backing buffers across the closure. Every production Text
+buffer is created through the evaluator meter; aliases share its byte lease,
+and the final alias releases it. Usage schema v7 retains distinct initial and
+replay peaks plus the shared session peak. Closure review reconciles the
+independently retained invocation peaks with the sponsor and requires zero live
+Text bytes. This excludes `Vec` capacity, allocator overhead, temporary
+concatenation copies before they become Text, filesystem scratch, RSS, and
+process-memory containment.
+
+There is deliberately no generic “temporary logical payload” ceiling. The
+evaluator Text backing-payload account is now complete. Remaining byte
+domains stay separate: filesystem read-transfer buffers, directory-enumeration
+name/packed-record snapshots, and retained find-cursor name snapshots. Partial
+instrumentation is not described as generic filesystem scratch or memory
+containment.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete

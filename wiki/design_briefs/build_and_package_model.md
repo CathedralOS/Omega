@@ -1639,27 +1639,30 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
-The same disposable review session now owns a separate version-6 deterministic
+The same disposable review session now owns a separate version-7 deterministic
 evaluation sponsor across the closure: 100,000,000 total evaluator fuel units,
 16 MiB of compiler-owned BuildLog bytes, 65,536 canonical filesystem operation
 attempts, 4,096 concurrently live compiler-owned filesystem resources,
-1,048,576 concurrently live semantic interpreter cells, 1,048,576 successful
-result cells, and 64 MiB of successful result Text bytes,
+1,048,576 concurrently live semantic interpreter cells, 64 MiB of concurrently
+live interpreter Text backing payload, 1,048,576 successful result cells, and
+64 MiB of successful result Text bytes,
 with the ordinary 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings retained for initial evaluation and replay. Usage
-receipt v6 binds the fuel, BuildLog, filesystem-attempt, live-handle, live-cell,
-and result-custody ceilings, records initial and replay cumulative charges and
-live-cell peaks separately, and retains the shared session's peak live-handle
-and live-cell counts. Owned outputs reserve before a
-provider is entered; provider failure, successful close, and evaluator teardown
+receipt v7 binds the fuel, BuildLog, filesystem-attempt, live-handle, live-cell,
+live-Text-byte, and result-custody ceilings, records initial and replay
+cumulative charges and
+live-cell and live-Text-byte peaks separately, and retains the shared session's
+peak live-handle, live-cell, and live-Text-byte counts. Owned outputs reserve
+before a provider is entered; provider failure, successful close, and evaluator teardown
 release through compiler ownership, while a borrowed native view does not mint
 a second resource. The compiler rejects a successful closure whose retained
 charges and independently recorded invocation peaks do not reconcile with the
-shared sponsor or whose session
-finishes with a live reservation. This closes
+shared sponsor or whose session finishes with a live reservation. This closes
 dependency self-budgeting and closure amplification for deterministic work. It
-does not bound process CPU or memory. There is no generic temporary-payload
-ceiling; exact peak-live byte accounts require one named compiler-owned
+does not bound process CPU or memory. The Text account measures logical live
+backing payload only, not `Vec` capacity, allocator overhead, or non-Text
+temporaries. There is no generic temporary-payload ceiling; exact peak-live
+byte accounts require one named compiler-owned
 allocation lifetime.
 These summary fields are compiler-issued execution evidence kept outside
 canonical capability/API comparison bytes. In isolation they are not a receipt

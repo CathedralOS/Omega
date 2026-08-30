@@ -20,6 +20,12 @@ Do not wire mutating `omega install` or `omega update` until recheckable
 evidence, accepted lock, and transaction gates below are closed. Compiler-issued
 package review remains non-admitting.
 
+Security work must name a concrete invariant Omega can enforce inside compiler,
+package, or artifact custody. Do not expand this subsystem into operating-system
+policy, operator custody, unverifiable review ceremony, or proxy metrics
+presented as containment. If that authority boundary is genuinely ambiguous,
+stop the item on one precise owner question before adding machinery.
+
 ## P2 — Total compiler admission projection
 
 - [ ] **PACKAGE-ADMISSION-COMPILATION.** Make the compiler-owned ordinary
@@ -66,13 +72,15 @@ package review remains non-admitting.
     explicitly named deterministic retention weights. Until then it is only an
     implementation availability guard, not exact payload or memory evidence;
   - add exact peak-live byte accounts only where the compiler owns a complete
-    allocation lifetime: evaluator `Text` backing payloads, filesystem scratch
-    buffers, and retained find-cursor name snapshots. Do not add one generic
-    “temporary logical payload” or memory ceiling: partial participation would
+    allocation lifetime. Evaluator `Text` backing payloads are landed. Keep the
+    remaining filesystem domains distinct: read-transfer buffers,
+    directory-enumeration name/packed-record snapshots, and retained
+    find-cursor name snapshots. Do not add a generic filesystem-scratch,
+    “temporary logical payload,” or memory ceiling: partial participation would
     misstate allocator/RSS containment. BuildLog bytes, canonical filesystem
     operation attempts, concurrently live filesystem handles and interpreter
-    cells, and successful result cells/Text bytes now have closure-wide
-    compiler-owned accounts.
+    cells, live interpreter `Text` bytes, and successful result cells/Text
+    bytes now have closure-wide compiler-owned accounts.
 
   Host CPU/RSS limits are deployment availability policy, not package evidence
   and not a precondition that turns review into authority. Projects that need

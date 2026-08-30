@@ -491,7 +491,7 @@ impl<'program> Evaluator<'program> {
             .map(|field| {
                 Ok((
                     field.name.as_str().to_owned(),
-                    self.allocate_cell(self.default_for_type(field.type_reference))?,
+                    self.allocate_cell(self.default_for_type(field.type_reference)?)?,
                 ))
             })
             .collect::<EvalResult<_>>()?;

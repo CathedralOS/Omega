@@ -138,15 +138,10 @@ impl<'program> Evaluator<'program> {
                             Halt::Trap("carrier byte write value is not an integer".to_owned())
                         })? as u8;
                         if let Value::Str(text) = &*collection_cell.borrow() {
-                            let mut bytes = text.borrow_mut();
-                            match bytes.get_mut(index) {
-                                Some(slot) => *slot = byte,
-                                None => {
-                                    return Err(Halt::Trap(format!(
-                                        "carrier byte write index {index} out of bounds (len {})",
-                                        bytes.len()
-                                    )));
-                                }
+                            if let Err(len) = text.write_byte(index, byte) {
+                                return Err(Halt::Trap(format!(
+                                    "carrier byte write index {index} out of bounds (len {len})"
+                                )));
                             }
                         }
                         return Ok(());

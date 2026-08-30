@@ -38,7 +38,14 @@ pub enum CompileResolvedPackageReviewsError {
         sponsored_live: u64,
     },
     BuildLiveCellAccountingMismatch {
-        reported_peak: Option<u64>,
+        reported_invocation_peak: Option<u64>,
+        reported_session_peak: Option<u64>,
+        sponsored_peak: u64,
+        sponsored_live: u64,
+    },
+    BuildLiveTextByteAccountingMismatch {
+        reported_invocation_peak: Option<u64>,
+        reported_session_peak: Option<u64>,
         sponsored_peak: u64,
         sponsored_live: u64,
     },
@@ -140,12 +147,22 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "package-review live-filesystem-handle usage did not reconcile with its shared evaluator sponsor (reported peak {reported_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
             ),
             Self::BuildLiveCellAccountingMismatch {
-                reported_peak,
+                reported_invocation_peak,
+                reported_session_peak,
                 sponsored_peak,
                 sponsored_live,
             } => write!(
                 formatter,
-                "package-review live-cell usage did not reconcile with its shared evaluator sponsor (reported peak {reported_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
+                "package-review live-cell usage did not reconcile with its shared evaluator sponsor (reported invocation peak {reported_invocation_peak:?}, reported session peak {reported_session_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
+            ),
+            Self::BuildLiveTextByteAccountingMismatch {
+                reported_invocation_peak,
+                reported_session_peak,
+                sponsored_peak,
+                sponsored_live,
+            } => write!(
+                formatter,
+                "package-review live-Text-byte usage did not reconcile with its shared evaluator sponsor (reported invocation peak {reported_invocation_peak:?}, reported session peak {reported_session_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
             ),
             Self::BuildResultCustodyAccountingMismatch {
                 reported_cells,

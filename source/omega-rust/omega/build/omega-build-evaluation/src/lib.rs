@@ -324,6 +324,9 @@ pub struct BuildEvaluationUsage {
     /// Semantic interpreter cells that may be live concurrently across the
     /// sponsored review session. This is not a memory-byte ceiling.
     pub session_live_cell_ceiling: Option<u64>,
+    /// Logical bytes in concurrently live interpreter Text backing buffers.
+    /// This does not represent Vec capacity or process memory.
+    pub session_live_text_byte_ceiling: Option<u64>,
     /// Aggregate recursive result cells admitted across the sponsored session.
     pub session_result_cell_ceiling: Option<u64>,
     /// Aggregate Text payload bytes admitted across the sponsored session.
@@ -334,6 +337,9 @@ pub struct BuildEvaluationUsage {
     /// Highest concurrent semantic-cell reservation count observed in the
     /// shared session when this result was issued.
     pub session_peak_live_cells: u64,
+    /// Highest live interpreter Text payload-byte count observed in the shared
+    /// sponsored session when this result was issued.
+    pub session_peak_live_text_bytes: u64,
     /// Fuel consumed by the initial build-machine evaluation.
     pub fuel_units: u64,
     /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
@@ -352,6 +358,10 @@ pub struct BuildEvaluationUsage {
     /// Maximum semantic interpreter cells live concurrently in replay, or zero
     /// when no replay ran.
     pub replay_peak_live_cells: u64,
+    /// Maximum logical bytes in live Text backing buffers during initial
+    /// evaluation and exact replay.
+    pub peak_live_text_bytes: u64,
+    pub replay_peak_live_text_bytes: u64,
     pub result_cells: u64,
     pub replay_result_cells: u64,
     pub result_text_bytes: u64,
@@ -4255,6 +4265,8 @@ pub fn compute_build_config(
                 .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
             session_live_cell_ceiling: evaluation_sponsor
                 .map(|sponsor| sponsor.limits().maximum_live_cells()),
+            session_live_text_byte_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_text_bytes()),
             session_result_cell_ceiling: evaluation_sponsor
                 .map(|sponsor| sponsor.limits().maximum_result_cells()),
             session_result_text_byte_ceiling: evaluation_sponsor
@@ -4263,6 +4275,8 @@ pub fn compute_build_config(
                 .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
             session_peak_live_cells: evaluation_sponsor
                 .map_or(0, BuildEvaluationSponsor::peak_live_cells),
+            session_peak_live_text_bytes: evaluation_sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_text_bytes),
             fuel_units: usage.fuel_units(),
             replay_fuel_units: replay_usage.map_or(0, |usage| usage.fuel_units()),
             build_log_bytes: usage.build_log_bytes(),
@@ -4272,6 +4286,9 @@ pub fn compute_build_config(
                 .map_or(0, |usage| usage.filesystem_operation_attempts()),
             peak_live_cells: usage.peak_live_cells(),
             replay_peak_live_cells: replay_usage.map_or(0, |usage| usage.peak_live_cells()),
+            peak_live_text_bytes: usage.peak_live_text_bytes(),
+            replay_peak_live_text_bytes: replay_usage
+                .map_or(0, |usage| usage.peak_live_text_bytes()),
             result_cells: usage.result_cells(),
             replay_result_cells: replay_usage.map_or(0, |usage| usage.result_cells()),
             result_text_bytes: usage.result_text_bytes(),

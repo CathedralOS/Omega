@@ -83,7 +83,7 @@ pub(super) struct PreparedTransferCount {
 #[derive(Clone)]
 pub(super) enum PreparedByteOutput {
     Text {
-        text: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
+        text: crate::value::TextBuffer,
         capacity: usize,
     },
     Array(Vec<Cell>),
@@ -118,7 +118,7 @@ impl PreparedByteOutput {
         check_byte_len(bytes.len())?;
         self.require_capacity(bytes.len())?;
         match self {
-            Self::Text { text, .. } => text.borrow_mut()[..bytes.len()].copy_from_slice(bytes),
+            Self::Text { text, .. } => text.write_prefix(bytes),
             Self::Array(cells) => {
                 for (slot, byte) in cells.iter().zip(bytes.iter()) {
                     *slot.borrow_mut() = Value::Int(i64::from(*byte));
@@ -1413,9 +1413,11 @@ mod tests {
 
     #[test]
     fn prepared_text_output_preserves_its_original_capacity_across_short_writes() {
-        let text = std::rc::Rc::new(std::cell::RefCell::new(vec![0; 4]));
+        let Value::Str(text) = Value::bytes(vec![0; 4]) else {
+            unreachable!()
+        };
         let output = PreparedByteOutput::Text {
-            text: std::rc::Rc::clone(&text),
+            text: text.clone(),
             capacity: 4,
         };
         assert!(output.write(&[1]).is_ok());
@@ -2188,7 +2190,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                     let capacity = text.borrow().len();
                     check_byte_len(capacity)?;
                     Ok(PreparedByteOutput::Text {
-                        text: std::rc::Rc::clone(text),
+                        text: text.clone(),
                         capacity,
                     })
                 }

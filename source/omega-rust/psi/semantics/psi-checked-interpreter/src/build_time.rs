@@ -8,9 +8,7 @@
 //! Layout machinery -- the compiler builds a `Schema` value, calls a policy's
 //! `plan()`, and reads back a `Plan` (programmable_layouts.md).
 
-use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::rc::Rc;
 
 use crate::value::{Cell, Value};
 
@@ -85,17 +83,18 @@ impl BuildTimeValue {
     pub(crate) fn into_value_with<E>(
         self,
         allocate: &impl Fn(Value) -> Result<Cell, E>,
+        allocate_text: &impl Fn(Vec<u8>) -> Result<Value, E>,
     ) -> Result<Value, E> {
         match self {
             BuildTimeValue::Unit => Ok(Value::Unit),
             BuildTimeValue::Int(value) => Ok(Value::Int(value)),
             BuildTimeValue::Bool(value) => Ok(Value::Bool(value)),
             BuildTimeValue::Float(value) => Ok(Value::Float(value)),
-            BuildTimeValue::Text(bytes) => Ok(Value::Str(Rc::new(RefCell::new(bytes)))),
+            BuildTimeValue::Text(bytes) => allocate_text(bytes),
             BuildTimeValue::Struct { type_name, fields } => {
                 let mut cells: BTreeMap<String, Cell> = BTreeMap::new();
                 for (name, value) in fields {
-                    let value = value.into_value_with(allocate)?;
+                    let value = value.into_value_with(allocate, allocate_text)?;
                     cells.insert(name, allocate(value)?);
                 }
                 Ok(Value::Struct {
@@ -113,7 +112,7 @@ impl BuildTimeValue {
                 payload: payload
                     .into_iter()
                     .map(|(name, value)| {
-                        let value = value.into_value_with(allocate)?;
+                        let value = value.into_value_with(allocate, allocate_text)?;
                         Ok((name, allocate(value)?))
                     })
                     .collect::<Result<_, E>>()?,
@@ -122,7 +121,7 @@ impl BuildTimeValue {
                 elements
                     .into_iter()
                     .map(|element| {
-                        let value = element.into_value_with(allocate)?;
+                        let value = element.into_value_with(allocate, allocate_text)?;
                         allocate(value)
                     })
                     .collect::<Result<_, E>>()?,
