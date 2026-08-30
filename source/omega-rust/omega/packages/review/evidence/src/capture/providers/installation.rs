@@ -15,37 +15,65 @@ pub(crate) fn project_selected_installation_reach(
     realization_symbol: SymbolHandle,
     requirement_identity: &PackageReviewNominalIdentity,
 ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
-    let ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) = schema else {
+    let requirement_reach = match schema {
+        ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
+            let owners = compilation
+                .traits()
+                .iter()
+                .filter(|owner| owner.symbol == trait_symbol)
+                .collect::<Vec<_>>();
+            let [owner] = owners.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider plan `{}` installation reach resolves its schema to {} exact traits; expected one",
+                    plan.name,
+                    owners.len(),
+                ))]);
+            };
+            let requirements = compilation
+                .trait_machine_signatures(owner)
+                .iter()
+                .filter(|requirement| requirement.symbol == requirement_symbol)
+                .collect::<Vec<_>>();
+            let [requirement] = requirements.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider plan `{}` installation reach resolves `{}` to {} exact requirements; expected one",
+                    plan.name,
+                    requirement_identity.path(),
+                    requirements.len(),
+                ))]);
+            };
+            requirement
+                .service_reach_is_installation_bound
+                .then_some(requirement.service_reach_row)
+        }
+        ProviderSchemaDeclaration::BoundaryRequirement(schema_symbol) => {
+            let requirements = compilation
+                .machines()
+                .iter()
+                .filter(|requirement| {
+                    requirement.symbol == schema_symbol
+                        && requirement.symbol == requirement_symbol
+                        && requirement.supply_mode
+                            == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                })
+                .collect::<Vec<_>>();
+            let [requirement] = requirements.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider plan `{}` installation reach resolves `{}` to {} exact top-level requirements; expected one",
+                    plan.name,
+                    requirement_identity.path(),
+                    requirements.len(),
+                ))]);
+            };
+            requirement
+                .service_reach_is_installation_bound
+                .then_some(requirement.service_reach_row)
+        }
+        ProviderSchemaDeclaration::BoundaryOperator(_) => return Ok(None),
+    };
+    let Some(requirement_reach) = requirement_reach else {
         return Ok(None);
     };
-    let owners = compilation
-        .traits()
-        .iter()
-        .filter(|owner| owner.symbol == trait_symbol)
-        .collect::<Vec<_>>();
-    let [owner] = owners.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected provider plan `{}` installation reach resolves its schema to {} exact traits; expected one",
-            plan.name,
-            owners.len(),
-        ))]);
-    };
-    let requirements = compilation
-        .trait_machine_signatures(owner)
-        .iter()
-        .filter(|requirement| requirement.symbol == requirement_symbol)
-        .collect::<Vec<_>>();
-    let [requirement] = requirements.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected provider plan `{}` installation reach resolves `{}` to {} exact requirements; expected one",
-            plan.name,
-            requirement_identity.path(),
-            requirements.len(),
-        ))]);
-    };
-    if !requirement.service_reach_is_installation_bound {
-        return Ok(None);
-    }
 
     let retained = compilation
         .selected_provider_plans()
@@ -69,7 +97,7 @@ pub(crate) fn project_selected_installation_reach(
         ))]);
     }
 
-    let upper_bound_names = exact_service_names(compilation, requirement.service_reach_row)?;
+    let upper_bound_names = exact_service_names(compilation, requirement_reach)?;
     if retained.upper_bound != upper_bound_names {
         return Err(vec![Diagnostic::error(format!(
             "selected provider plan `{}` installation-bound requirement `{}` has a retained upper bound that disagrees with its exact checked requirement",
@@ -119,7 +147,7 @@ pub(crate) fn project_selected_installation_reach(
     }
 
     Ok(Some(PackageReviewSelectedInstallationReach {
-        upper_bound: project_service_row(compilation, requirement.service_reach_row)?,
+        upper_bound: project_service_row(compilation, requirement_reach)?,
         resolved: project_service_row(compilation, reach_fact.effective)?,
     }))
 }

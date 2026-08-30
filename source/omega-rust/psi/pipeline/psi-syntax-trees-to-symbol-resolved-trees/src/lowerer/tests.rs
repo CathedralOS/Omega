@@ -430,6 +430,60 @@ fn resolves_provider_selection_type_paths_to_exact_symbols() {
 }
 
 #[test]
+fn resolves_top_level_requirement_provider_selection_to_exact_machine_symbol() {
+    let source = r#"
+        pub boundary requirement InterruptAcknowledgement::complete();
+        data LapicCompletion {}
+        machine build(builder: &mut Build) {
+            builder.select_provider<InterruptAcknowledgement::complete, LapicCompletion>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize top-level provider selection");
+    let syntax = parse_syntax_trees(&tokens).expect("parse top-level provider selection");
+    let program = lower_syntax_trees(&syntax).expect("resolve top-level provider selection");
+    let requirement = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")
+        .expect("top-level requirement");
+    let build = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("build machine");
+    let state = program.machine_state(program.machine_state_handles(build.states)[0]);
+    let call = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "select_provider" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("provider-selection statement call");
+    let [subject, provider] = call.machine_arguments.as_ref() else {
+        panic!("two retained provider-selection arguments")
+    };
+    assert_eq!(subject.symbol, requirement.symbol);
+    assert_eq!(
+        program.symbols.get(subject.symbol).kind,
+        psi_symbols::SymbolKind::Machine
+    );
+    assert_eq!(
+        program.symbols.get(provider.symbol).kind,
+        psi_symbols::SymbolKind::Data
+    );
+}
+
+#[test]
 fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
     let source = r#"
         trait Converter<Source, Target> {}

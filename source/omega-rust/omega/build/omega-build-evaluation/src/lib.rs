@@ -4564,9 +4564,10 @@ fn harvest_wire_compatibility_demands(
 
 /// PRV4c: collect `builder.select_provider<Subject, ProviderType>();` from the
 /// one authoritative build machine. `Subject` is either one exact boundary
-/// trait or one exact package-qualified boundary-operator family. Merely
-/// spelling either declaration elsewhere grants nothing; selection authority
-/// comes from this file-scoped root.
+/// trait, one exact explicit top-level boundary requirement, or one exact
+/// package-qualified boundary-operator family. Merely spelling a declaration
+/// elsewhere grants nothing; selection authority comes from this file-scoped
+/// root.
 pub fn harvest_provider_selections(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
@@ -4607,6 +4608,18 @@ pub fn harvest_provider_selections(
                 definition.symbol == boundary_identity.symbol && definition.is_boundary
             }) {
             omega_provider_planning::ProviderSelectionSubject::BoundaryTrait(boundary_identity)
+        } else if boundary_identity.symbol.is_valid()
+            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Machine
+            && typed.machines().iter().any(|requirement| {
+                requirement.symbol == boundary_identity.symbol
+                    && requirement.is_public
+                    && requirement.supply_mode
+                        == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+            })
+        {
+            omega_provider_planning::ProviderSelectionSubject::BoundaryRequirement(
+                boundary_identity,
+            )
         } else if boundary_identity.symbol.is_valid()
             && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
         {
@@ -4676,7 +4689,7 @@ pub fn harvest_provider_selections(
             }
         } else {
             diagnostics.push(Diagnostic::error(format!(
-                "provider selection subject `{}` does not resolve to an exact boundary trait or boundary-operator family",
+                "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
                 boundary_identity.authored_path
             )));
             return;

@@ -385,6 +385,84 @@ impl ServiceSchema {
             }],
         })
     }
+
+    /// Reify one exact explicit top-level boundary requirement as a
+    /// single-row provider slot. This first planning rung is deliberately
+    /// closed over a non-generic callable: lifetime and static generic
+    /// telescopes remain outside provider selection until their application
+    /// identity has an equally exact carrier.
+    pub fn from_typed_boundary_requirement(
+        program: &psi_typed_trees::TypedTrees,
+        requirement: &psi_typed_trees::machine::Machine,
+    ) -> Option<Self> {
+        if !requirement.symbol.is_valid()
+            || !requirement.is_public
+            || requirement.supply_mode
+                != psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+            || requirement.body_is_present
+            || !requirement.lifetime_parameters.is_empty()
+            || !program.machine_type_parameters(requirement).is_empty()
+        {
+            return None;
+        }
+        let [entry] = program.machine_states(requirement) else {
+            return None;
+        };
+        let (requirement_owner, method_name) = requirement.name.as_str().rsplit_once("::")?;
+        if requirement_owner.is_empty() || method_name.is_empty() {
+            return None;
+        }
+        let requirement_identity = program
+            .normalized_machine_overload_identity(requirement)?
+            .identity();
+        let parameters = program.state_parameters(entry);
+        let published_termination = requirement.termination_plan.interface.published()?;
+        let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
+
+        Some(Self {
+            trait_name: requirement.name.as_str().to_owned(),
+            trait_package_identity: package_identity,
+            methods: vec![ServiceMethod {
+                name: method_name.to_owned(),
+                requirement_owner: requirement_owner.to_owned(),
+                requirement_owner_package_identity: package_identity,
+                requirement_identity,
+                parameter_count: parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .count(),
+                parameter_type_identities: parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .map(|parameter| {
+                        program
+                            .normalized_type_identity(parameter.type_reference)
+                            .into_string()
+                    })
+                    .collect(),
+                entry_claims: Vec::new(),
+                has_result: entry.return_type.is_valid(),
+                result_type_identity: entry.return_type.is_valid().then(|| {
+                    program
+                        .normalized_type_identity(entry.return_type)
+                        .into_string()
+                }),
+                result_claims: Vec::new(),
+                service_reach: service_reach_row_names(program, requirement.service_reach_row),
+                synchronous_invocations: machine_synchronous_invocation_names(program, requirement),
+                may_suspend: requirement.suspends,
+                may_block: requirement.blocks,
+                terminates_guarantee: published_termination.promises_termination(),
+                termination_premises: service_progress_premises_for_parameters(
+                    program,
+                    published_termination,
+                    parameters,
+                ),
+                calling_plan_report_fingerprint: None,
+                calling_plan_commitment: None,
+            }],
+        })
+    }
 }
 
 fn collect_service_methods(
@@ -480,12 +558,21 @@ fn service_progress_premises(
     program: &psi_typed_trees::TypedTrees,
     signature: &psi_typed_trees::signature::StateSignature,
 ) -> Vec<ServiceProgressPremise> {
-    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
-        &signature.termination_guarantee
-    else {
+    service_progress_premises_for_parameters(
+        program,
+        &signature.termination_guarantee,
+        program.state_signature_parameters(signature),
+    )
+}
+
+fn service_progress_premises_for_parameters(
+    program: &psi_typed_trees::TypedTrees,
+    guarantee: &psi_language_semantics::TerminationGuarantee,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+) -> Vec<ServiceProgressPremise> {
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
         return Vec::new();
     };
-    let parameters = program.state_signature_parameters(signature);
     premises
         .iter()
         .map(|premise| {
@@ -792,6 +879,22 @@ fn service_reach_names(
     names
 }
 
+fn service_reach_row_names(
+    program: &psi_typed_trees::TypedTrees,
+    row: psi_language_semantics::ServiceReachRowId,
+) -> Vec<String> {
+    let mut names = program
+        .service_reach_rows
+        .services(row)
+        .iter()
+        .filter_map(|service| program.service_reaches.definition(*service))
+        .map(|definition| definition.name.clone())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
 fn synchronous_invocation_names(
     program: &psi_typed_trees::TypedTrees,
     signature: &psi_typed_trees::signature::StateSignature,
@@ -802,6 +905,37 @@ fn synchronous_invocation_names(
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let mut names = psi_effects::declared_signature_invocations(program, signature)
+        .into_iter()
+        .filter_map(|target| match target {
+            psi_effects::InvocationTarget::Parameter(index) => parameters
+                .get(index as usize)
+                .map(|parameter| parameter.type_reference)
+                .and_then(|type_reference| boundary_trait_name_for_type(program, type_reference)),
+            psi_effects::InvocationTarget::Service(symbol) => program
+                .traits()
+                .iter()
+                .find(|definition| definition.is_boundary && definition.symbol == symbol)
+                .map(|definition| definition.name.as_str().to_owned()),
+        })
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+fn machine_synchronous_invocation_names(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Vec<String> {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
+    let parameters = program
+        .state_parameters(entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let mut names = psi_effects::declared_machine_invocations(program, machine)
         .into_iter()
         .filter_map(|target| match target {
             psi_effects::InvocationTarget::Parameter(index) => parameters
