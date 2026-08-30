@@ -794,6 +794,14 @@ handoff is present. Compiler-owned descriptor lookup rejects before host
 metadata access, and provider-free replay must reproduce the exact attempt and
 teardown before empty staged-output custody issues.
 
+Summary v59 and filesystem replay-record v40 add exact failed tag-30
+`get_osfhandle` on an unknown descriptor after the optional Source prefix. The
+row fixes scoped-real provider, scalar `-2`, unchanged post-error `0`, and
+operand-zero `Descriptor/Unknown`; every other lane and handoff is empty. Both
+evaluators consult compiler-owned synthetic descriptor tables, so provider-free
+replay checks only Omega's modeled bridge. It proves no native-handle custody or
+Windows security property.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

@@ -284,6 +284,36 @@ fn baseline_retains_unknown_descriptor_read_file_metadata_replay_custody() {
     assert!(!replay.has_output_attempts());
 }
 
+#[test]
+fn baseline_retains_unknown_descriptor_get_osfhandle_replay_custody() {
+    let replay = unknown_descriptor_failure_baseline(
+        "unknown-get-osfhandle",
+        "let handle: i64 = builder.filesystem.get_osfhandle(-1);",
+    );
+    let [attempt] = replay.attempts() else {
+        panic!("get_osfhandle baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 30);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            -2,
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(0));
+    let [descriptor] = attempt.logical_handle_inputs() else {
+        panic!("get_osfhandle baseline retains one descriptor input")
+    };
+    assert_eq!(descriptor.operand_ordinal(), 0);
+    assert_eq!(
+        descriptor.resolution(),
+        psi_checked_interpreter::FilesystemLogicalHandleInputResolution::Unknown
+    );
+    assert!(attempt.logical_handle_output().is_none());
+    assert!(attempt.retired_logical_handles().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
 fn assert_baseline_retains_unknown_descriptor_failure(
     label: &str,
     statement: &str,
