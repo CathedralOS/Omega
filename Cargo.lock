@@ -597,8 +597,12 @@ dependencies = [
  "psi-effects",
  "psi-language-core",
  "psi-language-semantics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
  "psi-syntax-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "sha2",
 ]

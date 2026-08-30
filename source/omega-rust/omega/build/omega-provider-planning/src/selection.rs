@@ -191,34 +191,41 @@ impl ProviderOperatorFamilySelection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderSelectionSubject {
     BoundaryTrait(ProviderSelectionIdentity),
+    BoundaryRequirement(ProviderSelectionIdentity),
     BoundaryOperatorFamily(ProviderOperatorFamilySelection),
 }
 
 impl ProviderSelectionSubject {
     pub fn package(&self) -> Option<psi_core::PackageKeyIdentity> {
         match self {
-            Self::BoundaryTrait(identity) => identity.package,
+            Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => identity.package,
             Self::BoundaryOperatorFamily(family) => family.package,
         }
     }
 
     pub fn canonical_path(&self) -> &str {
         match self {
-            Self::BoundaryTrait(identity) => &identity.canonical_path,
+            Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
+                &identity.canonical_path
+            }
             Self::BoundaryOperatorFamily(family) => &family.canonical_path,
         }
     }
 
     pub fn authored_path(&self) -> &str {
         match self {
-            Self::BoundaryTrait(identity) => &identity.authored_path,
+            Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
+                &identity.authored_path
+            }
             Self::BoundaryOperatorFamily(family) => &family.authored_path,
         }
     }
 
     pub fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
         match self {
-            Self::BoundaryTrait(identity) => identity.symbol == schema_symbol,
+            Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
+                identity.symbol == schema_symbol
+            }
             Self::BoundaryOperatorFamily(family) => family.coordinates.iter().any(|coordinate| {
                 coordinate.symbol == schema_symbol
                     && coordinate.requirement_identity == requirement_identity
@@ -229,6 +236,9 @@ impl ProviderSelectionSubject {
     pub fn same_declaration_as(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => left.symbol == right.symbol,
+            (Self::BoundaryRequirement(left), Self::BoundaryRequirement(right)) => {
+                left.symbol == right.symbol
+            }
             (Self::BoundaryOperatorFamily(left), Self::BoundaryOperatorFamily(right)) => {
                 left.package == right.package && left.canonical_path == right.canonical_path
             }
@@ -237,8 +247,9 @@ impl ProviderSelectionSubject {
     }
 }
 
-/// Build-selected provider realization for one exact boundary trait or one
-/// atomically complete boundary-operator family.
+/// Build-selected provider realization for one exact boundary trait, one exact
+/// top-level boundary requirement, or one atomically complete boundary-operator
+/// family.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
     pub subject: ProviderSelectionSubject,
@@ -334,5 +345,72 @@ impl ProviderSelection {
             selecting_machine: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn identity(
+        symbol: u32,
+        package_byte: u8,
+        canonical_path: &str,
+        authored_path: &str,
+    ) -> ProviderSelectionIdentity {
+        ProviderSelectionIdentity {
+            symbol: SymbolHandle::from_arena_index(symbol),
+            package: psi_core::PackageKeyIdentity::from_digest([package_byte; 32]),
+            canonical_path: canonical_path.to_owned(),
+            authored_path: authored_path.to_owned(),
+        }
+    }
+
+    #[test]
+    fn boundary_requirement_projects_its_exact_identity_axes() {
+        let requirement = identity(
+            17,
+            3,
+            "core::InterruptAcknowledgement::complete",
+            "InterruptAcknowledgement::complete",
+        );
+        let subject = ProviderSelectionSubject::BoundaryRequirement(requirement.clone());
+
+        assert_eq!(subject.package(), requirement.package);
+        assert_eq!(subject.canonical_path(), requirement.canonical_path);
+        assert_eq!(subject.authored_path(), requirement.authored_path);
+        assert!(subject.selects_schema(requirement.symbol, "untrusted display identity"));
+        assert!(!subject.selects_schema(
+            SymbolHandle::from_arena_index(18),
+            &requirement.canonical_path
+        ));
+    }
+
+    #[test]
+    fn boundary_requirement_declaration_equality_is_exactly_nominal() {
+        let exact = identity(
+            21,
+            5,
+            "core::InterruptAcknowledgement::complete",
+            "InterruptAcknowledgement::complete",
+        );
+        let renamed = identity(21, 6, "renamed::complete", "Alias::complete");
+        let same_spelled_decoy = identity(
+            22,
+            5,
+            "core::InterruptAcknowledgement::complete",
+            "InterruptAcknowledgement::complete",
+        );
+
+        let subject = ProviderSelectionSubject::BoundaryRequirement(exact.clone());
+        assert!(
+            subject.same_declaration_as(&ProviderSelectionSubject::BoundaryRequirement(renamed))
+        );
+        assert!(
+            !subject.same_declaration_as(&ProviderSelectionSubject::BoundaryRequirement(
+                same_spelled_decoy
+            ))
+        );
+        assert!(!subject.same_declaration_as(&ProviderSelectionSubject::BoundaryTrait(exact)));
     }
 }

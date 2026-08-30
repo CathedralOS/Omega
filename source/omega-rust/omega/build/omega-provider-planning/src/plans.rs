@@ -285,6 +285,42 @@ fn derive_selected_installation_reach_resolutions(
     let mut resolutions = Vec::new();
     let mut diagnostics = Vec::new();
     for plan in selected.plans() {
+        let top_level_requirements = checked
+            .typed
+            .machines()
+            .iter()
+            .filter(|requirement| {
+                requirement.supply_mode
+                    == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                    && ServiceSchema::from_typed_boundary_requirement(&checked.typed, requirement)
+                        .as_ref()
+                        == Some(&plan.schema)
+            })
+            .collect::<Vec<_>>();
+        match top_level_requirements.as_slice() {
+            [requirement] => {
+                for row in &plan.rows {
+                    append_top_level_installation_reach_resolution(
+                        checked,
+                        plan,
+                        row,
+                        requirement,
+                        &mut resolutions,
+                        &mut diagnostics,
+                    );
+                }
+                continue;
+            }
+            [] => {}
+            requirements => {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider schema `{}` resolves to {} exact top-level boundary requirements",
+                    plan.schema.trait_name,
+                    requirements.len(),
+                )));
+                continue;
+            }
+        }
         // Boundary operators share the provider-plan carrier, but they are
         // compiler-owned operator slots rather than boundary-trait
         // requirements. Candidate validation has already replayed their exact
@@ -404,6 +440,98 @@ fn derive_selected_installation_reach_resolutions(
     } else {
         Err(diagnostics)
     }
+}
+
+fn append_top_level_installation_reach_resolution(
+    checked: &psi_checked_trees::CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    requirement: &psi_typed_trees::machine::Machine,
+    resolutions: &mut Vec<omega_effects::InstallationReachResolution>,
+    diagnostics: &mut Vec<psi_diagnostics::Diagnostic>,
+) {
+    let requirement_identity = checked
+        .typed
+        .normalized_machine_overload_identity(requirement)
+        .map(|identity| identity.identity())
+        .unwrap_or_default();
+    if row.requirement_identity != requirement_identity {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+            "selected provider row `{}` does not retain exact top-level requirement `{requirement_identity}`",
+            row.requirement_identity,
+        )));
+        return;
+    }
+    if !requirement.service_reach_is_installation_bound {
+        return;
+    }
+    let realizations = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|name| name.as_str() == plan.provider_type)
+        })
+        .filter(|machine| {
+            checked
+                .typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| {
+                    conformance.symbol == requirement.symbol
+                        && conformance.requirement_symbol == requirement.symbol
+                        && matches!(
+                            psi_typed_trees::machine::resolve_satisfied_declaration(
+                                &checked.typed,
+                                machine,
+                                conformance,
+                            ),
+                            Some(
+                                psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                                    selected,
+                                ),
+                            ) if selected.symbol == requirement.symbol
+                        )
+                })
+        })
+        .collect::<Vec<_>>();
+    let [realization] = realizations.as_slice() else {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+            "selected top-level requirement row `{requirement_identity}` resolves to {} exact realization machines for provider `{}`",
+            realizations.len(),
+            plan.provider_type,
+        )));
+        return;
+    };
+    let Some(envelope) = checked
+        .facts
+        .contract_plans
+        .realized_envelope(realization.symbol)
+    else {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+            "selected provider realization `{}` has no checked contract envelope",
+            realization.name,
+        )));
+        return;
+    };
+    let upper_bound = checked
+        .facts
+        .service_reaches
+        .rows
+        .services(requirement.service_reach_row)
+        .iter()
+        .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
+        .map(|definition| definition.name.clone())
+        .collect();
+    resolutions.push(omega_effects::InstallationReachResolution {
+        requirement_identity,
+        provider_plan_report_identity: plan.report_fingerprint(),
+        upper_bound,
+        resolved_row: envelope.effective_service_reach.clone(),
+    });
 }
 
 fn plan_selected_operator_provider_evidence(
@@ -934,13 +1062,16 @@ pub fn derive_satisfies_plans(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderSchemaDeclaration {
     BoundaryTrait(psi_symbols::SymbolHandle),
+    BoundaryRequirement(psi_symbols::SymbolHandle),
     BoundaryOperator(psi_symbols::SymbolHandle),
 }
 
 impl ProviderSchemaDeclaration {
     pub const fn symbol(self) -> psi_symbols::SymbolHandle {
         match self {
-            Self::BoundaryTrait(symbol) | Self::BoundaryOperator(symbol) => symbol,
+            Self::BoundaryTrait(symbol)
+            | Self::BoundaryRequirement(symbol)
+            | Self::BoundaryOperator(symbol) => symbol,
         }
     }
 }
@@ -1124,6 +1255,124 @@ pub fn derive_satisfies_plans_with_provenance(
         typed,
         selected_target,
     ));
+    plans.extend(derive_top_level_requirement_plans_with_provenance(
+        typed,
+        selected_target,
+    ));
+    plans
+}
+
+fn derive_top_level_requirement_plans_with_provenance(
+    typed: &TypedTrees,
+    selected_target: Option<&str>,
+) -> Vec<DerivedProviderPlan> {
+    let mut plans = Vec::<DerivedProviderPlan>::new();
+    for machine in typed.machines() {
+        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || !machine.body_is_present
+        {
+            continue;
+        }
+        let Some(provider_type_symbol) = provider_type_symbol(typed, machine) else {
+            continue;
+        };
+        let Some(provider_type) = machine
+            .attached_data
+            .as_ref()
+            .map(|name| name.as_str().to_owned())
+        else {
+            continue;
+        };
+        let provider_type_package_identity = provider_type_package_identity(typed, machine);
+        let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
+        for clause in typed.machine_trait_conformances(machine) {
+            if clause.external_binding.is_some() {
+                continue;
+            }
+            let Some(psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                requirement,
+            )) = psi_typed_trees::machine::resolve_satisfied_declaration(typed, machine, clause)
+            else {
+                continue;
+            };
+            if !requirement.is_public
+                || clause.symbol != requirement.symbol
+                || clause.requirement_symbol != requirement.symbol
+            {
+                continue;
+            }
+            let Some(schema) = ServiceSchema::from_typed_boundary_requirement(typed, requirement)
+            else {
+                continue;
+            };
+            let requirement_identity = typed
+                .normalized_machine_overload_identity(requirement)
+                .map(|identity| identity.identity())
+                .unwrap_or_default();
+            let [schema_method] = schema.methods.as_slice() else {
+                continue;
+            };
+            if requirement_identity.is_empty()
+                || schema_method.requirement_identity != requirement_identity
+            {
+                continue;
+            }
+            let target = selected_target.unwrap_or_default().to_owned();
+            let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
+            let position = plans
+                .iter()
+                .position(|derived| {
+                    derived.plan.name == plan_name
+                        && derived.plan.provider_type_package_identity
+                            == provider_type_package_identity
+                        && derived.plan.origin_package_identity == origin_package_identity
+                        && derived.provenance.schema
+                            == ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol)
+                })
+                .unwrap_or_else(|| {
+                    plans.push(DerivedProviderPlan {
+                        plan: ProviderPlan {
+                            name: plan_name.clone(),
+                            provider_type: provider_type.clone(),
+                            provider_type_package_identity,
+                            target: target.clone(),
+                            schema: schema.clone(),
+                            rows: Vec::new(),
+                            origin_package_identity,
+                            origin_package: String::new(),
+                        },
+                        provenance: ProviderPlanProvenance {
+                            schema: ProviderSchemaDeclaration::BoundaryRequirement(
+                                requirement.symbol,
+                            ),
+                            provider_type: Some(provider_type_symbol),
+                            row_requirements: Vec::new(),
+                            row_realizations: Vec::new(),
+                        },
+                    });
+                    plans.len() - 1
+                });
+            plans[position].plan.rows.push(ProviderPlanRow {
+                method: schema_method.name.clone(),
+                requirement_identity,
+                binding: ProviderBinding::CheckedAdapter {
+                    machine_identity: typed
+                        .normalized_machine_overload_identity(machine)
+                        .map(|identity| identity.identity())
+                        .unwrap_or_default(),
+                    machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
+                },
+            });
+            plans[position]
+                .provenance
+                .row_requirements
+                .push(requirement.symbol);
+            plans[position]
+                .provenance
+                .row_realizations
+                .push(machine.symbol);
+        }
+    }
     plans
 }
 
@@ -1345,6 +1594,31 @@ pub fn satisfied_requirement_identity(
     else {
         return String::new();
     };
+    if let Some(identity) = typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter(|conformance| {
+            conformance.name.as_str() == trait_name
+                && conformance.requirement.as_ref().map(|name| name.as_str())
+                    == Some(requirement_name)
+        })
+        .find_map(|conformance| {
+            let psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) =
+                psi_typed_trees::machine::resolve_satisfied_declaration(
+                    typed,
+                    machine,
+                    conformance,
+                )?
+            else {
+                return None;
+            };
+            typed
+                .normalized_machine_overload_identity(requirement)
+                .map(|identity| identity.identity())
+        })
+    {
+        return identity;
+    }
     let Some(definition) = typed.traits().iter().find(|definition| {
         definition.name.as_str() == trait_name
             || definition
@@ -1391,6 +1665,18 @@ fn exact_satisfied_requirement_identity(
     trait_symbol: psi_symbols::SymbolHandle,
     requirement_symbol: psi_symbols::SymbolHandle,
 ) -> String {
+    if trait_symbol == requirement_symbol
+        && let Some(requirement) = typed.machines().iter().find(|requirement| {
+            requirement.symbol == requirement_symbol
+                && requirement.supply_mode
+                    == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+    {
+        return typed
+            .normalized_machine_overload_identity(requirement)
+            .map(|identity| identity.identity())
+            .unwrap_or_default();
+    }
     let Some(definition) = typed
         .traits()
         .iter()
@@ -1520,6 +1806,39 @@ fn checked_adapter_has_exact_conformance(
     plan: &omega_effects::provider_plan::ProviderPlan,
     row: &omega_effects::provider_plan::ProviderPlanRow,
 ) -> bool {
+    let top_level_requirement = typed.machines().iter().find(|requirement| {
+        requirement.supply_mode == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+            && ServiceSchema::from_typed_boundary_requirement(typed, requirement).as_ref()
+                == Some(&plan.schema)
+    });
+    if let Some(requirement) = top_level_requirement {
+        let identity = typed
+            .normalized_machine_overload_identity(requirement)
+            .map(|identity| identity.identity())
+            .unwrap_or_default();
+        return row.requirement_identity == identity
+            && typed
+                .machine_trait_conformances(adapter)
+                .iter()
+                .any(|conformance| {
+                    conformance.external_binding.is_none()
+                        && conformance.symbol == requirement.symbol
+                        && conformance.requirement_symbol == requirement.symbol
+                        && matches!(
+                            psi_typed_trees::machine::resolve_satisfied_declaration(
+                                typed,
+                                adapter,
+                                conformance,
+                            ),
+                            Some(
+                                psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                                    selected,
+                                ),
+                            ) if selected.symbol == requirement.symbol
+                        )
+                });
+    }
+
     let operator = typed.operators().iter().find(|operator| {
         operator.is_boundary
             && psi_typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
@@ -1627,9 +1946,23 @@ fn exact_canonical_provider_schema(
                 ) == plan.schema.trait_name
         })
         .collect::<Vec<_>>();
+    let requirement_matches = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode
+                == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                && ServiceSchema::from_typed_boundary_requirement(typed, requirement)
+                    .is_some_and(|schema| schema.trait_name == plan.schema.trait_name)
+        })
+        .collect::<Vec<_>>();
 
-    match (trait_matches.as_slice(), operator_matches.as_slice()) {
-        ([definition], []) => {
+    match (
+        trait_matches.as_slice(),
+        requirement_matches.as_slice(),
+        operator_matches.as_slice(),
+    ) {
+        ([definition], [], []) => {
             let argument_matches = typed
                 .conformances()
                 .iter()
@@ -1663,17 +1996,26 @@ fn exact_canonical_provider_schema(
                 ))
             })
         }
-        ([], [operator]) => ServiceSchema::from_typed_operator(typed, operator).ok_or_else(|| {
+        ([], [requirement], []) => {
+            ServiceSchema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
+                psi_diagnostics::Diagnostic::error(format!(
+                    "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed top-level boundary-requirement schema",
+                    plan.name, plan.schema.trait_name,
+                ))
+            })
+        }
+        ([], [], [operator]) => ServiceSchema::from_typed_operator(typed, operator).ok_or_else(|| {
             psi_diagnostics::Diagnostic::error(format!(
                 "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary-operator schema",
                 plan.name, plan.schema.trait_name,
             ))
         }),
         _ => Err(psi_diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact schema `{}` resolves to {} canonical typed boundary traits and {} canonical typed boundary operators",
+            "ProviderPlan `{}` exact schema `{}` resolves to {} canonical typed boundary traits, {} top-level boundary requirements, and {} canonical typed boundary operators",
             plan.name,
             plan.schema.trait_name,
             trait_matches.len(),
+            requirement_matches.len(),
             operator_matches.len(),
         ))),
     }
@@ -1893,6 +2235,12 @@ fn exact_checked_adapter_invocations(
             summaries.len(),
         )));
     };
+    let top_level_requirement = typed.machines().iter().find(|requirement| {
+        requirement.supply_mode == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+            && typed
+                .normalized_machine_overload_identity(requirement)
+                .is_some_and(|identity| identity.identity() == method.requirement_identity)
+    });
     let boundaries = typed
         .traits()
         .iter()
@@ -1900,9 +2248,10 @@ fn exact_checked_adapter_invocations(
             definition.is_boundary && definition.name.as_str() == method.requirement_owner
         })
         .collect::<Vec<_>>();
-    let boundary = match boundaries.as_slice() {
-        [boundary] => Some(*boundary),
-        [] => {
+    let boundary = match (top_level_requirement, boundaries.as_slice()) {
+        (Some(_), []) => None,
+        (None, [boundary]) => Some(*boundary),
+        (None, []) => {
             let operators = typed
                 .operators()
                 .iter()
@@ -1922,7 +2271,7 @@ fn exact_checked_adapter_invocations(
                 )));
             }
         }
-        _ => {
+        (_, boundaries) => {
             return Err(psi_diagnostics::Diagnostic::error(format!(
                 "ProviderPlan `{}` requirement owner `{}` resolves to {} exact boundary traits for self-forwarded synchronous invocation",
                 plan.name,
@@ -2300,7 +2649,8 @@ fn provider_slot_key(plan: &omega_effects::provider_plan::ProviderPlan) -> Provi
 
 fn selected_subject_keys(selection: &crate::ProviderSelection) -> Vec<ProviderSelectionKey> {
     match &selection.subject {
-        crate::ProviderSelectionSubject::BoundaryTrait(identity) => {
+        crate::ProviderSelectionSubject::BoundaryTrait(identity)
+        | crate::ProviderSelectionSubject::BoundaryRequirement(identity) => {
             vec![(identity.package, identity.canonical_path.clone())]
         }
         crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
@@ -2483,6 +2833,13 @@ pub fn selected_provider_plan_facts_with_provenance(
                 .traits()
                 .iter()
                 .any(|definition| definition.symbol == symbol && definition.is_boundary),
+            ProviderSchemaDeclaration::BoundaryRequirement(symbol) => {
+                typed.machines().iter().any(|requirement| {
+                    requirement.symbol == symbol
+                        && requirement.supply_mode
+                            == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                })
+            }
             ProviderSchemaDeclaration::BoundaryOperator(symbol) => typed
                 .operators()
                 .iter()
@@ -2540,7 +2897,18 @@ pub fn selected_provider_plan_facts_with_provenance(
                         typed, operator,
                     ) == row.requirement_identity
             });
-            if !trait_requirement_is_exact && !boundary_operator_is_exact {
+            let top_level_requirement_is_exact = typed.machines().iter().any(|machine| {
+                machine.supply_mode
+                    == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                    && machine.symbol == *requirement
+                    && typed
+                        .normalized_machine_overload_identity(machine)
+                        .is_some_and(|identity| identity.identity() == row.requirement_identity)
+            });
+            if !trait_requirement_is_exact
+                && !top_level_requirement_is_exact
+                && !boundary_operator_is_exact
+            {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "selected provider plan `{}` has a row without its exact requirement declaration",
                     plan.name,
@@ -2635,6 +3003,10 @@ fn resolve_provider_selection_slots(
                 let message = match &declaration.subject {
                     crate::ProviderSelectionSubject::BoundaryTrait(identity) => format!(
                         "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
+                        declaration.provider_type.authored_path, identity.authored_path,
+                    ),
+                    crate::ProviderSelectionSubject::BoundaryRequirement(identity) => format!(
+                        "{owner} selects provider `{}` for unknown top-level boundary requirement `{}`; the requirement must exist in the loaded dependency closure",
                         declaration.provider_type.authored_path, identity.authored_path,
                     ),
                     crate::ProviderSelectionSubject::BoundaryOperatorFamily(_) => format!(

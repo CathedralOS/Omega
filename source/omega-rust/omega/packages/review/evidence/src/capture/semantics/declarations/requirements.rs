@@ -70,6 +70,38 @@ pub(crate) fn provider_requirement_identity(
                 "selected provider row",
             )
         }
+        omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryRequirement(
+            schema_symbol,
+        ) => {
+            let matches = compilation
+                .machines()
+                .iter()
+                .filter(|candidate| {
+                    candidate.symbol == schema_symbol
+                        && candidate.symbol == requirement_symbol
+                        && candidate.supply_mode
+                            == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                })
+                .collect::<Vec<_>>();
+            let [requirement] = matches.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider row resolves its top-level boundary requirement to {} declarations; expected exactly one",
+                    matches.len(),
+                ))]);
+            };
+            let path = compilation
+                .normalized_machine_overload_identity(requirement)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected provider row top-level requirement has no normalized overload identity",
+                    )]
+                })?
+                .identity();
+            Ok(PackageReviewNominalIdentity {
+                owner: nominal_owner(compilation, requirement.symbol)?,
+                path,
+            })
+        }
         omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
                 compilation

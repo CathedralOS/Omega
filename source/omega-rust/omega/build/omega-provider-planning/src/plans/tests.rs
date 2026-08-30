@@ -53,6 +53,111 @@ fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
 }
 
 #[test]
+fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        pub data InterruptAcknowledgement [copy] { token: u64; }
+        pub domain InterruptAcknowledgement::Pending;
+        pub data LapicCompletion {}
+
+        pub boundary requirement InterruptAcknowledgement::complete(self)
+        reaches <= MachineControl + PortIo
+        requires self in InterruptAcknowledgement::Pending;
+
+        machine LapicCompletion::complete(
+            acknowledgement: InterruptAcknowledgement in Pending
+        )
+        satisfies InterruptAcknowledgement::complete
+        reaches MachineControl
+        {
+        }
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize top-level requirement fixture");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse top-level requirement fixture");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve top-level requirement fixture");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type top-level requirement fixture");
+    let requirement = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")
+        .expect("typed top-level requirement");
+    let provider = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "LapicCompletion::complete")
+        .expect("typed checked provider");
+    let provider_type = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "LapicCompletion")
+        .expect("nominal provider type");
+
+    let derived = derive_satisfies_plans_with_provenance(&typed, None);
+    let [derived] = derived.as_slice() else {
+        panic!("one exact top-level provider plan, got {}", derived.len())
+    };
+    assert_eq!(
+        derived.provenance.schema,
+        ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol)
+    );
+    assert_eq!(derived.provenance.provider_type, Some(provider_type.symbol));
+    assert_eq!(derived.provenance.row_requirements, [requirement.symbol]);
+    assert_eq!(derived.provenance.row_realizations, [provider.symbol]);
+    let requirement_identity = typed
+        .normalized_machine_overload_identity(requirement)
+        .expect("normalized requirement identity")
+        .identity();
+    assert_eq!(
+        derived.plan.rows[0].requirement_identity,
+        requirement_identity
+    );
+    assert!(matches!(
+        &derived.plan.rows[0].binding,
+        ProviderBinding::CheckedAdapter { machine_identity, .. }
+            if machine_identity == &normalized_machine_identity(&typed, "LapicCompletion::complete")
+    ));
+    let validation = validate_provider_plan_candidates(&typed, std::slice::from_ref(&derived.plan));
+    assert!(
+        validation.is_empty(),
+        "the derived exact plan must replay against typed declarations: {validation:?}"
+    );
+
+    let selection = crate::ProviderSelection {
+        subject: crate::ProviderSelectionSubject::BoundaryRequirement(
+            crate::ProviderSelectionIdentity {
+                symbol: requirement.symbol,
+                package: typed.symbols.symbol_package_identity(requirement.symbol),
+                canonical_path: derived.plan.schema.trait_name.clone(),
+                authored_path: "InterruptAcknowledgement::complete".to_owned(),
+            },
+        ),
+        provider_type: crate::ProviderSelectionIdentity {
+            symbol: provider_type.symbol,
+            package: typed.symbols.symbol_package_identity(provider_type.symbol),
+            canonical_path: derived.plan.provider_type.clone(),
+            authored_path: "LapicCompletion".to_owned(),
+        },
+        selecting_machine: psi_symbols::SymbolHandle::invalid(),
+        source_span: psi_source::SourceSpan::default(),
+    };
+    let selected = select_provider_plans(
+        std::slice::from_ref(&derived.plan),
+        omega_target::NativeTarget::host(),
+        &[],
+        &[selection],
+    )
+    .expect("an explicit boundary-requirement selection chooses its declared candidate");
+    assert_eq!(selected, [derived.plan.clone()]);
+}
+
+#[test]
 fn provider_derivation_consumes_typed_external_binding_identity() {
     let source = |library: &str, symbol: &str| {
         format!(
@@ -198,6 +303,53 @@ fn selected_provider_binds_actual_reach_for_bounded_requirement() {
     let resolution = selected
         .installation_reach_resolution(requirement_identity)
         .expect("bounded requirement resolution");
+
+    assert_eq!(resolution.upper_bound, ["MachineControl", "PortIo"]);
+    assert_eq!(resolution.resolved_row, ["PortIo"]);
+    assert_eq!(
+        resolution.provider_plan_report_identity,
+        plan.report_fingerprint()
+    );
+}
+
+#[test]
+fn selected_top_level_provider_binds_its_exact_actual_reach() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        pub data InterruptAcknowledgement [copy] { token: u64; }
+        pub data Pic {}
+
+        pub boundary requirement InterruptAcknowledgement::complete(self) -> u64
+        reaches <= MachineControl + PortIo;
+
+        machine Pic::complete(acknowledgement: InterruptAcknowledgement) -> u64
+        satisfies InterruptAcknowledgement::complete
+        reaches PortIo
+        {
+            0
+        }
+    "#;
+    let (typed, plan) = derive_provider_fixture(source);
+    let mut checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("bounded top-level provider should check");
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("one selected PIC completion plan");
+    let selected = bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+    )
+    .expect("selected top-level completion reach should resolve");
+    let requirement_identity = plan.rows[0].requirement_identity.as_str();
+    let resolution = selected
+        .installation_reach_resolution(requirement_identity)
+        .expect("top-level bounded requirement resolution");
 
     assert_eq!(resolution.upper_bound, ["MachineControl", "PortIo"]);
     assert_eq!(resolution.resolved_row, ["PortIo"]);

@@ -286,9 +286,10 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
 
 /// Resolve one `Build::select_provider` path as an exact declaration identity.
 /// The marker's static arguments are exact declaration paths, not executable
-/// machine selections. The first may denote one boundary trait or an entire
-/// same-path boundary-operator family; build harvesting reifies and validates
-/// the complete family after typed lowering.
+/// machine selections. The first may denote one boundary trait, one explicit
+/// top-level boundary requirement, or an entire same-path boundary-operator
+/// family; build harvesting reifies and validates the exact declaration after
+/// typed lowering.
 pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     symbols: &SymbolTable,
     argument: &mut psi_symbol_resolved_trees::expression::StaticMachineArgument,
@@ -307,23 +308,33 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
-    let kinds = [
-        SymbolKind::Trait,
-        SymbolKind::Operator,
-        SymbolKind::Data,
-        SymbolKind::BuiltinType,
-    ];
+    let kinds: &[SymbolKind] = if allow_operator_family {
+        &[
+            SymbolKind::Trait,
+            SymbolKind::Machine,
+            SymbolKind::Operator,
+            SymbolKind::Data,
+            SymbolKind::BuiltinType,
+        ]
+    } else {
+        &[
+            SymbolKind::Trait,
+            SymbolKind::Operator,
+            SymbolKind::Data,
+            SymbolKind::BuiltinType,
+        ]
+    };
     let exact = argument.path.last().and_then(|name| {
         if allow_operator_family {
             symbols.find_top_level_declaration_or_operator_family_from_source(
                 &rendered,
-                &kinds,
+                kinds,
                 name.source_span(),
             )
         } else {
             symbols.find_top_level_by_name_and_kinds_from_source(
                 &rendered,
-                &kinds,
+                kinds,
                 name.source_span(),
             )
         }
