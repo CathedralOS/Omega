@@ -73,13 +73,13 @@ immediately empty body. An optional leading target selector is retained as an
 exact span on the same machine row; selection and activation remain later
 phases. The list retains canonical optional `const` and leading `mut`, consuming
 or borrowed `self`, and shared/mutable/write-only binding-reference forms.
-Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data fields,
-case-payload fields, and immediate machine return types share one engine for
-bare named, outer elided-lifetime references, unqualified domains, inclusive
-literal ranges, and nested fixed arrays and slices. Self receivers materialize
-a `SelfType` base and optional outer Reference node. Every parameter row records
-its canonical const/mutable/self flags; the implicit entry state owns the optional return
-node.
+Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
+fields, case-payload fields, and immediate machine return types share one engine
+for bare named/Self, outer references, unqualified domains, inclusive
+literal ranges, and nested fixed arrays and slices. References may retain an
+exact explicit lifetime, and general `Self` uses the same `SelfType` base as
+receivers. Every parameter row records its canonical const/mutable/self flags;
+the implicit entry state owns the optional return node.
 
 Each completed machine owns one implicit empty entry state and its contiguous
 parameter span, matching the canonical parser: a free machine uses the
@@ -87,9 +87,8 @@ generated `entry` identity, while an attached machine names its entry with the
 final authored declaration-path member. Machine and domain paths share the
 general path-member arena, but a machine snapshots its path extent before
 parameter types can append domain members. A trailing parameter comma rejects
-as malformed. Explicit reference lifetimes, general type-position `Self`,
-constrained slice elements and the `Slice<T>` spelling, return types placed
-after clauses, generics, clause-bearing headers, and
+as malformed. Constrained slice elements and the `Slice<T>` spelling, return
+types placed after clauses, generics, clause-bearing headers, and
 `boundary` forms; target declarations and public target-scoped combinations,
 other public roots, bodyless declarations, and
 nonempty bodies remain incomplete. The parser never skips a body as opaque
@@ -110,9 +109,9 @@ contiguous payload-field span in a separate arena; direct and payload fields
 share one binding control path. Type references are postorder tagged nodes: a
 constrained root points to its base and to one source-shaped constraint, while
 an outer Reference points backward to its complete referee tree and retains
-shared/mutable/write-only access. FixedArray and Slice nodes point backward to
-their element; FixedArray also retains the exact length span. SelfType needs no
-payload.
+shared/mutable/write-only access plus an optional exact lifetime span.
+FixedArray and Slice nodes point backward to their element; FixedArray also
+retains the exact length span. SelfType needs no payload.
 Domain constraints point into the general path arena; literal ranges and array
 lengths retain exact spans without interpreting their values. Bracket syntax
 uses a bounded invocation-local frame stack and emits named, array, and slice
@@ -120,8 +119,8 @@ nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
 spans instead of duplicating coordinates. Qualified, indexed, intersected,
 combined, exclusive, expression-bound, or multiple constraints; constrained
-slice elements, the `Slice<T>` spelling, explicit reference lifetimes, general
-Self types, generic types, rich array elements or lengths; numbered identities;
+slice elements, the `Slice<T>` spelling, generic types, rich array elements or
+lengths; numbered identities;
 field relevance; other public roots; and every other unimplemented valid form
 stop as implementation-incomplete rather than becoming false Omega rejections.
 

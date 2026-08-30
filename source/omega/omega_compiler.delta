@@ -253,7 +253,7 @@ data OmegaTypeArrayKind {
 // Slice uses payload0 for its element.
 // Reference uses payload0 for its referee, payload1 for access (0 shared,
 // 1 mutable, 2 write-only), payload2 as has-lifetime, and payload3/payload4 for
-// a future exact lifetime span. SelfType has no payload.
+// the exact optional lifetime span. SelfType has no payload.
 // Remaining words are reserved for final recursive type variants without
 // parallel node arenas. Words not selected by kind have no meaning and need
 // not be cleared.
@@ -402,6 +402,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedMachineParameterEnd;
     case ExpectedMachineReturnType;
     case ExpectedMachineReturnEnd;
+    case ExpectedReferenceLifetime;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
     case ExpectedDataFieldEnd;
@@ -508,6 +509,9 @@ data OmegaParser {
     type_has_reference: i32;
     type_reference_access: OmegaReferenceAccess;
     type_reference_is_exclusive: i32;
+    type_reference_has_lifetime: i32;
+    type_reference_lifetime_start: i32;
+    type_reference_lifetime_end: i32;
     status: OmegaParserStatus;
     diagnostic_code: OmegaParseDiagnosticCode;
     diagnostic_start: i32;
@@ -2564,9 +2568,9 @@ machine OmegaLexScan::validate_lexical(
 // The retained syntax currently owns ordinary `use path::member;`, basic
 // `[pub] data` roots, and `[pub]`/target-scoped empty-body machine roots with
 // state parameters and an optional immediate return type. Data fields,
-// parameters, and returns share named, outer-reference, domain-qualified,
-// range-refined, and nested fixed-
-// array/slice type syntax; parameters additionally retain their canonical
+// parameters, and returns share named/Self, outer-reference with optional
+// lifetime, domain-qualified, range-refined, and nested fixed-array/slice type
+// syntax; parameters additionally retain their canonical
 // simple modifiers, binding references, and receivers.
 // Rich valid syntax stops as Incomplete rather than becoming a false Omega
 // rejection. Later grammar slices extend this machine.
@@ -2643,6 +2647,9 @@ machine OmegaParser::parse_view(
     self.type_has_reference = 0;
     self.type_reference_access = OmegaReferenceAccess::Shared;
     self.type_reference_is_exclusive = 0;
+    self.type_reference_has_lifetime = 0;
+    self.type_reference_lifetime_start = 0;
+    self.type_reference_lifetime_end = 0;
     self.status = OmegaParserStatus::Parsing;
     self.diagnostic_code = OmegaParseDiagnosticCode::None;
     self.diagnostic_start = 0;
@@ -2793,6 +2800,7 @@ machine OmegaParser::parse_view(
             36 -> machine_binding_name_token()
             37 -> type_reference_access_or_type_token()
             38 -> target_machine_token()
+            39 -> type_reference_lifetime_token()
             _ -> internal_failure()
         }
     }
@@ -2958,6 +2966,11 @@ machine OmegaParser::parse_view(
             )
             37 -> type_missing_at_view_end()
             38 -> incomplete_at_end()
+            39 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedReferenceLifetime,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -3531,6 +3544,9 @@ machine OmegaParser::parse_view(
         self.type_has_reference = 0;
         self.type_reference_access = OmegaReferenceAccess::Shared;
         self.type_reference_is_exclusive = 0;
+        self.type_reference_has_lifetime = 0;
+        self.type_reference_lifetime_start = 0;
+        self.type_reference_lifetime_end = 0;
         self.type_constraint_mode = 0;
         self.type_array_frame_count = 0;
         self.type_array_depth = 0;
@@ -4205,6 +4221,9 @@ machine OmegaParser::parse_view(
         self.type_has_reference = 0;
         self.type_reference_access = OmegaReferenceAccess::Shared;
         self.type_reference_is_exclusive = 0;
+        self.type_reference_has_lifetime = 0;
+        self.type_reference_lifetime_start = 0;
+        self.type_reference_lifetime_end = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(13) }
     }
@@ -4255,10 +4274,18 @@ machine OmegaParser::parse_view(
 
     state type_keyword() {
         transition self.scan.keyword {
-            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfType -> retain_type_self()
             OmegaKeywordKind::SelfValue -> incomplete_root()
             _ -> retain_type_name()
         }
+    }
+
+    state retain_type_self() {
+        self.type_base_kind = OmegaTypeBaseKind::SelfType;
+        self.type_end = self.scan.token_end;
+        self.type_allows_range = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(14) }
     }
 
     state type_punctuation() {
@@ -4278,6 +4305,9 @@ machine OmegaParser::parse_view(
         self.type_has_reference = 1;
         self.type_reference_access = OmegaReferenceAccess::Shared;
         self.type_reference_is_exclusive = 0;
+        self.type_reference_has_lifetime = 0;
+        self.type_reference_lifetime_start = 0;
+        self.type_reference_lifetime_end = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(37) }
     }
@@ -4325,7 +4355,10 @@ machine OmegaParser::parse_view(
             self.scan.token_end,
             "relaxed"
         ) {
-            1 -> incomplete_root()
+            1 -> type_missing_failure(
+                self.scan.token_start,
+                self.scan.token_end
+            )
             _ -> type_token()
         }
     }
@@ -4346,10 +4379,61 @@ machine OmegaParser::parse_view(
 
     state type_reference_prefix_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Apostrophe -> incomplete_root()
+            OmegaPunctuationKind::Apostrophe -> type_reference_lifetime_allowed()
             OmegaPunctuationKind::Ampersand -> incomplete_root()
             _ -> type_token()
         }
+    }
+
+    state type_reference_lifetime_allowed() {
+        transition self.type_reference_has_lifetime {
+            0 -> begin_type_reference_lifetime()
+            _ -> type_missing_failure(
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state begin_type_reference_lifetime() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(39) }
+    }
+
+    state type_reference_lifetime_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_type_reference_lifetime()
+            OmegaTokenKind::Keyword -> type_reference_lifetime_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedReferenceLifetime,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state type_reference_lifetime_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedReferenceLifetime,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedReferenceLifetime,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_type_reference_lifetime()
+        }
+    }
+
+    state retain_type_reference_lifetime() {
+        self.type_reference_has_lifetime = 1;
+        self.type_reference_lifetime_start = self.scan.token_start;
+        self.type_reference_lifetime_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(37) }
     }
 
     state retain_type_name() {
@@ -4409,7 +4493,7 @@ machine OmegaParser::parse_view(
 
     state array_element_keyword() {
         transition self.scan.keyword {
-            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfType -> retain_array_element_self()
             OmegaKeywordKind::SelfValue -> incomplete_root()
             _ -> retain_array_element_name()
         }
@@ -4430,8 +4514,15 @@ machine OmegaParser::parse_view(
     }
 
     state retain_array_element_name() {
+        self.type_base_kind = OmegaTypeBaseKind::Named;
         self.type_name_start = self.scan.token_start;
         self.type_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(25) }
+    }
+
+    state retain_array_element_self() {
+        self.type_base_kind = OmegaTypeBaseKind::SelfType;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(25) }
     }
@@ -4582,16 +4673,23 @@ machine OmegaParser::parse_view(
     }
 
     state type_suffix_identifier() {
+        transition self.type_array_frame_count > 0 {
+            true -> domain_type_suffix_identifier()
+            _ -> type_base_suffix_identifier()
+        }
+    }
+
+    state type_base_suffix_identifier() {
         transition self.type_base_kind {
             OmegaTypeBaseKind::SelfType -> type_end_failure(
                 self.scan.token_start,
                 self.scan.token_end
             )
-            _ -> named_type_suffix_identifier()
+            _ -> domain_type_suffix_identifier()
         }
     }
 
-    state named_type_suffix_identifier() {
+    state domain_type_suffix_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
@@ -5172,7 +5270,12 @@ machine OmegaParser::parse_view(
         self.type_references[self.type_reference_count].kind =
             OmegaTypeReferenceKind::Reference;
         self.type_references[self.type_reference_count].payload0 = self.type_root;
-        self.type_references[self.type_reference_count].payload2 = 0;
+        self.type_references[self.type_reference_count].payload2 =
+            self.type_reference_has_lifetime;
+        self.type_references[self.type_reference_count].payload3 =
+            self.type_reference_lifetime_start;
+        self.type_references[self.type_reference_count].payload4 =
+            self.type_reference_lifetime_end;
         transition self.type_reference_access {
             OmegaReferenceAccess::Shared -> retain_shared_type_reference(
                 member_end,
