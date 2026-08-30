@@ -12,16 +12,17 @@ retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
 runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
-capacity/fixup failures, executes six generated runtime-containment programs,
+capacity/fixup/structural-replay failures, executes six generated
+runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, compares
 two repeated payloads byte-identically, and executes 14 compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 99 procedures. With the fixed frontend
-gate entry, the compiled gate uses 100 of Beta's 128 procedure slots and
-compiles to 233,800 bytes. The remaining 28,340 bytes under
+The retained compiler source declares 101 procedures. With the fixed frontend
+gate entry, the compiled gate uses 102 of Beta's 128 procedure slots and
+compiles to 239,213 bytes. The remaining 22,927 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -55,8 +56,9 @@ assembler participates in the edge.
 The Beta executable has exactly 32 MiB of source-visible logical raw memory;
 physical memory above it is Alpha's hidden-return-stack allowance. The frontend
 keeps sealed source in `[2 MiB,6 MiB)`, declaration and environment tables in
-`[6 MiB,10.5 MiB)`, labels/fixups in `[10.5 MiB,11.5 MiB)`, and AST storage in
-`[16 MiB,31.75 MiB)`. The final `[31.75 MiB,32 MiB)` is the private 262,144-byte
+`[6 MiB,10.5 MiB)`, labels/fixups in `[10.5 MiB,11.5 MiB)`, payload instruction
+starts in `[11.5 MiB,11.75 MiB)`, and AST storage in `[16 MiB,31.75 MiB)`. The
+final `[31.75 MiB,32 MiB)` is the private 262,144-byte
 payload buffer; the runnable Alpha payload limit is 262,140 bytes. Source,
 table, arena, fixup, and payload writes are checked before mutation. No output
 byte is published until every fixup and the complete payload extent validate.
@@ -169,8 +171,11 @@ profile maximum, selected entry, result validation, and wire publication.
 The direct emitter owns byte/word append, label definition, and
 `{payload_offset,label_id}` fixup rows. Branch and call targets remain private
 placeholders until all code exists; duplicate or missing labels and out-of-range
-targets are sticky internal failures. Final lowering/refinement must add replay
-validation; this substrate does not yet claim it. Checked `Int` lowering
+targets are sticky internal failures. After resolution, an independent replay
+partitions the complete payload under Alpha's closed instruction widths and
+requires every encoded direct target to land on its rebuilt instruction-start
+map. Generated Gamma tapes are instruction-only: jump-skipped inline data is not
+an alternate payload path. Exact source-to-tape refinement remains open. Checked `Int` lowering
 branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.

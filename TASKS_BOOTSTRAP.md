@@ -533,9 +533,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 99 procedures; with the frontend
-    gate entry, the gate uses 100 of Beta's 128 procedure slots and compiles to
-    233,800 bytes, leaving 28,340 bytes below Alpha's runnable payload ceiling
+    tape budget. The retained source declares 101 procedures; with the frontend
+    gate entry, the gate uses 102 of Beta's 128 procedure slots and compiles to
+    239,213 bytes, leaving 22,927 bytes below Alpha's runnable payload ceiling
     for lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
     application adapter. Reserve `r252`/`r253` for the downward stack and frame
@@ -635,6 +635,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     profile before emitting bytes.
     Q2 still owns which profile supplies the maximum, which entry receives the
     value, and all result/wire publication.
+  - [x] Replay the complete fixed-up Alpha payload before publication without
+    trusting the emitter call sequence. Clear and rebuild a private one-byte
+    instruction-start map in the otherwise unused `[11.5 MiB,11.75 MiB)`
+    compiler region; partition every payload byte under Alpha's closed opcode/
+    width table; reject unknown or truncated instructions; and require every
+    encoded jump, conditional, or call target to land on a reconstructed start.
+    This fixes an instruction-only generated-tape invariant rather than
+    admitting jump-skipped inline data. Pin unknown opcode, truncated immediate,
+    interior target, and repeated-replay scratch clearing as sticky internal
+    failures after fixup resolution.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
