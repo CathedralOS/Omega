@@ -669,7 +669,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     so unrelated frontend growth cannot force those diagnostics past Beta's
     fixed payload ceiling; the actual lowering probe still compiles the whole
     canonical source.
-  - [ ] Pin D21 with one focused emitted-runtime canary that repeatedly doubles
+  - [x] Pin D21 with one focused emitted-runtime canary that repeatedly doubles
     a valid rope through stored logical lengths, accepts the final representable
     value, and traps on the adjacent concatenation before allocation. Distinguish
     that trap from malformed-descriptor `InternalFailure` and actual allocator
