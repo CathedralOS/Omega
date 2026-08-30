@@ -626,8 +626,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
     semicolon-terminated postfix form remains syntactically neutral until
     resolution classifies an ordinary call or final `never` terminal. No
     byte-rope arena, numeric node reference, parser-time semantic guess, or
-    private arity bound is introduced. Recursive descent itself remains the
-    next implementation milestone.
+    private arity bound is introduced.
+  - [x] Implement complete D17 type and expression recursive descent over that
+    scalar cursor: primitive, named, array, and view types; every primary and
+    postfix form; source-order arbitrary argument lists; unary minus; and all
+    eighteen binary operators with fixed precedence and left association.
+    Positive, array-length, and postfix-decorated `2147483648` uses reject at
+    the literal while the direct unary-minus operand remains admitted. Parser
+    success wrappers retain only the native AST value and are reused across
+    no-op postfix/binary stages; a trivial integer expression authors 112 heap
+    bytes rather than the rejected token-object design's roughly 528. Program,
+    declaration, body, pattern, and control-form parsing remain the next
+    implementation milestone.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
