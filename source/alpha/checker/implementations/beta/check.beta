@@ -1,20 +1,20 @@
-; check.beta — a minimal proof-kernel certificate checker, written in Beta.
+; check.beta - a minimal proof-kernel certificate checker, written in Beta.
 ;
 ; This is the first appearance of the lattice's whole point (proof_kernel.md): a
 ; SMALL, hand-auditable checker that validates evidence. An untrusted, arbitrarily
 ; clever proof-SEARCH engine may produce certificates; this checker has the only
-; authority — a false proposition cannot get past it, however the certificate was
+; authority - a false proposition cannot get past it, however the certificate was
 ; found.
 ;
 ; Full intuitionistic first-order predicate logic with induction (implication,
-; conjunction, disjunction, falsity — so ¬A = A -> ⊥ — equality with the conversion
-; rule, ∀/∃ with capture-avoiding instantiation, induction over Nat/Lists/declared
+; conjunction, disjunction, falsity - so not A = A -> bottom - equality with the conversion
+; rule, forall /exists  with capture-avoiding instantiation, induction over Nat/Lists/declared
 ; types, Leibniz eqelim, named lemmas). By Curry-Howard the checker IS a
 ; simply-typed lambda-calculus type checker with a definitional-equality rule, so
 ; "does this certificate prove this proposition?" = "does this term have this type?".
 ;
 ; CONTROL FLOW is CFG/Omega-shaped: every proc is a set of `state` basic blocks
-; linked by guarded `to … when …` transitions — no if/while. A proc falls into its
+; linked by guarded `to ... when ...` transitions - no if/while. A proc falls into its
 ; first state and into the next unless it transitions or returns; tag dispatch is a
 ; chain of guard-states (branch to the handler on a matching tag, else fall to the
 ; next check), and a loop is a state that transitions back to itself. The many
@@ -34,7 +34,7 @@
 ;                | ( + prop prop ) | ( bot ) | ( = nat nat )
 ;                | ( All prop ) | ( Exists prop ) | ( Pred id nat ) | ( Rel id nat nat )
 ;   term        := z | ( s term ) | ( p term term ) | ( m term term ) | ( v k )
-;                | nil | ( cons term term ) | ( app term term ) | ( len term ) | ( k cid term… )
+;                | nil | ( cons term term ) | ( app term term ) | ( len term ) | ( k cid term... )
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
 ;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
@@ -95,7 +95,7 @@ proc slurp() {
         word[2097144] = 0            ; CUR
         word[2097128] = 8388608      ; APTR = ARENA base (8 MiB; grows up through the 64 MiB image)
         word[2097120] = 0            ; CTXN
-        word[2097112] = 0            ; IDEP — individual-binder depth (∀/∃ binders entered)
+        word[2097112] = 0            ; IDEP - individual-binder depth (forall /exists  binders entered)
         word[2097104] = 0            ; FRAMED
         word[2097096] = 0            ; SOURCE_LIST
         word[2097088] = 0            ; TAPE_LIST
@@ -382,7 +382,7 @@ proc parse_number() {
 }
 
 ; ---- individual terms: Peano z/(s t)/(p a b)/(m a b), de Bruijn (v k), and
-;      Lists nil/(cons h t)/(app l1 l2) — a SECOND inductive type alongside Nat ----
+;      Lists nil/(cons h t)/(app l1 l2) - a SECOND inductive type alongside Nat ----
 ; tags 30 ZERO 31 SUC 32 PLUS 33 MUL 34 IVAR 35 NIL 36 CONS 37 APPEND.
 proc parse_nat() {
     skip_ws()
@@ -429,7 +429,7 @@ proc parse_nat() {
         adv()                    ; ')'
         return alloc(52, a, b)
     }
-    state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) — k-th extra arg in a fun body
+    state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) - k-th extra arg in a fun body
     state do_y { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(56, a, 0) }
     state op_r { to do_r when (op == 'r')  to op_c }      ; (rec i) / (recx i E) in a fun body
     state do_r {
@@ -438,7 +438,7 @@ proc parse_nat() {
         return alloc(54, a, 0)
     }
     state do_rx {                ; (recx i E): recursive call on field i, extra := E (accumulator
-        skip_ws()                ; recursion — still structurally decreasing on field i)
+        skip_ws()                ; recursion - still structurally decreasing on field i)
         a = parse_number()
         b = parse_nat()
         skip_ws()  adv()
@@ -467,7 +467,7 @@ proc parse_nat() {
     state do_plus { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(32, a, b) }
 }
 
-; reduce a Peano term to normal form, fuel-bounded (total — the slow ref route).
+; reduce a Peano term to normal form, fuel-bounded (total - the slow ref route).
 proc normalize(t, fuel) {
     ; Framing constructs already-normal immutable raw subjects before parsing
     ; any certificate node. Preserve every pointer in that closed arena range:
@@ -482,9 +482,9 @@ proc normalize(t, fuel) {
         to t34
     }
     state ret_t { return t }
-    state t34 { to ret_t when (tag == 34)  to t35 }       ; Ivar — free, normal
-    state t35 { to ret_t when (tag == 35)  to t50 }       ; nil — normal
-    state t50 { to ret_t when (tag == 50)  to dispatch }  ; CON(cid) — normal
+    state t34 { to ret_t when (tag == 34)  to t35 }       ; Ivar - free, normal
+    state t35 { to ret_t when (tag == 35)  to t50 }       ; nil - normal
+    state t50 { to ret_t when (tag == 50)  to dispatch }  ; CON(cid) - normal
     state dispatch {
         let a = 0
         let b = 0
@@ -572,7 +572,7 @@ proc normalize(t, fuel) {
         return normalize(a, fuel - 1)            ; keep reducing the rewritten term
     }
     state fapp_stuck { return alloc(52, word[t + 8], normalize(word[t + 16], fuel - 1)) }
-    state t53 { to do_53 when (tag == 53)  return t }     ; FBUNDLE(scrut,extra) — normalize both
+    state t53 { to do_53 when (tag == 53)  return t }     ; FBUNDLE(scrut,extra) - normalize both
     state do_53 {
         a = normalize(word[t + 8], fuel - 1)
         b = normalize(word[t + 16], fuel - 1)
@@ -581,7 +581,7 @@ proc normalize(t, fuel) {
 }
 
 ; one rewrite step of (f fid arg): if arg normalizes to a constructor head with a rule,
-; instantiate that rule's body; else 0 (STUCK — open arg, or no rule). Fuel-bounded via
+; instantiate that rule's body; else 0 (STUCK - open arg, or no rule). Fuel-bounded via
 ; normalize, so a divergent definition simply never reduces (totality is preserved).
 ; FRULE table at 5898240, indexed by (fid*64 + cid).  Supports arity 0 and 1 constructors.
 ; arg is the application's argument bundle: a single term (unary function) or
@@ -606,7 +606,7 @@ proc reduce_fun(fid, arg, fuel) {
         to norm
     }
     state norm { a = normalize(scrut, fuel)  to nullary }
-    state nullary { to do_null when (word[a] == 50)  to applied }    ; CON(cid) — arity 0
+    state nullary { to do_null when (word[a] == 50)  to applied }    ; CON(cid) - arity 0
     state do_null {
         cid = word[a + 8]
         body = word[5898240 + (fid * 64 + cid) * 8]
@@ -615,8 +615,8 @@ proc reduce_fun(fid, arg, fuel) {
     }
     state applied { to do_app when (word[a] == 51)  to stuck }
     state do_app {
-        to unary when (word[word[a + 8]] == 50)    ; APPLY(CON, a0) — constructor arity 1
-        to binary when (word[word[a + 8]] == 51)   ; APPLY(APPLY(CON, a0), a1) — arity 2
+        to unary when (word[word[a + 8]] == 50)    ; APPLY(CON, a0) - constructor arity 1
+        to binary when (word[word[a + 8]] == 51)   ; APPLY(APPLY(CON, a0), a1) - arity 2
         to stuck
     }
     state unary {
@@ -643,7 +643,7 @@ proc reduce_fun(fid, arg, fuel) {
 ; (rec 0)/(rec 1) -> the recursive call on field 0/1 (re-bundling extra if binary); else
 ; structural. extra==0 means a unary function (no 2nd arg, no PAR/bundle in the body).
 proc instantiate(t, fid, flds, extra) {
-    state iv { to do_iv when (word[t] == 34)  to par }     ; IVAR — pattern var
+    state iv { to do_iv when (word[t] == 34)  to par }     ; IVAR - pattern var
     state do_iv {
         to ret_a0 when (word[t + 8] == 0)
         to ret_a1 when (word[t + 8] == 1)
@@ -651,7 +651,7 @@ proc instantiate(t, fid, flds, extra) {
     }
     state ret_a0 { return word[flds + 8] }
     state ret_a1 { return word[flds + 16] }
-    state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) — the extra argument
+    state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) - the extra argument
     state do_par { return extra }
     state rc { to do_rc when (word[t] == 54)  to rx }      ; RECCALL (rec 0)/(rec 1)
     state rx { to do_rx2 when (word[t] == 55)  to fapp }   ; RECX (recx i E)
@@ -681,7 +681,7 @@ proc instantiate(t, fid, flds, extra) {
     state leaf { to ret_t when (word[t] == 30)  to leaf2 }
     state ret_t { return t }
     state leaf2 { to ret_t when (word[t] == 35)  to leaf3 }
-    state leaf3 { to ret_t when (word[t] == 50)  to suc }   ; CON(cid) — leaf
+    state leaf3 { to ret_t when (word[t] == 50)  to suc }   ; CON(cid) - leaf
     state suc { to do_un when (word[t] == 31)  to lenc }
     state do_un { return alloc(31, instantiate(word[t + 8], fid, flds, extra), 0) }
     state lenc { to do_len when (word[t] == 38)  to dflt }
@@ -694,7 +694,7 @@ proc nat_eq(a, b) {
     state tchk { to teq when (word[a] == word[b])  return 0 }
     state teq { to z when (word[a] == 30)  to nilc }
     state z { return 1 }
-    state nilc { to z when (word[a] == 35)  to con }      ; nil — equal (tags match)
+    state nilc { to z when (word[a] == 35)  to con }      ; nil - equal (tags match)
     state con { to concheck when (word[a] == 50)  to fapp }   ; CON: same cid?
     state concheck { to z when (word[a + 8] == word[b + 8])  return 0 }
     state fapp { to fappchk when (word[a] == 52)  to ivar }   ; (f fid arg): same fid + arg?
@@ -706,7 +706,7 @@ proc nat_eq(a, b) {
     state ivcheck { to z when (word[a + 8] == word[b + 8])  return 0 }
     state suc { to child when (word[a] == 31)  to lenc }
     state child { return nat_eq(word[a + 8], word[b + 8]) }
-    state lenc { to child when (word[a] == 38)  to recxq }    ; len — unary
+    state lenc { to child when (word[a] == 38)  to recxq }    ; len - unary
     state recxq { to recxchk when (word[a] == 55)  to both }  ; stuck RECX: index (int) + E (subtree)
     state recxchk {
         to bdiff when (word[a + 8] != word[b + 8])
@@ -731,7 +731,7 @@ proc free_ivt(t, depth) {
     state no { return 0 }
     state nilc { to no when (word[t] == 35)  to con }
     state con { to no when (word[t] == 50)  to fapp }
-    state fapp { to fa when (word[t] == 52)  to suc }    ; (f fid arg) — only arg has vars
+    state fapp { to fa when (word[t] == 52)  to suc }    ; (f fid arg) - only arg has vars
     state fa { return free_ivt(word[t + 16], depth) }
     state suc { to child when (word[t] == 31)  to lenc }
     state child { return free_ivt(word[t + 8], depth) }
@@ -769,8 +769,8 @@ proc free_ivp(p, depth) {
     }
 }
 
-; does a term / prop reference the variable bound EXACTLY `depth` levels out — i.e. the
-; witness variable of an enclosing ∃-elim?  (free_iv* tests index >= depth; this tests
+; does a term / prop reference the variable bound EXACTLY `depth` levels out - i.e. the
+; witness variable of an enclosing exists -elim?  (free_iv* tests index >= depth; this tests
 ; index == depth, tracking binders, so an outer individual is allowed but the witness
 ; is not.)  Used by unpack to admit a conclusion C that mentions outer individuals.
 proc wit_in_term(t, depth) {
@@ -810,9 +810,9 @@ proc wit_in_prop(p, depth) {
         to yes when (wit_in_term(word[p + 8], depth) == 1)
         return wit_in_term(word[p + 16], depth)
     }
-    state t6 { to deeper when (tag == 6)  to t8 }   ; All — the witness is one binder further out
+    state t6 { to deeper when (tag == 6)  to t8 }   ; All - the witness is one binder further out
     state deeper { return wit_in_prop(word[p + 8], depth + 1) }
-    state t8 { to deeper when (tag == 8)  to conn }  ; Exists — likewise
+    state t8 { to deeper when (tag == 8)  to conn }  ; Exists - likewise
     state conn {
         to yes when (wit_in_prop(word[p + 8], depth) == 1)
         return wit_in_prop(word[p + 16], depth)
@@ -889,7 +889,7 @@ proc subst_term_keep(t, s, depth) {
     state iv { to ivcheck when (word[t] == 34)  to z }
     state ivcheck {
         to ret_s when (word[t + 8] == depth)
-        return t                      ; no decrement — the binder remains
+        return t                      ; no decrement - the binder remains
     }
     state ret_s { return s }
     state z { to ret_t when (word[t] == 30)  to nilc }
@@ -1117,7 +1117,7 @@ proc parse_term() {
     state is_pr { to is_pinv when (kc2 == 'r')  to do_pair }    ; prod*inv : ProdIs inversion
     state is_pinv { to do_prodrec when (kc5 == 'r')  to pinv2 }   ; prodrec (kc5 r) vs prod{nil,cons}inv
     state pinv2 { to do_pnilinv when (kc5 == 'n')  to do_pconsinv }
-    state do_prodrec {           ; (prodrec CID motive case) — product elimination: from P on the type's
+    state do_prodrec {           ; (prodrec CID motive case) - product elimination: from P on the type's
         skip_ws()                ; sole constructor conclude forall x. P(x). CID must be (prod CID)-declared.
         x = parse_number()       ; CID (the declared-sole product constructor)
         y = parse_type()         ; motive P(x), eliminated var = Ivar 0
@@ -1138,9 +1138,9 @@ proc parse_term() {
         y = parse_term()
         expect(')')
         to inl when (kc3 == 'l')
-        return alloc(18, x, y)    ; inr: x ∨ (typeof y)
+        return alloc(18, x, y)    ; inr: x or (typeof y)
     }
-    state inl { return alloc(17, x, y) }   ; inl: (typeof y) ∨ x
+    state inl { return alloc(17, x, y) }   ; inl: (typeof y) or x
     state k_g { to do_gen when (kc == 'g')  to k_w }
     state do_gen { x = parse_term()  expect(')')  return alloc(21, x, 0) }
     state k_w { to do_wit when (kc == 'w')  to k_u }
@@ -1298,7 +1298,7 @@ proc infer(term) {
     let t2 = 0
     let t3 = 0
     state d10 { to hyp when (tag == 10)  to d11 }
-    state hyp {                  ; HYP idx — de Bruijn: 0 is the innermost binder
+    state hyp {                  ; HYP idx - de Bruijn: 0 is the innermost binder
         t1 = word[term + 8]      ; idx
         t2 = word[2097120]       ; ctx depth
         to hyp_ok when (t1 < t2)
@@ -1306,7 +1306,7 @@ proc infer(term) {
     }
     state hyp_ok {
         t3 = t2 - 1 - t1                                      ; CTX slot for this hyp
-        ; lift the stored prop from its push-time IDEP to the current IDEP: every ∀/∃
+        ; lift the stored prop from its push-time IDEP to the current IDEP: every forall/exists
         ; binder entered since makes its free individual vars one deeper.
         return shift_prop(word[4194304 + t3 * 8], word[2097112] - word[4718592 + t3 * 8], 0)
     }
@@ -1375,13 +1375,13 @@ proc infer(term) {
         return word[term + 8]
     }
     state d17 { to inl when (tag == 17)  to d18 }
-    state inl {                  ; INL Bty p : (typeof p) ∨ Bty
+    state inl {                  ; INL Bty p : (typeof p) or Bty
         t1 = infer(word[term + 16])
         to reject when (t1 == 0)
         return alloc(4, t1, word[term + 8])
     }
     state d18 { to inr when (tag == 18)  to d19 }
-    state inr {                  ; INR Aty p : Aty ∨ (typeof p)
+    state inr {                  ; INR Aty p : Aty or (typeof p)
         t1 = infer(word[term + 16])
         to reject when (t1 == 0)
         return alloc(4, word[term + 8], t1)
@@ -1437,7 +1437,7 @@ proc infer(term) {
         ; SOUNDNESS GUARD: prodrec proves forall x.P from ONE case, so it is sound only when cid is its
         ; type's SOLE constructor. Unlike REC (locked to two cases, hence used only on 2-constructor types),
         ; one case aimed at a SUM constructor would prove a bogus universal. So cid must be explicitly
-        ; declared a product via (prod cid) — PRODUCTS[cid] == 1 — an auditable, opt-in assertion.
+        ; declared a product via (prod cid) - PRODUCTS[cid] == 1 - an auditable, opt-in assertion.
         to reject when (word[6291456 + word[t1 + 8] * 8] != 1)
         t3 = infer(word[term + 16])                      ; typeof case
         to reject when (t3 == 0)
@@ -1450,11 +1450,11 @@ proc infer(term) {
     state d40 { to use when (tag == 40)  to d21 }
     state use { return word[5242880 + word[term + 8] * 8] }   ; USE N : the lemma's type
     state d21 { to gen when (tag == 21)  to d22 }
-    state gen {                  ; GEN pf : ∀-intro -> All (typeof pf)
+    state gen {                  ; GEN pf : forall -intro -> All (typeof pf)
         ; Enter one individual binder. Hypotheses already in scope are now one binder
         ; deeper; hyp lookup shifts them by the IDEP delta, so the freshly bound variable
-        ; (Iv 0) is mentioned by NO hypothesis — the eigenvariable condition holds
-        ; structurally. (This replaces the old conservative reject that forbade ∀-intro
+        ; (Iv 0) is mentioned by NO hypothesis - the eigenvariable condition holds
+        ; structurally. (This replaces the old conservative reject that forbade forall -intro
         ; whenever any hypothesis mentioned any individual variable.)
         word[2097112] = word[2097112] + 1
         t1 = infer(word[term + 8])
@@ -1463,7 +1463,7 @@ proc infer(term) {
         return alloc(6, t1, 0)
     }
     state d22 { to inst when (tag == 22)  to d23 }
-    state inst {                 ; INST pf t : ∀-elim -> body[t / bound var]
+    state inst {                 ; INST pf t : forall -elim -> body[t / bound var]
         t1 = infer(word[term + 8])
         to reject when (t1 == 0)
         to inst1
@@ -1473,7 +1473,7 @@ proc infer(term) {
         return subst_prop(word[t1 + 8], word[term + 16], 0)
     }
     state d23 { to wit when (tag == 23)  to d24 }
-    state wit {                  ; WIT body t pf : ∃-intro -> Exists body
+    state wit {                  ; WIT body t pf : exists -intro -> Exists body
         t1 = infer(word[word[term + 16] + 16])           ; typeof pf
         to reject when (t1 == 0)
         t2 = subst_prop(word[term + 8], word[word[term + 16] + 8], 0)   ; body[t/x]
@@ -1481,7 +1481,7 @@ proc infer(term) {
         return alloc(8, word[term + 8], 0)
     }
     state d24 { to unpack when (tag == 24)  to d25 }
-    state unpack {               ; UNPACK epf handler : ∃-elim -> C
+    state unpack {               ; UNPACK epf handler : exists -elim -> C
         t1 = infer(word[term + 8])                       ; Exists b
         to reject when (t1 == 0)
         to unpack1
@@ -1496,7 +1496,7 @@ proc infer(term) {
         to reject when (word[t2] != 6)                   ; handler must be a universal
         to reject when (word[word[t2 + 8]] != 1)         ; whose body is an implication
         to reject when (type_eq(word[word[t2 + 8] + 8], word[t1 + 8]) == 0)   ; antecedent == b
-        ; C must not depend on the WITNESS var (the handler's ∀-bound individual = Ivar 0);
+        ; C must not depend on the WITNESS var (the handler's forall -bound individual = Ivar 0);
         ; it MAY mention outer individuals. Then drop that binder, lowering outer vars.
         to reject when (wit_in_prop(word[word[t2 + 8] + 16], 0) == 1)
         return subst_prop(word[word[t2 + 8] + 16], alloc(30, 0, 0), 0)   ; the conclusion C
@@ -1615,7 +1615,7 @@ proc infer(term) {
         return alloc(9, 777, alloc(99, word[word[t1 + 16] + 8], alloc(36, word[term + 8], word[word[t1 + 16] + 16])))
     }
     state d44 { to memcons when (tag == 44)  to d45 }
-    state memcons {              ; MEMCONS pf : from Mem(x, cons(h,t)) infer (x=h) ∨ Mem(x,t)
+    state memcons {              ; MEMCONS pf : from Mem(x, cons(h,t)) infer (x=h) or Mem(x,t)
         t1 = infer(word[term + 8])
         to reject when (t1 == 0)
         to memcons1
@@ -1686,7 +1686,7 @@ proc infer(term) {
     }
     ; ---- list permutation: Perm(L1,L2) is Rel(779, L1, L2), four SOUND introduction rules.
     ; nil: Perm(nil,nil); skip: cons-congruence; swap: adjacent transposition; trans: composition.
-    ; Intro-only — the only closed sources of Rel(779,..) are these, each a true permutation fact,
+    ; Intro-only - the only closed sources of Rel(779,..) are these, each a true permutation fact,
     ; so (as with Mem/ProdIs) no inversion rule is needed and none can be unsoundly assumed.
     state d57 { to permnil when (tag == 57)  to d58 }
     state permnil {              ; PERMNIL : Perm(nil, nil)   [no premise]
@@ -1744,7 +1744,7 @@ proc at_def() {
         to chkf
     }
     state chkf { to setr when (cbyte() == 'f')  to chkp }   ; (fun
-    state chkp { to setr when (cbyte() == 'p')  to done }   ; (prod — the only 'p'-headed leading decl
+    state chkp { to setr when (cbyte() == 'p')  to done }   ; (prod - the only 'p'-headed leading decl
                                                             ; (goal is a prop, never lowercase-'p'-headed)
     state setr { r = 1  to done }
     state done { word[2097144] = save  return r }
@@ -1771,7 +1771,7 @@ proc main() {
         adv()                    ; '('
         skip_ws()
         to kfun when (cbyte() == 'f')     ; (fun FID CID body)
-        to kprod when (cbyte() == 'p')    ; (prod CID) — mark a sole-constructor product
+        to kprod when (cbyte() == 'p')    ; (prod CID) - mark a sole-constructor product
         adv()                    ; 'd'
         kind = cbyte()           ; 'e' = def (lemma) ; 'a' = data (constructor decl)
         skip_ident()             ; rest of "def" / "data"
@@ -1780,7 +1780,7 @@ proc main() {
         to kdata when (kind == 'a')
         to kdef
     }
-    state kfun {                 ; (fun FID CID body) — one rewrite rule of function FID
+    state kfun {                 ; (fun FID CID body) - one rewrite rule of function FID
         to reject when (word[2097064] != 0)
         skip_ident()             ; "fun"
         skip_ws()
@@ -1799,7 +1799,7 @@ proc main() {
         word[fslot] = fbody       ; FRULE[fid][cid] = body
         to defloop
     }
-    state kdata {                ; (data CID ARITY R0 R1) — record a constructor's shape
+    state kdata {                ; (data CID ARITY R0 R1) - record a constructor's shape
         to reject when (word[2097064] != 0)
         to reject when (n < 0)
         to reject when (n >= 64)
@@ -1838,7 +1838,7 @@ proc main() {
         word[6422528 + n * 8] = 1           ; declared exactly once
         to defloop
     }
-    state kprod {                ; (prod CID) — assert CID is its type's SOLE constructor, licensing prodrec
+    state kprod {                ; (prod CID) - assert CID is its type's SOLE constructor, licensing prodrec
         to reject when (word[2097064] != 0)
         skip_ident()             ; "prod"  (cursor is at 'p'; not yet advanced)
         skip_ws()
@@ -1859,7 +1859,7 @@ proc main() {
         word[2097064] = 1
         to do_def
     }
-    state do_def {               ; (def N type proof) — a verified-then-cited lemma
+    state do_def {               ; (def N type proof) - a verified-then-cited lemma
         lt = parse_type()
         lp = parse_term()
         expect(')')

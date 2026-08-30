@@ -43,8 +43,8 @@ certificate remains open under **ALPHA-BETA-COMPOSED-CERTIFICATE** in
 pass-one and pass-two equalities rather than require one compiler-scale
 conversion.
 
-The committed artifact is 26,751 bytes with SHA-256
-`c54307cc855f72d6ab64a320237826fd9eff46307dc817727a3671ded9a747a1`.
+The committed artifact is 27,087 bytes with SHA-256
+`1beacab0688a306159495d80d82f6a4367ff923d12f66911e5d5932c16e1d3d2`.
 The byte comparison, not the convenient digest, governs repository identity.
 
 ## Compiler boundary outcome

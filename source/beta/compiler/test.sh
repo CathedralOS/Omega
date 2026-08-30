@@ -205,6 +205,23 @@ reject() {
   fi
 }
 
+reject_file() {
+  name=$1
+  source_file=$2
+  expected_coordinate=$3
+  set +e
+  "$TMP/compiler" < "$source_file" > "$TMP/$name.out"
+  status=$?
+  set -e
+  if [ "$status" -eq 1 ] && expect_failure "$TMP/$name.out" "$status" \
+      invalid_source 0 0 "$expected_coordinate"; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: invalid source byte did not return canonical Reject at $expected_coordinate (status=$status)" >&2
+    fail=$((fail + 1))
+  fi
+}
+
 incomplete() {
   name=$1
   resource=$2
@@ -354,6 +371,17 @@ accept comments ' ; before
 proc main() { ; body
   return 6 * 7 ; result
 }' 42
+cr_comments=$(printf '; before\rproc main() { ; body\r return 42\r}')
+accept cr_comments "$cr_comments" 42
+unset cr_comments
+printf '; hidden\000\nproc main() { return 0 }\n' > "$TMP/comment-nul.beta"
+reject_file comment_nul "$TMP/comment-nul.beta" 8
+printf 'proc\013main() { return 0 }\n' > "$TMP/vertical-tab.beta"
+reject_file vertical_tab "$TMP/vertical-tab.beta" 4
+printf '; hidden\177\nproc main() { return 0 }\n' > "$TMP/comment-del.beta"
+reject_file comment_del "$TMP/comment-del.beta" 8
+printf '; hidden\303\251\nproc main() { return 0 }\n' > "$TMP/comment-high.beta"
+reject_file comment_high "$TMP/comment-high.beta" 8
 accept locals 'proc main() { let a = 6 let b = 7 return a * b }' 42
 accept assignment 'proc main() { let x = 10 x = x + 32 return x }' 42
 accept forward_call 'proc main() { return double(21) } proc double(x) { return x + x }' 42
@@ -694,7 +722,7 @@ limit_source="$TMP/source-limit.beta"
 printf '%s' 'proc main() { return 42 }' > "$limit_source"
 used=$(wc -c < "$limit_source" | tr -d ' ')
 remaining=$((1048576 - used))
-dd if=/dev/zero bs="$remaining" count=1 2>/dev/null >> "$limit_source"
+dd if=/dev/zero bs="$remaining" count=1 2>/dev/null | tr '\000' ' ' >> "$limit_source"
 if "$TMP/compiler" < "$limit_source" > "$TMP/source-limit.tape" &&
    cmp -s "$TMP/source-limit.tape" "$TMP/literal.tape"; then
   pass=$((pass + 1))
@@ -702,7 +730,7 @@ else
   echo "FAIL source_limit: exact 1 MiB source was not accepted as the unchanged program" >&2
   fail=$((fail + 1))
 fi
-printf '\000' >> "$limit_source"
+printf ' ' >> "$limit_source"
 set +e
 "$TMP/compiler" < "$limit_source" > "$TMP/source-over.out"
 status=$?
