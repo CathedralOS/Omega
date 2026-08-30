@@ -337,7 +337,7 @@ verdict, or partial artifact.
 
 A Gamma compiler application publishes a typed `main` under D19's sealed
 application-profile selection. The Delta compiler returns `Complete(Bytes)`,
-`Reject(DeltaRejectReason, source_offset)`, or D31's two exact
+`Reject(DeltaRejectReason, source_offset)`, or D31/D34's two
 application-static-storage refusals. The accepted Delta contract owns the
 source-declared closed reason sum, while the selected profile owns its explicit
 constructor-to-code table; declaration order is not a wire code. The generated
@@ -394,7 +394,7 @@ not a language rejection or limit.
 
 The Gamma-written compiler exposes D19's source-owned pure
 `main : Bytes -> DeltaCompileOutcome`. That sum carries success, typed Delta
-rejection, and D31's two selected-profile static-storage refusals. The sealed
+rejection, and D31/D34's two selected-profile static-storage refusals. The sealed
 `DeltaCompilerV1` selection validates the exact nominal schema and complete
 reason-code bijection before its adapter alone owns sealed input, the four
 compiler halt tags, `DCOUT` framing, and outer resource/internal failures. The
@@ -500,7 +500,7 @@ exact Gamma schema:
 (def main ((source Bytes)) DeltaCompileOutcome ...)
 ```
 
-The rejection `Int` is the exact source byte offset. D31's storage cases carry
+The rejection `Int` is the exact source byte offset. D31/D34's storage cases carry
 `(limit, requested, source_offset)` and `(limit, requested)` respectively and
 are the sole source-authored path to outer `Incomplete`.
 `DeltaCompilerV1` generates D17's `DCOUT` adapter: `Complete` publishes the
@@ -1070,9 +1070,10 @@ environment rows, 65,536 coverage rows, 114,294,752 syntax-arena bytes, 1,024
 parse levels, 65,535 live local slots, 65,536 labels, 116,508 fixups, and
 1,048,572 payload bytes. `DCOUT` retains D17 rejection codes 1 through 26
 unchanged and distinguishes its 4-MiB input, 15-MiB stack, 112-MiB heap,
-1,048,572-byte output, and D31 application-static-storage resources. Limit and
-requested fields carry the exact selected values; changing a producer layout
-does not silently renumber the stable resource classes.
+1,048,572-byte output, and D31/D34 application-static-storage resources. Limit
+and requested fields carry exact selected values except that D34 explicitly
+defines the storage requested amount as a bounded canonical witness. Changing
+a producer layout does not silently renumber the stable resource classes.
 
 `ConformanceBytesV1` is a generated-program observation rather than a compiler
 boundary. It publishes stdout only after the complete returned `Bytes` passes
@@ -1087,7 +1088,7 @@ as a declared failure. Divergence has no terminal observation. The temporary
 interpreted only by its own harness and grant no generated-program authority.
 
 `DeltaCompilerV1` translates generated-runtime conditions into `DCOUT`: input,
-stack, heap, output, and a validated D31 storage refusal become Incomplete; a
+stack, heap, output, and a validated D31/D34 storage refusal become Incomplete; a
 Gamma trap, memory-containment violation, malformed return or storage payload,
 invalid rejection offset, replay disagreement, or adapter contradiction becomes
 InternalFailure. A returned `Complete` publishes only the fully preflighted raw
@@ -1141,9 +1142,9 @@ selected static-storage extent produces
 `Incomplete(ApplicationStaticStorageBytes, limit, requested)` at that array's
 length literal. If individually fitting roots, repeated instances, or several
 fields exceed the extent only in aggregate, the same resource uses coordinate
-space `none`. The aggregate requested amount is the exact canonical complete
-demand rather than a traversal prefix, and both forms require
-`requested > limit`.
+space `none`. D34 fixes deterministic selection among excessive arrays and the
+bounded canonical meaning of `requested`; no traversal prefix defines either
+form, and both require `requested > limit`.
 
 `DeltaCompileOutcome` therefore adds the exact source-owned constructors
 `StorageIncompleteAt(limit, requested, source_offset)` and
@@ -1265,6 +1266,48 @@ coordinates. The completed compiler retains all schema `(reason, coordinate)`
 candidates and applies the ordering above. A Boolean validator, one shared
 `FAIL_OFF`, adapter-emission order, or first encountered row cannot define the
 public wire result.
+
+## D34 — Delta storage refusal uses a bounded canonical witness
+
+Delta array and composition validity remains independent of an application
+profile. A valid reachable static-storage demand may exceed Gamma's signed
+64-bit `Int` and DCOUT's fixed scalar, so D31's earlier universal-exactness
+wording is narrowed rather than imposing a target-dependent Delta type limit.
+The selected application-static-storage limit must be in
+`0..INT64_MAX-1`. For this resource alone, `requested` is
+`min(exact_demand, INT64_MAX)`: exact when the complete mathematical demand is
+representable as nonnegative Gamma `Int`, and the canonical exceeded-demand
+witness `INT64_MAX` otherwise. Exact `INT64_MAX` and larger demands are
+observationally equivalent because both exceed every admissible limit and
+produce the same admission, coordinate, and no-publication result.
+
+Storage calculation uses the private closed domain
+`Exact(nonnegative Int) | Overflowed`. Before adding `a + b`, the compiler
+tests `a > INT64_MAX - b`. Before multiplying `a * b`, it handles either zero
+factor as exact zero and then tests `a > INT64_MAX / b`; only a passing pair is
+multiplied. The zero guard is mandatory before division because zero-field
+records can contribute zero-sized components. Addition involving `Overflowed`,
+and multiplication involving it with no exact-zero factor, remains
+`Overflowed`; a known zero factor still produces exact zero. The calculation
+never executes a trapping Gamma operation and never turns capacity analysis
+into `InternalFailure`.
+
+Attribution exists exactly when one reachable expanded array occurrence alone
+exceeds the selected limit. Among nested excessive occurrences the outermost
+one wins; among disjoint candidates the smallest packed Delta-source
+coordinate wins. The result anchors at that occurrence's own length literal,
+not at a private arithmetic crossing. Record-field composition, sum layout,
+repeated roots, and cross-declaration totals that exceed only through
+composition are aggregate and use coordinate space `none`.
+
+D34 changes no source-owned outcome constructor, DCOUT resource code, 40-byte
+frame field, or frame version. Bytes 10 and 11 remain zero-reserved. The
+adapter validates the exact selected limit, `requested > limit`, and the
+coordinate shape; compiler correctness establishes the canonical witness.
+Every refusal remains outer `Incomplete` and publishes no tape prefix. A
+canonical arbitrary-precision tail or distinct overflow code requires a
+future version only if an actual consumer needs to distinguish exact
+`INT64_MAX` from a larger demand.
 
 ## Dependency order
 

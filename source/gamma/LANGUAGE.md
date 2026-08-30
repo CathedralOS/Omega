@@ -217,7 +217,7 @@ The two profiles are:
 
 The `Int` in `Reject` is the source byte offset. The storage-refusal payloads
 are respectively `(limit, requested, source_offset)` and `(limit, requested)`;
-they report only D31's selected application-static-storage capacity. D17 and
+they report only D31/D34's selected application-static-storage capacity. D17 and
 `source/delta/LANGUAGE.md` own the source-declared closed
 `DeltaRejectReason` and `DeltaCompileOutcome` sums. `Int` and `Bytes` remain
 Gamma's only built-in types; the profile injects no hidden nominal declaration.
@@ -244,8 +244,9 @@ as follows:
   `0 <= offset <= input length`, writes the accepted-edge diagnostic frame, and
   halts 1.
 - `StorageIncompleteAt(limit, requested, offset)` validates the selected
-  application-static-storage limit, `requested > limit`, and an in-range source
-  offset, writes `DCOUT::Incomplete(ApplicationStaticStorageBytes)` in
+  application-static-storage limit in `0..INT64_MAX-1`, `requested > limit`,
+  and an in-range source offset, writes
+  `DCOUT::Incomplete(ApplicationStaticStorageBytes)` in
   coordinate space 1, and halts 2. Any failed payload check is
   `InternalFailure(InvalidReturnedOutcome)`.
 - `StorageIncompleteTotal(limit, requested)` performs the same limit checks,
@@ -257,7 +258,10 @@ as follows:
 
 The two storage constructors are the sole source-authored path to
 `Incomplete`; input, stack, heap, output, and every `InternalFailure` remain
-adapter-owned. No failure path publishes partial artifact bytes.
+adapter-owned. For these constructors only, D34 defines `requested` as
+`min(exact_demand, INT64_MAX)`: exact while representable, otherwise the
+canonical exceeded-demand witness. The V1 frame and its zero-reserved bytes do
+not change. No failure path publishes partial artifact bytes.
 
 ### Conformance observation profile
 

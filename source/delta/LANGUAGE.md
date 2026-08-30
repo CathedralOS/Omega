@@ -516,17 +516,41 @@ storage. Exhausting any execution-profile or private budget yields outer
 detected compiler contradiction yields outer `InternalFailure`. Neither is a
 Delta rejection, trap, divergence verdict, or partial successful tape.
 
-D31 separates valid fixed storage from one selected realization. After
+D31 and D34 separate valid fixed storage from one selected realization. After
 `CheckDelta` succeeds, the compiler expands only the storage roots actually
 reachable in the selected application. An unused large type consumes no
 application storage. If one reachable expanded array occurrence alone exceeds
 the selected static-storage extent, the compiler reports
 `ApplicationStaticStorageBytes` with that length literal's Delta-source
-coordinate. If individually fitting roots, repeated instances, or several
-fields exceed the extent only in aggregate, it reports the same resource with
-coordinate space `none`. The requested amount is the exact canonical complete
-storage demand, never the traversal prefix that happened to cross the limit.
-Both forms require `requested > limit` and publish no tape.
+coordinate. Among nested individually excessive occurrences the outermost
+occurrence wins; among disjoint candidates the smallest packed source
+coordinate wins. The result remains anchored at that winning occurrence's own
+length literal, never at the multiplication that happened to cross a private
+accumulator bound. Record-field composition, sum layout, repeated roots, and
+cross-declaration totals that exceed only through composition report the same
+resource with coordinate space `none`.
+
+The selected application-static-storage limit must lie below `INT64_MAX`.
+For this resource, `requested` is the canonical exceeded-demand witness
+`min(exact_demand, INT64_MAX)`: it is exact when the complete mathematical
+demand fits nonnegative Gamma `Int`, and is `INT64_MAX` for every larger
+demand. Exact `INT64_MAX` and a larger demand are intentionally
+observationally equivalent because both exceed every admissible selected
+limit and produce the same coordinate and no-publication result. Thus both
+attributed and aggregate forms require `requested > limit`, but D34 does not
+claim that every refusal carries the arbitrary-precision total.
+
+The Gamma implementation computes in the closed private domain
+`Exact(nonnegative Int) | Overflowed`. Before adding `a + b`, it tests
+`a > INT64_MAX - b`. Before multiplying `a * b`, it handles either zero factor
+as exact zero, then tests `a > INT64_MAX / b` before executing the
+multiplication. The zero guard precedes division and is semantic: zero-field
+records can contribute zero-sized components, and a division-by-zero trap
+would misclassify valid capacity analysis as `InternalFailure`. Addition with
+`Overflowed`, and multiplication with `Overflowed` and no exact-zero factor,
+remain `Overflowed`; a known zero factor still produces exact zero. Traversal
+prefixes, trapping arithmetic, and undocumented private saturation never
+define the public outcome.
 
 Delta v1 imposes no small semantic maximum such as 128 declarations, 64
 locals, four parameters, three case fields, or 1,024 states. A compiler may
@@ -552,7 +576,7 @@ The Gamma-written Delta compiler exposes pure:
 selected application profile, not Delta rejections or program results. The
 former requires an in-range source offset and maps to coordinate space 1; the
 latter maps to coordinate space 0. The adapter validates the exact selected
-limit and `requested > limit`; malformed returned values are
+limit in `0..INT64_MAX-1` and `requested > limit`; malformed returned values are
 `InternalFailure(InvalidReturnedOutcome)`. The sealed Gamma compilation request selects D19's
 `DeltaCompilerV1`; source names alone select no boundary. Before emission, the
 Gamma compiler requires the exact displayed source-owned nominal schema and the
@@ -590,9 +614,12 @@ in the Gamma-compiler artifact rather than a host runtime input. A returned
 offset outside `0..input length`, a malformed private value, or an authored
 Gamma trap is an adapter/internal contradiction, never a fabricated Delta
 rejection. Input, stack, heap, and output exhaustion remain `Incomplete` with
-their exact limit and requested extent. Application-static-storage refusal is
-the only `Incomplete` class ordinary Gamma `main` may deliberately return;
-adapter-private resources cannot be forged through the source outcome.
+their exact limit and requested extent. D34 gives application-static-storage
+`requested` its bounded-witness meaning without changing the DCOUT V1 frame,
+resource code, outcome constructors, or zero-reserved bytes. Application-
+static-storage refusal is the only `Incomplete` class ordinary Gamma `main`
+may deliberately return; adapter-private resources cannot be forged through
+the source outcome.
 
 The required compiler-correctness relation is:
 

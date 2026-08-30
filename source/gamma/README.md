@@ -23,7 +23,7 @@ language conformance; `DeltaCompilerV1` selects the Gamma-written Delta
 compiler's source-owned `main : Bytes -> DeltaCompileOutcome` and its checked
 `DCOUT` schema. A generated Alpha adapter alone reads sealed input, writes the
 selected profile's exact success output, owns private resource failures, and
-validates D31's sole source-authored application-static-storage refusal.
+validates D31/D34's sole source-authored application-static-storage refusal.
 D20 fixes deterministic source identity: grammar position selects separate
 type, constructor, function, and local-value namespaces; globals are unique
 within their namespace; and an active local binding may not be shadowed.
@@ -39,8 +39,8 @@ arbitrary-arity/proper-tail-call frame and algebraic-value ABIs, profile-neutral
 whole-function label/body emission, and a dormant profile-parameterized
 sealed-input reader. D19 fixes its two possible application contracts and D20's
 resolver is implemented. The compiler now validates both exact D19 entry
-schemas, D31's attributed/aggregate storage outcomes, and the declaration-
-order-independent 26-code Delta rejection bijection. D30 fixes `GCREQ`, both
+schemas, D31/D34's attributed/aggregate bounded-witness storage outcomes, and
+the declaration-order-independent 26-code Delta rejection bijection. D30 fixes `GCREQ`, both
 profile IDs and maxima, the generated-runtime observation block, and the exact
 `GCOUT`/`DCOUT` identities and tables. D33 fixes the bounded request order,
 schema-category priority, absence coordinates, and per-profile code legality.
