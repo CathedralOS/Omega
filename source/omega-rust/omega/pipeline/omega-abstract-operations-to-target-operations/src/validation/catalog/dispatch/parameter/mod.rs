@@ -1,5 +1,5 @@
 //! Parameter-family adapters, grouped by the value-producing semantic shape.
 
-pub(super) mod comparison;
-pub(super) mod direct;
-pub(super) mod unary;
+pub(in crate::validation::catalog) mod comparison;
+pub(in crate::validation::catalog) mod direct;
+pub(in crate::validation::catalog) mod unary;

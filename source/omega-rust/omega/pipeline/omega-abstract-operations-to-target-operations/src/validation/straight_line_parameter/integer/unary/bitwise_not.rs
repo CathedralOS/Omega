@@ -21,7 +21,7 @@ pub(crate) fn validate(
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationError,
 > {
-    let reconstructed = super::reconstruct_bitwise_not(source, expected_target, target)?;
+    let reconstructed = super::replay::reconstruct_bitwise_not(source, expected_target, target)?;
     let TargetOperation::ReturnIntegerExpression {
         psi_edge,
         source_value,

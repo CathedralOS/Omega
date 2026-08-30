@@ -9,6 +9,7 @@ pub use error::{
     StraightLineBooleanParameterTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerEqualParametersTranslationError,
+    StraightLineIntegerExactCastParameterTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerLessOrEqualParametersTranslationError,
     StraightLineIntegerLessThanParametersTranslationError,
@@ -24,6 +25,7 @@ pub use receipt::{
     StraightLineBooleanParameterTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,
     StraightLineIntegerEqualParametersTranslationReceipt,
+    StraightLineIntegerExactCastParameterTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerLessOrEqualParametersTranslationReceipt,
     StraightLineIntegerLessThanParametersTranslationReceipt,
@@ -46,4 +48,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerLessThanParameters,
     StraightLineIntegerLessOrEqualParameters,
     StraightLineIntegerWidenParameter,
+    StraightLineIntegerExactCastParameter,
 }

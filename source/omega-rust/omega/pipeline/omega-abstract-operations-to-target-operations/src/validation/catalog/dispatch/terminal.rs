@@ -6,6 +6,15 @@ use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_scalar_crash,
 };
+use super::super::model::TranslationFamilyDescriptor;
+use crate::AbstractToTargetTranslationFamily;
+
+pub(in crate::validation::catalog) const SCALAR_CRASH: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineScalarCrash,
+        straight_line_scalar_crash::is_candidate,
+        straight_line_scalar_crash,
+    );
 
 pub(super) fn straight_line_scalar_crash(
     source: &AbstractFunction,

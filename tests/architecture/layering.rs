@@ -2925,6 +2925,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::integer::unary::bitwise_not::validate",
         "straight_line_parameter::integer::unary::widen::is_candidate",
         "straight_line_parameter::integer::unary::widen::validate",
+        "straight_line_parameter::integer::unary::exact_cast::is_candidate",
+        "straight_line_parameter::integer::unary::exact_cast::validate",
         "source::reconstruct_direct",
         "source::reconstruct_boolean_not",
         "source::reconstruct_boolean_equal",
@@ -2933,6 +2935,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source::integer::comparison::reconstruct_less_or_equal",
         "source::integer::unary::reconstruct_bitwise_not",
         "source::integer::unary::reconstruct_widen",
+        "source::integer::unary::reconstruct_exact_cast",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -3078,6 +3081,20 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "integer-widen source replay must visibly own {required}",
         );
     }
+    let integer_exact_cast_source =
+        std::fs::read_to_string(parameter_validation.join("source/integer/unary/exact_cast.rs"))
+            .expect("read integer exact-cast parameter source replay");
+    for required in [
+        "AbstractOperation::IntegerExactCast",
+        "source_type.can_exact_cast_to(*target_type)",
+        "source_type.can_widen_to(*target_type)",
+        "AbstractOperation::Return",
+    ] {
+        assert!(
+            integer_exact_cast_source.contains(required),
+            "integer exact-cast source replay must visibly own {required}",
+        );
+    }
     let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
         .expect("read common parameter source envelope");
     for required in [
@@ -3097,6 +3114,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "AbstractOperation::IntegerLessOrEqual",
         "AbstractOperation::IntegerBitwiseNot",
         "AbstractOperation::IntegerWiden",
+        "AbstractOperation::IntegerExactCast",
     ] {
         assert!(
             !source_envelope.contains(forbidden),
@@ -3145,6 +3163,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source/integer/less_than.rs",
         "source/integer/less_or_equal.rs",
         "source/integer/bitwise_not.rs",
+        "model/unary.rs",
     ] {
         assert!(
             !parameter_validation.join(retired).exists(),
@@ -3156,8 +3175,20 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "the retired parameter error catchall must not return",
     );
     assert!(
+        !stage
+            .join("validation/model/error/parameter/unary.rs")
+            .exists(),
+        "the retired unary parameter error catchall must not return",
+    );
+    assert!(
         !stage.join("validation/model/receipt/parameter.rs").exists(),
         "the retired parameter receipt catchall must not return",
+    );
+    assert!(
+        !stage
+            .join("validation/model/receipt/parameter/unary.rs")
+            .exists(),
+        "the retired unary parameter receipt catchall must not return",
     );
     assert!(
         !stage

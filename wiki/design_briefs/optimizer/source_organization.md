@@ -283,12 +283,14 @@ The governed parameter coordinator visibly joins the small `source/mod.rs`
 cross-result grammar map and shared `envelope.rs` to whole-roster `abi.rs`
 calling-plan replay. Integer grammar descends through its own small
 `source/integer/mod.rs`, which owns typed-parameter lookup before named
-`unary/{bitwise_not,widen}` or `comparison/{equal,less_than,less_or_equal}`
+`unary/{bitwise_not,widen,exact_cast}` or
+`comparison/{equal,less_than,less_or_equal}`
 leaves. Target replay mirrors that semantic taxonomy; shared comparison ABI and
 provenance mechanics descend one more rung into `comparison/replay.rs`.
-Boolean-not, integer bitwise-not, and integer-widen preserve their operands;
-integer-widen additionally retains distinct source and target types and admits
-only the exact native widening relation. Each binary
+Boolean-not, integer bitwise-not, integer-widen, and integer exact-cast preserve
+their operands; integer-widen retains distinct source and target types and
+admits only the exact native widening relation, while exact-cast also retains
+the source proof obligation and excludes identity and widening relations. Each binary
 family preserves both ordered operands, including identity, while integer
 families also retain the exact common integer type alongside produced value,
 operation, and edge custody. Immutable
@@ -300,7 +302,10 @@ gate prevents validation from importing lowering helpers, and each complete
 function-roster row carries either `Uncovered` or exactly one typed validated
 family receipt. The architecture gate forbids restoration of the old flat,
 mixed `derived`, parameter-model, parameter-error/receipt, and catalog-adapter
-catchalls.
+catchalls. Test construction follows the same navigation contract: parameter
+fixtures and Terminal translation fixtures have small entrances over
+`direct`, `unary`, and `comparison` leaves, with immediate and terminal leaves
+where applicable. Adding a family must not enlarge a mixed fixture switch.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function

@@ -22,7 +22,7 @@ pub(super) use omega_target_operations::{
 };
 pub(super) use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
+    ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub(super) use psi_terminal::{
     BoundaryMachineDeclaration, SemanticFingerprint, StructuralAccess, StructuralArgument,
@@ -44,6 +44,7 @@ mod translation_validation_boolean_parameter;
 mod translation_validation_crash;
 mod translation_validation_integer_bitwise_not_parameter;
 mod translation_validation_integer_equal_parameters;
+mod translation_validation_integer_exact_cast_parameter;
 mod translation_validation_integer_less_or_equal_parameters;
 mod translation_validation_integer_less_than_parameters;
 mod translation_validation_integer_parameter;

@@ -16,18 +16,19 @@ use super::{
 use model::TranslationFamilyDescriptor;
 
 const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
-    dispatch::STRAIGHT_LINE_INTEGER_IMMEDIATE,
-    dispatch::STRAIGHT_LINE_BOOLEAN_IMMEDIATE,
-    dispatch::STRAIGHT_LINE_SCALAR_CRASH,
-    dispatch::STRAIGHT_LINE_INTEGER_PARAMETER,
-    dispatch::STRAIGHT_LINE_BOOLEAN_PARAMETER,
-    dispatch::STRAIGHT_LINE_BOOLEAN_NOT_PARAMETER,
-    dispatch::STRAIGHT_LINE_BOOLEAN_EQUAL_PARAMETERS,
-    dispatch::STRAIGHT_LINE_INTEGER_EQUAL_PARAMETERS,
-    dispatch::STRAIGHT_LINE_INTEGER_LESS_THAN_PARAMETERS,
-    dispatch::STRAIGHT_LINE_INTEGER_LESS_OR_EQUAL_PARAMETERS,
-    dispatch::STRAIGHT_LINE_INTEGER_BITWISE_NOT_PARAMETER,
-    dispatch::STRAIGHT_LINE_INTEGER_WIDEN_PARAMETER,
+    dispatch::immediate::INTEGER,
+    dispatch::immediate::BOOLEAN,
+    dispatch::terminal::SCALAR_CRASH,
+    dispatch::parameter::direct::INTEGER,
+    dispatch::parameter::direct::BOOLEAN,
+    dispatch::parameter::unary::BOOLEAN_NOT,
+    dispatch::parameter::comparison::BOOLEAN_EQUAL,
+    dispatch::parameter::comparison::INTEGER_EQUAL,
+    dispatch::parameter::comparison::INTEGER_LESS_THAN,
+    dispatch::parameter::comparison::INTEGER_LESS_OR_EQUAL,
+    dispatch::parameter::unary::INTEGER_BITWISE_NOT,
+    dispatch::parameter::unary::INTEGER_WIDEN,
+    dispatch::parameter::unary::INTEGER_EXACT_CAST,
 ];
 
 pub(super) fn validate_function(
