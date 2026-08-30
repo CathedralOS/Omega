@@ -704,6 +704,55 @@ const TWO_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const THREE_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Message {
+        active: bool;
+        case Empty;
+        case Data(value: i32);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Inner { message: Message; }
+    InnerEquatable: Inner satisfies Equatable;
+
+    data Middle { inner: Inner; }
+    MiddleEquatable: Middle satisfies Equatable;
+
+    data Envelope { middle: Middle; }
+    EnvelopeEquatable: Envelope satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Envelope, right: Envelope)
+    crashes Abort
+        left == right
+    {}
+
+    machine Helper::different(left: Envelope, right: Envelope)
+    crashes Abort
+        left != right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Envelope, right: Envelope)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data Different {}
+    machine Different::enter(left: Envelope, right: Envelope)
+    crashes Abort
+        left != right
+    {
+        Helper::different(left, right);
+    }
+"#;
+
 const MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 3] = [
     r#"
         trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
@@ -731,7 +780,7 @@ const MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 3] = [
     "#,
 ];
 
-const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 4] = [
+const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 6] = [
     r#"
         trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
         data Message { active: bool; case Empty; case Data(value: i32); }
@@ -742,8 +791,10 @@ const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 4] = [
         MiddleEquatable: Middle satisfies Equatable;
         data Envelope { middle: Middle; }
         EnvelopeEquatable: Envelope satisfies Equatable;
+        data Exterior { envelope: Envelope; }
+        ExteriorEquatable: Exterior satisfies Equatable;
         data Root {}
-        machine Root::enter(left: Envelope, right: Envelope)
+        machine Root::enter(left: Exterior, right: Exterior)
         crashes Abort left == right {}
     "#,
     r#"
@@ -773,6 +824,26 @@ const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 4] = [
         data Message { active: bool; case Empty; case Data(value: i32); }
         MessageEquatable: Message satisfies Equatable;
         data Outer { active: bool; case Empty; case Nested(message: Message); }
+        OuterEquatable: Outer satisfies Equatable;
+        data Root {}
+        machine Root::enter(left: Outer, right: Outer)
+        crashes Abort left == right {}
+    "#,
+    r#"
+        trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        data Message { active: bool; case Empty; case Data(value: i32); }
+        MessageEquatable: Message satisfies Equatable;
+        data Outer { case Empty; case Nested(message: Message); }
+        OuterEquatable: Outer satisfies Equatable;
+        data Root {}
+        machine Root::enter(left: Outer, right: Outer)
+        crashes Abort left == right {}
+    "#,
+    r#"
+        trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        data Message { active: bool; case Empty; case Data(value: i32); }
+        MessageEquatable: Message satisfies Equatable;
+        data Outer { message: Message; case Empty; case Value(value: i32); }
         OuterEquatable: Outer satisfies Equatable;
         data Root {}
         machine Root::enter(left: Outer, right: Outer)
@@ -5456,6 +5527,309 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
         ),
         "unexpected inner-field drift result: {inner_result:?}"
     );
+}
+
+#[test]
+fn three_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
+    fn collect_scalar_paths(
+        term: &ScalarTerm,
+        boolean: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        integer: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) {
+        match term {
+            ScalarTerm::BooleanField { root, path } => boolean.push((*root, path.clone())),
+            ScalarTerm::IntegerField { root, path, .. } => integer.push((*root, path.clone())),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. } => {
+                collect_scalar_paths(left, boolean, integer);
+                collect_scalar_paths(right, boolean, integer);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect(
+        proposition: &Proposition,
+        memberships: &mut Vec<(
+            psi_core::PlaceId,
+            Vec<CanonicalStructuralPathSegment>,
+            psi_core::StructuralCaseId,
+        )>,
+        boolean: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        integer: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) {
+        match proposition {
+            Proposition::StructuralCaseMembership { subject, case } => {
+                memberships.push((subject.root(), subject.path().to_vec(), *case));
+            }
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                collect_scalar_paths(left, boolean, integer);
+                collect_scalar_paths(right, boolean, integer);
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                for child in children {
+                    collect(child, memberships, boolean, integer);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect(premise, memberships, boolean, integer);
+                collect(conclusion, memberships, boolean, integer);
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
+            | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::ContentConservation(_) => {}
+        }
+    }
+
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    let tokens = Lexer::new(THREE_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let equal = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("three-field nested mixed equality lowers through the whole-root call");
+    let different = psi_checked_trees_to_terminal::lower_machine(&checked, "Different::enter")
+        .expect("three-field nested mixed inequality lowers through the whole-root call");
+
+    for (lowered, is_different) in [(&equal, false), (&different, true)] {
+        let machine = &lowered.semantic_module.machines[0];
+        let mut structural_type = machine.structural_parameters[0].structural_type;
+        let mut mixed_prefix = Vec::new();
+        for identity in ["middle", "inner", "message"] {
+            let declaration = lowered
+                .semantic_module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+                .expect("enclosing structural type");
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                panic!("every enclosing type remains a record")
+            };
+            let field = fields
+                .iter()
+                .find(|field| field.identity == identity)
+                .expect("exact enclosing field");
+            mixed_prefix.push(CanonicalStructuralPathSegment::Field(field.id));
+            let StructuralFieldType::Structural(next) = field.field_type else {
+                panic!("enclosing field retains its structural type")
+            };
+            structural_type = next;
+        }
+        let message = lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .expect("Message structural type");
+        let StructuralTypeShape::Mixed { fields, cases } = &message.shape else {
+            panic!("Message retains its mixed shape")
+        };
+        let active = fields
+            .iter()
+            .find(|field| field.identity == "active")
+            .expect("message active field");
+        let data = cases
+            .iter()
+            .find(|case| case.identity == "Data")
+            .expect("Data case");
+        let value = data
+            .fields
+            .iter()
+            .find(|field| field.identity == "value")
+            .expect("Data value field");
+        let [CrashRouteGuard::Predicate(route)] =
+            machine.contract.crash_routes[0].alternatives.as_slice()
+        else {
+            panic!("three-field nested mixed equality publishes one predicate")
+        };
+        let equality = if is_different {
+            let Proposition::Implication {
+                premise,
+                conclusion,
+            } = route.proposition()
+            else {
+                panic!("three-field nested mixed inequality is an implication")
+            };
+            assert!(matches!(conclusion.as_ref(), Proposition::Falsehood));
+            premise.as_ref()
+        } else {
+            route.proposition()
+        };
+        let Proposition::Conjunction(canonical) = equality else {
+            panic!("three-field nested mixed equality is one canonical conjunction")
+        };
+        assert_eq!(canonical.len(), 2);
+        assert!(matches!(
+            canonical.last(),
+            Some(Proposition::Disjunction(_))
+        ));
+
+        let mut memberships = Vec::new();
+        let mut boolean = Vec::new();
+        let mut integer = Vec::new();
+        collect(
+            route.proposition(),
+            &mut memberships,
+            &mut boolean,
+            &mut integer,
+        );
+        let parameter_places = machine
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<Vec<_>>();
+        assert_eq!(parameter_places.len(), 2);
+        assert_ne!(parameter_places[0], parameter_places[1]);
+        assert_eq!(memberships.len(), 4);
+        assert!(memberships.iter().all(|(_, path, case)| {
+            path == &mixed_prefix && cases.iter().any(|candidate| candidate.id == *case)
+        }));
+        let mut active_path = mixed_prefix.clone();
+        active_path.push(CanonicalStructuralPathSegment::Field(active.id));
+        assert_eq!(boolean.len(), 2);
+        assert!(boolean.iter().all(|(_, path)| path == &active_path));
+        let mut value_path = mixed_prefix.clone();
+        value_path.push(CanonicalStructuralPathSegment::Case(data.id));
+        value_path.push(CanonicalStructuralPathSegment::Field(value.id));
+        assert_eq!(integer.len(), 2);
+        assert!(integer.iter().all(|(_, path)| path == &value_path));
+        for place in parameter_places {
+            assert_eq!(
+                memberships
+                    .iter()
+                    .filter(|(root, _, _)| *root == place)
+                    .count(),
+                2
+            );
+            assert_eq!(boolean.iter().filter(|(root, _)| *root == place).count(), 1);
+            assert_eq!(integer.iter().filter(|(root, _)| *root == place).count(), 1);
+        }
+
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &machine.blocks[0].operations[0].kind
+        else {
+            panic!("three-field nested mixed caller emits one Unit call")
+        };
+        assert_eq!(crash_continuations, &machine.contract.crash_routes);
+
+        let verified = psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("verifier replays every three-field-prefixed mixed path");
+        let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("three-field nested mixed equality has fixed fuel");
+        validate_fixed_entry_fuel(&verified, &fixed)
+            .expect("three-field nested mixed fixed fuel recomputes");
+        let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+        assert_eq!(
+            decode_module(&semantics),
+            Ok(lowered.semantic_module.clone())
+        );
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+        assert_eq!(
+            decode_proof_bundle(&proof),
+            Ok(lowered.proof_bundle.clone())
+        );
+        let arguments = machine
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| TerminalStructuralValue {
+                opaque_identity: 1001 + u64::try_from(index).expect("small parameter index"),
+                structural_type: parameter.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+            &semantics,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &arguments,
+            &mut Accept,
+        )
+        .expect("verified three-field nested mixed equality remains executable metadata");
+        assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+        assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+    }
+
+    let machine = &equal.semantic_module.machines[0];
+    let mut structural_type = machine.structural_parameters[0].structural_type;
+    let mut enclosing_fields = Vec::new();
+    for identity in ["middle", "inner", "message"] {
+        let declaration = equal
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .expect("enclosing structural type");
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            panic!("every enclosing type remains a record")
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == identity)
+            .expect("exact enclosing field");
+        enclosing_fields.push((structural_type, field.id));
+        let StructuralFieldType::Structural(next) = field.field_type else {
+            panic!("enclosing field retains its structural type")
+        };
+        structural_type = next;
+    }
+    for (index, (owner, field)) in enclosing_fields.into_iter().enumerate() {
+        let mut redirected = equal.semantic_module.clone();
+        let StructuralTypeShape::Record { fields } = &mut redirected
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.id == owner)
+            .expect("enclosing structural type")
+            .shape
+        else {
+            panic!("every enclosing type remains a record")
+        };
+        fields
+            .iter_mut()
+            .find(|candidate| candidate.id == field)
+            .expect("exact enclosing field")
+            .id = StructuralFieldId::new(u64::MAX - u64::try_from(index).expect("small index"))
+            .expect("nonzero redirected field");
+        let result = psi_terminal_verifier::validate_module(&redirected);
+        assert!(
+            matches!(
+                result,
+                Err(psi_terminal_verifier::ModuleError::InvalidBooleanFieldTerm { .. })
+                    | Err(
+                        psi_terminal_verifier::ModuleError::InvalidStructuralCaseMembership { .. }
+                    )
+            ),
+            "unexpected enclosing-field {index} drift result: {result:?}"
+        );
+    }
 }
 
 #[test]

@@ -3687,7 +3687,12 @@ Remaining:
   case-membership, and payload-leaf path retains both field identities in
   order; `==`, `!=`, whole-root Unit-call rebasing, codecs, verification,
   fixed fuel, and interpretation replay the exact `Field -> Field -> Mixed`
-  chain. Independent mutation of either enclosing field rejects. Three or more
+  chain. Independent mutation of either enclosing field rejects. The following
+  bounded rung admits exactly three enclosing acyclic relevant record fields
+  before the same sole mixed occurrence. Every common-field, case-membership,
+  and payload-leaf path retains all three field identities in order through
+  `==`, `!=`, whole-root Unit-call rebasing, codec, verification, fixed fuel,
+  and interpretation; independent mutation of any prefix rejects. Four or more
   enclosing fields, case-payload or mixed-under-mixed placement, two mixed
   sibling fields, direct projected mixed comparisons, recursive cycles,
   address and erased payload equality, and runtime sum layout remain fenced.
