@@ -1618,6 +1618,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       leaves across the four selected targets, raising completed current `C`
       roots from fifty-six to seventy-two. The sole remaining root,
       `console_write_bytes`, stops in its termination-witness header.
+    - [x] Retain the first private termination witness as one source-shaped
+      clause: `terminates by <path> -> <View::Path>;`. Its subject and ranking
+      view occupy separate spans in the shared path-member arena, while exact
+      `by`, arrow, and full-clause extents preserve the authored form. This does
+      not set or imply bare `terminates;`, which is the distinct public
+      eventual-terminal guarantee. Tuple or non-path subjects, omitted or
+      argumented views, ranges, and the bare guarantee remain
+      implementation-incomplete rather than being weakened or guessed. Every
+      retained clause owns at least one subject and one view member, so the
+      existing path-member budget dominates the equal clause ledger without a
+      termination-only arena or resource kind. All 73 current `C` headers now
+      reach their canonical disposition: sixteen bodyless external leaves and
+      57 bodyful roots. Seventy-two roots complete; `console_write_bytes` is
+      now the sole body-incomplete root and first stops at the indexed
+      transition-target argument `bytes[0]`.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
