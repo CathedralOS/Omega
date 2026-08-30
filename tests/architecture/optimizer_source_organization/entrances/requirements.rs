@@ -10,6 +10,10 @@ pub(super) struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/mod.rs",
+        coordination_marker: "pub(crate) fn settle_provider_executions",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/mod.rs",
         coordination_marker: "pub(super) fn replay_live_ranges",
     },
@@ -780,4 +784,35 @@ pub(super) const REQUIRED_SELECTED_LOWERING_TEST_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/exit_contract.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/named_suite.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/pressure_recovery.rs",
+];
+
+pub(super) const REQUIRED_CONDITIONAL_CONTROL_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control/bindings.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control/boolean.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control/integer.rs",
+];
+
+pub(super) const REQUIRED_PROVIDER_SETTLEMENT_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/boundary.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/exact_plan.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/normalized_foreign_call.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/tests/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/tests/exact_evidence.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/tests/fixtures.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/tests/literal_arguments.rs",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/tests/zero_argument_import.rs",
+];
+
+pub(super) const REQUIRED_PRE_ALLOCATION_EFFECT_CODEC_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/cursor.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/error.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/framing.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/instruction.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/ownership.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/structural.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/v6/values.rs",
 ];

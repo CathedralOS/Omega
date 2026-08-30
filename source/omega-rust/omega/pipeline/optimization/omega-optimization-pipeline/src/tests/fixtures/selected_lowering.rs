@@ -177,16 +177,7 @@ pub(crate) fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec
             },
         }],
     };
-    let proof = ProofBundle {
-        evidence_producers: Vec::new(),
-        evidence: [true_obligation, false_obligation]
-            .into_iter()
-            .map(|obligation| ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-            })
-            .collect(),
-    };
+    let proof = operation_proof_bundle(&module);
     (
         psi_terminal_codec::encode_module(&module).unwrap(),
         psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
@@ -370,16 +361,7 @@ pub(crate) fn conditional_active_resident_exact_add_chain_artifact_with_false_li
             },
         }],
     };
-    let proof = ProofBundle {
-        evidence_producers: Vec::new(),
-        evidence: [inner_obligation, middle_obligation, result_obligation]
-            .into_iter()
-            .map(|obligation| ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-            })
-            .collect(),
-    };
+    let proof = operation_proof_bundle(&module);
     (
         psi_terminal_codec::encode_module(&module).unwrap(),
         psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
@@ -756,16 +738,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
             },
         }],
     };
-    let proof = ProofBundle {
-        evidence_producers: Vec::new(),
-        evidence: [true_obligation, false_obligation]
-            .into_iter()
-            .map(|obligation| ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-            })
-            .collect(),
-    };
+    let proof = operation_proof_bundle(&module);
     (
         psi_terminal_codec::encode_module(&module).unwrap(),
         psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),

@@ -5175,7 +5175,7 @@ fn correlated_forbidden_root_producer_is_shared_by_exact_divide_and_remainder() 
     ]);
     let parameters = BTreeSet::from([ValueId::new(1).expect("root")]);
 
-    let divide = prove_canonical_integer_proposition_with_machine_parameters(
+    let divide = produce_checked_canonical_integer_proof(
         &context,
         &goal,
         &assumptions,
@@ -5183,7 +5183,7 @@ fn correlated_forbidden_root_producer_is_shared_by_exact_divide_and_remainder() 
         &parameters,
     )
     .expect("same-root affine exact divide is certified");
-    let remainder = prove_canonical_integer_proposition_with_machine_parameters(
+    let remainder = produce_checked_canonical_integer_proof(
         &context,
         &goal,
         &assumptions,

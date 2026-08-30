@@ -1,7 +1,7 @@
 //! Terminal operation emission and proof finalization.
 
 use super::*;
-use crate::nonzero_divisor_certificate::prove_canonical_integer_proposition_with_machine_parameters;
+use crate::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 
 pub(super) fn finalize_operation_proofs(
     lowered: &mut LoweredTerminalPsi,
@@ -67,7 +67,7 @@ pub(super) fn finalize_operation_proofs(
                 .iter()
                 .map(|parameter| parameter.id)
                 .collect();
-            prove_canonical_integer_proposition_with_machine_parameters(
+            produce_checked_canonical_integer_proof(
                 &context,
                 &site.obligation.proposition,
                 assumptions,

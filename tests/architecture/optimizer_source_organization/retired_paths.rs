@@ -23,6 +23,9 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control.rs",
+        "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

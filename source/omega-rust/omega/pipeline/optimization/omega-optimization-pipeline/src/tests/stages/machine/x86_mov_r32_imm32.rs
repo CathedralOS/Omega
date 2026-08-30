@@ -97,14 +97,14 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
         plan.actions
             .iter()
             .map(|action| u64::from(action.baseline_byte_count))
-            .sum()
+            .sum::<u64>()
     );
     assert_eq!(
         custody.selected_bytes(),
         plan.actions
             .iter()
             .map(|action| u64::from(action.selected_byte_count))
-            .sum()
+            .sum::<u64>()
     );
     assert_eq!(
         selected_encoding.post_allocation_machine_optimization(),

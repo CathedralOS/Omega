@@ -632,7 +632,7 @@ fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectur
                 .iter()
                 .flat_map(|function| &function.blocks)
                 .map(|block| block.instructions.len())
-                .sum()
+                .sum::<usize>()
         );
         assert_eq!(
             custody.byte_count(),
@@ -640,7 +640,7 @@ fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectur
                 .functions()
                 .iter()
                 .map(|function| function.byte_count)
-                .sum()
+                .sum::<u64>()
         );
         assert_eq!(custody.resolved_branch_count(), 1);
         let rows = layout
