@@ -394,9 +394,22 @@ walk with explicit record and edge bounds plus a linear authored-order cursor
 classifies excluded recursive and deeper sum paths without host recursion,
 repeated traversal of shared subgraphs, or occurrence cross-products.
 
+The next fixed-depth rung admits exactly one
+`Outer -> Middle -> Leaf -> direct conventional sums` record chain. Its report
+retains the outer whole-record plan and exact outer occurrence beside one
+unchanged singular one-level middle-to-leaf report. A distinct non-clone
+carrier composes the existing one-level carrier, reconstructs the leaf, middle,
+and outer zero-initialized images in order, replays every identity and layout
+hash-free, and performs one final atomic copy. The complete sum-reachable set
+must be exactly this one chain: competing outer or middle occurrences, direct
+sums at an enclosing layer, arrays containing sums, recursion, and shallower or
+deeper paths reject. Target-dependent placement at any of the three record
+layers also rejects. Existing direct and one-level APIs remain unchanged.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-paths deeper than one record, mixed common-field/case shapes, and sums whose
-all-case geometry requires a target capsule remain later rungs. The same NaN,
+paths deeper than two records, plural depth-two chains, mixed common-field/case
+shapes, and sums whose all-case geometry requires a target capsule remain later
+rungs. The same NaN,
 reference, slice, Text, dynamic, atomic, and non-copy fences remain in force.
 None of these slices narrows the legacy typed-owned materialization API or
 establishes evaluator admission, quotient canonicalization, producer-origin

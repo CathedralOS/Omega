@@ -10822,9 +10822,21 @@ checked-result arithmetic decision listed below.
   Projection and replay use a fallible memoized bounded graph walk and a linear
   authored-order occurrence cursor, so recursive or oversized aggregate paths
   reject without host recursion or shared-subgraph amplification.
-  Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than one
-  record, mixed common-field/case shapes, target-dependent
-  inactive-case geometry, generic/opaque/quotient records, references, slices,
+  One distinct exact-one depth-two record-chain rung is now live for
+  `Outer -> Middle -> Leaf -> direct sums`. Its compact report retains the
+  outer whole-record layout and exact outer occurrence beside one unchanged
+  singular one-level report for the middle-to-leaf path. The non-clone carrier
+  likewise retains one existing validated one-level middle carrier, rebuilds
+  the leaf, middle, and outer zero-padded images in order, replays all three
+  layouts and occurrence identities hash-free, and performs one final atomic
+  copy. Exactly one sum-reachable outer field and one qualifying middle field
+  are required; the leaf still owns the complete authored-order direct-sum set.
+  Competing, shallower, deeper, recursive, array-mediated, or direct-sum-
+  coexisting paths reject, as does target-dependent placement at any layer.
+  Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
+  two records, multiple depth-two chains, mixed common-field/case shapes,
+  target-dependent inactive-case geometry, generic/opaque/quotient records,
+  references, slices,
   Text, dynamic values, atomics, non-copy data, and malformed shapes remain
   rejected without narrowing the legacy materialization API. This custody is
   not evaluator admission, a target capsule, quotient canonicalization, an
