@@ -1,4 +1,4 @@
-//! Active-resident resolved selected-form layout stage.
+//! Optimizer module role: executable entrance. Active-resident resolved selected-form layout stage.
 //!
 //! Layout construction, custody aggregation, independent replay, retained
 //! state, and corruption fixtures descend into named leaves. This entrance

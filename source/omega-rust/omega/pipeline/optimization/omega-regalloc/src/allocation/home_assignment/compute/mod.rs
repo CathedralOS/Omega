@@ -1,4 +1,4 @@
-//! Deterministic transition-free physical-home assignment.
+//! Optimizer module role: executable entrance. Deterministic transition-free physical-home assignment.
 
 mod conflicts;
 mod domain;

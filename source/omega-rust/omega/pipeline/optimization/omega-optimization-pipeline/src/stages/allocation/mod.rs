@@ -1,4 +1,4 @@
-//! Register-environment, liveness, legality, copy, and home custody stages.
+//! Optimizer module role: stage group. Register-environment, liveness, legality, copy, and home custody stages.
 
 pub(crate) mod allocation_legality;
 pub(crate) mod fixed_view_copies;

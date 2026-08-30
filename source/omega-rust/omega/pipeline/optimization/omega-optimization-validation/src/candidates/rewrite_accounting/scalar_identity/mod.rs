@@ -1,4 +1,4 @@
-//! Scalar-identity accounting entrance.
+//! Optimizer module role: stage group. Scalar-identity accounting families.
 //!
 //! Both obligation-free and proof-certified identities remove one scalar node
 //! and substitute its live result. Their semantic admission remains separate;

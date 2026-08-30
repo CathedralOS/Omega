@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use super::parameter_translation_fixture::{
     integer_bitwise_xor_parameters_plan, integer_type, uniform_integer_bitwise_xor_plan,
 };

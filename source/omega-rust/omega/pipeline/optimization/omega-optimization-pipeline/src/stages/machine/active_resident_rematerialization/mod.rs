@@ -1,4 +1,4 @@
-//! Active-resident pressure-rematerialization stage.
+//! Optimizer module role: executable entrance. Active-resident pressure-rematerialization stage.
 //!
 //! The producer rebuilds all allocation facts from the transformed selected
 //! CFG. This entrance grants stage custody only after independent replay

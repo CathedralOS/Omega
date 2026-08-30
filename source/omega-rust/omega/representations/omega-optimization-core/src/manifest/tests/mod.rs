@@ -1,4 +1,4 @@
-//! Byte-stability and validation contract tests, grouped by record family.
+//! Optimizer module role: stage group. Byte-stability and validation contract tests, grouped by record family.
 
 use super::*;
 use crate::{

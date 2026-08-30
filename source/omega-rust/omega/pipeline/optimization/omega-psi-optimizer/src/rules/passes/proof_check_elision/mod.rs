@@ -1,4 +1,4 @@
-//! Proof-check elision, cataloged by the exact scalar identity being proved.
+//! Optimizer module role: executable entrance. Proof-check elision, cataloged by the exact scalar identity being proved.
 
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_core::{

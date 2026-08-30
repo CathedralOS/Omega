@@ -1,4 +1,4 @@
-//! Target-neutral semantic analyses and their catalog-facing compute joins.
+//! Optimizer module role: stage group. Target-neutral semantic analyses and their catalog-facing compute joins.
 //!
 //! Each leaf owns one independently cached fact family. The shared leaf owns
 //! only immutable scalar-CFG projections used by more than one analysis.

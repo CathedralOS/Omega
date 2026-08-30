@@ -1,4 +1,4 @@
-//! Structural-unit realization coverage by custody shape.
+//! Optimizer module role: stage group. Structural-unit realization coverage by custody shape.
 
 mod disconnected_functions;
 mod leaf_object;

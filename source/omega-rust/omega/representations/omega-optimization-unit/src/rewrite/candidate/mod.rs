@@ -1,4 +1,4 @@
-//! Rewrite-candidate construction and admission entrance.
+//! Optimizer module role: executable entrance. Rewrite-candidate construction and admission entrance.
 //!
 //! Public constructors are grouped into scalar and control-flow families.
 //! Every constructor rejoins here: derive one canonical decision point,

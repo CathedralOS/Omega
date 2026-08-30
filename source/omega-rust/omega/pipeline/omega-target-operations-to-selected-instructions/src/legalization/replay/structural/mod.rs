@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 mod boundary_settlement;
 mod call;
 mod callee_contract;

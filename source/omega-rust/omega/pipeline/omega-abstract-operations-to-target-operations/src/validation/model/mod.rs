@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 mod error;
 mod receipt;
 

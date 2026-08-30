@@ -1,4 +1,4 @@
-//! Shortest MOVN-seeded AArch64 i64 materialization selection.
+//! Optimizer module role: executable entrance. Shortest MOVN-seeded AArch64 i64 materialization selection.
 
 mod codec;
 mod compute;

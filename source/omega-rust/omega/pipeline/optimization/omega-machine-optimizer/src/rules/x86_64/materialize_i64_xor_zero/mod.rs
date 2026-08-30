@@ -1,4 +1,4 @@
-//! Flag-safe x86-64 zero materialization with `XOR r64, r64`.
+//! Optimizer module role: executable entrance. Flag-safe x86-64 zero materialization with `XOR r64, r64`.
 
 mod codec;
 mod compute;

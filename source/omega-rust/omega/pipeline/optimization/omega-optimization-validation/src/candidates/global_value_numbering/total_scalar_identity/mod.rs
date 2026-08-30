@@ -1,4 +1,4 @@
-//! Obligation-free total scalar-identity validation.
+//! Optimizer module role: stage group. Obligation-free total scalar-identity validation.
 //!
 //! `classification` reconstructs wrapping, saturating, and distinct bitwise
 //! neutral/absorbing families. `evidence` authenticates the independently

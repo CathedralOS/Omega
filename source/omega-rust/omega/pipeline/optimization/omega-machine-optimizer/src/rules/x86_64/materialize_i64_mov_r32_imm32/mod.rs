@@ -1,4 +1,4 @@
-//! Zero-extended x86-64 i64 materialization with `MOV r32, imm32`.
+//! Optimizer module role: executable entrance. Zero-extended x86-64 i64 materialization with `MOV r32, imm32`.
 
 mod codec;
 mod compute;

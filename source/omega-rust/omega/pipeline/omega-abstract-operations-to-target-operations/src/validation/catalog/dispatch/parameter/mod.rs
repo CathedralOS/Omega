@@ -1,4 +1,4 @@
-//! Parameter-family adapters, grouped by the value-producing semantic shape.
+//! Optimizer module role: executable entrance. Parameter-family adapters, grouped by the value-producing semantic shape.
 
 pub(in crate::validation::catalog) mod bitwise;
 pub(in crate::validation::catalog) mod comparison;

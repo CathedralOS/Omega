@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use std::collections::BTreeSet;
 
 use omega_abstract_operations::{AbstractOperation, ValueBinding};

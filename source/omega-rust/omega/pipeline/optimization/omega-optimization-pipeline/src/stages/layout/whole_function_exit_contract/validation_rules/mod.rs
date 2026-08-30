@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 mod optimization;
 mod selected_forms;
 mod structural;

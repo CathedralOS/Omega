@@ -1,4 +1,4 @@
-//! Per-function route order by exact result and boundary shape.
+//! Optimizer module role: executable entrance. Per-function route order by exact result and boundary shape.
 
 use super::boundary_settlements::lower_linux_exit_group_i32;
 use super::shared::*;

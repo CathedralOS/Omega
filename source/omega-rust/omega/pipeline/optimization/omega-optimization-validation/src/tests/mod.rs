@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use super::*;
 use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,

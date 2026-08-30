@@ -1,4 +1,4 @@
-//! Instruction selection: propose one bounded selected CFG, then validate it independently.
+//! Optimizer module role: executable entrance. Instruction selection: propose one bounded selected CFG, then validate it independently.
 
 mod constraints;
 mod construction;

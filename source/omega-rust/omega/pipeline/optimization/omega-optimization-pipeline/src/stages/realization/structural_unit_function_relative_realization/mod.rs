@@ -1,4 +1,4 @@
-//! Structural-Unit function-relative realization stage.
+//! Optimizer module role: executable entrance. Structural-Unit function-relative realization stage.
 //!
 //! This entrance owns construction-to-independent-replay admission. Source
 //! shape checks, manifest reconstruction, and custody projection descend into

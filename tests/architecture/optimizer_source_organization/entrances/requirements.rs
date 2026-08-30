@@ -1,21 +1,14 @@
-//! Required executable joins and fixed-view-copy codec taxonomy.
+//! Required executable joins and semantic ladders.
 
-use std::fs;
-
-use crate::Audit;
-
-use super::bounds::PREFERRED_ENTRANCE_LINES;
-use super::inventory::RULE_STAGES;
-
-struct RequiredCoordinationEntrance {
-    path: &'static str,
-    coordination_marker: &'static str,
+pub(super) struct RequiredCoordinationEntrance {
+    pub(super) path: &'static str,
+    pub(super) coordination_marker: &'static str,
 }
 
 /// Entrances that must visibly own a real stage join or catalog route. Merely
 /// keeping these paths small is insufficient: deleting the coordination seam
 /// and leaving a re-export wall must fail this architecture test.
-const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/mod.rs",
         coordination_marker: "pub(super) fn replay_live_ranges",
@@ -63,6 +56,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/candidate/mod.rs",
         coordination_marker: "fn new(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/mod.rs",
+        coordination_marker: "pub fn new(",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/mod.rs",
@@ -576,10 +573,120 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/object/mod.rs",
         coordination_marker: "pub(crate) fn construct_object",
     },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/mod.rs",
+        coordination_marker: "pub fn validate_selected_instructions",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/mod.rs",
+        coordination_marker: "pub fn analyze_pre_allocation_machine_effects",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/planning/post_allocation/mod.rs",
+        coordination_marker: "pub fn analyze_post_allocation_machine_plan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/mod.rs",
+        coordination_marker: "pub fn optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/mod.rs",
+        coordination_marker: "pub fn optimize_aarch64_materialize_i64_with_shortest_movn_seed",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64/materialize_i64_mov_r32_imm32/mod.rs",
+        coordination_marker: "pub fn optimize_x86_materialize_i64_with_mov_r32_imm32",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64/materialize_i64_xor_zero/mod.rs",
+        coordination_marker: "pub fn optimize_x86_materialize_i64_zero_with_xor",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs",
+        coordination_marker: "pub(super) fn stage_optimized_verified_physical_pipeline",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/encoding/post_allocation_selected_form_encoding/validation/mod.rs",
+        coordination_marker: "pub(super) fn validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/validation/mod.rs",
+        coordination_marker: "pub(super) fn validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/validation/ordinary/mod.rs",
+        coordination_marker: "pub(super) fn validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/assembly/mod.rs",
+        coordination_marker: "pub(super) fn build_realization",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_absorbing/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_neutral/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/saturating_multiply_zero/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/saturating_neutral/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_multiply_zero/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_neutral/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_shift_zero_count/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_choice/mod.rs",
+        coordination_marker: "pub fn choose_spill_victims",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocation_legality/mod.rs",
+        coordination_marker: "pub fn analyze_allocation_legality",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocator_availability/mod.rs",
+        coordination_marker: "pub fn materialize_allocator_availability",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/mod.rs",
+        coordination_marker: "pub fn analyze_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/mod.rs",
+        coordination_marker: "pub fn analyze_liveness",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/recovery_classification/mod.rs",
+        coordination_marker: "pub fn classify_pressure_recovery",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/mod.rs",
+        coordination_marker: "pub fn materialize_fixed_view_copies",
+    },
 ];
 
+pub(crate) fn is_required_coordination_entrance(path: &str) -> bool {
+    REQUIRED_COORDINATION_ENTRANCES
+        .iter()
+        .any(|entrance| entrance.path == path)
+}
+
 /// The v4 codec remains a visible semantic ladder below its protocol entrance.
-const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/content.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/copy.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/primitives.rs",
@@ -593,7 +700,7 @@ const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
 
 /// The optimization-manifest entrance routes directly to one leaf per stable
 /// record concern; restoring the former mixed leaf must not erase this ladder.
-const REQUIRED_MANIFEST_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_MANIFEST_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/codec.rs",
     "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/decision.rs",
     "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/error.rs",
@@ -602,7 +709,7 @@ const REQUIRED_MANIFEST_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/work_usage.rs",
 ];
 
-const REQUIRED_OPERATION_ENCODING_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_OPERATION_ENCODING_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/calls_and_effects.rs",
     "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/control.rs",
     "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/scalar.rs",
@@ -611,14 +718,14 @@ const REQUIRED_OPERATION_ENCODING_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/carrier_encoding.rs",
 ];
 
-const REQUIRED_SCCP_VALIDATION_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_SCCP_VALIDATION_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_candidate.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/integer_candidate.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/observation.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
 ];
 
-const REQUIRED_LIVE_RANGE_REPLAY_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_LIVE_RANGE_REPLAY_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/architectural_units.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/canonical.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/comparison.rs",
@@ -628,7 +735,7 @@ const REQUIRED_LIVE_RANGE_REPLAY_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/tests.rs",
 ];
 
-const REQUIRED_GVN_EXPRESSION_KEY_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_GVN_EXPRESSION_KEY_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/mod.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/model.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/total.rs",
@@ -636,7 +743,7 @@ const REQUIRED_GVN_EXPRESSION_KEY_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/compatible_policy.rs",
 ];
 
-const REQUIRED_STRUCTURAL_CATALOG_TEST_LEAVES: &[&str] = &[
+pub(super) const REQUIRED_STRUCTURAL_CATALOG_TEST_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/mod.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/catalog.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/type_declarations.rs",
@@ -646,135 +753,31 @@ const REQUIRED_STRUCTURAL_CATALOG_TEST_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/provider_specialization.rs",
 ];
 
-pub(crate) fn check(audit: &mut Audit) {
-    let repository = &audit.repository;
-    let source_lines = &audit.source_lines;
-    let violations = &mut audit.violations;
+pub(super) const REQUIRED_LEDGER_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/model.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/error.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/validation.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/mod.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/encoding.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/decoding.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/cursor.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/tests.rs",
+];
 
-    for stage in RULE_STAGES {
-        let Some(lines) = source_lines.get(stage.entrance) else {
-            violations.insert(format!("missing rule-stage entrance: {}", stage.entrance));
-            continue;
-        };
-        if *lines > PREFERRED_ENTRANCE_LINES {
-            violations.insert(format!(
-                "rule-stage entrance exceeds {PREFERRED_ENTRANCE_LINES} lines: {} ({lines})",
-                stage.entrance
-            ));
-        }
-        match fs::read_to_string(repository.join(stage.entrance)) {
-            Ok(contents) if contents.contains(stage.coordination_marker) => {}
-            Ok(_) => {
-                violations.insert(format!(
-                    "rule-stage entrance became a re-export wall: {} lacks `{}`",
-                    stage.entrance, stage.coordination_marker
-                ));
-            }
-            Err(error) => {
-                violations.insert(format!(
-                    "cannot read rule-stage entrance {}: {error}",
-                    stage.entrance
-                ));
-            }
-        }
-        for next_rung in stage.next_rungs {
-            if !repository.join(next_rung).exists() {
-                violations.insert(format!(
-                    "rule-stage entrance {} lost next rung: {next_rung}",
-                    stage.entrance
-                ));
-            }
-        }
-    }
+pub(super) const REQUIRED_REGISTER_ALLOCATION_TEST_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/allocation_legality.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_view_copies.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/live_ranges.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/liveness.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/register_homes.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/selected_input.rs",
+];
 
-    for entrance in REQUIRED_COORDINATION_ENTRANCES {
-        let Some(lines) = source_lines.get(entrance.path) else {
-            violations.insert(format!(
-                "missing required optimizer coordination entrance: {}",
-                entrance.path
-            ));
-            continue;
-        };
-        if *lines > PREFERRED_ENTRANCE_LINES {
-            violations.insert(format!(
-                "required optimizer coordination entrance exceeds {PREFERRED_ENTRANCE_LINES} lines: {} ({lines})",
-                entrance.path
-            ));
-        }
-        match fs::read_to_string(repository.join(entrance.path)) {
-            Ok(contents) if contents.contains(entrance.coordination_marker) => {}
-            Ok(_) => {
-                violations.insert(format!(
-                    "optimizer entrance became a re-export wall: {} lacks `{}`",
-                    entrance.path, entrance.coordination_marker
-                ));
-            }
-            Err(error) => {
-                violations.insert(format!(
-                    "cannot read required optimizer entrance {}: {error}",
-                    entrance.path
-                ));
-            }
-        }
-    }
-
-    for path in REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES {
-        if !source_lines.contains_key(*path) {
-            violations.insert(format!(
-                "fixed-view-copy codec lost a named semantic leaf: {path}"
-            ));
-        }
-    }
-
-    for path in REQUIRED_MANIFEST_LEAVES {
-        if !source_lines.contains_key(*path) {
-            violations.insert(format!(
-                "optimization manifest lost a named semantic leaf: {path}"
-            ));
-        }
-    }
-
-    for (family, paths) in [
-        (
-            "optimization-unit identity encoding",
-            REQUIRED_OPERATION_ENCODING_LEAVES,
-        ),
-        ("SCCP validation", REQUIRED_SCCP_VALIDATION_LEAVES),
-        (
-            "independent live-range replay",
-            REQUIRED_LIVE_RANGE_REPLAY_LEAVES,
-        ),
-        (
-            "independent GVN expression keys",
-            REQUIRED_GVN_EXPRESSION_KEY_LEAVES,
-        ),
-        (
-            "structural-catalog tests",
-            REQUIRED_STRUCTURAL_CATALOG_TEST_LEAVES,
-        ),
-    ] {
-        for path in paths {
-            if !source_lines.contains_key(*path) {
-                violations.insert(format!("{family} lost a named semantic leaf: {path}"));
-            }
-        }
-    }
-
-    let codec_root = "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/";
-    let codec_entrance = format!("{codec_root}mod.rs");
-    for path in source_lines
-        .keys()
-        .filter(|path| path.starts_with(codec_root))
-    {
-        let Ok(contents) = fs::read_to_string(repository.join(path)) else {
-            continue;
-        };
-        if path != &codec_entrance
-            && (contents.contains("const MAGIC") || contents.contains("const VERSION"))
-        {
-            violations.insert(format!(
-                "fixed-view-copy protocol admission escaped its sole codec entrance: {path}"
-            ));
-        }
-    }
-}
+pub(super) const REQUIRED_SELECTED_LOWERING_TEST_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/exact_immediates.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/exit_contract.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/named_suite.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering/pressure_recovery.rs",
+];

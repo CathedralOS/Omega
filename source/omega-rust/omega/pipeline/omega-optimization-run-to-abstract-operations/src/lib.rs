@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Custody-preserving projection from a completed Psi optimization run to
+//! Optimizer module role: executable entrance. Custody-preserving projection from a completed Psi optimization run to
 //! executable abstract operations.
 //!
 //! This entrance owns the ordered join: exact Psi selection projection,

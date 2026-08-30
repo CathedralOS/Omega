@@ -1,4 +1,4 @@
-//! Stable, target-independent vocabulary for Omega optimization inputs.
+//! Optimizer module role: crate map. Stable, target-independent vocabulary for Omega optimization inputs.
 //!
 //! `selection` is the authoritative exact-name registry and canonical selection
 //! codec. `contracts` defines rule and budget contracts. `identities` owns the

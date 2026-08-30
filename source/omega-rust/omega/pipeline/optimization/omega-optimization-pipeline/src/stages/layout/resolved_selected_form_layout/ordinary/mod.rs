@@ -1,4 +1,4 @@
-//! Ordinary-function layout construction.
+//! Optimizer module role: stage group. Ordinary-function layout construction.
 //!
 //! Policy chooses the supported function family, order derives canonical block
 //! order, plan assigns spans, function assembles rows, and row/branch own the

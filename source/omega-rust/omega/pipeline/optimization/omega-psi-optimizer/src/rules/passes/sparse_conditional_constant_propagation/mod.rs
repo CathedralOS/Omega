@@ -1,4 +1,4 @@
-//! Sparse conditional constant propagation rule-family entrance.
+//! Optimizer module role: executable entrance. Sparse conditional constant propagation rule-family entrance.
 //!
 //! `constant_evaluation` owns exact constant-fold proposals and their rule
 //! contracts. `range_comparisons` owns comparisons decided from closed integer

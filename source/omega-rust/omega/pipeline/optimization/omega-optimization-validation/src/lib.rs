@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Independent structural validation for [`PsiOptimizationUnit`].
+//! Optimizer module role: crate map. Independent structural validation for [`PsiOptimizationUnit`].
 //!
 //! Pass implementations do not participate in this validator. Publication
 //! must call it after applying a candidate and before committing the candidate

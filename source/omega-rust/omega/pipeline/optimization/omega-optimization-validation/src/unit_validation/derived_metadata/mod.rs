@@ -1,4 +1,4 @@
-//! Derived operation-metadata coordination.
+//! Optimizer module role: executable entrance. Derived operation-metadata coordination.
 //!
 //! The entrance owns complete place/claim admission. Dominance, scalar value
 //! metadata, provenance, successor edges, ownership, and terminator

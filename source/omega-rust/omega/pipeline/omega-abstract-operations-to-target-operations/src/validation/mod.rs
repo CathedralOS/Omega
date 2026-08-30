@@ -1,4 +1,4 @@
-//! Independent abstract-to-target translation validation entrance.
+//! Optimizer module role: executable entrance. Independent abstract-to-target translation validation entrance.
 //!
 //! This module owns whole-plan root/roster custody, then descends into exact
 //! semantic-family validators. Its receipt explicitly lists covered function

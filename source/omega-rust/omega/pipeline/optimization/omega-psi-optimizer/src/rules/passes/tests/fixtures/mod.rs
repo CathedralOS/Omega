@@ -1,4 +1,4 @@
-//! Typed optimization units shared by the pass-family test suites.
+//! Optimizer module role: stage group. Typed optimization units shared by the pass-family test suites.
 
 use super::*;
 

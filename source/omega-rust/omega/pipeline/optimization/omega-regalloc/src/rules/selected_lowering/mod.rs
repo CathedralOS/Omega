@@ -1,4 +1,4 @@
-//! Selected-lowering rule entrance.
+//! Optimizer module role: executable entrance. Selected-lowering rule entrance.
 //!
 //! [`SELECTED_LOWERING_RULE_CATALOG`] is the only enable/order declaration for
 //! this phase. Catalog rows compose their exact payloads; the literal-fold

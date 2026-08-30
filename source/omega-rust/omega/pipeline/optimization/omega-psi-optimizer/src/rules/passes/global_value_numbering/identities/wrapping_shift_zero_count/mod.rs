@@ -1,4 +1,4 @@
-//! Exact wrapping shift-zero-count rule and proposal join.
+//! Optimizer module role: executable entrance. Exact wrapping shift-zero-count rule and proposal join.
 
 mod laws;
 

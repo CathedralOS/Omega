@@ -1,4 +1,4 @@
-//! Same-block common-subexpression rules.
+//! Optimizer module role: executable entrance. Same-block common-subexpression rules.
 //!
 //! The three exact rule families share one analysis/invalidation contract but
 //! keep their expression and evidence mechanics in named leaves.

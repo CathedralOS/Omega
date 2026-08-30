@@ -1,4 +1,4 @@
-//! Structural Unit selection: ABI layout, optional call, then exact return.
+//! Optimizer module role: executable entrance. Structural Unit selection: ABI layout, optional call, then exact return.
 
 mod call;
 mod layout;

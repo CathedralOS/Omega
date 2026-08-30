@@ -1,4 +1,4 @@
-//! Layout-independent selected-form encoding, replay, and optimization custody.
+//! Optimizer module role: executable entrance. Layout-independent selected-form encoding, replay, and optimization custody.
 
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;

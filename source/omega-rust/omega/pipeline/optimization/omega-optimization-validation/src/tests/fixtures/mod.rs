@@ -1,4 +1,4 @@
-//! Typed units and candidates shared by independent-validator test families.
+//! Optimizer module role: stage group. Typed units and candidates shared by independent-validator test families.
 
 use super::*;
 

@@ -1,4 +1,4 @@
-//! Integer-result unary grammar coordination.
+//! Optimizer module role: stage group. Integer-result unary grammar coordination.
 
 pub(in crate::validation::straight_line_parameter) mod bitwise_not;
 pub(in crate::validation::straight_line_parameter) mod exact_cast;

@@ -1,4 +1,4 @@
-//! Post-allocation manifest construction and independent admission entrance.
+//! Optimizer module role: executable entrance. Post-allocation manifest construction and independent admission entrance.
 //!
 //! Direct-home and selected-lowering routes join here. Record shape, canonical
 //! identity, persistence, reconstruction, validation, and human rendering

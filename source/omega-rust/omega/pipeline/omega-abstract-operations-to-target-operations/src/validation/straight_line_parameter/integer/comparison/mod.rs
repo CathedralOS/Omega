@@ -1,4 +1,4 @@
-//! Integer-comparison source, ABI, provenance, and typed-target replay entrance.
+//! Optimizer module role: executable entrance. Integer-comparison source, ABI, provenance, and typed-target replay entrance.
 
 pub(crate) mod equal;
 pub(crate) mod less_or_equal;

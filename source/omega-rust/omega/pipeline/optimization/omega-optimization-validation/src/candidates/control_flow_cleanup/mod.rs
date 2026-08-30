@@ -1,4 +1,4 @@
-//! Independent CFG rewrite validation by exact graph transformation.
+//! Optimizer module role: stage group. Independent CFG rewrite validation by exact graph transformation.
 
 use super::*;
 

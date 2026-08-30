@@ -1,4 +1,4 @@
-//! Provider coordination for native realization: settle external executions,
+//! Optimizer module role: executable entrance. Provider coordination for native realization: settle external executions,
 //! then admit the exact checked-provider installation retained by the plan.
 
 mod adapters;

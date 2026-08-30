@@ -1,4 +1,4 @@
-//! Explicit allocator-view availability policy entrance.
+//! Optimizer module role: executable entrance. Explicit allocator-view availability policy entrance.
 
 use crate::*;
 

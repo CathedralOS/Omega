@@ -1,4 +1,4 @@
-//! Allocation-availability and physical-view legality stage.
+//! Optimizer module role: executable entrance. Allocation-availability and physical-view legality stage.
 //!
 //! Each public route chooses one explicit availability policy. This entrance
 //! then owns the shared analysis-to-independent-replay join that grants

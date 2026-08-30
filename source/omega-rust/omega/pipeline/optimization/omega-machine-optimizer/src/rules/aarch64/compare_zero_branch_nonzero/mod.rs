@@ -1,4 +1,4 @@
-//! `CMP Xn, #0; B.NE` to `CBNZ Xn` symbolic fusion.
+//! Optimizer module role: executable entrance. `CMP Xn, #0; B.NE` to `CBNZ Xn` symbolic fusion.
 
 mod codec;
 mod compute;

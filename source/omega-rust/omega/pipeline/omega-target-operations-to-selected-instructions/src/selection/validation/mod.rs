@@ -1,4 +1,4 @@
-//! Independent selected-plan reconstruction and admission.
+//! Optimizer module role: executable entrance. Independent selected-plan reconstruction and admission.
 
 mod blocks;
 mod functions;

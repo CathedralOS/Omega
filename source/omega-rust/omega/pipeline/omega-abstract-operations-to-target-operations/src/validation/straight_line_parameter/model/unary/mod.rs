@@ -1,4 +1,4 @@
-//! Unary parameter source and reconstructed replay models.
+//! Optimizer module role: stage group. Unary parameter source and reconstructed replay models.
 
 mod bitwise_not;
 mod boolean_not;

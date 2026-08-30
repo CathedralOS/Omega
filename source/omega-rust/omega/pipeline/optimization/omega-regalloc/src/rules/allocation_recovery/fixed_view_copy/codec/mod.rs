@@ -1,4 +1,4 @@
-//! Versioned fixed-view-copy artifact envelope.
+//! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
 //! The entrance owns protocol admission and authentication order. `content`
 //! owns the v4 field roster; lower modules own each encoded domain.

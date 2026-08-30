@@ -1,4 +1,4 @@
-//! Redundant block-parameter validation coordination.
+//! Optimizer module role: executable entrance. Redundant block-parameter validation coordination.
 //!
 //! This entrance admits candidate custody and the structural-identity analysis
 //! contract. Witness reconstruction, closed-region observation, and exhaustive

@@ -1,4 +1,4 @@
-//! Expression assignment descends through frame construction, typed trees,
+//! Optimizer module role: stage group. Expression assignment descends through frame construction, typed trees,
 //! and independent parameter-location discovery.
 
 pub(super) mod boolean;

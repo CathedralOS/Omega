@@ -1,4 +1,4 @@
-//! Named physical routes selected by the exact build manifest.
+//! Optimizer module role: stage group. Named physical routes selected by the exact build manifest.
 
 mod allocation_recovery;
 mod composition;

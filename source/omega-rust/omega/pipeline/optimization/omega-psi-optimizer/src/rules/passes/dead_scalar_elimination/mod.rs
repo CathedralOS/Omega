@@ -1,4 +1,4 @@
-//! Removal of unused scalar computations, grouped by their semantic safety proof.
+//! Optimizer module role: executable entrance. Removal of unused scalar computations, grouped by their semantic safety proof.
 
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,

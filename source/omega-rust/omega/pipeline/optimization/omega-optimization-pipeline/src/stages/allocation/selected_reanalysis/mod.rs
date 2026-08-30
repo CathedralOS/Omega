@@ -1,4 +1,4 @@
-//! Complete reanalysis after selected-CFG transformation.
+//! Optimizer module role: executable entrance. Complete reanalysis after selected-CFG transformation.
 //!
 //! No source analysis fact is reused. This entrance validates transformed
 //! source custody, recomputes liveness/ranges/legality, independently replays

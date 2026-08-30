@@ -1,4 +1,4 @@
-//! Register-home assignment stage.
+//! Optimizer module role: executable entrance. Register-home assignment stage.
 //!
 //! Baseline legality and post-copy reanalysis are distinct source families.
 //! This entrance grants custody only after each constructed home/manifest pair

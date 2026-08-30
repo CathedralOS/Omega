@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Verified Terminal-Psi admission and lowering into source-independent Omega
+//! Optimizer module role: crate map. Verified Terminal-Psi admission and lowering into source-independent Omega
 //! requirements.
 //!
 //! Enter the named responsibility modules for artifact replay, optimizer-unit

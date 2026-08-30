@@ -1,4 +1,4 @@
-//! Boolean parameter-family replay map.
+//! Optimizer module role: stage group. Boolean parameter-family replay map.
 
 pub(crate) mod direct;
 pub(crate) mod equal;

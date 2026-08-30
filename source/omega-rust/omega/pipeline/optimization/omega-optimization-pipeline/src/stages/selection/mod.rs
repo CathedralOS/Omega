@@ -1,4 +1,4 @@
-//! Target-operation lowering, assignment, and selected-instruction custody.
+//! Optimizer module role: stage group. Target-operation lowering, assignment, and selected-instruction custody.
 
 pub(crate) mod assignment;
 pub(crate) mod optimized_target_operations;

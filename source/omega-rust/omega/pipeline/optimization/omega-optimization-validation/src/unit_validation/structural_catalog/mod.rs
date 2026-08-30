@@ -1,4 +1,4 @@
-//! Structural type, domain, function-local, and provider catalogs.
+//! Optimizer module role: executable entrance. Structural type, domain, function-local, and provider catalogs.
 //!
 //! Type indexing precedes domain indexing at this entrance. Projection,
 //! declaration, graph, function-local, witness, provider-specialization, and

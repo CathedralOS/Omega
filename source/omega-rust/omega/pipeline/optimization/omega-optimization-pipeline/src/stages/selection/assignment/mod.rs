@@ -1,4 +1,4 @@
-//! Bounded target-operation assignment stage.
+//! Optimizer module role: executable entrance. Bounded target-operation assignment stage.
 //!
 //! Source lowering, assignment construction, retained custody, and independent
 //! replay descend into named leaves. This entrance alone joins construction to

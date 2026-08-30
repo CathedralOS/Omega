@@ -1,4 +1,4 @@
-//! Literal-fold proposal coordination entrance.
+//! Optimizer module role: executable entrance. Literal-fold proposal coordination entrance.
 
 mod actions;
 mod constraints;

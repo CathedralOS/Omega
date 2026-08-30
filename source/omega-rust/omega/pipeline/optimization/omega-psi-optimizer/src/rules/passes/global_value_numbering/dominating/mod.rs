@@ -1,4 +1,4 @@
-//! Cross-block GVN rules whose leaders dominate their redundant expressions.
+//! Optimizer module role: executable entrance. Cross-block GVN rules whose leaders dominate their redundant expressions.
 //!
 //! The three exact rule families share one analysis/invalidation contract but
 //! keep their expression and evidence mechanics in named leaves.

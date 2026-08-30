@@ -1,4 +1,4 @@
-//! Register-allocation rule-stage map.
+//! Optimizer module role: stage group. Register-allocation rule-stage map.
 //!
 //! Each executable phase owns a meaningful entrance and adjacent catalog.
 //! Shared target applicability is the only cross-phase rule contract here.

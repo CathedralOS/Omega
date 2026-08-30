@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Fail-closed optimized-native realization.
+//! Optimizer module role: crate map. Fail-closed optimized-native realization.
 //!
 //! The ordinary empty-selection compiler path never enters this crate. The
 //! explicit optimizer begins at [`coordination`], then descends through the

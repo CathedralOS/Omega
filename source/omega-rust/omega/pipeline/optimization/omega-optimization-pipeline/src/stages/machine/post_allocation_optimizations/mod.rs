@@ -1,4 +1,4 @@
-//! Catalog-driven post-allocation symbolic-machine optimization stage.
+//! Optimizer module role: executable entrance. Catalog-driven post-allocation symbolic-machine optimization stage.
 //!
 //! `omega_machine_optimizer::rules` owns the single enable/order catalog.
 //! [`execution`] consumes that catalog, while target leaves here retain

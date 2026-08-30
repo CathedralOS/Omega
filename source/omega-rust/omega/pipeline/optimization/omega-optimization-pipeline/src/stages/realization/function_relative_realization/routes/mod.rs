@@ -1,4 +1,4 @@
-//! Exact source-custody routes into one function-relative manifest boundary.
+//! Optimizer module role: stage group. Exact source-custody routes into one function-relative manifest boundary.
 
 mod layout_optimization;
 mod post_allocation_machine;

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Mandatory target legalization followed by validated instruction selection.
+//! Optimizer module role: crate map. Mandatory target legalization followed by validated instruction selection.
 //!
 //! Enter `legalization/mod.rs` for the raw-target to legal-operation join and
 //! `selection/mod.rs` for the legal-operation to selected-CFG join.

@@ -1,4 +1,4 @@
-//! Focused home-assignment behavior taxonomy.
+//! Optimizer module role: stage group. Focused home-assignment behavior taxonomy.
 
 mod constrained_domains;
 mod determinism;

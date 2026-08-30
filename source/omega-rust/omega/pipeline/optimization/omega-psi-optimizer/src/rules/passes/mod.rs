@@ -1,4 +1,4 @@
-//! Built-in Psi transformations, organized by their explicit pass identity.
+//! Optimizer module role: stage group. Built-in Psi transformations, organized by their explicit pass identity.
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v5";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v13";

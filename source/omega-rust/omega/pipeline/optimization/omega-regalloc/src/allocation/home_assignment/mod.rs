@@ -1,4 +1,4 @@
-//! Transition-free physical-home assignment entrance.
+//! Optimizer module role: executable entrance. Transition-free physical-home assignment entrance.
 
 use crate::*;
 

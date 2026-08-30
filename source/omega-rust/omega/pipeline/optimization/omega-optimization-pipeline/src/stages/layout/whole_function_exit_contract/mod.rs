@@ -1,4 +1,4 @@
-//! Whole-function exit-contract staging, replay validation, and canonical identity.
+//! Optimizer module role: executable entrance. Whole-function exit-contract staging, replay validation, and canonical identity.
 
 mod compute;
 mod error;

@@ -1,4 +1,4 @@
-//! Typed descriptor construction, descended by translation semantics.
+//! Optimizer module role: stage group. Typed descriptor construction, descended by translation semantics.
 
 pub(super) mod immediate;
 pub(super) mod parameter;

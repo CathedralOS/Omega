@@ -1,4 +1,4 @@
-//! Integer constant-evaluation taxonomy.
+//! Optimizer module role: stage group. Integer constant-evaluation taxonomy.
 //!
 //! `binary` owns arithmetic, shifts, and bitwise binary rules; `cast` owns the
 //! proof-certified exact cast; `unary` owns widening and bitwise-not; `facts`

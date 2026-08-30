@@ -1,4 +1,4 @@
-//! Exact bitwise absorbing-literal rule and proposal join.
+//! Optimizer module role: executable entrance. Exact bitwise absorbing-literal rule and proposal join.
 
 mod laws;
 

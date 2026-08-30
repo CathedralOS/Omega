@@ -1,4 +1,4 @@
-//! Selected-instruction-plan wire taxonomy for fixed-view-copy v4.
+//! Optimizer module role: executable entrance. Selected-instruction-plan wire taxonomy for fixed-view-copy v4.
 
 mod block;
 mod function;

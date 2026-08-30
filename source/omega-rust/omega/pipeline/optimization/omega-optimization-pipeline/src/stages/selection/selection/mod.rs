@@ -1,4 +1,4 @@
-//! Optimized instruction-selection stage.
+//! Optimizer module role: executable entrance. Optimized instruction-selection stage.
 //!
 //! This entrance owns the exact target-register environment, construction,
 //! independent replay, and retained-custody join. Constraint projection and

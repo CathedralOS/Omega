@@ -1,4 +1,4 @@
-//! Selected-lowering literal-fold stage entrance.
+//! Optimizer module role: executable entrance. Selected-lowering literal-fold stage entrance.
 //!
 //! `omega_regalloc::rules` owns the exact-name catalog. This file consumes its
 //! selected policy and owns custody-stage dispatch; lower rungs separate

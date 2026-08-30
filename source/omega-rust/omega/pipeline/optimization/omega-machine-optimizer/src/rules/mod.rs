@@ -1,4 +1,4 @@
-//! Post-allocation machine-rule entrance.
+//! Optimizer module role: executable entrance. Post-allocation machine-rule entrance.
 //!
 //! [`POST_ALLOCATION_MACHINE_RULE_CATALOG`] is the only enable/order and target
 //! applicability declaration. This entrance projects exact selections through

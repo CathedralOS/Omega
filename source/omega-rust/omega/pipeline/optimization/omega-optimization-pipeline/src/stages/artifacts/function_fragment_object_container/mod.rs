@@ -1,4 +1,4 @@
-//! Relocation-free object-container stage entrance.
+//! Optimizer module role: executable entrance. Relocation-free object-container stage entrance.
 //!
 //! This file owns construction and independent replay. Contracts live in
 //! `model`, object assembly in `reconstruction`, and canonical manifest

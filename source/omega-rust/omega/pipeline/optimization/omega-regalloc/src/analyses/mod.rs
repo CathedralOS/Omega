@@ -1,4 +1,4 @@
-//! Read-only facts used by allocation and exact lowering rules.
+//! Optimizer module role: stage group. Read-only facts used by allocation and exact lowering rules.
 
 pub(crate) mod allocation_legality;
 pub(crate) mod allocator_availability;

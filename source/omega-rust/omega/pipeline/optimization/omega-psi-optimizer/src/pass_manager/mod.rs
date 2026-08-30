@@ -1,4 +1,4 @@
-//! Deterministic execution of exact selected Psi optimization passes.
+//! Optimizer module role: stage group. Deterministic execution of exact selected Psi optimization passes.
 //!
 //! Start with [`entry`] for the four run/replay APIs. [`model`] owns the run
 //! carrier and closed error surface, [`execution`] owns candidate dispatch and

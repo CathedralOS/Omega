@@ -1,4 +1,4 @@
-//! Ordered per-function validation coordination.
+//! Optimizer module role: executable entrance. Ordered per-function validation coordination.
 //!
 //! The entrance preserves the acceptance order across retained catalogs,
 //! claims and parameters, CFG shape, results, structural roots, provenance,

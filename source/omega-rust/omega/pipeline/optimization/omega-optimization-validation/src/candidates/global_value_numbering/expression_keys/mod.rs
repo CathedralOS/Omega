@@ -1,4 +1,4 @@
-//! Independent scalar-expression reconstruction group.
+//! Optimizer module role: stage group. Independent scalar-expression reconstruction group.
 //!
 //! The model defines three closed equivalence vocabularies. Obligation-free,
 //! proof-certified, and compatible-policy reconstruction descend into separate

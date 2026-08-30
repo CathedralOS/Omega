@@ -1,4 +1,4 @@
-//! Independent literal-fold validation entrance.
+//! Optimizer module role: executable entrance. Independent literal-fold validation entrance.
 
 mod constraints;
 mod receipt;

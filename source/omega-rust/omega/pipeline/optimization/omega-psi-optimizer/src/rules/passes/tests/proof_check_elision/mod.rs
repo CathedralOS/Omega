@@ -1,4 +1,4 @@
-//! Proof-check-elision tests, grouped by the explicit identity being removed.
+//! Optimizer module role: stage group. Proof-check-elision tests, grouped by the explicit identity being removed.
 
 use super::*;
 

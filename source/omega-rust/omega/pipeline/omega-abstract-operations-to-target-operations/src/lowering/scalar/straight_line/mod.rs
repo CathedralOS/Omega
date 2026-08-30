@@ -1,4 +1,4 @@
-//! Straight-line scalar lowering lifecycle and its exact operation routes.
+//! Optimizer module role: executable entrance. Straight-line scalar lowering lifecycle and its exact operation routes.
 
 mod exit;
 mod integer_arithmetic;

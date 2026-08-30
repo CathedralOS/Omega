@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Transitional baseline target-operation assignment.
+//! Optimizer module role: crate map. Transitional baseline target-operation assignment.
 //!
 //! Enter `assignment/mod.rs` for plan coordination, then descend through
 //! function routing, structural carriers, placement, control, and expression

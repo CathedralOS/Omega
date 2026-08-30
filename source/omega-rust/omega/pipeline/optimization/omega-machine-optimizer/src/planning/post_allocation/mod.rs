@@ -1,4 +1,4 @@
-//! Deterministic post-allocation machine-plan construction and replay.
+//! Optimizer module role: executable entrance. Deterministic post-allocation machine-plan construction and replay.
 
 mod codec;
 mod compute;

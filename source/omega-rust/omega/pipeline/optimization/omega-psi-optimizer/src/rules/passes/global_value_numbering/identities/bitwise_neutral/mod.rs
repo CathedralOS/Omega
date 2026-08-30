@@ -1,4 +1,4 @@
-//! Exact bitwise neutral-literal rule and proposal join.
+//! Optimizer module role: executable entrance. Exact bitwise neutral-literal rule and proposal join.
 
 mod laws;
 

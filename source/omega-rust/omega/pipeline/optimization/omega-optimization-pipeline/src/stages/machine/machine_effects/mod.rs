@@ -1,4 +1,4 @@
-//! Pre-allocation machine-effect staging.
+//! Optimizer module role: executable entrance. Pre-allocation machine-effect staging.
 //!
 //! Each supported selected-source lineage has one route adapter. This entrance
 //! grants a machine-effect sidecar custody only after the analyzed plan

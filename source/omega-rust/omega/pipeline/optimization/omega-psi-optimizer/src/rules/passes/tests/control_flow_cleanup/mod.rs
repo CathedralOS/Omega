@@ -1,4 +1,4 @@
-//! Control-flow cleanup rule coverage.
+//! Optimizer module role: stage group. Control-flow cleanup rule coverage.
 //!
 //! The entrance supplies the shared pass-test vocabulary; leaves follow the
 //! exact reachability, branch, merge, jump-fusion, and threading rule families.

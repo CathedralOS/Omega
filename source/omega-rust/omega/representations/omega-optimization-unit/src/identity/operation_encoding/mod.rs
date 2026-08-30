@@ -1,4 +1,4 @@
-//! Canonical abstract-operation encoding entrance.
+//! Optimizer module role: executable entrance. Canonical abstract-operation encoding entrance.
 //!
 //! This exhaustive routing match owns the stable family partition. Each leaf
 //! owns exact variant tags and field order; `scalar_shapes` owns repeated

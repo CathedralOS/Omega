@@ -1,4 +1,4 @@
-//! Structural-result routes.
+//! Optimizer module role: executable entrance. Structural-result routes.
 
 mod direct_call_return;
 mod return_value;

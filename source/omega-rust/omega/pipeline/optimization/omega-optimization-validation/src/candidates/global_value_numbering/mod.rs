@@ -1,4 +1,4 @@
-//! Scalar common-subexpression validation coordination.
+//! Optimizer module role: executable entrance. Scalar common-subexpression validation coordination.
 //!
 //! The entrance validates candidate custody once, classifies the exact named
 //! rule, and then selects one of two rewrite protocols:

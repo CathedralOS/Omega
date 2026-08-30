@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyPolicy,
     LiveRangeIdentity,

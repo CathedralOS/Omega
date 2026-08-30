@@ -1,0 +1,8 @@
+//! Optimizer module role: stage group. Register-allocation test group by exact retained artifact family.
+
+mod allocation_legality;
+mod fixed_view_copies;
+mod live_ranges;
+mod liveness;
+mod register_homes;
+mod selected_input;

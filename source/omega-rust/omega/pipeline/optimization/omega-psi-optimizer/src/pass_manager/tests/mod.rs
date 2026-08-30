@@ -1,4 +1,4 @@
-//! Pass-manager tests organized by execution responsibility.
+//! Optimizer module role: stage group. Pass-manager tests organized by execution responsibility.
 //!
 //! Shared imports and fixtures enter here; leaves own fixed-point execution,
 //! budget/invalidation fences, public entry points, and external replay.

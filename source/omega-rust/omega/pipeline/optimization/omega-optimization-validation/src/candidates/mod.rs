@@ -1,4 +1,4 @@
-//! Independent candidate acceptance, organized by the producing pass family.
+//! Optimizer module role: stage group. Independent candidate acceptance, organized by the producing pass family.
 
 use super::*;
 

@@ -1,4 +1,4 @@
-//! Obligation-free total-scalar identity entrance.
+//! Optimizer module role: stage group. Obligation-free total-scalar identity families.
 //!
 //! Every catalog row descends into one identically named folder. Its `mod.rs`
 //! owns the exact contract and proposal join; `laws.rs` owns only that rule's

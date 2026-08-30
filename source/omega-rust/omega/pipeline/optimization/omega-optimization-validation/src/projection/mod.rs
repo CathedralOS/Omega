@@ -1,4 +1,4 @@
-//! Optimized-unit to abstract-plan projection coordination.
+//! Optimizer module role: executable entrance. Optimized-unit to abstract-plan projection coordination.
 //!
 //! Validation proceeds in one visible order: transformed unit and ledger,
 //! identity bundle, pass manifests, then reconstructible projection shape.

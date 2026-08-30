@@ -1,4 +1,4 @@
-//! Typed integer-expression source grammar entrance.
+//! Optimizer module role: executable entrance. Typed integer-expression source grammar entrance.
 //!
 //! Exact unary, bitwise, and comparison grammars own their result-envelope
 //! choice. This rung owns only their common typed-parameter lookup.

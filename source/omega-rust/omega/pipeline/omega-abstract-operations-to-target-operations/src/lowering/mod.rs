@@ -1,4 +1,4 @@
-//! Stage entrance: bind admitted settlements, validate the complete roster, and lower each function.
+//! Optimizer module role: executable entrance. Stage entrance: bind admitted settlements, validate the complete roster, and lower each function.
 
 mod boundary_settlements;
 mod cleanup;

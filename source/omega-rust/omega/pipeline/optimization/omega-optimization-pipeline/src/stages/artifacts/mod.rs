@@ -1,4 +1,4 @@
-//! Fragment emission, placement, object-container, and final artifact stages.
+//! Optimizer module role: stage group. Fragment emission, placement, object-container, and final artifact stages.
 
 pub(crate) mod function_fragment_emission;
 pub(crate) mod function_fragment_object_container;

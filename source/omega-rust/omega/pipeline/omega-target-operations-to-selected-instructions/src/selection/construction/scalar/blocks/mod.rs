@@ -1,4 +1,4 @@
-//! Shared block constructors; family leaves own their sequencing and IDs.
+//! Optimizer module role: stage group. Shared block constructors; family leaves own their sequencing and IDs.
 
 mod active_resident;
 mod binary;

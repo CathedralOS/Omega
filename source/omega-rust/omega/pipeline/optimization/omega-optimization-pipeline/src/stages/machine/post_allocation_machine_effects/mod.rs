@@ -1,4 +1,4 @@
-//! Post-allocation machine analysis stage.
+//! Optimizer module role: executable entrance. Post-allocation machine analysis stage.
 //!
 //! Route adapters project each supported selected-instruction lineage into the
 //! common analysis join. This entrance seals the resulting effects and machine

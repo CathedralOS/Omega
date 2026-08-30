@@ -1,4 +1,4 @@
-//! Function-relative realization and callable-entry custody stages.
+//! Optimizer module role: stage group. Function-relative realization and callable-entry custody stages.
 
 pub(crate) mod active_resident_function_relative_realization;
 pub(crate) mod allocation_recovery_function_relative_realization;

@@ -1,4 +1,4 @@
-//! Run-to-abstract stage test catalog.
+//! Optimizer module role: stage group. Run-to-abstract stage test catalog.
 //!
 //! Fixtures are grouped by the source shape they construct. Test leaves own
 //! selection/custody, control-flow, scalar, GVN, proof-elision, manifest, and

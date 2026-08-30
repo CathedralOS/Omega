@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use crate::*;
 pub(super) use omega_abstract_operations::CompletionClaimSource;
 pub(super) use omega_calling_conventions::{

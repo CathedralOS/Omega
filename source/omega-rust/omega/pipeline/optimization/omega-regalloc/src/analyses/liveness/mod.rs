@@ -1,4 +1,4 @@
-//! Selected-CFG liveness compute -> independent validation entrance.
+//! Optimizer module role: executable entrance. Selected-CFG liveness compute -> independent validation entrance.
 
 use crate::*;
 

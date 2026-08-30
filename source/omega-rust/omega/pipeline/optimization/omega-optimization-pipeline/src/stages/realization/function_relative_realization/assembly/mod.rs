@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 use super::prelude::*;
 use super::{error::*, model::*};
 

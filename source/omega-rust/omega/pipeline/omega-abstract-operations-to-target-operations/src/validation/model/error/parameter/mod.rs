@@ -1,4 +1,4 @@
-//! Shared parameter reconstruction errors and exact family maps.
+//! Optimizer module role: stage group. Shared parameter reconstruction errors and exact family maps.
 
 mod bitwise;
 mod comparison;

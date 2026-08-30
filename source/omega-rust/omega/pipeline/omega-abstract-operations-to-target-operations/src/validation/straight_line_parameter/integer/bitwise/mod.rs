@@ -1,4 +1,4 @@
-//! Integer-result binary bitwise source, ABI, provenance, and target replay.
+//! Optimizer module role: executable entrance. Integer-result binary bitwise source, ABI, provenance, and target replay.
 
 pub(crate) mod bitwise_and;
 pub(crate) mod bitwise_or;

@@ -1,4 +1,4 @@
-//! Single physical route for the closed allocation-recovery catalog.
+//! Optimizer module role: executable entrance. Single physical route for the closed allocation-recovery catalog.
 
 mod active_resident;
 mod fixed_view;

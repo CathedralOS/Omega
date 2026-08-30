@@ -1,4 +1,4 @@
-//! Translation receipt taxonomy and exact family-to-receipt join.
+//! Optimizer module role: executable entrance. Translation receipt taxonomy and exact family-to-receipt join.
 
 mod family;
 mod immediate;

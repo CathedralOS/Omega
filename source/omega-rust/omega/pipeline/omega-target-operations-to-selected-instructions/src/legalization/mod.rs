@@ -1,4 +1,4 @@
-//! Mandatory target legalization: construct the canonical plan, then replay it independently.
+//! Optimizer module role: executable entrance. Mandatory target legalization: construct the canonical plan, then replay it independently.
 //!
 //! Start with `catalog` for every admitted form, descend into `source` for
 //! producer projection, and into `replay` for independent acceptance.

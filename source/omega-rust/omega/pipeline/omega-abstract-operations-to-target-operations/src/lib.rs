@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Abstract-operation lowering into target-specific operation plans.
+//! Optimizer module role: crate map. Abstract-operation lowering into target-specific operation plans.
 //!
 //! Enter `lowering/mod.rs` for the validated settlement-to-function lowering
 //! join, then descend by result family and semantic responsibility.

@@ -1,4 +1,4 @@
-//! Function-relative realization shared by every allocation-recovery rule.
+//! Optimizer module role: executable entrance. Function-relative realization shared by every allocation-recovery rule.
 //!
 //! [`source`] names the closed recovery taxonomy. Construction and validation
 //! independently traverse the selected form owned by that source; this

@@ -1,4 +1,4 @@
-//! Scalar selection: reconstruct context, classify once, build one whole body.
+//! Optimizer module role: executable entrance. Scalar selection: reconstruct context, classify once, build one whole body.
 //!
 //! `catalog.rs` is the sole family inventory. Each selected leaf returns its
 //! virtual-register roster and blocks together so those projections cannot

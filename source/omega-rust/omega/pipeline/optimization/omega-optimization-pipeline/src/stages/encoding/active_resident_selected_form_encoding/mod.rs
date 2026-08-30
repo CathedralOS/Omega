@@ -1,4 +1,4 @@
-//! Active-resident selected-form encoding custody stage.
+//! Optimizer module role: executable entrance. Active-resident selected-form encoding custody stage.
 //!
 //! Construction, receipt projection, independent replay, retained state, and
 //! corruption fixtures descend into named leaves. This entrance alone admits

@@ -1,4 +1,4 @@
-//! Reconstructible optimization-unit validation coordination.
+//! Optimizer module role: executable entrance. Reconstructible optimization-unit validation coordination.
 //!
 //! Acceptance proceeds through canonical identity/fact indexes, unit catalogs,
 //! retained affine authority, and final frontier/entry/service checks.

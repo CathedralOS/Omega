@@ -1,4 +1,4 @@
-//! Terminal-to-abstract lowering entrance: validate the entry roster, lower
+//! Optimizer module role: executable entrance. Terminal-to-abstract lowering entrance: validate the entry roster, lower
 //! every verified machine through the ordinary or structural family, and
 //! retain the canonical Terminal-Psi identity.
 

@@ -1,4 +1,4 @@
-//! Deterministic bounded pressure-victim selection entrance.
+//! Optimizer module role: executable entrance. Deterministic bounded pressure-victim selection entrance.
 
 use crate::*;
 

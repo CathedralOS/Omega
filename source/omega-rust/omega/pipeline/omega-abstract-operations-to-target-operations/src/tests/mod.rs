@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use super::*;
 pub(super) use crate::lowering::{
     lower_with_settlements_for_tests as lower_to_target_operations_with_settlements,

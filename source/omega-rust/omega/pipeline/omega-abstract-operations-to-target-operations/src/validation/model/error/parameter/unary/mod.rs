@@ -1,4 +1,4 @@
-//! Exact unary parameter-family errors.
+//! Optimizer module role: stage group. Exact unary parameter-family errors.
 
 mod bitwise_not;
 mod boolean_not;

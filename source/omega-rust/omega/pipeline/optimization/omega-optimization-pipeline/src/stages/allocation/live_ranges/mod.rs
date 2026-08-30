@@ -1,4 +1,4 @@
-//! CFG-aware live-range staging.
+//! Optimizer module role: executable entrance. CFG-aware live-range staging.
 //!
 //! This entrance owns the analysis-to-independent-replay join over complete
 //! liveness custody. No interval or interference fact escapes before replay.

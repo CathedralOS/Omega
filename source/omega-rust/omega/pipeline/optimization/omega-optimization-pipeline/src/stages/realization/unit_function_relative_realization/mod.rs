@@ -1,4 +1,4 @@
-//! Receiver-free Unit function-relative realization.
+//! Optimizer module role: executable entrance. Receiver-free Unit function-relative realization.
 //!
 //! This entrance owns construction-to-independent-replay admission. Unit
 //! source-shape checks, manifest reconstruction, and custody projection remain
