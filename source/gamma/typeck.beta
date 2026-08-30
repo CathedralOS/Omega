@@ -1,14 +1,15 @@
-; typeck.beta - a pre-contract Gamma static-semantics oracle, written in Beta.
+; typeck.beta - a temporary Gamma static-semantics oracle, written in Beta.
 ;
 ; This program exercises candidate monomorphic type rules. It is not a proof
-; kernel, a selected executable Gamma contract, or a compiler stage. The selected
-; Gamma contract decides which rules enter the Beta-written Gamma compiler and
-; whether this standalone parser/checker is then deleted.
+; kernel or a compiler stage. D16 selects the executable Gamma contract; this
+; candidate material must be absorbed by the Beta-written Gamma compiler and the
+; standalone parser/checker then deleted when its last unique gate is subsumed.
 ;
-; Phase 1: builtin Int + top-level functions with typed params and a declared return
+; Builtin Int/Bytes + top-level functions with typed params and a declared return
 ; type; arithmetic/comparisons are Int x Int -> Int, `if` wants an Int condition and
-; equal branches, `let` binds the synthesised type, a call checks arg types + arity.
-; Phase 2: data declarations (ADTs) + `match`.
+; equal branches, `let` binds the synthesised type, a call checks arg types + arity,
+; and the six closed Bytes primitives have their D16 signatures. Data declarations
+; (ADTs) and exhaustive `match` provide the nominal surface.
 ;
 ; Surface (prefix; Int is builtin, every binder annotated):
 ;   program := (data T (C TYPE...)...)*  (def NAME ((PARAM TYPE)...) RETTYPE EXPR)*
@@ -23,7 +24,8 @@
 ;          16777216 ARENA (~48 MB)
 ;          4194304 FUNS
 ;          4259840 TYNAMES  4325376 CONS  5242880 TENV  6291456 COVERAGE
-; "type" = small id: Int = 0. AST nodes 4 words. Func entry 4 words
+; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
+; AST nodes 4 words. Func entry 4 words
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
 ; AST tags: 0 INT 1 VAR 2 PRIM 3 IF 4 LET 5 CALL 6 CONS 7 CONAPP 8 MATCH
 ;           9 PVAR 10 PCON 11 ARM 50 PARAM
@@ -61,7 +63,7 @@ proc slurp() {
                                  ; canonical decoders with monomorphic result ADTs.
         word[2097120] = 0        ; NFUN
         word[2097112] = 0        ; TENVN
-        word[2097104] = 1        ; NTY (id 0 = builtin Int)
+        word[2097104] = 2        ; NTY (id 0 = Int, id 1 = Bytes)
         word[2097096] = 0        ; NCON
         word[2097088] = 0        ; INVALID_TYPE
         word[2097080] = 0        ; MATCH_EPOCH
@@ -157,13 +159,46 @@ proc skip_ident() {
     state body { adv()  to loop }
 }
 
-proc parse_number() {
+proc parse_integer() {
+    let negative = 0
+    state sign {
+        to minus when (cbyte() == '-')
+        to digits
+    }
+    state minus { negative = 1  adv()  to digits }
+    state digits {
     let v = 0
+        to loop
+    }
     state loop {
         to body when (is_digit(cbyte()) == 1)
-        return v
+        to done
     }
-    state body { v = v * 10 + (cbyte() - '0')  adv()  to loop }
+    state body {
+        let d = cbyte() - '0'
+        to overflow when (v > 922337203685477580)
+        to edge when (v == 922337203685477580)
+        to append
+    }
+    state edge {
+        to positive_edge when (negative == 0)
+        to overflow when (d > 8)
+        to append
+    }
+    state positive_edge { to overflow when (d > 7)  to append }
+    state append { v = v * 10 + d  adv()  to loop }
+    state overflow {
+        word[2097088] = 1
+        ; Consume the rest of the literal so the parser still makes progress.
+        to consume
+    }
+    state consume {
+        to consume_digit when (is_digit(cbyte()) == 1)
+        return 0
+    }
+    state consume_digit { adv()  to consume }
+    state done { to negate when (negative == 1)  return v }
+    state negate { return 0 - v }
 }
 
 proc alloc(tag, f0, f1, f2) {
@@ -207,6 +242,76 @@ proc name_is3(off, a, b, c) {
     state yes { return 1 }
 }
 
+proc is_bytes_type(off) {
+    state c1 { to c2 when (byte[2097152 + off] == 'B')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'y')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 't')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'e')  return 0 }
+    state c5 { to c6 when (byte[2097152 + off + 4] == 's')  return 0 }
+    state c6 { to yes when (is_ident_continue(byte[2097152 + off + 5]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; Closed D16 builtin identity. Return 1 empty, 2 single, 3 length, 4 get,
+; 5 slice, 6 concat, or 0 for an ordinary function name.
+proc bytes_builtin_kind(off) {
+    state b0 { to b1 when (byte[2097152 + off] == 'b')  return 0 }
+    state b1 { to b2 when (byte[2097152 + off + 1] == 'y')  return 0 }
+    state b2 { to b3 when (byte[2097152 + off + 2] == 't')  return 0 }
+    state b3 { to b4 when (byte[2097152 + off + 3] == 'e')  return 0 }
+    state b4 { to b5 when (byte[2097152 + off + 4] == 's')  return 0 }
+    state b5 { to suffix when (byte[2097152 + off + 5] == '_')  return 0 }
+    state suffix {
+        let s = off + 6
+        to empty1 when (byte[2097152 + s] == 'e')
+        to s_second when (byte[2097152 + s] == 's')
+        to length1 when (byte[2097152 + s] == 'l')
+        to get1 when (byte[2097152 + s] == 'g')
+        to concat1 when (byte[2097152 + s] == 'c')
+        return 0
+    }
+    state empty1 { to empty2 when (byte[2097152 + s + 1] == 'm')  return 0 }
+    state empty2 { to empty3 when (byte[2097152 + s + 2] == 'p')  return 0 }
+    state empty3 { to empty4 when (byte[2097152 + s + 3] == 't')  return 0 }
+    state empty4 { to empty5 when (byte[2097152 + s + 4] == 'y')  return 0 }
+    state empty5 { to ret_empty when (is_ident_continue(byte[2097152 + s + 5]) == 0)  return 0 }
+    state ret_empty { return 1 }
+    state s_second {
+        to single2 when (byte[2097152 + s + 1] == 'i')
+        to slice2 when (byte[2097152 + s + 1] == 'l')
+        return 0
+    }
+    state single2 { to single3 when (byte[2097152 + s + 2] == 'n')  return 0 }
+    state single3 { to single4 when (byte[2097152 + s + 3] == 'g')  return 0 }
+    state single4 { to single5 when (byte[2097152 + s + 4] == 'l')  return 0 }
+    state single5 { to single6 when (byte[2097152 + s + 5] == 'e')  return 0 }
+    state single6 { to ret_single when (is_ident_continue(byte[2097152 + s + 6]) == 0)  return 0 }
+    state ret_single { return 2 }
+    state slice2 { to slice3 when (byte[2097152 + s + 2] == 'i')  return 0 }
+    state slice3 { to slice4 when (byte[2097152 + s + 3] == 'c')  return 0 }
+    state slice4 { to slice5 when (byte[2097152 + s + 4] == 'e')  return 0 }
+    state slice5 { to ret_slice when (is_ident_continue(byte[2097152 + s + 5]) == 0)  return 0 }
+    state ret_slice { return 5 }
+    state length1 { to length2 when (byte[2097152 + s + 1] == 'e')  return 0 }
+    state length2 { to length3 when (byte[2097152 + s + 2] == 'n')  return 0 }
+    state length3 { to length4 when (byte[2097152 + s + 3] == 'g')  return 0 }
+    state length4 { to length5 when (byte[2097152 + s + 4] == 't')  return 0 }
+    state length5 { to length6 when (byte[2097152 + s + 5] == 'h')  return 0 }
+    state length6 { to ret_length when (is_ident_continue(byte[2097152 + s + 6]) == 0)  return 0 }
+    state ret_length { return 3 }
+    state get1 { to get2 when (byte[2097152 + s + 1] == 'e')  return 0 }
+    state get2 { to get3 when (byte[2097152 + s + 2] == 't')  return 0 }
+    state get3 { to ret_get when (is_ident_continue(byte[2097152 + s + 3]) == 0)  return 0 }
+    state ret_get { return 4 }
+    state concat1 { to concat2 when (byte[2097152 + s + 1] == 'o')  return 0 }
+    state concat2 { to concat3 when (byte[2097152 + s + 2] == 'n')  return 0 }
+    state concat3 { to concat4 when (byte[2097152 + s + 3] == 'c')  return 0 }
+    state concat4 { to concat5 when (byte[2097152 + s + 4] == 'a')  return 0 }
+    state concat5 { to concat6 when (byte[2097152 + s + 5] == 't')  return 0 }
+    state concat6 { to ret_concat when (is_ident_continue(byte[2097152 + s + 6]) == 0)  return 0 }
+    state ret_concat { return 6 }
+}
+
 proc is_upper(c) {
     state c1 { to no when (c < 'A')  to c2 }
     state c2 { to no when (c > 'Z')  return 1 }
@@ -223,12 +328,13 @@ proc is_match_kw(off) {
     state yes { return 1 }
 }
 
-; resolve a type name to a type id: Int = 0, else a declared data type, else -1.
+; resolve a type name to a type id: Int = 0, Bytes = 1, else nominal, else -1.
 proc tyid(off) {
-    state intchk { to scan when (name_is3(off, 'I', 'n', 't') == 0)  return 0 }
+    state intchk { to byteschk when (name_is3(off, 'I', 'n', 't') == 0)  return 0 }
+    state byteschk { to scan when (is_bytes_type(off) == 0)  return 1 }
     state scan {
         let n = word[2097104]
-        let i = 1
+        let i = 2
         to loop
     }
     state loop {
@@ -277,8 +383,13 @@ proc parse_args() {
 proc parse_expr() {
     skip_ws()
     let c = cbyte()
-    state num { to do_num when (is_digit(c) == 1)  to lparen }
-    state do_num { return alloc(0, parse_number(), 0, 0) }
+    state num { to do_num when (is_digit(c) == 1)  to negnum }
+    state negnum {
+        to lparen when (c != '-')
+        to lparen when (is_digit(byte[2097152 + word[2097144] + 1]) == 0)
+        to do_num
+    }
+    state do_num { return alloc(0, parse_integer(), 0, 0) }
     state lparen { to compound when (c == '(')  to atom }
     state compound {
         adv()
@@ -579,8 +690,76 @@ proc tenv_lookup(qoff) {
 
 ; ---- the type checker: tc(expr) -> tyid, or -1 on a type error ----
 
+proc tc_bytes_builtin(kind, args) {
+    state dispatch {
+        to empty when (kind == 1)
+        to single when (kind == 2)
+        to length when (kind == 3)
+        to get when (kind == 4)
+        to slice when (kind == 5)
+        to concat
+    }
+    state empty { to bytesret when (args == 0)  return 0 - 1 }
+    state single {
+        to bad when (args == 0)
+        let a1 = args
+        to bad when (word[a1 + 16] != 0)
+        to bytesret when (tc(word[a1 + 8]) == 0)
+        to bad
+    }
+    state length {
+        to bad when (args == 0)
+        let a2 = args
+        to bad when (word[a2 + 16] != 0)
+        to intret when (tc(word[a2 + 8]) == 1)
+        to bad
+    }
+    state get {
+        to bad when (args == 0)
+        let g1 = args
+        let g2 = word[g1 + 16]
+        to bad when (g2 == 0)
+        to bad when (word[g2 + 16] != 0)
+        to bad when (tc(word[g1 + 8]) != 1)
+        to intret when (tc(word[g2 + 8]) == 0)
+        to bad
+    }
+    state slice {
+        to bad when (args == 0)
+        let s1 = args
+        let s2 = word[s1 + 16]
+        to bad when (s2 == 0)
+        let s3 = word[s2 + 16]
+        to bad when (s3 == 0)
+        to bad when (word[s3 + 16] != 0)
+        to bad when (tc(word[s1 + 8]) != 1)
+        to bad when (tc(word[s2 + 8]) != 0)
+        to bytesret when (tc(word[s3 + 8]) == 0)
+        to bad
+    }
+    state concat {
+        to bad when (args == 0)
+        let c1 = args
+        let c2 = word[c1 + 16]
+        to bad when (c2 == 0)
+        to bad when (word[c2 + 16] != 0)
+        to bad when (tc(word[c1 + 8]) != 1)
+        to bytesret when (tc(word[c2 + 8]) == 1)
+        to bad
+    }
+    state intret { return 0 }
+    state bytesret { return 1 }
+    state bad { return 0 - 1 }
+}
+
 proc tc_call(fname, args) {
-    let fi = fun_lookup(fname)
+    let builtin = bytes_builtin_kind(fname)
+    state builtin_check { to builtin_call when (builtin != 0)  to ordinary }
+    state builtin_call { return tc_bytes_builtin(builtin, args) }
+    state ordinary {
+        let fi = fun_lookup(fname)
+        to fchk
+    }
     state fchk { to known when (fi != 0 - 1)  return 0 - 1 }   ; unknown function
     state known {
         let p = word[4194304 + fi * 32 + 8]
@@ -642,7 +821,7 @@ proc tc_conapp(coff, args) {
 
 proc tc_match(scrut, arms) {
     let st = tc(scrut)
-    state schk { to algebraic when (st > 0)  return 0 - 1 }
+    state schk { to algebraic when (st > 1)  return 0 - 1 }
     state algebraic {
         word[2097080] = word[2097080] + 1
         to ok

@@ -497,7 +497,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 34-case oracle gate are implementation material for
+    constructor table and 45-case oracle gate are implementation material for
     `gamma_compiler.beta`; the direct compiler must absorb the rule before this
     temporary checker is deleted.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
@@ -510,7 +510,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 34 type-checker cases, and 106 independent
+  fail-closed arena case, 45 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the
