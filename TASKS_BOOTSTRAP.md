@@ -541,8 +541,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       its resolved return type, maximum simultaneously live locals, and exact
       parameter count. The metadata gate pins parameter/local kinds, slots,
       references, pattern fields, reuse-derived maximum, and profile counts.
-      The variable/let/call/constructor source joins consume those profiles;
-      selected-match and whole-function entry construction remain.
+      The variable/let/call/constructor/match source joins consume those
+      profiles; whole-function entry construction remains.
   - Implement D19's sealed application-profile input as part of the exact Gamma
     compilation question and reconstruction evidence. Generate exactly
     `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
@@ -569,10 +569,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 104 procedures; with the frontend
-    gate entry, the gate uses 105 of the persisted V2 artifact's 256 procedure
-    slots. At that milestone it compiled to 251,142 bytes, leaving 797,430 bytes below the V2
-    runnable payload ceiling.
+    tape budget. The retained source now declares 106 procedures; with the
+    frontend gate entry, the gate uses 107 of the persisted V2 artifact's 256
+    procedure slots. It compiles to 273,826 bytes, leaving 774,746 bytes below
+    the V2 runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -740,14 +740,28 @@ code, discover a closure, manufacture proof premises, or decide admission.
     identity into runtime kinds starting at two. Execute source-derived ordinary
     and proper-tail calls, a parameter return, constructor allocation, and a
     let/local `Bytes` read; compile each bridge twice byte-identically. Malformed
-    resolved metadata fails before publication. Selected-match and complete
-    function-label/entry emission remain open.
+    resolved metadata fails before publication. Complete function-label/entry
+    emission remains open.
+  - [x] Lower D20's resolved selected matches through the general expression
+    backend. Validate the complete forward arm spine, arm/pattern nodes,
+    constructor identities, exact payload arities, fixed binder slots, and
+    required label extent before evaluating the scrutinee. Evaluate it exactly
+    once; test constructor kinds in source order; bind payload fields in source
+    order or retain the complete pair for a catch-all; execute only the selected
+    body; and pass the caller's tail-position bit into that body. Six executed
+    source programs cover nullary and payload arms, field order, a catch-all
+    rematch, sibling slot reuse, unselected traps, and a proper-tail arm call
+    with root frame restoration. A one-row heap ceiling distinguishes one
+    scrutinee evaluation from two; focused malformed identity, slot, and cyclic
+    arm controls retain sticky private failure and zero payload; repeated
+    compilation is byte-identical. Whole-function label/entry emission remains
+    open.
   - [x] Perform the bounded ordinary compaction required before D12 escalation.
     Merge identical global lookup and root-form scans, share the call/
     constructor type-argument zipper, remove the one-use local wrapper, and
     merge the checked divide/remainder emitters without changing emitted Alpha.
     This reduces the live source-join compiler with a trivial entry from
-    254,109 to 250,761 bytes; the complete adjacent gate remains 193/193.
+    254,109 to 250,761 bytes; the then-complete adjacent gate remained 193/193.
   - [x] **PROFILE-REVISION — D23: ALPHA-BOOTSTRAP-V2.** Migrate the complete
     lattice profile atomically to a one-MiB stamped seed hole and 1,048,572-byte
     raw-tape maximum without changing Alpha instructions. Both native seeds,
@@ -762,7 +776,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     gate retains a real exact-maximum compiler tape with representative source,
     named lemmas, normalization, scratch, simultaneous outer maxima, balanced
     arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
-    tapes reproduce exactly; the fixed Gamma gate remains 193/193. Ordinary
+    tapes reproduce exactly; the subsequently expanded Gamma gate is 201/201. Ordinary
     density work remains useful but is no longer a condition for the retired
     V1 ceiling.
   - [x] Establish the dormant profile-parameterized sealed-input reader before
@@ -866,10 +880,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   duplicate checker source, and keep `interp.beta` only as a bounded semantic
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
   compiler source is an accepted compiler artifact. The retained compiler gate
-  passes 193 cases spanning 97 frontend discriminators, direct emitter and
-  containment probes, checked `Int` and compact-`Bytes` runtime paths, 31
+  passes 201 cases spanning 97 frontend discriminators, direct emitter and
+  containment probes, checked `Int` and compact-`Bytes` runtime paths, 37
   source-to-code cases, source-derived ordinary/tail call, constructor, and
-  local/let payloads, repeated byte-identical reconstruction, frame/algebraic
+  local/let/match payloads, repeated byte-identical reconstruction, frame/algebraic
   ABIs, and sealed input. Separate oracle gates retain 48 interpreter cases,
   the fail-closed arena case, and 106 independent differential cases.
   - [x] Delete the interpreter's dead environment lookup and the
@@ -987,17 +1001,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     owner-escalation trigger, not permission for a hidden alternate backend.
     Its exact preflight, depth-20 target trie, oversize sentinel, and adjacent
     vectors now share the common V2 profile.
-  - [ ] **IMPLEMENTATION — D24: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
-    D22 and D24's exact Delta identity census before type formation.
-    Collect grammar-selected owner, machine, member, state, parameter, binder,
-    and local scopes; reject the globally earliest later conflict; preserve
-    ordered let visibility without active shadowing; permit local/member and
-    disjoint-state spelling reuse; and reject every authored body on a boundary
-    owner as `InvalidBoundary`. Collect every syntactic transition binder even
-    when its case or arity later fails; keep sibling arms disjoint; compare
-    declaration-start coordinates across duplicate and boundary candidates;
-    and never classify an ambiguous owner by its first row. Do not add first-
-    wins lookup, omit executable pattern binders, or retain a partial collector.
+  - [x] **IMPLEMENTATION — D24: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
+    D22 and D24's exact Delta identity census before type formation. The
+    source-shaped collector first builds complete owner and exact qualified-
+    machine rows, then covers grammar-selected member, state, parameter, let,
+    and transition-binder scopes with byte-exact authored-name comparison.
+    It rejects the globally earliest later conflict, preserves ordered let
+    visibility without active shadowing, permits local/member and disjoint-
+    state spelling reuse, and diagnoses authored bodies on uniquely classified
+    boundary owners as `InvalidBoundary`. Every syntactic transition binder is
+    collected even when later case or arity checking will fail; sibling arms
+    are disjoint; duplicate and boundary candidates share one coordinate
+    minimum; and every duplicate owner table, including same-kind duplication,
+    is ambiguous rather than first-wins classified. The complete source
+    type-checks through the Gamma frontend. Runtime behavior remains owned by
+    the dependency-blocked real-compiler suite below; no host collector was
+    introduced.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
@@ -1009,11 +1028,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     checking families, symbolic Alpha encoding/replay, all nine runtime traps,
     and boundary/adjacent private-resource obligations without materializing an
     unrun file corpus or claiming execution evidence.
-  - [ ] Complete D24's transition-binder and mixed `DuplicateName`/
-    `InvalidBoundary` rows. Split sibling reuse from the `UnknownName` sibling-
-    reference rejection; pin active-outer collisions, unknown-case and wrong-
-    arity two-round diagnostics, both unrelated-failure source orders, and the
-    boundary/data-ambiguous owner.
+  - [x] Complete D24's transition-binder and mixed `DuplicateName`/
+    `InvalidBoundary` rows in the adjacent conformance plan. It splits sibling
+    reuse from the `UnknownName` sibling-reference rejection; pins active-outer
+    collisions and both `DuplicateName -> UnknownName` and `DuplicateName ->
+    ArityMismatch` two-round diagnostics; and covers both unrelated-failure
+    source orders plus the boundary/data-ambiguous owner. These are contract-
+    derived planned vectors, not claimed execution evidence.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
   and run that
   contract-derived suite through the real Gamma-written compiler and bind every
