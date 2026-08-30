@@ -647,6 +647,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     empty arm sets, and incomplete delimiters fail at their exact source
     coordinate. Duplicate-pattern and sum-exhaustiveness decisions remain in
     the later body/control checker, not syntax.
+  - [x] Implement reusable parameter, statement, and explicit-return parsing.
+    Typed parameter lists preserve arbitrary source order without recursive
+    arity growth or trailing commas. `let`, assignment, neutral postfix,
+    `assert`, and `return expression?;` nodes own exact spans through their
+    semicolon. The parser does not guess whether a postfix form is an assignable
+    place, ordinary call, or final `never` call; resolved body checking owns
+    those D17 classifications. Bodies, states, and top-level declarations
+    remain the next syntax milestone.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed

@@ -262,6 +262,22 @@
   (DeltaTransitionParsed DeltaTerminal)
   (DeltaTransitionParseRejected DeltaRejectReason Int))
 
+(data DeltaParameterParseOutcome
+  (DeltaParameterParsed DeltaParameter)
+  (DeltaParameterParseRejected DeltaRejectReason Int))
+
+(data DeltaParameterListParseOutcome
+  (DeltaParameterListParsed DeltaParameterList Int)
+  (DeltaParameterListParseRejected DeltaRejectReason Int))
+
+(data DeltaStatementParseOutcome
+  (DeltaStatementParsed DeltaStatement)
+  (DeltaStatementParseRejected DeltaRejectReason Int))
+
+(data DeltaTerminalParseOutcome
+  (DeltaTerminalParsed DeltaTerminal)
+  (DeltaTerminalParseRejected DeltaRejectReason Int))
+
 (def ascii_between ((c Int) (low Int) (high Int)) Int
   (if (lt c low) 0 (if (lt high c) 0 1)))
 
@@ -1439,3 +1455,211 @@
         (if (eq errorStart (bytes_length source))
           (DeltaTransitionParseRejected UnexpectedEnd errorStart)
           (DeltaTransitionParseRejected UnexpectedToken errorStart))))))
+
+; ---- parameters, statements, and explicit return -----------------------
+
+(def delta_parameter_end ((parameterValue DeltaParameter)) Int
+  (match parameterValue
+    ((DeltaParameterSyntax start end name typeValue) end)))
+
+(def delta_reverse_parameters ((input DeltaParameterList)
+  (output DeltaParameterList)) DeltaParameterList
+  (match input
+    (NoDeltaParameters output)
+    ((MoreDeltaParameters item rest)
+      (delta_reverse_parameters rest (MoreDeltaParameters item output)))))
+
+(def delta_parameter_reject_at ((source Bytes) (cursor Int)) DeltaParameterParseOutcome
+  (let start (delta_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (DeltaParameterParseRejected UnexpectedEnd start)
+      (DeltaParameterParseRejected UnexpectedToken start))))
+
+(def delta_parameter_list_reject_at ((source Bytes) (cursor Int)) DeltaParameterListParseOutcome
+  (let start (delta_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (DeltaParameterListParseRejected UnexpectedEnd start)
+      (DeltaParameterListParseRejected UnexpectedToken start))))
+
+(def delta_statement_reject_at ((source Bytes) (cursor Int)) DeltaStatementParseOutcome
+  (let start (delta_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (DeltaStatementParseRejected UnexpectedEnd start)
+      (DeltaStatementParseRejected UnexpectedToken start))))
+
+(def delta_terminal_reject_at ((source Bytes) (cursor Int)) DeltaTerminalParseOutcome
+  (let start (delta_token_start source cursor)
+    (if (eq start (bytes_length source))
+      (DeltaTerminalParseRejected UnexpectedEnd start)
+      (DeltaTerminalParseRejected UnexpectedToken start))))
+
+(def delta_parse_parameter ((source Bytes) (cursor Int)) DeltaParameterParseOutcome
+  (let nameStart (delta_token_start source cursor)
+    (if (eq (delta_token_code source nameStart) 1)
+      (let nameEnd (delta_token_end source nameStart)
+        (let colonStart (delta_token_start source nameEnd)
+          (if (eq (delta_token_code source colonStart) 37)
+            (let typeOutcome
+              (delta_parse_type source (delta_token_end source colonStart))
+              (match typeOutcome
+                ((DeltaTypeParseRejected reasonValue errorOffset)
+                  (DeltaParameterParseRejected reasonValue errorOffset))
+                ((DeltaTypeParsed typeValue)
+                  (let parameterEnd (delta_type_end typeValue)
+                    (DeltaParameterParsed
+                      (DeltaParameterSyntax nameStart parameterEnd
+                        (DeltaNameSpan nameStart nameEnd) typeValue))))))
+            (delta_parameter_reject_at source nameEnd))))
+      (delta_parameter_reject_at source cursor))))
+
+(def delta_parse_parameters_acc ((source Bytes) (cursor Int) (closeCode Int)
+  (accumulator DeltaParameterList)) DeltaParameterListParseOutcome
+  (let start (delta_token_start source cursor)
+    (if (eq (delta_token_code source start) closeCode)
+      (DeltaParameterListParsed
+        (delta_reverse_parameters accumulator NoDeltaParameters) start)
+      (let parameterOutcome (delta_parse_parameter source start)
+        (match parameterOutcome
+          ((DeltaParameterParseRejected reasonValue errorOffset)
+            (DeltaParameterListParseRejected reasonValue errorOffset))
+          ((DeltaParameterParsed parameterValue)
+            (let followingStart (delta_token_start source
+              (delta_parameter_end parameterValue))
+              (let followingCode (delta_token_code source followingStart)
+                (if (eq followingCode closeCode)
+                  (DeltaParameterListParsed
+                    (delta_reverse_parameters
+                      (MoreDeltaParameters parameterValue accumulator)
+                      NoDeltaParameters) followingStart)
+                  (if (eq followingCode 38)
+                    (let afterComma (delta_token_end source followingStart)
+                      (let nextStart (delta_token_start source afterComma)
+                        (if (eq (delta_token_code source nextStart) closeCode)
+                          (DeltaParameterListParseRejected UnexpectedToken nextStart)
+                          (delta_parse_parameters_acc source afterComma closeCode
+                            (MoreDeltaParameters parameterValue accumulator)))))
+                    (delta_parameter_list_reject_at source followingStart)))))))))))
+
+(def delta_finish_let_statement ((source Bytes) (statementStart Int)
+  (nameStart Int) (nameEnd Int) (typeValue DeltaType) (cursor Int)) DeltaStatementParseOutcome
+  (let assignStart (delta_token_start source cursor)
+    (if (eq (delta_token_code source assignStart) 41)
+      (let expressionOutcome
+        (delta_parse_expression source (delta_token_end source assignStart))
+        (match expressionOutcome
+          ((DeltaExpressionParseRejected reasonValue errorOffset)
+            (DeltaStatementParseRejected reasonValue errorOffset))
+          ((DeltaExpressionParsed expressionValue)
+            (let semiStart (delta_token_start source
+              (delta_expression_end expressionValue))
+              (if (eq (delta_token_code source semiStart) 36)
+                (let statementEnd (delta_token_end source semiStart)
+                  (DeltaStatementParsed
+                    (DeltaLetStatement statementStart statementEnd
+                      (DeltaNameSpan nameStart nameEnd) typeValue expressionValue)))
+                (delta_statement_reject_at source
+                  (delta_expression_end expressionValue)))))))
+      (delta_statement_reject_at source cursor))))
+
+(def delta_parse_let_statement ((source Bytes) (cursor Int)) DeltaStatementParseOutcome
+  (let statementStart (delta_token_start source cursor)
+    (let nameStart (delta_token_start source
+      (delta_token_end source statementStart))
+      (if (eq (delta_token_code source nameStart) 1)
+        (let nameEnd (delta_token_end source nameStart)
+          (let colonStart (delta_token_start source nameEnd)
+            (if (eq (delta_token_code source colonStart) 37)
+              (let typeOutcome
+                (delta_parse_type source (delta_token_end source colonStart))
+                (match typeOutcome
+                  ((DeltaTypeParseRejected reasonValue errorOffset)
+                    (DeltaStatementParseRejected reasonValue errorOffset))
+                  ((DeltaTypeParsed typeValue)
+                    (delta_finish_let_statement source statementStart nameStart nameEnd
+                      typeValue (delta_type_end typeValue)))))
+              (delta_statement_reject_at source nameEnd))))
+        (delta_statement_reject_at source
+          (delta_token_end source statementStart))))))
+
+(def delta_parse_assert_statement ((source Bytes) (cursor Int)) DeltaStatementParseOutcome
+  (let statementStart (delta_token_start source cursor)
+    (let expressionOutcome
+      (delta_parse_expression source (delta_token_end source statementStart))
+      (match expressionOutcome
+        ((DeltaExpressionParseRejected reasonValue errorOffset)
+          (DeltaStatementParseRejected reasonValue errorOffset))
+        ((DeltaExpressionParsed expressionValue)
+          (let semiStart (delta_token_start source (delta_expression_end expressionValue))
+            (if (eq (delta_token_code source semiStart) 36)
+              (let statementEnd (delta_token_end source semiStart)
+                (DeltaStatementParsed
+                  (DeltaAssertStatement statementStart statementEnd expressionValue)))
+              (delta_statement_reject_at source
+                (delta_expression_end expressionValue)))))))))
+
+(def delta_finish_assignment ((source Bytes) (left DeltaExpression)
+  (cursor Int)) DeltaStatementParseOutcome
+  (let rightOutcome (delta_parse_expression source cursor)
+    (match rightOutcome
+      ((DeltaExpressionParseRejected reasonValue errorOffset)
+        (DeltaStatementParseRejected reasonValue errorOffset))
+      ((DeltaExpressionParsed right)
+        (let semiStart (delta_token_start source (delta_expression_end right))
+          (if (eq (delta_token_code source semiStart) 36)
+            (let statementEnd (delta_token_end source semiStart)
+              (DeltaStatementParsed
+                (DeltaAssignmentStatement (delta_expression_start left)
+                  statementEnd left right)))
+            (delta_statement_reject_at source (delta_expression_end right))))))))
+
+(def delta_parse_postfix_statement ((source Bytes) (cursor Int)) DeltaStatementParseOutcome
+  (let leftOutcome (delta_parse_postfix source cursor)
+    (match leftOutcome
+      ((DeltaExpressionParseRejected reasonValue errorOffset)
+        (DeltaStatementParseRejected reasonValue errorOffset))
+      ((DeltaExpressionParsed left)
+        (let followingStart (delta_token_start source (delta_expression_end left))
+          (let followingCode (delta_token_code source followingStart)
+            (if (eq followingCode 41)
+              (delta_finish_assignment source left
+                (delta_token_end source followingStart))
+              (if (eq followingCode 36)
+                (let statementEnd (delta_token_end source followingStart)
+                  (DeltaStatementParsed
+                    (DeltaPostfixStatement (delta_expression_start left)
+                      statementEnd left)))
+                (delta_statement_reject_at source followingStart)))))))))
+
+(def delta_parse_statement ((source Bytes) (cursor Int)) DeltaStatementParseOutcome
+  (let start (delta_token_start source cursor)
+    (let code (delta_token_code source start)
+      (if (eq code 17)
+        (delta_parse_let_statement source start)
+        (if (eq code 19)
+          (delta_parse_assert_statement source start)
+          (delta_parse_postfix_statement source start))))))
+
+(def delta_parse_return_terminal ((source Bytes) (cursor Int)) DeltaTerminalParseOutcome
+  (let returnStart (delta_token_start source cursor)
+    (if (eq (delta_token_code source returnStart) 18)
+      (let afterReturn (delta_token_end source returnStart)
+        (let followingStart (delta_token_start source afterReturn)
+          (if (eq (delta_token_code source followingStart) 36)
+            (let terminalEnd (delta_token_end source followingStart)
+              (DeltaTerminalParsed
+                (DeltaReturnTerminal returnStart terminalEnd NoDeltaExpression)))
+            (let expressionOutcome (delta_parse_expression source followingStart)
+              (match expressionOutcome
+                ((DeltaExpressionParseRejected reasonValue errorOffset)
+                  (DeltaTerminalParseRejected reasonValue errorOffset))
+                ((DeltaExpressionParsed expressionValue)
+                  (let semiStart (delta_token_start source
+                    (delta_expression_end expressionValue))
+                    (if (eq (delta_token_code source semiStart) 36)
+                      (let terminalEnd (delta_token_end source semiStart)
+                        (DeltaTerminalParsed
+                          (DeltaReturnTerminal returnStart terminalEnd
+                            (SomeDeltaExpression expressionValue))))
+                      (delta_terminal_reject_at source
+                        (delta_expression_end expressionValue))))))))))
+      (delta_terminal_reject_at source cursor))))
