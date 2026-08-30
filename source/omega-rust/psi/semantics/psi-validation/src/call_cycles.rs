@@ -1,5 +1,5 @@
-//! Q6 runtime ruling (Zach, 2026-07-13): ordinary machine CALL cycles are
-//! banned unless the later MR4 constant-stack tail-cycle admission proves
+//! The language-guide runtime-cycle ruling (chapter 3) bans ordinary machine
+//! CALL cycles unless the MR4 constant-stack tail-cycle admission proves
 //! every required edge. The specializer already refuses UNBOUNDED cycles
 //! ("calls into a recursive cycle"), but a bounded
 //! `A -> B -> A` -- the dungeon's old find_item_at/find_item_after pair,

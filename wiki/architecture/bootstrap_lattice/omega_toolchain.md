@@ -57,6 +57,16 @@ canonical bytes; they do not consult a host CLI, filesystem, package database,
 or Rust object layout. Bootstrap Alpha tape is an explicit product rather than
 an inference from the host or source filenames.
 
+D25 gives that question one physical form. `OCREQ` v1 is an exact-end,
+little-endian structural frame with separately length-bounded subject and
+invocation sections. The invocation carries a domain-separated commitment to
+the exact canonical subject. Package rows retain stable lineage and the
+separately selected immutable revision; V1 does not invent bytes for the future
+accepted `PackageInstance`. A package snapshot is one complete canonical
+raw-path tree, so absence, directory enumeration, payload length, and canonical
+metadata derive from its directory/file/link rows rather than arriving as
+parallel claims.
+
 Each compiler independently derives the existing coherent typed frontend and
 static-machine-specialized build projection, infers the selected root build
 machine's transitive authority reach, and freezes the admitted result as one
@@ -71,7 +81,10 @@ activations publish durable generated-source bundles and evidence; a consumer
 does not rerun them and no graph-wide set of live partial frontend checkpoints
 is carried. The Omega edge publishes raw success bytes or its edge-specific
 `OCOUT` failure frame under the common four-case compiler boundary, never a
-partial artifact.
+partial artifact. `OCOUT` keeps the shared 40-byte header; only a package/source
+coordinate adds the exact eight-byte package-and-unit tail. Diagnostics in
+compiler-generated source re-anchor to the authored `include_source` handoff,
+because the generated unit did not cross the request boundary.
 
 ## Product targets versus bootstrap target
 

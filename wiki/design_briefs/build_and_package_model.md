@@ -339,6 +339,18 @@ sealed frame carries both. The explicit bootstrap Alpha-tape product is a
 normal product identity; it is never inferred from a filename, the host, or the
 first program entry found.
 
+D25 fixes the V1 realization. The `OCREQ` identity
+`[4F 43 52 45 51 01 00 00]` precedes little-endian `u32` subject and invocation
+lengths, the two canonical sections, and exact end. Counts, lengths, and indices
+are bounded by `INT32_MAX`; a Delta decoder rejects the raw high bit before any
+signed conversion or checked arithmetic. The invocation carries a
+domain-separated SHA-256 commitment over the exact canonical subject bytes.
+Package rows are ordered by recomputed `PackageKeyIdentity`, graph links use
+validated indices, and dependency links are ordered by requester and local
+alias. The stable package lineage and exact selected immutable resolution are
+separate facts. V1 retains both but carries no preaccepted compiled
+`PackageInstance`; that later carrier requires a new request version.
+
 Each package snapshot is a deterministic virtual filesystem rather than a
 filesystem replay transcript. It contains every file, directory, absence,
 link, and exposed metadata observation available to `BuildSource`; path and
@@ -347,6 +359,16 @@ environment, clocks, randomness, and network access are not compiler inputs.
 `BuildOutput` starts as one fresh activation-local tree. Evaluation may emit a
 replay record afterward, but that operation trace is partial evidence about one
 execution and cannot replace the complete input snapshot.
+
+The physical V1 snapshot serializes only the irreducible closed-tree rows:
+directory, regular file with executable state and exact bytes, and symbolic
+link with exact target spelling. Absence is the complement of the complete row
+set; direct-child order derives from raw-path row order; lengths and canonical
+metadata derive from the payload. Serializing any of those derived facts again
+would create two authorities for one snapshot and is forbidden.
+An external-local canonical path may survive as structural lineage identity,
+but it is never dereferenced by the standalone compiler and cannot replace the
+snapshot bytes.
 
 The request is decoded and checked before source processing: malformed or
 duplicate identities, dangling graph references, inconsistent lengths or
@@ -370,6 +392,18 @@ success is the raw artifact, every failure uses the edge-owned versioned frame,
 and no failure publishes an artifact prefix. Diagnostic order is fixed phase
 order followed by request-byte offset for framing failures, or canonical
 package order, source-unit order, and byte offset for source diagnostics.
+
+The common 40-byte header begins
+`[FF 4F 43 4F 55 54 01 00]`. Coordinate space 4 alone adds an exact eight-byte
+tail containing little-endian `u32` package and source-unit ordinals while the
+header's `u64` coordinate carries the byte offset; no other tail is legal.
+Source failures use the first byte of their retained primary span rather than a
+streaming consumed-prefix cursor. A generated-source rejection re-anchors to
+the request-resolvable authored `BuildOutput::include_source` call that handed
+off the unit. Every private capacity is one named scalar resource with one
+`(limit, requested)` pair. Malformed or inconsistent input rejects, a canonical
+request beyond provision is incomplete, and only a post-admission compiler
+contradiction is internal failure.
 
 The post-relocation filesystem-producing two-package canary remains blocked only
 on the Build-facet engineering migration in

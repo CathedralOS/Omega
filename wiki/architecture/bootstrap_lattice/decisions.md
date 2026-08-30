@@ -463,6 +463,11 @@ use request-byte offset; source diagnostics use canonical package order,
 source-unit order, and byte offset. Timing observations never enter semantic
 identity.
 
+D25 supplies the authoritative byte realization of this logical request and
+outcome. It retains each selected immutable source revision independently from
+the stable `PackageKey`, but deliberately gives no V1 wire identity to the
+future accepted `PackageInstance` carrier.
+
 ## D19 — Gamma application adapters are selected by one sealed two-profile input
 
 Gamma source semantics ends at a pure returned value. A runnable Alpha tape may
@@ -691,6 +696,88 @@ declared as both boundary and data has no owner kind: it contributes its
 no inferred boundary failure. Fixing the owner collision may consequently
 reveal `InvalidBoundary` on a later compile; the compiler never avoids that
 two-round diagnosis by choosing a first owner row.
+
+## D25 — One committed OCREQ v1 question drives both standalone Omega compilers
+
+The Delta-written and self-hosted Omega compilers consume one byte-identical
+`OCREQ` version-1 question. Its eight-byte identity is
+`[4F 43 52 45 51 01 00 00]` (`OCREQ`, version 1, two reserved zero bytes),
+followed by little-endian `u32` subject and invocation byte lengths, then those
+two exact sections and exact end. Every variable byte value is length-framed;
+every table has an explicit count; closed variants have fixed numeric tags and
+zero reserved fields. Counts, lengths, and indices are at most `INT32_MAX` so
+both Delta and Omega implementations can represent them. A Delta decoder reads
+the four raw bytes, rejects a set high bit before signed conversion or checked
+arithmetic, and therefore never turns hostile framing into a trap and outer
+`InternalFailure`.
+
+The subject encodes package rows in ascending recomputed
+`PackageKeyIdentity` order. Each row carries the structural package name and
+source lineage, the separately selected immutable resolution coordinate, its
+role, and one complete build-visible snapshot. The asserted key identity is
+recomputed from the structural fields; indices into the validated package table
+carry graph references. Dependency rows are ordered by requester index and
+requester-local alias. The selected root is explicit. Duplicate, dangling,
+foreign, unreachable, cyclic, role-inconsistent, identity-mismatched, or
+noncanonically ordered rows reject before source processing. The selected
+revision is not a `PackageInstance`: V1 carries no preaccepted compiled
+dependency instance, and no omitted or zero row may be interpreted as one. A
+later accepted-instance carrier requires a new request version.
+
+Each snapshot is one closed raw-path-ordered tree whose only rows are root or
+nested directories, regular files with executable state and exact content
+bytes, and symbolic links with exact target spelling bytes. Absence is the
+complement of that complete row set; direct-child enumeration follows row
+order; payload lengths and canonical metadata are derived. None is serialized
+a second time. The root directory, canonical parent closure, unique paths,
+existing metadata-policy limits, and exact aggregate content are validated. No
+physical host path may be dereferenced or substitute for a snapshot; an
+external-local canonical path retained inside structural source lineage is
+identity text only. Ambient traversal, environment, clocks, randomness,
+network state, and build-operation replay are not request facts.
+
+The invocation carries one closed requested-product tag, canonical target
+profile, canonical external-admission tables, and a domain-separated SHA-256
+commitment over the exact canonical subject section. The compiler validates the
+whole frame and subject canonicality before accepting that commitment. This
+binding remains mandatory even though both sections occupy one outer frame, so
+cached or separately retained sections cannot be substituted. Bootstrap Alpha
+tape is an explicit product. Rust object layout, serde, filename inference, host
+defaults, pointers, and report fingerprints never enter the wire.
+
+Request-profile ceilings are closed, named scalar resources. One exhaustion
+reports one `u64` `(limit, requested)` pair; multidimensional capacity is split
+into separately named resources rather than packed into one value. Invalid or
+noncanonical bytes, graph or custody contradictions present in the request, and
+ordinary source/build/checking refusals are `Reject`. A canonical request that
+exceeds a named private provision is `Incomplete`. Only a contradiction reached
+after accepting canonical input is `InternalFailure`. Validation completes
+framing, exact end, identities, ordering, graph, snapshots, admissions, and the
+subject commitment before any source tokenization.
+
+`OCOUT` retains D13 and D16's common header exactly. Its eight-byte identity is
+`[FF 4F 43 4F 55 54 01 00]`; bytes 8 through 39 keep the common outcome,
+coordinate-space, reserved, reason/resource, coordinate, limit, and requested
+fields, and the halt tag must agree. Coordinate spaces already expressible in
+one `u64` remain exact 40-byte frames. Coordinate space 4 is the sole extension:
+the header coordinate is the source byte offset and an exact eight-byte tail
+carries little-endian `u32` canonical package ordinal and source-unit ordinal
+within that package. No other tail is legal.
+
+Omega source diagnostics anchor at the first byte of their retained primary
+source span, not at a streaming consumed-prefix cursor. Declaration failures
+use declaration start; token or expression failures use the relevant span
+start; EOF uses source extent. A generated unit has no request coordinate, so
+an `OCOUT` rejection in generated source uses a generated-source reason and
+re-anchors to the exact authored `BuildOutput::include_source` call that handed
+off that unit. The compiler retains the generated path and internal offset for
+local diagnostics, but it never emits an uninterpretable generated-unit ordinal
+as request evidence.
+
+Success remains the unwrapped requested artifact. Every failure publishes only
+its closed `OCOUT` frame; the profile-owned reason and resource tables, fixed
+phase order, canonical coordinate ordering, unknown-code rejection, and
+Complete-only publication are common to both compiler implementations.
 
 ## Dependency order
 

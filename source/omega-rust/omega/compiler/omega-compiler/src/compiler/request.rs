@@ -15,11 +15,11 @@ pub enum RequestedCompileProduct {
 /// This request owns production policy and input; [`super::Compiler`] only
 /// coordinates the resulting phase transitions. Publication is a subsequent
 /// operation on a retained native product, not a requested compiler mode.
-/// This Rust-host object is not D18's canonical standalone compiler frame and
-/// its memory layout carries no bootstrap authority. The eventual adapter must
-/// reconstruct the sealed `OmegaCompilationSubject`/`OmegaInvocation` bytes
-/// independently before comparing this implementation with either Alpha-tape
-/// compiler.
+/// This Rust-host object is neither D18's logical standalone request nor D25's
+/// canonical `OCREQ` frame, and its memory layout carries no bootstrap
+/// authority. The eventual adapter must independently reconstruct the sealed
+/// `OmegaCompilationSubject`/`OmegaInvocation` bytes before comparing this
+/// implementation with either Alpha-tape compiler.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileRequest {
     pub(crate) options: CompileOptions,

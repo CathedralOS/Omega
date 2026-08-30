@@ -331,8 +331,8 @@ fn validate_program_internal(
     let fact_call_projections =
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
-    // Q6/MR4: runtime call cycles require the constant-stack tail admission;
-    // erased proof-only SCCs instead require strict structural descent.
+    // Chapter 3 / MR4: runtime call cycles require the constant-stack tail
+    // admission; erased proof-only SCCs instead require strict structural descent.
     call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
