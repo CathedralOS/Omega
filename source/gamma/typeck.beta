@@ -723,7 +723,8 @@ proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM no
     }
     state param_type_ok {
         consume_expected(')')
-        let node = alloc(50, poff, tyid(toff), 0)
+        ; Keep the source spelling until every nominal declaration exists.
+        let node = alloc(50, poff, toff, 0)
         let link = alloc(6, node, 0, 0)
         to first when (head == 0)
         word[tail + 16] = link
@@ -757,7 +758,6 @@ proc parse_def() {
     to return_type_ok
     }
     state return_type_ok {
-    let rtid = tyid(rtoff)
     let body = parse_expr()
     consume_expected(')')
     let i = word[2097120]
@@ -768,7 +768,8 @@ proc parse_def() {
     state store {
     word[8388608 + i * 32] = noff
     word[8388608 + i * 32 + 8] = params
-    word[8388608 + i * 32 + 16] = rtid
+    ; Keep the source spelling until the post-parse type-resolution phase.
+    word[8388608 + i * 32 + 16] = rtoff
     word[8388608 + i * 32 + 24] = body
     word[2097120] = i + 1
     return 0
@@ -788,7 +789,8 @@ proc parse_argtypes() {           ; constructor arg type names until ')', CONS o
         to type_name_ok
     }
     state type_name_ok {
-        let node = alloc(6, tyid(toff), 0, 0)
+        ; Constructor field types are symbolic until all data declarations land.
+        let node = alloc(6, toff, 0, 0)
         to first when (head == 0)
         word[tail + 16] = node
         tail = node
@@ -945,6 +947,52 @@ proc tenv_lookup(qoff) {
     state hit {
         result = word[9437184 + j * 16 + 8]
         return result
+    }
+}
+
+; Resolve declaration type spellings only after the complete data* / def+
+; sequence has been parsed. This is independent of Q6's still-unsettled
+; duplicate-name policy and implements D16 forward/mutual nominal references.
+proc resolve_decl_types() {
+    let ci = 0
+    state con_loop {
+        to con_body when (ci < word[2097096])
+        to fun_start
+    }
+    state con_body {
+        let fields = word[6815744 + ci * 24 + 16]
+        to field_loop
+    }
+    state field_loop {
+        to field_body when (fields != 0)
+        ci = ci + 1
+        to con_loop
+    }
+    state field_body {
+        word[fields + 8] = tyid(word[fields + 8])
+        fields = word[fields + 16]
+        to field_loop
+    }
+    state fun_start { let fi = 0  to fun_loop }
+    state fun_loop {
+        to fun_body when (fi < word[2097120])
+        return 0
+    }
+    state fun_body {
+        word[8388608 + fi * 32 + 16] = tyid(word[8388608 + fi * 32 + 16])
+        let params = word[8388608 + fi * 32 + 8]
+        to param_loop
+    }
+    state param_loop {
+        to param_body when (params != 0)
+        fi = fi + 1
+        to fun_loop
+    }
+    state param_body {
+        let param = word[params + 8]
+        word[param + 16] = tyid(word[param + 16])
+        params = word[params + 16]
+        to param_loop
     }
 }
 
@@ -1273,9 +1321,15 @@ proc main() {
     state program_shape {
         to invalid_program when (word[2097120] == 0)
         to invalid_program when (word[2097144] != word[2097136])
-        to checkfns
+        to resolve_types
     }
     state invalid_program { word[2097088] = 1  to checkfns }
+    state resolve_types {
+        to checkfns when (word[2097072] != 0)
+        to checkfns when (word[2097088] != 0)
+        resolve_decl_types()
+        to checkfns
+    }
     state checkfns {
         let ok = 1
         let i = 0
