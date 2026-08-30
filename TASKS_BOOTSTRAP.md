@@ -529,9 +529,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 90
-    procedures; with the frontend gate entry, the gate uses 91 of Beta's 128
-    procedure slots and compiles to 203,815 bytes, leaving 58,325 bytes below
+    and retains no alternate compiler or tape. The retained source declares 91
+    procedures; with the frontend gate entry, the gate uses 92 of Beta's 128
+    procedure slots and compiles to 217,103 bytes, leaving 45,037 bytes below
     Alpha's runnable payload ceiling for
     lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
@@ -578,6 +578,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     **OWNER-BLOCKED — Q6:** classify `bytes_concat` when its compact logical
     length exceeds signed `Int`; the helper accepts a separately selected
     checked-add terminal and otherwise remains complete.
+  - [x] Lower all six statically checked `bytes_*` forms through the eventual
+    expression dispatcher. Reconstruct `Bytes` as `(1, descriptor)` and scalar
+    results as `(0, value)`; evaluate one-, two-, and three-argument forms
+    strictly left-to-right through the guarded explicit stack; and call only
+    the private runtime helpers above. Execute 11 source-to-code tapes covering
+    every form, nested ropes, a cross-rope slice, exact-end zero slicing, lazy
+    conditional `Bytes` branches, an outer `Int` spill, and invalid byte/index/
+    range traps. Recompile one nested `Bytes` source twice and require identical
+    raw payloads. Q6's logical-length overflow is intentionally not asserted.
+    Focused emitter/runtime probes compile the canonical emitter section alone
+    so unrelated frontend growth cannot force those diagnostics past Beta's
+    fixed payload ceiling; the actual lowering probe still compiles the whole
+    canonical source.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
