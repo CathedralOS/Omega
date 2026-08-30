@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 89 and row schema version 47. This file
+The canonical review schema is version 90 and row schema version 48. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -78,3 +78,14 @@ requires the exact selected build machine, and retains the authored
 `build.omg` occurrence as `ProviderGrant` source custody. Selector strings and
 compact report fingerprints grant nothing. This is schema v89 / row v47;
 canonical-row recovery v14 adds the source role.
+
+Checked operator realizations may publish crash behavior only within the
+operator's declared crash ceiling. The compiler groups routes by exact crash
+cause, substitutes operator parameters with their realization parameters, and
+requires every provider route to be an exact member of the operator route set.
+An unconditional operator route admits any provider route for that cause;
+an unconditional provider route requires an unconditional operator route.
+Omitted provider causes narrow the contract, while undeclared causes and
+stronger routes reject. Projection reruns this judgment and retains the already
+complete operator, callable, and checked-crash rows. This is schema v90 / row
+v48; no new canonical expression atom or recovery grammar is introduced.
