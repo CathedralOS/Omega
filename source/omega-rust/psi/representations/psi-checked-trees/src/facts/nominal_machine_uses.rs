@@ -24,9 +24,10 @@ pub struct CheckedMachineContractRefinement {
     pub selected_actual_commitment: crate::MachineContractCommitment,
 }
 
-/// Exact evaluated boundary-entry plan selected for a nominal callback use.
-/// The target-owned plan remains outside Psi; this identity is the fail-closed
-/// join key used by later thunk placement.
+/// Exact target-closed calling-plan application selected for a nominal
+/// callback use. The target-owned plan and materialized signature remain
+/// outside Psi; this identity is the fail-closed join key used by later thunk
+/// placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedCallbackPlacementIdentity {
     pub boundary_calling_plan_report_fingerprint: u64,

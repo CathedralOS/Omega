@@ -349,6 +349,7 @@ impl<'program> Evaluator<'program> {
         // CH10 root grant marker (see the statement-call twin): a no-op.
         if target.starts_with("accept_boundary#")
             || target == "select_provider"
+            || target == "select_representation"
             || target.starts_with("wire_compatibility#")
             || target.starts_with("bind_root#")
         {

@@ -185,6 +185,47 @@ fn provider_selection_retains_two_structural_type_paths() {
 }
 
 #[test]
+fn opaque_representation_selection_retains_data_and_conformance_paths() {
+    let source = r#"
+        machine build(builder: &mut Build) {
+            builder.select_representation<interrupt::Ack, platform::AckRepresentation>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize opaque representation selection");
+    let parsed = parse_syntax_trees(&tokens).expect("parse opaque representation selection");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "select_representation" => {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("opaque representation-selection call");
+
+    assert_eq!(call.machine_arguments.len(), 2);
+    assert_eq!(
+        call.machine_arguments[0]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["interrupt", "Ack"]
+    );
+    assert_eq!(
+        call.machine_arguments[1]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["platform", "AckRepresentation"]
+    );
+}
+
+#[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
     let tokens = Lexer::new("pub measure Counter::Zero(value: i32) -> i32 { 0 }")
         .tokenize()

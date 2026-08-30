@@ -16,6 +16,7 @@ omega-optimization-core = { path = "../../representations/omega-optimization-cor
 omega-optimization-pipeline = { path = "../../pipeline/optimization/omega-optimization-pipeline" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-provider-planning = { path = "../omega-provider-planning" }
+omega-representation-planning = { path = "../omega-representation-planning" }
 omega-target = { path = "../../representations/omega-target" }
 omega-trust-model = { path = "../omega-trust-model" }
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }

@@ -15,6 +15,7 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, nominal_callback_native_parameter_id,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
+use omega_representation_planning::{OpaqueRepresentationSelection, selection_for_opaque};
 use omega_target::NativeTarget;
 use psi_build_time_evaluation::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
@@ -65,9 +66,19 @@ struct BoundaryValueField {
     byte_offset: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BoundaryOpaqueRepresentationUse {
+    opaque: psi_symbols::SymbolHandle,
+    carrier: psi_symbols::SymbolHandle,
+    application_report_fingerprint: u64,
+    application_commitment: [u8; 32],
+}
+
 #[derive(Debug, Clone)]
 pub struct MaterializedBoundarySignature {
     owner_requirement_identity: String,
+    native_target: NativeTarget,
+    opaque_representations: Vec<BoundaryOpaqueRepresentationUse>,
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     parameters: Vec<u16>,
@@ -125,6 +136,7 @@ pub struct BoundaryCallbackBinder {
 
 pub fn evaluate_compatibility_boundary_entry_plan(
     typed: &TypedTrees,
+    native_target: NativeTarget,
     trait_name: &str,
     method_name: &str,
     requirement_identity: &str,
@@ -161,7 +173,14 @@ pub fn evaluate_compatibility_boundary_entry_plan(
         return Ok(None);
     };
     let signature = candidates[candidate_index].0;
-    let materialized = call_signature_from_typed(typed, signature, &[], requirement_identity)?;
+    let materialized = call_signature_from_typed(
+        typed,
+        signature,
+        &[],
+        requirement_identity,
+        native_target,
+        &[],
+    )?;
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
     evaluate_ordinary_boundary_entry_plan(policy, &classified)
@@ -272,8 +291,9 @@ pub struct BoundaryCallingPlanRealization {
     pub boundary_trait: psi_symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
     pub requirement_machine: psi_symbols::SymbolHandle,
-    /// Compact compatibility/report coordinate for typed-tree consumers.
-    /// Exact plan custody below remains the authority for realization joins.
+    /// Compact compatibility/report coordinate for the complete target-closed
+    /// application. Exact plan and materialized-signature custody below remain
+    /// the authority for realization joins.
     pub report_fingerprint: u64,
     pub commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment,
     pub boundary_entry_plan: BoundaryEntryPlan,
@@ -336,6 +356,26 @@ impl BoundaryCallingPlanRealization {
                 &signature,
             )
         }
+    }
+
+    pub fn replayed_validated_application(
+        &self,
+    ) -> Result<
+        (
+            ValidatedBoundaryEntryPlan,
+            u64,
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment,
+        ),
+        omega_calling_conventions::PlanDiagnostic,
+    > {
+        let validated = self.replayed_validated_plan()?;
+        let (report_fingerprint, commitment) =
+            boundary_plan_application_identity(&self.materialized_signature, &validated);
+        Ok((
+            validated,
+            report_fingerprint,
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(commitment),
+        ))
     }
 }
 
@@ -455,46 +495,10 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         };
-        let realized_signature = CallSignature {
-            parameters: realization
-                .boundary_entry_plan
-                .call
-                .parameters
-                .iter()
-                .map(|placement| placement.shape)
-                .collect(),
-            result: realization
-                .boundary_entry_plan
-                .call
-                .result
-                .as_ref()
-                .map(|placement| placement.shape),
-        };
-        let replayed = if realization.callback_context_closed {
-            let context = CallbackMaterializationContext {
-                binders: realization
-                    .callback_binders
-                    .iter()
-                    .map(|binder| CallbackBinderRequirement {
-                        binder: binder.binder,
-                        requirement: binder.requirement,
-                    })
-                    .collect(),
-                demands: realization.callback_demands.clone(),
-            };
-            validate_boundary_entry_plan_with_callback_materializations(
-                realization.boundary_entry_plan.clone(),
-                &realized_signature,
-                &context,
-            )
-        } else {
-            omega_calling_conventions::validate_boundary_entry_plan(
-                realization.boundary_entry_plan.clone(),
-                &realized_signature,
-            )
-        };
-        let validated = match replayed {
-            Ok(validated) => validated,
+        let (validated, realized_report_fingerprint, realized_commitment) = match realization
+            .replayed_validated_application()
+        {
+            Ok(application) => application,
             Err(error) => {
                 diagnostics.push(Diagnostic::error(format!(
                     "nominal callback use for `{}` retained an invalid target calling-plan realization: {error}",
@@ -503,11 +507,6 @@ pub fn validate_nominal_callback_placement_bindings(
                 continue;
             }
         };
-        let realized_report_fingerprint = validated.contract_report_fingerprint();
-        let realized_commitment =
-            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
-            );
         if realization.report_fingerprint != realized_report_fingerprint
             || realization.commitment != realized_commitment
             || realization.exact_boundary_entry_plan() != validated.plan()
@@ -608,7 +607,7 @@ pub fn validate_nominal_callback_placement_bindings(
             satisfaction_trait: nominal_use.satisfaction_trait,
             satisfaction_requirement: nominal_use.satisfaction_requirement,
             canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
-            boundary_calling_plan_report_fingerprint: realized_report_fingerprint,
+            boundary_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
             resource_receipt: placement.resource_receipt,
             boundary_entry_plan: validated.plan().clone(),
             private_materialization,
@@ -661,21 +660,6 @@ fn bound_private_callback_materialization(
             matching_binders.len()
         ));
     };
-    let signature = CallSignature {
-        parameters: registrar
-            .boundary_entry_plan
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .collect(),
-        result: registrar
-            .boundary_entry_plan
-            .call
-            .result
-            .as_ref()
-            .map(|placement| placement.shape),
-    };
     if !registrar.callback_context_closed {
         if !registrar
             .boundary_entry_plan
@@ -688,17 +672,12 @@ fn bound_private_callback_materialization(
                     .to_owned(),
             );
         }
-        let validated = omega_calling_conventions::validate_boundary_entry_plan(
-            registrar.boundary_entry_plan.clone(),
-            &signature,
-        )
-        .map_err(|error| error.to_string())?;
-        let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-            validated.contract_commitment_digest(),
-        );
+        let (validated, report_fingerprint, commitment) = registrar
+            .replayed_validated_application()
+            .map_err(|error| error.to_string())?;
         if validated.plan() != &registrar.boundary_entry_plan
             || validated.plan() != registrar.exact_boundary_entry_plan()
-            || validated.contract_report_fingerprint() != registrar.report_fingerprint
+            || report_fingerprint != registrar.report_fingerprint
             || commitment != registrar.commitment
         {
             return Err(
@@ -720,18 +699,12 @@ fn bound_private_callback_materialization(
             .collect(),
         demands: registrar.callback_demands.clone(),
     };
-    let validated = validate_boundary_entry_plan_with_callback_materializations(
-        registrar.boundary_entry_plan.clone(),
-        &signature,
-        &context,
-    )
-    .map_err(|error| error.to_string())?;
-    let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-        validated.contract_commitment_digest(),
-    );
+    let (validated, application_report_fingerprint, commitment) = registrar
+        .replayed_validated_application()
+        .map_err(|error| error.to_string())?;
     if validated.plan() != &registrar.boundary_entry_plan
         || validated.plan() != registrar.exact_boundary_entry_plan()
-        || validated.contract_report_fingerprint() != registrar.report_fingerprint
+        || application_report_fingerprint != registrar.report_fingerprint
         || commitment != registrar.commitment
     {
         return Err(
@@ -765,8 +738,7 @@ fn bound_private_callback_materialization(
             matching_demands.len()
         ));
     };
-    let (application_report_fingerprint, application_commitment) =
-        boundary_plan_application_identity(&registrar.materialized_signature, &validated);
+    let application_commitment = commitment.as_bytes();
     Ok(Some(
         omega_backend_plan::BoundCallbackPrivateMaterialization {
             binder: binder.binder,
@@ -786,6 +758,8 @@ fn bound_private_callback_materialization(
 /// evaluated identities on the typed program.
 pub fn compute_boundary_calling_plans(
     typed: &mut TypedTrees,
+    native_target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&omega_package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     let Some(calling_policy_trait) = typed
@@ -905,6 +879,8 @@ pub fn compute_boundary_calling_plans(
                     signature,
                     &signature_instance.bindings,
                     &signature_instance.requirement_identity,
+                    native_target,
+                    opaque_representation_selections,
                 )
                 .map_err(|reason| {
                     vec![
@@ -956,13 +932,15 @@ pub fn compute_boundary_calling_plans(
             Some(psi_build_time_evaluation::BuildTimeInvocationCustody::Source(relationship_span)),
         )
         .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)])?;
+        let (application_report_fingerprint, application_commitment) =
+            boundary_plan_application_identity(&signature, &validated);
         evaluated.push(BoundaryCallingPlanRealization {
             boundary_trait,
             boundary_arguments,
             requirement_machine,
-            report_fingerprint: validated.contract_report_fingerprint(),
+            report_fingerprint: application_report_fingerprint,
             commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
+                application_commitment,
             ),
             boundary_entry_plan: validated.plan().clone(),
             exact_boundary_entry_plan: validated.plan().clone(),
@@ -1148,11 +1126,12 @@ pub fn close_outbound_callback_materializations(
                 .with_source_span(realization.relationship_span),
             ]
         })?;
-        let new_fingerprint = validated.contract_report_fingerprint();
+        let (new_fingerprint, new_commitment) =
+            boundary_plan_application_identity(&signature, &validated);
         realization.report_fingerprint = new_fingerprint;
         realization.commitment =
             psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
+                new_commitment,
             );
         realization.boundary_entry_plan = validated.plan().clone();
         realization.exact_boundary_entry_plan = validated.plan().clone();
@@ -1474,9 +1453,12 @@ fn call_signature_from_typed(
     signature: &psi_typed_trees::signature::StateSignature,
     bindings: &[TraitTypeBinding],
     owner_requirement_identity: &str,
+    native_target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();
     let mut fields = Vec::new();
+    let mut opaque_representations = Vec::new();
     let mut parameters = Vec::new();
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
@@ -1615,6 +1597,9 @@ fn call_signature_from_typed(
             &mut Vec::new(),
             &mut shapes,
             &mut fields,
+            native_target,
+            opaque_representation_selections,
+            &mut opaque_representations,
         )?;
         parameters.push(root);
         let type_reference = substituted_type_reference(typed, parameter.type_reference, bindings);
@@ -1649,6 +1634,9 @@ fn call_signature_from_typed(
             &mut Vec::new(),
             &mut shapes,
             &mut fields,
+            native_target,
+            opaque_representation_selections,
+            &mut opaque_representations,
         )?;
         Some(root)
     } else {
@@ -1656,6 +1644,8 @@ fn call_signature_from_typed(
     };
     Ok(MaterializedBoundarySignature {
         owner_requirement_identity: owner_requirement_identity.to_owned(),
+        native_target,
+        opaque_representations,
         shapes,
         fields,
         parameters,
@@ -1728,6 +1718,9 @@ fn value_shape_from_type(
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
     shapes: &mut Vec<BoundaryValueShape>,
     fields: &mut Vec<BoundaryValueField>,
+    native_target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    opaque_representations: &mut Vec<BoundaryOpaqueRepresentationUse>,
 ) -> Result<(ValueShape, u16), String> {
     type_reference = substituted_type_reference(typed, type_reference, bindings);
     if let Some(primitive) = typed.primitive_type_reference(type_reference) {
@@ -1748,9 +1741,17 @@ fn value_shape_from_type(
         return Ok((abi, root));
     }
     match typed.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            value_shape_from_type(typed, *base_type, bindings, visiting, shapes, fields)
-        }
+        TypeReferenceNode::Constrained { base_type, .. } => value_shape_from_type(
+            typed,
+            *base_type,
+            bindings,
+            visiting,
+            shapes,
+            fields,
+            native_target,
+            opaque_representation_selections,
+            opaque_representations,
+        ),
         TypeReferenceNode::Reference { referee, .. } => {
             let mut referee = substituted_type_reference(typed, *referee, bindings);
             loop {
@@ -1766,7 +1767,18 @@ fn value_shape_from_type(
                 TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
                 _ => false,
             };
-            let abi = ValueShape::integer(if is_fat { 16 } else { 8 }, 8);
+            let pointer_size = u16::try_from(native_target.pointer_size)
+                .map_err(|_| "target pointer size exceeds boundary shape range".to_owned())?;
+            let pointer_alignment = u16::try_from(native_target.pointer_alignment)
+                .map_err(|_| "target pointer alignment exceeds boundary shape range".to_owned())?;
+            let byte_size = if is_fat {
+                pointer_size
+                    .checked_mul(2)
+                    .ok_or_else(|| "fat reference boundary shape overflows".to_owned())?
+            } else {
+                pointer_size
+            };
+            let abi = ValueShape::integer(byte_size, pointer_alignment);
             let root = push_boundary_shape(
                 shapes,
                 BoundaryValueShape {
@@ -1778,7 +1790,15 @@ fn value_shape_from_type(
             Ok((abi, root))
         }
         TypeReferenceNode::Slice { .. } => {
-            let abi = ValueShape::integer(16, 8);
+            let byte_size = u16::try_from(native_target.pointer_size)
+                .ok()
+                .and_then(|size| size.checked_mul(2))
+                .ok_or_else(|| {
+                    "target slice-reference size exceeds boundary shape range".to_owned()
+                })?;
+            let alignment = u16::try_from(native_target.pointer_alignment)
+                .map_err(|_| "target pointer alignment exceeds boundary shape range".to_owned())?;
+            let abi = ValueShape::integer(byte_size, alignment);
             let root = push_boundary_shape(
                 shapes,
                 BoundaryValueShape {
@@ -1793,8 +1813,17 @@ fn value_shape_from_type(
             element_type,
             length: psi_typed_trees::types::FixedArrayLength::Literal(length),
         } => {
-            let (element, element_root) =
-                value_shape_from_type(typed, *element_type, bindings, visiting, shapes, fields)?;
+            let (element, element_root) = value_shape_from_type(
+                typed,
+                *element_type,
+                bindings,
+                visiting,
+                shapes,
+                fields,
+                native_target,
+                opaque_representation_selections,
+                opaque_representations,
+            )?;
             let size = usize::from(element.byte_size)
                 .checked_mul(*length)
                 .ok_or_else(|| "fixed-array boundary shape overflows".to_owned())?;
@@ -1818,17 +1847,51 @@ fn value_shape_from_type(
             )?;
             Ok((abi, root))
         }
-        TypeReferenceNode::Named { symbol, name } => plain_data_value_shape(
-            typed,
-            *symbol,
-            name.as_str(),
-            bindings,
-            visiting,
-            shapes,
-            fields,
-        ),
+        TypeReferenceNode::Named { symbol, name } => {
+            let definition = typed
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol);
+            if definition.is_some_and(|definition| {
+                definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque
+            }) {
+                opaque_representation_value_shape(
+                    typed,
+                    *symbol,
+                    name.as_str(),
+                    bindings,
+                    visiting,
+                    shapes,
+                    fields,
+                    native_target,
+                    opaque_representation_selections,
+                    opaque_representations,
+                )
+            } else {
+                plain_data_value_shape(
+                    typed,
+                    *symbol,
+                    name.as_str(),
+                    bindings,
+                    visiting,
+                    shapes,
+                    fields,
+                    native_target,
+                    opaque_representation_selections,
+                    opaque_representations,
+                )
+            }
+        }
         TypeReferenceNode::DynamicTrait { .. } => {
-            let abi = ValueShape::integer(16, 8);
+            let byte_size = u16::try_from(native_target.pointer_size)
+                .ok()
+                .and_then(|size| size.checked_mul(2))
+                .ok_or_else(|| {
+                    "target dynamic-trait reference size exceeds boundary shape range".to_owned()
+                })?;
+            let alignment = u16::try_from(native_target.pointer_alignment)
+                .map_err(|_| "target pointer alignment exceeds boundary shape range".to_owned())?;
+            let abi = ValueShape::integer(byte_size, alignment);
             let root = push_boundary_shape(
                 shapes,
                 BoundaryValueShape {
@@ -1854,6 +1917,69 @@ fn value_shape_from_type(
     }
 }
 
+fn opaque_representation_value_shape(
+    typed: &TypedTrees,
+    opaque: psi_symbols::SymbolHandle,
+    opaque_name: &str,
+    bindings: &[TraitTypeBinding],
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+    shapes: &mut Vec<BoundaryValueShape>,
+    fields: &mut Vec<BoundaryValueField>,
+    native_target: NativeTarget,
+    selections: &[OpaqueRepresentationSelection],
+    uses: &mut Vec<BoundaryOpaqueRepresentationUse>,
+) -> Result<(ValueShape, u16), String> {
+    if visiting.contains(&opaque) {
+        return Err(format!(
+            "opaque representation for `{opaque_name}` recursively contains its own semantic declaration"
+        ));
+    }
+    let selection = selection_for_opaque(selections, opaque).ok_or_else(|| {
+        format!(
+            "boundary-opaque data `{opaque_name}` crosses this boundary by value, but the authoritative build selects no exact `OpaqueRepresentation<{opaque_name}>` conformance"
+        )
+    })?;
+    let application = selection.application();
+    let use_identity = BoundaryOpaqueRepresentationUse {
+        opaque,
+        carrier: selection.carrier(),
+        application_report_fingerprint: application.report_fingerprint,
+        application_commitment: application.commitment.as_bytes(),
+    };
+    if !uses.contains(&use_identity) {
+        uses.push(use_identity);
+    }
+    let carrier = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == selection.carrier())
+        .ok_or_else(|| {
+            format!(
+                "selected opaque representation carrier for `{opaque_name}` disappeared before shape closure"
+            )
+        })?;
+    visiting.push(opaque);
+    let shape = plain_data_value_shape(
+        typed,
+        carrier.symbol,
+        carrier.name.as_str(),
+        bindings,
+        visiting,
+        shapes,
+        fields,
+        native_target,
+        selections,
+        uses,
+    );
+    visiting.pop();
+    shape.map_err(|reason| {
+        format!(
+            "selected carrier `{}` cannot represent boundary-opaque `{opaque_name}` by value: {reason}",
+            carrier.name,
+        )
+    })
+}
+
 /// Derive the exact address-free `Extent` graph for the currently admitted
 /// UEFI/Microsoft program-storage source schema. A future SysV/AAPCS source
 /// schema must retain and classify its own structural graph rather than
@@ -1877,6 +2003,7 @@ pub fn selected_program_storage_source_extent_value_layout(
     }
     let mut shapes = Vec::new();
     let mut fields = Vec::new();
+    let mut opaque_representations = Vec::new();
     let (shape, root) = value_shape_from_type(
         typed,
         type_reference,
@@ -1884,6 +2011,9 @@ pub fn selected_program_storage_source_extent_value_layout(
         &mut Vec::new(),
         &mut shapes,
         &mut fields,
+        slot.owner.native_target(),
+        &[],
+        &mut opaque_representations,
     )?;
     let mut base_type = type_reference;
     while let TypeReferenceNode::Constrained {
@@ -1999,6 +2129,9 @@ fn plain_data_value_shape(
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
     shapes: &mut Vec<BoundaryValueShape>,
     fields: &mut Vec<BoundaryValueField>,
+    native_target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    opaque_representations: &mut Vec<BoundaryOpaqueRepresentationUse>,
 ) -> Result<(ValueShape, u16), String> {
     if visiting.contains(&symbol) {
         return Err(format!(
@@ -2087,6 +2220,9 @@ fn plain_data_value_shape(
                 visiting,
                 shapes,
                 fields,
+                native_target,
+                opaque_representation_selections,
+                opaque_representations,
             )?
         };
         let field_alignment = usize::from(shape.alignment);
@@ -2276,6 +2412,8 @@ pub fn materialized_boundary_signature_from_abi(
         .transpose()?;
     Ok(MaterializedBoundarySignature {
         owner_requirement_identity: "omega.synthetic-abi-signature".to_owned(),
+        native_target: NativeTarget::host(),
+        opaque_representations: Vec::new(),
         shapes,
         fields: Vec::new(),
         parameters,
@@ -2709,9 +2847,64 @@ fn boundary_plan_application_identity(
     validated: &ValidatedBoundaryEntryPlan,
 ) -> (u64, [u8; 32]) {
     let mut strong = Sha256::new();
-    strong.update(b"omega.boundary-plan-application.v2");
+    strong.update(b"omega.boundary-plan-application.v3");
     strong.update((signature.owner_requirement_identity.len() as u64).to_le_bytes());
     strong.update(signature.owner_requirement_identity.as_bytes());
+    strong.update([match signature.native_target.architecture {
+        omega_target::Architecture::Aarch64 => 1,
+        omega_target::Architecture::X86_64 => 2,
+    }]);
+    strong.update([match signature.native_target.object_format {
+        omega_target::ObjectFormat::Elf => 1,
+        omega_target::ObjectFormat::MachO => 2,
+        omega_target::ObjectFormat::Coff => 3,
+    }]);
+    strong.update((signature.native_target.pointer_size as u64).to_le_bytes());
+    strong.update((signature.native_target.pointer_alignment as u64).to_le_bytes());
+    strong.update((signature.opaque_representations.len() as u64).to_le_bytes());
+    for representation in &signature.opaque_representations {
+        strong.update(representation.application_report_fingerprint.to_le_bytes());
+        strong.update(representation.application_commitment);
+    }
+    strong.update((signature.shapes.len() as u64).to_le_bytes());
+    for shape in &signature.shapes {
+        match shape.class {
+            BoundaryValueClass::Integer => strong.update([1]),
+            BoundaryValueClass::Float => strong.update([2]),
+            BoundaryValueClass::Reference => strong.update([3]),
+            BoundaryValueClass::FixedArray { element, length } => {
+                strong.update([4]);
+                strong.update(element.to_le_bytes());
+                strong.update(length.to_le_bytes());
+            }
+            BoundaryValueClass::Record {
+                first_field,
+                field_count,
+            } => {
+                strong.update([5]);
+                strong.update(first_field.to_le_bytes());
+                strong.update(field_count.to_le_bytes());
+            }
+        }
+        strong.update(shape.byte_size.to_le_bytes());
+        strong.update(shape.alignment.to_le_bytes());
+    }
+    strong.update((signature.fields.len() as u64).to_le_bytes());
+    for field in &signature.fields {
+        strong.update(field.shape.to_le_bytes());
+        strong.update(field.byte_offset.to_le_bytes());
+    }
+    strong.update((signature.parameters.len() as u64).to_le_bytes());
+    for parameter in &signature.parameters {
+        strong.update(parameter.to_le_bytes());
+    }
+    match signature.result {
+        Some(result) => {
+            strong.update([1]);
+            strong.update(result.to_le_bytes());
+        }
+        None => strong.update([0]),
+    }
     strong.update((signature.native_parameters.len() as u64).to_le_bytes());
     for parameter in &signature.native_parameters {
         strong.update(parameter.identity.get().to_le_bytes());
@@ -2748,7 +2941,7 @@ fn boundary_plan_application_identity(
     strong.update(validated.contract_commitment_digest());
     let commitment: [u8; 32] = strong.finalize().into();
     let report = callback_plan_report_fingerprint(
-        b"omega.boundary-plan-application-report.v2",
+        b"omega.boundary-plan-application-report.v3",
         &[&commitment],
     );
     (report, commitment)
@@ -3499,7 +3692,7 @@ mod tests {
     }
 
     #[test]
-    fn boundary_application_v2_commits_nominal_telescope_order() {
+    fn boundary_application_v3_commits_nominal_telescope_order() {
         let call_signature = CallSignature {
             parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(8, 8)],
             result: None,
@@ -3622,6 +3815,8 @@ mod tests {
         };
         let signature = MaterializedBoundarySignature {
             owner_requirement_identity: "test::Registrar::register#exact".to_owned(),
+            native_target: NativeTarget::host(),
+            opaque_representations: Vec::new(),
             shapes: Vec::new(),
             fields: Vec::new(),
             parameters: Vec::new(),
@@ -3698,9 +3893,12 @@ mod tests {
             &CallSignature::default(),
         )
         .expect("empty ordinary boundary plan");
-        let report_fingerprint = validated.contract_report_fingerprint();
+        let materialized_signature =
+            materialized_boundary_signature_from_abi(&CallSignature::default()).unwrap();
+        let (report_fingerprint, application_commitment) =
+            boundary_plan_application_identity(&materialized_signature, &validated);
         let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-            validated.contract_commitment_digest(),
+            application_commitment,
         );
         let boundary_trait = psi_symbols::SymbolHandle::from_arena_index(1);
         let requirement = psi_symbols::SymbolHandle::from_arena_index(2);
@@ -3816,10 +4014,7 @@ mod tests {
             callback_demands: Vec::new(),
             callback_context_closed: false,
             native_parameters: Vec::new(),
-            materialized_signature: materialized_boundary_signature_from_abi(
-                &CallSignature::default(),
-            )
-            .unwrap(),
+            materialized_signature: materialized_signature.clone(),
             policy_machine: String::new(),
             relationship_span: psi_source::SourceSpan::default(),
         };
@@ -3842,10 +4037,7 @@ mod tests {
             callback_demands: Vec::new(),
             callback_context_closed: false,
             native_parameters: Vec::new(),
-            materialized_signature: materialized_boundary_signature_from_abi(
-                &CallSignature::default(),
-            )
-            .unwrap(),
+            materialized_signature,
             policy_machine: String::new(),
             relationship_span: psi_source::SourceSpan::default(),
         };
@@ -3878,7 +4070,10 @@ mod tests {
         );
         assert_eq!(
             bound.boundary_calling_plan_report_fingerprint,
-            realizations[0].report_fingerprint
+            realizations[0]
+                .replayed_validated_plan()
+                .unwrap()
+                .contract_report_fingerprint()
         );
         assert_eq!(
             bound.boundary_entry_plan,
@@ -4003,11 +4198,13 @@ mod tests {
             &context,
         )
         .unwrap();
-        realization.report_fingerprint = validated.contract_report_fingerprint();
+        realization.materialized_signature.callback_binders = realization.callback_binders.clone();
+        realization.materialized_signature.callback_demands = realization.callback_demands.clone();
+        let (report_fingerprint, commitment) =
+            boundary_plan_application_identity(&realization.materialized_signature, &validated);
+        realization.report_fingerprint = report_fingerprint;
         realization.commitment =
-            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
-            );
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(commitment);
         realization.exact_boundary_entry_plan = realization.boundary_entry_plan.clone();
         let bound = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect("exact retained callback context should replay");
@@ -4025,7 +4222,7 @@ mod tests {
         );
         assert_eq!(
             retained.registrar_calling_plan_report_fingerprint,
-            realizations[1].report_fingerprint
+            validated.contract_report_fingerprint()
         );
 
         let mut ordinal_drift = checked.clone();
@@ -4274,6 +4471,8 @@ mod tests {
     fn four_f32_array_signature() -> MaterializedBoundarySignature {
         MaterializedBoundarySignature {
             owner_requirement_identity: "test::Array::call#exact".to_owned(),
+            native_target: NativeTarget::host(),
+            opaque_representations: Vec::new(),
             shapes: vec![
                 BoundaryValueShape {
                     class: BoundaryValueClass::Float,
@@ -4320,6 +4519,8 @@ mod tests {
     fn compatibility_signature_excludes_dispatch_only_table_parameter() {
         let signature = MaterializedBoundarySignature {
             owner_requirement_identity: "test::Compatibility::call#exact".to_owned(),
+            native_target: NativeTarget::host(),
+            opaque_representations: Vec::new(),
             shapes: vec![
                 BoundaryValueShape {
                     class: BoundaryValueClass::Integer,

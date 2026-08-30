@@ -408,6 +408,7 @@ dependencies = [
  "omega-optimization-pipeline",
  "omega-program-entry-plan",
  "omega-provider-planning",
+ "omega-representation-planning",
  "omega-target",
  "omega-trust-model",
  "psi-build-time-evaluation",
@@ -487,6 +488,7 @@ dependencies = [
  "omega-package-compilation",
  "omega-program-entry-plan",
  "omega-provider-planning",
+ "omega-representation-planning",
  "omega-selected-dispatch",
  "omega-target",
  "omega-task-plans",
@@ -1182,6 +1184,7 @@ dependencies = [
  "omega-layout",
  "omega-package-compilation",
  "omega-program-entry-plan",
+ "omega-representation-planning",
  "omega-target",
  "omega-task-plans",
  "omega-trust-model",
@@ -1274,6 +1277,18 @@ version = "0.1.0"
 dependencies = [
  "omega-target",
  "sha2",
+]
+
+[[package]]
+name = "omega-representation-planning"
+version = "0.1.0"
+dependencies = [
+ "psi-diagnostics",
+ "psi-language-semantics",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

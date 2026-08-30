@@ -105,10 +105,12 @@ pub struct ServiceMethod {
     /// provider receiver from caller parameters; projections and profile use
     /// semantic paths.
     pub termination_premises: Vec<ServiceProgressPremise>,
-    /// Compact report coordinate for the canonical validated
-    /// `BoundaryEntryPlan` selected by a concrete `Calling<C>` relationship.
+    /// Compact report coordinate for the complete target-closed calling-plan
+    /// application selected by a concrete `Calling<C>` relationship. The
+    /// application binds the semantic signature, target, selected opaque
+    /// representations, and canonical validated `BoundaryEntryPlan`.
     pub calling_plan_report_fingerprint: Option<u64>,
-    /// Domain-separated commitment to that exact boundary calling plan.
+    /// Domain-separated commitment to that exact calling-plan application.
     /// This is present exactly when the report coordinate is present.
     pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>,
 }

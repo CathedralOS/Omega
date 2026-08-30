@@ -17,6 +17,7 @@
 // parameter inbound. No package can reconstruct either obligation from fields.
 
 use omega::language::core::assembly;
+use omega::language::core::representation;
 
 pub boundary data InterruptMaskGuard [linear];
 pub boundary data InterruptAcknowledgement [linear];

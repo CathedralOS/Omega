@@ -12,7 +12,8 @@ use super::super::scoped_paths::{
     resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
 };
 use super::super::targets::{
-    assign_provider_selection_argument_symbol, assign_static_argument_symbols,
+    assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
+    assign_static_argument_symbols,
 };
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
@@ -151,9 +152,12 @@ pub(super) fn assign_call_symbol(
     {
         call.target_symbol = target_symbol;
         let provider_selection = call.target.as_str() == "select_provider";
+        let representation_selection = call.target.as_str() == "select_representation";
         for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
             if provider_selection {
                 assign_provider_selection_argument_symbol(symbols, argument, index == 0);
+            } else if representation_selection {
+                assign_representation_selection_argument_symbol(symbols, argument, index == 0);
             } else {
                 let proof_static = target_symbol.is_valid()
                     && matches!(
