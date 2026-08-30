@@ -24,8 +24,14 @@ pub(crate) fn resolved_contract_call_symbol(
 pub(crate) fn contract_call_value_receiver(
     compilation: &CheckedCompilation,
     call: &psi_typed_trees::expression::TableCallExpression,
+    target: Option<SymbolHandle>,
 ) -> Option<psi_typed_trees::expression::ExpressionHandle> {
     if !call.receiver.is_valid() {
+        return None;
+    }
+    if target.and_then(|target| contract_call_target_has_self_parameter(compilation, target))
+        == Some(false)
+    {
         return None;
     }
     if !call.target_symbol.is_valid()
@@ -49,12 +55,21 @@ pub(crate) fn contract_call_value_receiver(
     Some(call.receiver)
 }
 
-pub(crate) fn require_exact_contract_call_reference_arguments(
+fn contract_call_target_has_self_parameter(
     compilation: &CheckedCompilation,
-    context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
-    call: &psi_typed_trees::expression::TableCallExpression,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Option<bool> {
+    let candidates = contract_call_target_parameter_sets(compilation, target);
+    let [parameters] = candidates.as_slice() else {
+        return None;
+    };
+    Some(parameters.iter().any(|parameter| parameter.is_self))
+}
+
+fn contract_call_target_parameter_sets<'a>(
+    compilation: &'a CheckedCompilation,
+    target: SymbolHandle,
+) -> Vec<&'a [psi_typed_trees::signature::StateParameter]> {
     let mut candidates = compilation
         .machines()
         .iter()
@@ -85,6 +100,16 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
             .filter(|operator| operator.symbol == target)
             .map(|operator| compilation.operator_parameters(operator)),
     );
+    candidates
+}
+
+pub(crate) fn require_exact_contract_call_reference_arguments(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    target: SymbolHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Result<(), Vec<Diagnostic>> {
+    let candidates = contract_call_target_parameter_sets(compilation, target);
     let [parameters] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract call target rejoins {} value telescopes; expected exactly one",
@@ -251,7 +276,22 @@ pub(crate) fn exact_checked_contract_call_target(
             context.subject_kind, context.subject_name
         ))]);
     }
-    let resolved_symbol = resolved_contract_call_symbol(compilation, call);
+    let retained_symbol = resolved_contract_call_symbol(compilation, call);
+    let owner_derived_symbol = psi_typed_trees_to_checked_trees::derive_checked_nominal_call_target(
+        &compilation.typed,
+        &compilation.facts,
+        expression,
+    );
+    if retained_symbol.is_some()
+        && owner_derived_symbol.is_some()
+        && retained_symbol != owner_derived_symbol
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call retained target disagrees with its exact checked owner derivation",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    let resolved_symbol = retained_symbol.or(owner_derived_symbol);
     match selection.target() {
         AuthoredDeclarationSelectionTarget::Resolved(target)
             if Some(target.selected_symbol()) == resolved_symbol =>
