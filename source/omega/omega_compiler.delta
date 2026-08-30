@@ -391,6 +391,7 @@ data OmegaExpressionKind {
     case Boolean;
     case Integer;
     case String;
+    case StructLiteral;
 }
 
 data OmegaPathExpressionKind {
@@ -402,6 +403,23 @@ data OmegaPathExpressionKind {
 data OmegaExpressionConsumer {
     case CallArgument;
     case AssignmentValue;
+    case StructFieldValue;
+}
+
+data OmegaStructLiteralFieldSyntax {
+    name: OmegaRelativeSpan;
+    value: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaStructLiteralSyntax {
+    first_type_member: i32;
+    type_member_count: i32;
+    first_field: i32;
+    field_count: i32;
+    start: i32;
+    end: i32;
 }
 
 // Path payload0/payload1 are the member span, payload2 records whether the path
@@ -411,7 +429,8 @@ data OmegaExpressionConsumer {
 // authored span. Integer payload0/payload1 retain its authored span; this first
 // numeric slice admits only unsuffixed nonnegative decimal spelling. String
 // payload0/payload1 retain the authored token span and payload2 its decoded
-// byte length. Remaining words are reserved for richer nodes.
+// byte length. StructLiteral payload0 selects its dedicated row. Remaining
+// words are reserved for richer nodes.
 data OmegaExpressionSyntax {
     kind: OmegaExpressionKind;
     path_kind: OmegaPathExpressionKind;
@@ -501,6 +520,10 @@ data OmegaParseDiagnosticCode {
     case ExpectedStaticArgument;
     case ExpectedStaticArgumentEnd;
     case ExpectedStaticCallOpen;
+    case ExpectedStructLiteralFieldOrEnd;
+    case ExpectedStructLiteralFieldColon;
+    case ExpectedStructLiteralValue;
+    case ExpectedStructLiteralFieldEnd;
     case ExpectedDataFieldEnd;
 }
 
@@ -534,6 +557,8 @@ data OmegaParser {
     static_machine_arguments: [OmegaStaticMachineArgumentSyntax; 16384];
     expressions: [OmegaExpressionSyntax; 16384];
     call_arguments: [i32; 16384];
+    struct_literals: [OmegaStructLiteralSyntax; 16384];
+    struct_literal_fields: [OmegaStructLiteralFieldSyntax; 16384];
     data_members: [OmegaDataMemberSyntax; 16384];
     data_fields: [OmegaDataFieldSyntax; 16384];
     // Every payload field owns at least one type-reference row. The shared
@@ -557,6 +582,8 @@ data OmegaParser {
     static_machine_argument_count: i32;
     expression_count: i32;
     call_argument_count: i32;
+    struct_literal_count: i32;
+    struct_literal_field_count: i32;
     data_member_count: i32;
     data_field_count: i32;
     data_payload_field_count: i32;
@@ -640,10 +667,20 @@ data OmegaParser {
     argument_path_kind: OmegaPathExpressionKind;
     expression_consumer: OmegaExpressionConsumer;
     expression_result: i32;
+    expression_end: i32;
     assignment_target_expression: i32;
     assignment_target_name_member_count: i32;
     assignment_target_path_kind: OmegaPathExpressionKind;
     assignment_value_expression: i32;
+    struct_literal_consumer: OmegaExpressionConsumer;
+    struct_literal_first_type_member: i32;
+    struct_literal_type_member_count: i32;
+    struct_literal_first_field: i32;
+    struct_literal_start: i32;
+    struct_field_name_start: i32;
+    struct_field_name_end: i32;
+    struct_field_value: i32;
+    struct_field_value_end: i32;
     status: OmegaParserStatus;
     diagnostic_code: OmegaParseDiagnosticCode;
     diagnostic_start: i32;
@@ -2724,6 +2761,8 @@ machine OmegaParser::parse_view(
     self.static_machine_argument_count = 0;
     self.expression_count = 0;
     self.call_argument_count = 0;
+    self.struct_literal_count = 0;
+    self.struct_literal_field_count = 0;
     self.data_member_count = 0;
     self.data_field_count = 0;
     self.data_payload_field_count = 0;
@@ -2806,10 +2845,20 @@ machine OmegaParser::parse_view(
     self.argument_path_kind = OmegaPathExpressionKind::Name;
     self.expression_consumer = OmegaExpressionConsumer::CallArgument;
     self.expression_result = 0;
+    self.expression_end = 0;
     self.assignment_target_expression = 0;
     self.assignment_target_name_member_count = 0;
     self.assignment_target_path_kind = OmegaPathExpressionKind::Name;
     self.assignment_value_expression = 0;
+    self.struct_literal_consumer = OmegaExpressionConsumer::CallArgument;
+    self.struct_literal_first_type_member = 0;
+    self.struct_literal_type_member_count = 0;
+    self.struct_literal_first_field = 0;
+    self.struct_literal_start = 0;
+    self.struct_field_name_start = 0;
+    self.struct_field_name_end = 0;
+    self.struct_field_value = 0;
+    self.struct_field_value_end = 0;
     self.status = OmegaParserStatus::Parsing;
     self.diagnostic_code = OmegaParseDiagnosticCode::None;
     self.diagnostic_start = 0;
@@ -2975,6 +3024,9 @@ machine OmegaParser::parse_view(
             52 -> call_static_argument_member_token()
             53 -> static_call_open_token()
             54 -> primary_expression_end_token()
+            55 -> struct_literal_field_or_end_token()
+            56 -> struct_literal_field_colon_token()
+            57 -> struct_literal_field_value_token()
             _ -> internal_failure()
         }
     }
@@ -3203,6 +3255,21 @@ machine OmegaParser::parse_view(
                 source.len
             )
             54 -> primary_expression_end_at_view_end()
+            55 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd,
+                source.len,
+                source.len
+            )
+            56 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldColon,
+                source.len,
+                source.len
+            )
+            57 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralValue,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -3234,6 +3301,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::StructFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd,
+                source.len,
+                source.len
+            )
         }
     }
 
@@ -3249,6 +3321,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::StructFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralValue,
+                source.len,
+                source.len
+            )
         }
     }
 
@@ -3261,6 +3338,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::AssignmentValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::StructFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd,
                 source.len,
                 source.len
             )
@@ -4321,9 +4403,20 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> path_expression_member_access()
             OmegaPunctuationKind::ColonColon -> path_expression_name_qualification()
-            OmegaPunctuationKind::Comma -> retain_call_argument_path()
+            OmegaPunctuationKind::LeftBrace -> begin_struct_literal_from_path()
+            OmegaPunctuationKind::Comma -> retain_comma_terminated_path()
             OmegaPunctuationKind::RightParen -> retain_call_argument_path()
+            OmegaPunctuationKind::RightBrace -> retain_struct_field_value_path()
             OmegaPunctuationKind::Semicolon -> retain_assignment_value_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_comma_terminated_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> retain_call_argument_path()
+            OmegaExpressionConsumer::StructFieldValue ->
+                retain_struct_field_value_path()
             _ -> incomplete_root()
         }
     }
@@ -4378,6 +4471,11 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
+            OmegaExpressionConsumer::StructFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralValue,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -4395,6 +4493,236 @@ machine OmegaParser::parse_view(
         }
     }
 
+    state retain_struct_field_value_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::StructFieldValue -> retain_path_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_struct_literal_from_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::StructFieldValue -> incomplete_root()
+            _ -> check_struct_literal_type_path()
+        }
+    }
+
+    state check_struct_literal_type_path() {
+        transition (self.argument_path_kind == OmegaPathExpressionKind::Name) &&
+            (self.argument_name_member_count == self.argument_path_member_count) {
+            true -> check_struct_literal_type_extent()
+            _ -> incomplete_root()
+        }
+    }
+
+    state check_struct_literal_type_extent() {
+        transition self.argument_path_member_count {
+            1 -> begin_struct_literal()
+            2 -> begin_struct_literal()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_struct_literal() {
+        self.struct_literal_consumer = self.expression_consumer;
+        self.struct_literal_first_type_member =
+            self.argument_first_path_member;
+        self.struct_literal_type_member_count =
+            self.argument_path_member_count;
+        self.struct_literal_first_field = self.struct_literal_field_count;
+        self.struct_literal_start =
+            self.members[self.argument_first_path_member].start;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(55) }
+    }
+
+    state struct_literal_field_or_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_struct_literal_field()
+            OmegaTokenKind::Keyword -> struct_literal_field_keyword()
+            OmegaTokenKind::Punctuation -> struct_literal_field_or_end_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state struct_literal_field_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> begin_struct_literal_field()
+        }
+    }
+
+    state struct_literal_field_or_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> retain_struct_literal()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state begin_struct_literal_field() {
+        self.struct_field_name_start = self.scan.token_start;
+        self.struct_field_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(56) }
+    }
+
+    state struct_literal_field_colon_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> struct_literal_field_colon_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldColon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state struct_literal_field_colon_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Colon -> begin_struct_literal_field_value()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldColon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state begin_struct_literal_field_value() {
+        self.expression_consumer = OmegaExpressionConsumer::StructFieldValue;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(57) }
+    }
+
+    state struct_literal_field_value_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_named_struct_field_value()
+            OmegaTokenKind::Integer -> check_integer_expression()
+            OmegaTokenKind::StringLiteral -> retain_string_expression()
+            OmegaTokenKind::Keyword -> struct_literal_field_value_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state struct_literal_field_value_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::True -> retain_boolean_expression(1)
+            OmegaKeywordKind::False -> retain_boolean_expression(0)
+            OmegaKeywordKind::SelfValue -> begin_self_struct_field_value()
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            _ -> begin_named_struct_field_value()
+        }
+    }
+
+    state begin_named_struct_field_value() {
+        self.argument_starts_at_self = 0;
+        self.argument_name_member_count = 1;
+        self.argument_path_kind = OmegaPathExpressionKind::Name;
+        transition true { true -> begin_path_expression() }
+    }
+
+    state begin_self_struct_field_value() {
+        self.argument_starts_at_self = 1;
+        self.argument_name_member_count = 0;
+        self.argument_path_kind = OmegaPathExpressionKind::SelfValue;
+        transition true { true -> begin_path_expression() }
+    }
+
+    state retain_struct_literal_field() {
+        transition self.struct_literal_field_count < 16384 {
+            true -> retain_struct_literal_field_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.struct_literal_field_count + 1
+            )
+        }
+    }
+
+    state retain_struct_literal_field_bounded() {
+        self.struct_literal_fields[self.struct_literal_field_count].name.start =
+            self.struct_field_name_start;
+        self.struct_literal_fields[self.struct_literal_field_count].name.end =
+            self.struct_field_name_end;
+        self.struct_literal_fields[self.struct_literal_field_count].value =
+            self.struct_field_value;
+        self.struct_literal_fields[self.struct_literal_field_count].start =
+            self.struct_field_name_start;
+        self.struct_literal_fields[self.struct_literal_field_count].end =
+            self.struct_field_value_end;
+        self.struct_literal_field_count = self.struct_literal_field_count + 1;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> next_struct_literal_field()
+            OmegaPunctuationKind::RightBrace -> retain_struct_literal()
+            _ -> internal_failure()
+        }
+    }
+
+    state next_struct_literal_field() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(55) }
+    }
+
+    state retain_struct_literal() {
+        transition (self.expression_count < 16384) &&
+            (self.struct_literal_count < 16384) {
+            true -> retain_struct_literal_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+        }
+    }
+
+    state retain_struct_literal_bounded() {
+        self.struct_literals[self.struct_literal_count].first_type_member =
+            self.struct_literal_first_type_member;
+        self.struct_literals[self.struct_literal_count].type_member_count =
+            self.struct_literal_type_member_count;
+        self.struct_literals[self.struct_literal_count].first_field =
+            self.struct_literal_first_field;
+        self.struct_literals[self.struct_literal_count].field_count =
+            self.struct_literal_field_count - self.struct_literal_first_field;
+        self.struct_literals[self.struct_literal_count].start =
+            self.struct_literal_start;
+        self.struct_literals[self.struct_literal_count].end = self.scan.token_end;
+        self.expression_result = self.expression_count;
+        self.expression_end = self.scan.token_end;
+        self.expressions[self.expression_count].kind =
+            OmegaExpressionKind::StructLiteral;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 = self.struct_literal_count;
+        self.expressions[self.expression_count].payload1 = 0;
+        self.expressions[self.expression_count].payload2 = 0;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.struct_literal_count = self.struct_literal_count + 1;
+        self.expression_count = self.expression_count + 1;
+        self.expression_consumer = self.struct_literal_consumer;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(54) }
+    }
+
     state retain_path_expression() {
         transition self.expression_count < 16384 {
             true -> retain_path_expression_argument_capacity()
@@ -4410,6 +4738,7 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument -> retain_call_argument_capacity()
             OmegaExpressionConsumer::AssignmentValue -> retain_path_expression_bounded()
+            OmegaExpressionConsumer::StructFieldValue -> retain_path_expression_bounded()
         }
     }
 
@@ -4441,6 +4770,7 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument -> retain_call_argument_handle()
             OmegaExpressionConsumer::AssignmentValue -> retain_assignment_value_handle()
+            OmegaExpressionConsumer::StructFieldValue -> retain_struct_field_value_handle()
         }
     }
 
@@ -4459,6 +4789,13 @@ machine OmegaParser::parse_view(
         self.assignment_value_expression = self.expression_count;
         self.expression_count = self.expression_count + 1;
         transition true { true -> retain_assignment_statement() }
+    }
+
+    state retain_struct_field_value_handle() {
+        self.struct_field_value = self.expression_count;
+        self.struct_field_value_end = self.members[self.member_count - 1].end;
+        self.expression_count = self.expression_count + 1;
+        transition true { true -> retain_struct_literal_field() }
     }
 
     state next_call_argument() {
@@ -4652,6 +4989,7 @@ machine OmegaParser::parse_view(
 
     state retain_boolean_expression_bounded(value: i32) {
         self.expression_result = self.expression_count;
+        self.expression_end = self.scan.token_end;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Boolean;
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
@@ -4679,6 +5017,7 @@ machine OmegaParser::parse_view(
 
     state retain_integer_expression_bounded() {
         self.expression_result = self.expression_count;
+        self.expression_end = self.scan.token_end;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Integer;
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
@@ -4706,6 +5045,7 @@ machine OmegaParser::parse_view(
 
     state retain_string_expression_bounded() {
         self.expression_result = self.expression_count;
+        self.expression_end = self.scan.token_end;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::String;
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
@@ -4739,6 +5079,15 @@ machine OmegaParser::parse_view(
     state primary_expression_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> primary_expression_end_punctuation()
+            OmegaTokenKind::Identifier -> possible_implicit_struct_field()
+            OmegaTokenKind::Keyword -> possible_implicit_struct_field()
+            _ -> primary_expression_end_failure()
+        }
+    }
+
+    state possible_implicit_struct_field() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::StructFieldValue -> incomplete_root()
             _ -> primary_expression_end_failure()
         }
     }
@@ -4755,6 +5104,11 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
+            OmegaExpressionConsumer::StructFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -4763,6 +5117,8 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::CallArgument -> call_literal_end_punctuation()
             OmegaExpressionConsumer::AssignmentValue ->
                 assignment_literal_end_punctuation()
+            OmegaExpressionConsumer::StructFieldValue ->
+                struct_field_literal_end_punctuation()
         }
     }
 
@@ -4779,6 +5135,20 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Semicolon -> retain_assignment_literal_value()
             _ -> primary_expression_end_failure()
         }
+    }
+
+    state struct_field_literal_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> retain_struct_field_literal_value()
+            OmegaPunctuationKind::RightBrace -> retain_struct_field_literal_value()
+            _ -> primary_expression_end_failure()
+        }
+    }
+
+    state retain_struct_field_literal_value() {
+        self.struct_field_value = self.expression_result;
+        self.struct_field_value_end = self.expression_end;
+        transition true { true -> retain_struct_literal_field() }
     }
 
     state retain_call_literal_argument() {
