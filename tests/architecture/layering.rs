@@ -2930,6 +2930,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::integer::unary::exact_cast::validate",
         "straight_line_parameter::integer::bitwise::bitwise_and::is_candidate",
         "straight_line_parameter::integer::bitwise::bitwise_and::validate",
+        "straight_line_parameter::integer::bitwise::bitwise_or::is_candidate",
+        "straight_line_parameter::integer::bitwise::bitwise_or::validate",
         "source::reconstruct_direct",
         "source::reconstruct_boolean_not",
         "source::reconstruct_boolean_equal",
@@ -2940,6 +2942,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source::integer::unary::reconstruct_widen",
         "source::integer::unary::reconstruct_exact_cast",
         "source::integer::bitwise::reconstruct_bitwise_and",
+        "source::integer::bitwise::reconstruct_bitwise_or",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -2984,6 +2987,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "integer/unary/bitwise_not.rs",
         "integer/unary/widen.rs",
         "integer/bitwise/bitwise_and.rs",
+        "integer/bitwise/bitwise_or.rs",
     ] {
         let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
             .expect("read typed parameter-return replay");
@@ -3113,6 +3117,19 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "integer bitwise-AND source replay must visibly own {required}",
         );
     }
+    let integer_bitwise_or_source =
+        std::fs::read_to_string(parameter_validation.join("source/integer/bitwise/bitwise_or.rs"))
+            .expect("read integer bitwise-OR parameter source replay");
+    for required in [
+        "AbstractOperation::IntegerBitwiseOr",
+        "IntegerCarrier::Fixed",
+        "AbstractOperation::Return",
+    ] {
+        assert!(
+            integer_bitwise_or_source.contains(required),
+            "integer bitwise-OR source replay must visibly own {required}",
+        );
+    }
     let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
         .expect("read common parameter source envelope");
     for required in [
@@ -3134,6 +3151,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "AbstractOperation::IntegerWiden",
         "AbstractOperation::IntegerExactCast",
         "AbstractOperation::IntegerBitwiseAnd",
+        "AbstractOperation::IntegerBitwiseOr",
     ] {
         assert!(
             !source_envelope.contains(forbidden),
@@ -3183,6 +3201,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source/integer/less_or_equal.rs",
         "source/integer/bitwise_not.rs",
         "source/integer/bitwise_and.rs",
+        "source/integer/bitwise_or.rs",
         "model/unary.rs",
     ] {
         assert!(
@@ -3201,6 +3220,12 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "the retired unary parameter error catchall must not return",
     );
     assert!(
+        !stage
+            .join("validation/model/error/parameter/bitwise.rs")
+            .exists(),
+        "the retired bitwise parameter error catchall must not return",
+    );
+    assert!(
         !stage.join("validation/model/receipt/parameter.rs").exists(),
         "the retired parameter receipt catchall must not return",
     );
@@ -3209,6 +3234,12 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             .join("validation/model/receipt/parameter/unary.rs")
             .exists(),
         "the retired unary parameter receipt catchall must not return",
+    );
+    assert!(
+        !stage
+            .join("validation/model/receipt/parameter/bitwise.rs")
+            .exists(),
+        "the retired bitwise parameter receipt catchall must not return",
     );
     assert!(
         !stage

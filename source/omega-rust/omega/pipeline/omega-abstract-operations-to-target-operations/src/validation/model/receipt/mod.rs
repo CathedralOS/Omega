@@ -15,6 +15,7 @@ pub use parameter::{
     StraightLineBooleanParameterTranslationReceipt,
     StraightLineIntegerBitwiseAndParametersTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,
+    StraightLineIntegerBitwiseOrParametersTranslationReceipt,
     StraightLineIntegerEqualParametersTranslationReceipt,
     StraightLineIntegerExactCastParameterTranslationReceipt,
     StraightLineIntegerLessOrEqualParametersTranslationReceipt,
@@ -49,5 +50,8 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerExactCastParameter(StraightLineIntegerExactCastParameterTranslationReceipt),
     StraightLineIntegerBitwiseAndParameters(
         StraightLineIntegerBitwiseAndParametersTranslationReceipt,
+    ),
+    StraightLineIntegerBitwiseOrParameters(
+        StraightLineIntegerBitwiseOrParametersTranslationReceipt,
     ),
 }

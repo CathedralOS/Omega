@@ -284,15 +284,17 @@ cross-result grammar map and shared `envelope.rs` to whole-roster `abi.rs`
 calling-plan replay. Integer grammar descends through its own small
 `source/integer/mod.rs`, which owns typed-parameter lookup before named
 `unary/{bitwise_not,widen,exact_cast}` or
-`bitwise/{bitwise_and}` or
+`bitwise/{bitwise_and,bitwise_or}` or
 `comparison/{equal,less_than,less_or_equal}`
-leaves. Target replay mirrors that semantic taxonomy; shared comparison ABI and
-provenance mechanics descend one more rung into `comparison/replay.rs`.
-Boolean-not, integer bitwise-not, integer bitwise-AND, integer-widen, and
-integer exact-cast preserve their operands; integer-widen retains distinct source and target types and
+leaves. Target replay mirrors that semantic taxonomy; shared comparison and
+bitwise ABI/provenance mechanics descend one more rung into their respective
+`replay.rs` leaves.
+Boolean-not, integer bitwise-not, integer bitwise-AND, integer bitwise-OR,
+integer-widen, and integer exact-cast preserve their operands; integer-widen
+retains distinct source and target types and
 admits only the exact native widening relation, while exact-cast also retains
-the source proof obligation and excludes identity and widening relations. Each binary
-family preserves both ordered operands, including identity, while integer
+the source proof obligation and excludes identity and widening relations. Each
+binary family preserves both ordered operands, including identity, while integer
 families also retain the exact common integer type alongside produced value,
 operation, and edge custody. Immutable
 root and family vocabulary descend through small `model/error/` and
@@ -306,7 +308,12 @@ mixed `derived`, parameter-model, parameter-error/receipt, and catalog-adapter
 catchalls. Test construction follows the same navigation contract: parameter
 fixtures and Terminal translation fixtures have small entrances over `direct`,
 `unary`, `bitwise`, and `comparison` leaves, with immediate and terminal
-leaves where applicable. Adding a family must not enlarge a mixed fixture switch.
+leaves where applicable. Adding a family must not enlarge a mixed fixture
+switch.
+Shared bitwise ABI and provenance reconstruction descends once more into
+`bitwise/replay.rs`, while exact AND/OR leaves retain operator-specific grammar
+and target shape. Bitwise error/receipt vocabulary and parameter/Terminal
+fixtures likewise expose exact-family leaves instead of mixed grouping files.
 Exact-family validation suites then descend into `positive`,
 `source_corruption`, and `target_corruption` leaves. Optimized custody groups
 likewise descend from `unary`, `bitwise`, and `comparison` into one leaf per

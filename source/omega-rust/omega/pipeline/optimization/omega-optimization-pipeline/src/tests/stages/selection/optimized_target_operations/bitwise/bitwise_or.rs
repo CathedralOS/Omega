@@ -1,7 +1,7 @@
-use super::*;
+use super::super::*;
 
 #[test]
-fn optimized_target_lowering_retains_exact_integer_bitwise_and_parameter_custody() {
+fn optimized_target_lowering_retains_exact_integer_bitwise_or_parameter_custody() {
     let integers = [IntegerSign::Signed, IntegerSign::Unsigned]
         .into_iter()
         .flat_map(|sign| {
@@ -12,7 +12,7 @@ fn optimized_target_lowering_retains_exact_integer_bitwise_and_parameter_custody
         for (target_profile, registers, stack) in boolean_equal_location_cases() {
             for (parameter_count, expected) in [(2, registers), (10, stack)] {
                 let (semantic, proof) =
-                    integer_bitwise_and_parameters_return_artifact(scalar_type, parameter_count);
+                    integer_bitwise_or_parameters_return_artifact(scalar_type, parameter_count);
                 let optimized = optimize_artifact_sections(
                     &semantic,
                     &proof,
@@ -24,13 +24,13 @@ fn optimized_target_lowering_retains_exact_integer_bitwise_and_parameter_custody
                     lower_optimized_to_target_operations(optimized, target_profile).unwrap();
                 let receipt = target.translation_validation();
                 let AbstractToTargetFunctionTranslationDisposition::Validated(
-                    AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseAndParameters(row),
+                    AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseOrParameters(row),
                 ) = receipt.function_roster()[0].translation()
                 else {
-                    panic!("optimized integer bitwise-AND must retain its family row")
+                    panic!("optimized integer bitwise-OR must retain its family row")
                 };
                 assert_eq!(row.machine(), MachineId::new(30_001).unwrap());
-                assert_eq!(row.and_operation(), OperationId::new(30_005).unwrap());
+                assert_eq!(row.or_operation(), OperationId::new(30_005).unwrap());
                 assert_eq!(row.return_edge(), EdgeId::new(30_006).unwrap());
                 assert_eq!(row.source_value(), ValueId::new(30_003).unwrap());
                 assert_eq!(row.scalar_type(), scalar_type);
@@ -42,7 +42,7 @@ fn optimized_target_lowering_retains_exact_integer_bitwise_and_parameter_custody
                     &target.target_operations().functions[0].operation,
                     TargetOperation::ReturnIntegerExpression {
                         scalar_type: target_type,
-                        expression: TargetIntegerExpression::BitwiseAnd { left, right, .. },
+                        expression: TargetIntegerExpression::BitwiseOr { left, right, .. },
                         ..
                     } if *target_type == scalar_type
                         && matches!(

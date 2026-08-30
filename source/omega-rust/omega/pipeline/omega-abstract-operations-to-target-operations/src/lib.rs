@@ -30,6 +30,8 @@ pub use validation::{
     StraightLineIntegerBitwiseAndParametersTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,
+    StraightLineIntegerBitwiseOrParametersTranslationError,
+    StraightLineIntegerBitwiseOrParametersTranslationReceipt,
     StraightLineIntegerEqualParametersTranslationError,
     StraightLineIntegerEqualParametersTranslationReceipt,
     StraightLineIntegerExactCastParameterTranslationError,
