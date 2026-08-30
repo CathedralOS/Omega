@@ -153,9 +153,13 @@ does not yet fully satisfy this contract.
   for entrance, catalog, markers, and next rungs.
 - Psi pass entrances now own their visible local rule order rather than
   re-exporting a registration function from a hidden sibling catalog.
-- Fifteen production-classified leaves remain at 750-1,000 lines in manifests,
-  identity encoding, validation, register allocation, machine planning,
-  codecs, and lowering.
+- The optimization manifest now has a 37-line entrance that owns its stable
+  decision-v5/pass-v1 format registry and descends into decision, pass, work,
+  fact, framing, error, and matching test leaves. Legalized-call validation
+  likewise owns its join directly instead of hiding it behind one child.
+- Fourteen production-classified leaves remain at 750-1,000 lines in identity
+  encoding, validation, register allocation, machine planning, codecs, and
+  lowering.
 - Fourteen broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of

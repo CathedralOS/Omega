@@ -17,6 +17,14 @@ struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/mod.rs",
+        coordination_marker: "DECISION_WIRE_FORMAT",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-legalized-operations/src/validation/mod.rs",
+        coordination_marker: "impl LegalizedCallUnit",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/mod.rs",
         coordination_marker: "impl FixedViewCopyPlan",
     },
@@ -571,6 +579,17 @@ const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/provenance.rs",
 ];
 
+/// The optimization-manifest entrance routes directly to one leaf per stable
+/// record concern; restoring the former mixed leaf must not erase this ladder.
+const REQUIRED_MANIFEST_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/codec.rs",
+    "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/decision.rs",
+    "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/error.rs",
+    "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/fact_reference.rs",
+    "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/pass.rs",
+    "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/work_usage.rs",
+];
+
 pub(crate) fn check(audit: &mut Audit) {
     let repository = &audit.repository;
     let source_lines = &audit.source_lines;
@@ -647,6 +666,14 @@ pub(crate) fn check(audit: &mut Audit) {
         if !source_lines.contains_key(*path) {
             violations.insert(format!(
                 "fixed-view-copy codec lost a named semantic leaf: {path}"
+            ));
+        }
+    }
+
+    for path in REQUIRED_MANIFEST_LEAVES {
+        if !source_lines.contains_key(*path) {
+            violations.insert(format!(
+                "optimization manifest lost a named semantic leaf: {path}"
             ));
         }
     }

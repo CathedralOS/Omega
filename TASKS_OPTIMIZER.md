@@ -44,13 +44,19 @@ decision. Only true language-semantic questions belong in
   stage-wide `rules/catalog.rs` remains the sole exact-selection enable/disable
   table; each pass entrance now owns its visible local rule order instead of
   re-exporting a sibling catalog function.
+- [x] Split the 967-line optimization manifest into a 37-line wire-family
+  entrance over decision-v5, pass-v1, work usage, fact reference, framing, and
+  error leaves. Its tests now mirror those record families, and the guard
+  prohibits restoring the flat leaf.
+- [x] Remove the legalized-call validation forwarding wall. Its small
+  `validation/mod.rs` now owns the complete representation-validation join.
 - [ ] Audit all other `lib.rs`/`mod.rs` files and explicitly classify each as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 15 production-classified leaves at 750+ lines. Start with
-  optimization-core manifests (967), optimization-unit operation identity
-  encoding (943), and independent live-range replay (881), then continue
+  has 14 production-classified leaves at 750+ lines. Continue with
+  optimization-unit operation identity encoding (943) and independent
+  live-range replay (881), then continue
   through SCCP/GVN validation, machine effects, MOVN, spill choice, selected
   validation, ledger, and lowering control/settlement leaves.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
