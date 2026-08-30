@@ -1684,6 +1684,35 @@ proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
     state invalid_mode { emit_fail_once(13, store_mode)  return 0 }
 }
 
+; Load one compiler-resolved parameter from the current Gamma frame. Parameters
+; occupy complete two-word values above the fixed prefix in reverse physical
+; order, so source parameter zero is the pair nearest the caller cursor. Q3
+; later maps a source spelling to the opaque index; this seam owns only the
+; already-fixed frame layout and rejects malformed metadata before emission.
+
+proc lower_resolved_parameter(frame_prefix_bytes, parameter_count, parameter_index) {
+    state prefix_low { to invalid_prefix when (frame_prefix_bytes < 16)  to prefix_aligned }
+    state prefix_aligned { to invalid_prefix when (frame_prefix_bytes % 16 != 0)  to prefix_high }
+    state prefix_high { to invalid_prefix when (frame_prefix_bytes > 16515072)  to count_low }
+    state count_low { to invalid_count when (parameter_count < 0)  to count_high }
+    state count_high { to invalid_count when (parameter_count > 1032192)  to combined_extent }
+    state combined_extent {
+        to invalid_count when (parameter_count > (16515072 - frame_prefix_bytes) / 16)
+        to index_low
+    }
+    state index_low { to invalid_index when (parameter_index < 0)  to index_high }
+    state index_high { to invalid_index when (parameter_index >= parameter_count)  to load }
+    state load {
+        let parameter_offset = frame_prefix_bytes + (parameter_count - parameter_index - 1) * 16
+        emit_word_load(0, 253, parameter_offset)
+        emit_word_load(1, 253, parameter_offset + 8)
+        return 1
+    }
+    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes)  return 0 }
+    state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
+    state invalid_index { emit_fail_once(13, parameter_index)  return 0 }
+}
+
 proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
                            failure_label) {
     state target_low { to invalid_target when (target_prefix_bytes < 16)  to target_aligned }

@@ -222,6 +222,54 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        to failed when (word[2097016] != 13)' \
     '        to failed when (word[2097008] != 2)' \
     '        to failed when (word[2097040] != 0)' \
+    '        to parameter_prefix_setup' \
+    '    }' \
+    '    state parameter_prefix_setup {' \
+    '        emit_reset()' \
+    '        let parameter_prefix_result = lower_resolved_parameter(15, 1, 0)' \
+    '        to parameter_prefix_check' \
+    '    }' \
+    '    state parameter_prefix_check {' \
+    '        to failed when (parameter_prefix_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 15)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        to parameter_count_setup' \
+    '    }' \
+    '    state parameter_count_setup {' \
+    '        emit_reset()' \
+    '        let parameter_count_result = lower_resolved_parameter(16, 0 - 1, 0)' \
+    '        to parameter_count_check' \
+    '    }' \
+    '    state parameter_count_check {' \
+    '        to failed when (parameter_count_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 0 - 1)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        to parameter_index_setup' \
+    '    }' \
+    '    state parameter_index_setup {' \
+    '        emit_reset()' \
+    '        let parameter_index_result = lower_resolved_parameter(16, 2, 2)' \
+    '        to parameter_index_check' \
+    '    }' \
+    '    state parameter_index_check {' \
+    '        to failed when (parameter_index_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 2)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        to parameter_extent_setup' \
+    '    }' \
+    '    state parameter_extent_setup {' \
+    '        emit_reset()' \
+    '        let parameter_extent_result = lower_resolved_parameter(16515056, 2, 0)' \
+    '        to parameter_extent_check' \
+    '    }' \
+    '    state parameter_extent_check {' \
+    '        to failed when (parameter_extent_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 2)' \
+    '        to failed when (word[2097040] != 0)' \
     '        to constructor_profile_setup' \
     '    }' \
     '    state constructor_profile_setup {' \
@@ -1956,18 +2004,24 @@ stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/nu
     '        to failed when (tail_status != 1)' \
     '        emit_jump(12, unexpected_label)' \
     '        define_label(target_label)' \
-    '        emit_word_load(20, 253, 16)' \
+    '        let second_parameter_status = lower_resolved_parameter(16, 2, 1)' \
+    '        to second_parameter_lowered' \
+    '    }' \
+    '    state second_parameter_lowered {' \
+    '        to failed when (second_parameter_status != 1)' \
     '        emit_imm(21, 0)' \
-    '        emit_rrx(16, 20, 21, second_kind_label)' \
+    '        emit_rrx(16, 0, 21, second_kind_label)' \
     '        emit_jump(12, unexpected_label)' \
     '        define_label(second_kind_label)' \
-    '        emit_word_load(20, 253, 24)' \
     '        emit_imm(21, 8)' \
-    '        emit_rrx(16, 20, 21, second_payload_label)' \
+    '        emit_rrx(16, 1, 21, second_payload_label)' \
     '        emit_jump(12, unexpected_label)' \
     '        define_label(second_payload_label)' \
-    '        emit_word_load(0, 253, 32)' \
-    '        emit_word_load(1, 253, 40)' \
+    '        let first_parameter_status = lower_resolved_parameter(16, 2, 0)' \
+    '        to first_parameter_lowered' \
+    '    }' \
+    '    state first_parameter_lowered {' \
+    '        to failed when (first_parameter_status != 1)' \
     '        emit_gamma_return_frame()' \
     '        define_label(failure_label)' \
     '        emit_imm(0, 253)' \

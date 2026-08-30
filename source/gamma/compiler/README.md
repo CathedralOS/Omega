@@ -22,9 +22,9 @@ arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 103 procedures. With the fixed frontend
-gate entry, the compiled gate uses 104 of Beta's 128 procedure slots and
-compiles to 234,462 bytes. The remaining 27,678 bytes under
+The retained compiler source declares 104 procedures. With the fixed frontend
+gate entry, the compiled gate uses 105 of Beta's 128 procedure slots and
+compiles to 237,097 bytes. The remaining 25,043 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -46,6 +46,11 @@ one containment rule. The resolved let seam validates its packed
 initializer once outside tail position, stores the complete value, and passes
 the caller's tail context to its body. Q3 still owns assigning source binders
 and references to those indexes; this ABI chooses no scope or shadowing rule.
+Resolved parameters use the frame's already-fixed reverse physical order: a
+guarded accessor validates the complete prefix, parameter count, and opaque
+source-order index, and requires their combined extent to stay inside the
+explicit-stack profile before loading one pair. Q3 later assigns references to
+those indexes but does not own or alter their runtime placement.
 
 ## Implementation shape
 
@@ -187,7 +192,8 @@ It prevalidates the forward arena list and every fixed extent before emitting
 argument code; malformed private metadata cannot loop, wrap frame arithmetic,
 or leave a partial candidate payload.
 Its compact executed payload carries mixed `Bytes`/`Int` arguments through both
-paths and returns with the root stack and frame restored. `if` and the resolved
+paths, reads both parameters through the guarded resolved accessor, and returns
+with the root stack and frame restored. `if` and the resolved
 let seam already preserve their tail-position bit; future selected-match
 lowering must propagate the same transfer so terminating tail recursion grows
 neither Gamma activations nor Alpha's hidden return stack. Connecting tag-5 source call
