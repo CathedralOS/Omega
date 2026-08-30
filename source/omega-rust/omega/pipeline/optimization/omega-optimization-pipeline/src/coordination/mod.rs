@@ -1,4 +1,4 @@
-//! Compiler-facing entrances that select and report complete pipeline routes.
+//! Optimizer module role: stage group. Compiler-facing entrances that select and report complete pipeline routes.
 
 pub(crate) mod native_continuation;
 pub(crate) mod physical_pipeline;

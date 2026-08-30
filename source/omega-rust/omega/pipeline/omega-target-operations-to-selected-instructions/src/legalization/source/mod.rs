@@ -1,4 +1,4 @@
-//! Canonical source-to-legal construction over the sole ordered form catalog.
+//! Optimizer module role: executable entrance. Canonical source-to-legal construction over the sole ordered form catalog.
 
 mod custody;
 mod functions;

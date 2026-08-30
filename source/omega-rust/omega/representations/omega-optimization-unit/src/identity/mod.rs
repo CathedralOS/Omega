@@ -1,4 +1,4 @@
-//! Optimization-unit identity taxonomy (group map, not an executable stage).
+//! Optimizer module role: stage group. Optimization-unit identity taxonomy (group map, not an executable stage).
 //!
 //! `unit_encoding` owns the unit/fact/function custody walk. Operation,
 //! structural-domain, proof-term, and shared-carrier encodings descend into

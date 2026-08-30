@@ -1,4 +1,4 @@
-//! Canonical scalar-expression identities shared by every GVN traversal.
+//! Optimizer module role: executable entrance. Canonical scalar-expression identities shared by every GVN traversal.
 //!
 //! [`model`] owns the closed key vocabularies and operand translation,
 //! [`total`] classifies obligation-free operations, [`proof_certified`]

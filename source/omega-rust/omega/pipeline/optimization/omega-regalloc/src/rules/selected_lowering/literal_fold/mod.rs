@@ -1,4 +1,4 @@
-//! Exact incoming-literal fold and independent replay entrance.
+//! Optimizer module role: executable entrance. Exact incoming-literal fold and independent replay entrance.
 
 use crate::*;
 

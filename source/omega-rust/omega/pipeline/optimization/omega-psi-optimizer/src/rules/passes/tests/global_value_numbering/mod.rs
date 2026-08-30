@@ -1,4 +1,4 @@
-//! Same-block, dominating, and phi-translated GVN coverage.
+//! Optimizer module role: stage group. Same-block, dominating, and phi-translated GVN coverage.
 //!
 //! The entrance supplies the shared pass-test vocabulary; each leaf owns one
 //! recognizable GVN rule family.

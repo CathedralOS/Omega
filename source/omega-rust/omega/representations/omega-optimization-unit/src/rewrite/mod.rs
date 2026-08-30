@@ -1,4 +1,4 @@
-//! Immutable Psi rewrite candidate entrance.
+//! Optimizer module role: stage group. Immutable Psi rewrite candidate taxonomy.
 //!
 //! `model` owns atomic plans and independent witnesses, `candidate` owns
 //! construction and invariant-preserving access, and `codec` owns canonical

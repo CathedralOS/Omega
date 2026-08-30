@@ -1,4 +1,4 @@
-//! Analysis tests mirror the production catalog.
+//! Optimizer module role: stage group. Analysis tests mirror the production catalog.
 
 mod fixtures;
 

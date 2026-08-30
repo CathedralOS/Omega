@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 mod composition;
 mod manifest;
 mod validation;

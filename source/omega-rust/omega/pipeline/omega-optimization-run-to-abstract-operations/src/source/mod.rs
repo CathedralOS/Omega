@@ -1,4 +1,4 @@
-//! Source-shape projection entrance: roster custody before function lowering.
+//! Optimizer module role: executable entrance. Source-shape projection entrance: roster custody before function lowering.
 
 mod function;
 

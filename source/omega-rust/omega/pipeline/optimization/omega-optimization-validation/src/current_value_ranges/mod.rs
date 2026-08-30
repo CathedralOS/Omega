@@ -1,4 +1,4 @@
-//! Current-revision value-range validation coordination.
+//! Optimizer module role: executable entrance. Current-revision value-range validation coordination.
 //!
 //! The entrance first reconstructs and validates the fact, then proves its
 //! applicability at a requested operation entry. Proof goals, interval

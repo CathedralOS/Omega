@@ -1,4 +1,4 @@
-//! Control-flow analyses, cataloged by the exact graph question they answer.
+//! Optimizer module role: stage group. Control-flow analyses, cataloged by the exact graph question they answer.
 
 use psi_core::{BlockId, MachineId};
 

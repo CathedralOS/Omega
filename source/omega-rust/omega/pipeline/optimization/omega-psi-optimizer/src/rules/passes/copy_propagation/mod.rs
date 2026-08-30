@@ -1,4 +1,4 @@
-//! Copy-propagation pass entrance.
+//! Optimizer module role: executable entrance. Copy-propagation pass entrance.
 //!
 //! This entrance owns exact rule order; `rule` owns proposal mechanics.
 

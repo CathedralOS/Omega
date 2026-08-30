@@ -20,6 +20,9 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/tests.rs",
+        "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

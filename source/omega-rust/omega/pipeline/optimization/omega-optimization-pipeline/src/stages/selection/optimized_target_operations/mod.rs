@@ -1,4 +1,4 @@
-//! Optimized abstract-plan to target-operation lowering stage.
+//! Optimizer module role: executable entrance. Optimized abstract-plan to target-operation lowering stage.
 //!
 //! Exact source routes descend into `lowering`; the retained owning carrier
 //! descends into `model`. This entrance owns every lowering-to-custody join,

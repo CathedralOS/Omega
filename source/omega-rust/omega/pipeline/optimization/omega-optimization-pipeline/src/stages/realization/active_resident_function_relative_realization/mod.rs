@@ -1,4 +1,4 @@
-//! Active-resident rematerialization function-relative realization.
+//! Optimizer module role: executable entrance. Active-resident rematerialization function-relative realization.
 //!
 //! This entrance owns construction-to-independent-replay admission. Source
 //! artifact projection, manifest reconstruction, and custody remain explicit

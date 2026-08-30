@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Deterministic target-neutral analyses and rewrite orchestration for verified
+//! Optimizer module role: crate map. Deterministic target-neutral analyses and rewrite orchestration for verified
 //! Psi optimization units.
 //!
 //! This crate is not constructed by the ordinary empty-selection compiler

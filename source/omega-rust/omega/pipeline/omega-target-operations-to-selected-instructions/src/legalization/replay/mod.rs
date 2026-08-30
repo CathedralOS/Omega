@@ -1,4 +1,4 @@
-//! Independent replay of a proposed legal-operation projection.
+//! Optimizer module role: executable entrance. Independent replay of a proposed legal-operation projection.
 
 mod custody;
 mod functions;

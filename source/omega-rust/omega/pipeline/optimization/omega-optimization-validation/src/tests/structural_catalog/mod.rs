@@ -1,4 +1,4 @@
-//! Structural type, domain, function-catalog, root, and provider validation tests.
+//! Optimizer module role: stage group. Structural type, domain, function-catalog, root, and provider validation tests.
 
 mod catalog;
 mod content_projection;

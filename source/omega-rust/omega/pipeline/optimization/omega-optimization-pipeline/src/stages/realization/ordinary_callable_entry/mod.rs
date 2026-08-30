@@ -1,4 +1,4 @@
-//! Optimized ordinary-callable-entry stage entrance.
+//! Optimizer module role: executable entrance. Optimized ordinary-callable-entry stage entrance.
 //!
 //! This file owns the build-and-replay join. The data contract lives in
 //! `model`, semantic reconstruction in `reconstruction`, and canonical

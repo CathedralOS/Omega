@@ -1,4 +1,4 @@
-//! Typed fixture catalog shared by stage-specific integration tests.
+//! Optimizer module role: stage group. Typed fixture catalog shared by stage-specific integration tests.
 
 mod common;
 mod control_flow;

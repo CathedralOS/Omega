@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Canonical target-legal operation custody for the production Omega realization pipeline.
+//! Optimizer module role: crate map. Canonical target-legal operation custody for the production Omega realization pipeline.
 //!
 //! The public model is split by scalar and structural carriers. Representation-
 //! owned validation and canonical identity encoding descend through independent

@@ -1,4 +1,4 @@
-//! Closed source taxonomy for allocation recovery.
+//! Optimizer module role: stage group. Closed source taxonomy for allocation recovery.
 
 mod active_resident;
 mod fixed_view;

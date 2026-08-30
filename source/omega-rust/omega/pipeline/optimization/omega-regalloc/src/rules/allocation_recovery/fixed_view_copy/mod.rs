@@ -1,4 +1,4 @@
-//! Exact fixed-view copy insertion and independent CFG replay entrance.
+//! Optimizer module role: executable entrance. Exact fixed-view copy insertion and independent CFG replay entrance.
 
 use omega_target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 

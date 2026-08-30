@@ -1,4 +1,4 @@
-//! Canonical optimization-decision and pass-publication records.
+//! Optimizer module role: executable entrance. Canonical optimization-decision and pass-publication records.
 //!
 //! This entrance owns the closed wire-format registry and exposes the record
 //! vocabulary. Descend into `decision` for decision-v5 identity and evidence

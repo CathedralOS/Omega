@@ -1,4 +1,4 @@
-//! Exact binary-bitwise parameter fixtures.
+//! Optimizer module role: stage group. Exact binary-bitwise parameter fixtures.
 
 mod bitwise_and;
 mod bitwise_or;

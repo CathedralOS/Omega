@@ -1,4 +1,4 @@
-//! Independent run replay entrance.
+//! Optimizer module role: executable entrance. Independent run replay entrance.
 //!
 //! The order here is the custody contract: rebuild the selected schedule,
 //! replay every commit, bind every validated candidate decision to that replay,

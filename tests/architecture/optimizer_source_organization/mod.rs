@@ -10,6 +10,7 @@ mod bounds;
 mod catalogs;
 mod entrances;
 mod inventory;
+mod module_roles;
 mod retired_paths;
 
 struct Audit {
@@ -22,6 +23,7 @@ struct Audit {
 fn optimizer_source_organization_is_bounded_and_navigable() {
     let mut audit = inventory::collect();
     bounds::check(&mut audit);
+    module_roles::check(&mut audit);
     entrances::check(&mut audit);
     catalogs::check(&mut audit);
     retired_paths::check(&mut audit);

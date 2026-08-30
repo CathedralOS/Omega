@@ -1,4 +1,4 @@
-//! Translation error taxonomy and exact family-to-error join.
+//! Optimizer module role: executable entrance. Translation error taxonomy and exact family-to-error join.
 
 mod immediate;
 mod parameter;

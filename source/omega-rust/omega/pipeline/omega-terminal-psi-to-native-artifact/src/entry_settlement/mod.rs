@@ -1,4 +1,4 @@
-//! Source-entry settlement entrance: pair the selected source declaration with
+//! Optimizer module role: executable entrance. Source-entry settlement entrance: pair the selected source declaration with
 //! its calling contracts, replay the Terminal artifact, and retain owned custody.
 
 mod calling_plans;

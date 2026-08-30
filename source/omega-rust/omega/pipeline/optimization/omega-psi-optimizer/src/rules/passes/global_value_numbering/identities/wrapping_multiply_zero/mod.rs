@@ -1,4 +1,4 @@
-//! Exact wrapping multiply-zero rule and proposal join.
+//! Optimizer module role: executable entrance. Exact wrapping multiply-zero rule and proposal join.
 
 mod laws;
 

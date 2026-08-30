@@ -1,4 +1,4 @@
-//! Scalar-operation coordination shared by straight-line and conditional lowering.
+//! Optimizer module role: executable entrance. Scalar-operation coordination shared by straight-line and conditional lowering.
 mod direct;
 mod integer_binary;
 mod integer_operation;

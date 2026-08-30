@@ -1,4 +1,4 @@
-//! Integer-result binary bitwise grammar coordination.
+//! Optimizer module role: executable entrance. Integer-result binary bitwise grammar coordination.
 
 pub(in crate::validation::straight_line_parameter) mod bitwise_and;
 pub(in crate::validation::straight_line_parameter) mod bitwise_or;

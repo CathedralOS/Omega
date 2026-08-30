@@ -1,4 +1,4 @@
-//! Per-point physical-view legality compute -> validation entrance.
+//! Optimizer module role: executable entrance. Per-point physical-view legality compute -> validation entrance.
 
 use crate::*;
 

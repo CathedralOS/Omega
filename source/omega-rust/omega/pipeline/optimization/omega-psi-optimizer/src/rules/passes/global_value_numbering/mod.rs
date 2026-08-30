@@ -1,4 +1,4 @@
-//! Global value numbering, arranged by expression identity and traversal scope.
+//! Optimizer module role: executable entrance. Global value numbering, arranged by expression identity and traversal scope.
 
 use std::collections::{BTreeMap, BTreeSet};
 

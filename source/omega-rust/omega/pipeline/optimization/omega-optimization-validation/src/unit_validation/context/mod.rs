@@ -1,4 +1,4 @@
-//! Verified and transformed optimizer-context validation coordination.
+//! Optimizer module role: executable entrance. Verified and transformed optimizer-context validation coordination.
 //!
 //! Both public routes validate the complete unit first, then replay immutable
 //! context indexes, seed/fact projection, and surviving frontier custody. The

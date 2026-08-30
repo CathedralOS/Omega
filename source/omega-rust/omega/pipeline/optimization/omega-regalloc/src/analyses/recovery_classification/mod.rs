@@ -1,4 +1,4 @@
-//! Exact pressure-recovery eligibility classification entrance.
+//! Optimizer module role: executable entrance. Exact pressure-recovery eligibility classification entrance.
 
 use crate::*;
 

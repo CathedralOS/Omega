@@ -1,4 +1,4 @@
-//! Independent SCCP candidate validation entrance.
+//! Optimizer module role: executable entrance. Independent SCCP candidate validation entrance.
 //!
 //! This entrance owns the exact rule and patch routing join. Integer and
 //! boolean acceptance, typed-range comparison, observation equality, exact

@@ -1,4 +1,4 @@
-//! Owning object join for the optimized semantic ProgramStorage wrapper.
+//! Optimizer module role: executable entrance. Owning object join for the optimized semantic ProgramStorage wrapper.
 //!
 //! The stage entrance composes one compiler-owned wrapper with one validated
 //! relocation-free child, independently replays the join, and grants custody.

@@ -1,4 +1,4 @@
-//! Native-realization entrance: validate source custody, choose the exact
+//! Optimizer module role: executable entrance. Native-realization entrance: validate source custody, choose the exact
 //! ordinary or selected path, admit providers, emit machine code, and replay
 //! the authority-free artifact.
 

@@ -1,4 +1,4 @@
-//! Pre-physical optimization-manifest projection and replay boundary.
+//! Optimizer module role: executable entrance. Pre-physical optimization-manifest projection and replay boundary.
 //!
 //! The record model, projection mechanics, independent validation, canonical
 //! codec/identity, and human rendering descend into named leaves. This

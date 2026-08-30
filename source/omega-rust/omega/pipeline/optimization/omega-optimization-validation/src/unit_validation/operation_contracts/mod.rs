@@ -1,4 +1,4 @@
-//! Independent operation-contract validation.
+//! Optimizer module role: executable entrance. Independent operation-contract validation.
 //!
 //! Value flow, node contract families, bindings, structural access, claims,
 //! payloadless cases, boundaries, and scalar typing descend into named leaves.

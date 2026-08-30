@@ -1,4 +1,4 @@
-//! Selection and replay of the target-owned semantic ProgramStorage wrapper.
+//! Optimizer module role: executable entrance. Selection and replay of the target-owned semantic ProgramStorage wrapper.
 //!
 //! This entrance consumes the address-free semantic plan by value, projects it
 //! into one target request, encodes it, and admits it only after replay.

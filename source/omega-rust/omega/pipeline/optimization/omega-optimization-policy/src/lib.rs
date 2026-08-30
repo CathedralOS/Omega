@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Deterministic decision policy over independently validated candidates.
+//! Optimizer module role: crate map. Deterministic decision policy over independently validated candidates.
 //!
 //! `baseline` owns the built-in model-free chooser and its replayable log.
 //! `external_schema` owns the versioned record-only extension boundary. Neither

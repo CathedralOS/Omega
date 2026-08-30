@@ -1,4 +1,4 @@
-//! GVN across join parameters via predecessor-specific expression translation.
+//! Optimizer module role: executable entrance. GVN across join parameters via predecessor-specific expression translation.
 //!
 //! The three exact rule families share one analysis/invalidation contract but
 //! keep their expression and evidence mechanics in named leaves.

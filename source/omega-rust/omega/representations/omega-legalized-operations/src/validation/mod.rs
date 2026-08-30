@@ -1,4 +1,4 @@
-//! Representation-owned validation for retained legalized-operation values.
+//! Optimizer module role: executable entrance. Representation-owned validation for retained legalized-operation values.
 
 use crate::model::*;
 use omega_optimization_unit::OwnershipEvent;

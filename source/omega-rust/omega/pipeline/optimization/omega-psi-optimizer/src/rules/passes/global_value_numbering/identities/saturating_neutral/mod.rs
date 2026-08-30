@@ -1,4 +1,4 @@
-//! Exact saturating neutral-arithmetic rule and proposal join.
+//! Optimizer module role: executable entrance. Exact saturating neutral-arithmetic rule and proposal join.
 
 mod laws;
 

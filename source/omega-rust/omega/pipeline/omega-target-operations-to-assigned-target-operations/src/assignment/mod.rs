@@ -1,4 +1,4 @@
-//! Stage entrance: validate the target-operation roster, assign each function,
+//! Optimizer module role: executable entrance. Stage entrance: validate the target-operation roster, assign each function,
 //! and retain the source plan identity in the assigned result.
 
 mod cleanup;

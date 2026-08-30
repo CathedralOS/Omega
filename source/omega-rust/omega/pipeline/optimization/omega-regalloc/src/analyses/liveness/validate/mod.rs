@@ -1,4 +1,4 @@
-//! Independent liveness replay, exact comparison, and receipt admission.
+//! Optimizer module role: executable entrance. Independent liveness replay, exact comparison, and receipt admission.
 
 mod constraints;
 mod function_contract;

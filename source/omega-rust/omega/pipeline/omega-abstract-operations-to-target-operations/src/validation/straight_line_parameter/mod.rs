@@ -1,4 +1,4 @@
-//! Parameter translation join: direct returns or typed expressions.
+//! Optimizer module role: executable entrance. Parameter translation join: direct returns or typed expressions.
 //!
 //! Result-kind leaves remain distinct catalog families. This entrance owns
 //! their common source-envelope and ABI replay. Boolean and integer entrances

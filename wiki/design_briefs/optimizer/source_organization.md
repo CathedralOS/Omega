@@ -23,6 +23,13 @@ A directory that only groups neighboring stages may have a map-only `mod.rs`,
 but its module documentation must call it a group. It is not counted or
 described as a stage entrance.
 
+Every governed `lib.rs` and `mod.rs` begins with exactly one source-local role
+declaration: `crate map`, `stage group`, or `executable entrance`. This is not
+decorative prose. The architecture audit inventories the complete governed
+tree, rejects an unclassified or multiply classified module, and requires each
+executable entrance to retain its named coordination seam. A new module cannot
+silently become an entrance by accumulating mechanics behind a map.
+
 ## The Squalr pattern
 
 The useful reference is Squalr's scan-rule path:
@@ -166,9 +173,17 @@ does not yet fully satisfy this contract.
   compare/receipt join; independent GVN keys descend by total,
   proof-certified, and compatible-policy vocabulary. The former 1,457-line
   structural-catalog test matrix now mirrors six production validation families.
-- Ten production-classified leaves remain at 750-1,000 lines in register
+- All 277 governed module maps are source-locally classified: 157 executable
+  entrances, 14 crate maps, and 106 stage groups. The guard exhaustively checks
+  those roles and the real coordination marker of every executable entrance.
+- The transformation ledger now descends from a 92-line custody-validation
+  entrance into model, error, validation, encoding, decoding, cursor, and test
+  leaves. Register-allocation and selected-lowering test matrices now mirror
+  their retained artifact and exact-rule families; their largest leaves are
+  388 and 599 lines respectively.
+- Nine production-classified leaves remain at 750-1,000 lines in register
   allocation, machine planning, codecs, and lowering.
-- Thirteen broad test and fixture leaves remain above 1,000 lines even though
+- Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of
   remaining entrances. Git history is the milestone archive.
@@ -186,7 +201,8 @@ tests/architecture/optimizer_source_organization/
   mod.rs             # run the audit and report violations
   inventory.rs       # governed roots and stage descriptors
   bounds.rs          # line and entrance ceilings
-  entrances.rs       # meaningful-join checks
+  module_roles.rs    # exhaustive source-local module classification
+  entrances/         # meaningful joins and required semantic ladders
   catalogs.rs        # sole-order and exact-leaf checks
   retired_paths.rs   # prohibited legacy shapes
 ```

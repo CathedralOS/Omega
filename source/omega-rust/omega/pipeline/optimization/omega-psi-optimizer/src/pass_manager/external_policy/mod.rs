@@ -1,4 +1,4 @@
-//! External-policy recording and replay entrance.
+//! Optimizer module role: executable entrance. External-policy recording and replay entrance.
 //!
 //! [`expected_context`] binds the complete compiler-authored request context;
 //! [`candidate_features`] projects only independently validated candidates;

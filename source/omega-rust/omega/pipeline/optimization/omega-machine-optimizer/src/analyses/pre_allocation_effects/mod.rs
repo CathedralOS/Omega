@@ -1,4 +1,4 @@
-//! Complete machine-effect analysis for one validated selected CFG.
+//! Optimizer module role: executable entrance. Complete machine-effect analysis for one validated selected CFG.
 
 pub(crate) mod codec;
 mod compute;

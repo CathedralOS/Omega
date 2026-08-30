@@ -1,4 +1,4 @@
-//! Assignment, legalization, selected-instruction, and machine-effect tests.
+//! Optimizer module role: stage group. Assignment, legalization, selected-instruction, and machine-effect tests.
 
 mod assignment_and_legalization;
 mod optimized_target_operations;

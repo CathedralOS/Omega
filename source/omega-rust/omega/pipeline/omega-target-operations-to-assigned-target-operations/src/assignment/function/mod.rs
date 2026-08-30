@@ -1,4 +1,4 @@
-//! Per-function entrance: route one exhaustive operation carrier, then retain
+//! Optimizer module role: executable entrance. Per-function entrance: route one exhaustive operation carrier, then retain
 //! the function's identity, attachment, and provenance around that result.
 
 mod boundary;

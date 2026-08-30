@@ -1,4 +1,4 @@
-//! Provenance and custody accounting reconstructed independently of producers.
+//! Optimizer module role: executable entrance. Provenance and custody accounting reconstructed independently of producers.
 //!
 //! Common edge-custody preservation and scalar-substitution contracts live at
 //! this entrance. Exact transformation accounting descends into named family

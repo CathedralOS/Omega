@@ -1,4 +1,4 @@
-//! Current ownership-frontier reconstruction and independent replay.
+//! Optimizer module role: executable entrance. Current ownership-frontier reconstruction and independent replay.
 //!
 //! Entry reconstruction, CFG replay, frontier mutation, cleanup validation,
 //! structural placement, and partial-affine residual accounting descend into

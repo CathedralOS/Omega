@@ -1,4 +1,4 @@
-//! Exact saturating multiply-zero rule and proposal join.
+//! Optimizer module role: executable entrance. Exact saturating multiply-zero rule and proposal join.
 
 mod laws;
 

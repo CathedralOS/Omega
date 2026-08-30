@@ -1,4 +1,4 @@
-//! Independent reconstruction of the structural-Unit selection contract.
+//! Optimizer module role: executable entrance. Independent reconstruction of the structural-Unit selection contract.
 
 mod constraints;
 mod layout;

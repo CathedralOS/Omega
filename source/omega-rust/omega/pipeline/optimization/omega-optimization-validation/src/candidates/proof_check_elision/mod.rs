@@ -1,4 +1,4 @@
-//! Proof-certified scalar rewrite validation entrance.
+//! Optimizer module role: stage group. Proof-certified scalar rewrite validation families.
 //!
 //! `identity_classification` rebuilds the admissible exact identity,
 //! `candidate_validation` owns the general acceptance join, and the

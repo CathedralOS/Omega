@@ -1,4 +1,4 @@
-//! Independent register-home validation entrance.
+//! Optimizer module role: executable entrance. Independent register-home validation entrance.
 //!
 //! Root custody, tied-domain reconstruction, conflict replay, and receipt
 //! construction remain separate from the producer's assignment mechanics.

@@ -1,4 +1,4 @@
-//! Register-home staging after selected-lowering transformations.
+//! Optimizer module role: executable entrance. Register-home staging after selected-lowering transformations.
 //!
 //! One-step literal-fold chains and complete selected-lowering runs retain
 //! distinct source custody. This entrance grants either result custody only

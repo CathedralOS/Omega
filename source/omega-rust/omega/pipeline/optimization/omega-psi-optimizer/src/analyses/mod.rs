@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 mod catalog;
 mod control_flow;
 mod manager;

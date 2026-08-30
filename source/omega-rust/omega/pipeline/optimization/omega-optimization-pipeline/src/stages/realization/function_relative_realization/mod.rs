@@ -1,4 +1,4 @@
-//! Function-relative realization after physical homes are known.
+//! Optimizer module role: stage group. Function-relative realization after physical homes are known.
 //!
 //! This entrance owns the boundary vocabulary and the three route families:
 //! baseline selected lowering, function-relative layout, and the single

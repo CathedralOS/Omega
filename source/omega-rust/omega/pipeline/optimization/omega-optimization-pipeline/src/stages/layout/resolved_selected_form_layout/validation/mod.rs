@@ -1,4 +1,4 @@
-//! Independent admission of candidate function-relative layout.
+//! Optimizer module role: executable entrance. Independent admission of candidate function-relative layout.
 //!
 //! Policy, ordinary rows, structural rows, and aggregate identity descend
 //! separately. Candidate branch bytes are accepted only by target decoders.

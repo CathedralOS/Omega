@@ -1,4 +1,4 @@
-//! Source-only grammar map for direct and expression parameter use.
+//! Optimizer module role: executable entrance. Source-only grammar map for direct and expression parameter use.
 
 pub(super) mod boolean_equal;
 pub(super) mod boolean_not;

@@ -1,4 +1,4 @@
-//! All-candidate decision custody, descended by retained declaration, manifest,
+//! Optimizer module role: executable entrance. All-candidate decision custody, descended by retained declaration, manifest,
 //! and baseline-policy responsibility.
 
 mod baseline;

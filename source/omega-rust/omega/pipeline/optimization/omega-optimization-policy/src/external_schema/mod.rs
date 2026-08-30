@@ -1,4 +1,4 @@
-//! External-policy schema v2 entrance.
+//! Optimizer module role: executable entrance. External-policy schema v2 entrance.
 //!
 //! `model` owns the closed request/response vocabulary, `identity` binds every
 //! context and per-candidate feature, and `codec` is the strict canonical wire

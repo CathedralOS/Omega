@@ -1,4 +1,4 @@
-//! Immutable reconstruction vocabulary, partitioned by parameter expression shape.
+//! Optimizer module role: stage group. Immutable reconstruction vocabulary, partitioned by parameter expression shape.
 
 mod bitwise;
 mod comparison;

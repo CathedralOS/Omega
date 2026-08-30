@@ -1,4 +1,4 @@
-//! Ordered custody boundaries from target selection through native artifacts.
+//! Optimizer module role: stage group. Ordered custody boundaries from target selection through native artifacts.
 
 pub(crate) mod allocation;
 pub(crate) mod artifacts;

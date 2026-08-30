@@ -1,4 +1,4 @@
-//! Target register-environment construction and validation stage.
+//! Optimizer module role: executable entrance. Target register-environment construction and validation stage.
 //!
 //! This entrance is the visible join between exact target declarations,
 //! reservation policy, and the independently validated allocator environment.

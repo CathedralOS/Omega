@@ -1,4 +1,4 @@
-//! Optimizer-input entrance: reconstruct the complete unit seed, bind admitted
+//! Optimizer module role: executable entrance. Optimizer-input entrance: reconstruct the complete unit seed, bind admitted
 //! proof facts, proof questions, and ownership frontiers, then seal the unit
 //! beside the verifier-owned input context.
 

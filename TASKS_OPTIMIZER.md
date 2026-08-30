@@ -64,18 +64,30 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
-- [ ] Audit all other `lib.rs`/`mod.rs` files and explicitly classify each as
+- [x] Audit all 277 governed `lib.rs`/`mod.rs` files and explicitly classify
+  each at its source as
   crate map, stage group, or executable entrance. Only executable entrances
-  need a real join; no executable entrance may be a forwarding wall.
+  need a real join; no executable entrance may be a forwarding wall. The
+  exhaustive architecture guard rejects missing, duplicate, or contradictory
+  role declarations and pins every executable entrance to a coordination seam.
+- [x] Split the 781-line transformation ledger into a 92-line construction
+  entrance over model, construction validation, error, encoding, decoding,
+  cursor, and test leaves without changing its stable wire identity.
+- [x] Split the 1,399-line register-allocation test matrix by liveness, live
+  ranges, legality, homes, fixed-view copies, and selected-input custody; its
+  largest focused leaf is now 388 lines.
+- [x] Split the 1,388-line selected-lowering test matrix by pressure recovery,
+  named-suite behavior, exact immediates, and exit contracts; its largest
+  focused leaf is now 599 lines.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 10 production-classified leaves at 750+ lines. Continue with machine
-  effects, MOVN, spill choice, selected validation, ledger, and lowering
+  has 9 production-classified leaves at 750+ lines. Continue with machine
+  effects, MOVN, spill choice, selected validation, rewrite, and lowering
   control/settlement leaves.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
-  audit has 13 test/fixture leaves at 1,000+ lines. The 1,457-line structural
-  catalog now mirrors its six production validation families; next split the
-  register-allocation and selected-lowering matrices by exact artifact/rule
-  family and behavior.
+  audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
+  register-allocation, and selected-lowering matrices now mirror their
+  production families; continue with physical coordination, output artifacts,
+  selected-machine, assignment/legalization, and pass-manager execution.
 - [x] Replace parallel rule-stage path arrays in the organization guard with
   typed stage descriptors and generic entrance/catalog/next-rung checks.
   Bespoke checks remain only for genuinely stage-specific invariants.

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Shared composition from canonical Terminal Psi to a replayed native artifact.
+//! Optimizer module role: crate map. Shared composition from canonical Terminal Psi to a replayed native artifact.
 //!
 //! This crate is named for its exact input and output. Its entrances settle
 //! source-entry custody, coordinate ordinary or explicitly selected native

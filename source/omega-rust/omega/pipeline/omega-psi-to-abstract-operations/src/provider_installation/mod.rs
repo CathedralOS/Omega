@@ -1,4 +1,4 @@
-//! Provider-installation entrance: select the ordinary or optimizer-retaining
+//! Optimizer module role: executable entrance. Provider-installation entrance: select the ordinary or optimizer-retaining
 //! replay policy, then admit only an exactly replayed provider installation.
 
 mod admission;

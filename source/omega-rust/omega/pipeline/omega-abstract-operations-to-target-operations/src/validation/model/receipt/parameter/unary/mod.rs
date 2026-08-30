@@ -1,4 +1,4 @@
-//! Exact unary parameter-family receipts.
+//! Optimizer module role: stage group. Exact unary parameter-family receipts.
 
 mod bitwise_not;
 mod boolean_not;

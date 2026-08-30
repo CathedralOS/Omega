@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Target-aware machine analysis, planning, and explicitly named rules.
+//! Optimizer module role: crate map. Target-aware machine analysis, planning, and explicitly named rules.
 //!
 //! Start here to choose the rung you need: [`analyses`] computes immutable
 //! facts, [`planning`] joins facts with physical homes, and [`rules`] contains

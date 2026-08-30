@@ -1,4 +1,4 @@
-//! Exact fixed-view-copy recovery stage.
+//! Optimizer module role: executable entrance. Exact fixed-view-copy recovery stage.
 //!
 //! This entrance validates source legality, materializes the requested exact
 //! policy, independently replays the copy plan, and only then grants custody.

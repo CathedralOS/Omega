@@ -1,4 +1,4 @@
-//! Independent admission of producer-owned selected-form bytes.
+//! Optimizer module role: executable entrance. Independent admission of producer-owned selected-form bytes.
 //!
 //! Ordinary and structural rows descend separately into target-owned byte
 //! decoders. Aggregate custody is checked only after both row families pass.

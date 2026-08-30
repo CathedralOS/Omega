@@ -1,4 +1,4 @@
-//! Integration tests arranged by the same custody-stage taxonomy as production.
+//! Optimizer module role: stage group. Integration tests arranged by the same custody-stage taxonomy as production.
 
 mod allocation;
 mod artifacts;

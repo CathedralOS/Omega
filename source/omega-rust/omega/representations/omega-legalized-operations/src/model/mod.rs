@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 mod plan;
 mod scalar;
 mod shared;

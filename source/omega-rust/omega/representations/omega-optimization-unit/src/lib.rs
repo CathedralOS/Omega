@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Reconstructible, target-neutral optimization input derived from verified
+//! Optimizer module role: crate map. Reconstructible, target-neutral optimization input derived from verified
 //! Terminal Psi realization requirements.
 //!
 //! This crate deliberately performs no optimization. It makes the implicit

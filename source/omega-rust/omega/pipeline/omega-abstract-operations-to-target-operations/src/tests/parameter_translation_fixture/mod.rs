@@ -1,4 +1,4 @@
-//! Parameter-plan fixtures grouped by direct, unary, and comparison semantics.
+//! Optimizer module role: stage group. Parameter-plan fixtures grouped by direct, unary, and comparison semantics.
 
 use super::*;
 

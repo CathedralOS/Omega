@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use super::*;
 
 mod boolean_equal;

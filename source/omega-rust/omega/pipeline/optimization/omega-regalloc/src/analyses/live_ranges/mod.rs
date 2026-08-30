@@ -1,4 +1,4 @@
-//! Block-local live ranges and interference compute -> validation entrance.
+//! Optimizer module role: executable entrance. Block-local live ranges and interference compute -> validation entrance.
 
 use crate::*;
 

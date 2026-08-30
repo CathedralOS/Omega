@@ -1,4 +1,4 @@
-//! Allocation-recovery rule entrance.
+//! Optimizer module role: executable entrance. Allocation-recovery rule entrance.
 //!
 //! [`ALLOCATION_RECOVERY_RULE_CATALOG`] is the only enable/order declaration
 //! for this phase. This entrance admits its current single-rule execution

@@ -1,4 +1,4 @@
-//! Selected-CFG liveness staging.
+//! Optimizer module role: executable entrance. Selected-CFG liveness staging.
 //!
 //! This entrance owns the analysis-to-independent-replay join. No liveness
 //! result receives stage custody before replay reconstructs its exact receipt.

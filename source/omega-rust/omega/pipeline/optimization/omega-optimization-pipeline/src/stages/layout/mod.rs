@@ -1,4 +1,4 @@
-//! Resolved selected-form layout, relaxation, and exit-contract stages.
+//! Optimizer module role: stage group. Resolved selected-form layout, relaxation, and exit-contract stages.
 
 pub(crate) mod active_resident_resolved_selected_form_layout;
 pub(crate) mod resolved_selected_form_layout;

@@ -1,4 +1,4 @@
-//! Stable evidence and control-flow concepts shared across named Psi passes.
+//! Optimizer module role: stage group. Stable evidence and control-flow concepts shared across named Psi passes.
 
 mod control_flow;
 mod facts;

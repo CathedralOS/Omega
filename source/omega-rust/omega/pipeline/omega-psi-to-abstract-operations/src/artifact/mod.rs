@@ -1,4 +1,4 @@
-//! Artifact entrance: canonical decode and verification before either ordinary
+//! Optimizer module role: executable entrance. Artifact entrance: canonical decode and verification before either ordinary
 //! lowering or explicit optimizer-context retention.
 
 mod error;

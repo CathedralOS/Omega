@@ -1,4 +1,4 @@
-//! Independent object admission for the exact unmetered ranked-`u32` body.
+//! Optimizer module role: executable entrance. Independent object admission for the exact unmetered ranked-`u32` body.
 
 mod contract;
 mod layout;

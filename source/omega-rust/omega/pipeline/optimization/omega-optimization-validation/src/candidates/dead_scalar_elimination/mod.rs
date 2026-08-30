@@ -1,4 +1,4 @@
-//! Dead scalar-node candidate validation coordination.
+//! Optimizer module role: executable entrance. Dead scalar-node candidate validation coordination.
 //!
 //! This entrance admits candidate custody and the analysis contract. Exact
 //! rule classification, the exhaustive operation partition, and independent

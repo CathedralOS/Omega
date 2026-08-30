@@ -1,4 +1,4 @@
-//! Exact binary-bitwise parameter error vocabulary.
+//! Optimizer module role: executable entrance. Exact binary-bitwise parameter error vocabulary.
 
 mod bitwise_and;
 mod bitwise_or;

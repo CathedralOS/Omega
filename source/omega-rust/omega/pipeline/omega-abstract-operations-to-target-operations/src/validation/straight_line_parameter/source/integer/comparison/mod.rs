@@ -1,4 +1,4 @@
-//! Boolean-result integer comparison grammar coordination.
+//! Optimizer module role: stage group. Boolean-result integer comparison grammar coordination.
 
 pub(in crate::validation::straight_line_parameter) mod equal;
 pub(in crate::validation::straight_line_parameter) mod less_or_equal;

@@ -1,4 +1,4 @@
-//! Ordinary-function layout admission.
+//! Optimizer module role: executable entrance. Ordinary-function layout admission.
 //!
 //! This entrance owns the function roster traversal. Each function then
 //! descends through source-row custody, canonical block order, size planning,

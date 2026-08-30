@@ -1,4 +1,4 @@
-//! Canonical identity construction for legalized-operation custody.
+//! Optimizer module role: stage group. Canonical identity construction for legalized-operation custody.
 
 mod calling;
 mod plan;

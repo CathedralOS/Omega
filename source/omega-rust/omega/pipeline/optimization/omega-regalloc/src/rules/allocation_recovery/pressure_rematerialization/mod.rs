@@ -1,4 +1,4 @@
-//! Exact active-resident rematerialization and replay entrance.
+//! Optimizer module role: executable entrance. Exact active-resident rematerialization and replay entrance.
 
 use crate::*;
 

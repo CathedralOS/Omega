@@ -1,4 +1,4 @@
-//! Exhaustive independent dispatch for total scalar identity families.
+//! Optimizer module role: executable entrance. Exhaustive independent dispatch for total scalar identity families.
 
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_unit::TotalScalarIdentityKind;

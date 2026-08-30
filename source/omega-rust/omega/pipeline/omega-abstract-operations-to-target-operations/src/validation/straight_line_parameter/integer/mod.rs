@@ -1,4 +1,4 @@
-//! Integer parameter-family replay map.
+//! Optimizer module role: stage group. Integer parameter-family replay map.
 
 pub(crate) mod bitwise;
 pub(crate) mod comparison;

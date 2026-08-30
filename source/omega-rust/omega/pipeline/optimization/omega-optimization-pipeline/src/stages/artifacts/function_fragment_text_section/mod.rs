@@ -1,4 +1,4 @@
-//! Relocation-free text placement from validated function fragments.
+//! Optimizer module role: executable entrance. Relocation-free text placement from validated function fragments.
 //!
 //! This entrance owns the stage/validation join. Data and custody live in
 //! `model` and `carriers`; canonical serialization lives in

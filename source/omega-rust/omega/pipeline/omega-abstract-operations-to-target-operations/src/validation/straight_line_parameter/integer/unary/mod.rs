@@ -1,4 +1,4 @@
-//! Integer-unary replay taxonomy: one semantic leaf per operation family.
+//! Optimizer module role: stage group. Integer-unary replay taxonomy: one semantic leaf per operation family.
 
 pub(crate) mod bitwise_not;
 pub(crate) mod exact_cast;

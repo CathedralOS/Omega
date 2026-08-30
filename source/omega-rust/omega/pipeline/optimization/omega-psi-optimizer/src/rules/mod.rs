@@ -1,4 +1,4 @@
-//! Built-in Psi optimization stage entrance.
+//! Optimizer module role: executable entrance. Built-in Psi optimization stage entrance.
 //!
 //! [`PSI_PASS_CATALOG`] is the only enable/disable and pass-order table. This
 //! entrance filters exact selections through it and returns one ordered

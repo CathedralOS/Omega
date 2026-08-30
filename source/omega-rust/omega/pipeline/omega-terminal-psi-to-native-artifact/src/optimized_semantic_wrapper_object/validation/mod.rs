@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 mod entry_contract;
 mod provider_continuation;
 

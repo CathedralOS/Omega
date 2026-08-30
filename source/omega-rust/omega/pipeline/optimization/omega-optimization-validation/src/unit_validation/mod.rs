@@ -1,4 +1,4 @@
-//! Independent validation of complete Psi optimization units and retained context.
+//! Optimizer module role: stage group. Independent validation of complete Psi optimization units and retained context.
 
 use super::*;
 

@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use super::parameter_translation_fixture::{
     integer_exact_cast_parameter_plan, integer_type, uniform_integer_exact_cast_plan,
 };

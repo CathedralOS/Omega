@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Register-allocation and exact machine-lowering optimization entrance.
+//! Optimizer module role: crate map. Register-allocation and exact machine-lowering surfaces.
 //!
 //! The declarative physical-register and instruction-constraint model is owned
 //! by `omega-register-model` and remains re-exported for compatibility. The

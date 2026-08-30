@@ -1,4 +1,4 @@
-//! Compiler-facing physical optimizer coordination.
+//! Optimizer module role: executable entrance. Compiler-facing physical optimizer coordination.
 //!
 //! This entrance lowers verified abstract operations, reads the exact selected
 //! phase set, and sends custody into one named route. [`input`] owns provider

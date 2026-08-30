@@ -1,4 +1,4 @@
-//! Explicit x86 conditional-branch relaxation and independent replay.
+//! Optimizer module role: executable entrance. Explicit x86 conditional-branch relaxation and independent replay.
 
 mod catalog;
 mod compute;

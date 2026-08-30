@@ -1,4 +1,4 @@
-//! Ordered inventory and exact-zero-or-one classification of replay families.
+//! Optimizer module role: executable entrance. Ordered inventory and exact-zero-or-one classification of replay families.
 //!
 //! Adding or disabling a family happens only in `ENABLED_TRANSLATION_FAMILIES`.
 //! Every row visibly joins one source classifier to one typed replay adapter.

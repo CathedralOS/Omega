@@ -1,4 +1,4 @@
-//! Exact physical-phase composition entrance.
+//! Optimizer module role: executable entrance. Exact physical-phase composition entrance.
 //!
 //! This is the sole route-policy join. Stage catalogs decide whether each
 //! phase selection exists and applies to the target; this entrance decides

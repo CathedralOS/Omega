@@ -1,4 +1,4 @@
-//! Optimized object-artifact stage entrance.
+//! Optimizer module role: executable entrance. Optimized object-artifact stage entrance.
 //!
 //! This file owns the terminal/object build-and-replay join. Artifact and
 //! manifest contracts live in `model`, semantic reconstruction in

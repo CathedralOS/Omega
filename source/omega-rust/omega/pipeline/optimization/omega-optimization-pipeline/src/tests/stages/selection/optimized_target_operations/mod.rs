@@ -1,3 +1,4 @@
+//! Optimizer module role: stage group.
 use crate::tests::*;
 use omega_abstract_operations_to_target_operations::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,

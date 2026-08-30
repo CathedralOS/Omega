@@ -1,4 +1,4 @@
-//! Control-flow cleanup, arranged by the graph transformation being performed.
+//! Optimizer module role: executable entrance. Control-flow cleanup, arranged by the graph transformation being performed.
 
 use std::collections::{BTreeMap, BTreeSet};
 

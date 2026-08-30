@@ -1,4 +1,4 @@
-//! Canonical selected-plan construction by result family.
+//! Optimizer module role: executable entrance. Canonical selected-plan construction by result family.
 //!
 //! This entrance owns the complete function-roster join. Scalar, plain Unit,
 //! and structural Unit mechanics descend into their named family entrances.

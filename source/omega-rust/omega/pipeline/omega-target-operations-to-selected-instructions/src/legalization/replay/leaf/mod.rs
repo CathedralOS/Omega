@@ -1,4 +1,4 @@
-//! Replays one legalized leaf, then seals its return and edge-fuel contract.
+//! Optimizer module role: executable entrance. Replays one legalized leaf, then seals its return and edge-fuel contract.
 
 mod exact_arithmetic;
 mod fuel;

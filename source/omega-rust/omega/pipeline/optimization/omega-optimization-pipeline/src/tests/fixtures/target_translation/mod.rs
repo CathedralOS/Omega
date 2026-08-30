@@ -1,4 +1,4 @@
-//! Terminal translation fixtures grouped by scalar semantic family.
+//! Optimizer module role: stage group. Terminal translation fixtures grouped by scalar semantic family.
 
 use crate::tests::*;
 
