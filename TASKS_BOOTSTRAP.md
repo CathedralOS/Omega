@@ -1282,6 +1282,25 @@ code, discover a closure, manufacture proof premises, or decide admission.
       body boundary. Keep exact receiver/target/argument spans, trailing-comma,
       malformed delimiter, capacity, reset, multi-statement, mixed-root, and
       Complete-only publication vectors at the real Delta-compiler gate.
+    - [x] Retain ordinary `target = value;` assignments alongside calls in the
+      same machine-body statement ledger. This first value slice preserves
+      self/name place paths, self-member and qualified-name value paths,
+      booleans, and unsuffixed nonnegative decimal integer literals as tagged
+      expression nodes; it neither evaluates literal values nor flattens an
+      assignment into a call. Each assignment row owns exact target/value
+      expression handles and its authored statement span. Richer postfix,
+      unary, binary, cast, indexed, struct, string, and floating expressions,
+      compound assignments, locals, transitions, and final expressions remain
+      implementation-incomplete. `Statements` dominates the equal assignment
+      table, while the independently exhaustible `Expressions` budget accounts
+      for both sides before Complete-only machine/root publication. This
+      completes seven more real current `C` roots—`SourceUnit::clear`,
+      `TokenStream::{clear,reject}`, `SyntaxTrees::{clear,reject}`,
+      `Parser::initialize`, and `Parser::initialize_cursor`—raising completed
+      roots from four to eleven while all 53 representable headers still reach
+      the body boundary. Keep exact path-kind, literal-span, delimiter,
+      expression/statement-capacity, reset, mixed-call/assignment, and partial-
+      publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

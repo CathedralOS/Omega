@@ -65,11 +65,12 @@ and fields are public, while immutable views cannot be stored in data. `D`'s
 parser therefore validates once and streams the same source through private
 states of one canonical invocation. Its retained slices sequence empty,
 trivia-only, ordinary `use path::member;`, basic `[pub] data`, and ordinary
-empty or neutral path-call-only machine roots.
+machine roots whose current bodies contain neutral path calls and simple
+assignments.
 One mixed root table preserves authored use/data/machine order. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
-parentheses containing a comma-separated state-parameter list, and an
-empty or neutral path-call-only body. An optional leading target selector is
+parentheses containing a comma-separated state-parameter list, and a body from
+the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases. The list retains canonical optional `const` and leading
 `mut`, consuming or borrowed `self`, and shared/mutable/write-only
@@ -82,14 +83,19 @@ exact explicit lifetime, and general `Self` uses the same `SelfType` base as
 receivers. Every parameter row records its canonical const/mutable/self flags;
 the implicit entry state owns the optional return node.
 
-The first nonempty body slice retains ordinary semicolon-terminated call
+The retained nonempty-body slices include ordinary semicolon-terminated call
 statements without acknowledgements, static/evidence arguments, or result
 discard. Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
 arguments are exact name/self paths represented by tagged expression nodes;
-zero arguments and trailing commas are supported. The implicit entry state
-owns a contiguous statement span. Richer expressions and statements stop the
-root as implementation-incomplete, and no body is skipped as opaque text.
+zero arguments and trailing commas are supported. Ordinary assignments retain
+separate target and value handles. Their current target grammar is a self/name
+place path; current values are self-member paths, qualified-name paths,
+booleans, or unsuffixed nonnegative decimal integer literals. Literal spelling
+is retained by source span and is not evaluated during parsing. The implicit
+entry state owns one contiguous mixed statement span. Richer expressions and
+statements stop the root as implementation-incomplete, and no body is skipped
+as opaque text.
 
 Each completed machine owns one implicit entry state and its contiguous
 parameter span, matching the canonical parser: a free machine uses the
@@ -104,8 +110,9 @@ other public roots, bodyless declarations, and other body forms remain
 incomplete. The parser never skips a body as opaque
 syntax. In the current 72-root `C` closure, all 112
 parameter occurrences and all 72 complete parameter lists are representable,
-and 53 headers reach body parsing. Four are complete call-only roots; every
-other reached body contains richer syntax.
+and 53 headers reach body parsing. Eleven are complete: four call-only roots
+and seven roots using the retained assignment slice. Every other reached body
+contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -152,8 +159,10 @@ Import/domain paths, call receivers, and path expressions share the
 independently exhaustible path-member arena after each machine snapshots its
 declaration path. Every current call argument owns exactly one path-expression
 row, so
-`Expressions` dominates the equal argument table; every current statement is
-one call, so `Statements` dominates the equal call table. The meaningful
+`Expressions` dominates the equal argument table. Every call or assignment row
+owns one statement, so `Statements` dominates both equal statement-variant
+tables. Assignments own two expressions, making the expression table
+independently exhaustible. The meaningful
 resource distinctions are therefore `Roots`, `PathMembers`, `DataMembers`,
 `TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`. These are private
 compiler budgets to profile against the real compiler closure, not Omega source
