@@ -235,6 +235,118 @@ fn literal_indexed_record_recast_keeps_immediate_sibling_bytes_writable() {
 }
 
 #[test]
+fn literal_indexed_fixed_array_recast_retains_the_exact_range_for_both_polarities() {
+    let source = r#"
+        data Cell {
+            bytes: [u8; 20];
+        }
+
+        machine observe(value: &[u16; 3]) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared: &[u16; 3] = &self.bytes[2] as &[u16; 3];
+            observe(shared);
+            let mutable: &mut [u16; 3] = &mut self.bytes[10] as &mut [u16; 3];
+            mutable[0] = 1;
+        }
+    "#;
+
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed).expect("both fixed-array recasts should validate");
+    let facts = build_borrow_facts(&typed);
+    let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
+
+    assert_eq!(loans.len(), 2, "one loan per validated fixed-array recast");
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 2, end: 8 }]
+    }));
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 10, end: 16 }]
+    }));
+}
+
+#[test]
+fn literal_indexed_fixed_array_recast_rejects_first_and_last_byte_mutations() {
+    for mutation in ["self.bytes[3] = 1;", "self.bytes[8] = 1;"] {
+        let diagnostics = check_program(&indexed_mutable_array_recast_source(
+            mutation,
+            "view[0] = 2;",
+        ))
+        .expect_err("the first and last bytes are inside the retained array footprint");
+
+        assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
+    }
+}
+
+#[test]
+fn literal_indexed_fixed_array_recast_keeps_immediate_sibling_bytes_writable() {
+    check_program(&indexed_mutable_array_recast_source(
+        "self.bytes[2] = 1; self.bytes[9] = 1;",
+        "view[0] = 2;",
+    ))
+    .expect("the bytes immediately before and after [3, 9) are disjoint");
+}
+
+#[test]
+fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
+    let source = r#"
+        data Word {
+            value: u16;
+        }
+
+        data Cell {
+            bytes: [u8; 16];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let empty: &[u16; 0] = &self.bytes[0] as &[u16; 0];
+            let nested: &[[u16; 2]; 2] = &self.bytes[0] as &[[u16; 2]; 2];
+            let records: &[Word; 2] = &self.bytes[8] as &[Word; 2];
+            let slice: &[u16] = &self.bytes[0] as &[u16];
+        }
+    "#;
+
+    assert_valid_recast_has_no_loan(
+        source,
+        "zero-length, nested-array, record-element, and slice targets stay fenced",
+    );
+}
+
+#[test]
+fn bool_and_constrained_fixed_array_targets_publish_no_loan_and_keep_diagnostics() {
+    let bool_source = r#"
+        data Cell {
+            bytes: [u8; 4];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let view: &[bool; 2] = &self.bytes[0] as &[bool; 2];
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(bool_source, "must be recursively fact-free");
+
+    let constrained_source = r#"
+        domain u16::Small
+        requires
+            self <= 10;
+
+        data Cell {
+            bytes: [u8; 4];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let view: &[u16 in Small; 2] = &self.bytes[0] as &[u16 in Small; 2];
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(constrained_source, "must be recursively fact-free");
+}
+
+#[test]
 fn bounded_runtime_indexed_recast_remains_outside_precise_loan_publication() {
     let source = r#"
         data Cell {
@@ -353,6 +465,22 @@ fn indexed_mutable_record_recast_source(mutation: &str, final_use: &str) -> Stri
     )
 }
 
+fn indexed_mutable_array_recast_source(mutation: &str, final_use: &str) -> String {
+    format!(
+        r#"
+            data Cell {{
+                bytes: [u8; 12];
+            }}
+
+            machine Cell::exercise(&mut self) {{
+                let view: &mut [u16; 3] = &mut self.bytes[3] as &mut [u16; 3];
+                {mutation}
+                {final_use}
+            }}
+        "#
+    )
+}
+
 fn typed_program(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = psi_source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -385,6 +513,14 @@ fn assert_invalid_recast_has_no_loan(source: &str, expected_diagnostic: &str) {
         0,
         "an invalid recast cannot publish a loan footprint"
     );
+}
+
+fn assert_valid_recast_has_no_loan(source: &str, context: &str) {
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed)
+        .unwrap_or_else(|diagnostics| panic!("{context} should remain valid: {diagnostics:#?}"));
+    let facts = build_borrow_facts(&typed);
+    assert_eq!(facts.loans.iter().count(), 0, "{context}");
 }
 
 fn assert_conflict(diagnostics: &[psi_diagnostics::Diagnostic], source: &str, owner: &str) {

@@ -184,6 +184,15 @@ fn literal_indexed_recast_target_size(
         return primitive.scalar_byte_size();
     }
 
+    if literal_fixed_primitive_array_target_is_eligible(program, target_type) {
+        return shared_projection_type_representation(program, target_type).and_then(
+            |representation| {
+                (representation.size > 0 && representation_is_exactly_tiled(&representation))
+                    .then_some(representation.size)
+            },
+        );
+    }
+
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(target_type)
     else {
@@ -196,6 +205,33 @@ fn literal_indexed_recast_target_size(
     shared_projection_type_representation(program, target_type)
         .map(|representation| representation.size)
         .filter(|size| *size > 0)
+}
+
+fn literal_fixed_primitive_array_target_is_eligible(
+    program: &TypedTrees,
+    target_type: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(target_type)
+    else {
+        return false;
+    };
+    if *length == 0
+        || !matches!(
+            program.type_reference_table.type_reference(*element_type),
+            TypeReferenceNode::Named { .. }
+        )
+    {
+        return false;
+    }
+    program
+        .primitive_type_reference(*element_type)
+        .is_some_and(|primitive| {
+            primitive != psi_typed_trees::types::PrimitiveType::Bool
+                && primitive.scalar_byte_size().is_some()
+        })
 }
 
 fn closed_fact_free_record_symbol_is_eligible(
