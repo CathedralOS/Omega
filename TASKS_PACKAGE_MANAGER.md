@@ -104,11 +104,15 @@ stop the item on one precise owner question before adding machinery.
   Terminal claim.
 
   Repair Terminal planning for an attached Unit machine that binds a scalar
-  boundary/operator result and consumes it in a later call before any package
-  profile claims that native realization. The current Unit-effect planner
-  rejects the machine because the local initializer contributes a flow call
-  outside its call-statement-only shape. Checked dispatch and ordinary package
-  review remain independent; the existing named and fixed-token canaries reach
+  named or fixed-token boundary-operator result and consumes it in a later
+  call. The missing checked join is exact:
+  `{ authored operator-use coordinate, selected requirement/candidate } ->
+  { selected realization machine, selected realization state }`. Current use
+  and realization facts retain the two sides separately; the authoritative
+  application appears only in provider-plan settlement after Unit planning.
+  Retain that application before Unit planning or intentionally move planning
+  after settlement. Do not infer the target by globally scanning for a unique
+  satisfying conformance. The existing named and fixed-token canaries reach
   checked execution while native production rejects the absent Unit plan.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
