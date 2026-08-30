@@ -409,10 +409,23 @@ three record layers also rejects. The earlier singular producer and consumer
 remain exact-one wrappers and reject a plural outer or middle cohort; existing
 direct and one-level APIs remain unchanged.
 
+One further singular fixed-depth rung admits exactly one
+`Outer -> First -> Middle -> Leaf -> direct conventional sums` chain and no
+other sum-reachable field anywhere in the outer schema. Its compact report
+retains the new outer whole-record plan and exact field occurrence beside the
+unchanged singular depth-two report. A distinct non-clone carrier similarly
+retains the complete existing depth-two carrier, independently rebuilds the
+inner and outer zero-padded images, replays every layout and occurrence identity
+hash-free, and performs one final atomic copy. Shallow, deeper, plural,
+recursive, array-mediated, or direct-sum-coexisting paths reject, as does
+target-dependent placement at any of the four record layers. Existing direct,
+one-level, singular depth-two, and plural depth-two APIs remain unchanged.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-paths deeper than two records, mixed common-field/case shapes, and sums whose
-all-case geometry requires a target capsule remain later rungs. The same NaN,
-reference, slice, Text, dynamic, atomic, and non-copy fences remain in force.
+plural paths deeper than two records, paths deeper than three records, mixed
+common-field/case shapes, and sums whose all-case geometry requires a target
+capsule remain later rungs. The same NaN, reference, slice, Text, dynamic,
+atomic, and non-copy fences remain in force.
 None of these slices narrows the legacy typed-owned materialization API or
 establishes evaluator admission, quotient canonicalization, producer-origin
 chains, or proof authority. Carried quotient representatives, richer origin
