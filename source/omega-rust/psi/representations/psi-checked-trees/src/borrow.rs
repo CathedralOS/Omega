@@ -472,6 +472,49 @@ pub struct CheckedReborrowResourceDispositionEvent {
     pub disposition: CheckedReborrowResourceDisposition,
 }
 
+/// Checked-only suspension/freeze containment derived by exact lifecycle
+/// replay for one retained direct reborrow.
+///
+/// The class distinguishes an exclusive suspension interval from membership
+/// in a mutable parent's shared freeze cohort. It is a replay conclusion, not
+/// borrow authority or evidence of completed restoration.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedReborrowContainmentKind {
+    SharedFreeze,
+    #[default]
+    ExclusiveSuspension,
+}
+
+/// One non-authorizing certificate that an exact reborrow occurrence remained
+/// on its parent's suspension or freeze route from formation through weakening.
+///
+/// Resource handles, access polarities, flow edges, and both captured places
+/// are retained together. `projection_remainder` is the exact child suffix
+/// below the parent place; an empty suffix denotes a whole-place reborrow.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowContainmentCertificate {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub child_loan: Handle<BorrowLoanFact>,
+    pub child_resource: Handle<CheckedReborrowLoanResource>,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: CheckedParentBorrowResource,
+    pub parent_access: BorrowAccessKind,
+    pub child_access: BorrowAccessKind,
+    pub access_effect: CheckedReborrowAccessEffect,
+    pub child_activation: Handle<crate::FlowBorrowActivationFact>,
+    pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
+    pub formation_source: crate::FlowInvalidationSource,
+    pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub parent_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub child_weakening_source: crate::FlowInvalidationSource,
+    pub child_weakening_reason: crate::FlowBorrowWeakeningReason,
+    pub parent_place: CapturedPlace,
+    pub child_place: CapturedPlace,
+    pub projection_remainder: Vec<psi_facts::PlaceSegment>,
+    pub containment: CheckedReborrowContainmentKind,
+}
+
 /// Checked-only resource closure for one explicit direct reborrow.
 ///
 /// The row retains the child's exact activation/weakening lifecycle and a
@@ -534,6 +577,10 @@ pub struct BorrowFacts {
     /// reborrows at their weakening boundary. Suspended carriers remain
     /// pending and therefore have no premature disposition row.
     pub reborrow_disposition_events: Arena<CheckedReborrowResourceDispositionEvent>,
+    /// Checked-only suspension/freeze-containment certificates reconstructed
+    /// from exact resource and lifecycle identity. Read/read releases need no
+    /// suspension or freeze row.
+    pub reborrow_containment_certificates: Arena<CheckedReborrowContainmentCertificate>,
 }
 
 impl BorrowFacts {
@@ -558,6 +605,7 @@ impl BorrowFacts {
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
             reborrow_disposition_events: Arena::new(),
+            reborrow_containment_certificates: Arena::new(),
         }
     }
 
@@ -761,6 +809,8 @@ mod tests {
         assert!(facts.compatibility_certificates.is_empty());
         assert!(facts.direct_loan_resources.is_empty());
         assert!(facts.reborrow_loan_resources.is_empty());
+        assert!(facts.reborrow_disposition_events.is_empty());
+        assert!(facts.reborrow_containment_certificates.is_empty());
     }
 
     #[test]

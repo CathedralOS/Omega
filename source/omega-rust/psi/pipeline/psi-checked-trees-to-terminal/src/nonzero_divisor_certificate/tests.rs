@@ -22,6 +22,143 @@ fn two_value_context(integer_type: IntegerType) -> PropositionContext {
 }
 
 #[test]
+fn exact_add_goal_serializes_two_ordered_endpoint_proofs() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let left = value(1, integer_type);
+    let right = value(2, integer_type);
+    let sum = psi_core::IntegerMathTerm::Add(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(1).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(2).unwrap(),
+        }),
+    );
+    let context = two_value_context(integer_type);
+    for (goal, assumptions) in [
+        (
+            Proposition::IntegerMathLessOrEqual(
+                psi_core::IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                sum.clone(),
+            ),
+            vec![
+                Proposition::LessOrEqual(integer(integer_type, -100), left.clone()),
+                Proposition::LessOrEqual(integer(integer_type, 20), right.clone()),
+            ],
+        ),
+        (
+            Proposition::IntegerMathLessOrEqual(
+                sum.clone(),
+                psi_core::IntegerMathTerm::literal(IntegerValue::Signed(127)),
+            ),
+            vec![
+                Proposition::LessOrEqual(left.clone(), integer(integer_type, 100)),
+                Proposition::LessOrEqual(right.clone(), integer(integer_type, 20)),
+            ],
+        ),
+    ] {
+        let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &[])
+            .expect("two operand endpoints prove canonical exact add");
+        let ProofRule::IntegerAffineBound { root_bound, .. } = proof.rule else {
+            panic!("tight exact-add endpoints need no relaxation")
+        };
+        let ProofRule::ConjunctionIntroduction(parts) = root_bound.rule else {
+            panic!("direct exact add serializes both ordered endpoint children")
+        };
+        assert_eq!(parts.len(), 2);
+        let mentions_endpoint = |proposition: &Proposition, operand: &ScalarTerm| {
+            matches!(proposition, Proposition::LessOrEqual(endpoint, _) if endpoint == operand)
+                || matches!(proposition, Proposition::LessOrEqual(_, endpoint) if endpoint == operand)
+                || matches!(proposition, Proposition::Equal(endpoint, _) if endpoint == operand)
+                || matches!(proposition, Proposition::Equal(_, endpoint) if endpoint == operand)
+        };
+        assert!(mentions_endpoint(&parts[0].conclusion, &left));
+        assert!(mentions_endpoint(&parts[1].conclusion, &right));
+    }
+
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &Proposition::IntegerMathLessOrEqual(
+                sum,
+                psi_core::IntegerMathTerm::literal(IntegerValue::Signed(127)),
+            ),
+            &[Proposition::LessOrEqual(left, integer(integer_type, 100),)],
+            &[],
+        )
+        .is_none(),
+        "omitting the second operand endpoint cannot certify the addition",
+    );
+}
+
+#[test]
+fn exact_add_goal_derives_embedded_literal_endpoints_in_both_orders() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = two_value_context(integer_type);
+    let literal = psi_core::IntegerMathTerm::literal(IntegerValue::Signed(7));
+    for (sum, assumption, truth_index) in [
+        (
+            psi_core::IntegerMathTerm::Add(
+                Box::new(psi_core::IntegerMathTerm::MathValue {
+                    source_type: integer_type,
+                    value: ValueId::new(1).unwrap(),
+                }),
+                Box::new(literal.clone()),
+            ),
+            Proposition::LessOrEqual(value(1, integer_type), integer(integer_type, 120)),
+            1,
+        ),
+        (
+            psi_core::IntegerMathTerm::Add(
+                Box::new(literal.clone()),
+                Box::new(psi_core::IntegerMathTerm::MathValue {
+                    source_type: integer_type,
+                    value: ValueId::new(2).unwrap(),
+                }),
+            ),
+            Proposition::LessOrEqual(value(2, integer_type), integer(integer_type, 120)),
+            0,
+        ),
+    ] {
+        let goal = Proposition::IntegerMathLessOrEqual(
+            sum,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(127)),
+        );
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&assumption),
+            &[],
+        )
+        .expect("value plus embedded literal proves the canonical carrier endpoint");
+        let ProofRule::IntegerAffineBound {
+            root_bound,
+            witness,
+        } = proof.rule
+        else {
+            panic!("literal exact add uses direct checked endpoint mapping")
+        };
+        assert_eq!(
+            witness.target.scalar_type(),
+            ScalarType::Integer(integer_type)
+        );
+        let ProofRule::ConjunctionIntroduction(parts) = root_bound.rule else {
+            panic!("literal exact add keeps ordered operand evidence")
+        };
+        assert!(matches!(
+            parts[truth_index].rule,
+            ProofRule::Primitive(PrimitiveJudgment::Truth)
+        ));
+        assert!(matches!(
+            parts[1 - truth_index].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+    }
+}
+
+#[test]
 fn unsigned_affine_exact_cast_bound_uses_existing_ordered_transform_rule() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let root = value(1, integer_type);

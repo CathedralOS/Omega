@@ -130,13 +130,27 @@ fn installed_code_with_fill_and_installation_identity(
     fill: u8,
     installed_code_identity: u64,
 ) -> InstalledCode {
+    installed_code_with_bytes_and_installation_identity(
+        artifact_identity,
+        entry,
+        vec![fill; 64],
+        installed_code_identity,
+    )
+}
+
+fn installed_code_with_bytes_and_installation_identity(
+    artifact_identity: u64,
+    entry: EntryStubId,
+    bytes: Vec<u8>,
+    installed_code_identity: u64,
+) -> InstalledCode {
     let artifact_constraints = constraints();
     let contracts = install_id(30, MachineContractSetId::from_normalized_identity);
     let footprint = install_id(31, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
         omega_target::Architecture::X86_64,
-        vec![fill; 64],
+        bytes,
         contracts,
         footprint,
         install_id(32, PlacementPlanId::from_normalized_identity),
@@ -230,6 +244,22 @@ fn installed_code_with_fill_and_installation_identity(
         WxEnforcement::HardwareEnforced,
     );
     install_validated(validated, install_authority, installation_receipt).expect("installed code")
+}
+
+fn installed_program_storage_wrapper(
+    artifact_identity: u64,
+    entry: EntryStubId,
+    resolved_wrapper: &[u8],
+) -> (InstalledCode, Vec<u8>) {
+    let mut image = vec![0; 16 + resolved_wrapper.len() + 16];
+    image[16..16 + resolved_wrapper.len()].copy_from_slice(resolved_wrapper);
+    let installed = installed_code_with_bytes_and_installation_identity(
+        artifact_identity,
+        entry,
+        image.clone(),
+        300,
+    );
+    (installed, image)
 }
 
 pub(crate) fn boundary() -> ValidatedBoundaryEntryPlan {
@@ -744,8 +774,20 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
 #[test]
 fn generated_program_storage_adapter_replays_emitted_operations_and_composes_three_epochs() {
     let entry = entry_id(0x831);
-    let code = installed_code(0x832, entry);
     let boundary = generated_program_storage_boundary();
+    let request = canonical_x86_64_semantic_unit_wrapper_encoding_request(
+        omega_target::NativeTarget::uefi_x64(),
+    );
+    let template =
+        encode_x86_64_semantic_unit_wrapper_template(request).expect("canonical wrapper template");
+    let resolved = resolve_x86_64_semantic_unit_wrapper_private_continuation(
+        &template,
+        template.relocation(),
+        16,
+        32,
+    )
+    .expect("resolved private continuation call");
+    let (code, installed_image) = installed_program_storage_wrapper(0x832, entry, resolved.bytes());
     let machine = psi_core::MachineId::new(1).expect("machine identity");
     let psi = psi_terminal::TerminalPsiIdentity {
         vocabulary_marker: psi_terminal::VocabularyMarker,
@@ -754,7 +796,7 @@ fn generated_program_storage_adapter_replays_emitted_operations_and_composes_thr
     let artifact = TestObject {
         identity: psi,
         entry: machine,
-        bytes: vec![0; 64],
+        bytes: installed_image,
     };
     let demand = TestStackDemand {
         identity: psi,
@@ -768,18 +810,6 @@ fn generated_program_storage_adapter_replays_emitted_operations_and_composes_thr
     let summary =
         ProviderStackSummary::from_entry(root, provider, boundary.plan().state.stack, installed);
 
-    let request = canonical_x86_64_semantic_unit_wrapper_encoding_request(
-        omega_target::NativeTarget::uefi_x64(),
-    );
-    let template =
-        encode_x86_64_semantic_unit_wrapper_template(request).expect("canonical wrapper template");
-    let resolved = resolve_x86_64_semantic_unit_wrapper_private_continuation(
-        &template,
-        template.relocation(),
-        16,
-        32,
-    )
-    .expect("resolved private continuation call");
     let bound = bind_x86_64_generated_program_storage_adapter_stack_realization(
         &summary,
         &boundary,
@@ -860,29 +890,7 @@ fn generated_program_storage_adapter_replays_emitted_operations_and_composes_thr
 #[test]
 fn generated_program_storage_adapter_rejects_mutation_and_installed_subject_substitution() {
     let entry = entry_id(0x841);
-    let code = installed_code(0x842, entry);
     let boundary = generated_program_storage_boundary();
-    let machine = psi_core::MachineId::new(1).expect("machine identity");
-    let psi = psi_terminal::TerminalPsiIdentity {
-        vocabulary_marker: psi_terminal::VocabularyMarker,
-        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x84; 32]),
-    };
-    let artifact = TestObject {
-        identity: psi,
-        entry: machine,
-        bytes: vec![0; 64],
-    };
-    let demand = TestStackDemand {
-        identity: psi,
-        entry: machine,
-        contributing: BTreeSet::from([machine]),
-    };
-    let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
-        .expect("terminal stack closure");
-    let root = root_id(0x843, ExternalRootId::from_normalized_identity);
-    let provider = root_id(0x844, RootProviderId::from_normalized_identity);
-    let summary =
-        ProviderStackSummary::from_entry(root, provider, boundary.plan().state.stack, installed);
     let request = canonical_x86_64_semantic_unit_wrapper_encoding_request(
         omega_target::NativeTarget::uefi_x64(),
     );
@@ -895,6 +903,28 @@ fn generated_program_storage_adapter_rejects_mutation_and_installed_subject_subs
         32,
     )
     .expect("resolved wrapper");
+    let (code, installed_image) = installed_program_storage_wrapper(0x842, entry, resolved.bytes());
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x84; 32]),
+    };
+    let artifact = TestObject {
+        identity: psi,
+        entry: machine,
+        bytes: installed_image,
+    };
+    let demand = TestStackDemand {
+        identity: psi,
+        entry: machine,
+        contributing: BTreeSet::from([machine]),
+    };
+    let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
+        .expect("terminal stack closure");
+    let root = root_id(0x843, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x844, RootProviderId::from_normalized_identity);
+    let summary =
+        ProviderStackSummary::from_entry(root, provider, boundary.plan().state.stack, installed);
 
     let mut mutated_template = template.bytes().to_vec();
     mutated_template[3] ^= 8;
@@ -952,6 +982,41 @@ fn generated_program_storage_adapter_rejects_mutation_and_installed_subject_subs
             .0
             .contains("continuation call failed exact emitted-operation replay")
     );
+
+    let mut changed_installed_wrapper = resolved.bytes().to_vec();
+    changed_installed_wrapper[4] ^= 1;
+    let (changed_code, changed_image) =
+        installed_program_storage_wrapper(0x842, entry, &changed_installed_wrapper);
+    let changed_artifact = TestObject {
+        identity: psi,
+        entry: machine,
+        bytes: changed_image,
+    };
+    let changed_installed =
+        bind_installed_entry_stack(&demand, &changed_artifact, &changed_code, entry)
+            .expect("mutated installed image has its own exact Terminal body evidence");
+    let changed_summary = ProviderStackSummary::from_entry(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        changed_installed,
+    );
+    let error = bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &changed_summary,
+        &boundary,
+        &changed_code,
+        entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: template.bytes(),
+            resolved_bytes: resolved.bytes(),
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect_err("validated emitted bytes cannot substitute a mutated installed entry interval");
+    assert!(error.0.contains("exact installed entry interval"));
 
     let foreign_entry = entry_id(0x845);
     let foreign_code = installed_code(0x846, foreign_entry);

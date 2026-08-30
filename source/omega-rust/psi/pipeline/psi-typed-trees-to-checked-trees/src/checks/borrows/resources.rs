@@ -3,11 +3,12 @@ use psi_checked_trees::{
     CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
     CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
     CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
-    CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
-    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
-    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
-    CheckedRetiredParentResourceDispositionStep, FlowFacts, FlowInvalidationSource,
-    ParentLexicalStatusAtChildEnd,
+    CheckedReborrowAccessEffect, CheckedReborrowContainmentCertificate,
+    CheckedReborrowContainmentKind, CheckedReborrowLoanResource,
+    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
+    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
+    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep, FlowFacts,
+    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -23,12 +24,15 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     let installation = plan_resource_installation(&direct, &reborrows)?;
     let dispositions =
         plan_reborrow_disposition_events(&facts.flow, &direct, &reborrows, &installation)?;
+    let containments =
+        plan_reborrow_containment_certificates(&direct, &reborrows, &installation)?;
     install_borrow_resources(
         &mut facts.borrow,
         direct,
         &reborrows,
         &installation,
         &dispositions,
+        &containments,
     );
     Ok(())
 }
@@ -68,6 +72,17 @@ pub(super) fn replay_checked_direct_borrow_resources(
         &expected_reborrows,
         &dispositions,
     )?;
+    let containments = plan_reborrow_containment_certificates(
+        &expected_direct,
+        &expected_reborrows,
+        &installation,
+    )?;
+    validate_retained_containment_certificates(
+        &facts.borrow,
+        &expected_direct,
+        &expected_reborrows,
+        &containments,
+    )?;
 
     install_borrow_resources(
         &mut facts.borrow,
@@ -75,6 +90,7 @@ pub(super) fn replay_checked_direct_borrow_resources(
         &expected_reborrows,
         &installation,
         &dispositions,
+        &containments,
     );
     Ok(())
 }
@@ -300,6 +316,57 @@ impl ResourceHandles {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedReborrowContainmentCertificateDraft {
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    child_loan: psi_arena::Handle<BorrowLoanFact>,
+    child_resource: usize,
+    parent_loan: psi_arena::Handle<BorrowLoanFact>,
+    parent_resource: ParentResourceIndex,
+    parent_access: psi_checked_trees::BorrowAccessKind,
+    child_access: psi_checked_trees::BorrowAccessKind,
+    access_effect: CheckedReborrowAccessEffect,
+    child_activation: psi_arena::Handle<psi_checked_trees::FlowBorrowActivationFact>,
+    parent_entry_constraint: psi_arena::Handle<psi_checked_trees::FlowConstraintRef>,
+    formation_source: FlowInvalidationSource,
+    child_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    parent_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    child_weakening_source: FlowInvalidationSource,
+    child_weakening_reason: psi_checked_trees::FlowBorrowWeakeningReason,
+    parent_place: psi_checked_trees::CapturedPlace,
+    child_place: psi_checked_trees::CapturedPlace,
+    projection_remainder: Vec<psi_facts::PlaceSegment>,
+    containment: CheckedReborrowContainmentKind,
+}
+
+impl CheckedReborrowContainmentCertificateDraft {
+    fn close(&self, handles: &ResourceHandles) -> CheckedReborrowContainmentCertificate {
+        CheckedReborrowContainmentCertificate {
+            machine_symbol: self.machine_symbol,
+            state_symbol: self.state_symbol,
+            child_loan: self.child_loan,
+            child_resource: handles.reborrows[self.child_resource],
+            parent_loan: self.parent_loan,
+            parent_resource: handles.parent(self.parent_resource),
+            parent_access: self.parent_access.clone(),
+            child_access: self.child_access.clone(),
+            access_effect: self.access_effect,
+            child_activation: self.child_activation,
+            parent_entry_constraint: self.parent_entry_constraint,
+            formation_source: self.formation_source,
+            child_weakening: self.child_weakening,
+            parent_weakening: self.parent_weakening,
+            child_weakening_source: self.child_weakening_source,
+            child_weakening_reason: self.child_weakening_reason,
+            parent_place: self.parent_place.clone(),
+            child_place: self.child_place.clone(),
+            projection_remainder: self.projection_remainder.clone(),
+            containment: self.containment,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LifecyclePhase {
     LastUseExpired,
@@ -438,6 +505,96 @@ fn plan_resource_installation(
         plan.push(parent);
     }
     Ok(plan)
+}
+
+/// Reconstruct the checked-only interval evidence after the complete lifecycle
+/// planner has accepted the resource graph. Read/read children never suspend
+/// or freeze their parent and therefore have no row.
+fn plan_reborrow_containment_certificates(
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    installation: &[ParentResourceIndex],
+) -> Result<Vec<CheckedReborrowContainmentCertificateDraft>, Vec<Diagnostic>> {
+    if installation.len() != reborrows.len() {
+        return Err(reborrow_containment_drift());
+    }
+    let mut certificates = Vec::new();
+    for (child_index, child) in reborrows.iter().enumerate() {
+        let parent_resource = installation[child_index];
+        let (parent_loan, parent_machine, parent_state, parent_access, parent_place) =
+            match parent_resource {
+                ParentResourceIndex::Direct(index) => {
+                    let Some(parent) = direct.get(index) else {
+                        return Err(reborrow_containment_drift());
+                    };
+                    (
+                        parent.loan,
+                        parent.machine_symbol,
+                        parent.state_symbol,
+                        &parent.access,
+                        &parent.captured_place,
+                    )
+                }
+                ParentResourceIndex::Reborrow(index) => {
+                    let Some(parent) = reborrows.get(index) else {
+                        return Err(reborrow_containment_drift());
+                    };
+                    (
+                        parent.loan,
+                        parent.machine_symbol,
+                        parent.state_symbol,
+                        &parent.access,
+                        &parent.captured_place,
+                    )
+                }
+            };
+        if parent_loan != child.parent_loan
+            || parent_machine != child.machine_symbol
+            || parent_state != child.state_symbol
+            || parent_access != &child.parent_access
+            || parent_access.direct_reborrow_effect(&child.access) != Some(child.access_effect)
+            || parent_place.root_symbol != child.captured_place.root_symbol
+            || !child
+                .captured_place
+                .segments
+                .starts_with(&parent_place.segments)
+        {
+            return Err(reborrow_containment_drift());
+        }
+        let containment = match child.access_effect {
+            CheckedReborrowAccessEffect::SharedRelease => continue,
+            CheckedReborrowAccessEffect::SharedFreeze => {
+                CheckedReborrowContainmentKind::SharedFreeze
+            }
+            CheckedReborrowAccessEffect::ExclusiveSuspension => {
+                CheckedReborrowContainmentKind::ExclusiveSuspension
+            }
+        };
+        certificates.push(CheckedReborrowContainmentCertificateDraft {
+            machine_symbol: child.machine_symbol,
+            state_symbol: child.state_symbol,
+            child_loan: child.loan,
+            child_resource: child_index,
+            parent_loan: child.parent_loan,
+            parent_resource,
+            parent_access: child.parent_access.clone(),
+            child_access: child.access.clone(),
+            access_effect: child.access_effect,
+            child_activation: child.child_activation,
+            parent_entry_constraint: child.parent_entry_constraint,
+            formation_source: child.activation_source,
+            child_weakening: child.child_weakening,
+            parent_weakening: child.parent_weakening,
+            child_weakening_source: child.weakening_source,
+            child_weakening_reason: child.weakening_reason,
+            parent_place: parent_place.clone(),
+            child_place: child.captured_place.clone(),
+            projection_remainder: child.captured_place.segments[parent_place.segments.len()..]
+                .to_vec(),
+            containment,
+        });
+    }
+    Ok(certificates)
 }
 
 fn plan_reborrow_disposition_events(
@@ -1075,9 +1232,52 @@ fn validate_retained_disposition_events(
     Ok(())
 }
 
+fn validate_retained_containment_certificates(
+    borrow: &BorrowFacts,
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    expected: &[CheckedReborrowContainmentCertificateDraft],
+) -> Result<(), Vec<Diagnostic>> {
+    let handles = ResourceHandles {
+        direct: borrow
+            .direct_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect(),
+        reborrows: borrow
+            .reborrow_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect(),
+    };
+    if handles.direct.len() != direct.len() || handles.reborrows.len() != reborrows.len() {
+        return Err(reborrow_containment_drift());
+    }
+    let retained = borrow
+        .reborrow_containment_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    if retained.len() != expected.len()
+        || retained
+            .into_iter()
+            .zip(expected)
+            .any(|(retained, expected)| retained != &expected.close(&handles))
+    {
+        return Err(reborrow_containment_drift());
+    }
+    Ok(())
+}
+
 fn reborrow_disposition_drift() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "checked reborrow resource-lifecycle disposition drifted from semantic-phase replay",
+    )]
+}
+
+fn reborrow_containment_drift() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "checked reborrow suspension/freeze-containment evidence drifted from exact lifecycle replay",
     )]
 }
 
@@ -1087,10 +1287,14 @@ fn install_borrow_resources(
     reborrows: &[CheckedReborrowLoanResourceDraft],
     installation: &[ParentResourceIndex],
     dispositions: &[CheckedReborrowDispositionEventDraft],
+    containments: &[CheckedReborrowContainmentCertificateDraft],
 ) {
     borrow.direct_loan_resources.reset_retain_capacity();
     borrow.reborrow_loan_resources.reset_retain_capacity();
     borrow.reborrow_disposition_events.reset_retain_capacity();
+    borrow
+        .reborrow_containment_certificates
+        .reset_retain_capacity();
 
     let mut direct_handles = Vec::with_capacity(direct.len());
     for resource in direct {
@@ -1119,6 +1323,11 @@ fn install_borrow_resources(
         direct: direct_handles,
         reborrows: reborrow_handles,
     };
+    for containment in containments {
+        borrow
+            .reborrow_containment_certificates
+            .insert(containment.close(&handles));
+    }
     for disposition in dispositions {
         borrow
             .reborrow_disposition_events

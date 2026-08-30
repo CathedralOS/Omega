@@ -1478,11 +1478,11 @@ artifact/entry, boundary ABI, Terminal body, and context closure bind three
 ordered epochs; the live 72-byte outgoing frame contributes to `Enter`, remains
 live while body WCSU joins `Body`, and remains present until `Exit` releases it.
 The evidence retains exact emitted bytes and call coordinates under a generated
-origin. The existing installation seam seals the installed-code occurrence and
-entry offset, but not yet equality between the resolved wrapper bytes and that
-interval of the installed image; that narrow binder remains before this is an
-installed-stub-byte derivation. It establishes stack geometry, not firmware
-invocation or a physical stack mutation.
+origin. A sealed installed-entry interval comparison additionally proves that
+those resolved wrapper bytes equal the corresponding bytes in the exact frozen
+installed image without projecting the image or an executable address. This
+closes installed-stub-byte derivation for that wrapper only. It establishes
+stack geometry, not firmware invocation or a physical stack mutation.
 
 A sealed provider-execution binding joins the normalized selected provider
 plan, exact entry/boundary/reach, and all three resource realizations into

@@ -663,8 +663,14 @@ pub fn bind_x86_64_generated_program_storage_adapter_stack_realization(
         ExternalRootDiagnostic(
             "generated ProgramStorage adapter continuation call failed exact emitted-operation replay"
                 .into(),
-        )
-    })?;
+            )
+        })?;
+    if !installed_code.binds_exact_materialized_entry_bytes(entry, resolved.bytes()) {
+        return Err(ExternalRootDiagnostic(
+            "generated ProgramStorage adapter bytes do not equal the exact installed entry interval"
+                .into(),
+        ));
+    }
     if body_domains.boundary_stack() != boundary.plan().state.stack {
         return Err(ExternalRootDiagnostic(
             "generated ProgramStorage adapter stack-domain closure drifted from the boundary stack disposition"

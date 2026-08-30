@@ -74,7 +74,19 @@ scanners, or receipts.
   direct endpoint checker binds the proof-only shift expression without citing
   the operation's own result equation, and replays explicit count endpoints;
   sign-crossing bounds choose the sound minimum or maximum count independently.
-  Implement exact add/subtract/multiply next, then make
+  Exact addition now projects the canonical mathematical sum bounds and uses
+  checked `IntegerAffineBound` certificates. Independent-range certificates
+  serialize one ordered endpoint child per operand. Embedded literals use a
+  checked `Truth` child whose endpoint is intrinsic; bare carrier endpoints use
+  `Truth` with the direction fixed by the other ordered child. Correlated guards
+  cite the earlier exact complement equation (`MAX - right` or `MIN - right`), its
+  ordered endpoint-literal landing when the endpoint is a value, and the
+  authored comparison to that bound. The producer
+  may select bounds and cast-compatible candidate literals, while verification
+  only replays the serialized route and recomputes the sum. Missing, reordered,
+  redirected, mixed-orientation, overflowing, or wrong-complement evidence
+  rejects, and the operation's own result equation remains unavailable.
+  Implement exact subtract/multiply next, then make
   `kernel_proposition` total rather than optional. Deterministic schema-local normalization may fold
   closed mathematical expressions, bare carrier inclusion, and vacuous bounds.
   Symbolic interval propagation, affine reduction, aliases, and other
@@ -6637,13 +6649,21 @@ Owners:
   final target is the exact direct-root lifetime records direct-root handoff.
   Swapping either label, phase, path, or target rejects under independent
   replay. These dispositions remain checked-only and grant no restored use,
-  cleanup, root custody, or Terminal authority.
+  cleanup, root custody, or Terminal authority. A sibling checked-only
+  suspension/freeze-containment arena is now live for every retained
+  `Mutable -> Read` freeze and permitted exclusive suspension. Each row rejoins
+  the exact child and typed parent resources, both access polarities and their
+  classified effect, child activation and parent-entry formation identities,
+  both weakening identities, and the exact parent/child captured places plus
+  their ordered projection remainder. `Read -> Read` releases retain no such
+  row. The complete semantic-phase lifecycle replay must succeed before these
+  rows are derived; independent replay rejects missing, duplicate, reordered,
+  access-amplified, retargeted, or otherwise drifted containment evidence before
+  rebuilding either resource arena. The evidence remains non-authorizing and
+  proves no completed restoration or Terminal custody.
 
   Complete the settled reborrow-restoration model:
 
-  - add checked suspension/freeze-containment evidence as an ordinary sibling
-    of the existing compatibility certificates, joined to exact resources,
-    access, formation, weakening, and projection identity;
   - publish restored use or root custody to Terminal only after independent
     replay. Root handoff must not authorize cleanup, transfer, or linear
     discharge.
@@ -9370,12 +9390,12 @@ reach or trust, and private proof improvements do not change public identity.
   the live 72-byte outgoing frame retained in each epoch. Exact emitted bytes
   and call coordinates remain behind a generated origin; mutations,
   installed-subject substitution, and ABI substitution reject before
-  composition. The current installation seam binds the exact installed-code
-  occurrence and entry offset, but does not yet expose a sealed comparison
-  between the resolved wrapper bytes and that interval of the installed image;
-  add that binder before calling this an installed-stub-byte derivation. Extend
-  this derivation only when other generated adapters land. It proves neither
-  firmware invocation nor an actual stack mutation. Add no
+  composition. A sealed installed-entry interval comparison now proves that
+  the validated resolved wrapper bytes equal the corresponding bytes in the
+  exact frozen installed image; installed-byte mutation rejects even under its
+  own otherwise-consistent Terminal body evidence. Extend this derivation only
+  when other generated adapters land. It proves neither firmware invocation
+  nor an actual stack mutation. Add no
   architecture-specific frame vocabulary to source and do not infer adapter
   transitions by pattern-matching raw bytes.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`

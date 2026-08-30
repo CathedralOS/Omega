@@ -502,8 +502,18 @@ phase/path/target conjunction and rejects swapped labels transactionally. No
 checked disposition is yet Terminal authority. Terminal may publish restored
 use or root custody only after independently replaying exact lineage, polarity,
 semantic boundary, projection, and suspension/freeze-containment evidence.
-Reaching a root grants no cleanup, transfer, or linear-discharge authority to
-the borrow layer.
+
+The checked side now retains that containment evidence in a separate sibling
+arena after its complete lifecycle replay succeeds. Each permitted exclusive
+child binds one suspension row, each `Mutable`-to-`Read` child binds one freeze
+row, and `Read`-to-`Read` release binds none. A row rejoins exact child and
+typed parent resources, both accesses and their classified effect, activation
+and parent-entry formation identities, both weakening identities, and frozen
+parent/child places plus the exact projection remainder. Missing, duplicate,
+reordered, amplified, or retargeted rows reject transactionally before resource
+rebuild. The checked certificate is non-authorizing: Terminal replay and
+publication remain open, and reaching a root grants no cleanup, transfer, or
+linear-discharge authority to the borrow layer.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
@@ -2765,15 +2775,15 @@ binds eleven rows—exact arithmetic, divide/remainder and shifts plus
 wrapping/saturating divide/remainder—to the shared integer-policy catalog by
 primitive and domain identity; exact cast is the sole table row outside that
 catalog. A separate migration dispatcher still chooses the legacy sufficient
-proposition for exact add/subtract/multiply and is explicitly hashed into each
+proposition for exact subtract/multiply and is explicitly hashed into each
 affected reduction dependency. Exact shift-left and the four
 wrapping/saturating divide/remainder rows instead select their canonical
 proposition directly from their exact operation tags. This does not certify the
 remaining reducers, and the current closure remains `fully-derived false`.
 
 `NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`,
-`ExactShiftLeftRepresentable`, and `ExactCastRepresentable` currently have
-exact kernel-proposition projections.
+`ExactShiftLeftRepresentable`, `ExactCastRepresentable`, and exact-add
+representability currently have exact kernel-proposition projections.
 Unsigned fixed integers use `1 <= d` for both.
 Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
 exact division/remainder uses the ordered disjunction `(d <= -2) OR (1 <= d)
@@ -2787,8 +2797,9 @@ count carrier may imply the whole goal. Address carriers and mismatched operand
 types reject. Exact cast folds closed operands and complete source-carrier
 inclusion, otherwise retaining the stricter target lower bound before the
 stricter target upper bound in the mathematical relation vocabulary. Exact
-arithmetic representability remains unprojected in the current implementation,
-but its exact projection is settled below.
+addition now projects its canonical mathematical carrier bounds. Exact
+subtraction and multiplication remain unprojected in the current
+implementation, but their exact projections are settled below.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -2839,7 +2850,22 @@ introduction, then the kernel checks the result. A missing bound or redirected
 count identity does not gain canonical status and retains the versioned trusted
 sufficient-reduction fallback. The operation's post-discharge result equation
 is unavailable to its own proof. Exact left-shift representability is a
-separate goal and remains unprojected.
+separate goal and now selects its canonical count-before-value proposition
+directly.
+
+Exact addition likewise selects the unchanged mathematical sum bounds directly
+from its operation shape. The untrusted producer may serialize two ordered
+operand endpoints, or cite an earlier exact complement equation
+`bound = MAX - right` / `bound = MIN - right`, the endpoint's ordered literal
+landing when it is a value, and the authored comparison between `left` and
+`bound`. `IntegerAffineBound` checks the exact operand, endpoint, orientation,
+landing, and complement identity, then recomputes the mathematical sum without
+searching for alternate bounds. Embedded literals use `Truth` with their
+intrinsic endpoint; bare carrier inclusion uses `Truth` with its direction fixed
+by the other ordered child. The producer may
+search prior facts, including cast-compatible literal coordinates, but cannot
+cite the addition's own result equation. Omitted, reordered, redirected,
+mixed-orientation, overflowing, or wrong-complement evidence rejects.
 
 For the four whole-row wrapping and saturating divide/remainder pilots,
 reconstruction selects the nonzero goal solely from the exact operation tag.

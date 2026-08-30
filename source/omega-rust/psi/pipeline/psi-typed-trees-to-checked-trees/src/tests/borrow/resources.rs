@@ -116,13 +116,12 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
     for (parent, child, accepted) in cells {
         match (try_lower(&reborrow_access_source(parent, child)), accepted) {
             (Ok(checked), true) => {
-                assert!(
-                    checked
-                        .facts
-                        .borrow
-                        .reborrow_loan_resources
-                        .iter()
-                        .any(|(_, resource)| {
+                let resource = checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .iter()
+                    .find(|(_, resource)| {
                             let actual_parent = match &resource.parent_access {
                                 psi_checked_trees::BorrowAccessKind::Read => "Read",
                                 psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
@@ -134,9 +133,34 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
                                 psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
                             };
                             actual_parent == parent && actual_child == child
-                        }),
-                    "{parent}->{child} accepted without retained exact reborrow resource",
-                );
+                        })
+                    .expect("accepted direct reborrow retains its exact resource");
+                let containments = checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .iter()
+                    .filter(|(_, certificate)| certificate.child_resource == resource.0)
+                    .map(|(_, certificate)| certificate)
+                    .collect::<Vec<_>>();
+                if parent == "Read" && child == "Read" {
+                    assert!(
+                        containments.is_empty(),
+                        "read/read release must not invent suspension containment"
+                    );
+                } else {
+                    let [containment] = containments.as_slice() else {
+                        panic!("{parent}->{child} needs one exact containment certificate")
+                    };
+                    assert_eq!(containment.parent_access, resource.1.parent_access);
+                    assert_eq!(containment.child_access, resource.1.access);
+                    assert_eq!(containment.access_effect, resource.1.access_effect);
+                    assert_eq!(containment.child_place, resource.1.captured_place);
+                    assert_eq!(
+                        containment.parent_resource,
+                        resource.1.parent_resource
+                    );
+                }
             }
             (Err(diagnostics), false) => {
                 let rendered = diagnostics
@@ -192,6 +216,24 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
         resource.parent_access == psi_checked_trees::BorrowAccessKind::Mutable
             && resource.access == psi_checked_trees::BorrowAccessKind::Read
             && resource.parent_resource == shared[0].1.parent_resource
+    }));
+    let containments = checked
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .filter(|(_, certificate)| {
+            shared
+                .iter()
+                .any(|(handle, _)| *handle == certificate.child_resource)
+        })
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    assert_eq!(containments.len(), 2);
+    assert!(containments.iter().all(|certificate| {
+        certificate.containment
+            == psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+            && certificate.parent_resource == shared[0].1.parent_resource
     }));
     let events = checked
         .facts
@@ -620,6 +662,72 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
             psi_checked_trees::FlowConstraintKind::BorrowLoan {
                 loan: resource.parent_loan,
             }
+        );
+    }
+
+    let containments = checked
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    assert_eq!(containments.len(), 2);
+    for certificate in containments {
+        let (_, child) = before
+            .iter()
+            .find(|(handle, _)| *handle == certificate.child_resource)
+            .expect("containment child resource");
+        let parent_place = match &certificate.parent_resource {
+            psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource } => &checked
+                .facts
+                .borrow
+                .direct_loan_resources
+                .get(*resource)
+                .captured_place,
+            psi_checked_trees::CheckedParentBorrowResource::Reborrow { resource } => &before
+                .iter()
+                .find(|(handle, _)| handle == resource)
+                .expect("containment parent resource")
+                .1
+                .captured_place,
+        };
+        assert_eq!(certificate.machine_symbol, child.machine_symbol);
+        assert_eq!(certificate.state_symbol, child.state_symbol);
+        assert_eq!(certificate.child_loan, child.loan);
+        assert_eq!(certificate.parent_loan, child.parent_loan);
+        assert_eq!(certificate.parent_resource, child.parent_resource);
+        assert_eq!(certificate.parent_access, child.parent_access);
+        assert_eq!(certificate.child_access, child.access);
+        assert_eq!(certificate.access_effect, child.access_effect);
+        assert_eq!(
+            certificate.child_activation,
+            child.parent_suspension.child_activation
+        );
+        assert_eq!(
+            certificate.parent_entry_constraint,
+            child.parent_suspension.parent_entry_constraint
+        );
+        assert_eq!(certificate.formation_source, child.activation_source);
+        assert_eq!(
+            certificate.child_weakening,
+            child.parent_end_status.child_weakening
+        );
+        assert_eq!(
+            certificate.parent_weakening,
+            child.parent_end_status.parent_weakening
+        );
+        assert_eq!(certificate.child_weakening_source, child.weakening_source);
+        assert_eq!(certificate.child_weakening_reason, child.weakening_reason);
+        assert_eq!(&certificate.parent_place, parent_place);
+        assert_eq!(certificate.child_place, child.captured_place);
+        assert_eq!(
+            certificate.projection_remainder,
+            child.captured_place.segments[parent_place.segments.len()..]
+        );
+        assert_eq!(
+            certificate.containment,
+            psi_checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension
         );
     }
 
@@ -1196,6 +1304,185 @@ fn rejects_swapped_lineage_closure_and_root_handoff_transactionally() {
         assert_eq!(
             checked.facts.borrow.reborrow_disposition_events,
             events_tampered
+        );
+    }
+}
+
+#[test]
+fn rejects_each_suspension_containment_axis_transactionally() {
+    for axis in 0..20 {
+        let mut checked = direct_reborrow_chain();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
+        let dispositions_before = checked.facts.borrow.reborrow_disposition_events.clone();
+        let handle = checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .iter()
+            .next()
+            .expect("exclusive containment certificate")
+            .0;
+        let certificate = checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .get_mut(handle);
+        match axis {
+            0 => certificate.machine_symbol = psi_symbols::SymbolHandle::invalid(),
+            1 => certificate.state_symbol = psi_symbols::SymbolHandle::invalid(),
+            2 => certificate.child_loan = psi_arena::Handle::invalid(),
+            3 => certificate.child_resource = psi_arena::Handle::invalid(),
+            4 => certificate.parent_loan = psi_arena::Handle::invalid(),
+            5 => {
+                certificate.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: psi_arena::Handle::invalid(),
+                    }
+            }
+            6 => certificate.parent_access = psi_checked_trees::BorrowAccessKind::Read,
+            7 => certificate.child_access = psi_checked_trees::BorrowAccessKind::Read,
+            8 => {
+                certificate.access_effect =
+                    psi_checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+            }
+            9 => certificate.child_activation = psi_arena::Handle::invalid(),
+            10 => certificate.parent_entry_constraint = psi_arena::Handle::invalid(),
+            11 => {
+                certificate.formation_source =
+                    psi_checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
+            }
+            12 => certificate.child_weakening = psi_arena::Handle::invalid(),
+            13 => certificate.parent_weakening = psi_arena::Handle::invalid(),
+            14 => {
+                certificate.child_weakening_source =
+                    psi_checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
+            }
+            15 => {
+                certificate.child_weakening_reason =
+                    match certificate.child_weakening_reason {
+                        psi_checked_trees::FlowBorrowWeakeningReason::StateExit => {
+                            psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                        }
+                        _ => psi_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    }
+            }
+            16 => certificate.parent_place.root_symbol = psi_symbols::SymbolHandle::invalid(),
+            17 => certificate.child_place.segments.push(
+                psi_facts::PlaceSegment::FixedIndex { index: usize::MAX },
+            ),
+            18 => certificate.projection_remainder.push(
+                psi_facts::PlaceSegment::FixedIndex { index: usize::MAX },
+            ),
+            19 => {
+                certificate.containment =
+                    psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+            }
+            _ => unreachable!(),
+        }
+        let containments_tampered = checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .clone();
+
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("containment identity drift must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("suspension/freeze-containment evidence drifted")
+        }));
+        assert_eq!(checked.facts.borrow.direct_loan_resources, direct_before);
+        assert_eq!(
+            checked.facts.borrow.reborrow_loan_resources,
+            reborrows_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_disposition_events,
+            dispositions_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_containment_certificates,
+            containments_tampered
+        );
+    }
+}
+
+#[test]
+fn rejects_missing_duplicate_and_reordered_containment_certificates() {
+    for axis in 0..3 {
+        let mut checked = direct_reborrow_chain();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
+        let rows = checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .iter()
+            .map(|(_, certificate)| certificate.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .reset_retain_capacity();
+        match axis {
+            0 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .insert(rows[0].clone());
+            }
+            1 => {
+                for row in [&rows[0], &rows[1], &rows[0]] {
+                    checked
+                        .facts
+                        .borrow
+                        .reborrow_containment_certificates
+                        .insert(row.clone());
+                }
+            }
+            2 => {
+                for row in [&rows[1], &rows[0]] {
+                    checked
+                        .facts
+                        .borrow
+                        .reborrow_containment_certificates
+                        .insert(row.clone());
+                }
+            }
+            _ => unreachable!(),
+        }
+        let containments_tampered = checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .clone();
+
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("containment certificate roster and order are exact");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("suspension/freeze-containment evidence drifted")
+        }));
+        assert_eq!(checked.facts.borrow.direct_loan_resources, direct_before);
+        assert_eq!(
+            checked.facts.borrow.reborrow_loan_resources,
+            reborrows_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_containment_certificates,
+            containments_tampered
         );
     }
 }

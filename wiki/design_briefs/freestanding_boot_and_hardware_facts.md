@@ -476,7 +476,10 @@ than collision-resistant authority. Installation and retirement continue that ru
 their authorities and receipts retain the complete validated placement or
 installed realization, including exact bytes, Extent authority facts, scope,
 audience, validation, and W^X state. Compact lifecycle IDs never substitute for
-that evidence. Retirement completion facts are domain-framed SHA-256
+that evidence. Higher-level certificates may test a bounded materialized byte
+interval beginning at an exact admitted entry through a sealed equality result;
+the installed image and executable address remain provider-side. Retirement
+completion facts are domain-framed SHA-256
 commitments over provider-canonical bytes. Failed drain quarantine retains the
 complete installed realization and provider receipt; stale-entry evidence
 requires the exact opaque installed-code context rather than an equal compact
