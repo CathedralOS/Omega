@@ -236,6 +236,19 @@ impl<'program> Evaluator<'program> {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");
             }
+            if !self.virtual_files.is_empty()
+                || !self.virtual_fds.is_empty()
+                || !self.virtual_dirs.is_empty()
+                || !self.virtual_finds.is_empty()
+                || !self.virtual_perms.is_empty()
+                || !self.virtual_symlinks.is_empty()
+                || !self.virtual_times.is_empty()
+                || !self.virtual_flocks.is_empty()
+            {
+                return trap(
+                    "filesystem replay with no final Output entries changed its namespace",
+                );
+            }
             return Ok(());
         }
         if self.build_included_sources.as_slice() != replay.expected_included_sources() {

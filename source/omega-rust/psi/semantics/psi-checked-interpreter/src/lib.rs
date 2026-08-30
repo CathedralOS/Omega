@@ -90,26 +90,29 @@ mod value;
 
 pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
-    FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
-    FilesystemInputOutputTreeReplayRecord, FilesystemOutputDirectoryReplayRecord,
+    FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
+    FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
+    FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDirectoryReplayRecord,
     FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
     FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
     FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
     FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
-    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
 use filesystem_replay::{
+    output_absent_remove_attempt, output_absent_remove_record_from_attempt,
     output_directory_attempt, output_directory_record_from_attempt, output_duplicate_attempts,
     output_duplicate_record_from_attempts, output_hard_link_attempt,
     output_hard_link_record_from_attempt, output_lock_attempts, output_lock_record_from_attempts,
     output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
-    source_directory_chain_attempts, source_directory_chain_is_exact, source_read_link_attempt,
-    source_read_link_attempt_is_exact, validate_observed_output_tree_records,
-    validate_output_duplicate_replay, validate_output_lock_replay,
+    source_attempts_use_root, source_directory_chain_attempts, source_directory_chain_is_exact,
+    source_read_link_attempt, source_read_link_attempt_is_exact,
+    validate_observed_output_tree_records, validate_output_duplicate_replay,
+    validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -2493,8 +2496,16 @@ impl FilesystemReplay {
     pub(crate) fn executes_output_attempt(&self, attempt_index: usize) -> bool {
         self.attempts
             .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27))
+            .position(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
             .is_some_and(|output_start| attempt_index >= output_start)
+    }
+
+    /// Whether this replay contains any Output-rooted operation, including a
+    /// failure-only sequence that leaves no final staged-tree entry.
+    pub fn has_output_attempts(&self) -> bool {
+        self.attempts
+            .iter()
+            .any(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
     }
 
     pub fn from_source_input_observations(
@@ -2538,10 +2549,16 @@ impl FilesystemReplay {
         let Some(output_start) = self
             .attempts
             .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27))
+            .position(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
         else {
             return Vec::new();
         };
+        if self.attempts[output_start..]
+            .iter()
+            .all(output_absent_remove_attempt_is_exact)
+        {
+            return Vec::new();
+        }
         output_tree_entries_from_attempts(&self.attempts[output_start..])
             .expect("validated filesystem replay retains exact Output entries")
     }
@@ -2619,12 +2636,26 @@ impl FilesystemReplay {
         validate_filesystem_replay_size(attempts)?;
         let output_start = attempts
             .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27))
+            .position(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
             .ok_or_else(|| {
-                "bounded filesystem replay requires one or more exact Output entries".to_owned()
+                "bounded filesystem replay requires one or more exact Output operations".to_owned()
             })?;
         if output_start > 0 {
             validate_source_input_attempts(&attempts[..output_start])?;
+        }
+        if attempts[output_start..]
+            .iter()
+            .all(output_absent_remove_attempt_is_exact)
+        {
+            validate_output_absent_remove_attempts(
+                &attempts[..output_start],
+                &attempts[output_start..],
+                observations.build_included_sources(),
+            )?;
+            return Ok(Self {
+                attempts: attempts.to_vec().into(),
+                expected_included_sources: std::sync::Arc::from([]),
+            });
         }
         let output_entries = output_tree_entries_from_attempts(&attempts[output_start..])?;
         validate_observed_output_tree_records(
@@ -2635,6 +2666,27 @@ impl FilesystemReplay {
         Ok(Self {
             attempts: attempts.to_vec().into(),
             expected_included_sources: observations.build_included_sources().to_vec().into(),
+        })
+    }
+
+    /// Construct the closed optional-Source plus failure-only Output rung from
+    /// typed compiler-owned coordinates.
+    pub fn from_input_output_absent_removes_record(
+        record: FilesystemInputOutputAbsentRemovesReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, absent_removes) = record.into_parts();
+        let mut attempts = source_input.map_or_else(Vec::new, source_input_record_attempts);
+        let output_start = attempts.len();
+        attempts.extend(absent_removes.into_iter().map(output_absent_remove_attempt));
+        validate_filesystem_replay_size(&attempts)?;
+        validate_output_absent_remove_attempts(
+            &attempts[..output_start],
+            &attempts[output_start..],
+            &[],
+        )?;
+        Ok(Self {
+            attempts: attempts.into(),
+            expected_included_sources: std::sync::Arc::from([]),
         })
     }
 
@@ -2806,7 +2858,7 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
     let mut cursor = 0;
     let mut event_count = 0;
     while cursor < attempts.len() {
-        if matches!(attempts[cursor].operation_tag(), 1 | 11 | 19 | 20 | 27) {
+        if filesystem_output_attempt_tag(attempts[cursor].operation_tag()) {
             break;
         }
         if attempts[cursor].operation_tag() == 21 {
@@ -3590,6 +3642,44 @@ fn output_file_attempt_end(
     }
 }
 
+fn filesystem_output_attempt_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 1 | 9 | 11 | 19 | 20 | 27)
+}
+
+fn output_absent_remove_attempt_is_exact(attempt: &FilesystemOperationAttempt) -> bool {
+    output_absent_remove_record_from_attempt(attempt).is_ok()
+}
+
+fn validate_output_absent_remove_attempts(
+    source_attempts: &[FilesystemOperationAttempt],
+    attempts: &[FilesystemOperationAttempt],
+    included_sources: &[BuildIncludedSource],
+) -> Result<(), String> {
+    if attempts.is_empty() {
+        return Err("filesystem replay requires at least one absent Output remove".to_owned());
+    }
+    if !included_sources.is_empty() {
+        return Err(
+            "filesystem replay failure-only Output operations cannot hand off generated sources"
+                .to_owned(),
+        );
+    }
+    let mut records = Vec::new();
+    records
+        .try_reserve_exact(attempts.len())
+        .map_err(|_| "filesystem replay absent Output remove allocation failed".to_owned())?;
+    for attempt in attempts {
+        records.push(output_absent_remove_record_from_attempt(attempt)?);
+    }
+    let record = FilesystemInputOutputAbsentRemovesReplayRecord::new(None, records)?;
+    let (_, records) = record.into_parts();
+    let output_root = records[0].output_root();
+    if source_attempts_use_root(source_attempts, output_root) {
+        return Err("filesystem replay Source and Output roots must be distinct".to_owned());
+    }
+    Ok(())
+}
+
 fn output_tree_entries_from_attempts(
     attempts: &[FilesystemOperationAttempt],
 ) -> Result<Vec<FilesystemOutputTreeEntryReplayRecord>, String> {
@@ -4024,6 +4114,43 @@ mod filesystem_replay_record_tests {
     fn empty_output_file(identity: u64) -> FilesystemOutputFileReplayRecord {
         FilesystemOutputFileReplayRecord::empty(root(2), b"empty.bin".to_vec(), identity, 0, 0)
             .expect("freshly created and closed empty Output file is canonical")
+    }
+
+    #[test]
+    fn typed_absent_output_removes_form_a_closed_failure_only_replay() {
+        let first =
+            FilesystemOutputAbsentRemoveReplayRecord::new(root(2), b"missing-first.bin".to_vec())
+                .unwrap();
+        let second = FilesystemOutputAbsentRemoveReplayRecord::new(
+            root(2),
+            b"nested/missing-second.bin".to_vec(),
+        )
+        .unwrap();
+        let record = FilesystemInputOutputAbsentRemovesReplayRecord::new(
+            Some(source_input(7)),
+            vec![first, second],
+        )
+        .unwrap();
+        let replay = FilesystemReplay::from_input_output_absent_removes_record(record).unwrap();
+
+        assert!(replay.has_output_attempts());
+        assert!(replay.output_entries().is_empty());
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 9, 9]
+        );
+        for attempt in &replay.attempts()[3..] {
+            assert_eq!(
+                attempt.result(),
+                Some(FilesystemOperationResult::Scalar(-1))
+            );
+            assert_eq!(attempt.post_error(), Some(2));
+            assert!(output_absent_remove_attempt_is_exact(attempt));
+        }
     }
 
     fn multiwrite_output_file(identity: u64) -> FilesystemOutputFileReplayRecord {
