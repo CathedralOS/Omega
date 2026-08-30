@@ -3638,7 +3638,10 @@ or exact-remainder range certificate; verification checks only the serialized
 witness. The operation's own result equation is never eligible evidence.
 `kernel_proposition` is total, with no wildcard or optional unsettled result,
 and production reconstruction contains no sufficient-form reducer or
-verifier-side route search.
+verifier-side route search. The focused exact-left integration canary also
+checks the canonical reconstructed question and accepted `IntegerAffineBound`
+report, and rejects a mutated proof conclusion, missing evidence, or evidence
+made stale by changing one of its cited count premises.
 
 The existing `IntegerAffineBound` proof tag now names its checked ordered
 endpoint-transform boundary rather than only a closed-form affine map. Its
