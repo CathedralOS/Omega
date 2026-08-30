@@ -1825,10 +1825,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
       are source-ordered, left-associated, looser than additive forms, and
       tighter than comparison in transition subjects, assignments, locals, and
       call arguments; path and cast left operands use the same rejoin seams as
-      the multiplicative tier. The private precedence numbers now reserve the
-      intervening membership/bitwise tiers rather than forcing a later tree-
-      shape migration. Shift-count proof and arithmetic-policy decisions remain
-      semantic work, so `x << 64` is valid syntax rather than a parser refusal.
+      the multiplicative tier. The private precedence numbers place shifts
+      above the canonical intervening membership/bitwise tiers without a later
+      tree-shape migration. Shift-count proof and arithmetic-policy decisions
+      remain semantic work, so `x << 64` is valid syntax rather than a parser
+      refusal.
       Spaced `< <`/`> >` and unsupported compound assignment do not become
       shifts. No arena, resource, consumer, or current `C` census changes.
       Exact association, precedence, operator-span, malformed-operand, reset,
@@ -1837,13 +1838,32 @@ code, discover a closure, manufacture proof premises, or decide admission.
     - [x] Retain the complete `|`/`^`/`&` bitwise tiers in that same reducer.
       They are source-ordered and left-associated within each tier, with
       canonical precedence `|` below `^` below `&` below shifts; all three
-      remain tighter than the still-unimplemented contextual membership tier.
+      remain tighter than the contextual membership tier.
       An infix `&` is selected only after a completed left operand; a leading
       `&` remains outside this slice and is not reinterpreted. Path and cast
       left operands use the same reducer rejoin seams. Carrier compatibility
       and integer result types remain semantic work rather than parser guesses.
-      No arena, resource, consumer, or current `C` census changes. Exact association,
-      cross-tier precedence, operator-span, malformed-operand, reset, and
+      No arena, resource, consumer, or current `C` census changes. Exact
+      association, cross-tier precedence, operator-span, malformed-operand,
+      reset, and no-partial-publication vectors remain assigned to the real
+      Delta-compiler gate.
+    - [x] Retain single-domain contextual membership as a distinct expression
+      shape: `value in Domain::Path`. Tighter arithmetic, shift, and bitwise
+      forms reduce into the value before membership; comparison, equality, and
+      logical forms remain outside it. The tagged expression row directly owns
+      the value handle, shared domain-path span, and exact `in` span, avoiding a
+      membership-only arena or a false value expression for the domain.
+      Ordinary primary and path left operands rejoin the same reducer. The
+      separate cast-domain spelling `value as Type in Domain` keeps its existing
+      parse, while a parenthesized completed cast can be a membership value.
+      Direct `in A | B` and `in A & B` domain composition remains
+      implementation-incomplete and is stopped before either token can be
+      misclassified as integer bitwise syntax. An unparenthesized completed
+      membership cannot re-enter tighter arithmetic, shift, or bitwise tiers;
+      `(value in Domain) + other` is the explicit grouped shape. Every retained
+      membership owns an expression and at least one shared path member, so no
+      new resource or current `C` census row is needed. Exact precedence,
+      repeated-membership, domain-path, malformed-domain, capacity, reset, and
       no-partial-publication vectors remain assigned to the real Delta-compiler
       gate.
     - [x] Retain the first closed external-leaf declaration as one coherent
