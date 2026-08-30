@@ -46,10 +46,10 @@ pub use replay_record::{
 };
 
 use psi_build_time_evaluation::{
-    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
-    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
-    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, BuildTimeValue,
-    PreparedBuildMachineProgram,
+    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
+    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
+    BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineProgram,
 };
 use psi_checked_interpreter::{
     FilesystemMetadataField, FilesystemMetadataFieldLayout, FilesystemSponsorEntry,
@@ -299,7 +299,19 @@ pub struct BuildConfig {
 pub struct BuildEvaluationUsage {
     pub usage_schema_version: u32,
     pub step_schedule_marker: u32,
+    /// Deterministic per-invocation ceiling applied independently to the
+    /// initial evaluation and an exact replay. This is not a CPU limit.
+    pub invocation_fuel_ceiling: u64,
+    /// Shared sponsor-limit schema for package review. Standalone compilation
+    /// has no aggregate sponsor.
+    pub sponsor_schema_version: Option<u32>,
+    /// Aggregate deterministic fuel available to the complete sponsored
+    /// review session. Dependencies cannot alter this value.
+    pub session_fuel_ceiling: Option<u64>,
+    /// Fuel consumed by the initial build-machine evaluation.
     pub fuel_units: u64,
+    /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
+    pub replay_fuel_units: u64,
     pub result_cells: u64,
 }
 
@@ -3199,6 +3211,7 @@ pub fn compute_build_config(
     typed: &TypedTrees,
     build_source_id: Option<psi_source::SourceId>,
     filesystem_scope: &BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     selected_target_profile: Option<omega_target::TargetProfile>,
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
@@ -3425,12 +3438,23 @@ pub fn compute_build_config(
         }
     };
     let initial_arguments = vec![zero_build];
-    let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
-        &prepared,
-        machine_name,
-        initial_arguments.clone(),
-        execution_mode,
-    )
+    let measured = match evaluation_sponsor {
+        Some(sponsor) => {
+            psi_build_time_evaluation::evaluate_build_machine_arguments_measured_with_sponsor(
+                &prepared,
+                machine_name,
+                initial_arguments.clone(),
+                execution_mode,
+                sponsor,
+            )
+        }
+        None => psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
+            &prepared,
+            machine_name,
+            initial_arguments.clone(),
+            execution_mode,
+        ),
+    }
     .map_err(|reason| {
         let partial_evidence = reason
             .observations()
@@ -3631,16 +3655,28 @@ pub fn compute_build_config(
                             == Some(source_attempts.len()))
             });
     let receipted_output_entries = replay.as_ref().and_then(receipted_output_entries);
-    let source_inputs_replayed = if let Some(replay) = replay {
-        let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
-            &prepared,
-            machine_name,
-            initial_arguments,
-            BuildMachineExecutionMode::Granted {
-                filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
-                filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
-            },
-        )
+    let replay_usage = if let Some(replay) = replay {
+        let replay_mode = BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
+            filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
+        };
+        let replayed = match evaluation_sponsor {
+            Some(sponsor) => {
+                psi_build_time_evaluation::evaluate_build_machine_arguments_measured_with_sponsor(
+                    &prepared,
+                    machine_name,
+                    initial_arguments,
+                    replay_mode,
+                    sponsor,
+                )
+            }
+            None => psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
+                &prepared,
+                machine_name,
+                initial_arguments,
+                replay_mode,
+            ),
+        }
         .map_err(|reason| {
             vec![Diagnostic::error(format!(
                 "build-time replay of `{machine_name}` failed: {reason}"
@@ -3653,10 +3689,11 @@ pub fn compute_build_config(
                 "build-time replay of `{machine_name}` changed its result or operation record"
             ))]);
         }
-        true
+        Some(replayed.usage())
     } else {
-        false
+        None
     };
+    let source_inputs_replayed = replay_usage.is_some();
     let replayed_output_tree = if replay_has_no_output_attempts {
         Some(empty())
     } else {
@@ -4147,7 +4184,13 @@ pub fn compute_build_config(
         evaluation_usage: Some(BuildEvaluationUsage {
             usage_schema_version: usage.schema().schema_version(),
             step_schedule_marker: usage.schedule().marker(),
+            invocation_fuel_ceiling: usage.fuel_ceiling(),
+            sponsor_schema_version: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().schema_version()),
+            session_fuel_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_fuel_units()),
             fuel_units: usage.fuel_units(),
+            replay_fuel_units: replay_usage.map_or(0, |usage| usage.fuel_units()),
             result_cells: usage.result_cells(),
         }),
         observation_summary: Some(BuildObservationSummary {

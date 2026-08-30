@@ -2,6 +2,7 @@ use super::*;
 
 impl<'program> Evaluator<'program> {
     pub(super) fn new(program: &'program TypedTrees, stdin: &'program [u8]) -> Self {
+        let step_budget = ambient_step_budget();
         Self {
             program,
             operator_facts: None,
@@ -40,14 +41,12 @@ impl<'program> Evaluator<'program> {
             filesystem_observation_resource_halt: None,
             filesystem_operation_attempt_stack: Vec::new(),
             private_layout_placements: Vec::new(),
-            usage: EvaluationUsage::empty(),
+            usage: EvaluationUsage::empty(step_budget),
+            build_evaluation_sponsor: None,
             // OMEGA_INTERP_STEP_BUDGET overrides the default for
             // measurement / long-running sample runs (dev knob, same
             // convention as the OMEGA_DEBUG_* flags); unset = the default.
-            step_budget: std::env::var("OMEGA_INTERP_STEP_BUDGET")
-                .ok()
-                .and_then(|raw| raw.parse().ok())
-                .unwrap_or(STEP_BUDGET),
+            step_budget,
             call_depth: 0,
             guard_depth: 0,
         }
@@ -66,7 +65,20 @@ impl<'program> Evaluator<'program> {
         if self.usage.fuel_units() > self.step_budget {
             return trap("step budget exceeded");
         }
+        if let Some(sponsor) = &self.build_evaluation_sponsor {
+            sponsor.charge_fuel_unit().map_err(Halt::Resource)?;
+        }
         Ok(())
+    }
+
+    pub(super) fn configure_build_evaluation(
+        &mut self,
+        fuel_ceiling: u64,
+        sponsor: Option<BuildEvaluationSponsor>,
+    ) {
+        self.step_budget = fuel_ceiling;
+        self.usage.set_fuel_ceiling(fuel_ceiling);
+        self.build_evaluation_sponsor = sponsor;
     }
 
     // ---- entry --------------------------------------------------------------
@@ -920,5 +932,23 @@ impl<'program> Evaluator<'program> {
             mutable_scalar_recasts: RefCell::new(mutable_scalar_recasts),
             guard_call_results: RefCell::new(Vec::new()),
         })
+    }
+}
+
+#[cfg(test)]
+mod build_evaluation_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn compiler_build_configuration_replaces_the_initial_interpreter_ceiling() {
+        let program = TypedTrees::default();
+        let mut evaluator = Evaluator::new(&program, &[]);
+        evaluator.step_budget = 7;
+        evaluator.usage.set_fuel_ceiling(7);
+
+        evaluator.configure_build_evaluation(STEP_BUDGET, None);
+
+        assert_eq!(evaluator.step_budget, STEP_BUDGET);
+        assert_eq!(evaluator.usage.fuel_ceiling(), STEP_BUDGET);
     }
 }

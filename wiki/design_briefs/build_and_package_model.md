@@ -1638,6 +1638,15 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
+The same disposable review session now owns a separate version-1 deterministic
+evaluation sponsor across the closure: 100,000,000 total evaluator fuel units,
+with the ordinary 100,000-unit effect-free and 10,000,000-unit granted
+per-invocation ceilings retained for initial evaluation and replay. Usage
+receipt v2 binds both ceilings and records initial and replay charges
+separately; the compiler rejects a successful closure whose retained charges
+do not exactly reconcile with the shared account. This closes
+dependency self-budgeting and closure amplification for deterministic work. It
+does not bound process CPU or memory.
 These summary fields are compiler-issued execution evidence kept outside
 canonical capability/API comparison bytes. In isolation they are not a receipt
 and do not receive the `Complete` replay disposition; only the exact v24/v6 generated-source,

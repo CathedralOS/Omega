@@ -13,14 +13,14 @@ use super::{
 };
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::resolution::{package_compilation_inputs_for, reachable_package_keys};
-use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
+use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_evidence::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
     validate_ordinary_package_obligation_ledger,
 };
 use omega_package_evidence::project_checked_package_review;
-use psi_checked_interpreter::FilesystemSponsor;
+use psi_checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use psi_diagnostics::Diagnostic;
 use std::path::Path;
 
@@ -41,7 +41,8 @@ pub fn compile_resolved_package_reviews(
         closure,
         target,
         build_session.root(),
-        build_session.sponsor(),
+        build_session.filesystem_sponsor(),
+        build_session.evaluation_sponsor(),
     );
     build_session.dispose(result)
 }
@@ -51,6 +52,7 @@ fn compile_resolved_package_reviews_in_session(
     target: &str,
     build_session_root: &Path,
     filesystem_sponsor: &FilesystemSponsor,
+    evaluation_sponsor: &BuildEvaluationSponsor,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut retained_obligation_ledger_total = 0usize;
@@ -113,12 +115,13 @@ fn compile_resolved_package_reviews_in_session(
                     errors,
                 },
             )?;
-        let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        let checked = compile_to_checked_with_packages_in_sponsored_build_session(
             &custody.snapshot_root().join("main.omg"),
             &package_build_root(build_session_root, &key, custody.resolution()),
             Some(target),
             inputs,
             filesystem_sponsor.clone(),
+            evaluation_sponsor.clone(),
         )
         .map_err(
             |diagnostics| CompileResolvedPackageReviewsError::Compilation {
@@ -146,6 +149,7 @@ fn compile_resolved_package_reviews_in_session(
                 }
             })?;
         let build_observation_summary = checked.build_observation_summary().cloned();
+        let build_evaluation_usage = checked.build_evaluation_usage();
         let generated_source_bundle =
             checked.package_generated_source_bundle().map_err(|error| {
                 CompileResolvedPackageReviewsError::Projection {
@@ -229,6 +233,7 @@ fn compile_resolved_package_reviews_in_session(
             key: key.clone(),
             resolution: custody.resolution().clone(),
             source_consumption_commitment,
+            build_evaluation_usage,
             build_observation_summary,
             generated_source_bundle: generated_source_bundle.clone(),
             projection,
@@ -237,6 +242,22 @@ fn compile_resolved_package_reviews_in_session(
             obligations,
             comparison_rows,
         });
+    }
+    let reported_fuel = reviews.iter().try_fold(0_u64, |total, review| {
+        let Some(usage) = review.build_evaluation_usage() else {
+            return Some(total);
+        };
+        total
+            .checked_add(usage.fuel_units)
+            .and_then(|total| total.checked_add(usage.replay_fuel_units))
+    });
+    if reported_fuel != Some(evaluation_sponsor.consumed_fuel_units()) {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildEvaluationAccountingMismatch {
+                reported: reported_fuel,
+                sponsored: evaluation_sponsor.consumed_fuel_units(),
+            },
+        );
     }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }

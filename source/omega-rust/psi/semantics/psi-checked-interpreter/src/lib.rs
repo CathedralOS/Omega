@@ -82,12 +82,17 @@
 //! - (A paren'd construction against a payload-less case (`E::A(5)`) still parses as a
 //!   CALL but resolves to nothing; the interpreter declines it.)
 
+mod build_evaluation_sponsor;
 mod build_time;
 mod evaluator;
 mod filesystem_replay;
 mod filesystem_sponsor;
 mod value;
 
+pub use build_evaluation_sponsor::{
+    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationSponsor,
+    BuildEvaluationSponsorLimits,
+};
 pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
@@ -175,7 +180,7 @@ impl EvaluationUsageSchemaIdentity {
 }
 
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
-    EvaluationUsageSchemaIdentity(1);
+    EvaluationUsageSchemaIdentity(2);
 
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
@@ -187,6 +192,7 @@ pub struct EvaluationUsage {
     schema: EvaluationUsageSchemaIdentity,
     schedule: EvaluationStepScheduleIdentity,
     fuel_units: u64,
+    fuel_ceiling: u64,
     result_cells: u64,
 }
 
@@ -5782,11 +5788,12 @@ impl std::fmt::Display for BuildMachineEvaluationFailure {
 impl std::error::Error for BuildMachineEvaluationFailure {}
 
 impl EvaluationUsage {
-    const fn empty() -> Self {
+    const fn empty(fuel_ceiling: u64) -> Self {
         Self {
             schema: CURRENT_EVALUATION_USAGE_SCHEMA,
             schedule: CURRENT_EVALUATION_STEP_SCHEDULE,
             fuel_units: 0,
+            fuel_ceiling,
             result_cells: 0,
         }
     }
@@ -5803,6 +5810,11 @@ impl EvaluationUsage {
         self.fuel_units
     }
 
+    /// Exact per-invocation evaluator fuel ceiling installed for this run.
+    pub const fn fuel_ceiling(self) -> u64 {
+        self.fuel_ceiling
+    }
+
     /// Number of value cells retained by the successful evaluation result.
     /// Scalar and unit roots count as one cell; each structured value counts
     /// its root plus every recursively retained field, payload, or element.
@@ -5813,6 +5825,10 @@ impl EvaluationUsage {
     fn charge_step(&mut self) -> Option<()> {
         self.fuel_units = self.fuel_units.checked_add(1)?;
         Some(())
+    }
+
+    fn set_fuel_ceiling(&mut self, fuel_ceiling: u64) {
+        self.fuel_ceiling = fuel_ceiling;
     }
 
     fn record_result_cells(&mut self, result_cells: u64) {
@@ -6168,6 +6184,23 @@ pub fn evaluate_build_time_machine_arguments_measured(
     evaluator::run_build_time_machine_arguments(program, machine_name, arguments)
 }
 
+/// Sponsored form of [`evaluate_build_time_machine_arguments_measured`]. The
+/// sponsor is compiler-only and shared across every evaluation using one of
+/// its clones.
+pub fn evaluate_build_time_machine_arguments_measured_with_sponsor(
+    program: &psi_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
+    evaluator::run_build_time_machine_arguments_with_sponsor(
+        program,
+        machine_name,
+        arguments,
+        sponsor,
+    )
+}
+
 /// The GRANTED build entry (open-work #3's settled design, rung 4): run the
 /// augmenting `build(b: &mut Build)` machine WITH a `Filesystem` capability
 /// and read back the augmented arguments. The capability grant IS the audit
@@ -6197,6 +6230,23 @@ pub fn evaluate_build_machine_with_filesystem_measured(
     options: InterpretOptions,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
     evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
+}
+
+/// Sponsored form of [`evaluate_build_machine_with_filesystem_measured`].
+pub fn evaluate_build_machine_with_filesystem_measured_with_sponsor(
+    program: &psi_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+    options: InterpretOptions,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
+    evaluator::run_granted_build_machine_arguments_with_sponsor(
+        program,
+        machine_name,
+        arguments,
+        options,
+        sponsor,
+    )
 }
 
 #[cfg(test)]

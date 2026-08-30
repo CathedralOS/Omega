@@ -8,6 +8,7 @@ use psi_checked_interpreter::{BuildTimeValue, MeasuredBuildMachineEvaluation};
 use psi_typed_trees::TypedTrees;
 
 pub use psi_checked_interpreter::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
     FilesystemAccess as BuildMachineFilesystemAccess,
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
@@ -110,6 +111,44 @@ pub fn evaluate_build_machine_arguments_measured(
                 filesystem,
                 filesystem_metadata_layout,
             },
+        )
+        .map_err(BuildMachineEvaluationError::Granted),
+    }
+}
+
+/// Sponsored form of [`evaluate_build_machine_arguments_measured`]. All
+/// invocations using clones of `sponsor` charge one aggregate deterministic
+/// fuel account.
+pub fn evaluate_build_machine_arguments_measured_with_sponsor(
+    program: &PreparedBuildMachineProgram,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+    mode: BuildMachineExecutionMode,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
+    match mode {
+        BuildMachineExecutionMode::Pure => {
+            psi_checked_interpreter::evaluate_build_time_machine_arguments_measured_with_sponsor(
+                program.typed(),
+                machine_name,
+                arguments,
+                sponsor,
+            )
+            .map(MeasuredBuildMachineEvaluation::hermetic)
+            .map_err(BuildMachineEvaluationError::Pure)
+        }
+        BuildMachineExecutionMode::Granted {
+            filesystem,
+            filesystem_metadata_layout,
+        } => psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured_with_sponsor(
+            program.typed(),
+            machine_name,
+            arguments,
+            psi_checked_interpreter::InterpretOptions {
+                filesystem,
+                filesystem_metadata_layout,
+            },
+            sponsor,
         )
         .map_err(BuildMachineEvaluationError::Granted),
     }

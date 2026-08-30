@@ -1,5 +1,7 @@
 use super::CompileResolvedPackageReviewsError;
-use psi_checked_interpreter::FilesystemSponsor;
+use psi_checked_interpreter::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
+};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -7,10 +9,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static REVIEW_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// Deterministic evaluator work granted to one complete package-review
+/// closure. This does not claim to bound CPU time or process memory.
+const PACKAGE_REVIEW_BUILD_FUEL_CEILING: u64 = 100_000_000;
+
 #[derive(Debug)]
 pub(super) struct ReviewBuildSession {
     root: PathBuf,
-    sponsor: FilesystemSponsor,
+    filesystem_sponsor: FilesystemSponsor,
+    evaluation_sponsor: BuildEvaluationSponsor,
     active: bool,
 }
 
@@ -59,7 +66,7 @@ impl ReviewBuildSession {
                             ),
                         });
                     }
-                    let sponsor = match FilesystemSponsor::new(&canonical_root) {
+                    let filesystem_sponsor = match FilesystemSponsor::new(&canonical_root) {
                         Ok(sponsor) => sponsor,
                         Err(error) => {
                             let _ = fs::remove_dir(&canonical_root);
@@ -69,9 +76,13 @@ impl ReviewBuildSession {
                             });
                         }
                     };
+                    let evaluation_limits =
+                        BuildEvaluationSponsorLimits::new(PACKAGE_REVIEW_BUILD_FUEL_CEILING)
+                            .expect("package-review build fuel ceiling is nonzero");
                     return Ok(Self {
                         root: canonical_root,
-                        sponsor,
+                        filesystem_sponsor,
+                        evaluation_sponsor: BuildEvaluationSponsor::new(evaluation_limits),
                         active: true,
                     });
                 }
@@ -98,8 +109,12 @@ impl ReviewBuildSession {
         &self.root
     }
 
-    pub(super) fn sponsor(&self) -> &FilesystemSponsor {
-        &self.sponsor
+    pub(super) fn filesystem_sponsor(&self) -> &FilesystemSponsor {
+        &self.filesystem_sponsor
+    }
+
+    pub(super) fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
+        &self.evaluation_sponsor
     }
 
     pub(super) fn dispose<T>(

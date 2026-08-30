@@ -373,6 +373,7 @@ struct CheckedCompileRequest {
     package_inputs: Option<PackageCompilationInputs>,
     build_dir: Option<std::path::PathBuf>,
     filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
+    evaluation_sponsor: Option<psi_build_time_evaluation::BuildEvaluationSponsor>,
     replay_record: Option<super::ReviewOnlyBuildFilesystemReplayRecord>,
 }
 
@@ -384,6 +385,7 @@ impl CheckedCompileRequest {
             package_inputs: None,
             build_dir: None,
             filesystem_sponsor: None,
+            evaluation_sponsor: None,
             replay_record: None,
         }
     }
@@ -399,6 +401,7 @@ fn execute_checked_request(
             request.package_inputs.as_ref(),
             request.build_dir.as_deref(),
             request.filesystem_sponsor,
+            request.evaluation_sponsor,
             request.replay_record.as_ref(),
         )
     })
@@ -487,6 +490,25 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
     execute_checked_request(request)
 }
 
+/// Package-aware checked compilation with both compiler-owned review-session
+/// accounts. Filesystem custody and deterministic evaluator work remain
+/// separate resources with separate claims.
+pub fn compile_to_checked_with_packages_in_sponsored_build_session(
+    root_path: &Path,
+    build_dir: &Path,
+    target_name: Option<&str>,
+    package_inputs: PackageCompilationInputs,
+    filesystem_sponsor: psi_build_time_evaluation::BuildMachineFilesystemSponsor,
+    evaluation_sponsor: psi_build_time_evaluation::BuildEvaluationSponsor,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let mut request = CheckedCompileRequest::new(root_path, target_name);
+    request.package_inputs = Some(package_inputs);
+    request.build_dir = Some(build_dir.to_owned());
+    request.filesystem_sponsor = Some(filesystem_sponsor);
+    request.evaluation_sponsor = Some(evaluation_sponsor);
+    execute_checked_request(request)
+}
+
 /// Run the ordinary checked frontend for the typed terminal-component handoff
 /// without consuming its caller-owned request or deployment authority.
 pub(crate) fn compile_to_checked_for_terminal(
@@ -498,6 +520,7 @@ pub(crate) fn compile_to_checked_for_terminal(
         options.target_name.as_deref(),
         package_inputs,
         Some(&options.build_dir()),
+        None,
         None,
     )
 }
@@ -565,6 +588,7 @@ fn compile_to_checked_inner(
     package_inputs: Option<&PackageCompilationInputs>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
+    evaluation_sponsor: Option<psi_build_time_evaluation::BuildEvaluationSponsor>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     compile_to_checked_inner_with_replay(
         root_path,
@@ -572,6 +596,7 @@ fn compile_to_checked_inner(
         package_inputs,
         build_dir,
         filesystem_sponsor,
+        evaluation_sponsor,
         None,
     )
 }
@@ -582,6 +607,7 @@ fn compile_to_checked_inner_with_replay(
     package_inputs: Option<&PackageCompilationInputs>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
+    evaluation_sponsor: Option<psi_build_time_evaluation::BuildEvaluationSponsor>,
     replay_record: Option<&super::ReviewOnlyBuildFilesystemReplayRecord>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
@@ -681,6 +707,7 @@ fn compile_to_checked_inner_with_replay(
         &frontend.typed,
         frontend.build_source_id,
         &build_machine_filesystem_scope,
+        evaluation_sponsor.as_ref(),
         selected_target_profile,
     )?;
     let prepass_build_identity = computed_build_config
