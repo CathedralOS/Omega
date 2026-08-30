@@ -24,6 +24,7 @@ mod native_mutation_failure_tests;
 mod native_mutation_failures;
 mod open_at_failures;
 mod output_failures;
+mod output_ownership;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
@@ -115,6 +116,10 @@ pub use output_failures::{
 };
 pub(crate) use output_failures::{
     output_absent_remove_attempt, output_absent_remove_record_from_attempt,
+};
+pub use output_ownership::FilesystemOutputChangeFileOwnerReplayRecord;
+pub(crate) use output_ownership::{
+    output_change_file_owner_attempt, output_change_file_owner_record_from_attempt,
 };
 pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{

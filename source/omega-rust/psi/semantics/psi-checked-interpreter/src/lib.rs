@@ -119,13 +119,13 @@ pub use filesystem_replay::{
     FilesystemInputUnknownNativeHandleMutationReplayRecord,
     FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord,
     FilesystemOutputAbsentRemoveKind, FilesystemOutputAbsentRemoveReplayRecord,
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
-    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
-    FilesystemOutputLockReplayRecord, FilesystemOutputSymlinkReplayRecord,
-    FilesystemOutputTreeEntryReplayRecord, FilesystemSourceDirectoryReadChainReplayRecord,
-    FilesystemSourceDirectoryReadReplayRecord, FilesystemSourceReadLinkReplayRecord,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemOutputChangeFileOwnerReplayRecord, FilesystemOutputDirectoryReplayRecord,
+    FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
+    FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
+    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+    FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
+    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
@@ -133,7 +133,8 @@ pub use filesystem_replay::{
 use filesystem_replay::{
     ordered_descriptor_error_state_attempt_is_replayed,
     ordered_native_error_state_attempt_is_replayed, output_absent_remove_attempt,
-    output_absent_remove_record_from_attempt, output_directory_attempt,
+    output_absent_remove_record_from_attempt, output_change_file_owner_attempt,
+    output_change_file_owner_record_from_attempt, output_directory_attempt,
     output_directory_record_from_attempt, output_duplicate_attempts,
     output_duplicate_record_from_attempts, output_hard_link_attempt,
     output_hard_link_record_from_attempt, output_lock_attempts, output_lock_record_from_attempts,
@@ -2079,6 +2080,7 @@ pub enum FilesystemOutputFileOperationReplayRecord {
     SyncData,
     DuplicateAndClose(FilesystemOutputDuplicateReplayRecord),
     LockAndUnlock(FilesystemOutputLockReplayRecord),
+    ChangeFileOwner(FilesystemOutputChangeFileOwnerReplayRecord),
 }
 
 /// One freshly created and closed Output file, optionally containing complete
@@ -3288,6 +3290,9 @@ fn output_file_record_from_attempts(
             41 => output_set_length_record_from_attempt(operation, create_result)?,
             42 => output_set_file_times_record_from_attempt(operation, create_result)?,
             43 | 44 => output_sync_record_from_attempt(operation, create_result)?,
+            49 => FilesystemOutputFileOperationReplayRecord::ChangeFileOwner(
+                output_change_file_owner_record_from_attempt(operation, create_result)?,
+            ),
             _ => return Err("filesystem replay Output operation is unsupported".to_owned()),
         });
         operation_cursor += 1;
@@ -3675,7 +3680,7 @@ fn output_file_attempt_end(
         }
         if matches!(
             attempts[cursor].operation_tag(),
-            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
+            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44 | 49
         ) {
             cursor += 1;
             continue;
@@ -4094,6 +4099,7 @@ fn output_file_operation_attempt(
                 | FilesystemOutputFileOperationReplayRecord::SetLength { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetFilePermissions { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetFileTimes { .. }
+                | FilesystemOutputFileOperationReplayRecord::ChangeFileOwner(_)
                 | FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_)
                 | FilesystemOutputFileOperationReplayRecord::LockAndUnlock(_) => {
                     unreachable!()
@@ -4125,6 +4131,9 @@ fn output_file_operation_attempt(
             retired_logical_handles: Vec::new(),
             grant_refusals: Vec::new(),
         },
+        FilesystemOutputFileOperationReplayRecord::ChangeFileOwner(ownership) => {
+            output_change_file_owner_attempt(identity, ownership)
+        }
         FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => {
             unreachable!("duplicate pairs are expanded by output_file_attempts")
         }

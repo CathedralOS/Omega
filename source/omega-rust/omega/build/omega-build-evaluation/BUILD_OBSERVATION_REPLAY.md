@@ -529,6 +529,26 @@ Standalone, delayed, reordered, repeated, or altered reads remain
 non-receipted. This binds Omega evaluator sequencing only; it claims no custody
 of Windows error state, native handles, credentials, or host security policy.
 
+## Output descriptor ownership change (summary v72, replay record v52)
+
+An Output file may retain tag-49 `change_file_owner` operations between its
+canonical create and final close. Each row fixes the original resolved Output
+descriptor, exact `i32` uid and gid arguments, scalar result, and post-error.
+Both successful and failed outcomes are retained as observed; neither outcome
+is inferred from the arguments. Every unrelated evidence lane remains empty.
+
+Provider-free replay executes the operation through Omega's existing virtual
+non-root ownership model and compares the complete attempt. This includes
+ordered error state: a failed ownership change may establish EPERM, and a
+later successful operation or close must retain the exact observed post-error
+rather than silently clearing it. Reordering, descriptor substitution, scalar
+changes, outcome changes, or side-lane additions reject the record.
+
+Provider diagnostic text is not receipt identity. This receipts only the
+compiler-owned operation, result, and sequencing model; it claims neither host
+ownership mutation nor credentials, operating-system trust, or containment.
+Path-based ownership changes remain outside this Output-descriptor grammar.
+
 ## Compiler-owned build log (summary v63, replay record v43)
 
 `BuildLog::write_line` is an exact compiler-owned build operation. The checked

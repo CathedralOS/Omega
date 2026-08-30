@@ -83,7 +83,7 @@ fn output_file_attempts() -> Vec<BuildFilesystemOperationAttempt> {
     vec![create, close]
 }
 
-fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSummary {
+pub(super) fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSummary {
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
         ceiling: BuildObservationClass::Volatile,

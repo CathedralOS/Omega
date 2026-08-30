@@ -37,6 +37,9 @@ mod native_mutation_failure_tests;
 mod native_mutation_failures;
 #[cfg(test)]
 mod output_only_tests;
+mod output_ownership;
+#[cfg(test)]
+mod output_ownership_tests;
 #[cfg(test)]
 mod read_dir_failure_tests;
 mod read_dir_failures;
@@ -85,13 +88,14 @@ use native_mutation_failures::{
     UnknownNativeHandleMutationShape, unknown_native_handle_mutation_shape,
     validate_unknown_native_handle_mutation_failure_shape,
 };
+use output_ownership::validate_output_change_file_owner_shape;
 use read_dir_failures::validate_unknown_descriptor_read_dir_failure_shape;
 use read_links::{rehydrate_source_read_link_shape, validate_source_read_link_shape};
 use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 51;
+const VERSION: u16 = 52;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -839,6 +843,30 @@ fn rehydrate_output_file_shape(
             44 => {
                 operation_cursor += 1;
                 psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SyncData
+            }
+            49 => {
+                let [(1, ShapeScalar::I32(uid)), (2, ShapeScalar::I32(gid))] =
+                    operation.scalars.as_slice()
+                else {
+                    unreachable!("validated Output change_file_owner has exact uid and gid")
+                };
+                let ShapeResult::Scalar(result) = operation.result else {
+                    unreachable!("validated Output change_file_owner returns a scalar")
+                };
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::ChangeFileOwner(
+                    psi_checked_interpreter::FilesystemOutputChangeFileOwnerReplayRecord::new(
+                        *uid,
+                        *gid,
+                        result,
+                        operation.post_error,
+                    )
+                    .map_err(|_| {
+                        BuildFilesystemReplayRecordError::new(
+                            "filesystem replay Output change_file_owner could not be rehydrated",
+                        )
+                    })?,
+                )
             }
             5 | 7 => {
                 let [(_, payload)] = operation.byte_operands.as_slice() else {
@@ -2157,7 +2185,7 @@ fn output_file_end(
         }
         if matches!(
             shapes[cursor].operation,
-            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
+            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44 | 49
         ) {
             cursor += 1;
             continue;
@@ -2423,6 +2451,11 @@ fn validate_output_file(
             operation_cursor += 1;
             continue;
         }
+        if operation.operation == 49 {
+            validate_output_change_file_owner_shape(operation, output.identity)?;
+            operation_cursor += 1;
+            continue;
+        }
         let write = operation;
         let [(payload_ordinal, payload)] = write.byte_operands.as_slice() else {
             return Err(BuildFilesystemReplayRecordError::new(
@@ -2493,11 +2526,6 @@ fn validate_output_file(
         ));
     }
     validate_close_shape(close, output.identity)?;
-    if close.post_error != 0 {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "receipted build output close changed the post-operation error state",
-        ));
-    }
     Ok(peak_extent)
 }
 

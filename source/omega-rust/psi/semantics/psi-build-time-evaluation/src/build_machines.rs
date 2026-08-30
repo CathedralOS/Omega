@@ -151,3 +151,63 @@ pub fn evaluate_build_machine_arguments_measured_with_sponsor(
         .map_err(BuildMachineEvaluationError::Granted),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_checked_interpreter::{
+        FilesystemGrantRootIdentity, FilesystemInputOutputTreeReplayRecord,
+        FilesystemOutputChangeFileOwnerReplayRecord, FilesystemOutputFileOperationReplayRecord,
+        FilesystemOutputFileReplayRecord, FilesystemOutputTreeEntryReplayRecord, FilesystemReplay,
+    };
+
+    #[test]
+    fn granted_mode_preserves_exact_output_ownership_replay_authority() {
+        let operations = vec![
+            FilesystemOutputFileOperationReplayRecord::ChangeFileOwner(
+                FilesystemOutputChangeFileOwnerReplayRecord::new(-1, -1, 0, 0).unwrap(),
+            ),
+            FilesystemOutputFileOperationReplayRecord::ChangeFileOwner(
+                FilesystemOutputChangeFileOwnerReplayRecord::new(0, 0, -1, 1).unwrap(),
+            ),
+        ];
+        let output = FilesystemOutputFileReplayRecord::with_operations(
+            FilesystemGrantRootIdentity::new(2).unwrap(),
+            b"owned.bin".to_vec(),
+            7,
+            0,
+            operations,
+            1,
+        )
+        .unwrap();
+        let replay = FilesystemReplay::from_input_output_tree_record(
+            FilesystemInputOutputTreeReplayRecord::output_only(
+                vec![FilesystemOutputTreeEntryReplayRecord::File(output)],
+                Vec::new(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let mode = BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
+            filesystem_metadata_layout: Default::default(),
+        };
+
+        let BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
+            ..
+        } = mode
+        else {
+            panic!("granted mode changed replay authority")
+        };
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(|attempt| attempt.operation_tag())
+                .collect::<Vec<_>>(),
+            vec![1, 49, 49, 8]
+        );
+        assert_eq!(replay.attempts().last().unwrap().post_error(), Some(1));
+    }
+}

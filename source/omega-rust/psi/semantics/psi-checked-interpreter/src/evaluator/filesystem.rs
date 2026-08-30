@@ -2967,6 +2967,43 @@ mod tests {
     }
 
     #[test]
+    fn virtual_change_file_owner_preserves_exact_failure_and_error_sequence() {
+        let program = TypedTrees::default();
+        let mut evaluator = Evaluator::new(&program, &[]);
+        let fd = evaluator.virtual_open(b"owned.bin".to_vec(), true, true);
+
+        let unchanged = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ChangeFileOwner {
+                fd,
+                uid: -1,
+                gid: -1,
+            })
+            .unwrap_or_else(|_| panic!("unchanged ownership is served"));
+        assert!(matches!(unchanged, Value::Int(0)));
+        assert_eq!(evaluator.virtual_errno, 0);
+
+        let denied = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ChangeFileOwner { fd, uid: 0, gid: 0 })
+            .unwrap_or_else(|_| panic!("denied ownership is served"));
+        assert!(matches!(denied, Value::Int(-1)));
+        assert_eq!(evaluator.virtual_errno, 1);
+
+        let current = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ChangeFileOwner {
+                fd,
+                uid: VIRTUAL_UID as i32,
+                gid: VIRTUAL_GID as i32,
+            })
+            .unwrap_or_else(|_| panic!("current ownership is served"));
+        assert!(matches!(current, Value::Int(0)));
+        assert_eq!(
+            evaluator.virtual_errno, 1,
+            "successful ownership changes do not erase prior provider error state"
+        );
+        assert!(evaluator.virtual_fds.contains_key(&fd));
+    }
+
+    #[test]
     fn virtual_hard_link_variants_reject_all_occupied_destination_kinds() {
         let program = TypedTrees::default();
         let mut evaluator = Evaluator::new(&program, &[]);
