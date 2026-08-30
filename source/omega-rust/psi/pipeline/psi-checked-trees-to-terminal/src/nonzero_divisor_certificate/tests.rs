@@ -803,8 +803,8 @@ fn exact_multiply_replays_source_local_cast_bounds_through_an_affine_suffix() {
 fn exact_multiply_replays_affine_cast_affine_endpoints_and_rejects_each_redirect() {
     let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let context = PropositionContext::from_value_types((1..=13).map(|id| {
-        let integer_type = if matches!(id, 8..=11 | 13) {
+    let context = PropositionContext::from_value_types((1..=16).map(|id| {
+        let integer_type = if matches!(id, 8..=11 | 13..=16) {
             i8_type
         } else {
             i16_type
@@ -813,8 +813,8 @@ fn exact_multiply_replays_affine_cast_affine_endpoints_and_rejects_each_redirect
     }))
     .unwrap();
     let assumptions = [
-        Proposition::LessOrEqual(integer(i16_type, -34), value(1, i16_type)),
-        Proposition::LessOrEqual(value(1, i16_type), integer(i16_type, 29)),
+        Proposition::LessOrEqual(integer(i16_type, -32), value(1, i16_type)),
+        Proposition::LessOrEqual(value(1, i16_type), integer(i16_type, 28)),
     ];
     let axioms = [
         Proposition::Equal(value(2, i16_type), integer(i16_type, 3)),
@@ -849,6 +849,13 @@ fn exact_multiply_replays_affine_cast_affine_endpoints_and_rejects_each_redirect
         Proposition::Equal(value(11, i8_type), integer(i8_type, 2)),
         Proposition::Equal(value(12, i16_type), integer(i16_type, 0)),
         Proposition::Equal(value(13, i8_type), integer(i8_type, 2)),
+        Proposition::Equal(value(14, i8_type), integer(i8_type, -2)),
+        Proposition::Equal(
+            value(15, i8_type),
+            ScalarTerm::exact_integer_multiply(i8_type, value(10, i8_type), value(14, i8_type))
+                .expect("negative post-cast multiply"),
+        ),
+        Proposition::Equal(value(16, i8_type), integer(i8_type, 1)),
     ];
     let product = psi_core::IntegerMathTerm::Multiply(
         Box::new(psi_core::IntegerMathTerm::MathValue {
@@ -903,6 +910,38 @@ fn exact_multiply_replays_affine_cast_affine_endpoints_and_rejects_each_redirect
         accept_certificate(&context, &goal, &assumptions, &redirected_suffix, &proof).is_err(),
         "redirecting the post-cast affine literal invalidates the serialized witness",
     );
+
+    let difference = psi_core::IntegerMathTerm::Subtract(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(15).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(16).unwrap(),
+        }),
+    );
+    let subtract_goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MIN.into())),
+            difference.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            difference,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MAX.into())),
+        ),
+    ]);
+    let subtract_proof =
+        prove_canonical_integer_proposition(&context, &subtract_goal, &assumptions, &axioms)
+            .expect("negative cast-prefix multiply endpoints orient the outer subtraction");
+    accept_certificate(
+        &context,
+        &subtract_goal,
+        &assumptions,
+        &axioms,
+        &subtract_proof,
+    )
+    .expect("the checker replays sign-directed cast-prefix endpoints through subtraction");
 }
 
 #[test]

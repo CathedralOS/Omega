@@ -483,6 +483,11 @@ fn prove_targeted_cast_prefix_endpoints(
     let Ok(checked) = check_integer_affine_witness(context, semantic_axioms, witness) else {
         return Vec::new();
     };
+    let root_lower = if checked.coefficient() < 0 {
+        !lower
+    } else {
+        lower
+    };
     let Some((source, _)) = cast_custody::source_root(&witness.root, semantic_axioms) else {
         return Vec::new();
     };
@@ -531,12 +536,12 @@ fn prove_targeted_cast_prefix_endpoints(
             };
             let endpoint = match &source_proof.conclusion {
                 Proposition::LessOrEqual(endpoint, actual_source)
-                    if lower && actual_source == &source =>
+                    if root_lower && actual_source == &source =>
                 {
                     endpoint
                 }
                 Proposition::LessOrEqual(actual_source, endpoint)
-                    if !lower && actual_source == &source =>
+                    if !root_lower && actual_source == &source =>
                 {
                     endpoint
                 }
@@ -554,7 +559,7 @@ fn prove_targeted_cast_prefix_endpoints(
             let Ok(endpoint) = ScalarTerm::integer(cast_type, value) else {
                 continue;
             };
-            let cast_goal = if lower {
+            let cast_goal = if root_lower {
                 Proposition::LessOrEqual(endpoint, witness.root.clone())
             } else {
                 Proposition::LessOrEqual(witness.root.clone(), endpoint)
@@ -1259,11 +1264,16 @@ fn targeted_affine_root_goal(
     let (_, endpoint_value) = endpoint_bound.integer_value()?;
     let endpoint_value = targeted_integer_as_i128(endpoint_value)?;
     let integer_type = checked.integer_type();
+    let root_lower = if checked.coefficient() < 0 {
+        !lower
+    } else {
+        lower
+    };
     let mut low = targeted_integer_as_i128(integer_type.minimum_value())?;
     let mut high = targeted_integer_as_i128(integer_type.maximum_value())?;
     let valid = |candidate| {
         let candidate = targeted_scalar_from_i128(integer_type, candidate)?;
-        let root_goal = if lower {
+        let root_goal = if root_lower {
             Proposition::LessOrEqual(candidate, checked.root().clone())
         } else {
             Proposition::LessOrEqual(checked.root().clone(), candidate)
@@ -1281,7 +1291,7 @@ fn targeted_affine_root_goal(
             mapped_value <= endpoint_value
         })
     };
-    if lower {
+    if root_lower {
         while low < high {
             let middle = (low & high) + ((low ^ high) >> 1);
             if valid(middle)? {
@@ -1305,7 +1315,7 @@ fn targeted_affine_root_goal(
         return None;
     }
     let root_bound = targeted_scalar_from_i128(integer_type, low)?;
-    Some(if lower {
+    Some(if root_lower {
         Proposition::LessOrEqual(root_bound, checked.root().clone())
     } else {
         Proposition::LessOrEqual(checked.root().clone(), root_bound)
