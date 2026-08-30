@@ -81,6 +81,14 @@ struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/mod.rs",
+        coordination_marker: "impl FixedViewCopyPlan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/mod.rs",
+        coordination_marker: "fn decode_selected_plan",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema/mod.rs",
         coordination_marker: "impl ExternalDecisionPoint",
     },
@@ -602,6 +610,19 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
 ];
 
+/// The v4 codec remains a visible semantic ladder below its protocol entrance.
+const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/content.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/copy.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/primitives.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/values.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/function.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/register.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/block.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/instruction.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/provenance.rs",
+];
+
 struct RequiredRuleCatalog {
     path: &'static str,
     order_marker: &'static str,
@@ -971,6 +992,32 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         }
     }
 
+    for path in REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES {
+        if !source_lines.contains_key(*path) {
+            violations.insert(format!(
+                "fixed-view-copy codec lost a named semantic leaf: {path}"
+            ));
+        }
+    }
+
+    let codec_root = "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/";
+    let codec_entrance = format!("{codec_root}mod.rs");
+    for path in source_lines
+        .keys()
+        .filter(|path| path.starts_with(codec_root))
+    {
+        let Ok(contents) = fs::read_to_string(repository.join(path)) else {
+            continue;
+        };
+        if path != &codec_entrance
+            && (contents.contains("const MAGIC") || contents.contains("const VERSION"))
+        {
+            violations.insert(format!(
+                "fixed-view-copy protocol admission escaped its sole codec entrance: {path}"
+            ));
+        }
+    }
+
     for catalog in REQUIRED_RULE_CATALOGS {
         match fs::read_to_string(repository.join(catalog.path)) {
             Ok(contents) if contents.contains(catalog.order_marker) => {}
@@ -1052,6 +1099,17 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
                 "register-home assignment retains a retired flat compute/replay/fixture leaf: {obsolete}"
+            ));
+        }
+    }
+
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec_tests.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "fixed-view-copy retains a retired flat codec surface: {obsolete}"
             ));
         }
     }
