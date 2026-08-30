@@ -525,14 +525,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       namespaces, and keeps the 32,768-function capacity canary linear in
       ordinary hash behavior. Exact-offset negatives and cross-namespace,
       colliding-hash, branch, and arm positives are adjacent. Global identities
-      now retain exact table rows; binder/parameter slots, function
-      labels/frame profiles, and source-tag-to-lowering joins remain open.
+      now retain exact table rows; runtime labels/frame prefixes and
+      source-tag-to-lowering joins remain open.
     - [x] Retain exact one-based function and constructor table identities on
       every checked ordinary call, constructor application, and constructor
       pattern. Zero remains the unresolved/builtin sentinel. The adjacent
       metadata gate pins a forward function call, a same-spelled type and
       constructor, both constructor applications, and exhaustive pattern
       identities without serializing a resolved tree.
+    - [x] Assign every parameter, `let`, constructor-pattern field, catch-all,
+      and variable reference through the same lexical environment. Parameters
+      retain one-based source-order indexes; locals retain one-based fixed-slot
+      indexes while disjoint scopes reuse slots. Each function profile packs
+      its resolved return type, maximum simultaneously live locals, and exact
+      parameter count. The metadata gate pins parameter/local kinds, slots,
+      references, pattern fields, reuse-derived maximum, and profile counts.
+      Runtime label/frame-prefix construction and source-tag lowering remain.
   - Implement D19's sealed application-profile input as part of the exact Gamma
     compilation question and reconstruction evidence. Generate exactly
     `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
@@ -559,9 +567,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 106 procedures; with the frontend
-    gate entry, the gate uses 107 of Beta's 128 procedure slots and compiles to
-    244,257 bytes, leaving 17,883 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 107 procedures; with the frontend
+    gate entry, the gate uses 108 of Beta's 128 procedure slots and compiles to
+    249,220 bytes, leaving 12,920 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.

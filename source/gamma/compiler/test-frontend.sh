@@ -2402,6 +2402,12 @@ stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-e
     '    let frontend_status = frontend_check_main()' \
     '    state checked {' \
     '        to failed when (frontend_status != 1)' \
+    '        let main_body = word[8388608 + 24]' \
+    '        to failed when (word[main_body] % 256 != 4)' \
+    '        to failed when (word[main_body + 8] != 1)' \
+    '        let main_local = word[main_body + 24]' \
+    '        to failed when (word[main_local + 16] != 196608)' \
+    '        to failed when (word[8388608 + 16] != 65536)' \
     '        let caller_body = word[8388640 + 24]' \
     '        to failed when (word[caller_body] % 256 != 5)' \
     '        to failed when (word[caller_body + 24] != 3)' \
@@ -2410,11 +2416,21 @@ stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-e
     '        to failed when (word[caller_constructor] % 256 != 7)' \
     '        to failed when (word[caller_constructor + 24] != 1)' \
     '        let probe_body = word[8388672 + 24]' \
+    '        to failed when (word[8388672 + 16] != 4295032832)' \
+    '        let probe_parameter_link = word[8388672 + 8]' \
+    '        let probe_parameter = word[probe_parameter_link + 8]' \
+    '        to failed when (word[probe_parameter + 24] != 1)' \
     '        to failed when (word[probe_body] % 256 != 8)' \
+    '        let probe_scrutinee = word[probe_body + 8]' \
+    '        to failed when (word[probe_scrutinee + 16] != 65538)' \
     '        let first_arm_link = word[probe_body + 16]' \
     '        let first_arm = word[first_arm_link + 8]' \
     '        let first_pattern = word[first_arm + 8]' \
     '        to failed when (word[first_pattern + 24] != 1)' \
+    '        let first_pattern_vars = word[first_pattern + 16]' \
+    '        to failed when (word[first_pattern_vars + 24] != 1)' \
+    '        let first_arm_body = word[first_arm + 16]' \
+    '        to failed when (word[first_arm_body + 16] != 196608)' \
     '        let second_arm_link = word[first_arm_link + 16]' \
     '        let second_arm = word[second_arm_link + 8]' \
     '        let second_pattern = word[second_arm + 8]' \

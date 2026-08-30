@@ -32,6 +32,7 @@
 ;          2096936 BYTES_LENGTH_LABEL 2096928 BYTES_GET_LABEL
 ;          2096920 BYTES_SLICE_LABEL 2096912 BYTES_CONCAT_LABEL
 ;          2096904 CALL_RESOURCE_LABEL
+;          2096896 NEXT_LOCAL_SLOT 2096888 MAX_LOCAL_SLOTS
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -42,7 +43,9 @@
 ;          33292288 PAYLOAD [31.75 MiB,32 MiB)
 ; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
 ; AST nodes 4 words: [source_off * 256 + tag, f0, f1, f2]. Func entry 4 words
-; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
+; [name_off, params, packed profile, body]; PARAM [50, name_off, tyid, index+1].
+; TENV [name_off, tyid + 65536 + local_kind*131072 + index*262144].
+; Function profile = return_tyid + max_live_locals*65536 + parameter_count*4294967296.
 ; AST tags: 0 INT 1 VAR 2 PRIM 3 IF 4 LET 5 CALL 6 CONS 7 CONAPP 8 MATCH
 ;           9 PVAR 10 PCON 11 ARM 50 PARAM
 ; Checked CALL/CONAPP/PCON nodes retain one-based function/constructor table
@@ -1005,7 +1008,7 @@ proc fun_lookup(noff) {
 
 ; ---- type environment (var -> tyid), frame-local lookup ----
 
-proc tenv_push(off, t) {
+proc tenv_push(off, t, local_kind, index) {
     let n = word[2097112]
     state unique {
         to capacity when (tenv_lookup(off) == 0 - 1)
@@ -1015,11 +1018,17 @@ proc tenv_push(off, t) {
     state capacity { to store when (n < 65536)  to exhausted }
     state store {
     word[9437184 + n * 16] = off
-    word[9437184 + n * 16 + 8] = t
+    word[9437184 + n * 16 + 8] = t + 65536 + local_kind * 131072 + index * 262144
     word[2097112] = n + 1
     return 1
     }
     state exhausted { mark_resource_failed()  return 0 }
+}
+
+proc claim_local_slot(slot) {
+    word[2096896] = slot + 1
+    state maximum { to update when (word[2096896] > word[2096888])  return 0 }
+    state update { word[2096888] = word[2096896]  return 0 }
 }
 
 proc tenv_lookup(qoff) {
@@ -1200,7 +1209,7 @@ proc tc_call(expr) {
     state overmark { fail = 1  to finish }
     state finish {
         to failret when (fail == 1)
-        return word[8388608 + fi * 32 + 16]
+        return word[8388608 + fi * 32 + 16] % 65536
     }
     state failret { return 0 - 1 }
 }
@@ -1262,6 +1271,7 @@ proc tc_match(scrut, arms) {
         let armnode = word[arm + 8]
         let pat = word[armnode + 8]
         let base = word[2097112]
+        let local_base = word[2096896]
         seen = 1
         to after_catchall when (catchall == 1)
         to patkind
@@ -1273,8 +1283,14 @@ proc tc_match(scrut, arms) {
     }
     state pvar {
         catchall = 1
-        to checkbody when (tenv_push(word[pat + 8], st) == 1)
+        let slot = word[2096896]
+        to pvar_bound when (tenv_push(word[pat + 8], st, 1, slot) == 1)
         fail = 1
+        to checkbody
+    }
+    state pvar_bound {
+        word[pat + 16] = slot + 1
+        claim_local_slot(slot)
         to checkbody
     }
     state pcon {
@@ -1303,8 +1319,14 @@ proc tc_match(scrut, arms) {
     }
     state bindpv {
         to bindav0 when (av == 0)     ; too many pattern vars
-        to bind_advance when (tenv_push(word[pv + 8], word[av + 8]) == 1)
+        let slot2 = word[2096896]
+        to bind_record when (tenv_push(word[pv + 8], word[av + 8], 1, slot2) == 1)
         fail = 1
+        to bind_advance
+    }
+    state bind_record {
+        word[pv + 24] = slot2 + 1
+        claim_local_slot(slot2)
         to bind_advance
     }
     state bind_advance {
@@ -1321,6 +1343,7 @@ proc tc_match(scrut, arms) {
     state checkbody {
         let bt = tc(word[armnode + 16])
         word[2097112] = base
+        word[2096896] = local_base
         to btfail when (bt == 0 - 1)
         to rtychk
     }
@@ -1372,7 +1395,13 @@ proc tc_inner(expr) {
     state t0 { to ret_int when (tag == 0)  to t1 }
     state ret_int { return 0 }                       ; INT : Int
     state t1 { to ret_var when (tag == 1)  to t2 }
-    state ret_var { return tenv_lookup(word[expr + 8]) }   ; VAR
+    state ret_var {
+        let binding = tenv_lookup(word[expr + 8])
+        to missing_var when (binding == 0 - 1)
+        word[expr + 16] = binding
+        return binding % 65536
+    }
+    state missing_var { return 0 - 1 }
     state t2 { to prim when (tag == 2)  to t3 }
     state prim {                                      ; PRIM : Int x Int -> Int
         let a = tc(word[expr + 16])
@@ -1405,12 +1434,17 @@ proc tc_inner(expr) {
         return 0 - 1
     }
     state let_ok {
-        to let_bound when (tenv_push(word[expr + 8], vt) == 1)
+        let local_base = word[2096896]
+        let slot = local_base
+        to let_bound when (tenv_push(word[expr + 8], vt, 1, slot) == 1)
         return 0 - 1
     }
     state let_bound {
+        claim_local_slot(slot)
         let r = tc(word[expr + 24])
         word[2097112] = word[2097112] - 1
+        word[2096896] = local_base
+        word[expr + 8] = slot + 1
         return r
     }
     state t5 { to callexpr when (tag == 5)  to t7 }
@@ -2847,6 +2881,9 @@ proc frontend_check_main() {
     state fbody {
         let base = word[2097112]
         let p = word[8388608 + i * 32 + 8]
+        let parameter_index = 0
+        word[2096896] = 0
+        word[2096888] = 0
         to ploop
     }
     state ploop {
@@ -2854,15 +2891,19 @@ proc frontend_check_main() {
         to docheck
     }
     state pbody {
-        to param_bound when (tenv_push(word[word[p + 8] + 8], word[word[p + 8] + 16]) == 1)
+        let parameter = word[p + 8]
+        to param_bound when (tenv_push(word[parameter + 8], word[parameter + 16], 0, parameter_index) == 1)
         return 0
     }
     state param_bound {
+        word[parameter + 24] = parameter_index + 1
+        parameter_index = parameter_index + 1
         p = word[p + 16]
         to ploop
     }
     state docheck {
-        to okmark when (tc(word[8388608 + i * 32 + 24]) != word[8388608 + i * 32 + 16])
+        let declared_return = word[8388608 + i * 32 + 16] % 65536
+        to okmark when (tc(word[8388608 + i * 32 + 24]) != declared_return)
         to advance
     }
     state okmark {
@@ -2870,6 +2911,7 @@ proc frontend_check_main() {
         return 0
     }
     state advance {
+        word[8388608 + i * 32 + 16] = declared_return + word[2096888] * 65536 + parameter_index * 4294967296
         word[2097112] = base
         i = i + 1
         to floop
