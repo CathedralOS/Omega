@@ -1028,6 +1028,22 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         }
     }
 
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_crash.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_not_parameter.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_less_or_equal_parameters.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/comparison.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/unary.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "translation validation retains a retired mixed test leaf: {obsolete}"
+            ));
+        }
+    }
+
     let obsolete_selected_lowering_schedule = "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/schedule.rs";
     if repository
         .join(obsolete_selected_lowering_schedule)
