@@ -95,6 +95,7 @@ pub use filesystem_replay::{
     FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
     FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
     FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+    FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
     FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
@@ -106,9 +107,9 @@ use filesystem_replay::{
     output_duplicate_record_from_attempts, output_hard_link_attempt,
     output_hard_link_record_from_attempt, output_lock_attempts, output_lock_record_from_attempts,
     output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
-    source_read_link_attempt, source_read_link_attempt_is_exact,
-    validate_observed_output_tree_records, validate_output_duplicate_replay,
-    validate_output_lock_replay,
+    source_directory_chain_attempts, source_directory_chain_is_exact, source_read_link_attempt,
+    source_read_link_attempt_is_exact, validate_observed_output_tree_records,
+    validate_output_duplicate_replay, validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -1862,6 +1863,7 @@ impl FilesystemSourceDescriptorMetadataReplayRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilesystemSourceInputReplayEventRecord {
     ReadChain(FilesystemSourceReadChainReplayRecord),
+    DirectoryReadChain(FilesystemSourceDirectoryReadChainReplayRecord),
     ReadLink(FilesystemSourceReadLinkReplayRecord),
     DescriptorMetadata(FilesystemSourceDescriptorMetadataReplayRecord),
     PathMetadata(FilesystemSourcePathMetadataReplayRecord),
@@ -1884,6 +1886,9 @@ impl FilesystemSourceInputReplayRecord {
             let identity = match event {
                 FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                     Some(chain.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::DirectoryReadChain(chain) => {
+                    Some(chain.logical_handle_identity())
                 }
                 FilesystemSourceInputReplayEventRecord::ReadLink(_) => None,
                 FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
@@ -2386,6 +2391,9 @@ impl FilesystemInputOutputReplayRecord {
                     FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                         chain.reads.len().checked_add(2)?
                     }
+                    FilesystemSourceInputReplayEventRecord::DirectoryReadChain(chain) => {
+                        chain.attempt_count()?
+                    }
                     FilesystemSourceInputReplayEventRecord::ReadLink(_) => 1,
                     FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                     FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
@@ -2398,6 +2406,9 @@ impl FilesystemInputOutputReplayRecord {
             .filter_map(|event| match event {
                 FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                     Some(chain.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::DirectoryReadChain(chain) => {
+                    Some(chain.logical_handle_identity())
                 }
                 FilesystemSourceInputReplayEventRecord::ReadLink(_) => None,
                 FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
@@ -2420,6 +2431,10 @@ impl FilesystemInputOutputReplayRecord {
                 FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                     chain.source_root == output.output_root
                         || chain.logical_handle_identity == output.logical_handle_identity
+                }
+                FilesystemSourceInputReplayEventRecord::DirectoryReadChain(chain) => {
+                    chain.source_root() == output.output_root
+                        || chain.logical_handle_identity() == output.logical_handle_identity
                 }
                 FilesystemSourceInputReplayEventRecord::ReadLink(read_link) => {
                     read_link.source_root() == output.output_root
@@ -2817,12 +2832,29 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
                 "bounded filesystem replay requires ordered source-input events".to_owned(),
             );
         }
+        let event_start = cursor;
         cursor += 1;
         if cursor < attempts.len() && attempts[cursor].operation_tag() == 39 {
             cursor += 1;
             if cursor == attempts.len() || attempts[cursor].operation_tag() != 8 {
                 return Err(
                     "bounded filesystem replay requires ordered source-input events".to_owned(),
+                );
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+        if cursor < attempts.len() && attempts[cursor].operation_tag() == 23 {
+            while cursor < attempts.len() && attempts[cursor].operation_tag() == 23 {
+                cursor += 1;
+            }
+            if cursor == attempts.len()
+                || attempts[cursor].operation_tag() != 8
+                || !source_directory_chain_is_exact(&attempts[event_start..=cursor])
+            {
+                return Err(
+                    "bounded filesystem replay Source directory chain is inconsistent".to_owned(),
                 );
             }
             cursor += 1;
@@ -2968,6 +3000,9 @@ fn source_input_record_attempts(
         count
             + match event {
                 FilesystemSourceInputReplayEventRecord::ReadChain(chain) => chain.reads.len() + 2,
+                FilesystemSourceInputReplayEventRecord::DirectoryReadChain(chain) => chain
+                    .attempt_count()
+                    .expect("typed directory replay count fits"),
                 FilesystemSourceInputReplayEventRecord::ReadLink(_) => 1,
                 FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                 FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
@@ -2978,6 +3013,9 @@ fn source_input_record_attempts(
         match event {
             FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                 attempts.extend(source_read_chain_attempts(chain));
+            }
+            FilesystemSourceInputReplayEventRecord::DirectoryReadChain(chain) => {
+                attempts.extend(source_directory_chain_attempts(chain));
             }
             FilesystemSourceInputReplayEventRecord::ReadLink(read_link) => {
                 attempts.push(source_read_link_attempt(read_link));
