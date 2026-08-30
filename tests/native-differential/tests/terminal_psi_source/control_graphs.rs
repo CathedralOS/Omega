@@ -904,7 +904,7 @@ fn checked_source_literal_conditional_emits_only_its_selected_arm() {
     ));
     let assigned = assign_registers(&target_operations)
         .expect("literal conditional parameter homes should assign");
-    let _machine_code =
+    let machine_code =
         emit_machine_code(&assigned).expect("literal conditional machine code should emit");
     assert_eq!(
         run_host_machine_code_with_nine_u8(&machine_code.functions[0].bytes, 17, 0, 0),
@@ -956,7 +956,7 @@ fn checked_source_boolean_conditional_reaches_native_control() {
     ));
     let assigned = assign_registers(&target_operations)
         .expect("Boolean source conditional parameter homes should assign");
-    let machine_code =
+    let _machine_code =
         emit_machine_code(&assigned).expect("Boolean source conditional machine code should emit");
     #[cfg(unix)]
     for (condition, expected) in [(true, 1), (false, 0)] {
