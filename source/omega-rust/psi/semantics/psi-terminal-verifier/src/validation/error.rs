@@ -332,6 +332,19 @@ pub enum ModuleError {
         structural_type: psi_core::StructuralTypeId,
         result_case: psi_core::StructuralCaseId,
     },
+    WriteOnlyPrimitiveStoreDestinationMismatch {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
+        operation: OperationId,
+        structural_type: StructuralTypeId,
+    },
+    WriteOnlyPrimitiveStoreValueTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     TrivialAffineLocalAlreadyLive {
         operation: OperationId,
         place: PlaceId,

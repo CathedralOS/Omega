@@ -29,6 +29,7 @@ pub(super) fn index_structural_types<'unit>(
     }
     for declaration in &unit.structural_types {
         match &declaration.shape {
+            psi_terminal::StructuralTypeShape::PrimitiveScalar(_) => {}
             psi_terminal::StructuralTypeShape::ByteSequence(
                 psi_terminal::ByteSequenceCarrier::BorrowedView,
             ) => {}
@@ -59,7 +60,8 @@ pub(super) fn index_structural_types<'unit>(
     }
     for declaration in &unit.structural_types {
         let referenced = match &declaration.shape {
-            psi_terminal::StructuralTypeShape::ByteSequence(_) => Vec::new(),
+            psi_terminal::StructuralTypeShape::PrimitiveScalar(_)
+            | psi_terminal::StructuralTypeShape::ByteSequence(_) => Vec::new(),
             psi_terminal::StructuralTypeShape::Record { fields } => fields
                 .iter()
                 .filter_map(|field| match field.field_type {

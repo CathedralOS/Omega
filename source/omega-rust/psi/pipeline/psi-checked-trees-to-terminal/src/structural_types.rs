@@ -117,6 +117,11 @@ pub(super) fn retain_additional_structural_types(
         }
         active.push(identity.to_owned());
         match &plan.shape {
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {
+                return unsupported(
+                    "primitive scalar roots are valid only in attached Unit write-only lowering",
+                );
+            }
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
@@ -208,9 +213,9 @@ pub(super) fn retain_additional_structural_types(
                 .iter()
                 .chain(cases.iter().flat_map(|case| case.fields.iter()))
                 .collect(),
-            StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::FixedArray { .. } => {
-                Vec::new()
-            }
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::FixedArray { .. } => Vec::new(),
         })
         .map(|field| field.id.get())
         .max()
@@ -225,7 +230,8 @@ pub(super) fn retain_additional_structural_types(
         .flat_map(|declaration| match &declaration.shape {
             StructuralTypeShape::Sum { cases } => cases.as_slice(),
             StructuralTypeShape::Mixed { cases, .. } => cases.as_slice(),
-            StructuralTypeShape::ByteSequence(_)
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Record { .. }
             | StructuralTypeShape::FixedArray { .. } => &[],
         })
@@ -242,6 +248,11 @@ pub(super) fn retain_additional_structural_types(
             .find(|plan| plan.identity == identity)
             .expect("selected scalar structural type was validated");
         let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {
+                return unsupported(
+                    "primitive scalar roots are valid only in attached Unit write-only lowering",
+                );
+            }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
             }
@@ -412,6 +423,11 @@ pub(super) fn lower_structural_type_plans(
         .into_iter()
         .map(|plan| {
             let shape = match &plan.shape {
+                CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {
+                    return unsupported(
+                        "primitive scalar roots are valid only in attached Unit write-only lowering",
+                    );
+                }
                 CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                     StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
                 }

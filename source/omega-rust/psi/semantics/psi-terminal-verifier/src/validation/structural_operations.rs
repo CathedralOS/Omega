@@ -153,6 +153,55 @@ pub(super) fn validate_unit_operation_static(
     operation: &psi_terminal::Operation,
 ) -> Result<(), ModuleError> {
     match &operation.kind {
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
+            let invalid = || ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+                operation: operation.id,
+                place: *destination,
+            };
+            let parameter = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *destination)
+                .ok_or_else(invalid)?;
+            let place = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *destination)
+                .ok_or_else(invalid)?;
+            if !matches!(
+                place.kind,
+                StructuralPlaceKind::Parameter { position, is_self }
+                    if position == parameter.position && is_self == parameter.is_self
+            ) || parameter.access != StructuralAccess::WriteOnlyBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *destination)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *destination)
+            {
+                return Err(invalid());
+            }
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .ok_or(ModuleError::UnknownStructuralType(
+                    parameter.structural_type,
+                ))?;
+            if !matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
+                return Err(
+                    ModuleError::WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
+                        operation: operation.id,
+                        structural_type: parameter.structural_type,
+                    },
+                );
+            }
+        }
         OperationKind::EstablishPayloadlessCase { result_case } => {
             let Some(result) = operation.result.structural() else {
                 return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
@@ -1360,7 +1409,8 @@ pub(crate) fn structural_argument_canonical_prefix(
                                 field.identity == *identity && !field.relevance.is_erased()
                             })
                         }
-                        StructuralTypeShape::ByteSequence(_)
+                        StructuralTypeShape::PrimitiveScalar(_)
+                        | StructuralTypeShape::ByteSequence(_)
                         | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::Sum { .. } => None,
                     })?;

@@ -14,10 +14,11 @@ use psi_core::{
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralResultClaimTransfer, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
+    NominalAffineCleanup, OperationKind, StructuralAccess, StructuralAffineDiscard,
+    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalMachineResult, Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 
@@ -78,15 +79,63 @@ pub fn interpret_terminal_artifact_with_structural_boolean_fields_measured(
     structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-            structural_boolean_fields,
-        )?;
+    interpret_terminal_artifact_with_structural_runtime_values_measured(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        scalar_arguments,
+        structural_arguments,
+        structural_boolean_fields,
+        &[],
+        handler,
+    )
+}
+
+/// Execute with exact initial values for direct primitive structural roots.
+/// The returned measurement retains their final values after all internal
+/// calls have completed. This is target-neutral logical storage, not a native
+/// address or layout contract.
+pub fn interpret_terminal_artifact_with_structural_primitive_values_measured(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+    scalar_arguments: &[TerminalScalarValue],
+    structural_arguments: &[TerminalStructuralValue],
+    structural_primitive_values: &[TerminalStructuralPrimitiveValue],
+    handler: &mut impl TerminalEffectHandler,
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    interpret_terminal_artifact_with_structural_runtime_values_measured(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        scalar_arguments,
+        structural_arguments,
+        &[],
+        structural_primitive_values,
+        handler,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn interpret_terminal_artifact_with_structural_runtime_values_measured(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+    scalar_arguments: &[TerminalScalarValue],
+    structural_arguments: &[TerminalStructuralValue],
+    structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
+    structural_primitive_values: &[TerminalStructuralPrimitiveValue],
+    handler: &mut impl TerminalEffectHandler,
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let mut execution = TerminalExecution::start_artifact_with_structural_runtime_values(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        scalar_arguments,
+        structural_arguments,
+        structural_boolean_fields,
+        structural_primitive_values,
+    )?;
     let mut meter = TerminalFuelMeter::unbounded();
     let value = match execution
         .resume_with_effect_handler(&mut meter, handler)
@@ -104,10 +153,12 @@ pub fn interpret_terminal_artifact_with_structural_boolean_fields_measured(
             ));
         }
     };
+    let structural_primitive_values = execution.final_structural_primitive_values();
     Ok(MeasuredTerminalExecution {
         value,
         usage: meter.into_usage(),
         effects: execution.effects,
+        structural_primitive_values,
     })
 }
 
@@ -161,6 +212,30 @@ pub struct TerminalStructuralBooleanFieldValue {
     pub argument_index: u32,
     pub field: StructuralFieldId,
     pub value: bool,
+}
+
+/// Existing target-neutral value for one direct primitive structural entry
+/// argument. `argument_index` is the dense structural-parameter position, not
+/// a scalar parameter or a machine-local place identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalStructuralPrimitiveValue {
+    pub argument_index: u32,
+    pub value: TerminalScalarValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct StructuralRuntimePlace {
+    opaque_identity: u64,
+    path: Vec<StructuralPathSegment>,
+}
+
+impl From<&TerminalStructuralValue> for StructuralRuntimePlace {
+    fn from(value: &TerminalStructuralValue) -> Self {
+        Self {
+            opaque_identity: value.opaque_identity,
+            path: value.path.clone(),
+        }
+    }
 }
 
 /// One externally observable terminal-Psi effect in semantic execution order.
@@ -342,6 +417,10 @@ pub struct TerminalExecution {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    /// Mutable primitive contents live outside call frames. Machine-local
+    /// place maps are only views into this stable logical storage arena.
+    structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
+    structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     /// Immutable exact literal payloads keyed by invocation-independent
     /// terminal machine/place identity. Literal operations are canonical and
@@ -453,6 +532,46 @@ impl TerminalExecution {
         structural_arguments: &[TerminalStructuralValue],
         structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
+        Self::start_artifact_with_structural_runtime_values(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            structural_arguments,
+            structural_boolean_fields,
+            &[],
+        )
+    }
+
+    pub fn start_artifact_with_structural_arguments_and_primitive_values(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &psi_proof_admission::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        structural_primitive_values: &[TerminalStructuralPrimitiveValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        Self::start_artifact_with_structural_runtime_values(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            structural_arguments,
+            &[],
+            structural_primitive_values,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn start_artifact_with_structural_runtime_values(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &psi_proof_admission::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
+        structural_primitive_values: &[TerminalStructuralPrimitiveValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = psi_terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
@@ -465,6 +584,7 @@ impl TerminalExecution {
             scalar_arguments,
             structural_arguments,
             structural_boolean_fields,
+            structural_primitive_values,
             None,
         )
         .map_err(TerminalArtifactInterpretError::Execution)
@@ -491,6 +611,7 @@ impl TerminalExecution {
             scalar_arguments,
             structural_arguments,
             &[],
+            &[],
             Some(installation),
         )
         .map_err(TerminalArtifactInterpretError::Execution)
@@ -501,6 +622,7 @@ impl TerminalExecution {
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         structural_boolean_field_arguments: &[TerminalStructuralBooleanFieldValue],
+        structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
         let terminal_psi = psi_terminal_codec::terminal_psi_identity(module)
@@ -550,6 +672,13 @@ impl TerminalExecution {
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
+        let (structural_primitive_storage, structural_primitive_entry_places) =
+            bind_structural_primitive_values(
+                machine,
+                &structural_types,
+                &structural_values,
+                structural_primitive_value_arguments,
+            )?;
         let structural_boolean_fields =
             bind_structural_boolean_fields(machine, structural_boolean_field_arguments)?;
         let live_affine_frontier =
@@ -577,6 +706,8 @@ impl TerminalExecution {
             blocks,
             values,
             structural_values,
+            structural_primitive_storage,
+            structural_primitive_entry_places,
             payloadless_case_values: BTreeMap::new(),
             byte_sequence_literals: BTreeMap::new(),
             structural_boolean_fields,
@@ -602,6 +733,27 @@ impl TerminalExecution {
 
     pub fn effects(&self) -> &[TerminalEffect] {
         &self.effects
+    }
+
+    /// Final values of direct primitive structural entry arguments, ordered by
+    /// their dense structural-argument positions.
+    pub fn structural_primitive_values(&self) -> Vec<TerminalStructuralPrimitiveValue> {
+        self.final_structural_primitive_values()
+    }
+
+    fn final_structural_primitive_values(&self) -> Vec<TerminalStructuralPrimitiveValue> {
+        self.structural_primitive_entry_places
+            .iter()
+            .filter_map(|(argument_index, place)| {
+                self.structural_primitive_storage
+                    .get(place)
+                    .copied()
+                    .map(|value| TerminalStructuralPrimitiveValue {
+                        argument_index: *argument_index,
+                        value,
+                    })
+            })
+            .collect()
     }
 
     pub fn live_claim_frontier(&self) -> impl Iterator<Item = ClaimId> + '_ {
@@ -1292,6 +1444,56 @@ impl TerminalExecution {
                         self.current = callee.entry;
                         self.next_operation = 0;
                         continue;
+                    }
+                    OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let machine = self.machines.get(&self.current_machine).ok_or(
+                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                        )?;
+                        let parameter = machine
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == destination)
+                            .filter(|parameter| {
+                                parameter.access == StructuralAccess::WriteOnlyBorrow
+                                    && parameter.multiplicity
+                                        == StructuralMultiplicity::Unrestricted
+                                    && parameter.qualifications.is_empty()
+                            })
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let Some(StructuralTypeShape::PrimitiveScalar(expected_type)) = self
+                            .structural_types
+                            .get(&parameter.structural_type)
+                            .map(|declaration| &declaration.shape)
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let source = self
+                            .values
+                            .get(&value)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+                        if source.scalar_type() != *expected_type
+                            || !terminal_scalar_belongs_to_type(source)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let destination_view = self.structural_values.get(&destination).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(destination),
+                        )?;
+                        if destination_view.structural_type != parameter.structural_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let storage_place = StructuralRuntimePlace::from(destination_view);
+                        let stored = self
+                            .structural_primitive_storage
+                            .get_mut(&storage_place)
+                            .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                                destination,
+                            ))?;
+                        *stored = source;
                     }
                     OperationKind::IntegerConstant { value } => {
                         let ScalarType::Integer(scalar_type) =
@@ -2744,6 +2946,89 @@ fn bind_structural_arguments(
     Ok(values)
 }
 
+fn bind_structural_primitive_values(
+    machine: &ExecutableMachine,
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    arguments: &[TerminalStructuralPrimitiveValue],
+) -> Result<
+    (
+        BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
+        BTreeMap<u32, StructuralRuntimePlace>,
+    ),
+    TerminalInterpretError,
+> {
+    let primitive_parameters = machine
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .filter_map(|(argument_index, parameter)| {
+            matches!(
+                structural_types
+                    .get(&parameter.structural_type)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::PrimitiveScalar(_))
+            )
+            .then_some((argument_index as u32, parameter))
+        })
+        .collect::<BTreeMap<_, _>>();
+    if primitive_parameters.len() != arguments.len() {
+        return Err(TerminalInterpretError::StructuralPrimitiveValueCount {
+            expected: primitive_parameters.len(),
+            actual: arguments.len(),
+        });
+    }
+
+    let mut storage = BTreeMap::new();
+    let mut entry_places = BTreeMap::new();
+    for argument in arguments {
+        let parameter = primitive_parameters
+            .get(&argument.argument_index)
+            .copied()
+            .ok_or(TerminalInterpretError::StructuralPrimitiveValueInvalid {
+                argument_index: argument.argument_index,
+            })?;
+        let Some(StructuralTypeShape::PrimitiveScalar(expected)) = structural_types
+            .get(&parameter.structural_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(TerminalInterpretError::StructuralPrimitiveValueInvalid {
+                argument_index: argument.argument_index,
+            });
+        };
+        if argument.value.scalar_type() != *expected
+            || !terminal_scalar_belongs_to_type(argument.value)
+        {
+            return Err(TerminalInterpretError::StructuralPrimitiveValueType {
+                argument_index: argument.argument_index,
+                expected: *expected,
+                actual: argument.value.scalar_type(),
+            });
+        }
+        let view = structural_values.get(&parameter.place).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
+        )?;
+        let place = StructuralRuntimePlace::from(view);
+        if entry_places
+            .insert(argument.argument_index, place.clone())
+            .is_some()
+            || storage.insert(place, argument.value).is_some()
+        {
+            return Err(TerminalInterpretError::StructuralPrimitiveValueInvalid {
+                argument_index: argument.argument_index,
+            });
+        }
+    }
+    Ok((storage, entry_places))
+}
+
+fn terminal_scalar_belongs_to_type(value: TerminalScalarValue) -> bool {
+    match value {
+        TerminalScalarValue::Boolean(_) => true,
+        TerminalScalarValue::Integer { scalar_type, value } => scalar_type.admits(value),
+    }
+}
+
 fn bind_structural_boolean_fields(
     machine: &ExecutableMachine,
     arguments: &[TerminalStructuralBooleanFieldValue],
@@ -2933,7 +3218,8 @@ fn split_affine_frontier_at_projection(
             }
             selected
         }
-        StructuralTypeShape::ByteSequence(_)
+        StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::FixedArray { .. }
         | StructuralTypeShape::Sum { .. }
         | StructuralTypeShape::Mixed { .. } => None,
@@ -3360,6 +3646,7 @@ pub struct MeasuredTerminalExecution {
     value: TerminalExecutionResult,
     usage: TerminalFuelUsage,
     effects: Vec<TerminalEffect>,
+    structural_primitive_values: Vec<TerminalStructuralPrimitiveValue>,
 }
 
 impl MeasuredTerminalExecution {
@@ -3373,6 +3660,10 @@ impl MeasuredTerminalExecution {
 
     pub fn effects(&self) -> &[TerminalEffect] {
         &self.effects
+    }
+
+    pub fn structural_primitive_values(&self) -> &[TerminalStructuralPrimitiveValue] {
+        &self.structural_primitive_values
     }
 
     pub fn into_value(self) -> TerminalExecutionResult {
@@ -3427,6 +3718,19 @@ pub enum TerminalInterpretError {
     StructuralQualificationsNonCanonical,
     StructuralQualificationMissing(PlaceId),
     StructuralArgumentAliasing(u64),
+    StructuralPrimitiveValueCount {
+        expected: usize,
+        actual: usize,
+    },
+    StructuralPrimitiveValueInvalid {
+        argument_index: u32,
+    },
+    StructuralPrimitiveValueType {
+        argument_index: u32,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    StructuralPrimitiveStorageMissing(PlaceId),
     StructuralBooleanFieldArgumentInvalid {
         argument_index: u32,
         field: StructuralFieldId,

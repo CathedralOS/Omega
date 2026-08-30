@@ -215,6 +215,11 @@ pub(super) fn lower_operation(
                 value,
             });
         }
+        OperationKind::WriteOnlyPrimitiveStore { .. } => {
+            return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore(
+                operation.id,
+            ));
+        }
         OperationKind::Call {
             callee, arguments, ..
         } => {

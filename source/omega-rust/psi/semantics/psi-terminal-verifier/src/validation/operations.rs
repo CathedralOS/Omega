@@ -3,12 +3,49 @@
 use super::*;
 
 pub(super) fn validate_operation_operands(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     operation: &psi_terminal::Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     boundary_machines: &[BoundaryMachineDeclaration],
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::WriteOnlyPrimitiveStore { destination, value } = operation.kind {
+        require_defined(value, value_types, defined)?;
+        let structural_type = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == destination)
+            .map(|parameter| parameter.structural_type)
+            .ok_or(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+                operation: operation.id,
+                place: destination,
+            })?;
+        let expected = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
+                _ => None,
+            })
+            .ok_or(
+                ModuleError::WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
+                    operation: operation.id,
+                    structural_type,
+                },
+            )?;
+        let actual = value_types[&value];
+        if actual != expected {
+            return Err(ModuleError::WriteOnlyPrimitiveStoreValueTypeMismatch {
+                operation: operation.id,
+                expected,
+                actual,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::Call {
         callee, arguments, ..
     } = &operation.kind
@@ -442,6 +479,7 @@ pub(super) fn validate_operation_operands(
         OperationKind::SaturatingIntegerDivide { .. } => None,
         OperationKind::SaturatingIntegerRemainder { .. } => None,
         OperationKind::Call { .. }
+        | OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallStructural { .. }

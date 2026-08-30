@@ -870,6 +870,15 @@ pub(super) fn build_checked_machine(
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
     let statements = program.statement_table.statements(state.statement_nodes);
+    let write_only_store = build_write_only_primitive_store(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        &structural_parameters,
+        statements,
+    );
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
@@ -887,12 +896,35 @@ pub(super) fn build_checked_machine(
     } else {
         &statements[local_count..]
     };
-    if calls.len() != call_statements.len()
-        || call_statements
-            .iter()
-            .any(|statement| !matches!(statement, StatementNode::Call(_)))
-    {
-        return None;
+    if write_only_store.is_some() {
+        if construction.is_some() || local_count != 0 || !calls.is_empty() {
+            return None;
+        }
+    } else {
+        if calls.len() != call_statements.len()
+            || call_statements
+                .iter()
+                .any(|statement| !matches!(statement, StatementNode::Call(_)))
+        {
+            return None;
+        }
+        // Primitive structural places are introduced solely for the bounded
+        // write-only call closure. A leaf with no store and no call would widen
+        // the prior forwarding-only roster without contributing that effect.
+        let carries_primitive = structural_parameters.iter().any(|parameter| {
+            shapes
+                .types
+                .get(&parameter.type_identity)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                    )
+                })
+        });
+        if carries_primitive && calls.is_empty() {
+            return None;
+        }
     }
     let local_rows = match construction {
         Some((rows, _)) => rows,
@@ -931,22 +963,26 @@ pub(super) fn build_checked_machine(
         )
         .collect::<Vec<_>>();
     operations.reserve(calls.len() + 1);
-    for (call_index, call) in calls.iter().enumerate() {
-        let statement_index = local_count.checked_add(call_index)?;
-        if call.statement_index != statement_index || call.call_ordinal != 0 {
-            return None;
+    if let Some(store) = write_only_store {
+        operations.push(store);
+    } else {
+        for (call_index, call) in calls.iter().enumerate() {
+            let statement_index = local_count.checked_add(call_index)?;
+            if call.statement_index != statement_index || call.call_ordinal != 0 {
+                return None;
+            }
+            operations.push(build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                &structural_parameters,
+                &entry_claims,
+                call,
+                false,
+                None,
+            )?);
         }
-        operations.push(build_call_operation(
-            program,
-            facts,
-            machine,
-            state,
-            &structural_parameters,
-            &entry_claims,
-            call,
-            false,
-            None,
-        )?);
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
         statement_index: u32::try_from(statements.len()).ok()?,
@@ -1000,6 +1036,94 @@ pub(super) fn build_checked_machine(
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
         operations,
+    })
+}
+
+fn build_write_only_primitive_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statements: &[StatementNode],
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let [StatementNode::Assignment(assignment)] = statements else {
+        return None;
+    };
+    let [destination] = structural_parameters else {
+        return None;
+    };
+    if destination.is_self
+        || destination.position != 0
+        || destination.multiplicity != Multiplicity::Unrestricted
+        || destination.access != CheckedStructuralAccess::WriteOnlyBorrow
+        || !destination.qualifications.is_empty()
+    {
+        return None;
+    }
+    let CheckedUnitStructuralTypeShape::PrimitiveScalar(destination_type) = shapes
+        .types
+        .get(&destination.type_identity)
+        .map(|declaration| &declaration.shape)?
+    else {
+        return None;
+    };
+    let [parameter] = program.state_parameters(state) else {
+        return None;
+    };
+    if parameter.is_self || parameter.is_const || !parameter.is_mutable {
+        return None;
+    }
+    let TypeReferenceNode::Reference {
+        access: psi_language_semantics::ReferenceAccess::WriteOnly,
+        referee,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    if program.primitive_type_reference(*referee) != Some(*destination_type) {
+        return None;
+    }
+    let target = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        0,
+        assignment.target,
+    )?;
+    if target.root != psi_facts::PlaceRoot::Symbol(parameter.symbol) || !target.segments.is_empty()
+    {
+        return None;
+    }
+    let frame = facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame
+        .complete_paths()?;
+    let expected_frame_path = format!("$P{}", destination.position);
+    if !matches!(frame, [path] if path == &expected_frame_path) {
+        return None;
+    }
+    let value = facts.values.scalar_expressions.expression_at(
+        state.symbol,
+        0,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    if !matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+        || crate::values::scalar_expression_type(value) != Some(*destination_type)
+    {
+        return None;
+    }
+    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        statement_index: 0,
+        destination_parameter_index: 0,
+        value: value.clone(),
     })
 }
 

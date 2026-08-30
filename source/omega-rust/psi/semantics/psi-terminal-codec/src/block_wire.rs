@@ -68,6 +68,11 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
         }
         match operation.kind.clone() {
+            OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+                writer.u8(43);
+                writer.id(destination);
+                writer.id(value);
+            }
             OperationKind::EstablishPayloadlessCase { result_case } => {
                 writer.u8(42);
                 writer.id(result_case);
@@ -631,6 +636,10 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
+            43 => OperationKind::WriteOnlyPrimitiveStore {
+                destination: reader.id("PlaceId")?,
+                value: reader.id("ValueId")?,
+            },
             42 => OperationKind::EstablishPayloadlessCase {
                 result_case: reader.id("StructuralCaseId")?,
             },
@@ -1059,6 +1068,51 @@ mod tests {
                 trivial_affine_discards: Vec::new(),
             },
         }
+    }
+
+    #[test]
+    fn write_only_primitive_store_uses_exact_stable_wire_fields() {
+        let block = Block {
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Unit,
+                kind: OperationKind::WriteOnlyPrimitiveStore {
+                    destination: id::<PlaceId>(3),
+                    value: id(4),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(5),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("write-only primitive store block encodes");
+        let bytes = writer.finish();
+        assert_eq!(bytes[24], 0, "Unit OperationResult wire tag");
+        assert_eq!(bytes[25], 43, "WriteOnlyPrimitiveStore wire tag");
+        assert_eq!(
+            &bytes[26..34],
+            &id::<PlaceId>(3).get().to_le_bytes(),
+            "destination is the first exact operation field",
+        );
+        assert_eq!(
+            &bytes[34..42],
+            &id::<psi_core::ValueId>(4).get().to_le_bytes(),
+            "source value is the second exact operation field",
+        );
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_block(&mut reader), Ok(block));
+        assert_eq!(reader.remaining(), 0);
+
+        let mut invalid = bytes;
+        invalid[25] = 255;
+        assert_eq!(
+            decode_block(&mut Reader::new(&invalid)),
+            Err(CodecError::InvalidTag("OperationKind", 255)),
+        );
     }
 
     #[test]

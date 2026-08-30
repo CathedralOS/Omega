@@ -1,7 +1,8 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
-    StructuralCaseId, StructuralDomainId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralTypeId,
+    ValueId,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -24,8 +25,9 @@ use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
     TerminalPayloadlessCaseResult, TerminalPayloadlessCaseValue, TerminalScalarValue,
-    TerminalStructuralValue, interpret_terminal_artifact_measured,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralPrimitiveValue, TerminalStructuralValue,
+    interpret_terminal_artifact_measured, interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_with_structural_primitive_values_measured,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -154,6 +156,160 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 1);
+}
+
+#[test]
+fn write_only_primitive_store_survives_unit_call_and_is_atomic_at_fuel_exhaustion() {
+    let module = write_only_primitive_call_module();
+    let semantic = encode_module(&module).expect("primitive-store semantics encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let structural = TerminalStructuralValue {
+        opaque_identity: 91,
+        structural_type: structural_type_id(91),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let initial = TerminalStructuralPrimitiveValue {
+        argument_index: 0,
+        value: TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(1),
+        },
+    };
+    let written = TerminalStructuralPrimitiveValue {
+        argument_index: 0,
+        value: TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(7),
+        },
+    };
+    let mut execution =
+        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[structural],
+            &[initial],
+        )
+        .expect("verified primitive store starts");
+    let mut meter = TerminalFuelMeter::with_allowance(2);
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Operation(operation_id(93)),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    assert_eq!(execution.structural_primitive_values(), vec![initial]);
+    assert_eq!(meter.usage().total_units(), 2);
+
+    meter.replenish(3).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(execution.structural_primitive_values(), vec![written]);
+    assert_eq!(meter.usage().total_units(), 5);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(93)))
+            .unwrap()
+            .executions(),
+        1,
+        "the callee store is committed exactly once after replenishment"
+    );
+}
+
+#[test]
+fn write_only_primitive_storage_requires_an_existing_exact_value_and_never_observes_it() {
+    let module = write_only_primitive_call_module();
+    let semantic = encode_module(&module).expect("primitive-store semantics encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let structural = TerminalStructuralValue {
+        opaque_identity: 92,
+        structural_type: structural_type_id(91),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+
+    assert!(matches!(
+        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            std::slice::from_ref(&structural),
+            &[],
+        ),
+        Err(
+            psi_terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralPrimitiveValueCount {
+                    expected: 1,
+                    actual: 0,
+                }
+            )
+        )
+    ));
+    assert!(matches!(
+        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            std::slice::from_ref(&structural),
+            &[TerminalStructuralPrimitiveValue {
+                argument_index: 0,
+                value: TerminalScalarValue::Boolean(false),
+            }],
+        ),
+        Err(
+            psi_terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralPrimitiveValueType {
+                    argument_index: 0,
+                    expected: ScalarType::Integer(expected),
+                    actual: ScalarType::Boolean,
+                }
+            )
+        ) if expected == integer
+    ));
+
+    for prior in [1, 250] {
+        let mut handler = RecordingHandler::default();
+        let measured = interpret_terminal_artifact_with_structural_primitive_values_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            std::slice::from_ref(&structural),
+            &[TerminalStructuralPrimitiveValue {
+                argument_index: 0,
+                value: TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(prior),
+                },
+            }],
+            &mut handler,
+        )
+        .expect("an existing exact primitive value supplies logical storage");
+        assert_eq!(measured.usage().total_units(), 5);
+        assert_eq!(
+            measured.structural_primitive_values(),
+            &[TerminalStructuralPrimitiveValue {
+                argument_index: 0,
+                value: TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(7),
+                },
+            }]
+        );
+    }
 }
 
 #[test]
@@ -2532,6 +2688,100 @@ fn unit_module() -> TerminalModule {
             },
         }],
     }
+}
+
+fn write_only_primitive_call_module() -> TerminalModule {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let structural_type = structural_type_id(91);
+    let caller_place = place_id(91);
+    let callee_place = place_id(92);
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+    };
+    let place = |id, position| StructuralPlaceDeclaration {
+        id,
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position,
+            is_self: false,
+        },
+    };
+    let mut module = unit_module();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::WriteOnlyU8".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+    }];
+    let caller = &mut module.machines[0];
+    caller.structural_parameters = vec![parameter(caller_place, 0)];
+    caller.structural_places = vec![place(caller_place, 0)];
+    caller.blocks[0].operations = vec![Operation {
+        id: operation_id(91),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(92),
+            structural_arguments: vec![StructuralArgument {
+                place: caller_place,
+                path: Vec::new(),
+                access: StructuralAccess::WriteOnlyBorrow,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+
+    module.machines.push(TerminalMachine {
+        id: machine_id(92),
+        attachment: None,
+        structural_parameters: vec![parameter(callee_place, 0)],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![place(callee_place, 0)],
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(92),
+        blocks: vec![Block {
+            id: block_id(92),
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    id: operation_id(92),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: value_id(92),
+                        scalar_type,
+                    }),
+                    kind: OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(7),
+                    },
+                },
+                Operation {
+                    id: operation_id(93),
+                    result: OperationResult::Unit,
+                    kind: OperationKind::WriteOnlyPrimitiveStore {
+                        destination: callee_place,
+                        value: value_id(92),
+                    },
+                },
+            ],
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(92),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(92)),
+    });
+    module
 }
 
 fn nominal_affine_module() -> TerminalModule {

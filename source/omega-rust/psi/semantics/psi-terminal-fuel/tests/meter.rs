@@ -80,6 +80,10 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         );
     }
     for kind in [
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination: place_id(1),
+            value: value_id(1),
+        },
         OperationKind::CallUnit {
             callee: MachineId::new(1).unwrap(),
             structural_arguments: Vec::new(),
@@ -103,7 +107,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         assert_eq!(
             TerminalFuelSchedule::CURRENT.operation_units(&kind),
             1,
-            "every represented operation has the schedule's uniform one-unit cost"
+            "every represented operation, including a primitive store, has the schedule's uniform one-unit cost"
         );
     }
     let operation = operation();

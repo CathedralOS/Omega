@@ -2428,6 +2428,11 @@ fn encode_structural_types(
         push_u64(bytes, declaration.id.get());
         encode_identity(bytes, &declaration.identity)?;
         match &declaration.shape {
+            psi_terminal::StructuralTypeShape::PrimitiveScalar(_) => {
+                return Err(InstallationError::UnsupportedStructuralPrimitiveScalar(
+                    declaration.id,
+                ));
+            }
             psi_terminal::StructuralTypeShape::ByteSequence(carrier) => {
                 bytes.extend_from_slice(&[4, 0, 0, 0]);
                 match carrier {
@@ -2563,6 +2568,7 @@ pub enum InstallationError {
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
     TooManyStructuralTypes,
+    UnsupportedStructuralPrimitiveScalar(StructuralTypeId),
     TooManyStructuralFields,
     TooManyStructuralCases,
     TooManyStructuralQualifications,

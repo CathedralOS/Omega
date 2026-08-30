@@ -55,6 +55,22 @@ pub(super) fn lower_attached_unit_closure_including(
     let (closure, provider_candidate_plans) = loop {
         let closure = checked_unit_call_closure_including(checked, entry, &retained_roots)?;
         let candidates = checked_unit_provider_candidates(checked, &closure)?;
+        for candidate in &candidates {
+            if unique_unit_machine(plans, candidate.candidate)?
+                .operations
+                .iter()
+                .any(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    )
+                })
+            {
+                return unsupported(
+                    "write-only stores in opaque provider candidates require a pinned non-observation judgment",
+                );
+            }
+        }
         let new_roots = candidates
             .iter()
             .map(|candidate| candidate.candidate)
@@ -175,6 +191,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
         }
@@ -919,6 +936,63 @@ pub(super) fn lower_attached_unit_closure_including(
                         service: lookup_service_id(&service_ids, *port_service)?,
                         port: *port,
                         value: *value,
+                    }
+                }
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    destination_parameter_index,
+                    value,
+                    ..
+                } => {
+                    let destination = parameters
+                        .get(usize::try_from(*destination_parameter_index).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "write-only store parameter index exceeds usize",
+                            )
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "write-only store names an unknown structural parameter",
+                        ))?;
+                    if destination.access != StructuralAccess::WriteOnlyBorrow
+                        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+                        || !destination.qualifications.is_empty()
+                    {
+                        return unsupported(
+                            "write-only store destination lost its exclusive unrestricted unqualified custody",
+                        );
+                    }
+                    let destination_shape = structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == destination.structural_type)
+                        .map(|declaration| &declaration.shape)
+                        .ok_or(LoweringError::Unsupported(
+                            "write-only store destination type is absent",
+                        ))?;
+                    let StructuralTypeShape::PrimitiveScalar(destination_type) = destination_shape
+                    else {
+                        return unsupported(
+                            "write-only store destination is not a primitive scalar root",
+                        );
+                    };
+                    if !matches!(value, CheckedScalarExpression::IntegerLiteral { .. }) {
+                        return unsupported(
+                            "write-only store value is outside the direct integer-literal rung",
+                        );
+                    }
+                    let value = lower_checked_scalar_expression(value)?;
+                    if value.scalar_type() != *destination_type {
+                        return unsupported(
+                            "write-only store value type disagrees with its destination",
+                        );
+                    }
+                    let value = emit_direct_expression(
+                        &value,
+                        &[],
+                        &mut next_value_identity,
+                        &mut operations,
+                    );
+                    OperationKind::WriteOnlyPrimitiveStore {
+                        destination: destination.place,
+                        value,
                     }
                 }
                 CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {

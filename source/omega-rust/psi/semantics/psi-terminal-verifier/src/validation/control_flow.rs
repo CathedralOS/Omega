@@ -4,6 +4,7 @@ use super::operations::{require_defined, validate_operation_operands};
 use super::*;
 
 pub(super) fn validate_control_flow(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     boundary_machines: &[BoundaryMachineDeclaration],
@@ -177,6 +178,8 @@ pub(super) fn validate_control_flow(
         }));
         for operation in &block.operations {
             validate_operation_operands(
+                module,
+                machine,
                 operation,
                 machines,
                 boundary_machines,

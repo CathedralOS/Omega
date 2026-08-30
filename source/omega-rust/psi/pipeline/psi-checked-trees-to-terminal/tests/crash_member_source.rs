@@ -5942,13 +5942,17 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
     };
     assert_eq!(continuation, root_route);
 
-    assert!(lowered.semantic_module.structural_types.iter().any(|declaration| {
-        matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+    assert!(lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .any(|declaration| {
+            matches!(&declaration.shape, StructuralTypeShape::Record { fields }
             if fields.iter().any(|field| matches!(
                 field.field_type,
                 StructuralFieldType::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView)
             )))
-    }));
+        }));
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -6000,7 +6004,8 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             StructuralTypeShape::Record { fields } => fields
                 .iter_mut()
                 .find(|field| matches!(field.field_type, StructuralFieldType::ByteSequence(_))),
-            StructuralTypeShape::ByteSequence(_)
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. } => None,

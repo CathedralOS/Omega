@@ -145,6 +145,12 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index, ..
+            } => psi_checked_trees::CheckedUnitCallCoordinate {
+                statement_index: *statement_index,
+                call_ordinal: 0,
+            },
             CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }

@@ -30,6 +30,9 @@ fn replay_structural_shape(
     }
     let declaration = declarations.get(&structural_type)?;
     let shape = match &declaration.shape {
+        // Primitive roots in the write-only store rung have no readable
+        // Boolean-field aggregate layout in this consumer.
+        psi_terminal::StructuralTypeShape::PrimitiveScalar(_) => return None,
         // First-class byte views are not Boolean-field aggregates and have no
         // native condition layout in this consumer.
         psi_terminal::StructuralTypeShape::ByteSequence(_) => return None,

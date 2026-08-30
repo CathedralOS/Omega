@@ -122,7 +122,8 @@ pub(super) fn append_operation(
         | OperationKind::SaturatingIntegerMultiply { .. } => {
             unreachable!("goal-free scalar rows return before specialized reconstruction")
         }
-        OperationKind::EstablishByteSequenceLiteral { .. }
+        OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::PortWrite { .. }

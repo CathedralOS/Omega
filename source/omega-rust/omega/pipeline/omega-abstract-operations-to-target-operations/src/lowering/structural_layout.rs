@@ -18,6 +18,9 @@ pub(crate) fn structural_shape(
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_) => Err(
+                LoweringError::UnsupportedStructuralPrimitiveScalar(structural_type),
+            ),
             StructuralTypeShape::ByteSequence(_) => Err(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),

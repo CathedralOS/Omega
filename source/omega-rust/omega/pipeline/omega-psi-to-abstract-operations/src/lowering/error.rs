@@ -9,6 +9,9 @@ pub enum LoweringError {
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(psi_core::OperationId),
+    /// Terminal verifies the non-observing primitive replacement, but Omega
+    /// has not yet selected a physical address/width/store custody model.
+    UnsupportedWriteOnlyPrimitiveStore(psi_core::OperationId),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
     /// The verified structural-result machine is wider than the exact
