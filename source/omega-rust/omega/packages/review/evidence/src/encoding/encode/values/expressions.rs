@@ -3,7 +3,8 @@ use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCastForm, PackageReviewContractBinaryOperator,
+    PackageReviewByteSequencePredicate, PackageReviewCastForm,
+    PackageReviewCollectionViewOperation, PackageReviewContractBinaryOperator,
     PackageReviewContractCallTarget, PackageReviewContractExpression,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
@@ -178,6 +179,15 @@ pub(crate) fn encode_contract_expression(
                         PackageReviewByteSequencePredicate::NoNul => 1,
                         PackageReviewByteSequencePredicate::AsciiOnly => 2,
                         PackageReviewByteSequencePredicate::NonEmpty => 3,
+                    });
+                }
+                PackageReviewContractCallTarget::CollectionView(operation) => {
+                    encoder.byte(3);
+                    encoder.byte(match operation {
+                        PackageReviewCollectionViewOperation::SharedSlice => 0,
+                        PackageReviewCollectionViewOperation::MutableSlice => 1,
+                        PackageReviewCollectionViewOperation::TextView => 2,
+                        PackageReviewCollectionViewOperation::Bytes => 3,
                     });
                 }
             }

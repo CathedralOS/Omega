@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 91 and row schema version 49. This file
+The canonical review schema is version 92 and row schema version 50. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -98,3 +98,14 @@ derives any case variant from the selected declaration. Selection drift and
 duplicate or missing custody reject. The existing structural member atom
 already represents the result; this acceptance-boundary expansion is schema
 v91 / row v49 and introduces no recovery-grammar revision.
+
+Compiler-owned collection views in public contracts retain one closed call
+target: shared slice, mutable slice, text view, or bytes. Projection requires
+one public-interface call selection and one retained checked intrinsic fact,
+then reruns the compiler's exact owner/type-sensitive derivation and requires
+equality. Missing, duplicate, redirected, or stale call custody rejects;
+same-spelled package callables remain nominal. The existing structural call
+expression owns receiver and argument identity. The new target vocabulary is
+schema v92 / row v50; canonical-row recovery remains v14. This does not widen
+the call compositions accepted by checking; it retains collection views only
+inside public facts that already pass the compiler's denotational rules.

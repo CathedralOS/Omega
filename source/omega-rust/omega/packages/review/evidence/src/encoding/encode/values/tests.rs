@@ -7,7 +7,8 @@ use crate::record::{
     CheckedPackageProviderFamilyCoordinateReview,
     CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewNominalIdentity,
+    PackageReviewCollectionViewOperation, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewNominalIdentity,
     PackageReviewNominalOwner, PackageReviewProviderFamilyApplicationCoverage,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
     PackageReviewSyntheticSourceKind,
@@ -15,6 +16,7 @@ use crate::record::{
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
 
+use super::expressions::encode_contract_expression;
 use super::identity::encode_nominal;
 use super::providers::{
     encode_compiler_intrinsic_execution, encode_provider_family, encode_provider_row,
@@ -36,6 +38,32 @@ pub(crate) fn normalized_import_row(
             )
             .expect("normalized import fixture"),
         },
+    }
+}
+
+#[test]
+fn collection_view_encoding_has_one_closed_tag_per_operation() {
+    for (tag, operation) in [
+        PackageReviewCollectionViewOperation::SharedSlice,
+        PackageReviewCollectionViewOperation::MutableSlice,
+        PackageReviewCollectionViewOperation::TextView,
+        PackageReviewCollectionViewOperation::Bytes,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let expression = PackageReviewContractExpression::Call {
+            receiver: Some(Box::new(PackageReviewContractExpression::Boolean(false))),
+            target: PackageReviewContractCallTarget::CollectionView(operation),
+            static_arguments: Vec::new(),
+            arguments: Vec::new(),
+        };
+        let mut encoder = Encoder::bounded(64);
+        encode_contract_expression(&mut encoder, &expression)
+            .expect("encode collection-view expression");
+        let encoded = encoder.finish().expect("bounded encoding");
+        assert_eq!(&encoded[..5], &[11, 1, 0, 0, 3]);
+        assert_eq!(encoded[5], tag as u8);
     }
 }
 

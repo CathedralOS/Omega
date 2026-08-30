@@ -85,6 +85,9 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 pub machine observes_computed_member(value: u64)
 requires (Token { value: value }).value == value
 {}
+pub machine observes_collection_view(bytes: [u8; 4])
+requires valid_utf8(bytes.as_slice())
+{}
 "#,
     );
     original.write("build.omg", build);
@@ -211,6 +214,9 @@ requires (Token { value: value }).value == value
         r#"pub data Token [copy] { value: i64; }
 pub machine observes_computed_member(value: i64)
 requires (Token { value: value }).value == value
+{}
+pub machine observes_collection_view(bytes: [u8; 4])
+requires valid_utf8(bytes.as_slice())
 {}
 "#,
     );

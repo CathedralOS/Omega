@@ -118,6 +118,14 @@ pub enum PackageReviewByteSequencePredicate {
     NonEmpty,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewCollectionViewOperation {
+    SharedSlice,
+    MutableSlice,
+    TextView,
+    Bytes,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
@@ -126,6 +134,9 @@ pub enum PackageReviewContractCallTarget {
     /// ordinary nominals.
     BuiltinFunction(BuiltinFunction),
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
+    /// One exact compiler-owned collection/text view operation. Package
+    /// callables with the same spelling remain ordinary nominals.
+    CollectionView(PackageReviewCollectionViewOperation),
 }
 
 /// Stable identity of one ordinary operator overload. The nominal path names
@@ -187,20 +198,28 @@ impl PackageReviewContractCallTarget {
             Self::Nominal(identity) => Some(identity),
             Self::BuiltinFunction(_) => None,
             Self::ByteSequencePredicate(_) => None,
+            Self::CollectionView(_) => None,
         }
     }
 
     pub const fn builtin_function(&self) -> Option<BuiltinFunction> {
         match self {
             Self::BuiltinFunction(function) => Some(*function),
-            Self::Nominal(_) | Self::ByteSequencePredicate(_) => None,
+            Self::Nominal(_) | Self::ByteSequencePredicate(_) | Self::CollectionView(_) => None,
         }
     }
 
     pub const fn byte_sequence_predicate(&self) -> Option<PackageReviewByteSequencePredicate> {
         match self {
-            Self::Nominal(_) | Self::BuiltinFunction(_) => None,
+            Self::Nominal(_) | Self::BuiltinFunction(_) | Self::CollectionView(_) => None,
             Self::ByteSequencePredicate(predicate) => Some(*predicate),
+        }
+    }
+
+    pub const fn collection_view(&self) -> Option<PackageReviewCollectionViewOperation> {
+        match self {
+            Self::CollectionView(operation) => Some(*operation),
+            Self::Nominal(_) | Self::BuiltinFunction(_) | Self::ByteSequencePredicate(_) => None,
         }
     }
 }

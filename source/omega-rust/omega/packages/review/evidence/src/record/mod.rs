@@ -31,8 +31,8 @@ pub use authority::{
 pub use contracts::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewByteSequencePredicate, PackageReviewCallableContract, PackageReviewCallableRole,
-    PackageReviewCallableSupply, PackageReviewCastForm, PackageReviewConstShape,
-    PackageReviewConstructorField, PackageReviewContractBinaryOperator,
+    PackageReviewCallableSupply, PackageReviewCastForm, PackageReviewCollectionViewOperation,
+    PackageReviewConstShape, PackageReviewConstructorField, PackageReviewContractBinaryOperator,
     PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractKind, PackageReviewContractOperatorMeaning,
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
