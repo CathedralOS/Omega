@@ -1,6 +1,10 @@
+use std::collections::BTreeSet;
+
 use super::*;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
-use psi_proof_admission::{PrimitiveJudgment, ProofRule, accept_certificate};
+use psi_proof_admission::{
+    PrimitiveJudgment, ProofRule, accept_certificate, accept_certificate_with_machine_parameters,
+};
 
 fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
     ScalarTerm::value(
@@ -4867,5 +4871,161 @@ fn exact_division_goal_proves_three_through_five_definition_affine_safe_divisors
         )
         .is_none(),
         "a six-definition word remains outside the bounded certificate frontier",
+    );
+}
+
+#[test]
+fn correlated_forbidden_root_producer_is_shared_by_exact_divide_and_remainder() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let root = value(1, integer_type);
+    let sixty_four = value(2, integer_type);
+    let left_offset = value(3, integer_type);
+    let negative_two = value(4, integer_type);
+    let dividend = value(5, integer_type);
+    let two = value(6, integer_type);
+    let right_product = value(7, integer_type);
+    let divisor = value(8, integer_type);
+    let context = PropositionContext::from_value_types((1..=8).map(|id| {
+        (
+            ValueId::new(id).expect("value id"),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .expect("context");
+    let axioms = [
+        Proposition::Equal(sixty_four.clone(), integer(integer_type, 64)),
+        Proposition::Equal(
+            left_offset.clone(),
+            ScalarTerm::exact_integer_add(integer_type, root.clone(), sixty_four.clone())
+                .expect("dividend add"),
+        ),
+        Proposition::Equal(negative_two.clone(), integer(integer_type, -2)),
+        Proposition::Equal(
+            dividend.clone(),
+            ScalarTerm::exact_integer_multiply(integer_type, left_offset, negative_two)
+                .expect("dividend multiply"),
+        ),
+        Proposition::Equal(two.clone(), integer(integer_type, 2)),
+        Proposition::Equal(
+            right_product.clone(),
+            ScalarTerm::exact_integer_multiply(integer_type, root.clone(), two)
+                .expect("divisor multiply"),
+        ),
+        Proposition::Equal(
+            divisor.clone(),
+            ScalarTerm::exact_integer_add(integer_type, right_product, integer(integer_type, 1))
+                .expect("divisor add"),
+        ),
+    ];
+    let assumptions = [
+        Proposition::LessOrEqual(integer(integer_type, -1), root.clone()),
+        Proposition::LessOrEqual(root.clone(), integer(integer_type, 0)),
+    ];
+    let goal = Proposition::Disjunction(vec![
+        Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -2)),
+        Proposition::LessOrEqual(integer(integer_type, 1), divisor.clone()),
+        Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -1)),
+            Proposition::LessOrEqual(integer(integer_type, -127), dividend),
+        ]),
+    ]);
+    let parameters = BTreeSet::from([ValueId::new(1).expect("root")]);
+
+    let divide = prove_canonical_integer_proposition_with_machine_parameters(
+        &context,
+        &goal,
+        &assumptions,
+        &axioms,
+        &parameters,
+    )
+    .expect("same-root affine exact divide is certified");
+    let remainder = prove_canonical_integer_proposition_with_machine_parameters(
+        &context,
+        &goal,
+        &assumptions,
+        &axioms,
+        &parameters,
+    )
+    .expect("same-root affine exact remainder uses the same definedness certificate");
+    assert_eq!(divide, remainder);
+    let ProofRule::IntegerCorrelatedForbiddenRoots { witness } = &divide.rule else {
+        panic!("correlated divide/remainder uses its dedicated conversion")
+    };
+    assert_eq!(witness.definition_axiom_count, axioms.len());
+    assert_eq!(witness.lower_bound_axiom, axioms.len());
+    assert_eq!(witness.upper_bound_axiom, axioms.len() + 1);
+    assert_eq!(
+        witness
+            .dividend
+            .steps
+            .iter()
+            .map(|step| step.definition_axiom)
+            .collect::<Vec<_>>(),
+        vec![1, 3],
+    );
+    assert_eq!(
+        witness
+            .divisor
+            .steps
+            .iter()
+            .map(|step| step.definition_axiom)
+            .collect::<Vec<_>>(),
+        vec![5, 6],
+    );
+    accept_certificate_with_machine_parameters(
+        &context,
+        &goal,
+        &assumptions,
+        &axioms,
+        &parameters,
+        &divide,
+    )
+    .expect("the kernel replays the producer-selected witness");
+
+    assert!(
+        accept_certificate_with_machine_parameters(
+            &context,
+            &goal,
+            &assumptions,
+            &axioms,
+            &BTreeSet::new(),
+            &divide,
+        )
+        .is_err(),
+        "a value not reconstructed as a machine parameter cannot be a correlated root",
+    );
+    let mut redirected_axioms = axioms.clone();
+    redirected_axioms[1] = Proposition::Equal(
+        sixty_four,
+        ScalarTerm::exact_integer_add(integer_type, root.clone(), value(2, integer_type))
+            .expect("redirected dividend definition"),
+    );
+    assert!(
+        accept_certificate_with_machine_parameters(
+            &context,
+            &goal,
+            &assumptions,
+            &redirected_axioms,
+            &parameters,
+            &divide,
+        )
+        .is_err(),
+        "redirecting a pre-operation branch definition invalidates the witness",
+    );
+    let drifted_assumptions = [
+        Proposition::LessOrEqual(integer(integer_type, -2), root.clone()),
+        assumptions[1].clone(),
+    ];
+    assert!(
+        accept_certificate_with_machine_parameters(
+            &context,
+            &goal,
+            &drifted_assumptions,
+            &axioms,
+            &parameters,
+            &divide,
+        )
+        .is_err(),
+        "changing a selected signature endpoint invalidates the witness",
     );
 }

@@ -1,11 +1,18 @@
-use psi_core::{IntegerMathTerm, IntegerValue, Proposition, PropositionContext, ScalarTerm};
+use std::collections::BTreeSet;
+
+use psi_core::{
+    IntegerMathTerm, IntegerValue, Proposition, PropositionContext, ScalarTerm, ValueId,
+};
 
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
     IntegerCastBoundConversionError, IntegerCastChainWitness, IntegerCastChainWitnessError,
-    KernelError, PrimitiveJudgment, check_integer_affine_bound_conversion,
-    check_integer_affine_witness, check_integer_cast_bound_conversion,
-    check_integer_cast_chain_witness, decide_primitive, integer_affine_truth_bounds,
+    IntegerCorrelatedForbiddenRootConversionError, IntegerCorrelatedForbiddenRootWitness,
+    IntegerCorrelatedForbiddenRootWitnessError, KernelError, PrimitiveJudgment,
+    check_integer_affine_bound_conversion, check_integer_affine_witness,
+    check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
+    check_integer_correlated_forbidden_root_conversion,
+    check_integer_correlated_forbidden_root_witness, decide_primitive, integer_affine_truth_bounds,
     integer_cast_truth_bounds,
 };
 
@@ -67,6 +74,11 @@ pub enum ProofRule {
         root_bound: Box<ProofNode>,
         witness: IntegerCastChainWitness,
     },
+    /// Prove canonical signed exact-division definedness by replaying two
+    /// correlated affine branches over one machine signature parameter.
+    IntegerCorrelatedForbiddenRoots {
+        witness: IntegerCorrelatedForbiddenRootWitness,
+    },
 }
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
@@ -86,6 +98,7 @@ pub enum AcceptedProofRule {
     IntegerLessOrEqualSubstitution,
     IntegerAffineBound,
     IntegerCastBound,
+    IntegerCorrelatedForbiddenRoots,
 }
 
 /// One premise that materially participates in an accepted derivation.
@@ -152,12 +165,51 @@ pub fn check_certificate(
     accept_certificate(context, goal, assumptions, semantic_axioms, proof).map(|_| ())
 }
 
+pub fn check_certificate_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+    proof: &ProofNode,
+) -> Result<(), ProofError> {
+    accept_certificate_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameter_values,
+        proof,
+    )
+    .map(|_| ())
+}
+
 /// Check a certificate and return its exact premise/rule trust closure.
 pub fn accept_certificate(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    proof: &ProofNode,
+) -> Result<CertificateAcceptance, ProofError> {
+    accept_certificate_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        &BTreeSet::new(),
+        proof,
+    )
+}
+
+/// Check a certificate with the verifier-reconstructed scalar signature roots
+/// that parameter-custody proof rules may name.
+pub fn accept_certificate_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<CertificateAcceptance, ProofError> {
     context
@@ -178,6 +230,7 @@ pub fn accept_certificate(
         context,
         assumptions,
         semantic_axioms,
+        machine_parameter_values,
         proof,
         &mut acceptance,
     )?;
@@ -191,6 +244,7 @@ fn check_node(
     context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
@@ -238,7 +292,14 @@ fn check_node(
                 return Err(ProofError::ConjunctionArityMismatch);
             }
             for (expected, conjunct) in expected.iter().zip(conjuncts) {
-                check_node(context, assumptions, semantic_axioms, conjunct, acceptance)?;
+                check_node(
+                    context,
+                    assumptions,
+                    semantic_axioms,
+                    machine_parameter_values,
+                    conjunct,
+                    acceptance,
+                )?;
                 if &conjunct.conclusion != expected {
                     return Err(ProofError::ConjunctConclusionMismatch);
                 }
@@ -256,6 +317,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 conjunction,
                 acceptance,
             )?;
@@ -281,7 +343,14 @@ fn check_node(
             let selected = disjuncts
                 .get(*index)
                 .ok_or(ProofError::UnknownDisjunct(*index))?;
-            check_node(context, assumptions, semantic_axioms, disjunct, acceptance)?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                machine_parameter_values,
+                disjunct,
+                acceptance,
+            )?;
             (selected == &disjunct.conclusion)
                 .then_some(())
                 .ok_or(ProofError::DisjunctConclusionMismatch)
@@ -305,6 +374,7 @@ fn check_node(
                 context,
                 &nested_assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 body,
                 acceptance,
             )?;
@@ -323,10 +393,18 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 implication,
                 acceptance,
             )?;
-            check_node(context, assumptions, semantic_axioms, premise, acceptance)?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                machine_parameter_values,
+                premise,
+                acceptance,
+            )?;
             let Proposition::Implication {
                 premise: required,
                 conclusion,
@@ -352,6 +430,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 left_equals_middle,
                 acceptance,
             )?;
@@ -359,6 +438,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 middle_equals_right,
                 acceptance,
             )?;
@@ -449,6 +529,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 left_less_or_equal_middle,
                 acceptance,
             )?;
@@ -456,6 +537,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 middle_less_or_equal_right,
                 acceptance,
             )?;
@@ -502,8 +584,22 @@ fn check_node(
             acceptance
                 .rules
                 .insert(AcceptedProofRule::IntegerLessOrEqualSubstitution);
-            check_node(context, assumptions, semantic_axioms, relation, acceptance)?;
-            check_node(context, assumptions, semantic_axioms, equality, acceptance)?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                machine_parameter_values,
+                relation,
+                acceptance,
+            )?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                machine_parameter_values,
+                equality,
+                acceptance,
+            )?;
             if let (
                 Proposition::IntegerMathLessOrEqual(relation_left, relation_right),
                 Proposition::IntegerMathEqual(equality_left, equality_right),
@@ -586,6 +682,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 root_bound,
                 acceptance,
             )?;
@@ -636,6 +733,7 @@ fn check_node(
                 context,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 root_bound,
                 acceptance,
             )?;
@@ -664,6 +762,53 @@ fn check_node(
                     .get(index)
                     .ok_or(ProofError::UnknownSemanticAxiom(index))?;
                 acceptance.record_semantic_axiom(index, proposition);
+            }
+            Ok(())
+        }
+        ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerCorrelatedForbiddenRoots);
+            if witness.definition_axiom_count != semantic_axioms.len() {
+                return Err(ProofError::IntegerCorrelatedForbiddenRootDefinitionBoundary);
+            }
+            let mut ledger = Vec::with_capacity(semantic_axioms.len() + assumptions.len());
+            ledger.extend_from_slice(semantic_axioms);
+            ledger.extend_from_slice(assumptions);
+            let checked = check_integer_correlated_forbidden_root_witness(
+                context,
+                &ledger,
+                machine_parameter_values,
+                witness,
+            )
+            .map_err(ProofError::IntegerCorrelatedForbiddenRootWitness)?;
+            check_integer_correlated_forbidden_root_conversion(&checked, &proof.conclusion)
+                .map_err(ProofError::IntegerCorrelatedForbiddenRootConversion)?;
+
+            for branch in [&witness.dividend, &witness.divisor] {
+                for step in &branch.steps {
+                    if let Some(index) = step.literal_axiom {
+                        let proposition = semantic_axioms
+                            .get(index)
+                            .ok_or(ProofError::UnknownSemanticAxiom(index))?;
+                        acceptance.record_semantic_axiom(index, proposition);
+                    }
+                    let index = step.definition_axiom;
+                    let proposition = semantic_axioms
+                        .get(index)
+                        .ok_or(ProofError::UnknownSemanticAxiom(index))?;
+                    acceptance.record_semantic_axiom(index, proposition);
+                }
+            }
+            let (lower_bound, upper_bound) = checked.bound_axioms();
+            for ledger_index in [lower_bound, upper_bound] {
+                let index = ledger_index
+                    .checked_sub(semantic_axioms.len())
+                    .ok_or(ProofError::IntegerCorrelatedForbiddenRootRequirementBoundary)?;
+                let proposition = assumptions
+                    .get(index)
+                    .ok_or(ProofError::UnknownAssumption(index))?;
+                acceptance.record_assumption(index, proposition);
             }
             Ok(())
         }
@@ -697,6 +842,10 @@ pub enum ProofError {
     IntegerAffineBoundConversion(IntegerAffineBoundConversionError),
     IntegerCastChainWitness(IntegerCastChainWitnessError),
     IntegerCastBoundConversion(IntegerCastBoundConversionError),
+    IntegerCorrelatedForbiddenRootDefinitionBoundary,
+    IntegerCorrelatedForbiddenRootRequirementBoundary,
+    IntegerCorrelatedForbiddenRootWitness(IntegerCorrelatedForbiddenRootWitnessError),
+    IntegerCorrelatedForbiddenRootConversion(IntegerCorrelatedForbiddenRootConversionError),
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
     RulePremiseMismatch(&'static str),
@@ -801,6 +950,7 @@ impl std::error::Error for ProofError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness};
     use psi_core::PropositionId;
 
     #[test]
@@ -1826,5 +1976,170 @@ mod tests {
 
         check_certificate(&context, &goal, &[], &axioms, &proof)
             .expect("canonical equality orientation must not erase transitivity");
+    }
+
+    fn correlated_division_fixture() -> (
+        PropositionContext,
+        Vec<Proposition>,
+        Vec<Proposition>,
+        BTreeSet<ValueId>,
+        ProofNode,
+    ) {
+        let integer_type =
+            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 8).expect("signed carrier");
+        let scalar_type = psi_core::ScalarType::Integer(integer_type);
+        let value = |raw| ScalarTerm::value(ValueId::new(raw).expect("value"), scalar_type);
+        let integer =
+            |raw| ScalarTerm::integer(integer_type, IntegerValue::Signed(raw)).expect("literal");
+        let root = value(100);
+        let dividend = value(101);
+        let product = value(102);
+        let divisor = value(103);
+        let semantic_axioms = vec![
+            Proposition::Equal(
+                dividend.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, root.clone(), integer(-2))
+                    .expect("multiply"),
+            ),
+            Proposition::Equal(
+                product.clone(),
+                ScalarTerm::exact_integer_multiply(integer_type, root.clone(), integer(2))
+                    .expect("multiply"),
+            ),
+            Proposition::Equal(
+                divisor.clone(),
+                ScalarTerm::exact_integer_add(integer_type, product, integer(1)).expect("add"),
+            ),
+        ];
+        let requirements = vec![
+            Proposition::LessOrEqual(integer(-1), root.clone()),
+            Proposition::LessOrEqual(root.clone(), integer(0)),
+        ];
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(-2)),
+            Proposition::LessOrEqual(integer(1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor.clone(), integer(-1)),
+                Proposition::LessOrEqual(integer(-127), dividend.clone()),
+            ]),
+        ]);
+        let proof = ProofNode {
+            conclusion: goal,
+            rule: ProofRule::IntegerCorrelatedForbiddenRoots {
+                witness: IntegerCorrelatedForbiddenRootWitness {
+                    dividend: CorrelatedAffineBranchWitness {
+                        root: root.clone(),
+                        target: dividend,
+                        steps: vec![CorrelatedAffineStepWitness {
+                            definition_axiom: 0,
+                            literal_axiom: None,
+                        }],
+                    },
+                    divisor: CorrelatedAffineBranchWitness {
+                        root: root.clone(),
+                        target: divisor,
+                        steps: vec![
+                            CorrelatedAffineStepWitness {
+                                definition_axiom: 1,
+                                literal_axiom: None,
+                            },
+                            CorrelatedAffineStepWitness {
+                                definition_axiom: 2,
+                                literal_axiom: None,
+                            },
+                        ],
+                    },
+                    definition_axiom_count: 3,
+                    lower_bound_axiom: 3,
+                    upper_bound_axiom: 4,
+                    conclusion: Proposition::Conjunction(requirements.clone()),
+                },
+            },
+        };
+        let context = PropositionContext::from_value_types((100..=103).map(|raw| {
+            (
+                ValueId::new(raw).expect("value"),
+                psi_core::ScalarType::Integer(integer_type),
+            )
+        }))
+        .expect("context");
+        (
+            context,
+            semantic_axioms,
+            requirements,
+            BTreeSet::from([ValueId::new(100).expect("root")]),
+            proof,
+        )
+    }
+
+    #[test]
+    fn correlated_forbidden_root_rule_binds_parameter_and_exact_premise_closure() {
+        let (context, axioms, requirements, parameters, proof) = correlated_division_fixture();
+        let accepted = accept_certificate_with_machine_parameters(
+            &context,
+            &proof.conclusion,
+            &requirements,
+            &axioms,
+            &parameters,
+            &proof,
+        )
+        .expect("safe same-parameter correlated division");
+
+        assert_eq!(
+            accepted.rules,
+            vec![AcceptedProofRule::IntegerCorrelatedForbiddenRoots]
+        );
+        assert_eq!(
+            accepted
+                .semantic_axioms
+                .iter()
+                .map(|premise| premise.index)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
+        assert_eq!(
+            accepted
+                .assumptions
+                .iter()
+                .map(|premise| premise.index)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+    }
+
+    #[test]
+    fn correlated_forbidden_root_rule_rejects_nonparameter_root_and_forged_conclusion() {
+        let (context, axioms, requirements, _, proof) = correlated_division_fixture();
+        assert!(matches!(
+            accept_certificate_with_machine_parameters(
+                &context,
+                &proof.conclusion,
+                &requirements,
+                &axioms,
+                &BTreeSet::from([ValueId::new(999).expect("unrelated parameter")]),
+                &proof,
+            ),
+            Err(ProofError::IntegerCorrelatedForbiddenRootWitness(
+                IntegerCorrelatedForbiddenRootWitnessError::RootNotSignedNative(_)
+            ))
+        ));
+
+        let forged = ProofNode {
+            conclusion: Proposition::Truth,
+            rule: proof.rule,
+        };
+        assert_eq!(
+            accept_certificate_with_machine_parameters(
+                &context,
+                &forged.conclusion,
+                &requirements,
+                &axioms,
+                &BTreeSet::from([ValueId::new(100).expect("root")]),
+                &forged,
+            ),
+            Err(ProofError::IntegerCorrelatedForbiddenRootConversion(
+                IntegerCorrelatedForbiddenRootConversionError::ConclusionMismatch,
+            ))
+        );
     }
 }

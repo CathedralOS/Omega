@@ -1,7 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
-use psi_proof_admission::{AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation};
+use psi_proof_admission::{
+    AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation_with_machine_parameters,
+};
 use psi_terminal::TerminalModule;
 
 use crate::{
@@ -231,14 +233,23 @@ fn verify_validated_module<'module>(
         let context = contexts
             .get(&site.owner.machine())
             .expect("validated reconstructed obligation owner exists");
+        let machine = validated
+            .machine(site.owner.machine())
+            .expect("validated reconstructed obligation machine exists");
+        let machine_parameter_values = machine
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect::<BTreeSet<_>>();
         let route = evidence
             .remove(&site.obligation.id)
             .ok_or(VerificationError::MissingEvidence(site.obligation.id))?;
-        let accepted = verify_obligation(
+        let accepted = verify_obligation_with_machine_parameters(
             &context,
             &site.obligation,
             &site.requirements,
             &site.semantic_axioms,
+            &machine_parameter_values,
             route,
             profile,
         )

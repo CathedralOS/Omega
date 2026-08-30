@@ -228,6 +228,41 @@ pub fn check_integer_correlated_forbidden_root_witness(
     })
 }
 
+/// Bind one checked safe correlated pair to the canonical signed exact-
+/// division definedness proposition consumed by terminal scalar semantics.
+pub fn check_integer_correlated_forbidden_root_conversion(
+    checked: &CheckedIntegerCorrelatedForbiddenRoots,
+    conclusion: &Proposition,
+) -> Result<(), IntegerCorrelatedForbiddenRootConversionError> {
+    if !checked.forbidden_roots.is_empty() {
+        return Err(IntegerCorrelatedForbiddenRootConversionError::ForbiddenRoots);
+    }
+    let integer_type = checked.integer_type;
+    let minimum_plus_one = match integer_type.minimum_value() {
+        IntegerValue::Signed(minimum) => IntegerValue::Signed(
+            minimum
+                .checked_add(1)
+                .expect("fixed signed minimum has a successor"),
+        ),
+        IntegerValue::Unsigned(_) => unreachable!("checked correlated roots are signed"),
+    };
+    let integer = |value| {
+        ScalarTerm::integer(integer_type, value)
+            .expect("checked signed fixed literal belongs to its carrier")
+    };
+    let expected = Proposition::Disjunction(vec![
+        Proposition::LessOrEqual(checked.divisor.clone(), integer(IntegerValue::Signed(-2))),
+        Proposition::LessOrEqual(integer(IntegerValue::Signed(1)), checked.divisor.clone()),
+        Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(checked.divisor.clone(), integer(IntegerValue::Signed(-1))),
+            Proposition::LessOrEqual(integer(minimum_plus_one), checked.dividend.clone()),
+        ]),
+    ]);
+    (conclusion == &expected)
+        .then_some(())
+        .ok_or(IntegerCorrelatedForbiddenRootConversionError::ConclusionMismatch)
+}
+
 fn check_branch(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
@@ -639,6 +674,20 @@ pub enum IntegerCorrelatedForbiddenRootWitnessError {
     PartiallyUnsafeInterval,
     ConclusionMismatch,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerCorrelatedForbiddenRootConversionError {
+    ForbiddenRoots,
+    ConclusionMismatch,
+}
+
+impl std::fmt::Display for IntegerCorrelatedForbiddenRootConversionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for IntegerCorrelatedForbiddenRootConversionError {}
 
 impl std::fmt::Display for IntegerCorrelatedForbiddenRootWitnessError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

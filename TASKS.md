@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [x] **KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -110,9 +110,18 @@ scanners, or receipts.
   sign orientation, quotient identity, landing order/value/type, and redirected
   definitions have mutation coverage. `kernel_proposition` is now total rather
   than optional, and production reconstruction no longer selects any legacy
-  sufficient proposition. No proof tag or codec wire changed. Complete the
-  strict broad-corpus gate after the separate exact-add candidate-selection
-  latency exposed beyond the exact-multiply canaries is bounded.
+  sufficient proposition. The correlated affine exact-divide/remainder route
+  now serializes `IntegerCorrelatedForbiddenRoots` tag 14. Its witness names
+  two disjoint ordered definition words over one signed machine parameter plus
+  the exact lower/upper requirement coordinates after the semantic boundary.
+  Admission replays those coordinates, solves the zero and `-1` forbidden
+  roots, requires the safe empty-root result, and reconstructs the unchanged
+  canonical `ExactDivisionDefined` proposition. Proof-bundle format 21 and the
+  canonical proof-calculus trust root 21 retain that rule; terminal semantic
+  format 39, vocabulary 42, and proof-system marker 1 are unchanged. Missing
+  parameter custody, redirected definitions or literals, bound drift, partial
+  safety, and forged conclusions reject. The strict broad corpus is green
+  after the exact-add candidate-selection latency was bounded.
   Deterministic schema-local normalization may fold closed mathematical
   expressions, bare carrier inclusion, and vacuous bounds.
   Symbolic interval propagation, affine reduction, aliases, and other
@@ -5165,7 +5174,7 @@ Remaining:
   authority, establishes no new root custody, and proves neither left-shift
   overflow safety nor a surrounding interval/preimage claim. Other shift
   families and certificate routing remain unchanged.
-  A fourth non-serialized checker now binds the complete correlated
+  A fourth checker now binds the complete correlated
   forbidden-root family shared by exact divide and remainder. It independently
   replays both nonempty landed-literal affine branches, requires disjoint
   source-ordered definitions ending at the same direct signed fixed-native
@@ -5178,21 +5187,20 @@ Remaining:
   covering the complete interval yield falsehood; partial safety rejects.
   Stale definition, literal, or bound identity; correlation/order/type/root
   drift; constant collapse; one-sided bounds; and checked arithmetic failure
-  reject. The legacy trusted exact divide/remainder reducer now deterministically
-  retains the exact definition/literal and tight-bound axiom coordinates,
-  constructs this complete witness, invokes the independent checker, and uses
-  only the checker's reconstructed sufficient conclusion. Its former duplicate
-  lattice-root/value computation is gone. This consumes checked custody without
-  promoting trust: the reducer remains trusted, the result accepts no proof
-  authority, and neither its bounds nor conclusion are certificate premises.
-  The general affine-bound rule does not certify this two-branch lattice result;
-  a dedicated
-  certificate conversion for the checked correlated result remains. No trusted
-  reducer proposition is imported as proof authority and no partial exact row
-  migrated. No schema, reducer,
-  semantic-operation, or other trust status is promoted; the current terminal
-  semantic, proof-bundle, and installation encodings remain unchanged, and the
-  accepted trust closure remains `fully-derived false`.
+  reject. The untrusted exact divide/remainder producer now deterministically
+  retains the exact definition/literal and tight requirement coordinates,
+  constructs this complete witness, and serializes proof tag 14. Admission
+  reconstructs the semantic-plus-requirement ledger, requires the exact
+  semantic boundary and machine-parameter root, invokes the checker, requires
+  the empty forbidden-root set, and converts the checked operands to the
+  unchanged canonical `ExactDivisionDefined` proposition. Every used
+  definition/literal axiom and both requirement bounds enter the accepted
+  premise closure. The former trusted correlated reducer and duplicate
+  lattice-root/value computation are gone. Proof-bundle format 21 and canonical
+  proof-calculus trust root 21 retain the conversion; terminal semantic format
+  39, vocabulary 42, proof-system marker 1, semantic-operation schemas, and
+  installation encoding are unchanged. Other partial exact rows remain outside
+  this slice, so the accepted trust closure remains `fully-derived false`.
   The historical bounded Gamma feasibility spike established that exact
   canonical-byte decoding and ordered semantic-ledger reconstruction fit the
   low rung without making the Rust verifier authoritative. Its final measured

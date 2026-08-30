@@ -5,7 +5,9 @@
 //! result equation, so the certificate cannot justify the operation with a
 //! fact produced by that same operation.
 
-use psi_core::{Proposition, PropositionContext};
+use std::collections::BTreeSet;
+
+use psi_core::{Proposition, PropositionContext, ValueId};
 use psi_proof_admission::ProofNode;
 
 mod affine_custody;
@@ -22,6 +24,7 @@ mod integer_selection;
 /// This is deliberately not an affine or interval analyzer. It composes exact
 /// prior citations and the small checked order rules; producers for richer
 /// families must still materialize proofs of the atomic leaves.
+#[cfg(test)]
 pub(super) fn prove_canonical_integer_proposition(
     context: &PropositionContext,
     goal: &Proposition,
@@ -29,6 +32,22 @@ pub(super) fn prove_canonical_integer_proposition(
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
     certificate_entry::prove(context, goal, assumptions, semantic_axioms)
+}
+
+pub(super) fn prove_canonical_integer_proposition_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<ProofNode> {
+    certificate_entry::prove_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameter_values,
+    )
 }
 
 #[cfg(test)]
