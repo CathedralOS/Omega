@@ -63,11 +63,12 @@ machine build(builder: &mut Build) {
 }
 
 pub data Provider {
+    first: addr;
 }
 
 machine Provider::first()
 satisfies Pair::first
-via Binding::VtableSlot(1);
+via Binding::VtableField(first);
 "#,
     )
     .expect("write provider package source");

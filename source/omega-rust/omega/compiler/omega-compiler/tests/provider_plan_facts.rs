@@ -18,9 +18,9 @@ fn checked_program_retains_the_exact_selected_provider_plan() {
 }
 
 machine first_leaf(code: i32) -> i32
-    satisfies Pair::first via Binding::VtableSlot(1);
+    satisfies Pair::first via Binding::DllImport("omega-test", "pair_first");
 machine second_leaf(code: i32) -> i32
-    satisfies Pair::second via Binding::VtableSlot(2);
+    satisfies Pair::second via Binding::DllImport("omega-test", "pair_second");
 
 data Main { }
 machine Main::main(&mut self) { }

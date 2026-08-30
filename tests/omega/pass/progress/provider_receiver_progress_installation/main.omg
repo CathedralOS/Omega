@@ -10,7 +10,7 @@ domain Scheduler::WeakFair
 satisfies ProgressProfile
 established by Scheduler::grant;
 
-data SchedulerProvider {}
+data SchedulerProvider { grant: addr; }
 
 linux_x86_64 machine SchedulerProvider::finish(&self, code: i32)
 satisfies Scheduler::finish
@@ -18,7 +18,7 @@ via Binding::Syscall(231);
 
 machine SchedulerProvider::grant(scheduler: Scheduler) -> Scheduler in WeakFair
 satisfies Scheduler::grant
-via Binding::VtableSlot(1);
+via Binding::VtableField(grant);
 
 data Main {
     scheduler: Scheduler;

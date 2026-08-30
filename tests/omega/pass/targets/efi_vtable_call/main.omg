@@ -6,18 +6,19 @@
 // The full chain, all Omega: build.omg sets efi_application+freestanding; the
 // boundary entry receives the SystemTable (RDX) as a vouched &EfiSystemTable;
 // `table.con_out` DEREFERENCES it at the plan offset (+64); the external leaf
-// binds output_string via VtableSlot(1), which lowers to `mov rax,[rcx+8];
+// binds output_string via its named protocol field, which lowers to `mov rax,[rcx+8];
 // call rax` -- read OutputString from the protocol struct and dispatch. The
 // greeting text is a utf16"..." literal (CHAR16 code units).
 
-boundary trait TextOutput { machine output_string(this: addr, text: addr); }
-uefi_x86_64 machine text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableSlot(1);
-data EfiSystemTable {
+pub boundary trait TextOutput { machine output_string(this: addr, text: &[u16; 19]); }
+data EfiTextOutputProtocol { reset: addr; output_string: addr; }
+uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: &[u16; 19]) satisfies TextOutput::output_string via Binding::VtableField(output_string);
+pub data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-data Main { out: TextOutput; msg: [u16; 19]; }
+pub data Main { out: TextOutput; msg: [u16; 19]; }
 boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;
