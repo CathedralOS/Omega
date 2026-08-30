@@ -502,7 +502,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 75-case oracle gate are implementation material for
+    constructor table and 76-case oracle gate are implementation material for
     `gamma_compiler.beta`; the direct compiler must absorb the rule before this
     temporary checker is deleted.
   - [x] Close the first strict-parser slice in the reusable front end: require a
@@ -534,6 +534,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     a 1,100-level program fails closed through private resource state rather
     than overflowing the Beta/Alpha return stack. This ceiling is an eventual
     `Incomplete` outcome and never a Gamma validity rule.
+  - [x] Separate declaration collection from type-spelling resolution in the
+    reusable front end. Constructor fields, parameters, and function results
+    retain source spellings during the single strict parse and resolve only
+    after every nominal declaration exists, so forward and mutually recursive
+    data types now implement D16. Q6 still owns duplicate declaration identity.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
@@ -544,7 +549,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 75 type-checker cases, and 106 independent
+  fail-closed arena case, 76 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the
