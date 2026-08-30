@@ -1458,14 +1458,16 @@ impl<'mapping, 'bytes> DestinationClaimError<'mapping, 'bytes> {
 }
 
 /// Exact destination after successful generated writing. It remains
-/// unpublished and retains the activated mapping for consumer-specific
-/// validation and eventual publication or recovery.
+/// unpublished and retains the activated mapping plus a hash-free exact copy
+/// of the complete produced destination image for replay before
+/// consumer-specific validation and eventual publication or recovery.
 #[derive(Debug)]
 pub struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     mapping: MappedExtent<'mapping>,
     receipt: DestinationPreparationReceipt,
     site: PlacementSite,
     bytes: &'bytes mut [u8],
+    exact_produced_bytes: Vec<u8>,
     context: ResolvedPostHandoffEntryWriterContext,
 }
 
@@ -1536,10 +1538,10 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.context.normalized_fragment_report_fingerprint()
     }
 
-    /// Independently replay the exact non-clonable writer context and
-    /// destination preparation before an owning consumer validates semantic
-    /// contents or publishes the mapping. This establishes no consumer value
-    /// and performs no publication.
+    /// Independently replay the exact non-clonable writer context, destination
+    /// preparation, and complete producer-captured byte image before an owning
+    /// consumer validates semantic contents or publishes the mapping. This
+    /// establishes no consumer value and performs no publication.
     pub fn validate_for_consumer(
         &self,
         installed_code: &InstalledCode,
@@ -1554,7 +1556,14 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
             &self.receipt,
             self.site,
             self.bytes.len(),
-        )
+        )?;
+        if self.bytes != self.exact_produced_bytes.as_slice() {
+            return Err(InstallationDiagnostic(
+                "written post-handoff destination bytes differ from the exact successful writer output"
+                    .into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Consume this still-unpublished destination only after exact replay.
@@ -1589,6 +1598,7 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
             receipt,
             site,
             bytes,
+            exact_produced_bytes: _,
             context,
         } = self;
         (
@@ -2159,6 +2169,21 @@ impl InstalledCode {
                 diagnostic,
             }));
         }
+        let mut exact_produced_bytes = Vec::new();
+        if exact_produced_bytes
+            .try_reserve_exact(destination.destination.bytes.len())
+            .is_err()
+        {
+            return Err(Box::new(DestinationWriteError {
+                context,
+                destination,
+                diagnostic: MaterializationDiagnostic(
+                    "cannot retain the exact successful writer output within resource limits"
+                        .into(),
+                ),
+            }));
+        }
+        exact_produced_bytes.extend_from_slice(destination.destination.bytes);
         let PreparedPostHandoffWriterDestination {
             mapping,
             receipt,
@@ -2170,6 +2195,7 @@ impl InstalledCode {
             receipt,
             site,
             bytes,
+            exact_produced_bytes,
             context,
         })
     }
@@ -3512,15 +3538,15 @@ mod tests {
             installation_scope: None,
         };
         let context = installed
-            .populate_post_handoff_entry_writer_context(&writer, 8, site)
+            .populate_post_handoff_entry_writer_context(&writer, 16, site)
             .expect("exact installed writer context");
         let context_fingerprint = context.non_authoritative_fingerprint();
         let invocation = writer
             .lower_reusable_fragment()
             .expect("exact retained invocation");
-        let mapping = activated_writer_mapping(site.base_address, 8);
+        let mapping = activated_writer_mapping(site.base_address, 16);
         let receipt = prepared_destination_receipt(&mapping, 170);
-        let mut bytes = [0u8; 8];
+        let mut bytes = [0u8; 16];
         let destination =
             PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, &mut bytes)
                 .expect("activated pinned writable unpublished destination");
@@ -3554,21 +3580,75 @@ mod tests {
         );
         let mut written = (*error).into_written();
         written.context.non_authoritative_fingerprint = context_fingerprint;
+
+        written.exact_produced_bytes[0] ^= 1;
+        let error = written
+            .into_validated_for_consumer(&installed)
+            .expect_err("retained produced-byte drift must reject");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("exact successful writer output")
+        );
+        let mut written = (*error).into_written();
+        written.exact_produced_bytes[0] ^= 1;
+
+        written.bytes[0] ^= 1;
+        let error = written
+            .into_validated_for_consumer(&installed)
+            .expect_err("mutation inside the writer footprint must reject");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("exact successful writer output")
+        );
+        let written = (*error).into_written();
+        written.bytes[0] ^= 1;
+
+        written.bytes[15] ^= 1;
+        let error = written
+            .into_validated_for_consumer(&installed)
+            .expect_err("mutation outside the writer footprint must reject");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("exact successful writer output")
+        );
+        let mut written = (*error).into_written();
+        written.bytes[15] ^= 1;
+
+        written.exact_produced_bytes.pop();
+        let error = written
+            .into_validated_for_consumer(&installed)
+            .expect_err("an incomplete produced-byte snapshot must reject");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("exact successful writer output")
+        );
+        let mut written = (*error).into_written();
+        written.exact_produced_bytes = written.bytes.to_vec();
         let written = written
             .into_validated_for_consumer(&installed)
-            .expect("repaired exact context supports consumer retry");
+            .expect("repaired exact context and bytes support consumer retry");
         assert!(written.context().binds_invocation(&invocation));
         assert_eq!(
-            u64::from_le_bytes(written.bytes().try_into().unwrap()),
+            u64::from_le_bytes(written.bytes()[..8].try_into().unwrap()),
             0x8010
         );
+        assert_eq!(&written.bytes()[8..], &[0; 8]);
         let (_mapping, receipt, returned_site, returned_bytes) = written.into_parts();
         assert_eq!(receipt.identity().normalized_identity(), 170);
         assert_eq!(returned_site, site);
         assert_eq!(
-            u64::from_le_bytes(returned_bytes.try_into().unwrap()),
+            u64::from_le_bytes(returned_bytes[..8].try_into().unwrap()),
             0x8010
         );
+        assert_eq!(&returned_bytes[8..], &[0; 8]);
     }
 
     #[test]

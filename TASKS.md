@@ -2830,12 +2830,16 @@ Owners:
   exact replay before their resolved context, bytes, prepared recovery state,
   or raw mapping parts are observable. The sealed non-clonable validated carrier
   retains the exact installed realization, activated mapping, provider receipt,
-  placement, and byte geometry; rejection returns the complete raw carrier for
-  repaired retry. External-root and compiler-bound validated custody retain
-  this lower validated carrier through observation, decomposition, and recovery,
-  rather than downgrading evidence between layers. Bytes remain unpublished and
-  this establishes no provider-operation authority, consumer semantics, device
-  event, or native execution.
+  placement, byte geometry, and a hash-free exact copy of the complete
+  successful destination image. Every consuming replay compares the current
+  complete byte view with that producer output before observation, including
+  bytes outside the writer fragment footprint; mutation or retained-image drift
+  returns the complete raw carrier for repaired retry. External-root and
+  compiler-bound validated custody retain this lower validated carrier through
+  observation, decomposition, and recovery, rather than downgrading evidence
+  between layers. Bytes remain unpublished, the retained image establishes no
+  consumer-specific semantic value, and this adds no provider-operation,
+  publication, device-event, or native-execution authority.
   Written external-root destinations now retain the installation layer's sealed
   non-clonable validated written custody instead of downgrading it after
   successful replay. The outer consuming validation independently replays that
@@ -11038,9 +11042,12 @@ checked-result arithmetic decision listed below.
   fragment. That bound invocation now consumes one exact activated mapping plus
   a provider receipt for nonempty write rights, pinning, and non-publication,
   and returns a written-but-still-unpublished destination while failed linear
-  transitions return every input. Implement consumer semantic validation and
-  publication, physical AOT invocation, trusted/PCC and final-footprint
-  validators, target W^X/coherence reporting, and uninstall/replacement joins.
+  transitions return every input. The written carrier retains and hash-free
+  replays the complete exact destination image produced by that successful
+  invocation before any existing consumer may observe it. Implement consumer
+  semantic validation and publication, physical AOT invocation, trusted/PCC
+  and final-footprint validators, target W^X/coherence reporting, and
+  uninstall/replacement joins.
 - Keep arbitrary runtime bytes-to-code, JIT, and raw executable addresses
   unsupported.
 

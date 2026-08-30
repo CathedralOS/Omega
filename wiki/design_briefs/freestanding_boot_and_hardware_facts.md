@@ -399,7 +399,10 @@ destination directly; failure produces no established consumer value. Layout
 validation checks geometry. Omega's live provider carrier now consumes the
 activated mapping plus exact pin/unpublished/write-rights receipt and returns
 the written mapping without publishing it; failed transitions return all
-authority. Cathedral's separate IDT validator checks
+authority. Successful writing retains a hash-free exact copy of the complete
+destination image, and every existing outward consumer replays current bytes
+against that producer output before observation. That custody proves neither
+the IDT's meaning nor publication. Cathedral's separate IDT validator checks
 selectors, gates, privilege levels, IST assignments, reserved bits, and exact
 admitted roots before Cathedral establishes its materialized-table fact.
 
