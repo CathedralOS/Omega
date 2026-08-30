@@ -1,15 +1,24 @@
 use psi_arena::HandleSpan;
 use psi_language_core::operator_spelling::OperatorSpelling;
+use psi_language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
 use psi_symbols::SymbolHandle;
 
 use crate::TypedTrees;
 use crate::data::TypeParameter;
 use crate::domain::DomainDefinition;
-use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 mod applications;
 
-pub use applications::closed_operator_type_application_for_operands;
+pub use applications::{
+    ClosedOperatorApplicationArgument, closed_operator_application_for_operands,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OperatorConstBinding {
+    symbol: SymbolHandle,
+    value: CanonicalConstIdentity,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
@@ -476,6 +485,7 @@ fn operator_matches_operands(
     }
     let type_parameters = program.operator_type_parameters(operator);
     let mut bindings = Vec::new();
+    let mut const_bindings = Vec::new();
     operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
@@ -488,6 +498,7 @@ fn operator_matches_operands(
                     None,
                     type_parameters,
                     &mut bindings,
+                    &mut const_bindings,
                 ) && declared_domain_constraints_match(program, actual, expected.type_reference)
             })
         })
@@ -584,6 +595,7 @@ fn operator_matches_receiver(
         None,
         program.operator_type_parameters(operator),
         &mut Vec::new(),
+        &mut Vec::new(),
     )
 }
 
@@ -614,6 +626,7 @@ pub fn trait_operator_matches_application(
         .cloned()
         .collect::<Vec<_>>();
     let mut bindings = Vec::new();
+    let mut const_bindings = Vec::new();
     if !operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
@@ -626,6 +639,7 @@ pub fn trait_operator_matches_application(
                     Some(trait_definition.symbol),
                     &type_parameters,
                     &mut bindings,
+                    &mut const_bindings,
                 )
             })
         })
@@ -718,6 +732,7 @@ fn type_reference_matches(
     bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    const_bindings: &mut Vec<OperatorConstBinding>,
 ) -> bool {
     type_reference_matches_with_policy(
         program,
@@ -726,6 +741,7 @@ fn type_reference_matches(
         bindable_owner,
         type_parameters,
         bindings,
+        const_bindings,
         true,
     )
 }
@@ -737,10 +753,27 @@ fn type_reference_matches_with_policy(
     bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    const_bindings: &mut Vec<OperatorConstBinding>,
     allow_name_fallback: bool,
 ) -> bool {
     if !actual.is_valid() || !expected.is_valid() {
         return false;
+    }
+    if let Some(parameter) =
+        expected_type_parameter(program, expected, type_parameters, allow_name_fallback)
+        && let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind
+    {
+        if let Some(value) =
+            closed_const_identity_from_type_reference(program, actual, type_reference)
+        {
+            return bind_operator_const(const_bindings, parameter.symbol, value);
+        }
+        // Ordinary unresolved generic matching historically permits forwarded
+        // symbolic arguments. Exact D29 inference disables name fallback and
+        // therefore fails closed instead of treating such a demand as closed.
+        if !allow_name_fallback {
+            return false;
+        }
     }
     if let Some(bindable_symbol) = expected_bindable_symbol(
         program,
@@ -759,6 +792,7 @@ fn type_reference_matches_with_policy(
                 *bound_actual,
                 None,
                 &[],
+                &mut Vec::new(),
                 &mut Vec::new(),
                 allow_name_fallback,
             );
@@ -792,6 +826,7 @@ fn type_reference_matches_with_policy(
                     bindable_owner,
                     type_parameters,
                     bindings,
+                    const_bindings,
                     allow_name_fallback,
                 )
         }
@@ -808,6 +843,7 @@ fn type_reference_matches_with_policy(
             bindable_owner,
             type_parameters,
             bindings,
+            const_bindings,
             allow_name_fallback,
         ),
         (
@@ -823,6 +859,7 @@ fn type_reference_matches_with_policy(
             bindable_owner,
             type_parameters,
             bindings,
+            const_bindings,
             allow_name_fallback,
         ),
         (
@@ -835,16 +872,23 @@ fn type_reference_matches_with_policy(
                 length: expected_length,
             },
         ) => {
-            actual_length == expected_length
-                && type_reference_matches_with_policy(
-                    program,
-                    *actual_element,
-                    *expected_element,
-                    bindable_owner,
-                    type_parameters,
-                    bindings,
-                    allow_name_fallback,
-                )
+            fixed_array_lengths_match(
+                program,
+                actual_length,
+                expected_length,
+                type_parameters,
+                const_bindings,
+                allow_name_fallback,
+            ) && type_reference_matches_with_policy(
+                program,
+                *actual_element,
+                *expected_element,
+                bindable_owner,
+                type_parameters,
+                bindings,
+                const_bindings,
+                allow_name_fallback,
+            )
         }
         (
             TypeReferenceNode::Slice {
@@ -860,8 +904,32 @@ fn type_reference_matches_with_policy(
             bindable_owner,
             type_parameters,
             bindings,
+            const_bindings,
             allow_name_fallback,
         ),
+        (
+            TypeReferenceNode::Named {
+                symbol: actual_symbol,
+                ..
+            },
+            TypeReferenceNode::Generic { .. },
+        ) if actual_symbol.is_valid() => program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *actual_symbol)
+            .and_then(|definition| definition.generic_instance)
+            .is_some_and(|origin| {
+                type_reference_matches_with_policy(
+                    program,
+                    origin,
+                    expected,
+                    bindable_owner,
+                    type_parameters,
+                    bindings,
+                    const_bindings,
+                    allow_name_fallback,
+                )
+            }),
         (
             TypeReferenceNode::Named {
                 symbol: actual_symbol,
@@ -905,6 +973,7 @@ fn type_reference_matches_with_policy(
                 bindable_owner,
                 type_parameters,
                 bindings,
+                const_bindings,
                 allow_name_fallback,
             )
         }
@@ -920,6 +989,7 @@ fn type_reference_spans_match(
     bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    const_bindings: &mut Vec<OperatorConstBinding>,
     allow_name_fallback: bool,
 ) -> bool {
     let actual = program.type_reference_table.type_reference_handles(actual);
@@ -935,9 +1005,77 @@ fn type_reference_spans_match(
                 bindable_owner,
                 type_parameters,
                 bindings,
+                const_bindings,
                 allow_name_fallback,
             )
         })
+}
+
+fn fixed_array_lengths_match(
+    program: &TypedTrees,
+    actual: &FixedArrayLength,
+    expected: &FixedArrayLength,
+    type_parameters: &[TypeParameter],
+    const_bindings: &mut Vec<OperatorConstBinding>,
+    allow_name_fallback: bool,
+) -> bool {
+    let FixedArrayLength::ConstParameter { symbol, name } = expected else {
+        return actual == expected;
+    };
+    let Some(parameter) = type_parameters.iter().find(|parameter| {
+        (symbol.is_valid() && parameter.symbol == *symbol)
+            || (allow_name_fallback && parameter.name == *name)
+    }) else {
+        return actual == expected;
+    };
+    let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind else {
+        return false;
+    };
+    let FixedArrayLength::Literal(value) = actual else {
+        return allow_name_fallback && actual == expected;
+    };
+    let Ok(value) = i128::try_from(*value) else {
+        return false;
+    };
+    let Some(primitive) = program.type_reference_table.primitive_type(type_reference) else {
+        return false;
+    };
+    bind_operator_const(
+        const_bindings,
+        parameter.symbol,
+        CanonicalConstIdentity::integer(primitive.name(), value),
+    )
+}
+
+fn closed_const_identity_from_type_reference(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    declared_carrier: TypeReferenceHandle,
+) -> Option<CanonicalConstIdentity> {
+    let TypeReferenceNode::Named { name, .. } = program.type_reference_table.type_reference(actual)
+    else {
+        return None;
+    };
+    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+        return Some(value.identity());
+    }
+    let value = name.as_str().parse::<i128>().ok()?;
+    let primitive = program
+        .type_reference_table
+        .primitive_type(declared_carrier)?;
+    Some(CanonicalConstIdentity::integer(primitive.name(), value))
+}
+
+fn bind_operator_const(
+    bindings: &mut Vec<OperatorConstBinding>,
+    symbol: SymbolHandle,
+    value: CanonicalConstIdentity,
+) -> bool {
+    if let Some(existing) = bindings.iter().find(|binding| binding.symbol == symbol) {
+        return existing.value == value;
+    }
+    bindings.push(OperatorConstBinding { symbol, value });
+    true
 }
 
 fn nominal_type_identity_matches(

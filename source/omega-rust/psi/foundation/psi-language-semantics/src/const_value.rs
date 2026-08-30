@@ -47,6 +47,32 @@ pub struct CanonicalConstValue {
     pub display: String,
 }
 
+/// Display-independent semantic identity of one evaluated const value.
+///
+/// The declared typed carrier remains separate compiler custody. This value
+/// retains only the canonical producer encoding and its encoded carrier
+/// consistency claim; diagnostic rendering never participates in equality.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CanonicalConstIdentity {
+    pub type_name: String,
+    pub encoding: String,
+}
+
+impl CanonicalConstIdentity {
+    pub fn integer(type_name: impl Into<String>, value: i128) -> Self {
+        let type_name = type_name.into();
+        let spelling = value.to_string();
+        Self {
+            encoding: framed("integer", [type_name.as_str(), spelling.as_str()]),
+            type_name,
+        }
+    }
+
+    pub fn decode_encoding(&self) -> Option<DecodedCanonicalConstValue> {
+        decode_canonical_encoding(self.encoding.as_str())
+    }
+}
+
 impl CanonicalConstValue {
     pub fn new(
         type_name: impl Into<String>,
@@ -86,15 +112,37 @@ impl CanonicalConstValue {
         Some(Self::new(type_name, encoding, display))
     }
 
+    pub fn identity(&self) -> CanonicalConstIdentity {
+        CanonicalConstIdentity {
+            type_name: self.type_name.clone(),
+            encoding: self.encoding.clone(),
+        }
+    }
+
     /// Decode the canonical inner encoding, failing closed on malformed or
     /// non-canonical framing and on values outside the fixed resource bounds.
     pub fn decode_encoding(&self) -> Option<DecodedCanonicalConstValue> {
-        if self.encoding.len() > MAX_ENCODING_BYTES {
-            return None;
-        }
-        let mut decoded_nodes = 0;
-        decode_node(self.encoding.as_str(), 0, &mut decoded_nodes)
+        decode_canonical_encoding(self.encoding.as_str())
     }
+}
+
+fn decode_canonical_encoding(encoding: &str) -> Option<DecodedCanonicalConstValue> {
+    if encoding.len() > MAX_ENCODING_BYTES {
+        return None;
+    }
+    let mut decoded_nodes = 0;
+    decode_node(encoding, 0, &mut decoded_nodes)
+}
+
+fn framed(tag: &str, pieces: impl IntoIterator<Item = impl AsRef<str>>) -> String {
+    let mut encoding = tag.to_owned();
+    for piece in pieces {
+        let piece = piece.as_ref();
+        encoding.push_str(piece.len().to_string().as_str());
+        encoding.push(':');
+        encoding.push_str(piece);
+    }
+    encoding
 }
 
 fn decode_node(
@@ -235,8 +283,8 @@ fn take_length_delimited(rest: &mut &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CanonicalConstValue, DecodedCanonicalConstValue, MAX_DECODE_DEPTH, MAX_DECODED_NODES,
-        MAX_ENCODING_BYTES,
+        CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue, MAX_DECODE_DEPTH,
+        MAX_DECODED_NODES, MAX_ENCODING_BYTES,
     };
 
     fn framed(tag: &str, pieces: impl IntoIterator<Item = impl AsRef<str>>) -> String {
@@ -266,6 +314,21 @@ mod tests {
     fn ordinary_names_are_not_const_atoms() {
         assert!(CanonicalConstValue::from_atom("Unit").is_none());
         assert!(CanonicalConstValue::from_atom("42").is_none());
+    }
+
+    #[test]
+    fn semantic_identity_omits_display_and_integer_builder_is_canonical() {
+        let first = CanonicalConstValue::new("u64", framed("integer", ["u64", "4"]), "2 + 2");
+        let second = CanonicalConstValue::new("u64", framed("integer", ["u64", "4"]), "4");
+        assert_eq!(first.identity(), second.identity());
+        assert_eq!(first.identity(), CanonicalConstIdentity::integer("u64", 4));
+        assert_eq!(
+            first.identity().decode_encoding(),
+            Some(DecodedCanonicalConstValue::Integer {
+                type_name: "u64".to_owned(),
+                value: 4,
+            })
+        );
     }
 
     #[test]

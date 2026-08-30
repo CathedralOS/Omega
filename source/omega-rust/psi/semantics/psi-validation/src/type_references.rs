@@ -4,7 +4,8 @@ mod open_index_expressions;
 
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
-    const_integer_value_fits_primitive, validate_exact_typed_structured_const_argument,
+    const_integer_value_fits_primitive, validate_exact_const_identity,
+    validate_exact_typed_structured_const_argument,
 };
 use generic_arguments::{
     machine_argument_name, validate_const_data_argument, validate_generic_argument_bounds,

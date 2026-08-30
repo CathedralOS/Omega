@@ -1,6 +1,7 @@
 use crate::{CheckedValueOrigin, CrashCause};
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_language_core::operator_spelling::OperatorSpelling;
+use psi_language_semantics::const_value::CanonicalConstIdentity;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::ExpressionHandle;
@@ -115,6 +116,13 @@ pub enum CheckedBoundaryOperatorApplicationArgument {
         binder_ordinal: u32,
         binder_symbol: SymbolHandle,
         type_reference: TypeReferenceHandle,
+    },
+    Const {
+        binder_owner: SymbolHandle,
+        binder_ordinal: u32,
+        binder_symbol: SymbolHandle,
+        declared_carrier: TypeReferenceHandle,
+        value: CanonicalConstIdentity,
     },
 }
 

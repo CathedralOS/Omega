@@ -1,9 +1,10 @@
 use psi_diagnostics::Diagnostic;
+use psi_language_semantics::const_value::CanonicalConstIdentity;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::TypeParameterKind;
 use psi_typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
-use psi_typed_trees::operator::OperatorDefinition;
+use psi_typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorDefinition};
 use psi_typed_trees::statement::{StatementHandle, TableCall};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -30,18 +31,25 @@ pub enum ValidatedBoundaryOperatorApplicationArgument {
         binder_symbol: SymbolHandle,
         type_reference: TypeReferenceHandle,
     },
+    Const {
+        binder_owner: SymbolHandle,
+        binder_ordinal: u32,
+        binder_symbol: SymbolHandle,
+        declared_carrier: TypeReferenceHandle,
+        value: CanonicalConstIdentity,
+    },
 }
 
 /// Validate and close the currently supported named-operator static
 /// application. `None` is a truthful unsupported/open demand, never coverage.
 /// The returned bindings are ordered by the operator's declaration telescope.
-pub fn validate_named_operator_type_application(
+pub fn validate_named_operator_application(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     operator: &OperatorDefinition,
     static_arguments: &[StaticMachineArgument],
     operand_types: &[Option<TypeReferenceHandle>],
-) -> Result<Option<Vec<(SymbolHandle, TypeReferenceHandle)>>, Diagnostic> {
+) -> Result<Option<Vec<ClosedOperatorApplicationArgument>>, Diagnostic> {
     let operator_name = program
         .operator_path_members(operator.name)
         .iter()
@@ -51,15 +59,18 @@ pub fn validate_named_operator_type_application(
     let parameters = program.operator_type_parameters(operator);
 
     if !operator.lifetime_parameters.is_empty()
-        || parameters
-            .iter()
-            .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Type))
+        || parameters.iter().any(|parameter| {
+            !matches!(
+                parameter.kind,
+                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+            )
+        })
     {
         if static_arguments.is_empty() {
             return Ok(None);
         }
         return Err(Diagnostic::error(format!(
-            "named operator `{operator_name}` has a lifetime, const, machine, or proposition telescope whose explicit application is not yet supported"
+            "named operator `{operator_name}` has a lifetime, machine, or proposition telescope whose explicit application is not yet supported"
         )));
     }
 
@@ -73,7 +84,7 @@ pub fn validate_named_operator_type_application(
         )));
     }
 
-    let Some(inferred) = psi_typed_trees::operator::closed_operator_type_application_for_operands(
+    let Some(inferred) = psi_typed_trees::operator::closed_operator_application_for_operands(
         program,
         operator,
         operand_types,
@@ -86,47 +97,31 @@ pub fn validate_named_operator_type_application(
         )));
     };
 
-    for (parameter, (_, argument)) in parameters.iter().zip(&inferred) {
-        let bounds = crate::properties::declared_property_requirements(&parameter.bounds);
-        let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();
-        for property in bounds {
-            if crate::properties::type_satisfies_declared_property(
-                program,
-                symbols,
-                &[],
-                *argument,
-                property,
-            ) {
-                continue;
-            }
-            return Err(Diagnostic::error(format!(
-                "type parameter `{} [{}]` of named operator `{operator_name}` was instantiated with `{}`, which does not satisfy `[{property}]`",
-                parameter.name,
-                bound_labels.join(", "),
-                program.display_type_reference_with_constraints(*argument),
-            )));
-        }
-    }
+    validate_closed_operator_application(program, symbols, operator, &inferred)?;
 
     if static_arguments.is_empty() {
         return Ok(Some(inferred));
     }
     if static_arguments.len() != inferred.len() {
         return Err(Diagnostic::error(format!(
-            "named operator `{operator_name}` requires {} static type argument(s), got {}",
+            "named operator `{operator_name}` requires {} static argument(s), got {}",
             inferred.len(),
             static_arguments.len()
         )));
     }
-    for ((parameter, (_, inferred)), supplied) in parameters
+    for ((parameter, inferred), supplied) in parameters
         .iter()
         .zip(&inferred)
         .zip(static_arguments.iter())
     {
-        if !static_type_argument_matches(program, supplied, *inferred) {
+        if !static_argument_matches(program, supplied, inferred) {
+            let identity_kind = match inferred {
+                ClosedOperatorApplicationArgument::Type { .. } => "type",
+                ClosedOperatorApplicationArgument::Const { .. } => "value",
+            };
             return Err(Diagnostic::error(format!(
-                "named operator `{operator_name}` static type argument for parameter `{}` does not equal the type inferred from its operands",
-                parameter.name
+                "named operator `{operator_name}` static argument for parameter `{}` does not equal the {identity_kind} inferred from its operands",
+                parameter.name,
             )));
         }
     }
@@ -136,18 +131,35 @@ pub fn validate_named_operator_type_application(
 pub fn validated_boundary_operator_application(
     site: ValidatedBoundaryOperatorApplicationUseSite,
     operator: &OperatorDefinition,
-    bindings: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    bindings: Vec<ClosedOperatorApplicationArgument>,
 ) -> ValidatedBoundaryOperatorApplication {
     let arguments = bindings
         .into_iter()
         .enumerate()
-        .map(|(ordinal, (binder_symbol, type_reference))| {
-            ValidatedBoundaryOperatorApplicationArgument::Type {
-                binder_owner: operator.symbol,
-                binder_ordinal: u32::try_from(ordinal)
-                    .expect("operator static telescope ordinal overflow"),
-                binder_symbol,
-                type_reference,
+        .map(|(ordinal, argument)| {
+            let binder_ordinal =
+                u32::try_from(ordinal).expect("operator static telescope ordinal overflow");
+            match argument {
+                ClosedOperatorApplicationArgument::Type {
+                    binder_symbol,
+                    type_reference,
+                } => ValidatedBoundaryOperatorApplicationArgument::Type {
+                    binder_owner: operator.symbol,
+                    binder_ordinal,
+                    binder_symbol,
+                    type_reference,
+                },
+                ClosedOperatorApplicationArgument::Const {
+                    binder_symbol,
+                    declared_carrier,
+                    value,
+                } => ValidatedBoundaryOperatorApplicationArgument::Const {
+                    binder_owner: operator.symbol,
+                    binder_ordinal,
+                    binder_symbol,
+                    declared_carrier,
+                    value,
+                },
             }
         })
         .collect();
@@ -206,7 +218,7 @@ pub(crate) fn validate_named_statement_operator_application(
                 crate::places::declared_place_type(program, machine, Some(state), *argument)
             }),
     );
-    match validate_named_operator_type_application(
+    match validate_named_operator_application(
         program,
         symbols,
         operator,
@@ -247,6 +259,125 @@ fn statement_value_receiver_type(
         .name_path_members(call.receiver)
         .last()?;
     crate::calls::declared_receiver_type_reference(program, machine, state, receiver.as_str())
+}
+
+pub fn validate_closed_operator_application(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    operator: &OperatorDefinition,
+    application: &[ClosedOperatorApplicationArgument],
+) -> Result<(), Diagnostic> {
+    let operator_name = program
+        .operator_path_members(operator.name)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let parameters = program.operator_type_parameters(operator);
+    if parameters.len() != application.len() {
+        return Err(Diagnostic::error(format!(
+            "closed operator application for `{operator_name}` does not match its declaration telescope"
+        )));
+    }
+    for (parameter, argument) in parameters.iter().zip(application) {
+        match (&parameter.kind, argument) {
+            (
+                TypeParameterKind::Type,
+                ClosedOperatorApplicationArgument::Type {
+                    binder_symbol,
+                    type_reference,
+                },
+            ) if *binder_symbol == parameter.symbol && type_reference.is_valid() => {
+                let bounds = crate::properties::declared_property_requirements(&parameter.bounds);
+                let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();
+                for property in bounds {
+                    if crate::properties::type_satisfies_declared_property(
+                        program,
+                        symbols,
+                        &[],
+                        *type_reference,
+                        property,
+                    ) {
+                        continue;
+                    }
+                    return Err(Diagnostic::error(format!(
+                        "type parameter `{} [{}]` of operator `{operator_name}` was instantiated with `{}`, which does not satisfy `[{property}]`",
+                        parameter.name,
+                        bound_labels.join(", "),
+                        program.display_type_reference_with_constraints(*type_reference),
+                    )));
+                }
+            }
+            (
+                TypeParameterKind::Const { type_reference },
+                ClosedOperatorApplicationArgument::Const {
+                    binder_symbol,
+                    declared_carrier,
+                    value,
+                },
+            ) if *binder_symbol == parameter.symbol && *declared_carrier == *type_reference => {
+                crate::type_references::validate_exact_const_identity(
+                    program,
+                    *declared_carrier,
+                    value,
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "const parameter `{}` of operator `{operator_name}` has an invalid closed value: {reason}",
+                        parameter.name
+                    ))
+                })?;
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "closed operator application for `{operator_name}` does not rejoin parameter `{}` by category and symbol",
+                    parameter.name
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn static_argument_matches(
+    program: &TypedTrees,
+    supplied: &StaticMachineArgument,
+    inferred: &ClosedOperatorApplicationArgument,
+) -> bool {
+    match inferred {
+        ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
+            static_type_argument_matches(program, supplied, *type_reference)
+        }
+        ClosedOperatorApplicationArgument::Const {
+            declared_carrier,
+            value,
+            ..
+        } => static_const_argument_identity(program, supplied, *declared_carrier)
+            .is_some_and(|supplied| supplied == *value),
+    }
+}
+
+fn static_const_argument_identity(
+    program: &TypedTrees,
+    supplied: &StaticMachineArgument,
+    declared_carrier: TypeReferenceHandle,
+) -> Option<CanonicalConstIdentity> {
+    if supplied.application.is_some()
+        || supplied.evidence_projection.is_some()
+        || supplied.symbol.is_valid()
+        || !supplied.path.is_empty()
+    {
+        return None;
+    }
+    let literal = supplied.const_literal.as_ref()?;
+    let value = literal
+        .value_i64()
+        .map(i128::from)
+        .or_else(|| literal.value_u64().map(i128::from))?;
+    let primitive = program
+        .type_reference_table
+        .primitive_type(declared_carrier)?;
+    Some(CanonicalConstIdentity::integer(primitive.name(), value))
 }
 
 fn static_type_argument_matches(

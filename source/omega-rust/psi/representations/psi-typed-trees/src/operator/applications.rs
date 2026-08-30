@@ -1,30 +1,49 @@
+use psi_language_semantics::const_value::CanonicalConstIdentity;
 use psi_symbols::{SymbolHandle, SymbolKind};
 
 use crate::TypedTrees;
 use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::{
-    OperatorDefinition, declared_domain_constraints_match, normalized_operand_parameters,
-    type_reference_matches_with_policy,
+    OperatorConstBinding, OperatorDefinition, declared_domain_constraints_match,
+    normalized_operand_parameters, type_reference_matches_with_policy,
 };
 
-/// Derive one complete closed type-only application for an operator use from
-/// the same operand unification used by spelling resolution. This is D29's
-/// first checked rung: const, lifetime, machine, and proposition binders
-/// deliberately return `None` until their category-specific identities exist.
-pub fn closed_operator_type_application_for_operands(
+/// One declaration-ordered, closed operator telescope argument inferred from
+/// the exact operand tuple. Const identity deliberately excludes display text;
+/// the independently retained declared carrier is rechecked by validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClosedOperatorApplicationArgument {
+    Type {
+        binder_symbol: SymbolHandle,
+        type_reference: TypeReferenceHandle,
+    },
+    Const {
+        binder_symbol: SymbolHandle,
+        declared_carrier: TypeReferenceHandle,
+        value: CanonicalConstIdentity,
+    },
+}
+
+/// Derive one complete closed type/const application for an operator use from
+/// the same operand unification used by spelling resolution. Lifetime,
+/// machine, and proposition binders remain fail-closed until their exact
+/// category-specific identities exist.
+pub fn closed_operator_application_for_operands(
     program: &TypedTrees,
     operator: &OperatorDefinition,
     operand_types: &[Option<TypeReferenceHandle>],
-) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+) -> Option<Vec<ClosedOperatorApplicationArgument>> {
     if !operator.lifetime_parameters.is_empty() {
         return None;
     }
     let type_parameters = program.operator_type_parameters(operator);
-    if type_parameters
-        .iter()
-        .any(|parameter| !matches!(parameter.kind, crate::data::TypeParameterKind::Type))
-    {
+    if type_parameters.iter().any(|parameter| {
+        !matches!(
+            parameter.kind,
+            crate::data::TypeParameterKind::Type | crate::data::TypeParameterKind::Const { .. }
+        )
+    }) {
         return None;
     }
     if type_parameters.is_empty() {
@@ -35,6 +54,7 @@ pub fn closed_operator_type_application_for_operands(
         return None;
     }
     let mut bindings = Vec::new();
+    let mut const_bindings = Vec::new();
     let matches = operand_types
         .iter()
         .zip(normalized_operand_parameters(parameters))
@@ -47,6 +67,7 @@ pub fn closed_operator_type_application_for_operands(
                     None,
                     type_parameters,
                     &mut bindings,
+                    &mut const_bindings,
                     false,
                 ) && declared_domain_constraints_match(program, actual, expected.type_reference)
             })
@@ -56,16 +77,40 @@ pub fn closed_operator_type_application_for_operands(
     }
     let application = type_parameters
         .iter()
-        .map(|parameter| {
-            bindings.iter().find_map(|(symbol, argument)| {
-                (*symbol == parameter.symbol).then_some((parameter.symbol, *argument))
-            })
+        .map(|parameter| match parameter.kind {
+            crate::data::TypeParameterKind::Type => bindings
+                .iter()
+                .find_map(|(symbol, argument)| {
+                    (*symbol == parameter.symbol).then_some(
+                        ClosedOperatorApplicationArgument::Type {
+                            binder_symbol: parameter.symbol,
+                            type_reference: *argument,
+                        },
+                    )
+                })
+                .filter(|argument| match argument {
+                    ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
+                        closed_boundary_application_type(program, *type_reference)
+                    }
+                    ClosedOperatorApplicationArgument::Const { .. } => false,
+                }),
+            crate::data::TypeParameterKind::Const { type_reference } => const_bindings
+                .iter()
+                .find_map(|OperatorConstBinding { symbol, value }| {
+                    (*symbol == parameter.symbol).then_some(
+                        ClosedOperatorApplicationArgument::Const {
+                            binder_symbol: parameter.symbol,
+                            declared_carrier: type_reference,
+                            value: value.clone(),
+                        },
+                    )
+                })
+                .filter(|_| closed_boundary_application_type(program, type_reference)),
+            crate::data::TypeParameterKind::Machine { .. }
+            | crate::data::TypeParameterKind::Proposition { .. } => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    application
-        .iter()
-        .all(|(_, argument)| closed_boundary_application_type(program, *argument))
-        .then_some(application)
+    Some(application)
 }
 
 fn closed_boundary_application_type(

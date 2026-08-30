@@ -3,7 +3,9 @@ use super::{
     type_references_match,
 };
 use psi_diagnostics::Diagnostic;
-use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use psi_language_semantics::const_value::{
+    CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
+};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{
     DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
@@ -288,6 +290,37 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
         .decode_encoding()
         .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
     validate_decoded_structured_const(program, expected_type, &decoded, &mut Vec::new())
+}
+
+pub(crate) fn validate_exact_const_identity(
+    program: &TypedTrees,
+    expected_type: TypeReferenceHandle,
+    identity: &CanonicalConstIdentity,
+) -> Result<(), String> {
+    if let Some(primitive) = exact_const_primitive(program, expected_type) {
+        if identity.type_name != primitive.name() {
+            return Err(format!(
+                "expected carrier `{}`, but the canonical value names `{}`",
+                primitive.name(),
+                identity.type_name
+            ));
+        }
+        let decoded = identity
+            .decode_encoding()
+            .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
+        return validate_decoded_structured_const(
+            program,
+            expected_type,
+            &decoded,
+            &mut Vec::new(),
+        );
+    }
+    let value = CanonicalConstValue::new(
+        identity.type_name.clone(),
+        identity.encoding.clone(),
+        String::new(),
+    );
+    validate_exact_typed_structured_const_argument(program, expected_type, &value)
 }
 
 fn exact_structured_const_data_carrier_is_eligible(
@@ -589,18 +622,20 @@ fn exact_const_primitive(
     else {
         return None;
     };
-    let primitive = match program.symbols.builtin_type_atom(*symbol)? {
-        psi_symbols::BuiltinTypeAtom::Bool => PrimitiveType::Bool,
-        psi_symbols::BuiltinTypeAtom::I8 => PrimitiveType::I8,
-        psi_symbols::BuiltinTypeAtom::I16 => PrimitiveType::I16,
-        psi_symbols::BuiltinTypeAtom::I32 => PrimitiveType::I32,
-        psi_symbols::BuiltinTypeAtom::I64 => PrimitiveType::I64,
-        psi_symbols::BuiltinTypeAtom::U8 => PrimitiveType::U8,
-        psi_symbols::BuiltinTypeAtom::U16 => PrimitiveType::U16,
-        psi_symbols::BuiltinTypeAtom::U32 => PrimitiveType::U32,
-        psi_symbols::BuiltinTypeAtom::U64 => PrimitiveType::U64,
-        psi_symbols::BuiltinTypeAtom::Address => PrimitiveType::Addr,
-        _ => return None,
+    let primitive = match program.symbols.builtin_type_atom(*symbol) {
+        Some(psi_symbols::BuiltinTypeAtom::Bool) => PrimitiveType::Bool,
+        Some(psi_symbols::BuiltinTypeAtom::I8) => PrimitiveType::I8,
+        Some(psi_symbols::BuiltinTypeAtom::I16) => PrimitiveType::I16,
+        Some(psi_symbols::BuiltinTypeAtom::I32) => PrimitiveType::I32,
+        Some(psi_symbols::BuiltinTypeAtom::I64) => PrimitiveType::I64,
+        Some(psi_symbols::BuiltinTypeAtom::U8) => PrimitiveType::U8,
+        Some(psi_symbols::BuiltinTypeAtom::U16) => PrimitiveType::U16,
+        Some(psi_symbols::BuiltinTypeAtom::U32) => PrimitiveType::U32,
+        Some(psi_symbols::BuiltinTypeAtom::U64) => PrimitiveType::U64,
+        Some(psi_symbols::BuiltinTypeAtom::Address) => PrimitiveType::Addr,
+        Some(_) => return None,
+        None if !symbol.is_valid() => PrimitiveType::from_name(name.as_str())?,
+        None => return None,
     };
     (name.as_str() == primitive.name()).then_some(primitive)
 }

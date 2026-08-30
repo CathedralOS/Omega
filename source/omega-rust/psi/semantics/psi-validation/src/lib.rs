@@ -95,7 +95,8 @@ pub use machine_parameters::{
 pub use machine_specialization_identity::recompute_checked_machine_specialization_commitment;
 pub use operators::{
     ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
-    ValidatedBoundaryOperatorApplicationUseSite, validate_named_operator_type_application,
+    ValidatedBoundaryOperatorApplicationUseSite, validate_closed_operator_application,
+    validate_named_operator_application,
 };
 pub use placed_views::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
