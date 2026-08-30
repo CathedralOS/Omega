@@ -62,6 +62,22 @@ class BetaParserTests(unittest.TestCase):
         grouped_ast = beta_parser.Parser(beta_parser.lex(grouped)).parse()
         self.assertEqual(bare_ast, grouped_ast)
 
+    def test_lists_comparisons_and_literals_follow_the_canonical_grammar(self):
+        invalid = [
+            'proc f(a b) { return a } proc main() { return f(1, 2) }',
+            'proc f(a,) { return a } proc main() { return f(1) }',
+            'proc f(a, b) { return a } proc main() { return f(1 2) }',
+            'proc f(a) { return a } proc main() { return f(1,) }',
+            'proc main() { return 1 < 2 < 3 }',
+            r'proc main() { emit("bad\x") return 0 }',
+            r'''proc main() { emit("bad\'") return 0 }''',
+            r'''proc main() { return '\"' }''',
+        ]
+        for source in invalid:
+            with self.subTest(source=source):
+                with self.assertRaises(SyntaxError):
+                    self.parse(source)
+
     def test_recursive_states_preserve_dfs_tuple_shape_and_fallthrough(self):
         source = '''
             proc main() {

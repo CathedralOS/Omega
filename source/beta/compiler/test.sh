@@ -98,10 +98,12 @@ expect_failure() {
   expected_name=$3
   expected_limit=$4
   expected_requested=$5
+  expected_coordinate=${6-}
   decode_failure "$frame" "$halt_tag" &&
     [ "$decoded_name" = "$expected_name" ] &&
     [ "$decoded_limit" -eq "$expected_limit" ] &&
-    [ "$decoded_requested" -eq "$expected_requested" ]
+    [ "$decoded_requested" -eq "$expected_requested" ] &&
+    { [ -z "$expected_coordinate" ] || [ "$decoded_coordinate" -eq "$expected_coordinate" ]; }
 }
 
 "$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/compiler.tape"
@@ -179,7 +181,7 @@ accept_trap_prefix() {
   actual_status=$?
   set -e
   printf '%b' "$expected_output" > "$TMP/$name.expected"
-  if [ "$actual_status" -ne 0 ] && cmp -s "$TMP/$name.stdout" "$TMP/$name.expected"; then
+  if [ "$actual_status" -eq 132 ] && cmp -s "$TMP/$name.stdout" "$TMP/$name.expected"; then
     pass=$((pass + 1))
   else
     echo "FAIL $name: expected a trap after bytes $(od -An -tu1 "$TMP/$name.expected"), got status $actual_status and $(od -An -tu1 "$TMP/$name.stdout")" >&2
@@ -190,11 +192,12 @@ accept_trap_prefix() {
 reject() {
   name=$1
   source=$2
+  expected_coordinate=${3-}
   set +e
   printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
   status=$?
   set -e
-  if [ "$status" -eq 1 ] && expect_failure "$TMP/$name.out" "$status" invalid_source 0 0; then
+  if [ "$status" -eq 1 ] && expect_failure "$TMP/$name.out" "$status" invalid_source 0 0 "$expected_coordinate"; then
     pass=$((pass + 1))
   else
     echo "FAIL $name: invalid source did not return canonical Reject (status=$status, output=$(wc -c < "$TMP/$name.out" | tr -d ' '))" >&2
@@ -208,11 +211,12 @@ incomplete() {
   limit=$3
   requested=$4
   source=$5
+  expected_coordinate=${6-}
   set +e
   printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
   status=$?
   set -e
-  if [ "$status" -eq 2 ] && expect_failure "$TMP/$name.out" "$status" "$resource" "$limit" "$requested"; then
+  if [ "$status" -eq 2 ] && expect_failure "$TMP/$name.out" "$status" "$resource" "$limit" "$requested" "$expected_coordinate"; then
     pass=$((pass + 1))
   else
     echo "FAIL $name: resource refusal did not return canonical Incomplete/$resource (status=$status)" >&2
@@ -297,9 +301,14 @@ accept associativity 'proc main() { return 100 - 58 + 7 % 5 }' 44
 accept division 'proc main() { return 100 / 7 }' 14
 accept signed_division 'proc main() { return (0 - 7) / 2 }' 253
 accept signed_remainder 'proc main() { return (0 - 7) % 2 }' 255
+accept signed_division_both_negative 'proc main() { return (0 - 7) / (0 - 2) }' 3
+accept signed_remainder_negative_divisor 'proc main() { return 7 % (0 - 2) }' 1
+accept signed_remainder_both_negative 'proc main() { return (0 - 7) % (0 - 2) }' 255
 accept_trap_prefix division_by_zero_prefix 'proc main() { emit("D") return 1 / 0 }' D
 accept_trap_prefix remainder_by_zero_prefix 'proc main() { emit("R") return 1 % 0 }' R
 accept_trap_prefix signed_division_overflow_prefix 'proc main() { emit("O") return 9223372036854775808 / 18446744073709551615 }' O
+accept_trap_prefix signed_remainder_overflow_prefix 'proc main() { emit("M") return 9223372036854775808 % 18446744073709551615 }' M
+accept_trap_prefix rhs_trap_order 'proc mark(x) { write_byte(x) return x } proc main() { emit("X") return mark(65) + 1 / 0 }' XA
 accept character "proc main() { return 'A' }" 65
 accept escaped "proc main() { return '\\n' }" 10
 accept comments ' ; before
@@ -323,6 +332,7 @@ contain_stack_fault recursive_stack_exhaustion "$stack_source"
 unset stack_source stack_slot
 accept call_state_loop 'proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 state l { to b when i <= n return t } state b { t = t + i i = i + 1 to l } }' 55
 accept four_parameters 'proc sum(a, b, c, d) { let x = c * 10 + d return a + b + x } proc main() { return sum(1, 2, 3, 9) }' 42
+accept_io nested_four_argument_order 'proc mark(x) { write_byte(x + 48) return x } proc pack(a, b, c, d) { return a + b + c + d } proc main() { return pack(mark(1), mark(2), mark(3), mark(4)) }' '' 10 1234
 accept less_true 'proc main() { return 1 < 2 }' 1
 accept less_false 'proc main() { return 2 < 1 }' 0
 accept greater_true 'proc main() { return 2 > 1 }' 1
@@ -347,11 +357,13 @@ accept state_loop 'proc main() { let n = 10 let s = 0 let i = 1 state loop { to 
 accept nested_state_dfs_fallthrough 'proc main() { state outer { state child { let x = 42 } } state next { return x } }' 42
 accept alternate_path_initialization 'proc main() { to assigned when read_byte() state initialize { let x = 1 to join } state assigned { x = 2 to join } state join { return x } }' 2
 accept unreachable_initialized_read 'proc main() { return 7 state declared { let x = 1 } state dead { return x } }' 7
-accept scoped_states 'proc main() { return f() } proc f() { state same { return 42 } } proc g() { state same { return 1 } }' 42
+accept scoped_states 'proc main() { return f() * 10 + g() } proc f() { state same { return 4 } } proc g() { state same { return 2 } }' 42
 accept shared_state_spelling 'proc main() { let shared = 1 state shared { return 42 } }' 42
 accept adversarial_labels 'proc main() { state main { return _L0() } } proc _L0() { state foo__bar { return 42 } } proc foo__bar() { return 0 }' 42
 accept byte_memory 'proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }' 131
 accept word_memory 'proc main() { let b = 2097152 word[b] = 42 return word[b] }' 42
+accept byte_into_unaligned_word_alias 'proc main() { word[1] = 0 byte[3] = 255 return word[1] / 65536 }' 255
+accept unaligned_word_from_bytes 'proc main() { byte[7] = 17 byte[8] = 34 return word[7] / 256 }' 34
 accept zeroed_byte_memory 'proc main() { return byte[0] }' 0
 accept zeroed_word_memory 'proc main() { return word[0] }' 0
 accept last_byte_memory 'proc main() { byte[33554431] = 77 return byte[33554431] }' 77
@@ -363,10 +375,13 @@ accept word_array_loop 'proc main() { let base = 2097152 let i = 0 state fill { 
 accept nested_memory 'proc main() { let b = 2097152 word[b] = b + 16 byte[b + 16] = 77 return byte[word[b]] }' 77
 accept call_statement 'proc main() { let b = 2097152 touch(b) return word[b] } proc touch(p) { word[p] = 42 return 0 }' 42
 accept final_fallthrough_zero 'proc main() { return f(42) } proc f(x) { }' 0
+accept final_state_fallthrough_zero 'proc main() { state last { } }' 0
 accept explicit_return_preserved 'proc main() { return f(42) } proc f(x) { return x }' 42
 accept_io byte_io 'proc main() { let c = read_byte() write_byte(c + 1) return c }' A 65 B
 accept_io eof_read 'proc main() { return read_byte() }' '' 255 ''
 accept_io write_return 'proc main() { return write_byte(321) }' '' 65 A
+accept_io exact_eof_word 'proc main() { return read_byte() == 18446744073709551615 }' '' 1 ''
+accept_io exact_write_return_word 'proc main() { return write_byte(256) / 256 }' '' 1 '\0'
 accept_io binary_evaluation_order 'proc mark(x) { write_byte(x + 48) return x } proc main() { return mark(3) + mark(4) }' '' 7 34
 accept_io call_argument_evaluation_order 'proc mark(x) { write_byte(x + 48) return x } proc pair(a, b) { return a * 10 + b } proc main() { return pair(mark(1), mark(2)) }' '' 12 12
 accept_io store_evaluation_order 'proc address() { write_byte(65) return 0 } proc value() { write_byte(86) return 42 } proc main() { word[address()] = value() return word[0] }' '' 42 AV
@@ -414,7 +429,7 @@ else
   fail=$((fail + 1))
 fi
 
-reject missing_expression 'proc main() { return }'
+reject missing_expression 'proc main() { return }' 21
 reject malformed_late_proc 'proc main() { return 42 } proc other('
 reject keyword_boundary 'procedure main() { return 42 }'
 reject wrong_entry 'proc answer() { return 42 }'
@@ -438,10 +453,14 @@ reject five_arguments 'proc main() { return f(1, 2, 3, 4, 5) } proc f(a, b, c, d
 reject single_equal_expression 'proc main() { return 1 = 1 }'
 reject single_bang_expression 'proc main() { return 1 ! 2 }'
 reject chained_comparison 'proc main() { return 1 < 2 < 3 }'
+reject missing_parameter_comma 'proc f(a b) { return a } proc main() { return f(1, 2) }'
+reject trailing_parameter_comma 'proc f(a,) { return a } proc main() { return f(1) }'
+reject missing_argument_comma 'proc f(a, b) { return a } proc main() { return f(1 2) }'
+reject trailing_argument_comma 'proc f(a) { return a } proc main() { return f(1,) }'
 reject split_less_equal 'proc main() { return 1 < = 2 }'
 reject unknown_state 'proc main() { to nowhere }'
 reject duplicate_state 'proc main() { state x { return 1 } state x { return 2 } }'
-reject cross_proc_state 'proc main() { to x return 0 } proc f() { state x { return 1 } }'
+reject cross_proc_state 'proc main() { to x } proc f() { state x { return 1 } }'
 reject reserved_state 'proc main() { state state { return 0 } }'
 reject read_arity 'proc main() { return read_byte(1) }'
 reject write_arity_zero 'proc main() { return write_byte() }'
@@ -450,8 +469,10 @@ reject bad_memory_load 'proc main() { return byte[1 }'
 reject bad_memory_store 'proc main() { word[1] 42 return 0 }'
 reject unterminated_emit 'proc main() { emit("unterminated) return 0 }'
 reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
+reject bad_emit_single_quote_escape "proc main() { emit(\"bad\\'\") return 0 }"
 reject decimal_overflow 'proc main() { return 18446744073709551616 }'
 reject bad_character "proc main() { return '\\x' }"
+reject bad_character_double_quote_escape "proc main() { return '\\\"' }"
 reject ordinary_after_state 'proc main() { state child { } return 0 }'
 reject ordinary_after_nested_state 'proc main() { state child { state nested { } return 0 } }'
 reject ordinary_after_return 'proc main() { return 0 let x = 1 }'
@@ -506,7 +527,8 @@ reject_noncanonical_frame runtime_251_not_compiler_outcome "$TMP/missing_express
 ident_64=$(awk 'BEGIN { for (i = 0; i < 64; i++) printf "a" }')
 ident_65="${ident_64}a"
 accept identifier_limit "proc main() { let $ident_64 = 42 return $ident_64 }" 42
-incomplete identifier_extent identifier_bytes 64 65 "proc main() { let $ident_65 = 1 return 0 }"
+incomplete identifier_extent identifier_bytes 64 65 \
+  "proc main() { let $ident_65 = 1 return 0 }" 82
 
 deep_64='proc main() { return '
 i=0
@@ -567,8 +589,18 @@ incomplete mixed_state_nesting_extent syntax_depth 64 65 "$mixed_state_depth_65"
 # exactly. The second source requests 262141 bytes and must publish nothing.
 tape_limit=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21829; i++) printf "a"; print "\") return 1 + 1 }" }')
 accept_compile_extent output_limit "$tape_limit" 262140
+if sh "$OMEGA_PATH_BETA_COMPILER/validation/admission/bc-artifact-structure.sh" \
+    "$TMP/output_limit.tape" >/dev/null; then
+  pass=$((pass + 1))
+else
+  echo "FAIL output_limit_structure: maximum-size emitted tape is malformed" >&2
+  fail=$((fail + 1))
+fi
 tape_over=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21834; i++) printf "a"; print "\") return 0 }" }')
-incomplete output_extent payload_bytes 262140 262141 "$tape_over"
+incomplete output_extent payload_bytes 262140 262141 "$tape_over" 262140
+incomplete first_payload_failure_before_late_reject payload_bytes 262140 262141 \
+  "$tape_over proc broken(" 262140
+reject first_reject_before_late_payload "proc main() { return } $tape_over" 21
 
 wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 14000; i++) printf "+1"; print " }" }')
 set +e
@@ -624,10 +656,11 @@ printf '%s' 'proc main() { return 42 }' > "$limit_source"
 used=$(wc -c < "$limit_source" | tr -d ' ')
 remaining=$((1048576 - used))
 dd if=/dev/zero bs="$remaining" count=1 2>/dev/null >> "$limit_source"
-if "$TMP/compiler" < "$limit_source" > "$TMP/source-limit.tape"; then
+if "$TMP/compiler" < "$limit_source" > "$TMP/source-limit.tape" &&
+   cmp -s "$TMP/source-limit.tape" "$TMP/literal.tape"; then
   pass=$((pass + 1))
 else
-  echo "FAIL source_limit: exact 1 MiB source was not accepted" >&2
+  echo "FAIL source_limit: exact 1 MiB source was not accepted as the unchanged program" >&2
   fail=$((fail + 1))
 fi
 printf '\000' >> "$limit_source"
@@ -635,10 +668,26 @@ set +e
 "$TMP/compiler" < "$limit_source" > "$TMP/source-over.out"
 status=$?
 set -e
-if [ "$status" -eq 2 ] && expect_failure "$TMP/source-over.out" "$status" source_bytes 1048576 1048577; then
+if [ "$status" -eq 2 ] && expect_failure "$TMP/source-over.out" "$status" \
+    source_bytes 1048576 1048577 1048576; then
   pass=$((pass + 1))
 else
   echo "FAIL source_over: expected canonical source-bytes Incomplete, got status $status" >&2
+  fail=$((fail + 1))
+fi
+
+# Source admission completes before parsing, so an overlong stream is the first
+# decisive event even when its first byte would later be invalid source.
+printf '!' | dd of="$limit_source" bs=1 seek=0 conv=notrunc 2>/dev/null
+set +e
+"$TMP/compiler" < "$limit_source" > "$TMP/source-over-invalid.out"
+status=$?
+set -e
+if [ "$status" -eq 2 ] && expect_failure "$TMP/source-over-invalid.out" "$status" \
+    source_bytes 1048576 1048577 1048576; then
+  pass=$((pass + 1))
+else
+  echo "FAIL source_over_precedence: slurp refusal did not remain the first outcome" >&2
   fail=$((fail + 1))
 fi
 

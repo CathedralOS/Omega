@@ -41,8 +41,8 @@ parallel assembly semantics, not an admission premise. The exact source/tape
 certificate remains open under OWNER Q5 (the exact Alpha-to-Beta edge) in
 `OWNER_QUESTIONS.md`.
 
-The committed artifact is 26,810 bytes with SHA-256
-`98099d90d95a98d4448fb376ded3d274cd35aaaabec918342f247ab0f82ac3ef`.
+The committed artifact is 26,751 bytes with SHA-256
+`c54307cc855f72d6ab64a320237826fd9eff46307dc817727a3671ded9a747a1`.
 The byte comparison, not the convenient digest, governs repository identity.
 
 ## Compiler boundary outcome
@@ -121,7 +121,7 @@ failure framing at each adjacent refusal.
 | Combined state-block, parenthesis, nested-call, and nested-load syntax depth | 64 |
 | Parameters plus function-scoped locals | 64 per procedure |
 | Procedures | 128 |
-| Call sites | 1,024 |
+| Non-builtin procedure call-reference rows | 1,024 |
 | States | 128 per procedure; 1,024 total |
 | Transitions | 256 per procedure; 1,024 total |
 | Emitted runnable Alpha payload | 262,140 bytes |
