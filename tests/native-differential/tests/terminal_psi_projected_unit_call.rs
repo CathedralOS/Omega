@@ -3,7 +3,7 @@ use omega_calling_conventions::ValueShape;
 use omega_image_emission::{
     InstallationError, build_installation_record, build_object_artifact,
     decode_installation_record, derive_stack_demand, emit_executable_image,
-    encode_installation_record, validate_installation_record,
+    encode_installation_record, validate_executable_image, validate_installation_record,
 };
 use omega_machine_emission::emit_machine_code;
 use omega_optimization_unit::reconstruct_psi_optimization_unit_seed;
@@ -147,6 +147,17 @@ const WIDEST_NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
     data Root {}
     machine Root::enter(values: [[Token; 5]; 2]) {
         Helper::take(values[1][4]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
+const NESTED_AFFINE_SEXTET_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 6]; 2]) {
+        Helper::take(values[1][5]);
         Helper::take(values[0][1]);
     }
 "#;
@@ -554,6 +565,23 @@ fn widest_nested_affine_array_plan() -> omega_abstract_operations::AbstractOpera
         encode_proof_bundle(&terminal.proof_bundle).expect("encode widest nested affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified widest nested affine artifact enters Omega")
+}
+
+fn nested_affine_sextet_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(NESTED_AFFINE_SEXTET_SOURCE)
+        .tokenize()
+        .expect("tokenize nested affine sextet source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nested affine sextet source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve nested affine sextet source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type nested affine sextet source");
+    let checked = lower_typed_trees(typed).expect("check nested affine sextet source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower nested affine sextet Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode nested affine sextet Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode nested affine sextet proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nested affine sextet artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -2399,14 +2427,70 @@ fn assert_wider_nested_affine_array_native_custody(
         validate_installation_record(&installation, &image).unwrap();
 
         let encoded = encode_installation_record(&installation).unwrap();
-        assert_eq!(decode_installation_record(&encoded), Ok(installation));
+        assert_eq!(
+            decode_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+        if inner_length == 6 {
+            assert_sextet_image_installation_and_codec_tamper(
+                target,
+                &object,
+                &installation,
+                &encoded,
+            );
+        }
     }
+}
+
+fn assert_sextet_image_installation_and_codec_tamper(
+    target: NativeTarget,
+    object: &omega_image_emission::ObjectArtifact,
+    installation: &omega_image_emission::InstallationRecord,
+    encoded: &[u8],
+) {
+    let control_plan = widest_nested_affine_array_plan();
+    let control_target = lower_to_target_operations(&control_plan, target).unwrap();
+    let control_assigned = assign_registers(&control_target).unwrap();
+    let control_machine = emit_machine_code(&control_assigned).unwrap();
+    let control_object = build_object_artifact(&control_machine).unwrap();
+    let control_image = emit_executable_image(&control_object, 3).unwrap();
+    assert!(
+        validate_executable_image(object, &control_image).is_err(),
+        "image replay rejects a valid but different nested-width image on {target:?}",
+    );
+    assert!(
+        validate_installation_record(installation, &control_image).is_err(),
+        "installation replay rejects a valid but different nested-width image on {target:?}",
+    );
+
+    let mut encoded_path_tamper = encoded.to_vec();
+    let mut encoded_residual_path = Vec::new();
+    encoded_residual_path.extend_from_slice(&[2, 0, 0, 0]);
+    encoded_residual_path.extend_from_slice(&1_u64.to_le_bytes());
+    encoded_residual_path.extend_from_slice(&[2, 0, 0, 0]);
+    encoded_residual_path.extend_from_slice(&4_u64.to_le_bytes());
+    let matches = encoded_path_tamper
+        .windows(encoded_residual_path.len())
+        .enumerate()
+        .filter_map(|(offset, bytes)| (bytes == encoded_residual_path).then_some(offset))
+        .collect::<Vec<_>>();
+    let [path_offset] = matches.as_slice() else {
+        panic!("sextet installation encodes one exact [1][4] residual path")
+    };
+    let inner_index_offset = *path_offset + 16;
+    encoded_path_tamper[inner_index_offset..inner_index_offset + 8]
+        .copy_from_slice(&5_u64.to_le_bytes());
+    assert!(
+        decode_installation_record(&encoded_path_tamper).is_err(),
+        "installation codec rejects encoded residual-path drift on {target:?}",
+    );
 }
 
 #[test]
 fn wider_nested_affine_arrays_retain_exact_native_custody() {
     assert_wider_nested_affine_array_native_custody(wider_nested_affine_array_plan(), 4);
     assert_wider_nested_affine_array_native_custody(widest_nested_affine_array_plan(), 5);
+    assert_wider_nested_affine_array_native_custody(nested_affine_sextet_plan(), 6);
 }
 
 #[test]
