@@ -173,6 +173,20 @@ expect_assembly_reject db-escape 9 "$T/db-escape.alpha"
 printf 'db "a\001b"\n' > "$T/db-control.alpha"
 expect_assembly_reject db-control 9 "$T/db-control.alpha"
 
+# The outer source envelope is checked before tokenization, including comments.
+# CR and LF both terminate comments; no other control byte is trivia.
+printf 'jmp done; comment\rdone:\rhalt r0\r' > "$T/cr-comments.alpha"
+expect_equal cr-comments "$T/cr-comments.alpha"
+expect_exit cr-comments 0
+printf '; comment\000\nhalt r0\n' > "$T/comment-nul.alpha"
+expect_assembly_reject comment-nul 9 "$T/comment-nul.alpha"
+printf 'halt\013r0\n' > "$T/vertical-tab.alpha"
+expect_assembly_reject vertical-tab 9 "$T/vertical-tab.alpha"
+printf '; comment\177\nhalt r0\n' > "$T/comment-del.alpha"
+expect_assembly_reject comment-del 9 "$T/comment-del.alpha"
+printf '; comment\303\251\nhalt r0\n' > "$T/comment-high-byte.alpha"
+expect_assembly_reject comment-high-byte 9 "$T/comment-high-byte.alpha"
+
 ELAPSED=$(python3 - "$START" <<'PY'
 import sys, time
 print(f"{time.time() - float(sys.argv[1]):.3f}")

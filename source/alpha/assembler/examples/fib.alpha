@@ -1,4 +1,4 @@
-; fib.alpha — tree-recursive Fibonacci using the data-stack calling convention.
+; fib.alpha - tree-recursive Fibonacci using the data-stack calling convention.
 ; fib(n) = n if n < 2 else fib(n-1) + fib(n-2). Two recursive calls per frame.
 ; r15 = data stack pointer. arg in r0, result in r0. fib(10) = 55.
 ; Stronger proof than factorial: nothing is assumed to survive a call in a register;

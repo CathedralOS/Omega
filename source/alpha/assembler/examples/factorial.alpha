@@ -1,6 +1,6 @@
-; factorial.alpha — recursive factorial using the data-stack calling convention.
+; factorial.alpha - recursive factorial using the data-stack calling convention.
 ; r15 = data stack pointer (grows down). arg in r0, result in r0.
-; Proves real recursion with per-call frames — no fixed globals. factorial(5) = 120.
+; Proves real recursion with per-call frames - no fixed globals. factorial(5) = 120.
 ; See ../CALLING_CONVENTION.md.
 
         imm   r15, 1048576      ; init data stack pointer (1 MiB; grows downward)

@@ -63,7 +63,7 @@ through both VMs produces **byte-identical tapes**, so disagreement exposes a
 conformance or implementation problem. The written semantics and audited
 implementation correspondence supply authority; multiplicity supplies useful
 evidence. Verified: the arm64 macOS VM reproduces the x64 VM's assembler
-bytecode from `assembler/assembler.alpha` byte-for-byte (sha256 `945c8061…`), and the full
+bytecode from `assembler/assembler.alpha` byte-for-byte (sha256 `15e75e68…`), and the full
 example corpus runs to the same answers on both.
 
 **Third point — `alpha_ref.py`.** The two seeds are hand-authored *assembly*, hard to audit.
