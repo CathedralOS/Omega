@@ -412,12 +412,14 @@ Current ownership is:
   exact fact-free non-Boolean fixed-width primitive or an eligible closed
   record. Primitive-terminal arrays require an exactly tiled shared
   representation. Record-terminal arrays repeat the complete normalized padded
-  record extent. Eligible records may contain recursively nonzero literal array
-  fields ending in the same exact primitive or record shapes; padding and
-  repeated strides remain covered. Record eligibility and representation
+  record extent. Eligible records may contain recursively literal array fields
+  ending in the same exact primitive or record shapes. A zero extent
+  participates only when its terminal independently qualifies and the whole
+  record remains nonzero; its element alignment and padding remain covered.
+  Record eligibility and representation
   recursion use exact symbol identity and require a nonzero, nongeneric,
   quotient-free, acyclic, all-relevant, recursively fact-free shape. Runtime or
-  merely bounded offsets, slices, zero-length record-contained arrays,
+  merely bounded offsets, slices, total zero-size targets,
   generic/invariant-bearing/erased/cased records, and other indexed recasts stay
   fenced because an element path cannot represent their complete target
   footprint.

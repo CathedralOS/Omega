@@ -320,10 +320,8 @@ fn closed_fact_free_record_field_is_eligible(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
-        } if *length > 0 => {
-            closed_fact_free_record_field_is_eligible(program, *element_type, visiting)
-        }
+            length: psi_typed_trees::types::FixedArrayLength::Literal(_),
+        } => closed_fact_free_record_field_is_eligible(program, *element_type, visiting),
         _ => false,
     }
 }

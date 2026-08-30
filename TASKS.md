@@ -10544,12 +10544,15 @@ checked-result arithmetic decision listed below.
   record shape now publish the
   complete validated half-open target footprint as one fixed-range loan.
   Primitive-terminal arrays require an exactly tiled normalized representation;
-  record-terminal arrays and eligible records containing recursively nonzero
-  literal array fields retain the complete normalized padded record extent.
+  record-terminal arrays and eligible records containing recursively literal
+  array fields retain the complete normalized padded record extent. Zero array
+  fields participate only when their terminal independently qualifies and the
+  containing record remains nonzero; their element alignment can still induce
+  protected padding.
   Record lookup and recursion use exact symbol identity. Repeated-leaf capacity
   overflow fails closed before allocation. First/last/padding-byte mutations
   reject while immediate siblings remain disjoint. Runtime or merely bounded
-  offsets, slices, zero-length record-contained arrays,
+  offsets, slices, total zero-size targets,
   generic/invariant-bearing/erased/cased records, and other indexed recasts
   remain conservative.
   Scalar recast representation-set normalization and
