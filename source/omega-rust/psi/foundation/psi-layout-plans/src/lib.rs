@@ -148,6 +148,27 @@ pub struct ConventionalNestedRecordSumPathLayoutReport {
     pub child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
 }
 
+/// One exact direct outer-field occurrence and the complete inner-record
+/// layout facts reachable through that single segment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalNestedRecordSumOccurrenceLayoutReport {
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub inner_layout: LayoutPlanReport,
+    pub child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
+}
+
+/// Compact complete authored-order set of qualifying one-level record paths.
+///
+/// The outer layout is retained once. Each occurrence owns exactly one inner
+/// layout and its complete direct-sum rows, so repeated uses of the same inner
+/// type remain distinct without multiplying layouts by selected values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalNestedRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub paths: Vec<ConventionalNestedRecordSumOccurrenceLayoutReport>,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns

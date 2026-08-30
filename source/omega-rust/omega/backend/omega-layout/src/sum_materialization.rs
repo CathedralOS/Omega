@@ -8,7 +8,8 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
-    ConventionalNestedRecordSumPathLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalNestedRecordSumOccurrenceLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
     ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
@@ -185,6 +186,35 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<ConventionalNestedRecordSumPathLayoutReport, Diagnostic> {
+    let plural = project_conventional_record_with_nested_sum_records_materialization_layout(
+        program,
+        plan,
+        data_symbol,
+    )?;
+    if plural.paths.len() != 1 {
+        return Err(Diagnostic::error(format!(
+            "singular nested-record sum projection requires exactly one qualifying direct inner-record field; found {}",
+            plural.paths.len()
+        )));
+    }
+    let path = plural.paths.into_iter().next().expect("exactly one path");
+    Ok(ConventionalNestedRecordSumPathLayoutReport {
+        outer_layout: plural.outer_layout,
+        outer_field: path.outer_field,
+        outer_member_identity: path.outer_member_identity,
+        inner_layout: path.inner_layout,
+        child_sum_layouts: path.child_sum_layouts,
+    })
+}
+
+/// Project the complete nonempty authored-order set of bounded one-record
+/// paths to direct conventional sum fields. The outer layout is retained once;
+/// each occurrence owns one exact inner layout and complete child rows.
+pub fn project_conventional_record_with_nested_sum_records_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<ConventionalNestedRecordSumPathsLayoutReport, Diagnostic> {
     let definition = unique_data_definition(program, data_symbol, "nested-record sum owner")?;
     validate_closed_copy_record(program, definition, "nested-record sum owner")?;
     let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
@@ -220,7 +250,12 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
         .map_err(|_| {
             Diagnostic::error("nested-record sum outer offset report exceeds compiler resources")
         })?;
-    let mut selected = None;
+    let mut paths = Vec::new();
+    paths
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error("nested-record sum path report exceeds compiler resources")
+        })?;
     let mut reachability = SumReachability::new(program);
     for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
         if declared.symbol != laid.symbol || declared.name != laid.name {
@@ -274,11 +309,6 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
                                 declared.name
                             )));
                         }
-                        if selected.is_some() {
-                            return Err(Diagnostic::error(
-                                "nested-record sum projection requires exactly one qualifying direct inner-record field",
-                            ));
-                        }
                         validate_closed_copy_record(program, named, "nested-record sum inner")?;
                         let TypeLayoutDescriptor::Named {
                             symbol: laid_symbol,
@@ -317,12 +347,12 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
                                 declared.name
                             )));
                         }
-                        selected = Some((
-                            declared.name.to_string(),
-                            declared.identity,
+                        paths.push(ConventionalNestedRecordSumOccurrenceLayoutReport {
+                            outer_field: declared.name.to_string(),
+                            outer_member_identity: declared.identity,
                             inner_layout,
                             child_sum_layouts,
-                        ));
+                        });
                     } else if profile.array || profile.deeper {
                         return Err(Diagnostic::error(format!(
                             "nested-record sum field `{}` reaches sums beyond the admitted direct child path",
@@ -342,12 +372,11 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
         });
         offsets.push(offset);
     }
-    let (outer_field, outer_member_identity, inner_layout, child_sum_layouts) =
-        selected.ok_or_else(|| {
-            Diagnostic::error(
-                "nested-record sum projection requires exactly one qualifying direct inner-record field",
-            )
-        })?;
+    if paths.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-record sum projection requires a nonempty qualifying direct inner-record field set",
+        ));
+    }
     let outer_layout = LayoutPlanReport {
         schema_report_fingerprint: psi_typed_trees::identity::normalized_schema_report_fingerprint(
             program, definition,
@@ -360,12 +389,9 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
         )?),
         align: usize_to_u64(data_layout.layout.alignment, "outer record alignment")?,
     };
-    Ok(ConventionalNestedRecordSumPathLayoutReport {
+    Ok(ConventionalNestedRecordSumPathsLayoutReport {
         outer_layout,
-        outer_field,
-        outer_member_identity,
-        inner_layout,
-        child_sum_layouts,
+        paths,
     })
 }
 
@@ -1094,6 +1120,7 @@ mod tests {
         validate_const_materializable_record_with_conventional_sum,
         validate_const_materializable_record_with_conventional_sum_array,
         validate_const_materializable_record_with_nested_sum_record,
+        validate_const_materializable_record_with_nested_sum_records,
     };
     use psi_checked_trees::{CheckFacts, CheckedTrees};
     use psi_layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
@@ -1564,6 +1591,256 @@ mod tests {
                 outer.symbol,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_atomically() {
+        let checked = checked(
+            r#"
+            data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u8); }
+            data Inner [copy] {
+                #1 choice: Choice;
+                #2 marker: u16;
+                #3 backup: Choice;
+            }
+            data Outer [copy] {
+                #1 prefix: u8;
+                #2 first: Inner;
+                #3 between: u16;
+                #4 second: Inner;
+                #5 suffix: u8;
+            }
+            "#,
+        );
+        let outer = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Outer")
+            .unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let paths = project_conventional_record_with_nested_sum_records_materialization_layout(
+            &checked,
+            &plan,
+            outer.symbol,
+        )
+        .expect("the complete authored-order path set should project");
+        assert_eq!(
+            paths.outer_layout.offsets.as_deref(),
+            Some(&[0, 4, 24, 28, 48][..])
+        );
+        assert_eq!(paths.outer_layout.size, Some(52));
+        assert_eq!(paths.paths.len(), 2);
+        assert_eq!(paths.paths[0].outer_field, "first");
+        assert_eq!(paths.paths[1].outer_field, "second");
+        assert_eq!(paths.paths[0].outer_member_identity, Some(2));
+        assert_eq!(paths.paths[1].outer_member_identity, Some(4));
+        assert_eq!(paths.paths[0].inner_layout, paths.paths[1].inner_layout);
+        assert_eq!(paths.paths[0].child_sum_layouts.len(), 2);
+        assert_eq!(paths.paths[1].child_sum_layouts.len(), 2);
+        assert!(
+            project_conventional_record_with_nested_sum_record_materialization_layout(
+                &checked,
+                &plan,
+                outer.symbol,
+            )
+            .is_err(),
+            "the singular compatibility projection must fail closed on two occurrences"
+        );
+
+        let empty = || BuildTimeValue::Case {
+            variant: "Empty".into(),
+            payload: Vec::new(),
+        };
+        let number = |value| BuildTimeValue::Case {
+            variant: "Number".into(),
+            payload: vec![("value".into(), BuildTimeValue::Int(value))],
+        };
+        let value = BuildTimeValue::Struct {
+            type_name: "Outer".into(),
+            fields: vec![
+                ("prefix".into(), BuildTimeValue::Int(0xaa)),
+                (
+                    "first".into(),
+                    BuildTimeValue::Struct {
+                        type_name: "Inner".into(),
+                        fields: vec![
+                            ("choice".into(), empty()),
+                            ("marker".into(), BuildTimeValue::Int(0x1122)),
+                            ("backup".into(), number(0x3a)),
+                        ],
+                    },
+                ),
+                ("between".into(), BuildTimeValue::Int(0x3344)),
+                (
+                    "second".into(),
+                    BuildTimeValue::Struct {
+                        type_name: "Inner".into(),
+                        fields: vec![
+                            ("choice".into(), number(0x5c)),
+                            ("marker".into(), BuildTimeValue::Int(0x5566)),
+                            ("backup".into(), empty()),
+                        ],
+                    },
+                ),
+                ("suffix".into(), BuildTimeValue::Int(0x77)),
+            ],
+        };
+        let singular_first = ConventionalNestedRecordSumPathLayoutReport {
+            outer_layout: paths.outer_layout.clone(),
+            outer_field: paths.paths[0].outer_field.clone(),
+            outer_member_identity: paths.paths[0].outer_member_identity,
+            inner_layout: paths.paths[0].inner_layout.clone(),
+            child_sum_layouts: paths.paths[0].child_sum_layouts.clone(),
+        };
+        assert!(
+            validate_const_materializable_record_with_nested_sum_record(
+                &checked,
+                "Outer",
+                &singular_first,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .is_err(),
+            "the singular consumer must not discard the second qualifying occurrence"
+        );
+        let carrier = validate_const_materializable_record_with_nested_sum_records(
+            &checked,
+            "Outer",
+            &paths,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("two same-type occurrences should retain independent selected sums");
+        assert_eq!(carrier.inner_records().len(), 2);
+        assert_eq!(
+            carrier.inner_records()[0].inner().nested_sums()[0]
+                .nested_sum()
+                .selected_case_ordinal(),
+            0
+        );
+        assert_eq!(
+            carrier.inner_records()[1].inner().nested_sums()[0]
+                .nested_sum()
+                .selected_case_ordinal(),
+            1
+        );
+        assert_eq!(
+            carrier.bytes(),
+            &[
+                0xaa, 0, 0, 0, // prefix padding
+                0, 0, 0, 0, 0, 0, 0, 0, // first.choice Empty
+                0x22, 0x11, 0, 0, // first.marker + padding
+                1, 0, 0, 0, 0x3a, 0, 0, 0, // first.backup Number
+                0x44, 0x33, 0, 0, // between + outer padding
+                1, 0, 0, 0, 0x5c, 0, 0, 0, // second.choice Number
+                0x66, 0x55, 0, 0, // second.marker + padding
+                0, 0, 0, 0, 0, 0, 0, 0, // second.backup Empty
+                0x77, 0, 0, 0, // suffix + tail padding
+            ]
+        );
+        carrier
+            .replay_against(&checked, "Outer", &paths, &value, ByteOrder::LittleEndian)
+            .expect("the complete plural path report should replay");
+        let mut destination = [0xa5; 56];
+        carrier
+            .apply(&checked, &mut destination)
+            .expect("all occurrences replay before one outer copy");
+        assert_eq!(&destination[..52], carrier.bytes());
+        assert_eq!(&destination[52..], &[0xa5; 4]);
+        let mut short = [0x5a; 51];
+        assert!(carrier.apply(&checked, &mut short).is_err());
+        assert_eq!(short, [0x5a; 51]);
+
+        let mut renamed = paths.clone();
+        renamed.outer_layout.entries[1].field = "renamed_first".into();
+        renamed.outer_layout.entries[3].field = "renamed_second".into();
+        renamed.paths[0].outer_field = "renamed_first".into();
+        renamed.paths[1].outer_field = "renamed_second".into();
+        renamed.paths[0].inner_layout.entries[0].field = "renamed_choice".into();
+        renamed.paths[0].child_sum_layouts[0].field = "renamed_choice".into();
+        carrier
+            .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
+            .expect("stable-numbered outer and child names remain presentation-only");
+
+        let rejects = |mutated: &psi_layout_plans::ConventionalNestedRecordSumPathsLayoutReport| {
+            assert!(
+                carrier
+                    .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                    .is_err()
+            );
+        };
+        let mut missing_path = paths.clone();
+        missing_path.paths.pop();
+        rejects(&missing_path);
+        let mut extra_path = paths.clone();
+        extra_path.paths.push(paths.paths[0].clone());
+        rejects(&extra_path);
+        let mut reordered_paths = paths.clone();
+        reordered_paths.paths.swap(0, 1);
+        rejects(&reordered_paths);
+        let mut duplicate_path = paths.clone();
+        duplicate_path.paths[1] = paths.paths[0].clone();
+        rejects(&duplicate_path);
+        let mut wrong_path_identity = paths.clone();
+        wrong_path_identity.paths[0].outer_member_identity = paths.paths[1].outer_member_identity;
+        rejects(&wrong_path_identity);
+        let mut missing_child = paths.clone();
+        missing_child.paths[0].child_sum_layouts.pop();
+        rejects(&missing_child);
+        let mut extra_child = paths.clone();
+        extra_child.paths[0]
+            .child_sum_layouts
+            .push(paths.paths[0].child_sum_layouts[0].clone());
+        rejects(&extra_child);
+        let mut reordered_children = paths.clone();
+        reordered_children.paths[0].child_sum_layouts.swap(0, 1);
+        rejects(&reordered_children);
+        let mut duplicate_child = paths.clone();
+        duplicate_child.paths[0].child_sum_layouts[1] = paths.paths[0].child_sum_layouts[0].clone();
+        rejects(&duplicate_child);
+        let mut wrong_child_identity = paths.clone();
+        wrong_child_identity.paths[0].child_sum_layouts[0].member_identity =
+            paths.paths[0].child_sum_layouts[1].member_identity;
+        rejects(&wrong_child_identity);
+        let mut wrong_outer_layout = paths.clone();
+        wrong_outer_layout.outer_layout.entries[2].placement =
+            LayoutPlacementReport::At { offset: 26 };
+        rejects(&wrong_outer_layout);
+        let mut wrong_inner_layout = paths.clone();
+        wrong_inner_layout.paths[1].inner_layout.entries[1].placement =
+            LayoutPlacementReport::At { offset: 10 };
+        rejects(&wrong_inner_layout);
+        let mut wrong_child_geometry = paths.clone();
+        wrong_child_geometry.paths[1].child_sum_layouts[0]
+            .layout
+            .cases[1]
+            .payload_fields[0]
+            .offset += 1;
+        rejects(&wrong_child_geometry);
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", &paths, &value, ByteOrder::BigEndian,)
+                .is_err()
+        );
+        let mut wrong_value = value.clone();
+        let BuildTimeValue::Struct { fields, .. } = &mut wrong_value else {
+            unreachable!("fixture is outer record")
+        };
+        let BuildTimeValue::Struct { fields, .. } = &mut fields[3].1 else {
+            unreachable!("second occurrence is inner record")
+        };
+        fields[0].1 = empty();
+        assert!(
+            carrier
+                .replay_against(
+                    &checked,
+                    "Outer",
+                    &paths,
+                    &wrong_value,
+                    ByteOrder::LittleEndian,
+                )
+                .is_err()
         );
     }
 

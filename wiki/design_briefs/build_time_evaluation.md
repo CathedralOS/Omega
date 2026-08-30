@@ -375,24 +375,26 @@ checks the outer and compact reports hash-free, reconstructs every selected
 element into contiguous fixed-array staging, reconstructs the zero-padded outer
 record, and performs one atomic copy.
 
-The first one-level record-path rung admits exactly one direct field of the
-outer record whose exact type is another closed non-generic `[copy]` record with
-a complete nonempty authored-order direct conventional-sum set. Its compact
-path report retains the exact outer field occurrence, both whole-record plans,
-and the inner sum rows from the same target runtime plan. A distinct non-clone
-carrier owns the existing validated direct-sum record carrier as one inner field
-value. Construction and replay independently rejoin both schemas, layouts,
-occurrence identities, complete child rows, selected cases, and bytes; both
-record images start zeroed and only the finished outer image is copied. Exact
-hash-free comparison makes stable-numbered field/case/payload renames
-presentation-only. A fallible memoized graph walk with explicit record and edge
-bounds classifies excluded recursive and deeper sum paths without host recursion
-or repeated traversal of shared subgraphs.
+The first one-level record-path rung admits the complete nonempty authored-order
+set of direct outer fields whose exact types are closed non-generic `[copy]`
+records with direct conventional-sum sets. Its compact plural report retains the
+outer whole-record plan once and one exact outer occurrence, inner whole-record
+plan, and complete child row set per field, all from the same target runtime
+plan. Repeated occurrences of one inner type remain separate and may select
+different cases. A distinct non-clone carrier owns one existing validated
+direct-sum record carrier per occurrence. Construction and replay independently
+rejoin every schema, layout, occurrence identity, complete child row, selected
+case, and byte; every inner and outer image starts zeroed and only the finished
+outer image is copied. The singular surfaces are zero-allocation exact-one
+wrappers and reject a plural cohort. Exact hash-free comparison makes stable-
+numbered field/case/payload renames presentation-only. A fallible memoized graph
+walk with explicit record and edge bounds plus a linear authored-order cursor
+classifies excluded recursive and deeper sum paths without host recursion,
+repeated traversal of shared subgraphs, or occurrence cross-products.
 
 Zero-length, multiple, or nested sum arrays, coexistence with direct sum fields,
-multiple qualifying inner-record occurrences, paths deeper than one record,
-mixed common-field/case shapes, and sums whose all-case geometry requires a
-target capsule remain later rungs. The same NaN, generic/opaque/quotient,
+paths deeper than one record, mixed common-field/case shapes, and sums whose
+all-case geometry requires a target capsule remain later rungs. The same NaN,
 reference, slice, Text, dynamic, atomic, and non-copy fences remain in force.
 None of these slices narrows the legacy typed-owned materialization API or
 establishes evaluator admission, quotient canonicalization, producer-origin

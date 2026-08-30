@@ -31,8 +31,11 @@ pub use const_materializable::{
     ValidatedConstMaterialization, validate_const_materializable_typed_owned_layout,
 };
 pub use const_record_with_nested_sum_materializable::{
+    ValidatedConstNestedSumRecordOccurrenceMaterialization,
     ValidatedConstRecordWithNestedSumRecordMaterialization,
+    ValidatedConstRecordWithNestedSumRecordsMaterialization,
     validate_const_materializable_record_with_nested_sum_record,
+    validate_const_materializable_record_with_nested_sum_records,
 };
 pub use const_record_with_sum_materializable::{
     ValidatedConstRecordSumArrayElementMaterialization,

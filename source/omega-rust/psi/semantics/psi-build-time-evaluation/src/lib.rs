@@ -37,9 +37,11 @@ pub use const_lengths::{
 };
 pub use layout_plans::{
     BuildTimeValue, ValidatedConstMaterialization,
+    ValidatedConstNestedSumRecordOccurrenceMaterialization,
     ValidatedConstRecordSumArrayElementMaterialization,
     ValidatedConstRecordSumFieldMaterialization,
     ValidatedConstRecordWithNestedSumRecordMaterialization,
+    ValidatedConstRecordWithNestedSumRecordsMaterialization,
     ValidatedConstRecordWithSumArrayMaterialization, ValidatedConstRecordWithSumMaterialization,
     ValidatedConstSumMaterialization, compute_layout_plan, compute_layout_plan_with_authority,
     compute_native_layout_plan, compute_native_layout_plan_with_authority,
@@ -49,6 +51,7 @@ pub use layout_plans::{
     validate_const_materializable_record_with_conventional_sum_array,
     validate_const_materializable_record_with_conventional_sums,
     validate_const_materializable_record_with_nested_sum_record,
+    validate_const_materializable_record_with_nested_sum_records,
     validate_const_materializable_typed_owned_layout,
 };
 pub use placed_views::{
