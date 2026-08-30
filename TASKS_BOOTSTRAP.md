@@ -620,11 +620,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     cursor foundation in native Gamma values. Every retained syntax form owns
     exact source spans; identifiers and literals retain source-span identity;
     token rescanning covers the closed keyword, literal, punctuation, and
-    operator set without a whole-source ledger. A semicolon-terminated postfix
-    form remains syntactically neutral until resolution classifies an ordinary
-    call or final `never` terminal. No byte-rope arena, numeric node reference,
-    parser-time semantic guess, or private arity bound is introduced. Recursive
-    descent itself remains the next implementation milestone.
+    operator set without a whole-source ledger. Token start, code, end, and
+    literal value are scalar `Int` facts, so repeated parser lookahead allocates
+    no token/outcome objects in Gamma's fixed immutable heap. A
+    semicolon-terminated postfix form remains syntactically neutral until
+    resolution classifies an ordinary call or final `never` terminal. No
+    byte-rope arena, numeric node reference, parser-time semantic guess, or
+    private arity bound is introduced. Recursive descent itself remains the
+    next implementation milestone.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
