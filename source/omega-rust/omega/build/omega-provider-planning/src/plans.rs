@@ -9,6 +9,7 @@ use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRo
 #[cfg(test)]
 use omega_trust_model::ProviderGrantSelectorKind;
 use omega_trust_model::resolve_selected_provider_grants;
+use omega_trust_model::{AuthoredRootGrant, ResolvedAuthoredSelectedProviderGrant};
 use psi_typed_trees::TypedTrees;
 use std::sync::Arc;
 
@@ -37,6 +38,7 @@ pub use installed_writer::*;
 pub struct SelectedProviderPlanBinding {
     program: Arc<psi_checked_trees::CheckedTrees>,
     selected: omega_effects::SelectedProviderPlanFacts,
+    grants: Vec<ResolvedAuthoredSelectedProviderGrant>,
 }
 
 impl SelectedProviderPlanBinding {
@@ -45,8 +47,9 @@ impl SelectedProviderPlanBinding {
     ) -> (
         Arc<psi_checked_trees::CheckedTrees>,
         omega_effects::SelectedProviderPlanFacts,
+        Vec<ResolvedAuthoredSelectedProviderGrant>,
     ) {
-        (self.program, self.selected)
+        (self.program, self.selected, self.grants)
     }
 }
 
@@ -104,10 +107,17 @@ pub fn bind_selected_provider_plan_facts(
     candidates: &[ProviderPlan],
     facts: omega_effects::SelectedProviderPlanFacts,
     root_grants: &[String],
+    authored_root_grants: &[AuthoredRootGrant],
 ) -> Result<SelectedProviderPlanBinding, Vec<psi_diagnostics::Diagnostic>> {
     let checked = program.as_ref();
     let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
         .map_err(|diagnostic| vec![diagnostic])?;
+    let authored_provider_grants = omega_trust_model::resolve_authored_selected_provider_grants(
+        candidates,
+        &facts,
+        authored_root_grants,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let mut granted_plans = Vec::new();
     for grant in &provider_grants {
         let exact_selected_matches = facts
@@ -264,6 +274,7 @@ pub fn bind_selected_provider_plan_facts(
     Ok(SelectedProviderPlanBinding {
         program: bound_program,
         selected,
+        grants: authored_provider_grants,
     })
 }
 

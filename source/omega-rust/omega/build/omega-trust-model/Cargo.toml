@@ -15,6 +15,7 @@ psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }

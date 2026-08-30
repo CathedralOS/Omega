@@ -35,6 +35,7 @@ pub struct CheckedCompilation {
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    selected_provider_grants: Vec<omega_trust_model::ResolvedAuthoredSelectedProviderGrant>,
     provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
     root_grants: Vec<String>,
@@ -70,6 +71,7 @@ impl PartialEq for CheckedCompilation {
             && self.optimization_selection_identity == other.optimization_selection_identity
             && self.optimization_report == other.optimization_report
             && self.selected_provider_plans == other.selected_provider_plans
+            && self.selected_provider_grants == other.selected_provider_grants
             && self.provider_plans == other.provider_plans
             && self.external_binding_rows == other.external_binding_rows
             && self.root_grants == other.root_grants
@@ -256,6 +258,13 @@ impl CheckedCompilation {
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
         &self.selected_provider_plans
+    }
+
+    /// Exact `build.omg` grants resolved to retained selected provider plans.
+    pub fn selected_provider_grants(
+        &self,
+    ) -> &[omega_trust_model::ResolvedAuthoredSelectedProviderGrant] {
+        &self.selected_provider_grants
     }
 
     #[doc(hidden)]
@@ -851,10 +860,15 @@ fn compile_to_checked_inner_with_replay(
             &typed,
             selected_provider_plans,
         )?;
+    let root_grants = build_config
+        .grants
+        .iter()
+        .map(|grant| grant.selector.clone())
+        .collect::<Vec<_>>();
     if package_inputs.is_some() {
         omega_trust_model::reject_package_non_provider_grants(
             &typed,
-            &build_config.grants,
+            &root_grants,
             &provider_plans,
             &selected_provider_plan_facts,
         )?;
@@ -868,7 +882,8 @@ fn compile_to_checked_inner_with_replay(
             boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
             provider_plans: &provider_plans,
             selected_provider_plan_facts,
-            root_grants: &build_config.grants,
+            root_grants: &root_grants,
+            authored_root_grants: &build_config.grants,
         },
     )?;
     let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
@@ -928,9 +943,10 @@ fn compile_to_checked_inner_with_replay(
         optimization_selection_identity,
         optimization_report,
         selected_provider_plans: selected_execution_settlement.selected_provider_plan_facts,
+        selected_provider_grants: selected_execution_settlement.selected_provider_grants,
         provider_plans,
         external_binding_rows,
-        root_grants: build_config.grants,
+        root_grants,
         accepted_template_classifications: selected_execution_settlement
             .accepted_template_classifications,
         selected_provider_provenance: selected_execution_settlement.selected_provider_provenance,

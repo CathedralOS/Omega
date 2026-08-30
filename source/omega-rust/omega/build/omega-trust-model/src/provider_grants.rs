@@ -1,6 +1,18 @@
 use omega_effects::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use psi_diagnostics::Diagnostic;
 
+/// One statically harvested root grant and its exact authored custody.
+///
+/// Selection strings remain transitional compiler input. The machine and span
+/// prevent package review from rediscovering authority from a spelling after
+/// the typed build program has been consumed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredRootGrant {
+    pub selector: String,
+    pub selecting_machine: psi_symbols::SymbolHandle,
+    pub source_span: psi_source::SourceSpan,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderGrantSelectorKind {
     PlanName,
@@ -18,6 +30,14 @@ pub struct ResolvedSelectedProviderGrant {
     pub selected_plan: ProviderPlan,
     pub selected_plan_digest: ProviderPlanDigest,
     pub selected_plan_report_identity: u64,
+}
+
+/// One authored root grant resolved to its complete selected provider plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedAuthoredSelectedProviderGrant {
+    pub grant: ResolvedSelectedProviderGrant,
+    pub selecting_machine: psi_symbols::SymbolHandle,
+    pub source_span: psi_source::SourceSpan,
 }
 
 impl ResolvedSelectedProviderGrant {
@@ -138,6 +158,34 @@ pub fn resolve_selected_provider_grants(
         });
     }
     Ok(resolved)
+}
+
+/// Resolve provenance-bearing authored grants without weakening the existing
+/// exact selected-plan replay performed by [`resolve_selected_provider_grants`].
+pub fn resolve_authored_selected_provider_grants(
+    candidates: &[ProviderPlan],
+    selected: &omega_effects::SelectedProviderPlanFacts,
+    authored_grants: &[AuthoredRootGrant],
+) -> Result<Vec<ResolvedAuthoredSelectedProviderGrant>, Diagnostic> {
+    let selectors = authored_grants
+        .iter()
+        .map(|grant| grant.selector.clone())
+        .collect::<Vec<_>>();
+    let resolved = resolve_selected_provider_grants(candidates, selected, &selectors)?;
+    if resolved.len() != authored_grants.len() {
+        return Err(Diagnostic::error(
+            "authored provider grants are not aligned with their resolved selected plans",
+        ));
+    }
+    Ok(resolved
+        .into_iter()
+        .zip(authored_grants)
+        .map(|(grant, authored)| ResolvedAuthoredSelectedProviderGrant {
+            grant,
+            selecting_machine: authored.selecting_machine,
+            source_span: authored.source_span,
+        })
+        .collect())
 }
 
 #[cfg(test)]

@@ -23,6 +23,8 @@ pub use grants::{
     NonProviderTrustGrant, reject_package_non_provider_grants, resolve_non_provider_trust_grant,
 };
 pub use provider_grants::{
-    ProviderGrantSelectorKind, ResolvedSelectedProviderGrant, resolve_selected_provider_grants,
+    AuthoredRootGrant, ProviderGrantSelectorKind, ResolvedAuthoredSelectedProviderGrant,
+    ResolvedSelectedProviderGrant, resolve_authored_selected_provider_grants,
+    resolve_selected_provider_grants,
 };
 pub use report::reconstruct_trust_report;

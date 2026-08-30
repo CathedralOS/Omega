@@ -16,6 +16,8 @@ use std::sync::Arc;
 pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) selected_provider_plan_facts: omega_effects::SelectedProviderPlanFacts,
+    pub(super) selected_provider_grants:
+        Vec<omega_trust_model::ResolvedAuthoredSelectedProviderGrant>,
     pub(super) callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
     pub(super) accepted_template_classifications:
         omega_trust_model::AcceptedTemplateClassifications,
@@ -28,6 +30,8 @@ pub(super) struct CheckedProgramSurface {
 pub(super) struct SelectedExecutionSettlementSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) selected_provider_plan_facts: omega_effects::SelectedProviderPlanFacts,
+    pub(super) selected_provider_grants:
+        Vec<omega_trust_model::ResolvedAuthoredSelectedProviderGrant>,
     pub(super) callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
     pub(super) accepted_template_classifications:
         omega_trust_model::AcceptedTemplateClassifications,
@@ -56,6 +60,7 @@ pub(super) struct TypedToCheckedSettlementInput<'a> {
     pub(super) provider_plans: &'a [omega_effects::provider_plan::ProviderPlan],
     pub(super) selected_provider_plan_facts: omega_effects::SelectedProviderPlanFacts,
     pub(super) root_grants: &'a [String],
+    pub(super) authored_root_grants: &'a [omega_trust_model::AuthoredRootGrant],
 }
 
 pub(super) fn syntax_trees_to_symbol_resolved_trees(
@@ -119,11 +124,14 @@ pub(super) fn typed_trees_to_checked_trees(
                 settlement.provider_plans,
                 settlement.selected_provider_plan_facts,
                 settlement.root_grants,
+                settlement.authored_root_grants,
             )?;
-        let (program, selected_provider_plan_facts) = selected_provider_binding.into_parts();
+        let (program, selected_provider_plan_facts, selected_provider_grants) =
+            selected_provider_binding.into_parts();
         Ok(CheckedProgramSurface {
             program,
             selected_provider_plan_facts,
+            selected_provider_grants,
             callback_placements,
             accepted_template_classifications,
             contract_entailment_stand_downs,
@@ -170,6 +178,7 @@ pub(super) fn settle_selected_execution(
     Ok(SelectedExecutionSettlementSurface {
         program: checked.program,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
+        selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,
         accepted_template_classifications: checked.accepted_template_classifications,
         contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
