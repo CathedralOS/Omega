@@ -13,75 +13,6 @@ use cap_std::fs::OpenOptions as CapabilityOpenOptions;
 use std::fs::File;
 use std::path::Path;
 
-pub(super) fn verify_git_transport_invocation_path(
-    invocation_path: &Path,
-    expected_canonical: &Path,
-) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(invocation_path).map_err(|error| {
-        SourceResolveError::GitExecutableInvalid {
-            path: invocation_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    if !metadata.is_file() && !metadata.file_type().is_symlink() {
-        return Err(SourceResolveError::GitExecutableInvalid {
-            path: invocation_path.to_path_buf(),
-            message: "transport invocation path is not a regular file or symbolic link".to_owned(),
-        });
-    }
-    verify_git_transport_invocation_node_custody(invocation_path, &metadata)?;
-    let canonical = invocation_path.canonicalize().map_err(|error| {
-        SourceResolveError::GitExecutableInvalid {
-            path: invocation_path.to_path_buf(),
-            message: error.to_string(),
-        }
-    })?;
-    if canonical != expected_canonical {
-        return Err(SourceResolveError::GitExecutableChanged {
-            path: invocation_path.to_path_buf(),
-        });
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn verify_git_transport_invocation_node_custody(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::MetadataExt;
-
-    let effective_user = nix::unistd::Uid::effective().as_raw();
-    if metadata.uid() != 0 && metadata.uid() != effective_user {
-        return Err(SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: "transport invocation entry is owned by an unrelated user".to_owned(),
-        });
-    }
-    if metadata.file_type().is_symlink() {
-        verify_macos_path_extended_acl_custody(path, false)?;
-    } else {
-        verify_macos_open_executable_acl_custody(path, metadata)?;
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn verify_git_transport_invocation_node_custody(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    verify_windows_executable_path_identity(path, metadata)
-}
-
-#[cfg(all(not(unix), not(windows)))]
-fn verify_git_transport_invocation_node_custody(
-    _path: &Path,
-    _metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
 #[cfg(unix)]
 pub(super) fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::MetadataExt;
@@ -128,33 +59,6 @@ pub(super) fn verify_git_executable_custody(path: &Path) -> Result<(), SourceRes
         });
     }
     verify_macos_open_executable_acl_custody(path, &metadata)?;
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn verify_macos_path_extended_acl_custody(
-    path: &Path,
-    follow_symbolic_link: bool,
-) -> Result<(), SourceResolveError> {
-    let symbolic_link_behavior = if follow_symbolic_link {
-        omega_platform_custody::SymbolicLinkBehavior::Follow
-    } else {
-        omega_platform_custody::SymbolicLinkBehavior::InspectLink
-    };
-    let has_allow_entry =
-        omega_platform_custody::extended_acl_has_allow_entry(path, symbolic_link_behavior)
-            .map_err(|error| SourceResolveError::GitExecutableInvalid {
-                path: path.to_path_buf(),
-                message: format!(
-                    "could not inspect resolver executable extended ACL custody: {error}"
-                ),
-            })?;
-    if has_allow_entry {
-        return Err(SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: "resolver executable custody contains an extended ACL allow entry".to_owned(),
-        });
-    }
     Ok(())
 }
 
@@ -221,14 +125,6 @@ fn verify_macos_open_executable_extended_acl_custody(
             message: "resolver executable custody contains an extended ACL allow entry".to_owned(),
         });
     }
-    Ok(())
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-fn verify_macos_path_extended_acl_custody(
-    _path: &Path,
-    _follow_symbolic_link: bool,
-) -> Result<(), SourceResolveError> {
     Ok(())
 }
 

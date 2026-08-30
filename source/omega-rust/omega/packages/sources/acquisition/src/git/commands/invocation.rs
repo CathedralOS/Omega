@@ -1,17 +1,14 @@
-//! Git-specific invocation over compiler-owned endpoint routes.
+//! Git-specific invocation under bounded host-routed execution.
 
 use super::capture::{BoundedCommandOutput, run_command_bounded_with_budget};
-use super::command::sealed_git_command_with_route;
+use super::command::sealed_git_command;
 use super::identity::git_command_configuration_identity;
-use super::reconciliation::reconcile_git_command_endpoint_result;
+use super::reconciliation::reconcile_git_command_result;
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::{GIT_STDERR_LIMIT, GIT_STDOUT_LIMIT};
 use crate::observations::execution::GitCommandInputCommitment;
-use omega_resolver_execution::{
-    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
-    ResolverExecutionEndpointRoute, ResolverExecutionPhase,
-};
+use omega_resolver_execution::ResolverExecutionPhase;
 use std::ffi::OsStr;
 use std::path::Path;
 
@@ -91,26 +88,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let endpoint_route = if matches!(
-        phase,
-        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
-    ) {
-        Some(
-            executor
-                .execution_backend
-                .open_endpoint_route(
-                    executor.requested_network_endpoint.clone(),
-                    executor.network_transfer_budget.clone(),
-                )
-                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: format!("cannot open the compiler-owned endpoint route: {error}"),
-                })?,
-        )
-    } else {
-        None
-    };
-    let mut command =
-        sealed_git_command_with_route(executor, working_directory, phase, endpoint_route.as_ref())?;
+    let mut command = sealed_git_command(executor, working_directory, phase)?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
     let input = GitCommandInputCommitment::Null;
@@ -123,48 +101,7 @@ where
         command_timeout,
         executor.captured_output_budget.clone(),
     );
-    let endpoint_result = endpoint_route
-        .map(ResolverExecutionEndpointRoute::finish)
-        .transpose()
-        .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
-            message: format!("compiler-owned endpoint route failed: {error}"),
-        });
-    let endpoint_validation = endpoint_result
-        .as_ref()
-        .map_err(Clone::clone)
-        .and_then(|observation| validate_network_transfer_outcome(observation.as_ref()));
-    let output = reconcile_git_command_endpoint_result(
-        result,
-        endpoint_validation,
-        executor.verify(),
-        executor.verify_budget(),
-    )?;
-    let endpoint_observation =
-        endpoint_result.expect("successful reconciliation checked endpoint result");
-    executor.record_command_execution(
-        phase,
-        command_identity,
-        input,
-        &output,
-        endpoint_observation,
-    )?;
+    let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
+    executor.record_command_execution(phase, command_identity, input, &output)?;
     Ok(output)
-}
-
-fn validate_network_transfer_outcome(
-    observation: Option<&ResolverExecutionEndpointObservation>,
-) -> Result<(), SourceResolveError> {
-    let Some(observation) = observation else {
-        return Ok(());
-    };
-    if observation
-        .events()
-        .iter()
-        .any(|event| event.outcome() == ResolverExecutionEndpointOutcome::TransferCeilingReached)
-    {
-        return Err(SourceResolveError::GitResolutionNetworkTransferCeiling {
-            ceiling: observation.route().transfer_byte_ceiling(),
-        });
-    }
-    Ok(())
 }

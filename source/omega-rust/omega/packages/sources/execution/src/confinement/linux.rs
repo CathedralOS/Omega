@@ -46,6 +46,14 @@ pub(crate) fn spawn(
         }
     }
 
+    // Network phases deliberately use the selected Git process's ordinary
+    // host descendant-execution and writable-state authority. Applying the
+    // local Landlock executable and write allowlists here would silently
+    // override host-selected credential, transport, and configuration helpers.
+    if policy.phase().permits_network() {
+        return command.group_spawn();
+    }
+
     std::thread::scope(|scope| {
         scope
             .spawn(move || {
@@ -83,14 +91,6 @@ fn enforce(policy: &ResolverExecutionPolicyObservation) -> io::Result<()> {
     ruleset = ruleset
         .add_rule(PathBeneath::new(primary_executable, executable_access))
         .map_err(landlock_error)?;
-    for executable in policy.additional_executables() {
-        let executable_fd = PathFd::new(executable).map_err(landlock_error)?;
-        require_regular_executable(&executable_fd, executable)?;
-        ruleset = ruleset
-            .add_rule(PathBeneath::new(executable_fd, executable_access))
-            .map_err(landlock_error)?;
-    }
-
     // Resolver phases use a fixed null sink. It is the only writable device,
     // and ABI v5 lets the policy close device ioctl authority everywhere else.
     let null_access = make_bitflags!(AccessFs::{ReadFile | WriteFile | IoctlDev});

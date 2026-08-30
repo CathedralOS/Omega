@@ -191,12 +191,10 @@ parity is not required before a successful source receipt may issue, and these
 mechanisms do not claim to solve hostile same-user replacement or remove
 ambient host authority.
 
-The current native implementation still contains a forced CONNECT route,
-preselected transport/helper identities, and associated endpoint/transfer
-receipt fields. Those are legacy implementation drift, not this contract. The
-host-routed transport task removes them together; until it lands, some valid
-ambient Git/SSH configurations may fail to resolve. Removed observations are
-deleted from the universal receipt rather than retained as zero-valued fields.
+The universal implementation contains no forced CONNECT route, preselected
+transport/helper identity graph, or endpoint/transfer receipt fields. Those
+former behavior overrides were deleted rather than retained as empty or
+zero-valued observations.
 
 ## Package and build separation
 

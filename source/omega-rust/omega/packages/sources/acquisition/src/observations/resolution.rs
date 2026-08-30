@@ -11,11 +11,7 @@ use omega_resolver_execution::ResolverExecutionPhase;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-use super::accounting::{
-    git_captured_output_observation, git_network_transfer_observation,
-    git_resolution_captured_output_ceiling, git_resolution_network_transfer_ceiling,
-};
-use super::execution::GitTransportExecutableIdentity;
+use super::accounting::{git_captured_output_observation, git_resolution_captured_output_ceiling};
 use super::resolved::PendingResolvedGitSource;
 use super::storage::{GitRetainedStorageObservation, validate_git_retained_storage_observation};
 
@@ -32,9 +28,6 @@ pub struct GitSourceReceipt {
     pub(crate) command_count: usize,
     pub(crate) captured_output_ceiling: u64,
     pub(crate) captured_output_observed: u64,
-    pub(crate) network_transfer_ceiling: u64,
-    pub(crate) network_transfer_uploaded: u64,
-    pub(crate) network_transfer_downloaded: u64,
 }
 
 impl GitSourceReceipt {
@@ -56,18 +49,6 @@ impl GitSourceReceipt {
 
     pub const fn captured_output_observed(&self) -> u64 {
         self.captured_output_observed
-    }
-
-    pub const fn network_transfer_ceiling(&self) -> u64 {
-        self.network_transfer_ceiling
-    }
-
-    pub const fn network_transfer_uploaded(&self) -> u64 {
-        self.network_transfer_uploaded
-    }
-
-    pub const fn network_transfer_downloaded(&self) -> u64 {
-        self.network_transfer_downloaded
     }
 }
 
@@ -105,11 +86,6 @@ pub(crate) fn issue_git_source_receipt(
                 )
             || command.status_code != command.completion.status().code()
             || command.termination_signal != command.completion.status().unix_signal()
-            || match (policy.endpoint_route(), &command.endpoint_observation) {
-                (Some(route), Some(endpoint)) => endpoint.route() != route,
-                (None, None) => false,
-                _ => true,
-            }
         {
             return Err(SourceResolveError::GitExecutionBoundaryInvalid {
                 message: "final Git execution rows are not joined to their native policies"
@@ -124,16 +100,6 @@ pub(crate) fn issue_git_source_receipt(
     if resolved.captured_output_observation != expected_captured_output {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
             message: "final Git resolution captured-output accounting is inconsistent".to_owned(),
-        });
-    }
-    let expected_network_transfer = git_network_transfer_observation(
-        &resolved.execution_policy_observations,
-        &resolved.command_execution_observations,
-        git_resolution_network_transfer_ceiling(limits),
-    )?;
-    if resolved.network_transfer_observation != expected_network_transfer {
-        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-            message: "final Git resolution network-transfer accounting is inconsistent".to_owned(),
         });
     }
     let object_algorithm = git_object_algorithm(&resolved.commit)?;
@@ -199,18 +165,6 @@ pub(crate) fn issue_git_source_receipt(
         &mut hasher,
         resolved.git_executable.content_identity.as_bytes(),
     );
-    match &resolved.transport_executable {
-        Some(executable) => {
-            hash_resolution_field(&mut hasher, b"transport-present");
-            hash_resolution_transport_executable(&mut hasher, executable);
-        }
-        None => hash_resolution_field(&mut hasher, b"transport-absent"),
-    }
-    hash_resolution_usize(&mut hasher, resolved.execution_helper_executables.len());
-    for executable in &resolved.execution_helper_executables {
-        hash_resolution_transport_executable(&mut hasher, executable);
-    }
-
     hash_resolution_usize(&mut hasher, resolved.execution_policy_observations.len());
     for observation in &resolved.execution_policy_observations {
         hash_resolution_field(&mut hasher, &observation.canonical_bytes());
@@ -235,22 +189,9 @@ pub(crate) fn issue_git_source_receipt(
         hash_resolution_field(&mut hasher, observation.stdout_identity.as_bytes());
         hash_resolution_u64(&mut hasher, observation.stderr_length);
         hash_resolution_field(&mut hasher, observation.stderr_identity.as_bytes());
-        match &observation.endpoint_observation {
-            Some(endpoint) => {
-                hash_resolution_field(&mut hasher, b"endpoint-present");
-                hash_resolution_field(&mut hasher, &endpoint.canonical_bytes());
-            }
-            None => hash_resolution_field(&mut hasher, b"endpoint-absent"),
-        }
     }
     hash_resolution_u64(&mut hasher, resolved.captured_output_observation.ceiling);
     hash_resolution_u64(&mut hasher, resolved.captured_output_observation.observed);
-    hash_resolution_u64(&mut hasher, resolved.network_transfer_observation.ceiling);
-    hash_resolution_u64(&mut hasher, resolved.network_transfer_observation.uploaded);
-    hash_resolution_u64(
-        &mut hasher,
-        resolved.network_transfer_observation.downloaded,
-    );
     hash_resolution_u64(&mut hasher, u64::from(retained_storage.schema_version));
     hash_resolution_field(&mut hasher, retained_storage.identity.as_bytes());
     hash_resolution_usize(&mut hasher, retained_storage.entry_ceiling);
@@ -267,9 +208,6 @@ pub(crate) fn issue_git_source_receipt(
         command_count: resolved.command_execution_observations.len(),
         captured_output_ceiling: resolved.captured_output_observation.ceiling,
         captured_output_observed: resolved.captured_output_observation.observed,
-        network_transfer_ceiling: resolved.network_transfer_observation.ceiling,
-        network_transfer_uploaded: resolved.network_transfer_observation.uploaded,
-        network_transfer_downloaded: resolved.network_transfer_observation.downloaded,
     })
 }
 
@@ -287,15 +225,6 @@ fn hash_workspace_declaration(
     hash_resolution_field(hasher, declaration.repository_path().as_bytes());
     hash_resolution_field(hasher, declaration.object_id().as_bytes());
     hash_resolution_field(hasher, declaration.bytes());
-}
-
-fn hash_resolution_transport_executable(
-    hasher: &mut Sha256,
-    executable: &GitTransportExecutableIdentity,
-) {
-    hash_resolution_path(hasher, &executable.invocation_path);
-    hash_resolution_path(hasher, &executable.path);
-    hash_resolution_field(hasher, executable.content_identity.as_bytes());
 }
 
 fn hash_resolution_field(hasher: &mut Sha256, value: &[u8]) {
@@ -349,5 +278,29 @@ fn hash_resolution_path(hasher: &mut Sha256, path: &Path) {
     {
         hash_resolution_field(hasher, b"platform-path");
         hash_resolution_field(hasher, path.as_os_str().as_encoded_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GitSourceReceipt;
+    use crate::limits::GIT_SOURCE_RECEIPT_SCHEMA_VERSION;
+
+    #[test]
+    fn universal_receipt_has_no_broker_transfer_placeholders() {
+        let receipt = GitSourceReceipt {
+            schema_version: GIT_SOURCE_RECEIPT_SCHEMA_VERSION,
+            identity: "receipt-identity".to_owned(),
+            command_count: 4,
+            captured_output_ceiling: 8_192,
+            captured_output_observed: 128,
+        };
+
+        let debug = format!("{receipt:?}");
+        assert!(!debug.contains("network_transfer"));
+        assert!(!debug.contains("uploaded"));
+        assert!(!debug.contains("downloaded"));
+        assert!(!debug.contains("endpoint"));
+        assert!(!debug.contains("peer"));
     }
 }

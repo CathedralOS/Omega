@@ -152,19 +152,9 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
         local: materialized.local,
         workspace_projection: materialized.workspace_projection,
         git_executable: executor.identity.clone(),
-        transport_executable: executor
-            .transport_executable
-            .as_ref()
-            .map(|executable| executable.identity.clone()),
-        execution_helper_executables: executor
-            .execution_helpers
-            .iter()
-            .map(|executable| executable.identity.clone())
-            .collect(),
         execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
         command_execution_observations: executor.command_execution_observations.borrow().clone(),
         captured_output_observation: executor.captured_output_observation()?,
-        network_transfer_observation: executor.network_transfer_observation()?,
     };
     Ok((pending, materialized.evidence))
 }

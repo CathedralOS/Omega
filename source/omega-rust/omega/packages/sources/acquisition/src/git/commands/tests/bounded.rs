@@ -1,13 +1,10 @@
 #[cfg(unix)]
 use super::{
     GIT_COMMAND_CLEANUP_TIMEOUT, GitCapturedOutputBudget, StreamCaptureResult,
-    capture_stream_bounded, command_cleanup_reserve, open_git_transport_executable,
-    open_https_transport_executable, run_command_bounded, run_command_bounded_with_budget,
-    shell_command, temp_root, verify_git_transport_executable,
+    capture_stream_bounded, command_cleanup_reserve, run_command_bounded,
+    run_command_bounded_with_budget, shell_command, temp_root,
 };
-use super::{
-    SourceResolveError, reconcile_git_command_endpoint_result, reconcile_git_command_result,
-};
+use super::{SourceResolveError, reconcile_git_command_result};
 #[cfg(unix)]
 use std::time::{Duration, Instant};
 
@@ -175,91 +172,6 @@ fn bounded_command_terminates_descendants_on_deadline() {
 
 #[cfg(unix)]
 #[test]
-fn ssh_transport_executable_reuses_resolver_executable_custody() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let temporary_root = temp_root("ssh-transport-executable");
-    std::fs::create_dir_all(&temporary_root).expect("create SSH executable custody root");
-    let root = temporary_root
-        .canonicalize()
-        .expect("canonicalize SSH executable custody root");
-    let fake_ssh = root.join("ssh");
-    std::fs::write(&fake_ssh, b"#!/bin/sh\nexit 0\n").expect("write fake SSH executable");
-    std::fs::set_permissions(&fake_ssh, std::fs::Permissions::from_mode(0o700))
-        .expect("make fake SSH executable");
-
-    let executable =
-        open_git_transport_executable(&fake_ssh).expect("capture SSH executable identity");
-    assert!(executable.identity.path.is_absolute());
-    assert_eq!(executable.identity.content_identity.len(), 64);
-    verify_git_transport_executable(&executable).expect("verify unchanged SSH executable");
-
-    std::fs::set_permissions(&fake_ssh, std::fs::Permissions::from_mode(0o777))
-        .expect("make SSH executable unsafe");
-    assert!(matches!(
-        verify_git_transport_executable(&executable),
-        Err(SourceResolveError::GitExecutableChanged { .. })
-            | Err(SourceResolveError::GitExecutableInvalid { .. })
-    ));
-
-    std::fs::set_permissions(&fake_ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-#[cfg(unix)]
-#[test]
-fn https_transport_executable_binds_invocation_alias_and_canonical_target() {
-    use std::os::unix::fs::{PermissionsExt, symlink};
-
-    let temporary_root = temp_root("https-transport-executable");
-    std::fs::create_dir_all(&temporary_root).expect("create HTTPS helper custody root");
-    let root = temporary_root
-        .canonicalize()
-        .expect("canonicalize HTTPS helper custody root");
-    let bin = root.join("bin");
-    let helpers = root.join("libexec/git-core");
-    std::fs::create_dir_all(&bin).expect("create fake Git bin directory");
-    std::fs::create_dir_all(&helpers).expect("create fake Git helper directory");
-
-    let fake_git = bin.join("git");
-    let helper_target = helpers.join("git-remote-http");
-    let helper_alias = helpers.join("git-remote-https");
-    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
-    std::fs::write(&helper_target, b"#!/bin/sh\nexit 0\n").expect("write fake HTTPS helper target");
-    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("make fake Git executable");
-    std::fs::set_permissions(&helper_target, std::fs::Permissions::from_mode(0o700))
-        .expect("make fake HTTPS helper target executable");
-    symlink("git-remote-http", &helper_alias).expect("create HTTPS helper alias");
-
-    let executable = open_https_transport_executable(&fake_git)
-        .expect("capture HTTPS helper alias and target identity");
-    assert_eq!(executable.identity.invocation_path(), helper_alias);
-    assert_eq!(
-        executable.identity.path(),
-        helper_target
-            .canonicalize()
-            .expect("canonicalize HTTPS helper target")
-    );
-    assert_eq!(executable.identity.content_identity().len(), 64);
-    verify_git_transport_executable(&executable).expect("verify unchanged HTTPS helper");
-
-    let replacement = helpers.join("replacement");
-    std::fs::write(&replacement, b"#!/bin/sh\nexit 1\n").expect("write replacement HTTPS helper");
-    std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o700))
-        .expect("make replacement HTTPS helper executable");
-    std::fs::remove_file(&helper_alias).expect("remove original HTTPS helper alias");
-    symlink("replacement", &helper_alias).expect("replace HTTPS helper alias");
-    assert!(matches!(
-        verify_git_transport_executable(&executable),
-        Err(SourceResolveError::GitExecutableChanged { .. })
-    ));
-
-    let _ = std::fs::remove_dir_all(root);
-}
-
-#[cfg(unix)]
-#[test]
 fn bounded_command_cleans_up_descendants_after_parent_exit() {
     let command = shell_command("(sleep 10) &");
     let started = Instant::now();
@@ -289,20 +201,5 @@ fn cleanup_failure_outranks_whole_resolution_expiry() {
     assert!(matches!(
         reconcile_git_command_result(result, Ok(()), budget),
         Err(SourceResolveError::GitCleanupFailed { .. })
-    ));
-}
-
-#[test]
-fn network_transfer_ceiling_outranks_ordinary_git_failure() {
-    let operation = Err(SourceResolveError::Git {
-        operation: "command".to_owned(),
-        status: Some(1),
-        stderr: "connection closed".to_owned(),
-    });
-    let endpoint = Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling: 1024 });
-
-    assert!(matches!(
-        reconcile_git_command_endpoint_result::<()>(operation, endpoint, Ok(()), Ok(())),
-        Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling: 1024 })
     ));
 }

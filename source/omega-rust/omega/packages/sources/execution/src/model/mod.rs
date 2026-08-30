@@ -8,7 +8,7 @@ pub use guarantees::{
     ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
     ResolverExecutionGuaranteeRow,
 };
-pub use phase::{ResolverExecutionNetworkTransport, ResolverExecutionPhase};
+pub use phase::ResolverExecutionPhase;
 pub use policy::{
     ResolverExecutionBackendIdentity, ResolverExecutionPolicyObservation,
     ResolverExecutionResourceCeilings,

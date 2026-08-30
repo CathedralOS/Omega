@@ -10,7 +10,7 @@ fn spawn_rejects_implicit_inherited_standard_streams() {
         .canonicalize()
         .expect("canonical temporary root");
     let mut prepared = backend
-        .prepare_inspection(Path::new("/usr/bin/true"), &[], &inspection_root)
+        .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
         .expect("prepare inspection execution");
     prepared.env_clear().current_dir(&inspection_root);
 
@@ -29,7 +29,7 @@ fn command_identity_binds_closed_standard_stream_dispositions() {
         .expect("canonical temporary root");
     let prepare = |piped_stdout: bool| {
         let mut prepared = backend
-            .prepare_inspection(Path::new("/usr/bin/true"), &[], &inspection_root)
+            .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
             .expect("prepare inspection execution");
         prepared
             .env_clear()
@@ -56,7 +56,7 @@ fn completion_binds_prepared_command_policy_termination_and_reaping() {
         .canonicalize()
         .expect("canonical temporary root");
     let mut prepared = backend
-        .prepare_inspection(Path::new("/usr/bin/true"), &[], &inspection_root)
+        .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
         .expect("prepare inspection execution");
     prepared
         .env_clear()
@@ -97,7 +97,7 @@ fn unfinished_execution_cannot_issue_completion() {
         .canonicalize()
         .expect("canonical temporary root");
     let mut prepared = backend
-        .prepare_inspection(Path::new("/usr/bin/true"), &[], &inspection_root)
+        .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
         .expect("prepare inspection execution");
     prepared
         .env_clear()

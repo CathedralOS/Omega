@@ -12,11 +12,7 @@ use crate::git::commands::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
 use crate::git::executable::executor::GitExecutor;
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::git::executable::executor::test_file_network_endpoint;
 use crate::git::objects::identity::is_object_id;
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::git::request::GitExecutionTransport;
 use crate::git::request::GitSourceRequest;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::limits::LocalSourceLimits;
@@ -27,7 +23,6 @@ use std::path::Path;
 
 use super::issuance::finalize_git_resolution;
 use super::materialization::GitMaterializedSource;
-use super::network::requested_network_endpoint;
 use super::repository::resolve_verified_git_cache_entry_with;
 
 pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError>(
@@ -61,15 +56,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
         }
     }
     let execution_transport = request.execution_transport();
-    #[cfg(any(test, feature = "test-fixtures"))]
-    let requested_network_endpoint = if execution_transport == GitExecutionTransport::File {
-        test_file_network_endpoint()
-    } else {
-        requested_network_endpoint(request)?
-    };
-    #[cfg(not(any(test, feature = "test-fixtures")))]
-    let requested_network_endpoint = requested_network_endpoint(request)?;
-    let executor = GitExecutor::system(execution_transport, requested_network_endpoint, limits)?;
+    let executor = GitExecutor::system(execution_transport, limits)?;
     let mut materialize = Some(materialize);
     let result = (|| {
         let requested_rev = request.requested_revision();

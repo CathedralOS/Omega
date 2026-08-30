@@ -51,26 +51,14 @@ fn compiler_resource_ceilings_never_loosen_inherited_limits() {
 #[test]
 fn child_open_file_limit_is_enforced() {
     let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    #[cfg(target_os = "macos")]
-    let helper_executables = [Path::new("/bin/bash").to_path_buf()];
-    #[cfg(not(target_os = "macos"))]
-    let helper_executables = [];
     let inspection_root = inspection_root();
     #[cfg(target_os = "macos")]
     let mut command = backend
-        .command_with_inspection_read_root(
-            Path::new("/bin/sh"),
-            &helper_executables,
-            &inspection_root,
-        )
+        .command_with_inspection_read_root(Path::new("/bin/bash"), &inspection_root)
         .expect("build limited shell");
     #[cfg(not(target_os = "macos"))]
     let mut command = backend
-        .command_with_inspection_read_root_observation(
-            Path::new("/bin/sh"),
-            &helper_executables,
-            &inspection_root,
-        )
+        .command_with_inspection_read_root_observation(Path::new("/bin/bash"), &inspection_root)
         .map(|(command, _policy)| command)
         .expect("build limited shell");
     let output = command

@@ -6,9 +6,6 @@ pub struct PackageSourceInspection {
     pub requested_rev: Option<String>,
     pub resolved_commit: Option<String>,
     pub resolved_tree: Option<String>,
-    pub network_transfer_ceiling: Option<u64>,
-    pub network_uploaded_bytes: Option<u64>,
-    pub network_downloaded_bytes: Option<u64>,
     pub content_identity: String,
     pub file_count: usize,
     pub byte_count: u64,
@@ -44,21 +41,6 @@ impl PackageSourceInspection {
             report.push_str(tree);
             report.push('\n');
         }
-        if let Some(ceiling) = self.network_transfer_ceiling {
-            report.push_str("broker transfer ceiling: ");
-            report.push_str(&ceiling.to_string());
-            report.push('\n');
-        }
-        if let Some(uploaded) = self.network_uploaded_bytes {
-            report.push_str("broker uploaded bytes: ");
-            report.push_str(&uploaded.to_string());
-            report.push('\n');
-        }
-        if let Some(downloaded) = self.network_downloaded_bytes {
-            report.push_str("broker downloaded bytes: ");
-            report.push_str(&downloaded.to_string());
-            report.push('\n');
-        }
         report.push_str("content identity: ");
         report.push_str(&self.content_identity);
         report.push('\n');
@@ -69,5 +51,31 @@ impl PackageSourceInspection {
         report.push_str(&self.byte_count.to_string());
         report.push('\n');
         report
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PackageSourceInspection;
+
+    #[test]
+    fn inspection_text_has_no_broker_transfer_placeholders() {
+        let inspection = PackageSourceInspection {
+            source_kind: "git".to_owned(),
+            locator: "https://github.com/cathedralos/arithmetic-kernels.git".to_owned(),
+            transport_profile: Some("https".to_owned()),
+            requested_rev: Some("refs/heads/main".to_owned()),
+            resolved_commit: Some("commit".to_owned()),
+            resolved_tree: Some("tree".to_owned()),
+            content_identity: "content".to_owned(),
+            file_count: 3,
+            byte_count: 512,
+        };
+
+        let report = inspection.to_text();
+        assert!(!report.contains("broker transfer ceiling:"));
+        assert!(!report.contains("broker uploaded bytes:"));
+        assert!(!report.contains("broker downloaded bytes:"));
+        assert!(!report.contains("network transfer"));
     }
 }

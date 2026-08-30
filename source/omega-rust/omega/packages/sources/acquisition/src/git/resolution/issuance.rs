@@ -51,12 +51,9 @@ pub(super) fn finalize_git_resolution(
         local: pending.local,
         workspace_projection: pending.workspace_projection,
         git_executable: pending.git_executable,
-        transport_executable: pending.transport_executable,
-        execution_helper_executables: pending.execution_helper_executables,
         execution_policy_observations: pending.execution_policy_observations,
         command_execution_observations: pending.command_execution_observations,
         captured_output_observation: pending.captured_output_observation,
-        network_transfer_observation: pending.network_transfer_observation,
         retained_storage_observation,
         receipt,
     })
@@ -101,29 +98,14 @@ fn validate_pending_git_execution(
     pending: &PendingResolvedGitSource,
     executor: &GitExecutor,
 ) -> Result<(), SourceResolveError> {
-    let expected_transport = executor
-        .transport_executable
-        .as_ref()
-        .map(|executable| &executable.identity);
-    let helpers_match = pending.execution_helper_executables.len()
-        == executor.execution_helpers.len()
-        && pending
-            .execution_helper_executables
-            .iter()
-            .zip(executor.execution_helpers.iter())
-            .all(|(pending, current)| pending == &current.identity);
     let policies = executor.execution_policy_observations.borrow();
     let commands = executor.command_execution_observations.borrow();
     let captured_output = executor.captured_output_observation()?;
-    let network_transfer = executor.network_transfer_observation()?;
     if pending.transport_profile != executor.execution_transport.profile()
         || pending.git_executable != executor.identity
-        || pending.transport_executable.as_ref() != expected_transport
-        || !helpers_match
         || pending.execution_policy_observations.as_slice() != policies.as_slice()
         || pending.command_execution_observations.as_slice() != commands.as_slice()
         || pending.captured_output_observation != captured_output
-        || pending.network_transfer_observation != network_transfer
     {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
             message: "pending Git result diverged from final executable and command custody"

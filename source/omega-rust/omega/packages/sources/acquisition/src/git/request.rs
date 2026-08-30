@@ -4,7 +4,6 @@
 use crate::identity::digest::format_sha256;
 use crate::identity::{GitRequestedNetworkEndpoint, GitTransport, IdentityError, SourceLineage};
 use crate::limits::{GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT};
-use omega_resolver_execution::ResolverExecutionNetworkTransport;
 #[cfg(any(test, feature = "test-fixtures"))]
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -52,15 +51,6 @@ impl GitExecutionTransport {
         match transport {
             GitTransport::Https => Self::Https,
             GitTransport::SshUrl | GitTransport::ScpLike => Self::Ssh,
-        }
-    }
-
-    pub(crate) fn resolver_network_transport(self) -> ResolverExecutionNetworkTransport {
-        match self {
-            Self::Ssh => ResolverExecutionNetworkTransport::Ssh,
-            Self::Https => ResolverExecutionNetworkTransport::Https,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            Self::File => ResolverExecutionNetworkTransport::Ssh,
         }
     }
 
@@ -171,8 +161,11 @@ impl GitSourceRequest {
         self.execution_transport
     }
 
-    // Retained for the later broker integration without exposing endpoint injection.
-    #[allow(dead_code)]
+    /// Normalized endpoint identity derived from the accepted locator.
+    ///
+    /// This is source identity, not a claim about the host-selected route or
+    /// effective socket peer.
+    #[cfg(test)]
     pub(crate) fn requested_network_endpoint(&self) -> &GitRequestedNetworkEndpoint {
         &self.requested_network_endpoint
     }
