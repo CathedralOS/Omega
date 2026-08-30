@@ -11,6 +11,7 @@
 
 data AlphaTapeBuffer {
     bytes: [u8; 262144];
+    instruction_starts: [u8; 262140];
     length: i32;
     status: i32;
     failure_offset: i32;
@@ -49,10 +50,64 @@ machine AlphaTapeBuffer::is_open(&mut self) -> i32 {
 }
 
 machine AlphaTapeBuffer::fail_internal(&mut self, detail: i32) -> i32 {
-    self.status = 2;
-    self.failure_offset = self.length - 4;
-    self.failure_requested = detail;
-    return 0;
+    transition self.is_open() {
+        1 -> record_failure()
+        _ -> return 0
+    }
+
+    state record_failure() {
+        self.status = 2;
+        self.failure_offset = self.length - 4;
+        self.failure_requested = detail;
+        return 0;
+    }
+}
+
+machine AlphaTapeBuffer::fail_structure(
+    &mut self,
+    payload_offset: i32,
+    detail: i32
+) -> i32 {
+    transition self.is_open() {
+        1 -> record_failure()
+        _ -> return 0
+    }
+
+    state record_failure() {
+        self.status = 2;
+        self.failure_offset = payload_offset;
+        self.failure_requested = detail;
+        return 0;
+    }
+}
+
+// Return width + 16 * address-operand offset. An offset of zero means that the
+// instruction has no direct target. Zero is not an Alpha instruction.
+machine alpha_instruction_shape(opcode: i32) -> i32 {
+    transition opcode {
+        0 -> return 2
+        1 -> return 10
+        2 -> return 3
+        3 -> return 3
+        4 -> return 3
+        5 -> return 3
+        6 -> return 3
+        7 -> return 3
+        8 -> return 3
+        9 -> return 3
+        10 -> return 3
+        11 -> return 3
+        12 -> return 25
+        13 -> return 42
+        14 -> return 42
+        15 -> return 59
+        16 -> return 59
+        17 -> return 2
+        18 -> return 2
+        19 -> return 25
+        20 -> return 1
+        _ -> return 0
+    }
 }
 
 // Reserve an entire instruction before any of its bytes are written. This is
@@ -106,23 +161,88 @@ machine AlphaTapeBuffer::reserve(&mut self, count: i32) -> i32 {
     }
 }
 
-// These two helpers are used only after one successful full-instruction
-// reserve. The checked emitters below are the public correctness boundary.
+// Checked emitters reserve a full instruction before entering these writers.
+// Delta has no private visibility, so each writer also defends its complete
+// direct call: it cannot bypass sealing, trap on u8 range, or partially cross
+// the tape capacity.
 machine AlphaTapeBuffer::write_reserved_byte(&mut self, value: i32) {
-    self.bytes[self.length] = value;
-    self.length = self.length + 1;
+    transition self.is_open() {
+        1 -> check_value()
+        _ -> return
+    }
+
+    state check_value() {
+        transition (value >= 0) && (value <= 255) {
+            true -> check_capacity()
+            _ -> invalid_value()
+        }
+    }
+
+    state check_capacity() {
+        transition self.reserve(1) {
+            true -> write_byte()
+            _ -> return
+        }
+    }
+
+    state write_byte() {
+        self.bytes[self.length] = value;
+        self.length = self.length + 1;
+        return;
+    }
+
+    state invalid_value() {
+        self.fail_internal(value);
+        return;
+    }
+
 }
 
 machine AlphaTapeBuffer::write_reserved_word(&mut self, value: i32) {
-    self.write_reserved_byte(value & 255);
-    self.write_reserved_byte((value >> 8) & 255);
-    self.write_reserved_byte((value >> 16) & 255);
-    self.write_reserved_byte((value >> 24) & 255);
+    transition self.reserve(4) {
+        1 -> write_word()
+        _ -> return
+    }
+
+    state write_word() {
+        self.write_reserved_byte(value & 255);
+        self.write_reserved_byte((value >> 8) & 255);
+        self.write_reserved_byte((value >> 16) & 255);
+        self.write_reserved_byte((value >> 24) & 255);
+        return;
+    }
 }
 
 machine AlphaTapeBuffer::write_reserved_address(&mut self, target: i32) {
-    self.write_reserved_word(target);
-    self.write_reserved_word(0);
+    transition self.is_open() {
+        1 -> check_target()
+        _ -> return
+    }
+
+    state check_target() {
+        transition (target >= 0) && (target <= 262139) {
+            true -> check_capacity()
+            _ -> invalid_target()
+        }
+    }
+
+    state check_capacity() {
+        transition self.reserve(8) {
+            1 -> write_address()
+            _ -> return
+        }
+    }
+
+    state write_address() {
+        self.write_reserved_word(target);
+        self.write_reserved_word(0);
+        return;
+    }
+
+    state invalid_target() {
+        self.fail_internal(target);
+        return;
+    }
 }
 
 // Shape r: halt(0), read(17), write(18). Width 2.
@@ -525,6 +645,153 @@ machine AlphaTapeBuffer::patch_address(
     }
 }
 
+// Decode the canonical in-tape address form produced by this encoder. Alpha
+// addresses are 64-bit, but every compiler-generated direct target is a
+// nonnegative offset inside the at-most-262140-byte payload. Return -1 when
+// high bytes make that final form noncanonical.
+machine AlphaTapeBuffer::decode_address(&mut self, payload_offset: i32) -> i32 {
+    transition payload_offset >= 0 {
+        true -> check_extent()
+        _ -> return -1
+    }
+
+    state check_extent() {
+        transition payload_offset <= (self.length - 4) - 8 {
+            true -> decode()
+            _ -> return -1
+        }
+    }
+
+    state decode() {
+        let index: i32 = 4 + payload_offset;
+        transition (self.bytes[index + 3] == 0) &&
+            (self.bytes[index + 4] == 0) &&
+            (self.bytes[index + 5] == 0) &&
+            (self.bytes[index + 6] == 0) &&
+            (self.bytes[index + 7] == 0) {
+            true -> return self.bytes[index] +
+                (self.bytes[index + 1] * 256) +
+                (self.bytes[index + 2] * 65536)
+            _ -> return -1
+        }
+    }
+}
+
+// Replay the completed payload independently of emitter call order. The first
+// pass reconstructs its unique instruction partition; the second checks every
+// direct jump/call target against that partition. Inline data and implicit
+// zero-filled suffix instructions are deliberately not admitted.
+machine AlphaTapeBuffer::validate_structure(&mut self) -> i32 {
+    transition self.is_open() {
+        1 -> check_length()
+        _ -> return 0
+    }
+
+    state check_length() {
+        transition (self.length > 4) && (self.length <= 262144) {
+            true -> clear_starts(0)
+            _ -> invalid_length()
+        }
+    }
+
+    state clear_starts(cursor: i32) {
+        transition cursor < self.length - 4 {
+            true -> clear_start(cursor)
+            _ -> first_scan(0)
+        }
+    }
+
+    state clear_start(cursor: i32) {
+        self.instruction_starts[cursor] = 0;
+        transition true {
+            true -> clear_starts(cursor + 1)
+        }
+    }
+
+    state first_scan(pc: i32) {
+        transition pc < self.length - 4 {
+            true -> first_instruction(pc)
+            _ -> second_scan(0)
+        }
+    }
+
+    state first_instruction(pc: i32) {
+        let opcode: i32 = self.bytes[4 + pc];
+        let shape: i32 = alpha_instruction_shape(opcode);
+        transition shape {
+            0 -> invalid_instruction(pc, opcode)
+            _ -> first_extent(pc, shape % 16)
+        }
+    }
+
+    state first_extent(pc: i32, width: i32) {
+        transition width <= (self.length - 4) - pc {
+            true -> mark_start(pc, width)
+            _ -> invalid_instruction(pc, width)
+        }
+    }
+
+    state mark_start(pc: i32, width: i32) {
+        self.instruction_starts[pc] = 1;
+        transition true {
+            true -> first_scan(pc + width)
+        }
+    }
+
+    state second_scan(pc: i32) {
+        transition pc < self.length - 4 {
+            true -> second_instruction(pc)
+            _ -> return 1
+        }
+    }
+
+    state second_instruction(pc: i32) {
+        let shape: i32 = alpha_instruction_shape(self.bytes[4 + pc]);
+        let width: i32 = shape % 16;
+        let target_delta: i32 = shape / 16;
+        transition target_delta {
+            0 -> second_advance(pc, width)
+            _ -> decode_target(pc, width, target_delta)
+        }
+    }
+
+    state decode_target(pc: i32, width: i32, target_delta: i32) {
+        let target: i32 = self.decode_address(pc + target_delta);
+        transition target >= 0 {
+            true -> check_target_extent(pc, width, target)
+            _ -> invalid_instruction(pc, target)
+        }
+    }
+
+    state check_target_extent(pc: i32, width: i32, target: i32) {
+        transition target < self.length - 4 {
+            true -> check_target_start(pc, width, target)
+            _ -> invalid_instruction(pc, target)
+        }
+    }
+
+    state check_target_start(pc: i32, width: i32, target: i32) {
+        transition self.instruction_starts[target] {
+            1 -> second_advance(pc, width)
+            _ -> invalid_instruction(pc, target)
+        }
+    }
+
+    state second_advance(pc: i32, width: i32) {
+        transition true {
+            true -> second_scan(pc + width)
+        }
+    }
+
+    state invalid_length() {
+        return self.fail_structure(0, self.length);
+    }
+
+    state invalid_instruction(pc: i32, detail: i32) {
+        return self.fail_structure(pc, detail);
+    }
+}
+
 // Seal the tape by committing the exact Alpha payload length prefix. Once
 // finalized, no instruction or fixup may modify the tape.
 machine AlphaTapeBuffer::finalize_length_prefix(&mut self) -> i32 {
@@ -535,9 +802,16 @@ machine AlphaTapeBuffer::finalize_length_prefix(&mut self) -> i32 {
 
     state check_payload() {
         let payload: i32 = self.length - 4;
-        transition (payload >= 0) && (payload <= 262140) {
-            true -> write_prefix(payload)
+        transition (payload > 0) && (payload <= 262140) {
+            true -> validate_payload(payload)
             _ -> invalid_payload()
+        }
+    }
+
+    state validate_payload(payload: i32) {
+        transition self.validate_structure() {
+            1 -> write_prefix(payload)
+            _ -> return 0
         }
     }
 
