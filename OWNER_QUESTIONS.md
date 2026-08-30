@@ -273,7 +273,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
 
-## Q6 — Delete the provider-asserted indexed-application coverage scaffold
+## Q5 — Delete the provider-asserted indexed-application coverage scaffold
 
 ### Context
 
