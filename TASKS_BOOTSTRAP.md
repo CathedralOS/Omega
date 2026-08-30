@@ -529,11 +529,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 75
-    procedures; with the frontend gate entry, the gate uses 76 of Beta's 128
-    procedure slots and compiles to 141,840
-    bytes, leaving 120,300 bytes below Alpha's runnable payload ceiling for
+    and retains no alternate compiler or tape. The retained source declares 78
+    procedures; with the frontend gate entry, the gate uses 79 of Beta's 128
+    procedure slots and compiles to 145,719 bytes, leaving 116,421 bytes below
+    Alpha's runnable payload ceiling for
     lowering and the eventual adapter.
+  - [x] Establish the emitted runtime containment floor without selecting Q2's
+    application adapter. Reserve `r252`/`r253` for the downward stack and frame
+    base and `r254`/`r255` for the upward heap and its limit. Directly emit heap
+    and stack reservation helpers that reject negative, overflowed, and
+    adjacent-out-of-range requests before mutation and transfer to a supplied
+    terminal failure label. Execute the generated Alpha payload for exact heap
+    and stack boundaries, their adjacent one-byte failures, both negative
+    requests, and heap-addition/stack-subtraction wrap; no case enters Alpha's
+    undefined out-of-range memory behavior.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
@@ -578,7 +587,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reusable front end. Constructor fields, parameters, and function results
     retain source spellings during the single strict parse and resolve only
     after every nominal declaration exists, so forward and mutually recursive
-    data types now implement D16. Q4 still owns duplicate declaration identity.
+    data types now implement D16. Q3 still owns duplicate declaration identity.
   - [x] Preserve source-coordinate custody through the reusable front end.
     Every syntax node now retains its zero-based starting byte offset, outer
     envelope rejection records the offending byte before tokenization, and
@@ -586,7 +595,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     typed subexpression share one sticky first-source-failure coordinate. The
     Boolean oracle does not publish a compiler frame; the direct compiler must
     absorb this metadata into its accepted-language rejection table and final
-    `GCOUT` boundary after Q3 is ruled.
+    `GCOUT` boundary after Q2 is ruled.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
@@ -598,7 +607,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
   compiler source is an accepted compiler artifact. The retained gates pass 48
   interpreter cases, the fail-closed arena case, 78 compiler-frontend cases,
-  one exact emitter probe, and 106 independent differential cases.
+  one exact emitter probe, six executed runtime-containment probes, and 106
+  independent differential cases.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
@@ -610,7 +620,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     error/type sentinel to compare equal.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `gamma_compiler.beta` and missing
   tape.** Check the exact Beta-source-to-Alpha-tape refinement and all resource
-  outcomes after lowering and the Q3 adapter are complete. Measure
+  outcomes after lowering and the Q2 adapter are complete. Measure
   representative compiler-sized inputs; a 12-hour ceiling is emergency
   containment, not acceptable normal performance.
 

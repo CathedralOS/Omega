@@ -43,10 +43,11 @@ primitive merely because one application is a compiler.
 
 ## Current migration
 
-`source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend
-and direct Alpha payload/fixup substrate. It is incomplete and has no published
-tape. `source/gamma/interp.beta` remains a bounded semantic oracle; it does not
-define an alternate Gamma language or a serialized-AST runtime. Their
+`source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
+direct Alpha payload/fixup substrate, and executed heap/stack containment
+helpers. It is incomplete and has no published tape. `source/gamma/interp.beta`
+remains a bounded semantic oracle; it does not define an alternate Gamma
+language or a serialized-AST runtime. Their
 now-hardened historical omission of match exhaustiveness remains the warning
 that differential agreement cannot establish a rule both sides omit. The former
 Beta-written Delta-to-Gamma route was outside Gamma ownership and is deleted
@@ -60,7 +61,7 @@ the universal checker remains Alpha-owned and outside the language rung.
 
 ## Implementation frontiers
 
-- complete lowering and the Q3-selected adapter in the exact Gamma compiler
+- complete lowering and the Q2-selected adapter in the exact Gamma compiler
   source, then publish its artifact closure;
 - reuse the interpreter only as a specification or isolated algorithm source
   without turning runtime interpretation into a permanent dependency;
