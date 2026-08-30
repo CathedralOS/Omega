@@ -433,7 +433,7 @@ fn lower_normalized_foreign_scalar_arguments(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
-    if declaration.scalar_parameters.len() > 2 {
+    if declaration.scalar_parameters.len() > 3 {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
     let scalar_parameter_shapes = declaration
@@ -746,21 +746,25 @@ mod normalized_foreign_scalar_tests {
             );
         }
 
-        let three_parameter_declaration = declaration(
+        let four_parameter_declaration = declaration(
             boundary,
             vec![
                 ScalarType::Integer(i32_type),
                 ScalarType::Integer(i32_type),
                 ScalarType::Integer(i32_type),
+                ScalarType::Integer(i32_type),
             ],
         );
-        let three_plan = entry_plan(NativeTarget::linux_x64(), &[i32_type, i32_type, i32_type]);
+        let four_plan = entry_plan(
+            NativeTarget::linux_x64(),
+            &[i32_type, i32_type, i32_type, i32_type],
+        );
         assert!(
             lower_normalized_foreign_scalar_arguments(
                 boundary,
-                &three_parameter_declaration,
-                &[source, source, source],
-                &three_plan,
+                &four_parameter_declaration,
+                &[source, source, source, source],
+                &four_plan,
                 &constants,
             )
             .is_err()

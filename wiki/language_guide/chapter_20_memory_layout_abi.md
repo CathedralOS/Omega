@@ -843,7 +843,11 @@ direct erased leaves. Its custody field is an authored projection record whose
 leaves match the complete root-to-leaf canonical paths, exact types, and
 multiplicities; represented siblings are rejected using the enclosing field's
 plan decision. The checker recognizes the toolchain core trait rather than a
-same-spelled user trait. Deeper recursion, structurally zero-layout wrappers,
+same-spelled user trait. One further represented acyclic, non-generic,
+case-free record with a nonzero canonical fixed representation may occur on
+that spine; the authored projection retains both enclosing field identities
+before each direct erased leaf, and represented siblings still cite the root
+plan entry. A third represented record level, structurally zero-layout wrappers,
 arrays, generic and case-dependent fields, planless agreements, and the generic
 establishment calls below remain unavailable.
 

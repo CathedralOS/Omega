@@ -1629,7 +1629,7 @@ fn validate_foreign_scalar_arguments(
     semantic_code_attribution: &[SemanticCodeAttribution],
     call: &omega_machine_code::ForeignCallRelocation,
 ) -> Result<(), ObjectError> {
-    if call.scalar_arguments.len() > 2 {
+    if call.scalar_arguments.len() > 3 {
         return Err(ObjectError::InvalidForeignCallArgument {
             caller,
             owner: call.owner,
@@ -1759,8 +1759,10 @@ fn validate_foreign_scalar_arguments(
         let register_number = match (target.architecture, register) {
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rdi) => 7,
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rsi) => 6,
+            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rdx) => 2,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(0)) => 0,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(1)) => 1,
+            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(2)) => 2,
             _ => {
                 return Err(ObjectError::InvalidForeignCallArgument {
                     caller,

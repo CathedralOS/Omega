@@ -567,9 +567,13 @@ project its direct erased leaves through an authored nested custody record.
 The checker preserves each complete root-to-leaf path and rejects represented
 nested siblings using the enclosing field's exact plan entry. Diagnostics
 retain the exact `Policy::plan` machine and represented offset/width decision.
-This is ordinary conformance checking only; deeper recursion, zero-layout
-wrappers, arrays, generic, case-dependent, planless, and establishment-operation
-custody remain open.
+One further represented acyclic, non-generic, case-free record may now occur on
+that spine when its canonical fixed representation is nonzero. Its authored
+projection preserves both enclosing field identities before the direct erased
+leaves and reuses the exact root plan entry for represented-sibling diagnostics.
+This is ordinary conformance checking only; a third represented record level,
+zero-layout wrappers, arrays, generic, case-dependent, planless, and
+establishment-operation custody remain open.
 
 Remaining compiler and language work:
 

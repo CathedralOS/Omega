@@ -422,8 +422,9 @@ locator side table, and distinct call-site relocations. The dynamic-ELF driver
 tests now begin at this ordinary object builder rather than constructing its
 private result. The first preceding production path is now closed for one
 `Unit`-returning normalized import leaf with no scalar arguments, one fixed-
-width 8/16/32/64-bit integer literal argument, or exactly two such literal
-arguments whose evaluated placements are all registers. Checked compilation
+width 8/16/32/64-bit integer literal argument, exactly two such literal
+arguments, or exactly three such literal arguments, provided every evaluated
+placement is register-resident. Checked compilation
 retains extracted external-binding rows before consuming typed trees. Native
 settlement rejoins one unique retained row only through the complete selected
 `ProviderPlan`, its exact selected-plan evidence, and the admitted same-stack
@@ -435,8 +436,9 @@ locator, provider execution, evaluated call plan, admitted contribution, and
 physical `Unit` stack evidence in the foreign-call row. Every literal-bearing
 row additionally binds its occurrence-specific source value, integer type and
 immediate, parameter index, evaluated register placement, and exact
-materialization byte interval. With two arguments, the rows and intervals stay
-in parameter order and the first interval ends exactly where the second begins.
+materialization byte interval. With two or three arguments, the rows and
+intervals stay in parameter order and every interval ends exactly where the
+next begins.
 Machine emission rejoins each row to its preceding constant and emits the
 compact target register materialization. Object construction independently
 replays the complete ordered call plan, placements, bytes, semantic call
@@ -444,7 +446,7 @@ ownership, and physical stack custody before consuming the rows, and both Linux
 profiles advance from the exact native rejoin through target, assignment,
 machine, ordinary object construction, and the complete dynamic-ELF driver.
 Stripped, reordered, or drifted source/type/value/index/register/byte/plan/stack
-custody rejects. Runtime-derived arguments, three or more arguments, any stack
+custody rejects. Runtime-derived arguments, four or more arguments, any stack
 argument, result-bearing signatures, complete
 task-stack-budget composition, optional `.gnu.hash`, and ordinary source `via`
 evaluation remain open engineering work. An owned direct

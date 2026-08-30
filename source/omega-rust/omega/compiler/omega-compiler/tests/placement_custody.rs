@@ -137,6 +137,83 @@ machine Main::main(&mut self) {{}}
     )
 }
 
+fn depth_two_nested_source(
+    header_custody_fields: &str,
+    envelope_custody_fields: &str,
+    packet_custody_fields: &str,
+) -> String {
+    format!(
+        r#"
+use omega::language::core::layout;
+
+pub data Evidence {{}}
+pub data OtherEvidence {{}}
+pub data CopyEvidence [copy] {{}}
+pub data Header {{
+    bits: u32;
+    authority [erased]: Evidence;
+}}
+pub data Envelope {{
+    header: Header;
+    marker: u32;
+}}
+pub data Plain {{ bits: u32; }}
+pub data Packet {{
+    envelope: Envelope;
+    sibling: Plain;
+}}
+
+pub data Native {{
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}}
+
+machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
+    self.entries[0] = FieldEntry {{
+        key: schema.fields[0].key,
+        placement: FieldPlan::At {{ offset: 0 }},
+    }};
+    self.entries[1] = FieldEntry {{
+        key: schema.fields[1].key,
+        placement: FieldPlan::At {{ offset: 8 }},
+    }};
+    PlacementPlan {{
+        layout: Plan {{
+            entries: self.entries,
+            entry_count: 2,
+            size_fixed: 12,
+            size_is_dynamic: false,
+            align: 4,
+        }},
+        access: AccessPlan::inaccessible(schema),
+        reach: BoundaryReach {{
+            services: self.services,
+            service_count: 0,
+        }},
+    }}
+}}
+
+data HeaderCustody {{
+{header_custody_fields}
+}}
+data EnvelopeCustody {{
+{envelope_custody_fields}
+}}
+data PacketCustody {{
+{packet_custody_fields}
+}}
+
+PacketNativeCustody:
+    PacketCustody satisfies PlacementCustody<Native, Packet>;
+
+machine retain_plan(view: &Placed<Native, Packet>) {{}}
+
+data Main {{}}
+machine Main::main(&mut self) {{}}
+"#
+    )
+}
+
 #[test]
 fn source_placement_custody_accepts_the_exact_erased_field_projection() {
     let main = write_program("exact", &source("    authority: Evidence;"));
@@ -374,6 +451,185 @@ fn source_placement_custody_rejects_the_wrong_nested_leaf_multiplicity() {
         &[
             "Native::plan",
             "Packet.header.authority",
+            "multiplicity Affine",
+            "multiplicity Unrestricted",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_accepts_two_nested_projection_record_paths() {
+    let main = write_program(
+        "depth-two-exact",
+        &depth_two_nested_source(
+            "    authority: Evidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+        ),
+    );
+    compile_to_checked(&main, None).expect("exact depth-two placement custody should compile");
+}
+
+#[test]
+fn source_placement_custody_rejects_a_missing_depth_two_leaf() {
+    let main = write_program(
+        "depth-two-missing",
+        &depth_two_nested_source(
+            "",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("missing depth-two custody leaf must fail closed");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope.header.authority",
+            "custody-carried",
+            "omits canonical field path",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_cross_sibling_depth_two_projection() {
+    let main = write_program(
+        "depth-two-cross-sibling",
+        &depth_two_nested_source(
+            "    authority: Evidence;",
+            "    header: HeaderCustody;",
+            "    sibling: EnvelopeCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("depth-two custody paths cannot move across siblings");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope.header.authority",
+            "omits canonical field path",
+            "Packet.sibling",
+            "represented at offset 8 with width 4",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_depth_two_represented_sibling() {
+    let main = write_program(
+        "depth-two-represented",
+        &depth_two_nested_source(
+            "    authority: Evidence;\n    bits: u32;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("represented depth-two fields must remain absent from custody");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope.header.bits",
+            "contained in `Packet.envelope`",
+            "represented at offset 0 with width 8",
+            "must be absent",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_represented_intermediate_sibling() {
+    let main = write_program(
+        "depth-two-intermediate-represented",
+        &depth_two_nested_source(
+            "    authority: Evidence;",
+            "    header: HeaderCustody;\n    marker: u32;",
+            "    envelope: EnvelopeCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("represented intermediate fields must remain absent from custody");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope.marker",
+            "contained in `Packet.envelope`",
+            "must be absent",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_zero_layout_depth_two_wrapper() {
+    let source = depth_two_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+    )
+    .replacen(
+        "    bits: u32;\n    authority [erased]: Evidence;",
+        "    phantom [erased]: OtherEvidence;\n    authority [erased]: Evidence;",
+        1,
+    );
+    let main = write_program("depth-two-zero-wrapper", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a zero-layout nested wrapper must remain outside the custody cohort");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope",
+            "represented at offset 0 with width 4",
+            "must be absent",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_the_wrong_depth_two_leaf_type() {
+    let main = write_program(
+        "depth-two-wrong-type",
+        &depth_two_nested_source(
+            "    authority: OtherEvidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("depth-two custody leaf type must agree exactly");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope.header.authority",
+            "exact type",
+            "OtherEvidence",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_the_wrong_depth_two_leaf_multiplicity() {
+    let main = write_program(
+        "depth-two-wrong-multiplicity",
+        &depth_two_nested_source(
+            "    authority: CopyEvidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("depth-two custody leaf multiplicity must agree exactly");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.envelope.header.authority",
             "multiplicity Affine",
             "multiplicity Unrestricted",
         ],

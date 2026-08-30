@@ -5,12 +5,13 @@ use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataField, DataMember};
 use psi_typed_trees::trait_definition::TraitDefinition;
-use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Check the first closed `PlacementCustody` agreement slice. The agreement is
 /// ordinary conformance evidence: this pass only replays one exact concrete
 /// policy/schema plan, its direct erased fields, and one acyclic ordinary
-/// record path from a represented outer field to direct erased leaves.
+/// record paths from a represented outer field to erased leaves through at
+/// most one additional represented record.
 pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
@@ -207,18 +208,42 @@ fn validate_nested_record(
         .filter_map(field)
         .collect::<Vec<_>>();
     let Some(custody_field) = custody_field else {
-        for nested_field in nested_schema_fields
-            .iter()
-            .filter(|field| field.relevance.is_erased())
-        {
-            let path = nested_canonical_path(schema, outer_field, nested_field);
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                program.normalized_type_identity(nested_field.type_reference),
-                program.type_multiplicity(nested_field.type_reference),
-                custody.name,
-            )));
+        for nested_field in &nested_schema_fields {
+            if nested_field.relevance.is_erased() {
+                let path = nested_canonical_path(schema, outer_field, nested_field);
+                push_missing_custody_path(
+                    program,
+                    conformance,
+                    custody,
+                    plan_name,
+                    nested_field,
+                    &path,
+                    diagnostics,
+                );
+                continue;
+            }
+            if let Some(deep_schema) =
+                second_nested_custody_record(program, nested_field, nested_schema.symbol)
+            {
+                let middle_path = nested_canonical_path(schema, outer_field, nested_field);
+                for deep_field in program
+                    .data_members(deep_schema)
+                    .iter()
+                    .filter_map(field)
+                    .filter(|field| field.relevance.is_erased())
+                {
+                    let path = format!("{middle_path}.{}", canonical_segment(deep_field));
+                    push_missing_custody_path(
+                        program,
+                        conformance,
+                        custody,
+                        plan_name,
+                        deep_field,
+                        &path,
+                        diagnostics,
+                    );
+                }
+            }
         }
         return;
     };
@@ -253,6 +278,24 @@ fn validate_nested_record(
             .find(|candidate| same_canonical_field(nested_field, candidate));
         let path = nested_canonical_path(schema, outer_field, nested_field);
         if !nested_field.relevance.is_erased() {
+            if let Some(deep_schema) =
+                second_nested_custody_record(program, nested_field, nested_schema.symbol)
+            {
+                validate_second_nested_record(
+                    program,
+                    conformance,
+                    schema,
+                    custody,
+                    outer_field,
+                    nested_field,
+                    deep_schema,
+                    custody_leaf,
+                    plan_name,
+                    outer_entry,
+                    diagnostics,
+                );
+                continue;
+            }
             if custody_leaf.is_some() {
                 diagnostics.push(nested_represented_field_diagnostic(
                     program,
@@ -316,6 +359,25 @@ fn validate_nested_record(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn push_missing_custody_path(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    custody: &psi_typed_trees::data::DataDefinition,
+    plan_name: &str,
+    field: &DataField,
+    path: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(Diagnostic::error(format!(
+        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
+        program.symbols.display_path(conformance.symbol, "::"),
+        program.normalized_type_identity(field.type_reference),
+        program.type_multiplicity(field.type_reference),
+        custody.name,
+    )));
+}
+
 fn direct_nested_custody_record<'program>(
     program: &'program TypedTrees,
     schema_field: &DataField,
@@ -325,8 +387,157 @@ fn direct_nested_custody_record<'program>(
         .data_members(record)
         .iter()
         .filter_map(field)
+        .any(|field| {
+            field.relevance.is_erased()
+                || (!field.relevance.is_erased()
+                    && second_nested_custody_record(program, field, record.symbol).is_some())
+        })
+        .then_some(record)
+}
+
+fn second_nested_custody_record<'program>(
+    program: &'program TypedTrees,
+    schema_field: &DataField,
+    parent_symbol: psi_symbols::SymbolHandle,
+) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+    let record = plain_record_for_type(program, schema_field.type_reference)?;
+    if record.symbol == parent_symbol
+        || !fixed_type_width_bytes(program, schema_field.type_reference)
+            .is_some_and(|width| width > 0)
+    {
+        return None;
+    }
+    program
+        .data_members(record)
+        .iter()
+        .filter_map(field)
         .any(|field| field.relevance.is_erased())
         .then_some(record)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_second_nested_record(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    schema: &psi_typed_trees::data::DataDefinition,
+    custody: &psi_typed_trees::data::DataDefinition,
+    outer_field: &DataField,
+    middle_field: &DataField,
+    deep_schema: &psi_typed_trees::data::DataDefinition,
+    custody_field: Option<&DataField>,
+    plan_name: &str,
+    outer_entry: &LayoutFieldEntryReport,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let deep_schema_fields = program
+        .data_members(deep_schema)
+        .iter()
+        .filter_map(field)
+        .collect::<Vec<_>>();
+    let middle_path = nested_canonical_path(schema, outer_field, middle_field);
+    let Some(custody_field) = custody_field else {
+        for deep_field in deep_schema_fields
+            .iter()
+            .filter(|field| field.relevance.is_erased())
+        {
+            let path = format!("{middle_path}.{}", canonical_segment(deep_field));
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                program.normalized_type_identity(deep_field.type_reference),
+                program.type_multiplicity(deep_field.type_reference),
+                custody.name,
+            )));
+        }
+        return;
+    };
+    let Some(deep_custody) = plain_record_for_type(program, custody_field.type_reference) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{middle_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
+            program.symbols.display_path(conformance.symbol, "::"),
+            canonical_path(custody, custody_field),
+            program.normalized_type_identity(custody_field.type_reference),
+        )));
+        return;
+    };
+    let deep_custody_fields = program
+        .data_members(deep_custody)
+        .iter()
+        .filter_map(field)
+        .collect::<Vec<_>>();
+    if deep_custody_fields.len() != program.data_members(deep_custody).len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{middle_path}` must use an ordinary projection record without case members",
+            program.symbols.display_path(conformance.symbol, "::"),
+        )));
+        return;
+    }
+
+    for deep_field in &deep_schema_fields {
+        let custody_leaf = deep_custody_fields
+            .iter()
+            .copied()
+            .find(|candidate| same_canonical_field(deep_field, candidate));
+        let path = format!("{middle_path}.{}", canonical_segment(deep_field));
+        if !deep_field.relevance.is_erased() {
+            if custody_leaf.is_some() {
+                diagnostics.push(nested_path_represented_field_diagnostic(
+                    program,
+                    conformance,
+                    &path,
+                    schema,
+                    outer_field,
+                    custody,
+                    plan_name,
+                    outer_entry,
+                ));
+            }
+            continue;
+        }
+        let Some(custody_leaf) = custody_leaf else {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                program.normalized_type_identity(deep_field.type_reference),
+                program.type_multiplicity(deep_field.type_reference),
+                custody.name,
+            )));
+            continue;
+        };
+        let expected_multiplicity = program.type_multiplicity(deep_field.type_reference);
+        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
+        if actual_multiplicity != expected_multiplicity {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
+                program.symbols.display_path(conformance.symbol, "::"),
+                custody.name,
+            )));
+            continue;
+        }
+        let expected_type = program.normalized_type_identity(deep_field.type_reference);
+        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
+        if actual_type != expected_type {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                custody.name,
+            )));
+        }
+    }
+
+    for custody_leaf in deep_custody_fields {
+        if !deep_schema_fields
+            .iter()
+            .any(|candidate| same_canonical_field(candidate, custody_leaf))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{middle_path}.{}` path, but `{}` declares that extra canonical field path",
+                program.symbols.display_path(conformance.symbol, "::"),
+                canonical_segment(custody_leaf),
+                custody.name,
+            )));
+        }
+    }
 }
 
 fn plain_record_for_type(
@@ -459,13 +670,37 @@ fn nested_represented_field_diagnostic(
     plan_name: &str,
     outer_entry: &LayoutFieldEntryReport,
 ) -> Diagnostic {
+    let path = nested_canonical_path(schema, outer_field, nested_field);
+    nested_path_represented_field_diagnostic(
+        program,
+        conformance,
+        &path,
+        schema,
+        outer_field,
+        custody,
+        plan_name,
+        outer_entry,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn nested_path_represented_field_diagnostic(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    path: &str,
+    schema: &psi_typed_trees::data::DataDefinition,
+    outer_field: &DataField,
+    custody: &psi_typed_trees::data::DataDefinition,
+    plan_name: &str,
+    outer_entry: &LayoutFieldEntryReport,
+) -> Diagnostic {
     Diagnostic::error(format!(
         "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is contained in `{}`, which is {}, so represented field `{}` must be absent from `{}`",
         program.symbols.display_path(conformance.symbol, "::"),
-        nested_canonical_path(schema, outer_field, nested_field),
+        path,
         canonical_path(schema, outer_field),
         represented_decision(program, outer_field.type_reference, &outer_entry.placement),
-        nested_canonical_path(schema, outer_field, nested_field),
+        path,
         custody.name,
     ))
 }
@@ -514,8 +749,8 @@ fn fixed_type_layout(
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> Option<(usize, usize)> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, name } => {
-            if let Some(primitive) = PrimitiveType::from_name(name.as_str()) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if let Some(primitive) = crate::recasts::exact_primitive_type(program, type_reference) {
                 let size = primitive.scalar_byte_size()?;
                 return Some((size, size));
             }

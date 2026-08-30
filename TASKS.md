@@ -2073,10 +2073,17 @@ Owners:
   direct erased leaves below it travel through an authored projection-record
   spine. Those leaves retain their complete root-to-leaf canonical paths, and
   represented siblings remain forbidden with the enclosing plan entry cited.
+  The following bounded rung also accepts exactly one further represented
+  acyclic, non-generic, case-free record on that spine when its canonical fixed
+  representation is nonzero. The authored custody projection preserves both
+  enclosing field identities before the same direct erased leaves; missing,
+  cross-sibling, represented-leaf, type, and multiplicity drift reject under
+  the original root plan decision.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. Deeper
+  storage, content, domain, provider, or establishment authority. A third
+  represented record level and broader
   recursion, structurally zero-layout wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
   selection, and outcome dispositions remain open.
@@ -10538,8 +10545,9 @@ boundary without its corresponding checked law.
   calls to one locator share one import symbol while retaining distinct call
   sites. The first preceding production path is now closed for a
   `Unit`-returning normalized import leaf with no scalar arguments, one fixed-
-  width 8/16/32/64-bit integer literal argument, or exactly two such literal
-  arguments whose evaluated placements are all registers. Checked compilation
+  width 8/16/32/64-bit integer literal argument, exactly two such literal
+  arguments, or exactly three such literal arguments, provided every evaluated
+  placement is register-resident. Checked compilation
   retains the extracted external-binding rows before consuming typed trees;
   native settlement rejoins one unique retained row to the complete selected
   `ProviderPlan`, exact selected-plan evidence, and admitted same-stack
@@ -10551,16 +10559,16 @@ boundary without its corresponding checked law.
   `Unit` stack evidence in `MachineCodeFunction::foreign_calls`. In the
   literal-bearing cases, each occurrence-specific row retains its source value,
   integer type and immediate, parameter index, evaluated register placement,
-  and exact materialization byte interval. With two arguments, those rows and
-  byte intervals remain in parameter order, and the first interval ends exactly
-  where the second begins. Machine emission independently rejoins each custody
-  row to its preceding constant and emits compact x86-64 or AArch64 register
-  materialization; object construction replays the complete ordered plan,
-  placements, bytes, semantic call ownership, and physical stack custody before
-  consuming the rows. Both Linux profiles advance from the exact native rejoin
-  through target, assignment, machine, ordinary object, and the complete
+  and exact materialization byte interval. With two or three arguments, those
+  rows and byte intervals remain in parameter order, and every interval ends
+  exactly where the next begins. Machine emission independently rejoins each
+  custody row to its preceding constant and emits compact x86-64 or AArch64
+  register materialization; object construction replays the complete ordered
+  plan, placements, bytes, semantic call ownership, and physical stack custody
+  before consuming the rows. Both Linux profiles advance from the exact native
+  rejoin through target, assignment, machine, ordinary object, and the complete
   dynamic-ELF driver; stripped, reordered, or drifted source/type/value/index/
-  register/byte/plan/stack custody rejects. Runtime-derived arguments, three or
+  register/byte/plan/stack custody rejects. Runtime-derived arguments, four or
   more arguments, any stack argument, result-bearing signatures, complete
   task-stack-budget composition, optional `.gnu.hash`, and ordinary source
   `via` evaluation remain engineering work.
