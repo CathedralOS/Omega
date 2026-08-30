@@ -68,6 +68,19 @@ frame_chk() { # description source-bytes tape-bytes certificate expected-outcome
   fi
 }
 
+file_chk() { # description input-file expected-status expected-output
+  set +e
+  file_out=$("$TMP/check" < "$2")
+  file_status=$?
+  set -e
+  if [ "$file_status" = "$3" ] && [ "$file_out" = "$4" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: $1 — expected $3/$4, got $file_status/'$file_out'"
+  fi
+}
+
 # Propositional natural deduction and resource boundaries.
 chk "implication introduction" "(-> P P) (lam P (hyp 0))" accept
 chk "unbound hypothesis" "P (hyp 0)" reject
@@ -126,6 +139,22 @@ frame_chk "framed raw subject mutation" 'abc' 'abd' '(= source tape) (refl sourc
 RAW_TREE_FOLD='(fun 100 61 z) (fun 100 62 (s z)) (fun 100 63 (p (rec 0) (rec 1)))'
 frame_chk "framed raw tree is computable" 'abc' 'x' "$RAW_TREE_FOLD (= (f 100 source) (s (s (s z)))) (refl (s (s (s z))))" accept
 chk "raw subject constants require a frame" "(= source source) (refl source)" reject
+
+# The published profile fails closed at both its outer input boundary and its
+# permanent-arena boundary. Neither exhaustion may trap or accidentally accept.
+dd if=/dev/zero of="$TMP/input-over" bs=2024317 count=1 2>/dev/null
+file_chk "complete input extent" "$TMP/input-over" 0 reject
+
+arena_cert='(= z z) (refl z)'
+: > "$TMP/arena-over"
+printf 'OMGCHK1\n' >> "$TMP/arena-over"
+append_u64le 262144 "$TMP/arena-over"
+dd if=/dev/zero bs=262144 count=1 2>/dev/null >> "$TMP/arena-over"
+append_u64le 262140 "$TMP/arena-over"
+dd if=/dev/zero bs=262140 count=1 2>/dev/null >> "$TMP/arena-over"
+append_u64le "$(printf '%s' "$arena_cert" | wc -c | tr -d ' ')" "$TMP/arena-over"
+printf '%s' "$arena_cert" >> "$TMP/arena-over"
+file_chk "permanent arena extent" "$TMP/arena-over" 0 reject
 
 echo "checker rule discriminators: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

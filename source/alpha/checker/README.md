@@ -99,6 +99,25 @@ accept the live certificate under its recorded profile or perform an explicit
 certificate migration; cross-implementation agreement remains diagnostic and
 does not grant the reference checker authority.
 
+The current authoritative profile is:
+
+| Resource | Exact profile |
+| --- | --- |
+| Complete stdin | At most 2,024,316 bytes: the 32-byte `OMGCHK1` framing overhead plus all three maxima below. Any next byte rejects before parsing. |
+| Framed source / tape / certificate | Source at most 262,144 bytes; tape at most 262,140 bytes; certificate 1..1,500,000 bytes; every declared extent must exactly exhaust stdin. |
+| Permanent + conversion arena | Logical bytes `[8,388,608, 33,554,432)`: exactly 1,048,576 three-word nodes at 24 bytes each. Allocation beyond the last complete node marks the candidate invalid; per-equality conversion scratch is restored to its saved mark. |
+| Proof context | 65,536 proposition slots plus 65,536 matching individual-binder-depth slots. The next push marks the candidate invalid. |
+| Generated semantic stack | Guarded downward logical bytes `[262,144, 1,048,576)`, 786,432 bytes total. Exhaustion halts with contained Beta runtime status 250 and cannot accept. The minimum frame word keeps the hidden Alpha return stack disjoint. |
+| Constructors / products | Constructor IDs `0..63`, arity `0..2`, one declaration per ID; product marks use the same 64 IDs. Framed subjects predeclare nibble IDs `0..15` and raw-byte/tree IDs `60..63`. |
+| Ground functions | Function IDs `0..767`, with at most one rule for each of the 64 constructor IDs: 49,152 fixed rule slots. The first checked lemma freezes constructors, products, and functions. |
+| Named lemmas | Sparse IDs `0..32767`, each defined and checked once before use. |
+| Definitional equality | 100,000 reduction-fuel units per normalization request. Fuel exhaustion does not establish equality. |
+
+The extent ceilings are conjunctive, not a promise that every simultaneous
+maximum fits the arena. A candidate accepts only if its exact framed subjects,
+declarations, proof, inference, and all retained normal forms fit every row.
+Anything other than status 1 with exact `accept\n` is non-acceptance.
+
 ## Retention inventory
 
 Every retained owned file must strengthen the rooted checker service or one
