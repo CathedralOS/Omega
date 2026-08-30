@@ -144,9 +144,10 @@ impl<'program> Evaluator<'program> {
                     if let Ok(cell) = self.resolve_place(*first, frame) {
                         let cell = self.deref_cell(cell);
                         if let Value::Str(text) = &*cell.borrow() {
-                            *text.borrow_mut() = line.clone().into_bytes();
+                            text.replace(line.clone().into_bytes())
+                                .map_err(Halt::Resource)?;
                         } else {
-                            *cell.borrow_mut() = Value::str(line.clone());
+                            *cell.borrow_mut() = self.allocate_text(line.clone().into_bytes())?;
                         }
                     }
                 }

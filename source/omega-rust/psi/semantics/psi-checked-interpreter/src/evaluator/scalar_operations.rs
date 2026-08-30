@@ -300,7 +300,7 @@ impl<'program> Evaluator<'program> {
             if operator == Add {
                 let mut joined = a.borrow().clone();
                 joined.extend_from_slice(&b.borrow());
-                return Ok(Value::bytes(joined));
+                return self.allocate_text(joined);
             }
         }
 

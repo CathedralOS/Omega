@@ -109,7 +109,7 @@ impl<'program> Evaluator<'program> {
                 ),
                 (
                     "relative".to_owned(),
-                    self.allocate_cell(Value::bytes(relative))?,
+                    self.allocate_cell(self.allocate_text(relative)?)?,
                 ),
             ]),
         }))

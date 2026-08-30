@@ -83,7 +83,7 @@ mod host_open_flags {
         (flags >> O_APPEND_BIT) & 1 != 0
     }
 }
-use crate::value::{Cell, CellMeter, Value};
+use crate::value::{Cell, CellMeter, TextByteMeter, Value};
 use psi_checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::bignum::BigInt;
@@ -1080,6 +1080,8 @@ struct Evaluator<'program> {
     usage: EvaluationUsage,
     /// Exact allocation-lifetime meter for semantic interpreter cells.
     cell_meter: CellMeter,
+    /// Exact logical-byte lifetime meter for interpreter Text backing buffers.
+    text_byte_meter: TextByteMeter,
     /// Optional compiler-owned account shared across a complete build-review
     /// session. This measures deterministic compiler-owned build resources.
     build_evaluation_sponsor: Option<BuildEvaluationSponsor>,

@@ -322,10 +322,52 @@ fn compile_resolved_package_reviews_in_session(
     );
     let sponsored_live = evaluation_sponsor.live_cells();
     let sponsored_peak = evaluation_sponsor.peak_live_cells();
-    if reported_live_cell_peak != Some(sponsored_peak) || sponsored_live != 0 {
+    let reported_live_cell_session_peak = reviews
+        .iter()
+        .filter_map(|review| review.build_evaluation_usage())
+        .map(|usage| usage.session_peak_live_cells)
+        .max();
+    if reported_live_cell_peak != Some(sponsored_peak)
+        || reported_live_cell_session_peak != Some(sponsored_peak)
+        || sponsored_live != 0
+    {
         return Err(
             CompileResolvedPackageReviewsError::BuildLiveCellAccountingMismatch {
-                reported_peak: reported_live_cell_peak,
+                reported_invocation_peak: reported_live_cell_peak,
+                reported_session_peak: reported_live_cell_session_peak,
+                sponsored_peak,
+                sponsored_live,
+            },
+        );
+    }
+    let reported_live_text_byte_peak = Some(
+        reviews
+            .iter()
+            .filter_map(|review| review.build_evaluation_usage())
+            .flat_map(|usage| {
+                [
+                    usage.peak_live_text_bytes,
+                    usage.replay_peak_live_text_bytes,
+                ]
+            })
+            .max()
+            .unwrap_or(0),
+    );
+    let sponsored_live = evaluation_sponsor.live_text_bytes();
+    let sponsored_peak = evaluation_sponsor.peak_live_text_bytes();
+    let reported_live_text_byte_session_peak = reviews
+        .iter()
+        .filter_map(|review| review.build_evaluation_usage())
+        .map(|usage| usage.session_peak_live_text_bytes)
+        .max();
+    if reported_live_text_byte_peak != Some(sponsored_peak)
+        || reported_live_text_byte_session_peak != Some(sponsored_peak)
+        || sponsored_live != 0
+    {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildLiveTextByteAccountingMismatch {
+                reported_invocation_peak: reported_live_text_byte_peak,
+                reported_session_peak: reported_live_text_byte_session_peak,
                 sponsored_peak,
                 sponsored_live,
             },

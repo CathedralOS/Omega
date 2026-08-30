@@ -33,7 +33,7 @@ impl<'program> Evaluator<'program> {
             // carrier f64. Keyed on the landing, identically to the native
             // literal reads (f32_bits), so the engines stay bit-for-bit.
             ExpressionNode::Float(value) => Ok(Value::Float(value.landed_f64())),
-            ExpressionNode::String(value) => Ok(Value::bytes(value.to_vec())),
+            ExpressionNode::String(value) => self.allocate_text(value.to_vec()),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
             ExpressionNode::Member(member) => {
                 // A member on a PLACE receiver reads through its storage cell,

@@ -45,6 +45,7 @@ impl<'program> Evaluator<'program> {
             private_layout_placements: Vec::new(),
             usage: EvaluationUsage::empty(step_budget),
             cell_meter: CellMeter::new(None),
+            text_byte_meter: TextByteMeter::new(None),
             build_evaluation_sponsor: None,
             // OMEGA_INTERP_STEP_BUDGET overrides the default for
             // measurement / long-running sample runs (dev knob, same
@@ -80,9 +81,11 @@ impl<'program> Evaluator<'program> {
         sponsor: Option<BuildEvaluationSponsor>,
     ) {
         debug_assert_eq!(self.cell_meter.peak(), 0);
+        debug_assert_eq!(self.text_byte_meter.peak(), 0);
         self.step_budget = fuel_ceiling;
         self.usage.set_fuel_ceiling(fuel_ceiling);
         self.cell_meter = CellMeter::new(sponsor.clone());
+        self.text_byte_meter = TextByteMeter::new(sponsor.clone());
         self.build_evaluation_sponsor = sponsor;
     }
 
@@ -90,8 +93,14 @@ impl<'program> Evaluator<'program> {
         self.cell_meter.allocate(value).map_err(Halt::Resource)
     }
 
+    pub(super) fn allocate_text(&self, bytes: Vec<u8>) -> EvalResult<Value> {
+        self.text_byte_meter.allocate(bytes).map_err(Halt::Resource)
+    }
+
     pub(super) fn finish_cell_usage(&mut self) {
         self.usage.record_peak_live_cells(self.cell_meter.peak());
+        self.usage
+            .record_peak_live_text_bytes(self.text_byte_meter.peak());
     }
 
     pub(super) fn charge_build_log_bytes(&mut self, bytes: usize) -> EvalResult<()> {
@@ -249,7 +258,10 @@ impl<'program> Evaluator<'program> {
         let argument_cells = arguments
             .into_iter()
             .map(|argument| {
-                let value = argument.into_value_with(&|value| self.allocate_cell(value))?;
+                let value = argument
+                    .into_value_with(&|value| self.allocate_cell(value), &|bytes| {
+                        self.allocate_text(bytes)
+                    })?;
                 Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
             })
             .collect::<EvalResult<Vec<_>>>()?;
@@ -325,7 +337,10 @@ impl<'program> Evaluator<'program> {
         let argument_cells: Vec<Cell> = arguments
             .into_iter()
             .map(|argument| {
-                let value = argument.into_value_with(&|value| self.allocate_cell(value))?;
+                let value = argument
+                    .into_value_with(&|value| self.allocate_cell(value), &|bytes| {
+                        self.allocate_text(bytes)
+                    })?;
                 self.allocate_cell(value)
             })
             .collect::<EvalResult<_>>()?;
@@ -473,7 +488,7 @@ impl<'program> Evaluator<'program> {
             // value, diverging from both the checked semantics and native
             // `BoundedByteBuffer` layout.
             if self.declared_type_is_bounded_byte_buffer(type_reference) {
-                return Ok(Value::bytes(Vec::new()));
+                return self.allocate_text(Vec::new());
             }
 
             // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
@@ -610,7 +625,7 @@ impl<'program> Evaluator<'program> {
                 });
             }
         }
-        Ok(self.default_for_type(type_reference))
+        self.default_for_type(type_reference)
     }
 
     fn generic_binding_argument(
@@ -742,24 +757,26 @@ impl<'program> Evaluator<'program> {
     pub(super) fn default_for_type(
         &self,
         type_reference: psi_typed_trees::types::TypeReferenceHandle,
-    ) -> Value {
-        match self.program.primitive_type_reference(type_reference) {
-            Some(PrimitiveType::Bool) => Value::Bool(false),
-            Some(PrimitiveType::F32) | Some(PrimitiveType::F64) => Value::Float(0.0),
-            Some(_) => Value::Int(0),
-            // A `&[u8] in Utf8` text view (the encoding-domain model that retires
-            // the retired owned primitive, #66) uses a fat `{ptr,len}` descriptor
-            // and the content-compare/literal-store path natively. The
-            // zero-initialized field is a zeroed descriptor (empty bytes), so the
-            // interpreter must default it to an EMPTY `Str` -- not `Unit`. (A `Unit`
-            // default makes `self.name == "literal"` fall through `values_equal`'s
-            // int-compare arm where `None == None` is spuriously TRUE, diverging from
-            // the native empty-vs-nonempty content compare.)
-            None if self.program.is_borrowed_byte_slice(type_reference) => {
-                Value::str(String::new())
-            }
-            None => Value::Unit,
-        }
+    ) -> EvalResult<Value> {
+        Ok(
+            match self.program.primitive_type_reference(type_reference) {
+                Some(PrimitiveType::Bool) => Value::Bool(false),
+                Some(PrimitiveType::F32) | Some(PrimitiveType::F64) => Value::Float(0.0),
+                Some(_) => Value::Int(0),
+                // A `&[u8] in Utf8` text view (the encoding-domain model that retires
+                // the retired owned primitive, #66) uses a fat `{ptr,len}` descriptor
+                // and the content-compare/literal-store path natively. The
+                // zero-initialized field is a zeroed descriptor (empty bytes), so the
+                // interpreter must default it to an EMPTY `Str` -- not `Unit`. (A `Unit`
+                // default makes `self.name == "literal"` fall through `values_equal`'s
+                // int-compare arm where `None == None` is spuriously TRUE, diverging from
+                // the native empty-vs-nonempty content compare.)
+                None if self.program.is_borrowed_byte_slice(type_reference) => {
+                    self.allocate_text(Vec::new())?
+                }
+                None => Value::Unit,
+            },
+        )
     }
 
     // ---- state execution ----------------------------------------------------

@@ -1784,26 +1784,30 @@ and open-but-unlinked objects under a 4,096-entry, 256-MiB-total, and
 256-MiB-per-object ceiling. Provider mutations reserve before touching the OS
 and commit after success; ceiling refusal is resource exhaustion. Neither
 per-package limits nor path-summing bound the actual resource.
-A distinct version-6 evaluation sponsor now accounts deterministic evaluator
+A distinct version-7 evaluation sponsor now accounts deterministic evaluator
 work, compiler-owned BuildLog bytes, filesystem operation attempts, and
 concurrently live compiler-owned filesystem resources across that same
 closure. The compiler policy grants 100,000,000 total fuel units, 16 MiB of
 BuildLog output, 65,536 canonical filesystem operation attempts, 4,096 live
-filesystem handles, 1,048,576 live semantic interpreter cells, 1,048,576
-successful result cells, and 64 MiB of successful result Text bytes,
+filesystem handles, 1,048,576 live semantic interpreter cells, 64 MiB of live
+interpreter Text backing payload, 1,048,576 successful result cells, and 64 MiB
+of successful result Text bytes,
 preserves the 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings for initial evaluation and automatic replay, and
 prevents dependencies or the ambient interpreter development override from
-raising package-policy limits. Usage receipt v6 binds those limits and
+raising package-policy limits. Usage receipt v7 binds those limits and
 separates initial from replay fuel, BuildLog, filesystem-attempt, result-cell,
-and result-Text charges, each invocation's peak live-cell count, and the shared
-session's peak live-handle and live-cell counts. Owned handle outputs
+and result-Text charges, each invocation's peak live-cell and live-Text-byte
+counts, and the shared session's peak live-handle, live-cell, and live-Text-byte
+counts. Owned handle outputs
 reserve before provider entry; provider failure, successful close, and
 evaluator teardown release through compiler ownership. Borrowed native views
 do not consume a second resource slot. Successful closure review requires
 exact cumulative-charge and peak reconciliation with the shared sponsor and
 zero live reservations at completion. This is not a CPU-time, process-memory,
-or process-wide descriptor-table claim. A generic temporary-payload ceiling is
+or process-wide descriptor-table claim. The live-Text account measures logical
+backing payload, not `Vec` capacity, allocator overhead, or temporary non-Text
+copies. A generic temporary-payload ceiling is
 deliberately rejected; only named byte domains with complete compiler-owned
 allocation lifetimes may acquire peak-live accounts.
 

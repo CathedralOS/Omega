@@ -35,6 +35,8 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let mut closure_filesystem_attempts = 0_u64;
         let mut closure_live_cell_peak = 0_u64;
         let mut reported_session_live_cell_peak = 0_u64;
+        let mut closure_live_text_byte_peak = 0_u64;
+        let mut reported_session_live_text_byte_peak = 0_u64;
         for (package_index, node) in closure.graph().packages().iter().enumerate() {
             let custody = closure
                 .custody(node.source().key())
@@ -48,7 +50,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let usage = issued
                 .build_evaluation_usage()
                 .expect("package review retains sponsored build-evaluation usage");
-            assert_eq!(usage.usage_schema_version, 6);
+            assert_eq!(usage.usage_schema_version, 7);
             assert_eq!(usage.step_schedule_marker, 1);
             assert_eq!(
                 usage.invocation_fuel_ceiling,
@@ -58,12 +60,13 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     100_000
                 }
             );
-            assert_eq!(usage.sponsor_schema_version, Some(6));
+            assert_eq!(usage.sponsor_schema_version, Some(7));
             assert_eq!(usage.session_fuel_ceiling, Some(100_000_000));
             assert_eq!(usage.session_build_log_byte_ceiling, Some(16 * 1024 * 1024));
             assert_eq!(usage.session_filesystem_attempt_ceiling, Some(65_536));
             assert_eq!(usage.session_live_filesystem_handle_ceiling, Some(4_096));
             assert_eq!(usage.session_live_cell_ceiling, Some(1_048_576));
+            assert_eq!(usage.session_live_text_byte_ceiling, Some(64 * 1024 * 1024));
             assert_eq!(usage.session_result_cell_ceiling, Some(1_048_576));
             assert_eq!(
                 usage.session_result_text_byte_ceiling,
@@ -71,13 +74,21 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             );
             assert!(usage.session_peak_live_filesystem_handles <= 4_096);
             assert!(usage.session_peak_live_cells <= 1_048_576);
+            assert!(usage.session_peak_live_text_bytes <= 64 * 1024 * 1024);
             assert!(usage.peak_live_cells <= usage.session_peak_live_cells);
             assert!(usage.replay_peak_live_cells <= usage.session_peak_live_cells);
+            assert!(usage.peak_live_text_bytes <= usage.session_peak_live_text_bytes);
+            assert!(usage.replay_peak_live_text_bytes <= usage.session_peak_live_text_bytes);
             closure_live_cell_peak = closure_live_cell_peak
                 .max(usage.peak_live_cells)
                 .max(usage.replay_peak_live_cells);
             reported_session_live_cell_peak =
                 reported_session_live_cell_peak.max(usage.session_peak_live_cells);
+            closure_live_text_byte_peak = closure_live_text_byte_peak
+                .max(usage.peak_live_text_bytes)
+                .max(usage.replay_peak_live_text_bytes);
+            reported_session_live_text_byte_peak =
+                reported_session_live_text_byte_peak.max(usage.session_peak_live_text_bytes);
             assert!(usage.result_cells + usage.replay_result_cells <= 1_048_576);
             assert!(usage.result_text_bytes + usage.replay_result_text_bytes <= 64 * 1024 * 1024);
             assert!(usage.fuel_units > 0);
@@ -198,6 +209,11 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         assert!(closure_build_fuel <= 100_000_000);
         assert!(closure_filesystem_attempts <= 65_536);
         assert_eq!(closure_live_cell_peak, reported_session_live_cell_peak);
+        assert!(closure_live_text_byte_peak > 0);
+        assert_eq!(
+            closure_live_text_byte_peak,
+            reported_session_live_text_byte_peak
+        );
 
         let root_review = reviews
             .review(closure.graph().root())

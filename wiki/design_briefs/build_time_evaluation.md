@@ -475,6 +475,7 @@ EvaluationUsage {
     build_log_bytes;
     filesystem_operation_attempts;
     peak_live_cells;
+    peak_live_text_bytes;
     result_cells;
     result_text_bytes;
 }
@@ -495,27 +496,29 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
-Package review additionally owns one unobservable version-6 evaluation sponsor
+Package review additionally owns one unobservable version-7 evaluation sponsor
 across the complete resolved closure. The current compiler policy grants
 100,000,000 deterministic evaluator fuel units, 16 MiB of compiler-owned
 BuildLog output, 65,536 canonical filesystem operation attempts, 4,096
 concurrently live compiler-owned filesystem resources, 1,048,576 concurrently
 live semantic interpreter cells, 1,048,576 successful result cells, and 64 MiB
-of successful result Text payload while
+of concurrently live interpreter Text backing payload plus 64 MiB of
+successful result Text payload while
 retaining the ordinary 100,000-unit ceiling for an effect-free invocation and
 10,000,000-unit ceiling for a granted invocation. Initial evaluation and
 automatic provider-free replay debit the same shared sponsor;
-dependencies cannot raise it. The version-6 usage receipt binds the step
+dependencies cannot raise it. The version-7 usage receipt binds the step
 schedule, per-invocation ceiling, optional sponsor schema and session ceilings,
 and distinct initial/replay fuel, BuildLog, filesystem-attempt, result-cell,
-and result-Text charges plus distinct initial/replay live-cell peaks. It also
-retains the shared session's peak live-handle and live-cell counts. Successful
-closure review rejects unless all retained charge totals and peaks exactly
+and result-Text charges plus distinct initial/replay live-cell and live-Text
+peaks. It also retains the shared session's peak live-handle, live-cell, and
+live-Text counts. Successful closure review rejects unless all retained charge
+totals and peaks exactly
 equal the sponsor's counters and no live reservation remains. The ambient
 interpreter development override does not alter package-policy evaluation.
 These are deterministic compiler-resource limits, not claims about CPU time,
-resident memory, the process-wide descriptor table, or hostile-process
-containment.
+resident memory, `Vec` capacity, temporary non-Text copies, the process-wide
+descriptor table, or hostile-process containment.
 
 Package build filesystem authority enters through the one `Build` activation,
 which exposes an immutable `BuildSource` capability and a fresh writable
@@ -771,10 +774,11 @@ either carry the certified ceiling or record the admitted work budget and usage
 receipt. Peak live cells receive the same treatment. Temporary bytes are not
 one honest generic domain: additional hard ceilings are introduced only for a
 named compiler-owned payload whose complete allocation lifetime can be charged
-before allocation and released exactly. Current open domains include evaluator
-`Text` backing payloads, filesystem scratch buffers, and retained find-cursor
-name snapshots. Allocator capacity, RSS, and process memory remain deployment
-policy rather than an Omega claim.
+before it becomes interpreter state and released exactly. Evaluator `Text`
+backing payloads now have that account. Remaining domains stay separate:
+filesystem read-transfer buffers, directory-enumeration name/packed-record
+snapshots, and retained find-cursor name snapshots. Allocator capacity, RSS,
+and process memory remain deployment policy rather than an Omega claim.
 
 The root may raise or remove ceilings. Dependencies may publish expected usage
 but cannot grant themselves more. Evaluation code cannot inspect remaining
