@@ -155,6 +155,14 @@ const CALL_DEPTH_BUDGET: u32 = 512;
 /// pre-state, and provider post-state under this same sponsor. Individual
 /// prepared carriers remain bounded by their separate 16 MiB evaluator limit.
 const MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES: usize = 256 * 1024 * 1024;
+/// Exact logical ceiling for one complete directory-enumeration payload lane:
+/// packed records for `read_dir`, retained names for a find cursor. Packed
+/// extent strictly dominates its source names. Allocator capacity and process
+/// memory are deliberately outside the claim.
+const MAX_DIRECTORY_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
+/// The portable std directory-entry contract retains at most 255 name bytes,
+/// and its 512-byte read buffer must always admit at least one complete record.
+const MAX_DIRECTORY_ENTRY_NAME_BYTES: usize = 255;
 
 /// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual
 /// filesystem reports for every entry — it has no real clock. A recognizable
@@ -793,11 +801,68 @@ type EvalResult<T> = Result<T, Halt>;
 /// engines. Shared by the virtual fs (`build_dirent_records`) and the real-fs
 /// provider (`try_real_filesystem_call`'s `read_dir`), which differ only in
 /// where the names come from.
-fn pack_dirent_records(entries: &[(Vec<u8>, u8)]) -> Vec<u8> {
-    let mut buffer = Vec::new();
+fn portable_directory_entry_name(name: &[u8]) -> &[u8] {
+    &name[..name.len().min(MAX_DIRECTORY_ENTRY_NAME_BYTES)]
+}
+
+fn dirent_record_extent(name_len: usize) -> EvalResult<usize> {
+    if name_len > MAX_DIRECTORY_ENTRY_NAME_BYTES {
+        return Err(Halt::Trap(format!(
+            "untruncated directory entry name reached the dirent packer ({name_len} > {MAX_DIRECTORY_ENTRY_NAME_BYTES})"
+        )));
+    }
+    let unaligned = 25usize.checked_add(name_len).ok_or_else(|| {
+        Halt::Resource("directory entry record extent overflowed usize".to_owned())
+    })?;
+    let reclen = unaligned
+        .checked_add(7)
+        .map(|extent| extent / 8 * 8)
+        .ok_or_else(|| {
+            Halt::Resource("directory entry record alignment overflowed usize".to_owned())
+        })?;
+    debug_assert!(reclen <= u16::MAX as usize);
+    Ok(reclen)
+}
+
+fn checked_directory_name_snapshot_total(current: usize, name_len: usize) -> EvalResult<usize> {
+    if name_len > MAX_DIRECTORY_ENTRY_NAME_BYTES {
+        return Err(Halt::Trap(format!(
+            "untruncated directory entry name reached snapshot accounting ({name_len} > {MAX_DIRECTORY_ENTRY_NAME_BYTES})"
+        )));
+    }
+    let total = current.checked_add(name_len).ok_or_else(|| {
+        Halt::Resource("directory enumeration retained-name extent overflowed usize".to_owned())
+    })?;
+    if total > MAX_DIRECTORY_SNAPSHOT_BYTES {
+        return Err(Halt::Resource(format!(
+            "directory enumeration retained names exceeded their {MAX_DIRECTORY_SNAPSHOT_BYTES}-byte logical payload ceiling"
+        )));
+    }
+    Ok(total)
+}
+
+fn checked_directory_record_snapshot_total(current: usize, name_len: usize) -> EvalResult<usize> {
+    let reclen = dirent_record_extent(name_len)?;
+    let total = current.checked_add(reclen).ok_or_else(|| {
+        Halt::Resource("directory enumeration packed-record extent overflowed usize".to_owned())
+    })?;
+    if total > MAX_DIRECTORY_SNAPSHOT_BYTES {
+        return Err(Halt::Resource(format!(
+            "directory enumeration packed records exceeded their {MAX_DIRECTORY_SNAPSHOT_BYTES}-byte logical payload ceiling"
+        )));
+    }
+    Ok(total)
+}
+
+fn pack_dirent_records(entries: &[(Vec<u8>, u8)]) -> EvalResult<Vec<u8>> {
+    let total = entries.iter().try_fold(0usize, |total, (name, _)| {
+        checked_directory_record_snapshot_total(total, portable_directory_entry_name(name).len())
+    })?;
+    let mut buffer = Vec::with_capacity(total);
     for (name, d_type) in entries {
+        let name = portable_directory_entry_name(name);
         let namlen = name.len();
-        let reclen = (25 + namlen).div_ceil(8) * 8;
+        let reclen = dirent_record_extent(namlen)?;
         let start = buffer.len();
         buffer.resize(start + reclen, 0);
         buffer[start + 16..start + 18].copy_from_slice(&(reclen as u16).to_le_bytes());
@@ -805,7 +870,8 @@ fn pack_dirent_records(entries: &[(Vec<u8>, u8)]) -> Vec<u8> {
         buffer[start + 20] = *d_type;
         buffer[start + 21..start + 21 + namlen].copy_from_slice(name);
     }
-    buffer
+    debug_assert_eq!(buffer.len(), total);
+    Ok(buffer)
 }
 
 /// Select the next complete-record window from a packed Darwin dirent stream.

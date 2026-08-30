@@ -14,6 +14,15 @@ fn checked_observation_evidence_total(current: usize, additional: usize) -> Opti
         .filter(|total| *total <= MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES)
 }
 
+fn immediate_virtual_child<'path>(path: &'path [u8], prefix: &[u8]) -> Option<&'path [u8]> {
+    let rest = path.strip_prefix(prefix)?;
+    if rest.is_empty() || rest.contains(&b'/') {
+        None
+    } else {
+        Some(rest)
+    }
+}
+
 impl<'program> Evaluator<'program> {
     /// Record one exact canonical operation in call-start order around the
     /// selected provider. The placeholder preserves nesting order if argument
@@ -1831,7 +1840,7 @@ impl<'program> Evaluator<'program> {
                         -1
                     }
                     Some(path) => {
-                        let records = self.build_dirent_records(&path);
+                        let records = self.build_dirent_records(&path)?;
                         let start = position.initial.max(0) as usize;
                         let (chunk, next_position) =
                             dirent_record_chunk(&records, start, count.host);
@@ -1874,7 +1883,8 @@ impl<'program> Evaluator<'program> {
                 let entries = pattern
                     .strip_suffix(b"/*")
                     .filter(|dir_path| self.virtual_dirs.contains(*dir_path))
-                    .map(|dir_path| self.build_find_entries(dir_path));
+                    .map(|dir_path| self.build_find_entries(dir_path))
+                    .transpose()?;
                 match entries {
                     Some(mut entries) => {
                         let (name, is_dir) =
@@ -2104,30 +2114,31 @@ impl<'program> Evaluator<'program> {
     /// The find-enumeration twin of `build_dirent_records` (fs rung 3a): the
     /// same entry set (".", "..", then the immediate children of `dir_path`)
     /// as (name, is_dir) pairs for a `find_first` cursor snapshot.
-    fn build_find_entries(&self, dir_path: &[u8]) -> std::collections::VecDeque<(Vec<u8>, bool)> {
+    fn build_find_entries(
+        &self,
+        dir_path: &[u8],
+    ) -> EvalResult<std::collections::VecDeque<(Vec<u8>, bool)>> {
         let mut entries: std::collections::VecDeque<(Vec<u8>, bool)> =
             std::collections::VecDeque::from([(b".".to_vec(), true), (b"..".to_vec(), true)]);
+        let mut name_bytes = checked_directory_name_snapshot_total(0, 1)?;
+        name_bytes = checked_directory_name_snapshot_total(name_bytes, 2)?;
         let mut prefix = dir_path.to_vec();
         prefix.push(b'/');
-        let immediate_child = |path: &[u8]| -> Option<Vec<u8>> {
-            let rest = path.strip_prefix(prefix.as_slice())?;
-            if rest.is_empty() || rest.contains(&b'/') {
-                None
-            } else {
-                Some(rest.to_vec())
-            }
-        };
         for path in self.virtual_files.keys() {
-            if let Some(name) = immediate_child(path) {
-                entries.push_back((name, false));
+            if let Some(name) = immediate_virtual_child(path, &prefix) {
+                let name = portable_directory_entry_name(name);
+                name_bytes = checked_directory_name_snapshot_total(name_bytes, name.len())?;
+                entries.push_back((name.to_vec(), false));
             }
         }
         for path in &self.virtual_dirs {
-            if let Some(name) = immediate_child(path) {
-                entries.push_back((name, true));
+            if let Some(name) = immediate_virtual_child(path, &prefix) {
+                let name = portable_directory_entry_name(name);
+                name_bytes = checked_directory_name_snapshot_total(name_bytes, name.len())?;
+                entries.push_back((name.to_vec(), true));
             }
         }
-        entries
+        Ok(entries)
     }
 
     /// Fill a caller find-data buffer (`&mut [u8]`, >= 320 bytes) the way
@@ -2149,26 +2160,24 @@ impl<'program> Evaluator<'program> {
         output.write(&record)
     }
 
-    fn build_dirent_records(&self, dir_path: &[u8]) -> Vec<u8> {
+    fn build_dirent_records(&self, dir_path: &[u8]) -> EvalResult<Vec<u8>> {
         let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
+        let mut record_bytes = checked_directory_record_snapshot_total(0, 1)?;
+        record_bytes = checked_directory_record_snapshot_total(record_bytes, 2)?;
         let mut prefix = dir_path.to_vec();
         prefix.push(b'/');
-        let immediate_child = |path: &[u8]| -> Option<Vec<u8>> {
-            let rest = path.strip_prefix(prefix.as_slice())?;
-            if rest.is_empty() || rest.contains(&b'/') {
-                None
-            } else {
-                Some(rest.to_vec())
-            }
-        };
         for path in self.virtual_files.keys() {
-            if let Some(name) = immediate_child(path) {
-                entries.push((name, 8)); // DT_REG
+            if let Some(name) = immediate_virtual_child(path, &prefix) {
+                let name = portable_directory_entry_name(name);
+                record_bytes = checked_directory_record_snapshot_total(record_bytes, name.len())?;
+                entries.push((name.to_vec(), 8)); // DT_REG
             }
         }
         for path in &self.virtual_dirs {
-            if let Some(name) = immediate_child(path) {
-                entries.push((name, 4)); // DT_DIR
+            if let Some(name) = immediate_virtual_child(path, &prefix) {
+                let name = portable_directory_entry_name(name);
+                record_bytes = checked_directory_record_snapshot_total(record_bytes, name.len())?;
+                entries.push((name.to_vec(), 4)); // DT_DIR
             }
         }
         pack_dirent_records(&entries)
@@ -2834,6 +2843,87 @@ mod tests {
                 host: MAX_FILESYSTEM_TRANSFER_BYTES,
             })
         );
+    }
+
+    #[test]
+    fn directory_snapshot_payload_lanes_accept_the_exact_ceiling_only() {
+        assert_eq!(
+            checked_directory_name_snapshot_total(MAX_DIRECTORY_SNAPSHOT_BYTES - 1, 1)
+                .unwrap_or_else(|_| panic!("exact retained-name ceiling is admitted")),
+            MAX_DIRECTORY_SNAPSHOT_BYTES
+        );
+        assert!(matches!(
+            checked_directory_name_snapshot_total(MAX_DIRECTORY_SNAPSHOT_BYTES, 1),
+            Err(Halt::Resource(_))
+        ));
+
+        let one_byte_name_record =
+            dirent_record_extent(1).unwrap_or_else(|_| panic!("one-byte dirent extent"));
+        assert_eq!(one_byte_name_record, 32);
+        assert_eq!(
+            checked_directory_record_snapshot_total(
+                MAX_DIRECTORY_SNAPSHOT_BYTES - one_byte_name_record,
+                1,
+            )
+            .unwrap_or_else(|_| panic!("exact packed-record ceiling is admitted")),
+            MAX_DIRECTORY_SNAPSHOT_BYTES
+        );
+        assert!(matches!(
+            checked_directory_record_snapshot_total(
+                MAX_DIRECTORY_SNAPSHOT_BYTES - one_byte_name_record + 1,
+                1,
+            ),
+            Err(Halt::Resource(_))
+        ));
+    }
+
+    #[test]
+    fn dirent_layout_truncates_names_to_the_existing_std_carrier() {
+        assert_eq!(
+            dirent_record_extent(MAX_DIRECTORY_ENTRY_NAME_BYTES)
+                .unwrap_or_else(|_| panic!("largest portable directory record")),
+            280
+        );
+        let long_name = vec![b'x'; MAX_DIRECTORY_ENTRY_NAME_BYTES + 1];
+        assert_eq!(
+            portable_directory_entry_name(&long_name).len(),
+            MAX_DIRECTORY_ENTRY_NAME_BYTES
+        );
+        let records = pack_dirent_records(&[(long_name, 8)])
+            .unwrap_or_else(|_| panic!("packer applies std name truncation"));
+        assert_eq!(records.len(), 280);
+        assert_eq!(u16::from_le_bytes([records[18], records[19]]), 255);
+        assert!(
+            records[21..21 + MAX_DIRECTORY_ENTRY_NAME_BYTES]
+                .iter()
+                .all(|byte| *byte == b'x')
+        );
+    }
+
+    #[test]
+    fn virtual_directory_snapshot_truncates_names_before_retention_and_packing() {
+        let program = TypedTrees::default();
+        let mut evaluator = Evaluator::new(&program, &[]);
+        evaluator.virtual_dirs.insert(b"dir".to_vec());
+        let mut path = b"dir/".to_vec();
+        path.extend(std::iter::repeat_n(
+            b'x',
+            MAX_DIRECTORY_ENTRY_NAME_BYTES + 1,
+        ));
+        evaluator.virtual_files.insert(path, Vec::new());
+
+        let records = evaluator
+            .build_dirent_records(b"dir")
+            .unwrap_or_else(|_| panic!("long virtual name packs through std truncation"));
+        let child_start = 64;
+        assert_eq!(
+            u16::from_le_bytes([records[child_start + 18], records[child_start + 19]]),
+            255
+        );
+        let entries = evaluator
+            .build_find_entries(b"dir")
+            .unwrap_or_else(|_| panic!("long virtual name enters a bounded find snapshot"));
+        assert_eq!(entries[2].0.len(), MAX_DIRECTORY_ENTRY_NAME_BYTES);
     }
 
     #[test]
