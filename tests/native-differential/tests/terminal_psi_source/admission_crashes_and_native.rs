@@ -893,7 +893,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     );
     let entry_bytes = entry.bytes(&object_artifact).to_vec();
     let entry_offset = u64::try_from(entry.text_offset).expect("terminal entry offset");
-    let (mut installed_code, entry_stub) = install_terminal_object(
+    let (installed_code, entry_stub) = install_terminal_object(
         &object_artifact,
         object_artifact.text_bytes().to_vec(),
         entry_offset,
