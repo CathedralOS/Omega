@@ -505,11 +505,14 @@ pub data Optimizations {
     x86_select_xor_zero_i64_materialization_v1: u8 in Trapping;
     x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1: u8 in Trapping;
 }
+pub data BuildLog {
+}
 pub data Build {
     // compiler-owned Build.target field
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
+    log: BuildLog;
 }
 pub data PackageSelection {
     case Root;
@@ -528,6 +531,8 @@ pub machine Build::package(&mut self, name: &[u8]) {
 pub machine Build::application(&mut self, name: &[u8]) {
 }
 pub machine Build::member(&mut self, path: &[u8]) {
+}
+pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 }
 pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     transition optimization {
@@ -661,6 +666,8 @@ pub data BuildSource {
 }
 pub data BuildOutput {
 }
+pub data BuildLog {
+}
 pub data Build {
     // compiler-owned Build.target field
     subsystem: Subsystem;
@@ -668,6 +675,7 @@ pub data Build {
     optimizations: Optimizations;
     source: BuildSource;
     output: BuildOutput;
+    log: BuildLog;
     filesystem: FilesystemHost;
 }
 pub data PackageSelection {
@@ -774,6 +782,8 @@ pub machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) ->
     relative
 }
 pub machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
+}
+pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 }
 pub machine Optimizations::emit_report(&mut self) {
     self.human_report = self.human_report + 1;

@@ -306,11 +306,15 @@ explicitly.
   `Build.filesystem: FilesystemHost`, replace the std-owned `Path` in the
   `BuildSource`/`BuildOutput` surface with a compiler-owned relative-path
   carrier or direct rooted operations, move sponsored reads and writes onto
-  those existing facets, and add an explicit compiler-owned logging facet.
-  Build evaluation must admit no ordinary runtime boundary service merely
-  because it is filesystem- or console-shaped. Retain exact build-effect and
-  observation rows, while `FilesystemSponsor` remains the enforcement boundary
-  for source/output roots, symlinks, limits, descriptors, and staging custody.
+  those existing facets. The explicit compiler-owned `BuildLog` facet and exact
+  `write_line` dispatch have landed: log bytes are retained separately from
+  runtime Console output and bound into build-observation identity without
+  granting a boundary-service reach. Its byte ceiling remains part of the
+  resource-ceiling work above. Build evaluation must admit no ordinary runtime
+  boundary service merely because it is filesystem- or console-shaped. Retain
+  exact build-effect and observation rows, while `FilesystemSponsor` remains
+  the enforcement boundary for source/output roots, symlinks, limits,
+  descriptors, and staging custody.
 
   Audit every non-test `SourceOrigin::Toolchain` consumer. Preserve it for core,
   intrinsics, and virtual compiler sources such as `<build-prelude>`; replace
@@ -328,9 +332,13 @@ explicitly.
   declaration-family coordinates, exact provider and target, selection
   authority, and the canonical coordinate-to-plan mapping. Extend that closed
   carrier when exact applications become admissible, and keep compatibility
-  failure when a public family gains an uncovered coordinate. Package evidence
-  must never use declaration order, display signatures, ordinals, or
-  reach-selected subsets.
+  failure when a public family gains an uncovered coordinate. Concrete exact-
+  application production remains implementation work. **OWNER-BLOCKED —
+  generic realization coverage:** do not add a `Generic` evidence variant until
+  the owner settles what compiler-recheckable fact establishes universal
+  coverage for checked and bodyless/external realizations. Package evidence
+  must never use declaration order, display signatures, ordinals, authored
+  assertions, or reach-selected subsets.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external

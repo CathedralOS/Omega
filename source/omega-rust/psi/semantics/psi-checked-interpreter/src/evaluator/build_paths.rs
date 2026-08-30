@@ -234,7 +234,7 @@ impl<'program> Evaluator<'program> {
         Ok(true)
     }
 
-    fn statement_receiver_cell(
+    pub(super) fn statement_receiver_cell(
         &self,
         receiver: psi_arena::HandleSpan<psi_typed_trees::name::Identifier>,
         frame: &Frame,
@@ -301,7 +301,7 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn symbol_has_build_prelude_source(&self, symbol: SymbolHandle) -> bool {
+    pub(super) fn symbol_has_build_prelude_source(&self, symbol: SymbolHandle) -> bool {
         self.program
             .symbols
             .symbol_source_span(symbol)

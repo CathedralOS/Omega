@@ -8,6 +8,7 @@ impl<'program> Evaluator<'program> {
             operator_facts: None,
             stdout: Vec::new(),
             stderr: Vec::new(),
+            build_log: Vec::new(),
             stdin,
             stdin_cursor: 0,
             virtual_ticks: 0,

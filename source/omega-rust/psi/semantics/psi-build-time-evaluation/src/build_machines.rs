@@ -92,12 +92,11 @@ pub fn evaluate_build_machine_arguments_measured(
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
     match mode {
         BuildMachineExecutionMode::Pure => {
-            psi_checked_interpreter::evaluate_build_time_machine_arguments_measured(
+            psi_checked_interpreter::evaluate_observed_build_time_machine_arguments_measured(
                 program.typed(),
                 machine_name,
                 arguments,
             )
-            .map(MeasuredBuildMachineEvaluation::hermetic)
             .map_err(BuildMachineEvaluationError::Pure)
         }
         BuildMachineExecutionMode::Granted {
@@ -128,13 +127,12 @@ pub fn evaluate_build_machine_arguments_measured_with_sponsor(
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
     match mode {
         BuildMachineExecutionMode::Pure => {
-            psi_checked_interpreter::evaluate_build_time_machine_arguments_measured_with_sponsor(
+            psi_checked_interpreter::evaluate_observed_build_time_machine_arguments_measured_with_sponsor(
                 program.typed(),
                 machine_name,
                 arguments,
                 sponsor,
             )
-            .map(MeasuredBuildMachineEvaluation::hermetic)
             .map_err(BuildMachineEvaluationError::Pure)
         }
         BuildMachineExecutionMode::Granted {

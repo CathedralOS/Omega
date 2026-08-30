@@ -566,3 +566,48 @@ already occurred.
 - Tempting but wrong: call matching names, compact fingerprints, audit prose,
   or a lockfile string "agreement" without rejoining the exact declarations
   and strong compiler-issued application.
+
+## Q10 — Establish generic boundary-realization coverage
+
+### Context
+
+An atomic boundary-operator family selection must cover every overload
+coordinate. A coordinate with a static telescope may be covered either by the
+complete concrete application set demanded by the artifact or by one genuinely
+generic realization. Exact-application rows already have a closed structural
+carrier and remain fail-closed when absent. No production carrier currently
+states why one realization covers every admissible static application.
+
+### Problem statement
+
+Choose the compiler-recheckable fact that permits package and artifact evidence
+to publish generic coverage. Ordinary type checking of a generic Omega body may
+be sufficient for a checked realization, but a bodyless or external
+realization has no body from which the compiler can derive parametric coverage.
+Treating either a provider assertion or successful compilation of one concrete
+application as universal coverage would manufacture a guarantee.
+
+### Proposed direction
+
+Permit generic coverage only for an exact checked Omega realization that the
+compiler has checked under its complete symbolic static telescope. Retain the
+exact binder categories and domains, requirement coordinate, realization,
+selected plan, target, and transitive admissions needed to re-run that check.
+This proves dispatch and plan coverage, not the truth of admitted external
+behavior.
+
+Bodyless, external, opaque, or separately supplied realizations do not acquire
+generic coverage from an authored claim. They must provide the complete exact
+application family demanded by the artifact, or use a separately designed and
+explicitly admitted generic implementation contract.
+
+### Alternates
+
+- Acceptable: forbid generic coverage entirely and require canonical exact
+  application families for every emitted artifact.
+- Acceptable: define a recheckable generic implementation contract for foreign
+  artifacts, provided it has an independent verifier and remains distinct from
+  ordinary checked-body evidence.
+- Tempting but wrong: accept a provider-authored `generic` flag, infer coverage
+  from one successful application, or call a compiler/toolchain/version string
+  a certificate that universal checking occurred.

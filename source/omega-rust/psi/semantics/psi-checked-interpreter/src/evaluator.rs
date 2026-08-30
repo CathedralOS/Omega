@@ -26,6 +26,9 @@ use filesystem_preparation::{
     synthetic_handle_fd,
 };
 
+#[path = "evaluator/build_log.rs"]
+mod build_log;
+
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
 /// build.omg rung). A CHILD module so it can serve ops against the private
 /// `Evaluator` internals (the fs argument/buffer helpers) without widening
@@ -309,7 +312,16 @@ pub(crate) fn run_build_time_machine_arguments(
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
-    run_build_time_machine_arguments_with_optional_sponsor(program, machine_name, arguments, None)
+    run_observed_build_time_machine_arguments_with_optional_sponsor(
+        program,
+        machine_name,
+        arguments,
+        None,
+    )
+    .map(|measured| {
+        let (value, usage, _) = measured.into_parts();
+        MeasuredEvaluation::new(value, usage)
+    })
 }
 
 pub(crate) fn run_build_time_machine_arguments_with_sponsor(
@@ -318,7 +330,38 @@ pub(crate) fn run_build_time_machine_arguments_with_sponsor(
     arguments: Vec<crate::build_time::BuildTimeValue>,
     sponsor: &BuildEvaluationSponsor,
 ) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
-    run_build_time_machine_arguments_with_optional_sponsor(
+    run_observed_build_time_machine_arguments_with_optional_sponsor(
+        program,
+        machine_name,
+        arguments,
+        Some(sponsor.clone()),
+    )
+    .map(|measured| {
+        let (value, usage, _) = measured.into_parts();
+        MeasuredEvaluation::new(value, usage)
+    })
+}
+
+pub(crate) fn run_observed_build_time_machine_arguments(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+    run_observed_build_time_machine_arguments_with_optional_sponsor(
+        program,
+        machine_name,
+        arguments,
+        None,
+    )
+}
+
+pub(crate) fn run_observed_build_time_machine_arguments_with_sponsor(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+    run_observed_build_time_machine_arguments_with_optional_sponsor(
         program,
         machine_name,
         arguments,
@@ -326,12 +369,12 @@ pub(crate) fn run_build_time_machine_arguments_with_sponsor(
     )
 }
 
-fn run_build_time_machine_arguments_with_optional_sponsor(
+fn run_observed_build_time_machine_arguments_with_optional_sponsor(
     program: &TypedTrees,
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     sponsor: Option<BuildEvaluationSponsor>,
-) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -339,7 +382,17 @@ fn run_build_time_machine_arguments_with_optional_sponsor(
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
                 let result = evaluator.run_build_time_machine_arguments(machine_name, arguments);
+                use std::io::Write as _;
+                if !evaluator.build_log.is_empty() {
+                    let _ = std::io::stdout().write_all(&evaluator.build_log);
+                    let _ = std::io::stdout().flush();
+                }
                 let mut usage = evaluator.usage;
+                let observations = EvaluationObservations::from_build_run(
+                    Vec::new(),
+                    Vec::new(),
+                    std::mem::take(&mut evaluator.build_log),
+                );
                 match result {
                     Ok(values) => {
                         let result_cells = values.iter().try_fold(0u64, |count, value| {
@@ -348,7 +401,11 @@ fn run_build_time_machine_arguments_with_optional_sponsor(
                             "build-time evaluator result-cell count overflowed".to_owned()
                         })?;
                         usage.record_result_cells(result_cells);
-                        Ok(MeasuredEvaluation::new(values, usage))
+                        Ok(MeasuredBuildMachineEvaluation::new(
+                            values,
+                            usage,
+                            observations,
+                        ))
                     }
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
@@ -483,10 +540,15 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                     let _ = std::io::stderr().write_all(&evaluator.stderr);
                     let _ = std::io::stderr().flush();
                 }
+                if !replaying && !evaluator.build_log.is_empty() {
+                    let _ = std::io::stdout().write_all(&evaluator.build_log);
+                    let _ = std::io::stdout().flush();
+                }
                 let mut usage = evaluator.usage;
-                let observations = EvaluationObservations::from_filesystem_operation_attempts(
+                let observations = EvaluationObservations::from_build_run(
                     std::mem::take(&mut evaluator.filesystem_operation_attempts),
                     std::mem::take(&mut evaluator.build_included_sources),
+                    std::mem::take(&mut evaluator.build_log),
                 );
                 match result {
                     Ok(values) => {
@@ -858,6 +920,10 @@ struct Evaluator<'program> {
     operator_facts: Option<&'program CheckedOperatorFacts>,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
+    /// Exact output emitted through the compiler-owned `Build.log` facet.
+    /// This stays distinct from runtime Console output so build evidence
+    /// cannot accidentally attribute an ordinary boundary call to BuildLog.
+    build_log: Vec<u8>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every

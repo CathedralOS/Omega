@@ -69,6 +69,7 @@ impl BuildObservationSummary {
                 digest.update(tree.file_bytes().to_le_bytes());
             }
         }
+        hash_bytes(&mut digest, self.build_log());
         digest.update(
             u64::try_from(self.filesystem_operation_attempts().len())
                 .expect("build observation attempt count fits u64")
@@ -396,6 +397,7 @@ mod tests {
             ),
             included_source_handoffs: Vec::new(),
             staged_output_tree: None,
+            build_log: Vec::new(),
         }
     }
 
@@ -409,9 +411,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0xba, 0xb0, 0xa2, 0xcc, 0x45, 0x16, 0x00, 0xc4, 0x6b, 0xf5, 0xf6, 0x37, 0x0d, 0x5c,
-                0x6e, 0xd4, 0xd5, 0xe0, 0xd5, 0xdd, 0xcc, 0xbc, 0x82, 0xb2, 0x9f, 0x62, 0x00, 0xec,
-                0x53, 0x13, 0x2c, 0xb7,
+                0x88, 0x0c, 0xee, 0x59, 0x36, 0xfb, 0x92, 0x3f, 0x7e, 0xf7, 0x2e, 0x46, 0x40, 0xc2,
+                0x12, 0xea, 0x1e, 0x75, 0x40, 0x73, 0x7c, 0xeb, 0x75, 0x9f, 0x63, 0x9f, 0xb8, 0x52,
+                0x8f, 0xfb, 0x22, 0x20,
             ],
             "the current package build-observation byte contract remains stable"
         );
@@ -445,6 +447,10 @@ mod tests {
         let mut changed = empty_summary();
         changed.filesystem_replay_verdict =
             BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::Complete);
+        assert_ne!(baseline, changed.identity());
+
+        let mut changed = empty_summary();
+        changed.build_log = b"compiler-owned build log\n".to_vec();
         assert_ne!(baseline, changed.identity());
     }
 

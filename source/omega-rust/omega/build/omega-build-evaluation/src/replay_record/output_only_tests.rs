@@ -100,6 +100,7 @@ fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSummary {
             filesystem_attempt_ordinal: handoff_ordinal,
         }],
         staged_output_tree: None,
+        build_log: Vec::new(),
     }
 }
 
