@@ -80,27 +80,31 @@ impl BuildTimeValue {
         }
     }
 
-    /// Materialize into an interpreter value tree (fresh cells throughout --
-    /// build-time arguments never alias compiler state).
-    pub(crate) fn into_value(self) -> Value {
+    /// Materialize into an interpreter value tree using the evaluator's
+    /// allocation authority. Build-time arguments never alias compiler state.
+    pub(crate) fn into_value_with<E>(
+        self,
+        allocate: &impl Fn(Value) -> Result<Cell, E>,
+    ) -> Result<Value, E> {
         match self {
-            BuildTimeValue::Unit => Value::Unit,
-            BuildTimeValue::Int(value) => Value::Int(value),
-            BuildTimeValue::Bool(value) => Value::Bool(value),
-            BuildTimeValue::Float(value) => Value::Float(value),
-            BuildTimeValue::Text(bytes) => Value::Str(Rc::new(RefCell::new(bytes))),
+            BuildTimeValue::Unit => Ok(Value::Unit),
+            BuildTimeValue::Int(value) => Ok(Value::Int(value)),
+            BuildTimeValue::Bool(value) => Ok(Value::Bool(value)),
+            BuildTimeValue::Float(value) => Ok(Value::Float(value)),
+            BuildTimeValue::Text(bytes) => Ok(Value::Str(Rc::new(RefCell::new(bytes)))),
             BuildTimeValue::Struct { type_name, fields } => {
                 let mut cells: BTreeMap<String, Cell> = BTreeMap::new();
                 for (name, value) in fields {
-                    cells.insert(name, value.into_value().cell());
+                    let value = value.into_value_with(allocate)?;
+                    cells.insert(name, allocate(value)?);
                 }
-                Value::Struct {
+                Ok(Value::Struct {
                     type_symbol: psi_symbols::SymbolHandle::invalid(),
                     type_name,
                     fields: cells,
-                }
+                })
             }
-            BuildTimeValue::Case { variant, payload } => Value::Enum {
+            BuildTimeValue::Case { variant, payload } => Ok(Value::Enum {
                 // The build-time boundary carries no type identity (same as
                 // the Struct arm above); tag-ordinal resolution falls back to
                 // the name-global scan for these values.
@@ -108,15 +112,21 @@ impl BuildTimeValue {
                 variant_name: variant,
                 payload: payload
                     .into_iter()
-                    .map(|(name, value)| (name, value.into_value().cell()))
-                    .collect(),
-            },
-            BuildTimeValue::Array(elements) => Value::Array(
+                    .map(|(name, value)| {
+                        let value = value.into_value_with(allocate)?;
+                        Ok((name, allocate(value)?))
+                    })
+                    .collect::<Result<_, E>>()?,
+            }),
+            BuildTimeValue::Array(elements) => Ok(Value::Array(
                 elements
                     .into_iter()
-                    .map(|element| element.into_value().cell())
-                    .collect(),
-            ),
+                    .map(|element| {
+                        let value = element.into_value_with(allocate)?;
+                        allocate(value)
+                    })
+                    .collect::<Result<_, E>>()?,
+            )),
         }
     }
 

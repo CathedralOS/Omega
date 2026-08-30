@@ -13,7 +13,7 @@ impl<'program> Evaluator<'program> {
         let initializer = self.mutable_scalar_recast_initializer(argument, frame)?;
         if let Some((source, recast)) = initializer {
             return Ok(EvaluatedArgument {
-                cell: Value::Ref(source).cell(),
+                cell: self.allocate_cell(Value::Ref(source))?,
                 mutable_recast: Some(recast),
             });
         }
@@ -191,9 +191,8 @@ impl<'program> Evaluator<'program> {
                 let mut recast = Vec::with_capacity(elements.len());
                 for element in elements {
                     let value = element.borrow().clone();
-                    recast.push(Rc::new(RefCell::new(
-                        self.eval_recast_to_type(value, element_type)?,
-                    )));
+                    let value = self.eval_recast_to_type(value, element_type)?;
+                    recast.push(self.allocate_cell(value)?);
                 }
                 Ok(Value::Array(recast))
             }
@@ -208,9 +207,8 @@ impl<'program> Evaluator<'program> {
                 let mut recast = Vec::with_capacity(elements.len());
                 for element in elements {
                     let value = element.borrow().clone();
-                    recast.push(Rc::new(RefCell::new(
-                        self.eval_recast_to_type(value, element_type)?,
-                    )));
+                    let value = self.eval_recast_to_type(value, element_type)?;
+                    recast.push(self.allocate_cell(value)?);
                 }
                 Ok(Value::Array(recast))
             }

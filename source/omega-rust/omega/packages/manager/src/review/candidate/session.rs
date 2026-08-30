@@ -22,6 +22,9 @@ const PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
 /// Compiler-owned filesystem resources live concurrently across the package
 /// closure. This does not count unrelated host-process descriptors.
 const PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING: u64 = 4_096;
+/// Interpreter semantic storage-cell allocations live concurrently across the
+/// package closure. This is a cell count, not a memory-byte claim.
+const PACKAGE_REVIEW_LIVE_CELL_CEILING: u64 = 1_048_576;
 /// Aggregate recursive value cells returned by successful initial and replay
 /// evaluations across the closure.
 const PACKAGE_REVIEW_RESULT_CELL_CEILING: u64 = 1_048_576;
@@ -96,6 +99,7 @@ impl ReviewBuildSession {
                         PACKAGE_REVIEW_BUILD_LOG_CEILING,
                         PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING,
                         PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING,
+                        PACKAGE_REVIEW_LIVE_CELL_CEILING,
                         PACKAGE_REVIEW_RESULT_CELL_CEILING,
                         PACKAGE_REVIEW_RESULT_TEXT_BYTE_CEILING,
                     )

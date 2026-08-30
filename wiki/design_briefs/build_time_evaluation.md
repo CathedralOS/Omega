@@ -470,10 +470,11 @@ scalar:
 ```text
 EvaluationUsage {
     fuel_units;
-    logical_words_processed;
-    aggregate_elements_constructed;
+    build_log_bytes;
+    filesystem_operation_attempts;
     peak_live_cells;
     result_cells;
+    result_text_bytes;
 }
 ```
 
@@ -492,21 +493,23 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
-Package review additionally owns one unobservable version-5 evaluation sponsor
+Package review additionally owns one unobservable version-6 evaluation sponsor
 across the complete resolved closure. The current compiler policy grants
 100,000,000 deterministic evaluator fuel units, 16 MiB of compiler-owned
 BuildLog output, 65,536 canonical filesystem operation attempts, 4,096
-concurrently live compiler-owned filesystem resources, 1,048,576 successful
-result cells, and 64 MiB of successful result Text payload while
+concurrently live compiler-owned filesystem resources, 1,048,576 concurrently
+live semantic interpreter cells, 1,048,576 successful result cells, and 64 MiB
+of successful result Text payload while
 retaining the ordinary 100,000-unit ceiling for an effect-free invocation and
 10,000,000-unit ceiling for a granted invocation. Initial evaluation and
 automatic provider-free replay debit the same shared sponsor;
-dependencies cannot raise it. The version-5 usage receipt binds the step
+dependencies cannot raise it. The version-6 usage receipt binds the step
 schedule, per-invocation ceiling, optional sponsor schema and session ceilings,
 and distinct initial/replay fuel, BuildLog, filesystem-attempt, result-cell,
-and result-Text charges. It also retains the shared session's peak live-handle
-count. Successful closure review rejects unless all retained charge totals and
-the peak exactly equal the sponsor's counters and no live reservation remains. The ambient
+and result-Text charges plus distinct initial/replay live-cell peaks. It also
+retains the shared session's peak live-handle and live-cell counts. Successful
+closure review rejects unless all retained charge totals and peaks exactly
+equal the sponsor's counters and no live reservation remains. The ambient
 interpreter development override does not alter package-policy evaluation.
 These are deterministic compiler-resource limits, not claims about CPU time,
 resident memory, the process-wide descriptor table, or hostile-process
@@ -742,9 +745,9 @@ Rust allocator overhead are compiler metadata and implementation details, not
 invented semantic byte size. Augmenting-machine results sum both measures over
 every returned argument. The evaluator computes them with checked arithmetic
 and rejects accounting overflow rather than publishing a partial record.
-`logical_words_processed`,
-`aggregate_elements_constructed`, and `peak_live_cells` still require execution
-and allocator instrumentation.
+`peak_live_cells` counts semantic storage-cell allocations from reservation
+until the final alias drops. It does not estimate their Rust allocation size or
+resident memory.
 
 This meter supports three policies without becoming program semantics:
 
@@ -763,9 +766,13 @@ The evaluated machine cannot observe its budget, catch exhaustion, or change
 behavior when the grant changes. Raising a budget can change whether the build
 obtains a result, never which result it obtains. Published reproducible builds
 either carry the certified ceiling or record the admitted work budget and usage
-receipt. Temporary memory and peak live cells receive the
-same treatment: termination and a work ceiling alone do not license an
-unbounded allocation or a terabyte constant.
+receipt. Peak live cells receive the same treatment. Temporary bytes are not
+one honest generic domain: additional hard ceilings are introduced only for a
+named compiler-owned payload whose complete allocation lifetime can be charged
+before allocation and released exactly. Current open domains include evaluator
+`Text` backing payloads, filesystem scratch buffers, and retained find-cursor
+name snapshots. Allocator capacity, RSS, and process memory remain deployment
+policy rather than an Omega claim.
 
 The root may raise or remove ceilings. Dependencies may publish expected usage
 but cannot grant themselves more. Evaluation code cannot inspect remaining

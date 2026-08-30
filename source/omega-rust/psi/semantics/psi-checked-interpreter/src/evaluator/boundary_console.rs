@@ -63,7 +63,7 @@ impl<'program> Evaluator<'program> {
     /// spellings vetoed). The declaring type resolves by
     /// name from std/console.omg (invalid + name-global fallback when a
     /// program shadows or lacks it, the WireVerdict precedent).
-    pub(super) fn read_stdin_byte_value(&mut self) -> Value {
+    pub(super) fn read_stdin_byte_value(&mut self) -> EvalResult<Value> {
         let type_symbol = self
             .find_data_by_name("ByteRead")
             .map(|data| data.symbol)
@@ -71,17 +71,20 @@ impl<'program> Evaluator<'program> {
         if self.stdin_cursor < self.stdin.len() {
             let byte = self.stdin[self.stdin_cursor];
             self.stdin_cursor += 1;
-            Value::Enum {
+            Ok(Value::Enum {
                 type_symbol,
                 variant_name: "Byte".to_owned(),
-                payload: vec![("value".to_owned(), Value::Int(i64::from(byte)).cell())],
-            }
+                payload: vec![(
+                    "value".to_owned(),
+                    self.allocate_cell(Value::Int(i64::from(byte)))?,
+                )],
+            })
         } else {
-            Value::Enum {
+            Ok(Value::Enum {
                 type_symbol,
                 variant_name: "Eof".to_owned(),
                 payload: Vec::new(),
-            }
+            })
         }
     }
 

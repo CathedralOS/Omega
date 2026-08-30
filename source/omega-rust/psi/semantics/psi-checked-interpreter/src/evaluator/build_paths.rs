@@ -103,8 +103,14 @@ impl<'program> Evaluator<'program> {
             type_symbol: SymbolHandle::invalid(),
             type_name: ROOTED_BUILD_PATH_TYPE.to_owned(),
             fields: BTreeMap::from([
-                ("root".to_owned(), Value::Int(i64::from(root.get())).cell()),
-                ("relative".to_owned(), Value::bytes(relative).cell()),
+                (
+                    "root".to_owned(),
+                    self.allocate_cell(Value::Int(i64::from(root.get())))?,
+                ),
+                (
+                    "relative".to_owned(),
+                    self.allocate_cell(Value::bytes(relative))?,
+                ),
             ]),
         }))
     }
@@ -243,7 +249,7 @@ impl<'program> Evaluator<'program> {
         let Some(first) = members.first() else {
             return Ok(None);
         };
-        let mut cell = Rc::clone(&frame.self_cell);
+        let mut cell = frame.self_cell.clone();
         let mut start = 0usize;
         if first.as_str() == "self" {
             start = 1;

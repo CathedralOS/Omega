@@ -228,7 +228,7 @@ impl<'program> Evaluator<'program> {
                 visiting.remove(type_name);
                 return Ok(None);
             };
-            field_values.insert(name, value.cell());
+            field_values.insert(name, self.allocate_cell(value)?);
         }
         visiting.remove(type_name);
         Ok(Some(Value::Struct {
@@ -349,7 +349,7 @@ impl<'program> Evaluator<'program> {
                     else {
                         return Ok(None);
                     };
-                    values.push(value.cell());
+                    values.push(self.allocate_cell(value)?);
                 }
                 Ok(Some(Value::Array(values)))
             }
@@ -380,7 +380,7 @@ impl<'program> Evaluator<'program> {
                     else {
                         return Ok(None);
                     };
-                    values.push(value.cell());
+                    values.push(self.allocate_cell(value)?);
                 }
                 Ok(Some(Value::Array(values)))
             }
@@ -764,7 +764,9 @@ impl<'program> Evaluator<'program> {
                     self.program.display_type_reference(source_type)
                 ))
             })?;
-        let cells = (0..size).map(|_| Value::Int(0).cell()).collect::<Vec<_>>();
+        let cells = (0..size)
+            .map(|_| self.allocate_cell(Value::Int(0)))
+            .collect::<EvalResult<Vec<_>>>()?;
         self.write_record_view_type(source_type, &cells, 0, source.borrow().clone())?;
         Ok(cells)
     }

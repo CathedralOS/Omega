@@ -83,7 +83,7 @@ mod host_open_flags {
         (flags >> O_APPEND_BIT) & 1 != 0
     }
 }
-use crate::value::{Cell, Value};
+use crate::value::{Cell, CellMeter, Value};
 use psi_checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::bignum::BigInt;
@@ -108,7 +108,6 @@ use psi_typed_trees::types::{
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
-use std::rc::Rc;
 
 const STEP_BUDGET: u64 = 10_000_000;
 
@@ -241,6 +240,7 @@ fn run_const_machine_on_current_thread(
     let mut evaluator = Evaluator::new(program, &[]);
     evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
     let result = evaluator.run_const_machine(machine_name);
+    evaluator.finish_cell_usage();
     let mut usage = evaluator.usage;
     match result {
         Ok(value) => {
@@ -287,6 +287,7 @@ pub(crate) fn run_build_time_machine_with_operation_receipts(
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = evaluator.run_build_time_machine(machine_name, arguments);
+                evaluator.finish_cell_usage();
                 let mut usage = evaluator.usage;
                 match result {
                     Ok(value) => {
@@ -395,6 +396,7 @@ fn run_observed_build_time_machine_arguments_with_optional_sponsor(
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
                 let result = evaluator.run_build_time_machine_arguments(machine_name, arguments);
+                evaluator.finish_cell_usage();
                 use std::io::Write as _;
                 if !evaluator.build_log.is_empty() {
                     let _ = std::io::stdout().write_all(&evaluator.build_log);
@@ -543,6 +545,7 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                     evaluator.finish_filesystem_replay()?;
                     Ok(values)
                 });
+                evaluator.finish_cell_usage();
                 // Build logging reaches the REAL streams (owner answer #5:
                 // "the interpreter should never just catch it") -- including
                 // on failure, where the partial log is the diagnostic.
@@ -716,6 +719,7 @@ fn run_on_current_thread(
     let result = evaluator
         .run_entry(entry_machine_name)
         .and_then(|()| evaluator.finish_filesystem_replay());
+    evaluator.finish_cell_usage();
     let usage = evaluator.usage;
     match result {
         Ok(()) => {
@@ -1074,6 +1078,8 @@ struct Evaluator<'program> {
     /// interpreted store.
     private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
     usage: EvaluationUsage,
+    /// Exact allocation-lifetime meter for semantic interpreter cells.
+    cell_meter: CellMeter,
     /// Optional compiler-owned account shared across a complete build-review
     /// session. This measures deterministic compiler-owned build resources.
     build_evaluation_sponsor: Option<BuildEvaluationSponsor>,

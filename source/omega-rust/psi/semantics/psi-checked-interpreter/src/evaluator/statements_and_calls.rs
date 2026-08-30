@@ -57,7 +57,7 @@ impl<'program> Evaluator<'program> {
                         .map(|target| self.declared_type_is_fixed_array(target))
                         .unwrap_or(false);
                 let value = if matches!(value, Value::Struct { .. }) || copy_array {
-                    value.deep_clone()
+                    value.deep_clone_with(&|value| self.allocate_cell(value))?
                 } else {
                     value
                 };
@@ -169,7 +169,7 @@ impl<'program> Evaluator<'program> {
                     if let Some((source, recast)) =
                         self.mutable_scalar_recast_initializer(local.initial_value, frame)?
                     {
-                        frame.bind(local.name.as_str(), Value::Ref(source).cell());
+                        frame.bind(local.name.as_str(), self.allocate_cell(Value::Ref(source))?);
                         frame.bind_type(local.name.as_str(), local.type_reference);
                         frame
                             .mutable_scalar_recasts
@@ -189,7 +189,7 @@ impl<'program> Evaluator<'program> {
                     let copy_array = matches!(value, Value::Array(_))
                         && self.declared_type_is_fixed_array(local.type_reference);
                     if matches!(value, Value::Struct { .. }) || copy_array {
-                        value.deep_clone()
+                        value.deep_clone_with(&|value| self.allocate_cell(value))?
                     } else {
                         value
                     }
@@ -214,7 +214,7 @@ impl<'program> Evaluator<'program> {
                         .borrow_mut()
                         .insert(local.name.as_str().to_owned(), (primitive, domain));
                 }
-                frame.bind(local.name.as_str(), value.cell());
+                frame.bind(local.name.as_str(), self.allocate_cell(value)?);
                 frame.bind_type(local.name.as_str(), local.type_reference);
                 Ok(())
             }
@@ -309,7 +309,7 @@ impl<'program> Evaluator<'program> {
                 Ok(TransitionDecision::Named {
                     state_name,
                     machine,
-                    instance: Rc::clone(&frame.self_cell),
+                    instance: frame.self_cell.clone(),
                     args,
                 })
             }
@@ -467,7 +467,7 @@ impl<'program> Evaluator<'program> {
                     (
                         machine.clone(),
                         state.name.as_str().to_owned(),
-                        Rc::clone(&frame.self_cell),
+                        frame.self_cell.clone(),
                     )
                 })
         })
@@ -495,11 +495,7 @@ impl<'program> Evaluator<'program> {
         // (2) Sibling state of the current machine.
         if let Some(machine) = self.current_machine(frame) {
             if self.find_state(machine, target).is_some() {
-                return Ok((
-                    machine.clone(),
-                    target.to_owned(),
-                    Rc::clone(&frame.self_cell),
-                ));
+                return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
             }
         }
 
@@ -510,7 +506,7 @@ impl<'program> Evaluator<'program> {
         let entry_state = self
             .machine_entry_state_name(&machine)
             .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
-        Ok((machine, entry_state, Rc::clone(&frame.self_cell)))
+        Ok((machine, entry_state, frame.self_cell.clone()))
     }
 
     /// If the call has a receiver path that resolves (relative to `self`) to a CONTAINED
@@ -535,7 +531,7 @@ impl<'program> Evaluator<'program> {
 
         // Walk the receiver path to a cell, starting at `self` (an implicit-self leaf like
         // `console` is a single-member path; `self.dungeon` is `[self, dungeon]`).
-        let mut cell = Rc::clone(&frame.self_cell);
+        let mut cell = frame.self_cell.clone();
         let mut start = 0;
         if members[0] == "self" {
             start = 1;
@@ -714,10 +710,10 @@ impl<'program> Evaluator<'program> {
                 // param-forwarding chain declined with "unknown value-call
                 // target" while the native build served it (2026-07-11l).
                 let target = match &*cell.borrow() {
-                    Value::Ref(target) => Rc::clone(target),
-                    _ => Rc::clone(&cell),
+                    Value::Ref(target) => target.clone(),
+                    _ => cell.clone(),
                 };
-                Ok(Value::Ref(target).cell())
+                self.allocate_cell(Value::Ref(target))
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 // A bare place argument that is ALREADY a reference (a forwarded `&mut`
@@ -728,7 +724,7 @@ impl<'program> Evaluator<'program> {
                 // paths, plain values, etc.).
                 if let Ok(place) = self.resolve_place(argument, frame) {
                     let forwarded = match &*place.borrow() {
-                        Value::Ref(target) => Some(Rc::clone(target)),
+                        Value::Ref(target) => Some(target.clone()),
                         _ => None,
                     };
                     if let Some(target) = forwarded {
@@ -736,15 +732,15 @@ impl<'program> Evaluator<'program> {
                         // survives the NEXT hop too: the callee's param must itself look like
                         // a `&mut` binding when it forwards the bare name onward (e.g. a
                         // transition arm `gate_title(out_line)` two machines deep).
-                        return Ok(Value::Ref(target).cell());
+                        return self.allocate_cell(Value::Ref(target));
                     }
                 }
                 let value = self.eval_expression(argument, frame)?;
-                Ok(value.cell())
+                self.allocate_cell(value)
             }
             _ => {
                 let value = self.eval_expression(argument, frame)?;
-                Ok(value.cell())
+                self.allocate_cell(value)
             }
         }
     }

@@ -6,7 +6,7 @@ use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V7\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V8\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -68,34 +68,42 @@ impl ProductionCompilationSubject {
             build_evaluation_usage.session_build_log_byte_ceiling,
             build_evaluation_usage.session_filesystem_attempt_ceiling,
             build_evaluation_usage.session_live_filesystem_handle_ceiling,
+            build_evaluation_usage.session_live_cell_ceiling,
             build_evaluation_usage.session_result_cell_ceiling,
             build_evaluation_usage.session_result_text_byte_ceiling,
         ) {
-            (None, None, None, None, None, None, None) => {
-                if build_evaluation_usage.session_peak_live_filesystem_handles != 0 {
-                    return Err("production compilation subject has unsponsored live-handle usage");
+            (None, None, None, None, None, None, None, None) => {
+                if build_evaluation_usage.session_peak_live_filesystem_handles != 0
+                    || build_evaluation_usage.session_peak_live_cells != 0
+                {
+                    return Err(
+                        "production compilation subject has unsponsored session-live usage",
+                    );
                 }
             }
-            (Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
+            (Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
                 return Err("production compilation subject has a zero session fuel ceiling");
             }
-            (Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_)) => {
+            (Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
                 return Err("production compilation subject has a zero session BuildLog ceiling");
             }
-            (Some(_), Some(_), Some(_), Some(0), Some(_), Some(_), Some(_)) => {
+            (Some(_), Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_)) => {
                 return Err(
                     "production compilation subject has a zero session filesystem-attempt ceiling",
                 );
             }
-            (Some(_), Some(_), Some(_), Some(_), Some(0), Some(_), Some(_)) => {
+            (Some(_), Some(_), Some(_), Some(_), Some(0), Some(_), Some(_), Some(_)) => {
                 return Err(
                     "production compilation subject has a zero live-filesystem-handle ceiling",
                 );
             }
-            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(0), Some(_)) => {
+            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(0), Some(_), Some(_)) => {
+                return Err("production compilation subject has a zero live-cell ceiling");
+            }
+            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(0), Some(_)) => {
                 return Err("production compilation subject has a zero result-cell ceiling");
             }
-            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(0)) => {
+            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(0)) => {
                 return Err("production compilation subject has a zero result-Text-byte ceiling");
             }
             (
@@ -104,6 +112,7 @@ impl ProductionCompilationSubject {
                 Some(build_log_ceiling),
                 Some(filesystem_attempt_ceiling),
                 Some(live_filesystem_handle_ceiling),
+                Some(live_cell_ceiling),
                 Some(result_cell_ceiling),
                 Some(result_text_byte_ceiling),
             ) => {
@@ -139,6 +148,21 @@ impl ProductionCompilationSubject {
                 {
                     return Err(
                         "production compilation subject exceeded its live-filesystem-handle ceiling",
+                    );
+                }
+                if build_evaluation_usage.session_peak_live_cells > live_cell_ceiling
+                    || build_evaluation_usage.peak_live_cells > live_cell_ceiling
+                    || build_evaluation_usage.replay_peak_live_cells > live_cell_ceiling
+                {
+                    return Err("production compilation subject exceeded its live-cell ceiling");
+                }
+                if build_evaluation_usage.peak_live_cells
+                    > build_evaluation_usage.session_peak_live_cells
+                    || build_evaluation_usage.replay_peak_live_cells
+                        > build_evaluation_usage.session_peak_live_cells
+                {
+                    return Err(
+                        "production compilation subject live-cell peak exceeds its session peak",
                     );
                 }
                 let result_cells = build_evaluation_usage
@@ -342,6 +366,7 @@ fn canonical_manifest_bytes(
         usage.session_build_log_byte_ceiling,
         usage.session_filesystem_attempt_ceiling,
         usage.session_live_filesystem_handle_ceiling,
+        usage.session_live_cell_ceiling,
         usage.session_result_cell_ceiling,
         usage.session_result_text_byte_ceiling,
     ) {
@@ -351,6 +376,7 @@ fn canonical_manifest_bytes(
             Some(build_log_ceiling),
             Some(filesystem_attempt_ceiling),
             Some(live_filesystem_handle_ceiling),
+            Some(live_cell_ceiling),
             Some(result_cell_ceiling),
             Some(result_text_byte_ceiling),
         ) => {
@@ -360,10 +386,11 @@ fn canonical_manifest_bytes(
             bytes.extend_from_slice(&build_log_ceiling.to_le_bytes());
             bytes.extend_from_slice(&filesystem_attempt_ceiling.to_le_bytes());
             bytes.extend_from_slice(&live_filesystem_handle_ceiling.to_le_bytes());
+            bytes.extend_from_slice(&live_cell_ceiling.to_le_bytes());
             bytes.extend_from_slice(&result_cell_ceiling.to_le_bytes());
             bytes.extend_from_slice(&result_text_byte_ceiling.to_le_bytes());
         }
-        (None, None, None, None, None, None, None) => bytes.push(0),
+        (None, None, None, None, None, None, None, None) => bytes.push(0),
         _ => unreachable!("validated production subject has paired sponsor identity"),
     }
     bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
@@ -373,6 +400,9 @@ fn canonical_manifest_bytes(
     bytes.extend_from_slice(&usage.filesystem_operation_attempts.to_le_bytes());
     bytes.extend_from_slice(&usage.replay_filesystem_operation_attempts.to_le_bytes());
     bytes.extend_from_slice(&usage.session_peak_live_filesystem_handles.to_le_bytes());
+    bytes.extend_from_slice(&usage.session_peak_live_cells.to_le_bytes());
+    bytes.extend_from_slice(&usage.peak_live_cells.to_le_bytes());
+    bytes.extend_from_slice(&usage.replay_peak_live_cells.to_le_bytes());
     bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
     bytes.extend_from_slice(&usage.replay_result_cells.to_le_bytes());
     bytes.extend_from_slice(&usage.result_text_bytes.to_le_bytes());
