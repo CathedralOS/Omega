@@ -502,7 +502,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 72-case oracle gate are implementation material for
+    constructor table and 73-case oracle gate are implementation material for
     `gamma_compiler.beta`; the direct compiler must absorb the rule before this
     temporary checker is deleted.
   - [x] Close the first strict-parser slice in the reusable front end: require a
@@ -522,6 +522,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     builders preserve source order and pass 600-argument/function and
     600-field/constructor/pattern canaries, crossing the retired interpreter's
     unrelated 512-value scratch bound.
+  - [x] Bound the candidate front end's AST, type, constructor, function, and
+    lexical-environment writes before mutation. Private exhaustion is sticky and
+    returns a readable error node rather than an out-of-range pointer; binding
+    failure propagates through `let`, patterns, and function checking. A
+    32,769-declaration canary crosses the exact function-table capacity without
+    output or memory corruption. The eventual compiler boundary maps this class
+    to `Incomplete`; the Boolean oracle still reports only unsuccessful checking.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
@@ -532,7 +539,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 72 type-checker cases, and 106 independent
+  fail-closed arena case, 73 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the

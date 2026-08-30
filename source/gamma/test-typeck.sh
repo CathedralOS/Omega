@@ -99,6 +99,10 @@ awk 'BEGIN {
   print ") x599)))"
 }' > "$T/wide-constructor.gamma"
 accept_source wide-constructor "$T/wide-constructor.gamma"
+awk 'BEGIN {
+  for (i = 0; i <= 32768; i++) printf "(def f%d () Int 0)\n", i
+}' > "$T/function-capacity.gamma"
+reject_source function-capacity "$T/function-capacity.gamma"
 # fixed D16 program/declaration grammar and exact source exhaustion
 tc '' 0 'empty program'
 tc '; comment only' 0 'comment-only program'
