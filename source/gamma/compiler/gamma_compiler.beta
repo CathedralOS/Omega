@@ -1757,29 +1757,50 @@ proc emit_checked_mod(entry_label, failure_label) {
     return 0
 }
 
-; This is the first retained lowering slice, not an accepted subset compiler.
-; It consumes already checked closed Int trees containing literals and the
-; seven primitive operators. Later lowering dispatch absorbs it unchanged for
-; general expressions. Runtime intermediate values use the explicit stack so
-; compile-time expression depth does not become a generated register limit.
+; This is the eventual expression dispatcher with its first retained lowering
+; slice, not an accepted subset compiler. It currently consumes already checked
+; closed Int trees containing literals, the seven primitive operators, and
+; conditionals. The tail-position bit is behaviorally inert until call lowering
+; lands, but conditionals already preserve it for both arms. Runtime
+; intermediate values use the explicit stack so compile-time expression depth
+; does not become a generated register limit.
 
-proc lower_closed_int_expr(expr) {
+proc lower_expr(expr, tail_position) {
     let tag = word[expr] % 256
     state literal_check { to literal when (tag == 0)  to primitive_check }
     state literal {
         emit_imm(0, 0)
         return emit_imm(1, word[expr + 8])
     }
-    state primitive_check { to primitive when (tag == 2)  return 0 }
+    state primitive_check { to primitive when (tag == 2)  to if_check }
+    state if_check { to if_expr when (tag == 3)  return 0 }
+    state if_expr {
+        let else_label = new_label()
+        let done_label = new_label()
+        to if_condition_done when (lower_expr(word[expr + 8], 0) == 1)
+        return 0
+    }
+    state if_condition_done {
+        emit_rx(13, 1, else_label)
+        to if_then_done when (lower_expr(word[expr + 16], tail_position) == 1)
+        return 0
+    }
+    state if_then_done {
+        emit_jump(12, done_label)
+        define_label(else_label)
+        to if_else_done when (lower_expr(word[expr + 24], tail_position) == 1)
+        return 0
+    }
+    state if_else_done { return define_label(done_label) }
     state primitive {
-        to left_done when (lower_closed_int_expr(word[expr + 16]) == 1)
+        to left_done when (lower_expr(word[expr + 16], 0) == 1)
         return 0
     }
     state left_done {
         emit_imm(2, 8)
         emit_jump(19, word[2097000])
         emit_rr(11, 0, 1)
-        to right_done when (lower_closed_int_expr(word[expr + 24]) == 1)
+        to right_done when (lower_expr(word[expr + 24], 0) == 1)
         return 0
     }
     state right_done {

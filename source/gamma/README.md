@@ -22,8 +22,8 @@ and owns private resource failures.
 The Beta-written compiler source now lives at
 `compiler/gamma_compiler.beta`. Its retained strict frontend and direct Alpha
 emitter/runtime-containment substrate, including executed checked-`Int` helpers
-and the first closed-expression lowering slice, are incomplete compiler
-material, not an accepted compiler artifact.
+and the first retained slice of the general expression dispatcher, are
+incomplete compiler material, not an accepted compiler artifact.
 `interp.beta` remains an untyped, bounded evaluation oracle; it is not an
 alternate Gamma language or a runtime to be serialized into emitted tapes.
 

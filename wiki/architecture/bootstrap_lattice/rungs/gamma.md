@@ -45,8 +45,8 @@ primitive merely because one application is a compiler.
 
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
 direct Alpha payload/fixup substrate, and executed heap/stack and checked-`Int`
-helpers plus the first closed-expression lowering slice. It is incomplete and
-has no published tape.
+helpers plus the first retained slice of the general expression dispatcher. It
+is incomplete and has no published tape.
 `source/gamma/interp.beta` remains a bounded semantic oracle; it does not define
 an alternate Gamma language or a serialized-AST runtime. Their
 now-hardened historical omission of match exhaustiveness remains the warning
