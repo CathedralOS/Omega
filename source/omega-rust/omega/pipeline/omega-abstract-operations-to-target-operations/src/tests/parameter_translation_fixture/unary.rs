@@ -158,7 +158,7 @@ fn finish_boolean_expression(function: &mut AbstractFunction, value: ValueId) {
     });
 }
 
-fn finish_integer_expression(
+pub(super) fn finish_integer_expression(
     function: &mut AbstractFunction,
     value: ValueId,
     integer: IntegerType,

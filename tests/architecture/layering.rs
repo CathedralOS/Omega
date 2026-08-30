@@ -2928,6 +2928,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::integer::unary::widen::validate",
         "straight_line_parameter::integer::unary::exact_cast::is_candidate",
         "straight_line_parameter::integer::unary::exact_cast::validate",
+        "straight_line_parameter::integer::bitwise::bitwise_and::is_candidate",
+        "straight_line_parameter::integer::bitwise::bitwise_and::validate",
         "source::reconstruct_direct",
         "source::reconstruct_boolean_not",
         "source::reconstruct_boolean_equal",
@@ -2937,6 +2939,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source::integer::unary::reconstruct_bitwise_not",
         "source::integer::unary::reconstruct_widen",
         "source::integer::unary::reconstruct_exact_cast",
+        "source::integer::bitwise::reconstruct_bitwise_and",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -2980,6 +2983,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "integer/comparison/less_or_equal.rs",
         "integer/unary/bitwise_not.rs",
         "integer/unary/widen.rs",
+        "integer/bitwise/bitwise_and.rs",
     ] {
         let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
             .expect("read typed parameter-return replay");
@@ -3096,6 +3100,19 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "integer exact-cast source replay must visibly own {required}",
         );
     }
+    let integer_bitwise_and_source =
+        std::fs::read_to_string(parameter_validation.join("source/integer/bitwise/bitwise_and.rs"))
+            .expect("read integer bitwise-AND parameter source replay");
+    for required in [
+        "AbstractOperation::IntegerBitwiseAnd",
+        "IntegerCarrier::Fixed",
+        "AbstractOperation::Return",
+    ] {
+        assert!(
+            integer_bitwise_and_source.contains(required),
+            "integer bitwise-AND source replay must visibly own {required}",
+        );
+    }
     let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
         .expect("read common parameter source envelope");
     for required in [
@@ -3116,6 +3133,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "AbstractOperation::IntegerBitwiseNot",
         "AbstractOperation::IntegerWiden",
         "AbstractOperation::IntegerExactCast",
+        "AbstractOperation::IntegerBitwiseAnd",
     ] {
         assert!(
             !source_envelope.contains(forbidden),
@@ -3164,6 +3182,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source/integer/less_than.rs",
         "source/integer/less_or_equal.rs",
         "source/integer/bitwise_not.rs",
+        "source/integer/bitwise_and.rs",
         "model/unary.rs",
     ] {
         assert!(

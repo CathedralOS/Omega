@@ -11,6 +11,7 @@ pub(in crate::validation) use parameter::StraightLineParameterReconstructionErro
 pub use parameter::{
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
+    StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerEqualParametersTranslationError,
     StraightLineIntegerExactCastParameterTranslationError,
@@ -66,6 +67,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineIntegerWidenParameter(StraightLineIntegerWidenParameterTranslationError),
     StraightLineIntegerExactCastParameter(StraightLineIntegerExactCastParameterTranslationError),
+    StraightLineIntegerBitwiseAndParameters(
+        StraightLineIntegerBitwiseAndParametersTranslationError,
+    ),
 }
 
 impl std::fmt::Display for AbstractToTargetTranslationValidationError {
