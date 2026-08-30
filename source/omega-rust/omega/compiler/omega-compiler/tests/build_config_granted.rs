@@ -342,7 +342,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 61);
+    assert_eq!(checked_observations.schema_version(), 62);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2908,6 +2908,174 @@ fn unknown_native_handle_final_path_failure_replays_exact_authored_carrier() {
     }
 }
 
+#[test]
+fn unknown_native_handle_mutation_failures_replay_exact_authored_inputs() {
+    let fixtures = [
+        (
+            "set-file-time-invalid-handle",
+            r#"    self.buffer[0] = 11;
+    self.buffer[4095] = 173;
+    self.times[0] = 29;
+    self.times[31] = 197;
+    self.code = self.filesystem.set_file_time(-1, 37, &self.buffer, &self.times);"#,
+            vec![32],
+        ),
+        (
+            "lock-file-ex-invalid-handle-after-source",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    self.times[0] = 41;
+    self.times[31] = 211;
+    self.code = self.filesystem.lock_file_ex(-1, 1, 0, 4294967295, 4294967295, &mut self.times);"#,
+            vec![2, 4, 8, 33],
+        ),
+        (
+            "unlock-file-invalid-handle",
+            "    self.code = self.filesystem.unlock_file(-1, 3, 5, 7, 11);",
+            vec![34],
+        ),
+    ];
+
+    for (label, body, operation_tags) in fixtures {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let compilation =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect("unknown-native-handle mutation should compile and replay");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("unknown-native-handle mutation retains observations");
+        assert!(summary.filesystem_replay_verdict().is_complete());
+        assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+        assert_eq!(
+            summary
+                .staged_output_tree()
+                .expect("modeled native mutation failure retains empty Output custody")
+                .entry_count(),
+            0
+        );
+        assert_eq!(
+            summary
+                .filesystem_operation_attempts()
+                .iter()
+                .map(|attempt| attempt.operation_tag())
+                .collect::<Vec<_>>(),
+            operation_tags
+        );
+        let attempt = summary.filesystem_operation_attempts().last().unwrap();
+        assert_eq!(attempt.provider(), BuildFilesystemProvider::RealScoped);
+        assert_eq!(attempt.result(), BuildFilesystemOperationResult::Scalar(0));
+        assert_eq!(attempt.post_error(), 6);
+        let [handle] = attempt.logical_handle_inputs() else {
+            panic!("failed native mutation retains one native-handle input")
+        };
+        assert_eq!(handle.operand_ordinal(), 0);
+        assert_eq!(handle.kind(), BuildFilesystemLogicalHandleKind::Native);
+        assert_eq!(
+            handle.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Unknown
+        );
+        assert!(attempt.authorized_paths().is_empty());
+        assert!(attempt.grant_refusals().is_empty());
+        assert!(attempt.logical_handle_output().is_none());
+        assert!(attempt.retired_logical_handles().is_empty());
+
+        match attempt.operation_tag() {
+            32 => {
+                assert_eq!(
+                    attempt
+                        .scalar_operands()
+                        .iter()
+                        .map(|operand| (operand.operand_ordinal(), operand.value()))
+                        .collect::<Vec<_>>(),
+                    vec![(1, BuildFilesystemScalarOperandValue::I64(37))]
+                );
+                let [last_access, last_write] = attempt.byte_operands() else {
+                    panic!("set_file_time retains both complete FILETIME inputs")
+                };
+                assert_eq!(last_access.operand_ordinal(), 2);
+                assert_eq!(last_access.bytes().len(), 4096);
+                assert_eq!(last_access.bytes()[0], 11);
+                assert_eq!(last_access.bytes()[4095], 173);
+                assert_eq!(last_write.operand_ordinal(), 3);
+                assert_eq!(last_write.bytes().len(), 32);
+                assert_eq!(last_write.bytes()[0], 29);
+                assert_eq!(last_write.bytes()[31], 197);
+            }
+            33 => {
+                assert_eq!(
+                    attempt
+                        .scalar_operands()
+                        .iter()
+                        .map(|operand| (operand.operand_ordinal(), operand.value()))
+                        .collect::<Vec<_>>(),
+                    vec![
+                        (1, BuildFilesystemScalarOperandValue::U32(1)),
+                        (2, BuildFilesystemScalarOperandValue::U32(0)),
+                        (3, BuildFilesystemScalarOperandValue::U32(u32::MAX)),
+                        (4, BuildFilesystemScalarOperandValue::U32(u32::MAX)),
+                    ]
+                );
+                let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+                    panic!("lock_file_ex retains one resolution-time OVERLAPPED carrier")
+                };
+                let [carrier] = attempt.mutable_byte_operands() else {
+                    panic!("lock_file_ex retains one provider OVERLAPPED carrier")
+                };
+                assert_eq!(resolution.operand_ordinal(), 5);
+                assert_eq!(resolution.bytes().len(), 32);
+                assert_eq!(resolution.bytes()[0], 41);
+                assert_eq!(resolution.bytes()[31], 211);
+                assert_eq!(carrier.pre_bytes(), resolution.bytes());
+                assert_eq!(carrier.post_bytes(), resolution.bytes());
+            }
+            34 => assert_eq!(
+                attempt
+                    .scalar_operands()
+                    .iter()
+                    .map(|operand| (operand.operand_ordinal(), operand.value()))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (1, BuildFilesystemScalarOperandValue::U32(3)),
+                    (2, BuildFilesystemScalarOperandValue::U32(5)),
+                    (3, BuildFilesystemScalarOperandValue::U32(7)),
+                    (4, BuildFilesystemScalarOperandValue::U32(11)),
+                ]
+            ),
+            tag => panic!("unexpected native mutation tag {tag}"),
+        }
+
+        let limits = BuildFilesystemReplayRecordLimits::default();
+        let record = capture_verified_build_filesystem_replay_record(summary, limits)
+            .expect("verified native mutation must encode")
+            .expect("verified native mutation retains review-only custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+                .expect("canonical native mutation record must recover");
+        std::fs::write(
+            project.join("main.omg"),
+            "data Main { value: u64; changed: u8; }\n",
+        )
+        .expect("change host source after native mutation capture");
+        let replayed = compile_to_checked_with_replay_record(
+            &project.join("main.omg"),
+            Some(profile.target_name()),
+            recovered,
+        )
+        .expect("native mutation replay must not invoke the host provider");
+        assert_eq!(
+            replayed
+                .build_observation_summary()
+                .expect("replayed native mutation retains observations")
+                .filesystem_operation_attempts(),
+            summary.filesystem_operation_attempts()
+        );
+
+        let _ = std::fs::remove_dir_all(project);
+    }
+}
+
 fn assert_unknown_descriptor_write_operation_failure_replay(
     label: &str,
     statement: &str,
@@ -4151,7 +4319,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 61);
+    assert_eq!(summary.schema_version(), 62);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -5055,7 +5223,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 61);
+    assert_eq!(summary.schema_version(), 62);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -5128,7 +5296,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 61);
+    assert_eq!(summary.schema_version(), 62);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

@@ -13,6 +13,9 @@ mod handle_failure_tests;
 mod handle_failures;
 mod hard_links;
 mod locks;
+#[cfg(test)]
+mod native_mutation_failure_tests;
+mod native_mutation_failures;
 mod output_failures;
 mod output_tree;
 #[cfg(test)]
@@ -42,7 +45,6 @@ pub(crate) use duplicates::{
     output_duplicate_attempts, output_duplicate_record_from_attempts,
     output_logical_handle_identities, validate_output_duplicate_replay,
 };
-pub(crate) use handle_failures::unknown_input_handle_failure_attempt_is_exact;
 pub use handle_failures::{
     FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
@@ -82,6 +84,10 @@ pub use locks::{FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_L
 pub(crate) use locks::{
     output_lock_attempts, output_lock_record_from_attempts, validate_output_lock_replay,
 };
+pub use native_mutation_failures::{
+    FilesystemInputUnknownNativeHandleMutationReplayKind,
+    FilesystemInputUnknownNativeHandleMutationReplayRecord,
+};
 pub use output_failures::{
     FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemOutputAbsentRemoveReplayRecord,
     MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
@@ -105,3 +111,10 @@ pub use symlinks::{
     FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
 pub(crate) use symlinks::{output_symlink_attempt, output_symlink_record_from_attempt};
+
+pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
+    attempt: &crate::FilesystemOperationAttempt,
+) -> bool {
+    handle_failures::unknown_input_handle_failure_attempt_is_exact(attempt)
+        || native_mutation_failures::unknown_native_handle_mutation_attempt_is_exact(attempt)
+}

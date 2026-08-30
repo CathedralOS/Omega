@@ -228,7 +228,7 @@ fn unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(
     )
 }
 
-fn unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+pub(super) fn unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
     shape: &AttemptShape<'_>,
     handle_kind: u8,
     result: i64,

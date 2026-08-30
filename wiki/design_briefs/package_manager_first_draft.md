@@ -1750,6 +1750,15 @@ scalar `0`, post-error `6`, and `Native/Unknown`. No returned path exists.
 Provider-free replay checks only the compiler-owned synthetic handle model,
 not native path/handle custody or a Windows security property.
 
+Observation summary v62 and replay-record v43 additionally admit exactly one
+failed synthetic-native mutation after the optional Source prefix: tag 32
+`set_file_time`, tag 33 `lock_file_ex`, or tag 34 `unlock_file`. Exact authored
+scalars and complete FILETIME or OVERLAPPED carriers are retained; every row
+fixes `Native/Unknown`, scalar `0`, and post-error `6`. Both evaluators reject
+before sponsor accounting or host mutation. This is only modeled
+invalid-handle replay, not native handle, lock, timestamp, or Windows security
+custody. Provider-state reads such as tag 35 remain outside the family.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
