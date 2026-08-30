@@ -38,10 +38,10 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - quotient calls, evidence-bearing calls, proposition/evidence static
-    arguments, forwarded or symbolic const arguments, and non-data nested
-    static applications whose structural witness is not retained by its owning
-    typed or checked representation;
+  - evidence-bearing calls, proposition/evidence static arguments, forwarded
+    or symbolic const arguments, and non-data nested static applications whose
+    structural witness is not retained by its owning typed or checked
+    representation;
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand, coverage-composition, and installation-issuance joins;
