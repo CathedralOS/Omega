@@ -69,10 +69,11 @@ they are not language rungs.
 
 - `source/beta/compiler/beta_compiler.alpha` is the canonical Alpha-written
   Beta compiler. Its direct assembly is the persisted tape consumed above.
-- `source/gamma/interp.beta` and `source/gamma/typeck.beta` are reusable Gamma
-  semantic components and oracles under D16. They must feed a Beta-written
-  Gamma compiler or be reduced to focused tests; they do not constitute a
-  compiler edge alone, and their agreement cannot establish a rule both omit.
+- `source/gamma/compiler/gamma_compiler.beta` is the canonical incomplete
+  Beta-written Gamma compiler source; its strict frontend and direct Alpha
+  emitter substrate do not become an edge until lowering, the adapter, tape,
+  and refinement exist. `source/gamma/interp.beta` remains a bounded oracle,
+  and oracle agreement cannot establish a rule both compared paths omit.
 - the restricted Delta-written Darwin compiler prototype was deleted. The real
   `D` is authored under Omega ownership rather than inheriting a compiler-shaped
   historical monolith.

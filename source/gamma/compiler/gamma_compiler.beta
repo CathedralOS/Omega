@@ -1,9 +1,10 @@
-; typeck.beta - a temporary Gamma static-semantics oracle, written in Beta.
+; gamma_compiler.beta - canonical Beta-written Gamma compiler (in progress).
 ;
-; This program exercises candidate monomorphic type rules. It is not a proof
-; kernel or a compiler stage. D16 selects the executable Gamma contract; this
-; candidate material must be absorbed by the Beta-written Gamma compiler and the
-; standalone parser/checker then deleted when its last unique gate is subsumed.
+; The strict parser, declaration tables, coordinate custody, and static checks
+; below are retained compiler frontend material. The current gate supplies a
+; temporary frontend-only entry; no compiler tape or emitted-program adapter is
+; published until the remaining resolver, lowering, and application-profile
+; work is complete.
 ;
 ; Builtin Int/Bytes + top-level functions with typed params and a declared return
 ; type; arithmetic/comparisons are Int x Int -> Int, `if` wants an Int condition and
@@ -13,7 +14,8 @@
 ;
 ; Surface (prefix; Int is builtin, every binder annotated):
 ;   program := (data T (C TYPE...)...)*  (def NAME ((PARAM TYPE)...) RETTYPE EXPR)*
-; Output: every function well-typed -> exit 1 ; a type error -> exit 0.
+; The temporary frontend gate maps a fully well-typed program to exit 1 and a
+; type error to exit 0. The final compiler output boundary is not implemented.
 ;
 ; CONTROL FLOW is CFG/Omega-shaped: each proc is a set of `state` basic blocks linked
 ; by guarded `to ... when ...` transitions - no if/while.
@@ -21,11 +23,16 @@
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUN
 ;          2097112 TENVN 2097104 NTY 2097096 NCON 2097088 INVALID_TYPE
 ;          2097080 MATCH_EPOCH 2097072 RESOURCE_FAILED 2097064 PARSE_DEPTH
-;          2097056 FAIL_OFF 2097048 NODE_OFF
+;          2097056 FAIL_OFF 2097048 NODE_OFF 2097040 PAYLOAD_LEN
+;          2097032 LABEL_COUNT 2097024 FIXUP_COUNT 2097016 EMIT_FAILURE
+;          2097008 EMIT_FAILURE_COORDINATE
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
-;          16777216 ERROR_NODE + ARENA [16 MiB,32 MiB)
+;          11010048 LABELS [10.5 MiB,11 MiB)
+;          11534336 FIXUPS [11 MiB,11.5 MiB)
+;          16777216 ERROR_NODE + ARENA [16 MiB,31.75 MiB)
+;          33292288 PAYLOAD [31.75 MiB,32 MiB)
 ; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
 ; AST nodes 4 words: [source_off * 256 + tag, f0, f1, f2]. Func entry 4 words
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
@@ -64,9 +71,9 @@ proc slurp() {
         word[2097136] = n
         word[2097144] = 0
         ; Keep one readable zero node as the return value of a failed allocation.
-        ; The real arena begins after it and ends at Beta's 32 MiB logical raw
-        ; memory edge; physical memory above that belongs to Alpha's hidden
-        ; return stack under the canonical Beta calling convention.
+        ; The real arena begins after it and ends at the reserved 31.75 MiB
+        ; payload boundary. Physical memory above Beta's 32 MiB logical edge
+        ; belongs to Alpha's hidden return stack under the canonical Beta ABI.
         word[16777216] = 255      ; reserved immutable error-node tag
         word[16777224] = 0
         word[16777232] = 0
@@ -262,7 +269,7 @@ proc parse_integer() {
 
 proc alloc(tag, f0, f1, f2) {
     let p = word[2097128]
-    state capacity { to write when (p <= 33554400)  to exhausted }
+    state capacity { to write when (p <= 33292256)  to exhausted }
     state write {
     word[p] = word[2097048] * 256 + tag
     word[p + 8] = f0
@@ -1013,7 +1020,7 @@ proc tenv_lookup(qoff) {
 }
 
 ; Resolve declaration type spellings only after the complete data* / def+
-; sequence has been parsed. This is independent of Q6's still-unsettled
+; sequence has been parsed. This is independent of Q4's still-unsettled
 ; duplicate-name policy and implements D16 forward/mutual nominal references.
 proc resolve_decl_types() {
     let ci = 0
@@ -1371,7 +1378,225 @@ proc tc_inner(expr) {
     state matchexpr { return tc_match(word[expr + 8], word[expr + 16]) }
 }
 
-proc main() {
+; ---- direct Alpha payload and fixup substrate -------------------------
+;
+; The canonical compiler authors bytes only in its private final buffer. No
+; byte is published until lowering, fixup resolution, payload validation, and
+; the Q3-selected adapter all complete. Failure is sticky and records one
+; private code/coordinate pair for the eventual compiler boundary.
+
+proc emit_fail_once(code, coordinate) {
+    state open { to done when (word[2097016] != 0)  to record }
+    state record {
+        word[2097016] = code
+        word[2097008] = coordinate
+        return 0
+    }
+    state done { return 0 }
+}
+
+proc emit_reset() {
+    word[2097040] = 0        ; payload length
+    word[2097032] = 0        ; allocated labels
+    word[2097024] = 0        ; retained fixups
+    word[2097016] = 0        ; sticky failure code
+    word[2097008] = 0        ; sticky failure coordinate
+    return 0
+}
+
+proc payload_reserve(count) {
+    state sticky { to failed when (word[2097016] != 0)  to nonnegative }
+    state nonnegative { to invalid when (count < 0)  to capacity }
+    state capacity {
+        to available when (count <= 262140 - word[2097040])
+        emit_fail_once(1, word[2097040])
+        return 0
+    }
+    state invalid { emit_fail_once(1, word[2097040])  return 0 }
+    state available { return 1 }
+    state failed { return 0 }
+}
+
+proc put_byte(value) {
+    state range_low { to invalid when (value < 0)  to range_high }
+    state range_high { to invalid when (value > 255)  to reserve }
+    state reserve { to write when (payload_reserve(1) == 1)  return 0 }
+    state write {
+        byte[33292288 + word[2097040]] = value
+        word[2097040] = word[2097040] + 1
+        return 1
+    }
+    state invalid { emit_fail_once(2, word[2097040])  return 0 }
+}
+
+proc put_u64(value) {
+    state reserve { to write when (payload_reserve(8) == 1)  return 0 }
+    state write {
+        word[33292288 + word[2097040]] = value
+        word[2097040] = word[2097040] + 8
+        return 1
+    }
+}
+
+proc new_label() {
+    let label = word[2097032]
+    state sticky { to failed when (word[2097016] != 0)  to capacity }
+    state capacity { to allocate when (label < 65536)  to exhausted }
+    state allocate {
+        word[11010048 + label * 8] = 0
+        word[2097032] = label + 1
+        return label
+    }
+    state exhausted { emit_fail_once(3, label)  return 0 - 1 }
+    state failed { return 0 - 1 }
+}
+
+proc define_label(label) {
+    state sticky { to failed when (word[2097016] != 0)  to range_low }
+    state range_low { to invalid when (label < 0)  to range_high }
+    state range_high { to invalid when (label >= word[2097032])  to unused }
+    state unused {
+        to duplicate when (word[11010048 + label * 8] != 0)
+        word[11010048 + label * 8] = word[2097040] + 1
+        return 1
+    }
+    state duplicate { emit_fail_once(4, label)  return 0 }
+    state invalid { emit_fail_once(5, label)  return 0 }
+    state failed { return 0 }
+}
+
+proc add_fixup(payload_offset, label) {
+    let row = word[2097024]
+    state sticky { to failed when (word[2097016] != 0)  to label_low }
+    state label_low { to invalid when (label < 0)  to label_high }
+    state label_high { to invalid when (label >= word[2097032])  to offset_low }
+    state offset_low { to invalid when (payload_offset < 0)  to offset_high }
+    state offset_high {
+        to invalid when (payload_offset > word[2097040] - 8)
+        to capacity
+    }
+    state capacity { to write when (row < 32768)  to exhausted }
+    state write {
+        word[11534336 + row * 16] = payload_offset
+        word[11534336 + row * 16 + 8] = label
+        word[2097024] = row + 1
+        return 1
+    }
+    state exhausted { emit_fail_once(6, row)  return 0 }
+    state invalid { emit_fail_once(7, payload_offset)  return 0 }
+    state failed { return 0 }
+}
+
+proc put_label_word(label) {
+    let payload_offset = word[2097040]
+    state placeholder { to fixup when (put_u64(0) == 1)  return 0 }
+    state fixup { return add_fixup(payload_offset, label) }
+}
+
+proc resolve_fixups() {
+    let row = 0
+    state sticky { to failed when (word[2097016] != 0)  to loop }
+    state loop { to body when (row < word[2097024])  to complete }
+    state body {
+        let payload_offset = word[11534336 + row * 16]
+        let label = word[11534336 + row * 16 + 8]
+        let encoded = word[11010048 + label * 8]
+        to missing when (encoded == 0)
+        let target = encoded - 1
+        to invalid_target when (target >= word[2097040])
+        word[33292288 + payload_offset] = target
+        row = row + 1
+        to loop
+    }
+    state missing { emit_fail_once(8, label)  return 0 }
+    state invalid_target { emit_fail_once(11, target)  return 0 }
+    state complete { return 1 }
+    state failed { return 0 }
+}
+
+proc emit_register(value) {
+    state low { to invalid when (value < 0)  to high }
+    state high { to invalid when (value > 255)  return put_byte(value) }
+    state invalid { emit_fail_once(9, word[2097040])  return 0 }
+}
+
+proc emit_r(op, reg) {
+    state opcode {
+        to accepted when (op == 0)
+        to accepted when (op == 17)
+        to accepted when (op == 18)
+        to invalid
+    }
+    state accepted { to register when (put_byte(op) == 1)  return 0 }
+    state register { return emit_register(reg) }
+    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+}
+
+proc emit_rr(op, left, right) {
+    state opcode_low { to invalid when (op < 2)  to opcode_high }
+    state opcode_high { to invalid when (op > 11)  to first }
+    state first { to second when (put_byte(op) == 1)  return 0 }
+    state second { to third when (emit_register(left) == 1)  return 0 }
+    state third { return emit_register(right) }
+    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+}
+
+proc emit_imm(reg, value) {
+    state opcode { to register when (put_byte(1) == 1)  return 0 }
+    state register { to immediate when (emit_register(reg) == 1)  return 0 }
+    state immediate { return put_u64(value) }
+}
+
+proc emit_jump(op, label) {
+    state opcode {
+        to accepted when (op == 12)
+        to accepted when (op == 19)
+        to invalid
+    }
+    state accepted { to target when (put_byte(op) == 1)  return 0 }
+    state target { return put_label_word(label) }
+    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+}
+
+proc emit_rx(op, reg, label) {
+    state opcode {
+        to accepted when (op == 13)
+        to accepted when (op == 14)
+        to invalid
+    }
+    state accepted { to register when (put_byte(op) == 1)  return 0 }
+    state register { to target when (emit_register(reg) == 1)  return 0 }
+    state target { return put_label_word(label) }
+    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+}
+
+proc emit_rrx(op, left, right, label) {
+    state opcode {
+        to accepted when (op == 15)
+        to accepted when (op == 16)
+        to invalid
+    }
+    state accepted { to first when (put_byte(op) == 1)  return 0 }
+    state first { to second when (emit_register(left) == 1)  return 0 }
+    state second { to target when (emit_register(right) == 1)  return 0 }
+    state target { return put_label_word(label) }
+    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+}
+
+proc emit_ret() {
+    return put_byte(20)
+}
+
+proc validate_payload() {
+    state sticky { to invalid when (word[2097016] != 0)  to nonempty }
+    state nonempty { to empty when (word[2097040] == 0)  to resolve }
+    state resolve { to resolved when (resolve_fixups() == 1)  return 0 }
+    state resolved { to invalid when (word[2097016] != 0)  return 1 }
+    state empty { emit_fail_once(12, 0)  return 0 }
+    state invalid { return 0 }
+}
+
+proc frontend_check_main() {
     let slurp_status = slurp()
     state source {
         to source_failed when (slurp_status != 0)

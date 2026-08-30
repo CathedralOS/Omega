@@ -175,13 +175,13 @@ proper tail calls. It may not publish an interpreter plus serialized syntax,
 invoke an external evaluator, add Gamma operations to Beta or Alpha, or make a
 private capacity into Gamma semantics.
 
-`typeck.beta` is reusable static-semantics material and `interp.beta` is a
-semantic oracle. Their present output convention--printing a value while also
-placing an integer projection in the halt word--is not the compiler boundary.
-They are absorbed where economical and otherwise reduced to focused tests or
-deleted once the direct compiler edge subsumes their diagnostic roles. The
-Python reference is temporary differential scaffolding and never part of the
-completed offline bootstrap closure.
+`compiler/gamma_compiler.beta` now owns the retained static-semantics frontend;
+`interp.beta` remains a semantic oracle. The oracle's output convention--
+printing a value while also placing an integer projection in the halt word--is
+not the compiler boundary. The interpreter is absorbed only where an isolated
+algorithm is economical and otherwise reduced or deleted once the direct edge
+subsumes its diagnostic role. The Python reference is temporary differential
+scaffolding and never part of the completed offline bootstrap closure.
 
 The interpreter traps immediately on an unmatched pattern as a temporary
 hardening measure. The canonical compiler must instead reject the
@@ -190,8 +190,9 @@ nonexhaustive source statically.
 ## Current oracle coverage
 
 The current oracle gates check the outer source contract before parsing: the
-evaluation surface passes 48 focused cases, the typed surface passes 78, and
-the temporary independent evaluator agrees on 106 fixed or generated cases.
+evaluation surface passes 48 focused cases, the compiler frontend passes 78
+plus one exact emitter-substrate probe, and the temporary independent evaluator
+agrees on 106 fixed or generated cases.
 These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
 DEL, and high-byte controls. They cover bounded parts of this contract but do
 not constitute the missing compiler edge or establish an obligation both

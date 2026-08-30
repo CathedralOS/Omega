@@ -43,14 +43,14 @@ primitive merely because one application is a compiler.
 
 ## Current migration
 
-`source/gamma/interp.beta` and `typeck.beta` are bounded, disconnected semantic
-oracles and useful implementation material. They do not define alternate Gamma
-languages and together do not constitute the standalone Gamma-to-Alpha compiler
-required by D11. Their now-hardened historical omission of match exhaustiveness
-is a recorded warning that differential agreement cannot establish a rule both
-omit. The
-former Beta-written Delta-to-Gamma route was outside Gamma ownership and is
-deleted rather than retained as the Delta edge or a compatibility layer.
+`source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend
+and direct Alpha payload/fixup substrate. It is incomplete and has no published
+tape. `source/gamma/interp.beta` remains a bounded semantic oracle; it does not
+define an alternate Gamma language or a serialized-AST runtime. Their
+now-hardened historical omission of match exhaustiveness remains the warning
+that differential agreement cannot establish a rule both sides omit. The former
+Beta-written Delta-to-Gamma route was outside Gamma ownership and is deleted
+rather than retained as the Delta edge or a compatibility layer.
 
 ## Must not contain
 
@@ -60,9 +60,10 @@ the universal checker remains Alpha-owned and outside the language rung.
 
 ## Implementation frontiers
 
-- define the exact Gamma compiler source/artifact closure in Beta;
-- reuse the interpreter/type checker as specifications or components without
-  turning runtime interpretation into a permanent historical dependency;
+- complete lowering and the Q3-selected adapter in the exact Gamma compiler
+  source, then publish its artifact closure;
+- reuse the interpreter only as a specification or isolated algorithm source
+  without turning runtime interpretation into a permanent dependency;
 - emit exact Alpha tapes and checked source-to-tape certificates; and
 - escalate on terrible compiler performance, Alpha verbosity, or proof
   explosion rather than adding special Gamma accelerators.

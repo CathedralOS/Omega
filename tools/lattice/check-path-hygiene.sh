@@ -34,6 +34,8 @@ done
 
 [ -f "$OMEGA_PATH_BETA_COMPILER_SOURCE" ] || fail "canonical Beta compiler source is absent"
 [ -f "$OMEGA_PATH_BETA_COMPILER_TAPE" ] || fail "canonical Beta compiler tape is absent"
+[ -f "$OMEGA_PATH_GAMMA_COMPILER/gamma_compiler.beta" ] ||
+  fail "canonical Gamma compiler source is absent"
 [ -f "$OMEGA_PATH_OMEGA/build.omg" ] || fail "canonical Omega C build root is absent"
 [ -f "$OMEGA_PATH_OMEGA/main.omg" ] || fail "canonical Omega C main root is absent"
 
@@ -54,7 +56,7 @@ for bootstrap_ascii_source in \
   source/beta/compiler/validation/admission/bc-artifact-structure.alpha \
   source/delta/compiler/delta_compiler.gamma \
   source/gamma/interp.beta \
-  source/gamma/typeck.beta
+  source/gamma/compiler/gamma_compiler.beta
 do
   bootstrap_ascii_path="$OMEGA_REPO_ROOT/$bootstrap_ascii_source"
   [ -f "$bootstrap_ascii_path" ] ||
@@ -95,7 +97,8 @@ tracked_compiler_sources=$(git -C "$OMEGA_REPO_ROOT" ls-files \
   source/beta source/gamma source/delta source/omega | \
   grep -E '/[^/]*compiler\.(alpha|beta|gamma|delta|omg)$' || true)
 expected_compiler_sources='source/beta/compiler/beta_compiler.alpha
-source/delta/compiler/delta_compiler.gamma'
+source/delta/compiler/delta_compiler.gamma
+source/gamma/compiler/gamma_compiler.beta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside the canonical implemented location"
 
