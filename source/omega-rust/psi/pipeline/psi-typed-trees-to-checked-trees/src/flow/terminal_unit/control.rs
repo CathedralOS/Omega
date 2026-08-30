@@ -1338,26 +1338,19 @@ fn checked_provider_attachment_requirements(
         if !provider_requirements.contains(&call.target_symbol) {
             return None;
         }
-        let crate::CallSite::Statement(call_site) = crate::find_call_site(
+        let call_site = crate::find_call_site(
             program,
             machine.symbol,
             state.symbol,
             call.statement_index,
             call.call_ordinal,
-        )?
-        else {
-            return None;
-        };
-        let receiver = program
-            .statement_table
-            .name_path_members(call_site.receiver);
-        if !matches!(receiver, [self_name, field_name]
-            if self_name.as_str() == "self" && field_name.as_str() == field.identity)
-        {
+        )?;
+        if !provider_attachment_receiver_matches(program, machine, &call_site, provider.symbol) {
             return None;
         }
         if !matches!(operation,
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
                 if *target_machine == call.target_symbol)
         {
             return None;

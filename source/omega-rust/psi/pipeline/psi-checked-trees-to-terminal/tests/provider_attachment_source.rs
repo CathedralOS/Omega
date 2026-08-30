@@ -26,6 +26,23 @@ const SOURCE: &str = r#"
     }
 "#;
 
+const SCALAR_RESULT_SOURCE: &str = r#"
+    boundary trait Console {
+        machine read_code() -> i32
+        reaches Console;
+        machine exit_process(return_code: i32)
+        reaches Console;
+    }
+
+    data Main { console: Console; }
+    machine Main::main(&mut self)
+    reaches Console
+    {
+        let result: i32 = self.console.read_code();
+        self.console.exit_process(result);
+    }
+"#;
+
 fn straight_line_console_source(write_literals: &[String], exit_status: i32) -> String {
     let writes = write_literals
         .iter()
@@ -161,6 +178,55 @@ fn provider_backed_main_retains_attachment_and_exact_installation_requirements()
         psi_terminal_codec::decode_module(&bytes).expect("decode attachment bytes"),
         *module
     );
+}
+
+#[test]
+fn provider_attached_scalar_result_forwards_to_later_call() {
+    let lowered = lower_source(SCALAR_RESULT_SOURCE);
+    let module = &lowered.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry machine");
+    let provider_boundaries = entry
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ProviderAttachment { boundary, .. } => Some(boundary),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(provider_boundaries.len(), 2);
+    assert!(
+        module
+            .boundary_machines
+            .iter()
+            .all(|boundary| provider_boundaries.contains(&boundary.id))
+    );
+
+    let boundary_calls = entry.blocks[0]
+        .operations
+        .iter()
+        .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+        .collect::<Vec<_>>();
+    let [producer, consumer] = boundary_calls.as_slice() else {
+        panic!("entry should retain one scalar producer and one Unit consumer")
+    };
+    let psi_terminal::OperationResult::Scalar(result) = producer.result else {
+        panic!("provider-attached boundary call should publish its scalar result")
+    };
+    let OperationKind::BoundaryCall { arguments, .. } = &consumer.kind else {
+        unreachable!()
+    };
+    assert_eq!(arguments, &[result.id]);
+
+    psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("provider-attached scalar result flow verifies");
 }
 
 #[test]

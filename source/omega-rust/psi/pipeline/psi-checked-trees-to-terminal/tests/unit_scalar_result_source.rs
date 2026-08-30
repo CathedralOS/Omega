@@ -139,6 +139,36 @@ fn attached_unit_scalar_result_coordinates_reject_drift() {
 }
 
 #[test]
+fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row() {
+    let mut checked = checked();
+    let operations = main_operations_mut(&mut checked);
+    let CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+        coordinate, result, ..
+    } = &mut operations[0]
+    else {
+        panic!("first operation should bind the scalar result")
+    };
+    coordinate.statement_index = 2;
+    result.statement_index = 2;
+    let CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } = &mut operations[1] else {
+        panic!("second operation should consume the scalar result")
+    };
+    coordinate.statement_index = 3;
+    let CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index, ..
+    } = &mut operations[2]
+    else {
+        panic!("third operation should return Unit")
+    };
+    *statement_index = 4;
+
+    assert_eq!(
+        rejection_message(&checked),
+        "Unit scalar call coordinate and target do not rejoin its original checked flow call"
+    );
+}
+
+#[test]
 fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
     let mut result_type = checked();
     let CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } =

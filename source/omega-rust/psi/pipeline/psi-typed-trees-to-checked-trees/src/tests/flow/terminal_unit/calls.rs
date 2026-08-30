@@ -592,6 +592,71 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
 }
 
 #[test]
+fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine read_code() -> i32
+            reaches Console;
+            machine exit_process(return_code: i32)
+            reaches Console;
+        }
+
+        data Main { console: Console; }
+
+        machine Main::main(&mut self)
+        reaches Console
+        {
+            let result: i32 = self.console.read_code();
+            self.console.exit_process(result);
+        }
+        "#,
+    );
+
+    let main = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Main::main"))
+        .expect("provider-attached scalar result flow should retain a complete Unit plan");
+    let [
+        CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            target_machine: producer,
+            result,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            target_machine: consumer,
+            scalar_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = main.operations.as_slice()
+    else {
+        panic!("provider-attached scalar flow retained the wrong operation sequence")
+    };
+    assert_eq!(main.provider_attachment_requirements.len(), 2);
+    assert!(
+        main.provider_attachment_requirements
+            .iter()
+            .any(|requirement| requirement.boundary == *producer)
+    );
+    assert!(
+        main.provider_attachment_requirements
+            .iter()
+            .any(|requirement| requirement.boundary == *consumer)
+    );
+    assert_eq!(result.binding_ordinal, 0);
+    assert!(matches!(
+        scalar_arguments.as_slice(),
+        [CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type: PrimitiveType::I32,
+        }]
+    ));
+}
+
+#[test]
 fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     let checked = checked(
         r#"
