@@ -2402,6 +2402,23 @@ stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-e
     '    let frontend_status = frontend_check_main()' \
     '    state checked {' \
     '        to failed when (frontend_status != 1)' \
+    '        let caller_body = word[8388640 + 24]' \
+    '        to failed when (word[caller_body] % 256 != 5)' \
+    '        to failed when (word[caller_body + 24] != 3)' \
+    '        let caller_args = word[caller_body + 16]' \
+    '        let caller_constructor = word[caller_args + 8]' \
+    '        to failed when (word[caller_constructor] % 256 != 7)' \
+    '        to failed when (word[caller_constructor + 24] != 1)' \
+    '        let probe_body = word[8388672 + 24]' \
+    '        to failed when (word[probe_body] % 256 != 8)' \
+    '        let first_arm_link = word[probe_body + 16]' \
+    '        let first_arm = word[first_arm_link + 8]' \
+    '        let first_pattern = word[first_arm + 8]' \
+    '        to failed when (word[first_pattern + 24] != 1)' \
+    '        let second_arm_link = word[first_arm_link + 16]' \
+    '        let second_arm = word[second_arm_link + 8]' \
+    '        let second_pattern = word[second_arm + 8]' \
+    '        to failed when (word[second_pattern + 24] != 2)' \
     '        let arena_end = word[2097128]' \
     '        to failed when (arena_end > 33292224)' \
     '        word[arena_end] = 255' \
@@ -2449,7 +2466,8 @@ stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-e
 stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
-printf '%s' '(def main () Int (let x 1 x))' | "$T/resolver-metadata.exe" > "$T/resolver-metadata.out"
+resolver_metadata_source='(data Token (Token Int) (Empty)) (def main () Int (let x 1 x)) (def caller () Int (probe (Token 7))) (def probe ((t Token)) Int (match t ((Token n) n) (Empty 0)))'
+printf '%s' "$resolver_metadata_source" | "$T/resolver-metadata.exe" > "$T/resolver-metadata.out"
 resolver_metadata_status=$?
 if [ "$resolver_metadata_status" = 1 ] && [ ! -s "$T/resolver-metadata.out" ]; then
   PASS=$((PASS+1))
@@ -2457,7 +2475,7 @@ else
   FAIL=$((FAIL+1))
   echo "  FAIL resolver metadata containment: status $resolver_metadata_status, output $(wc -c < "$T/resolver-metadata.out" | tr -d ' ') bytes"
 fi
-unset resolver_metadata_status
+unset resolver_metadata_source resolver_metadata_status
 for frame_mode in e f; do
   printf '%s' "$frame_mode" | "$T/frame-probe.exe" > "$T/frame-$frame_mode.out"
   frame_status=$?

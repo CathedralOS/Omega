@@ -25,7 +25,7 @@ compiler artifact.
 
 The retained compiler source declares 106 procedures. With the fixed frontend
 gate entry, the compiled gate uses 107 of Beta's 128 procedure slots and
-compiles to 243,520 bytes. The remaining 18,620 bytes under
+compiles to 244,257 bytes. The remaining 17,883 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -109,8 +109,11 @@ quadratic declaration scan exposed by the 32,768-function capacity canary.
 The active local environment rejects a parameter, `let`, pattern field, or
 catch-all binder before mutation when its spelling is already active; existing
 push/pop boundaries preserve initializer, sibling-branch, and sibling-arm
-scope. Assigning opaque binder slots and connecting source tags to lowering
-remain open.
+scope. Checked ordinary calls, constructor applications, and constructor
+patterns retain their exact one-based function or constructor table identity
+directly in the source AST; zero remains reserved for unresolved/builtin nodes.
+Assigning opaque binder slots, function labels/frame profiles, and connecting
+those identities to lowering remain open.
 
 An emitted Gamma program uses this Alpha-memory profile:
 

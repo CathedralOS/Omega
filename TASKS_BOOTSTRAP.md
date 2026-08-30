@@ -524,9 +524,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
       exact spelling, retains the earliest later-declaration coordinate across
       namespaces, and keeps the 32,768-function capacity canary linear in
       ordinary hash behavior. Exact-offset negatives and cross-namespace,
-      colliding-hash, branch, and arm positives are adjacent. Opaque global
-      identities, binder/parameter slots, and source-tag-to-lowering joins
-      remain open.
+      colliding-hash, branch, and arm positives are adjacent. Global identities
+      now retain exact table rows; binder/parameter slots, function
+      labels/frame profiles, and source-tag-to-lowering joins remain open.
+    - [x] Retain exact one-based function and constructor table identities on
+      every checked ordinary call, constructor application, and constructor
+      pattern. Zero remains the unresolved/builtin sentinel. The adjacent
+      metadata gate pins a forward function call, a same-spelled type and
+      constructor, both constructor applications, and exhaustive pattern
+      identities without serializing a resolved tree.
   - Implement D19's sealed application-profile input as part of the exact Gamma
     compilation question and reconstruction evidence. Generate exactly
     `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
@@ -555,7 +561,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     four-instruction address sequences from consuming the compiler's own fixed
     tape budget. The retained source declares 106 procedures; with the frontend
     gate entry, the gate uses 107 of Beta's 128 procedure slots and compiles to
-    243,520 bytes, leaving 18,620 bytes below Alpha's runnable payload ceiling.
+    244,257 bytes, leaving 17,883 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
