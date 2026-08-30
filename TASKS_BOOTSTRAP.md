@@ -489,6 +489,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
     supplies sealed `Bytes`, validates structured returned rejection values,
     owns private failures, and never emits partial artifact bytes.
+    **OWNER-BLOCKED — Q5:** select how the exact Gamma compilation question
+    carries the generated application profile. This blocks adapter publication
+    and the final tape, not the complete profile-independent front end,
+    lowering, or emitter.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
@@ -575,7 +579,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and current ranked-runtime acceptance.**
   Publish one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
@@ -588,7 +592,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
   itself is complete; do not revive an inspection-only precursor.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and current ranked-runtime acceptance.**
   Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.
