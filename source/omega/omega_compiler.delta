@@ -520,6 +520,7 @@ data OmegaExpressionConsumer {
     case TransitionTargetArgument;
     case LocalDataInitialValue;
     case CastValue;
+    case IndexedBase;
     case IndexedIndex;
 }
 
@@ -860,6 +861,9 @@ data OmegaParser {
     assignment_pending_operator_end: i32;
     indexed_base_expression: i32;
     indexed_index_expression: i32;
+    indexed_result_consumer: OmegaExpressionConsumer;
+    indexed_start: i32;
+    indexed_is_value: i32;
     local_data_start: i32;
     local_data_name_start: i32;
     local_data_name_end: i32;
@@ -3107,6 +3111,9 @@ machine OmegaParser::parse_view(
     self.assignment_pending_operator_end = 0;
     self.indexed_base_expression = 0;
     self.indexed_index_expression = 0;
+    self.indexed_result_consumer = OmegaExpressionConsumer::LocalDataInitialValue;
+    self.indexed_start = 0;
+    self.indexed_is_value = 0;
     self.local_data_start = 0;
     self.local_data_name_start = 0;
     self.local_data_name_end = 0;
@@ -3771,6 +3778,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::IndexedBase -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedTail,
+                source.len,
+                source.len
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 source.len,
@@ -3821,6 +3833,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::IndexedBase -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedTail,
+                source.len,
+                source.len
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 source.len,
@@ -3868,6 +3885,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::CastValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedCastEnd,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::IndexedBase -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedTail,
                 source.len,
                 source.len
             )
@@ -5842,6 +5864,9 @@ machine OmegaParser::parse_view(
 
     state begin_indexed_expression() {
         self.indexed_base_expression = self.expression_result;
+        self.indexed_start =
+            self.members[self.statement_first_path_member].start;
+        self.indexed_is_value = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(74) }
     }
@@ -5906,10 +5931,11 @@ machine OmegaParser::parse_view(
         self.indexed_expressions[self.indexed_expression_count].index =
             self.indexed_index_expression;
         self.indexed_expressions[self.indexed_expression_count].start =
-            self.members[self.statement_first_path_member].start;
+            self.indexed_start;
         self.indexed_expressions[self.indexed_expression_count].end =
             self.scan.token_end;
         self.expression_result = self.expression_count;
+        self.expression_end = self.scan.token_end;
         self.expressions[self.expression_count].kind =
             OmegaExpressionKind::Indexed;
         self.expressions[self.expression_count].path_kind =
@@ -5924,7 +5950,15 @@ machine OmegaParser::parse_view(
         self.indexed_expression_count = self.indexed_expression_count + 1;
         self.expression_count = self.expression_count + 1;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(75) }
+        transition self.indexed_is_value {
+            1 -> resume_indexed_value()
+            _ -> scan_semantic(75)
+        }
+    }
+
+    state resume_indexed_value() {
+        self.expression_consumer = self.indexed_result_consumer;
+        transition true { true -> scan_semantic(54) }
     }
 
     state indexed_expression_tail_token() {
@@ -6325,6 +6359,7 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::RightBracket ->
                 retain_index_path()
             OmegaPunctuationKind::LeftParen -> begin_call_expression_from_path()
+            OmegaPunctuationKind::LeftBracket -> begin_path_indexed_expression()
             OmegaPunctuationKind::Semicolon -> retain_additive_value_path()
             OmegaPunctuationKind::Plus -> path_expression_plus()
             OmegaPunctuationKind::Minus -> path_expression_minus()
@@ -6339,6 +6374,23 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::PipePipe -> retain_transition_operator_path()
             _ -> incomplete_root()
         }
+    }
+
+    state begin_path_indexed_expression() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_path_indexed_base()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_path_indexed_base() {
+        self.indexed_result_consumer = self.expression_consumer;
+        self.indexed_start =
+            self.members[self.argument_first_path_member].start;
+        self.indexed_is_value = 1;
+        self.expression_consumer = OmegaExpressionConsumer::IndexedBase;
+        transition true { true -> retain_path_expression() }
     }
 
     state path_expression_less() {
@@ -6525,6 +6577,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::CastValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedCastEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaExpressionConsumer::IndexedBase -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedTail,
                 self.scan.token_start,
                 self.scan.token_end
             )
@@ -6839,6 +6896,8 @@ machine OmegaParser::parse_view(
                 retain_path_expression_bounded()
             OmegaExpressionConsumer::CastValue ->
                 retain_path_expression_bounded()
+            OmegaExpressionConsumer::IndexedBase ->
+                retain_path_expression_bounded()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_path_expression_bounded()
         }
@@ -6893,6 +6952,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_local_data_initial_value_handle()
             OmegaExpressionConsumer::CastValue -> retain_cast_value_handle()
+            OmegaExpressionConsumer::IndexedBase -> retain_indexed_base_handle()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_index_handle()
         }
@@ -6943,6 +7003,14 @@ machine OmegaParser::parse_view(
         self.expression_count = self.expression_count + 1;
         self.type_consumer = OmegaTypeConsumer::Cast;
         transition true { true -> begin_type() }
+    }
+
+    state retain_indexed_base_handle() {
+        self.indexed_base_expression = self.expression_count;
+        self.expression_count = self.expression_count + 1;
+        self.expression_consumer = OmegaExpressionConsumer::IndexedIndex;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(74) }
     }
 
     state retain_struct_field_value_handle() {
@@ -7425,6 +7493,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 assignment_literal_end_punctuation()
             OmegaExpressionConsumer::CastValue -> incomplete_root()
+            OmegaExpressionConsumer::IndexedBase -> incomplete_root()
             OmegaExpressionConsumer::IndexedIndex -> incomplete_root()
         }
     }
