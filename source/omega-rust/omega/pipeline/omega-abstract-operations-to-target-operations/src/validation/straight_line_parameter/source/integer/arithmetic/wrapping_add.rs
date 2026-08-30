@@ -4,7 +4,7 @@ use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
 use super::super::super::super::model::{
-    ParameterResultKind, ReconstructedEnvelope, WrappingIntegerAddParametersSource,
+    IntegerArithmeticParametersSource, ParameterResultKind, ReconstructedEnvelope,
 };
 use crate::validation::model::StraightLineWrappingIntegerAddParametersTranslationError;
 
@@ -28,7 +28,7 @@ pub(super) fn reconstruct(
     function: &AbstractFunction,
     envelope: &ReconstructedEnvelope<'_>,
 ) -> Result<
-    WrappingIntegerAddParametersSource,
+    IntegerArithmeticParametersSource,
     StraightLineWrappingIntegerAddParametersTranslationError,
 > {
     let [
@@ -79,7 +79,7 @@ pub(super) fn reconstruct(
             StraightLineWrappingIntegerAddParametersTranslationError::SourceOperandTypeMismatch,
         );
     }
-    Ok(WrappingIntegerAddParametersSource {
+    Ok(IntegerArithmeticParametersSource {
         operation: *psi_operation,
         return_edge: *psi_edge,
         source_value: *add_result,

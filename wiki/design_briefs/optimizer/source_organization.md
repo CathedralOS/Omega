@@ -173,8 +173,8 @@ does not yet fully satisfy this contract.
   compare/receipt join; independent GVN keys descend by total,
   proof-certified, and compatible-policy vocabulary. The former 1,457-line
   structural-catalog test matrix now mirrors six production validation families.
-- All 284 governed module maps are source-locally classified: 158 executable
-  entrances, 14 crate maps, and 112 stage groups. The guard exhaustively checks
+- All 293 governed module maps are source-locally classified: 160 executable
+  entrances, 14 crate maps, and 119 stage groups. The guard exhaustively checks
   those roles and the real coordination marker of every executable entrance.
 - The transformation ledger now descends from a 92-line custody-validation
   entrance into model, error, validation, encoding, decoding, cursor, and test
