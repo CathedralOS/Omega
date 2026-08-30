@@ -81,7 +81,11 @@ resource profile and cannot admit an artifact.
 Definitional equality uses the permanent arena for parsed declarations and raw
 subjects. The checker records the closed arena range occupied by its immutable,
 already-normal subject trees; normalization preserves pointers in that range,
-so selecting one indexed byte does not copy the selected subtree. Other normal
+and substitution, shifting, and function-rule instantiation likewise preserve
+only pointers in that exact range. Certificate-spelled CID `60..63` lookalikes
+are allocated later and remain ordinary terms, so they cannot bypass
+substitution. Selecting or transporting one indexed byte therefore does not
+copy the selected subtree. Other normal
 forms created solely for one conversion decision are scratch: the checker
 restores the arena mark after their structural comparison. No returned proof or
 term can reference those temporary nodes. Together these rules keep a balanced

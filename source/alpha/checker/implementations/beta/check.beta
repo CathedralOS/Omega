@@ -638,11 +638,26 @@ proc reduce_fun(fid, arg, fuel) {
     state stuck { return 0 }
 }
 
+; Only terms allocated while the framed raw subjects are constructed qualify
+; for this shortcut. Certificate-spelled CID 60..63 terms are allocated after
+; RAW_END and remain ordinary open terms subject to substitution.
+proc is_checker_raw_term(t) {
+    let begin = word[2097056]
+    let end = word[2097048]
+    state active { to no when (begin == 0)  to lower }
+    state lower { to no when (t < begin)  to upper }
+    state upper { to yes when (t < end)  return 0 }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 ; instantiate a rule body: pattern vars (v 0)/(v 1) -> the scrutinee fields (carried as
 ; FBUNDLE `flds`, to stay within the 4-arg calling convention) ; (y k) -> the extra arg ;
 ; (rec 0)/(rec 1) -> the recursive call on field 0/1 (re-bundling extra if binary); else
 ; structural. extra==0 means a unary function (no 2nd arg, no PAR/bundle in the body).
 proc instantiate(t, fid, flds, extra) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
     state iv { to do_iv when (word[t] == 34)  to par }     ; IVAR - pattern var
     state do_iv {
         to ret_a0 when (word[t + 8] == 0)
@@ -821,6 +836,8 @@ proc wit_in_prop(p, depth) {
 
 ; shift every FREE individual variable (index >= cutoff) in a term up by `d`.
 proc shift_term(t, d, cutoff) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
     state iv { to ivcheck when (word[t] == 34)  to z }
     state ivcheck {
         to do_shift when (word[t + 8] >= cutoff)
@@ -842,6 +859,8 @@ proc shift_term(t, d, cutoff) {
 
 ; substitute individual term `s` for Ivar `depth`, in a term.  Capture-avoiding.
 proc subst_term(t, s, depth) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
     state iv { to ivcheck when (word[t] == 34)  to z }
     state ivcheck {
         to ret_s when (word[t + 8] == depth)
@@ -886,6 +905,8 @@ proc subst_prop(p, s, depth) {
 
 ; --- substitution that KEEPS the binder (induction's P(s n), not inst's P(t)) ---
 proc subst_term_keep(t, s, depth) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
     state iv { to ivcheck when (word[t] == 34)  to z }
     state ivcheck {
         to ret_s when (word[t + 8] == depth)

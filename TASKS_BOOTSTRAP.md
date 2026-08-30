@@ -201,8 +201,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
   surface gate runs 197 cases in about six seconds on the development host.
-  The largest current retained Beta output, the 237,270-byte checker tape,
-  leaves 24,870 bytes in the Alpha payload after replacing repeated inline
+  The largest current retained Beta output, the 238,926-byte checker tape,
+  leaves 23,214 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -360,8 +360,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     certificate extents; checker-built immutable power-of-two-indexed byte trees are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
-    spoof either constant, and the rebuilt 237,270-byte checker tape retains
-    24,870 bytes of Alpha payload headroom. The exact 104,459-byte compiler
+    spoof either constant, and the rebuilt 238,926-byte checker tape retains
+    23,214 bytes of Alpha payload headroom. The exact 104,459-byte compiler
     source plus 27,087-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
@@ -417,6 +417,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
       checked propositions with `use`; it accepts in 1.192 seconds. This proves
       the proposed reclamation boundary is viable but does not yet prove the
       required boundary chain or assembly semantics.
+      The checker now also preserves pointer identity during substitution only
+      inside its recorded immutable raw-subject arena interval. A maximum-size
+      framed subject crosses equality transport without being copied, while a
+      certificate-spelled raw-constructor lookalike still substitutes normally.
+      With that closed-term boundary, a temporary two-chunk composition over
+      the exact current Beta source/tape checks both named chunk equalities and
+      the second nested `eqelim`; this validates the selected composition shape,
+      but no skeleton proof is retained and assembly-row semantics remain open.
     - [x] Publish the canonical Beta checker's exact arena, semantic-stack,
       framed input, certificate, declaration, function, and lemma-table profile.
       Arena and proof-context exhaustion are now explicit fail-closed guards,
