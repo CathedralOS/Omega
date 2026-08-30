@@ -951,12 +951,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q7.** Freeze the canonical sealed Omega compiler
-    request: package/source closure, source identities, product/target/admission
-    inputs, explicit bootstrap Alpha-tape product, and compiler outcome framing.
-    This blocks `D`'s executable entry, source custody, package lookup, and
-    publication. It does not block final boundary-independent internals such as
-    the complete Alpha encoder.
+  - [ ] **OMEGA-COMPILER-REQUEST-V1.** Implement D18's canonical sealed Omega
+    compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
+    `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
+    build-visible package snapshots, explicit bootstrap Alpha-tape product, and
+    `OCOUT` boundary. Decode and validate the graph, identities, custody,
+    lengths, and exact end before source processing. Inside each compiler,
+    retain the existing coherent typed frontend together with its prepared
+    static-machine-specialized projection, reach plans, source commitment, and
+    authority verdict as one activation-local admitted checkpoint. Execute the
+    selected root build only from that projection; place its generated source in
+    a later one-way-visible scope; then continue checked lowering from the
+    retained base. Dependency activations publish durable generated-source
+    bundles and evidence rather than cascading builds or retaining live partial
+    checkpoints. Add exact request/framing, scope-stratum, no-reread,
+    dependency-bundle, diagnostic-order, resource, and no-partial-output gates.
   - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
     complete closed opcode-shape table, paired-`i32` representation of arbitrary
     64-bit immediates, instruction-atomic capacity checks, bounded address
@@ -969,7 +978,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     open state, byte range, and whole-write capacity rather than relying on a
     prose-only caller precondition. `D` deliberately has no `Main`, source
     protocol, package lookup, publication, or placeholder compiler result while
-    Q7 is open.
+    `OMEGA-COMPILER-REQUEST-V1` is unimplemented.
   - [x] Give `D` explicit symbolic control-flow ownership before lowering.
     Monotonic typed label IDs bind once; each label-bearing emitter records the
     exact most-recent instruction and its single address operand; operand
@@ -977,14 +986,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     through its bind-once label between an unpatched partition reconstruction
     and the final target replay. The 29,126-fixup ceiling is dominated by the
     exact Alpha payload extent; the independent fixed label storage is a
-    private compiler ceiling and must map to outer `Incomplete` once Q7 freezes
-    its resource framing. There is no arbitrary public patch operation or
+    private compiler ceiling and maps to outer `Incomplete` through D18's
+    resource framing. There is no arbitrary public patch operation or
     unresolved-zero convention. Exact forged-owner, stale-map, forward/
     backward/alias, undefined/end-label, duplicate-bind, interior-target, and
     capacity canaries join the real Delta-compiler gate when that executable
     exists; do not create a host Delta executor to run this incomplete closure.
   - [x] Establish `D`'s source-view UTF-8 framing primitive independently of
-    Q7's package/source custody. It accepts an immutable byte view, implements
+    D18's package/source custody. It accepts an immutable byte view, implements
     the complete one- through four-byte scalar envelope, rejects overlong
     forms, surrogates, values above U+10FFFF, stray continuations, and truncated
     tails, and reports the malformed scalar's lead-byte offset. It does not
@@ -993,7 +1002,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     malformed-family vectors join the real Delta-compiler gate rather than a
     host reimplementation.
   - [x] Establish `D`'s complete source-neutral lexical scanner independently
-    of Q7's package/source custody. It implements the exact current Omega
+    of D18's package/source custody. It implements the exact current Omega
     keyword and punctuation sums, maximal-munch number behavior, strings and
     fixed escapes, nested block comments, line-comment span/advance split,
     ASCII identifier/profile rules, and whole-view UTF-8 diagnostic priority.
@@ -1005,8 +1014,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     arithmetic. Only the two canonical entry machines make lexical judgments.
     The scanner retains only relative token/diagnostic spans and
     decoded string length: it invents no source identity, package order, token
-    ledger, or decoded-byte mirror. Q7 still owns source size/admission and
-    outer `Incomplete` framing. Exact lexical vectors join the real
+    ledger, or decoded-byte mirror. D18 fixes source size/admission and outer
+    `Incomplete` framing. Exact lexical vectors join the real
     Delta-compiler gate; do not add a host lexer or test executor.
   - [ ] Parse semantic tokens inside one canonical parser-machine invocation.
     That entry validates the complete immutable view once, then threads the
@@ -1028,9 +1037,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
       false Omega rejection; malformed use paths retain only two internal
       parser distinctions with relative spans. Repeated invocation resets all
       observable counts/status, and no source ID, alias, token ledger, decoded
-      mirror, standalone cursor, or Q7 outcome tag is introduced. The 4,096-root
+      mirror, standalone cursor, or `OCOUT` tag is introduced. The 4,096-root
       and 16,384-path-member ceilings are private compiler budgets whose eventual
-      outer `Incomplete` mapping remains Q7-owned; profile both against the real
+      outer `Incomplete` mapping remains D18-owned; profile both against the real
       `C` closure before publication rather than treating the provisional
       values as semantic necessities. Executed vectors wait for the real
       Delta-compiler gate; do not add a host Delta executor.
@@ -1066,7 +1075,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       independent; that ceiling dominates the equally sized payload-field
       arena, so no fake payload resource identity is added. Preserve
       `Complete`-only publication, relative source spans, authored root/member
-      order, and Q7 neutrality.
+      order, and D18 request neutrality.
     - [x] Replace the named-only type row with a compact tagged type-node arena
       and retain one unqualified `Base in Domain` suffix for direct and payload
       fields. The constrained root points backward to its named base and to one
@@ -1082,8 +1091,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       is now independently exhaustible; its equal ceiling dominates the
       payload-field and constraint tables in this slice. Preserve the same
       invocation-local view custody, relative spans, reset behavior,
-      `Complete`-only publication, and Q7 neutrality. Executed and exact-edge
-      resource vectors wait for the real Delta-compiler gate.
+      `Complete`-only publication, and D18 request neutrality. Executed and
+      exact-edge resource vectors wait for the real Delta-compiler gate.
     - [x] Retain the first range-refined field type on the same constrained
       node path: `Base [minimum..=maximum]` with nonnegative integer-literal
       bounds in the unsuffixed decimal spelling needed by the current compiler

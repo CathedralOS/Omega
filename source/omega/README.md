@@ -53,12 +53,15 @@ activation/reach closure lands, and normalize `windows_x64` to
 `windows_x86_64` in that same migration.
 
 `omega_compiler.delta` (`D`) now exists but is intentionally incomplete, and
-both descriptive compiler tapes remain absent. The canonical sealed
-package-closure request for the standalone Omega compiler is owner-blocked; no
-raw-single-file stdin convention may stand in for it. Boundary-independent
-final internals may be authored in `D` before that ruling, but no placeholder,
-generated source closure, viewer, or standalone bootstrap owner is retained
-while the artifacts are absent.
+both descriptive compiler tapes remain absent. D18 fixes their canonical sealed
+Omega request as a resolved package subject plus a bound invocation, complete
+deterministic build-visible snapshots, and the `OCOUT` compiler boundary. No
+raw-single-file stdin convention may stand in for it. Each compiler derives and
+retains the admitted typed build checkpoint internally, evaluates the selected
+root build once, adds its generated source as a later one-way-visible stratum,
+and continues ordinary compilation. Dependencies contribute durable generated-
+source bundles rather than recursively executing their builds or retaining live
+partial compiler checkpoints.
 
 Delta cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
@@ -256,7 +259,8 @@ closure, not Omega source limits; exhaustion is retained for the future outer
 `Incomplete` mapping.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
-preflight fact is retained. Q7 still owns binding each relative tree to a
-package-owned source unit and fixing public diagnostic/outcome framing. A
+preflight fact is retained. D18 binds each relative tree to a package-owned
+source unit and fixes public diagnostic/outcome framing at the outer compiler
+edge. A
 public validate/advance split would be false authority, while revalidating the
 whole view at every token would be quadratic; neither belongs in the compiler.
