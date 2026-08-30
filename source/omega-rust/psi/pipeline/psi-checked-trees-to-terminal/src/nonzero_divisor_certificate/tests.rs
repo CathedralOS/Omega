@@ -330,6 +330,69 @@ fn exact_multiply_goal_serializes_four_corners_and_negative_quotient_guard() {
 }
 
 #[test]
+fn exact_multiply_orients_a_landed_zero_for_both_target_directions() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let right = value(2, integer_type);
+    let context = two_value_context(integer_type);
+    let zero = integer(integer_type, 0);
+    let zero_axiom = Proposition::Equal(right, zero);
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(1).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(2).unwrap(),
+        }),
+    );
+    for goal in [
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product.clone(),
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(127)),
+        ),
+    ] {
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[],
+            std::slice::from_ref(&zero_axiom),
+        )
+        .expect("landed zero orients the exact product endpoint");
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = proof.rule
+        else {
+            panic!("the exact zero product is relaxed to the carrier endpoint")
+        };
+        let mapped = if matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::IntegerAffineBound { .. }
+        ) {
+            left_less_or_equal_middle
+        } else {
+            middle_less_or_equal_right
+        };
+        let ProofRule::IntegerAffineBound { root_bound, .. } = mapped.rule else {
+            panic!("landed zero uses the checked direct multiply mapper")
+        };
+        let ProofRule::ConjunctionIntroduction(parts) = root_bound.rule else {
+            panic!("direct multiply retains all four endpoint proofs")
+        };
+        assert!(
+            parts
+                .iter()
+                .any(|part| matches!(part.rule, ProofRule::IntegerLessOrEqualSubstitution { .. }))
+        );
+    }
+}
+
+#[test]
 fn exact_multiply_maps_one_immediate_remainder_range_through_an_affine_suffix() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let root = value(1, integer_type);
