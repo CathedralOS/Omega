@@ -1199,8 +1199,13 @@ use the same satisfaction edge, while the existing selected-provider set alone
 identifies the active target plan and rejoins its exact operator requirement and
 realizing machine. Projection repeats the exact symbol, slot, checked-adapter
 binding, package, and machine join. A named-boundary canary covers unique
-selection. Fixed-token boundary operators remain fail-closed until checked-
-adapter token dispatch exists. Authored override of a same-path overloaded
+selection. Review v94/canonical row v52 admits selected, unaliased, nongeneric,
+lifetime-free checked adapters for fixed-token binary arithmetic/comparison and
+indexing declarations. Dispatch rejoins the exact checked use, token, operand
+shape, compact selected-plan coordinate, and strong plan commitment. Range,
+unsupported arities, aliases, bodyless/externalized realizations, generics,
+lifetimes, and evidence drift remain fail-closed. This lane makes no Terminal
+or native-realization claim. Authored override of a same-path overloaded
 operator family is atomic: package review retains the canonical coordinate set,
 selected nominal provider, complete per-coordinate mapping, and generic or
 exact-application coverage. Adding a family coordinate invalidates an

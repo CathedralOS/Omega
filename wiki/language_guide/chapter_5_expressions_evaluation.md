@@ -214,6 +214,14 @@ receiver. Compiler consumers must use the checked named-operator resolver and
 authored selection occurrence rather than infer identity from the leaf spelling
 `ordered`.
 
+A selected nongeneric checked-body provider may realize a boundary operator
+without changing that public declaration identity. The checked execution path
+currently redirects exact two-operand arithmetic/comparison tokens and exact
+indexing uses to the selected checked adapter. The selected plan fingerprint
+and its strong commitment must both rejoin the checked use before redirection.
+Range forms, unsupported arities, aliases, and generic or lifetime-bearing
+realizations remain rejected rather than acquiring an approximate dispatch.
+
 An operator is an independently nameable declaration and is package-private by
 default. `pub operator` permits another package to select it. A qualified
 spelling such as `Vector::add` does not inherit `Vector`'s visibility; the

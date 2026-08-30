@@ -43,8 +43,7 @@ stop the item on one precise owner question before adding machinery.
     outside the closed structural expression vocabulary; and
     structural witness arguments not retained by their owning typed or checked
     representation;
-  - exact nongeneric fixed-token operator dispatch and admission, then other
-    demonstrated missing semantic-role, permission-frontier,
+  - demonstrated missing semantic-role, permission-frontier,
     compiler-intrinsic ownership, and installation joins;
   - **OWNER-BLOCKED — generic boundary-realization coverage** and
     **exact boundary-realization application evidence**; production remains
@@ -102,6 +101,12 @@ stop the item on one precise owner question before adding machinery.
   ordinary checked capability/API evidence and opaque executable-supply rows in
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
+
+  Repair Terminal closure for selected scalar checked-operator adapters before
+  any package profile claims their native realization. Checked dispatch and
+  ordinary package review are admitted independently; the existing named and
+  fixed-token adapter canaries currently reach checked execution while native
+  production rejects the missing scalar-adapter closure.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
   representation projection according to D26. Add separate producer-
@@ -311,9 +316,8 @@ explicitly.
   facets, not through a std authority exception.
 
 - [ ] Complete generic/exact-application coverage for
-  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. First admit nongeneric fixed-token
-  checked-adapter dispatch. Then derive
-  concrete static applications from checked provider realizations, retain
+  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Derive concrete static applications
+  from checked provider realizations, retain
   normalized tagged telescope bindings, attach rows to production selected
   plans, and add compiler-to-update tests. Keep compatibility failure when a
   public family gains an uncovered coordinate. Generic and exact-application
