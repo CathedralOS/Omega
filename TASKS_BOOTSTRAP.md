@@ -958,7 +958,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OMEGA-COMPILER-REQUEST-V1.** Implement D18's canonical sealed Omega
+  - [ ] **OWNER-BLOCKED — Q9: OMEGA-COMPILER-REQUEST-WIRE-V1.** Freeze the
+    byte-exact standalone request and `OCOUT` schemas that carry D18's logical
+    subject/invocation contract. Specify magic/version, scalar encoding,
+    counts/lengths, canonical limits and exact end; every graph, package,
+    alias/edge, source-coordinate, dependency-instance, snapshot, product,
+    target, admission, and subject-binding row; validation and diagnostic
+    order; and the complete Reject/Incomplete/InternalFailure payloads. The
+    Rust host request layout is explicitly non-authoritative and neither `D`
+    nor `C` may choose a private replacement.
+  - [ ] **DEPENDENCY-BLOCKED — Q9: OMEGA-COMPILER-REQUEST-V1.** After the wire
+    ruling, implement D18's canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
     build-visible package snapshots, explicit bootstrap Alpha-tape product, and
@@ -1654,9 +1664,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1, Q5, Q6, and Q7 still own
-  unresolved full-spec compiler contracts, but they do not block continued
-  implementation of settled parser, semantic, and lowering slices.
+  allowed; weakened Omega semantics are not. Q1 and Q5 through Q9 still own
+  unresolved full-spec compiler or standalone-edge contracts. Q9 blocks
+  source identity, semantic/lowering custody, and the application boundary;
+  the others do not block continued implementation of independently settled
+  source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full
