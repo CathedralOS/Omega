@@ -2815,6 +2815,70 @@ fn selected_lowering_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn register_home_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read register-home assignment entrance");
+    assert!(
+        entrance.contains("compute::compute_terminal_register_homes(")
+            && entrance.contains("validate_register_homes("),
+        "the register-home entrance must visibly join proposal to independent validation",
+    );
+
+    let producer = recursive_rust_source(&stage.join("compute"));
+    let validation = recursive_rust_source(&stage.join("validate"));
+    for forbidden in [
+        "crate::allocation::home_assignment::compute",
+        "super::super::compute",
+        "build_domains",
+        "candidate_conflicts",
+        "select_domain",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "independent register-home validation must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "struct ReplayDomain",
+        "fn reconstruct(",
+        "fn viable_candidates(",
+        "fn unassigned_constraint_degree(",
+        "fn replay_function(",
+    ] {
+        assert!(
+            validation.contains(required),
+            "register-home validation must independently own `{required}`",
+        );
+    }
+    for forbidden in [
+        "ReplayDomain",
+        "viable_candidates",
+        "unassigned_constraint_degree",
+        "replay_function",
+    ] {
+        assert!(
+            !producer.contains(forbidden),
+            "register-home producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "struct AllocationDomain",
+        "fn build_domains<",
+        "fn candidate_conflicts(",
+        "fn select_domain(",
+    ] {
+        assert!(
+            producer.contains(required),
+            "register-home producer must visibly own `{required}`",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(

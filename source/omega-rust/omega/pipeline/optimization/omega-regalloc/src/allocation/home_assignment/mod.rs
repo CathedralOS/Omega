@@ -7,6 +7,10 @@ pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
+#[cfg(test)]
+#[path = "tests/mod.rs"]
+mod tests;
+
 pub use identity::register_home_identity;
 pub use model::*;
 pub use validate::validate_register_homes;

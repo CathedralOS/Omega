@@ -117,6 +117,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_liveness",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/mod.rs",
+        coordination_marker: "compute::compute_terminal_register_homes(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute/mod.rs",
+        coordination_marker: "compute_function(index, legality, ranges, physical)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/validate/mod.rs",
+        coordination_marker: "replay::validate_function(function_index, actual, legality, ranges, physical)",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/post_allocation_manifest/mod.rs",
         coordination_marker: "pub fn project_post_allocation_optimization_manifest",
     },
@@ -1006,6 +1018,18 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         violations.insert(format!(
             "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
         ));
+    }
+
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/validate.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute_tests.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "register-home assignment retains a retired flat compute/replay/fixture leaf: {obsolete}"
+            ));
+        }
     }
 
     let obsolete_selected_lowering_schedule = "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/schedule.rs";

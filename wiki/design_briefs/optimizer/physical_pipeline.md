@@ -95,6 +95,18 @@ interference, allowed views, ABI constraints, clobbers, and spill legality.
 Home assignment, copy insertion, spilling, coalescing, and bounded
 rematerialization are separately validated decisions.
 
+The current transition-free, spill-free home stage is a deterministic
+constraint-graph allocator. Distinct use/definition ties form quotient
+vertices whose domains are the intersection of every member's legal views.
+Interference contributes symmetric storage/write-footprint conflicts and
+early-clobber rows contribute directional definition-write/use-storage
+conflicts. Placement repeatedly chooses the vertex with the fewest currently
+viable views, then greatest remaining constrained degree, earliest live point,
+and lowest VReg leader; it chooses the lowest compatible view. Producer and
+validator derive the domains, graph, and ordering separately. Exhaustion is a
+typed pressure result for the separately governed spill/recovery work, not
+permission to invent a home transition.
+
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
 are explicit target facts. Modulo scratch-register assignment is not an

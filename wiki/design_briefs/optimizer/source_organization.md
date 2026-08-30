@@ -413,6 +413,16 @@ custody, and model in named leaves.
 Register-home staging preserves baseline-legality and post-copy-reanalysis as
 explicit source families while sharing construction, independent validation,
 custody projection, and model leaves below one replay-gated entrance.
+The allocator beneath that custody boundary has the same visible descent on
+both sides of its trust boundary. `home_assignment/compute/mod.rs` owns root
+admission and complete scalar/structural roster construction, then descends
+through producer-only tied-component domains, constraint derivation, and
+canonical placement. `home_assignment/validate/mod.rs` owns candidate-plan
+admission and receipt publication, then descends through independently
+implemented domain, conflict, and replay leaves. Neither side imports the
+other's graph or placement helpers. Focused fixtures descend separately into
+constrained-domain, tie, early-clobber, alias-footprint, and determinism tests;
+the retired flat compute, replay, and mixed fixture files are forbidden.
 Post-fold home staging applies the same shape to one-step literal-fold chains
 and complete selected-lowering runs, with manifest projection separated from
 construction and replay.
