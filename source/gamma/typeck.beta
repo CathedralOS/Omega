@@ -19,9 +19,10 @@
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUN
 ;          2097112 TENVN 2097104 NTY 2097096 NCON 2097088 INVALID_TYPE
+;          2097080 MATCH_EPOCH
 ;          16777216 ARENA (~48 MB)
 ;          4194304 FUNS
-;          4259840 TYNAMES  4325376 CONS  5242880 TENV
+;          4259840 TYNAMES  4325376 CONS  5242880 TENV  6291456 COVERAGE
 ; "type" = small id: Int = 0. AST nodes 4 words. Func entry 4 words
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
 ; AST tags: 0 INT 1 VAR 2 PRIM 3 IF 4 LET 5 CALL 6 CONS 7 CONAPP 8 MATCH
@@ -63,6 +64,7 @@ proc slurp() {
         word[2097104] = 1        ; NTY (id 0 = builtin Int)
         word[2097096] = 0        ; NCON
         word[2097088] = 0        ; INVALID_TYPE
+        word[2097080] = 0        ; MATCH_EPOCH
         return 0
     }
     state invalid { return 1 }
@@ -640,11 +642,18 @@ proc tc_conapp(coff, args) {
 
 proc tc_match(scrut, arms) {
     let st = tc(scrut)
-    state schk { to ok when (st != 0 - 1)  return 0 - 1 }
+    state schk { to algebraic when (st > 0)  return 0 - 1 }
+    state algebraic {
+        word[2097080] = word[2097080] + 1
+        to ok
+    }
     state ok {
         let arm = arms
         let rty = 0 - 2                ; -2 = result type not yet seen
         let fail = 0
+        let catchall = 0
+        let seen = 0
+        let epoch = word[2097080]
         to loop
     }
     state loop {
@@ -655,10 +664,20 @@ proc tc_match(scrut, arms) {
         let armnode = word[arm + 8]
         let pat = word[armnode + 8]
         let base = word[2097112]
+        seen = 1
+        to after_catchall when (catchall == 1)
+        to patkind
+    }
+    state after_catchall { fail = 1  to patkind }
+    state patkind {
         to pvar when (word[pat] == 9)
         to pcon
     }
-    state pvar { tenv_push(word[pat + 8], st)  to checkbody }
+    state pvar {
+        catchall = 1
+        tenv_push(word[pat + 8], st)
+        to checkbody
+    }
     state pcon {
         let ci = con_lookup(word[pat + 8])
         to badcon when (ci == 0 - 1)
@@ -667,9 +686,12 @@ proc tc_match(scrut, arms) {
     state badcon { fail = 1  to checkbody }
     state tymatch {
         to badty when (word[4325376 + ci * 24 + 8] != st)
+        to duplicate when (word[6291456 + ci * 8] == epoch)
+        word[6291456 + ci * 8] = epoch
         to bindvars
     }
     state badty { fail = 1  to checkbody }
+    state duplicate { fail = 1  to bindvars }
     state bindvars {
         let pv = word[pat + 16]
         let av = word[4325376 + ci * 24 + 16]
@@ -712,8 +734,23 @@ proc tc_match(scrut, arms) {
     state nextarm { arm = word[arm + 16]  to loop }
     state finish {
         to failret when (fail == 1)
-        return rty
+        to failret when (seen == 0)
+        to complete when (catchall == 1)
+        let ci2 = 0
+        to coverloop
     }
+    state coverloop {
+        to coverbody when (ci2 < word[2097096])
+        to complete
+    }
+    state coverbody {
+        to covernext when (word[4325376 + ci2 * 24 + 8] != st)
+        to missing when (word[6291456 + ci2 * 8] != epoch)
+        to covernext
+    }
+    state covernext { ci2 = ci2 + 1  to coverloop }
+    state missing { return 0 - 1 }
+    state complete { return rty }
     state failret { return 0 - 1 }
 }
 
