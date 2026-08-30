@@ -227,6 +227,32 @@ These are escalation criteria, not advance permission to add complexity. Until
 the owner rules, the existing language semantics and Alpha instruction set stay
 fixed and the affected edge remains open.
 
+## D13 — The Beta compiler boundary is typed without wrapping its artifact
+
+The Alpha-written Beta compiler returns exactly one of `Complete(tape)`,
+`Reject(reason, source_offset)`, `Incomplete(resource, limit, requested,
+coordinate?)`, or `InternalFailure(reason, coordinate?)`. Rejection is a
+judgment about observed source. Incompleteness is a private-profile refusal and
+grants no verdict about unexamined source. Internal failure identifies a
+compiler contradiction and grants no artifact authority.
+
+Alpha halt values 0, 1, 2, and 3 carry only those four case tags, so the
+distinction survives a shell's low-byte observation. `Complete` stdout is the
+unchanged runnable Alpha payload. Every failure emits the canonical versioned
+diagnostic frame beginning with permanently reserved non-opcode `0xFF`; its tag
+must agree with the halt word and its closed fields retain exact reason,
+coordinate, resource, limit, and requested-amount evidence. Unknown or
+noncanonical frames reject. Parser phase numbers are private and never become
+outcome identities.
+
+Artifact publication requires `Complete`. Success has no inline diagnostic
+header, so complete validation, replay-length agreement, fixup closure,
+exact-length publication, total Alpha writes, and the final halt-0 observation
+jointly protect its custody. Compiler resource ceilings share one profile table
+and yield `Incomplete`; dominated corruption guards and pass disagreement yield
+`InternalFailure`. Generated-program statuses 250 and 251 remain separate
+runtime observations.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

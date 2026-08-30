@@ -177,7 +177,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 2. Alpha-written Beta compiler
 
-- [ ] **BLOCKED — OWNER Q4 (Beta compiler outcome): ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
+- [ ] **ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
   `source/beta/compiler/beta_compiler.alpha` against the complete Beta v1
   contract. Its exact directly assembled Alpha tape is now the canonical Beta
   compiler artifact. It must accept arbitrary valid Beta within explicit
@@ -219,10 +219,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [ ] Extend the compiler's one checked syntax-recursion budget across nested
     state parsing as well as parentheses, calls, and loads. The current selected
     compiler profile admits combined depth 64; that number is private resource
-    policy, not Beta language meaning. Exhaustion must join OWNER Q4's
-    `Incomplete` outcome rather than become invalid source or an Alpha return-
-    stack accident. Reuse initialization work storage per procedure (one entry
-    plus at most 128 states) or account for all procedure entries explicitly;
+    policy, not Beta language meaning. Exhaustion must join the settled
+    compiler-boundary `Incomplete` outcome rather than become invalid source or
+    an Alpha return-stack accident. Reuse initialization work storage per
+    procedure (one entry plus at most 128 states) or account for all procedure
+    entries explicitly;
     the global 1,024-state ceiling does not include the 128 entry blocks.
   - [x] Separate source-visible raw Beta memory from generated frame/expression
     stacks and bind the call/stack profile that proves non-aliasing. Raw memory
@@ -241,11 +242,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     guards are necessarily dominated by the smaller tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
-  - [ ] **OWNER-BLOCKED — OWNER Q4:** Project malformed source and each private
-    capacity failure to exact, typed no-partial-artifact outcomes. The Alpha
-    boundary currently exposes raw success bytes plus a halt code and has no
-    selected canonical carrier for `Complete`, `Reject`, `Incomplete`, and
-    internal failure; choosing its framing locally would invent edge semantics.
+  - [ ] **BETA-COMPILER-OUTCOME:** Implement the settled four-case boundary.
+    Reserve Alpha halt tags 0/1/2/3 for `Complete`/`Reject`/`Incomplete`/
+    `InternalFailure`; leave successful stdout as the exact raw runnable
+    payload; and emit the canonical `0xFF BCOUT v1` 40-byte diagnostic frame on
+    every failure. Replace parser-stage halt values with closed stable rejection
+    reasons and zero-based source offsets. Give each independently reachable
+    private source/name/depth/procedure/state/edge/call/slot/payload ceiling a
+    closed resource code, limit, and requested amount. Treat the dominated
+    fixup/internal-PC guards, replay drift, and post-validation resolution
+    impossibilities as internal failures. Stage stdout and publish only after
+    the halt tag and frame agree; add malformed-frame, unknown-code,
+    noncanonical-field, partial-output/trap, shell-low-byte, and runtime-status
+    250/251 separation canaries. Publish the exact version-1 code tables beside
+    the compiler and make gates consume rather than invent them.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds a Beta self-host, then that self-host becomes canonical” logic. The
@@ -362,15 +372,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
   languages, so choosing either in code would invent Gamma semantics.
 - [x] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Their inventories now name present gates and
-  explicit Q4 absorption/deletion conditions; neither is accepted as a
+  explicit OWNER Q3 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 41 interpreter cases, the
   fail-closed arena case, 23 type-checker cases, and 101 independent
-  differential cases. Q4's compiler task owns the later absorb-or-delete step.
+  differential cases. OWNER Q3's compiler task owns the later
+  absorb-or-delete step.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
     not for Gamma semantics or the canonical compiler edge. Rewrite the
-    interpreter-first claims to classify both executables as pre-Q4 oracles.
+    interpreter-first claims to classify both executables as pre-contract
+    oracles.
   - [x] Remove the type checker's retired proof-kernel purpose and reject
     unknown declared types explicitly instead of allowing the shared `-1`
     error/type sentinel to compare equal.
@@ -417,9 +429,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] **DESIGN-BLOCKED — OWNER Q2: OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
   `source/omega/omega_compiler.delta`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of Q4. The deleted prototype remains available in Git for selectively
-  re-deriving an isolated algorithm, but it cannot be restored or copied as a
-  compiler-shaped starting point.
+  of the frozen Delta/Gamma contracts and compilers. The deleted prototype
+  remains available in Git for selectively re-deriving an isolated algorithm,
+  but it cannot be restored or copied as a compiler-shaped starting point.
 - [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
