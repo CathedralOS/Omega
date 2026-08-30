@@ -303,6 +303,14 @@ Missing, duplicate, reordered, wrong-root, wrong-length, third, initialized,
 nonempty, dynamic-index, qualified, claimed, and nominal-cleanup forms remain
 outside this exact engineering rung.
 
+The exact wider successor admits `[T; 4]` under the same restrictions and
+establishes literal indices `0`, `1`, then `2`. Ordinary abandonment cleans the
+three zero-ABI element occurrences in order `[2, 1, 0]`; Terminal and every
+native artifact layer independently retain the common length-four root and
+three operation plus one return-edge fuel units. Missing or reordered
+establishments, root/index/length drift, cleanup-order drift, and wider prefixes
+remain fail closed without runtime liveness state or a cleanup loop.
+
 Named record and case literals generalize the construction half without
 changing completed-value ownership. Field expressions establish exactly once in
 authored literal order. Ordinary abandonment cleans that established prefix in

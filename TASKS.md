@@ -9353,8 +9353,18 @@ reach or trust, and private proof improvements do not change public identity.
   dynamic-index, nonempty, nominal, qualified, claimed, and wider construction
   forms remain fenced.
 
+  The exact next construction-prefix rung is also closed. Under the same
+  restrictions, an uninitialized mutable `[T; 4]` may establish literal
+  indices `0`, `1`, then `2` and abandon that prefix on an ordinary Unit
+  return. Checked through installation replay retain the three ordered
+  zero-ABI locals, reverse cleanup `[2, 1, 0]`, common length-four root, and
+  exact three-operation/one-edge fuel ordinals. Missing, reordered, duplicate,
+  wrong-root, wrong-length, index, cleanup-order, and artifact mutations reject.
+  No wider prefix, runtime liveness state, or cleanup loop is admitted.
+
   Extend recursive coverage beyond the exact `[[T; 3]; 2]` rung and extend
-  construction-prefix cleanup to deeper canonical fuel/action ordinals.
+  construction-prefix cleanup beyond `[T; 4]` to deeper canonical fuel/action
+  ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
   elements, arrays with claims, sums, joins, and cycles remain separately fenced.
