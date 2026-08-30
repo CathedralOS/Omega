@@ -11,4 +11,3 @@ path = "src/lib.rs"
 [dependencies]
 psi-source = { path = "../../foundation/psi-source" }
 psi-tokens = { path = "../../representations/psi-tokens" }
-unicode-ident = "1"

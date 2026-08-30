@@ -2,9 +2,9 @@ use psi::source::source;
 
 // Product token vocabulary for the source-to-token phase. Token spelling
 // remains in the source unit; cooked string tokens additionally retain their
-// exact decoded byte range in TokenStream::decoded. Raw-string and Unicode-
-// escape diagnostics remain only until the LEXICAL-PROFILE-V1 migration removes
-// their lexer paths and protocol rows atomically.
+// exact decoded byte range in TokenStream::decoded. LEXICAL-PROFILE-V1 admits
+// only ASCII syntax; non-ASCII bytes remain opaque inside comments and literal
+// bodies.
 
 pub data NumericBase [copy] {
     case Binary;
@@ -125,23 +125,15 @@ pub data Token [copy] {
 pub data LexDiagnosticCode [copy] {
     case None;
     case InvalidUtf8;
-    case UnsupportedPunctuation;
+    case OutsideLexicalProfile;
     case UnterminatedBlockComment;
     case UnterminatedStringLiteral;
     case UnterminatedStringEscape;
     case UnsupportedEscape;
     case UnterminatedHexEscape;
     case InvalidHexEscapeDigit;
-    case UnterminatedUnicodeEscape;
-    case ExpectedUnicodeEscapeBrace;
-    case EmptyUnicodeEscape;
-    case InvalidUnicodeEscapeDigit;
-    case InvalidUnicodeEscapeValue;
-    case InvalidUnicodeScalar;
-    case InvalidRawStringDelimiter;
-    case UnterminatedRawString;
-    case SourceCapacityExceeded;
     case TokenCapacityExceeded;
+    case SourceCapacityExceeded;
     case DecodedCapacityExceeded;
 }
 

@@ -932,7 +932,7 @@ bindings, and only `Proven` succeeds. `define` permits no such weakening: its
 fixed facts join the same exact one-to-one position/static-substituted `Q <=>
 P` bijection as its dependent facts. Mismatched or
 out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
-otherwise constrained byte-string targets, raw strings not already
+otherwise constrained byte-string targets, byte-string values not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
 byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
 computed float arrays, noncanonical byte matrices, mismatched, out-of-range,

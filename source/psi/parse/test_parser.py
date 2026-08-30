@@ -27,6 +27,26 @@ class Observation:
     type_references: tuple[tuple[int, int, int, int, int, int, int], ...]
 
 
+@dataclass(frozen=True)
+class LexTokenObservation:
+    tag: int
+    metadata: tuple[int, int, int]
+    source: int
+    start: int
+    end: int
+    raw: bytes
+    decoded: bytes
+
+
+@dataclass(frozen=True)
+class LexObservation:
+    accepted: bool
+    diagnostic: int
+    diagnostic_span: tuple[int, int, int]
+    source: bytes
+    tokens: tuple[LexTokenObservation, ...]
+
+
 class Reader:
     def __init__(self, payload: bytes) -> None:
         self.payload = payload
@@ -140,10 +160,70 @@ def decode(payload: bytes) -> Observation:
     )
 
 
+def decode_lex(payload: bytes) -> LexObservation:
+    reader = Reader(payload)
+    assert reader.bytes(8) == b"OMGLEX1\0"
+    assert reader.u64() == 2
+    accepted = reader.byte() == 1
+    diagnostic = reader.byte()
+    diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
+    source = reader.bytes(reader.u64())
+    tokens = []
+    for _ in range(reader.u64()):
+        tag = reader.byte()
+        metadata = (reader.byte(), reader.byte(), reader.byte())
+        source_id = reader.u64()
+        start = reader.u64()
+        end = reader.u64()
+        raw = reader.bytes(reader.u64())
+        decoded = reader.bytes(reader.u64())
+        tokens.append(
+            LexTokenObservation(
+                tag,
+                metadata,
+                source_id,
+                start,
+                end,
+                raw,
+                decoded,
+            )
+        )
+    assert reader.cursor == len(payload), "trailing lexical observation bytes"
+    return LexObservation(
+        accepted,
+        diagnostic,
+        diagnostic_span,
+        source,
+        tuple(tokens),
+    )
+
+
 def run(program: str, source: bytes) -> tuple[int, bytes]:
     completed = subprocess.run([program], input=source, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
     return completed.returncode, completed.stdout
+
+
+def lexical_parity(
+    product_program: str,
+    rust_observer: str,
+    name: str,
+    source: bytes,
+) -> LexObservation:
+    product_status, product_payload = run(product_program, b"\0" + source)
+    observer_status, observer_payload = run(rust_observer, source)
+    assert product_status in (0, 251, 252), (name, product_status)
+    assert observer_status == 0, (name, observer_status)
+    product = decode_lex(product_payload)
+    reference = decode_lex(observer_payload)
+    assert product == reference, (
+        f"{name}: Omega/Rust lexical observation mismatch\n"
+        f"Omega: {product}\nRust:  {reference}"
+    )
+    assert product_payload == observer_payload, (
+        f"{name}: decoded observations agree but canonical bytes differ"
+    )
+    return product
 
 
 def accepted(
@@ -211,9 +291,12 @@ def rejected(
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: test_parser.py <omega-product-program>")
+    if len(sys.argv) != 3:
+        raise SystemExit(
+            "usage: test_parser.py <omega-product-program> <rust-lexer-observer>"
+        )
     program = sys.argv[1]
+    rust_observer = sys.argv[2]
 
     accepted(program, "empty", b"", (), (), ())
     accepted(program, "trivia-only", b" \n// hello\n/* world */", (), (), ())
@@ -465,9 +548,70 @@ def main() -> None:
         type_reference_count=512,
     )
 
-    lexical_status, lexical_payload = run(program, b"use \\;")
-    assert lexical_status == 251
-    assert lexical_payload.startswith(b"OMGLEX1\0")
+    lexical_cases = (
+        ("lex-empty", b""),
+        ("lex-ascii-identifiers", b"_ alpha Z9 snake_case"),
+        ("lex-exact-whitespace", b"a \t\r\nb"),
+        ("lex-ascii-tokens", b"machine item 42 3.14 :: -> != && ||"),
+        ("lex-nested-comment-payload", "/* café /* 变量 */ μέτρο */".encode()),
+        ("lex-line-comment-payload", "// café 变量".encode()),
+        ("lex-literal-payload", '"café😀"'.encode()),
+        ("lex-fixed-byte-escapes", br'"\n\r\t\0\\\"\x41"'),
+        ("lex-r-hash-number", b"r#1"),
+        ("lex-unicode-identifier", "变量".encode()),
+        ("lex-nonascii-identifier-tail", "café".encode()),
+        ("lex-nonascii-number-tail", "1é".encode()),
+        ("lex-vertical-tab", b"a\x0bb"),
+        ("lex-form-feed", b"a\x0cb"),
+        ("lex-nonbreaking-space", "a\u00a0b".encode()),
+        ("lex-line-separator", "a\u2028b".encode()),
+        ("lex-ideographic-space", "a\u3000b".encode()),
+        ("lex-codepoint-escape", br'"\u{1f600}"'),
+        ("lex-short-codepoint-escape", br'"\u"'),
+        ("lex-empty-codepoint-escape", br'"\u{}"'),
+        ("lex-raw-string", b'r"raw"'),
+        ("lex-hashed-raw-string", b'r##"raw"##'),
+        ("lex-lf-in-literal", b'"line\nvalue"'),
+        ("lex-cr-in-literal", b'"line\rvalue"'),
+        ("lex-apostrophe-escape", bytes((34, 92, 39, 34))),
+        ("lex-unsupported-ascii", b"alpha @"),
+        ("lex-invalid-utf8", b"ok\xfftail"),
+        ("lex-unterminated-block-comment", b"/* open"),
+        ("lex-invalid-hex-first", br'"\xG0"'),
+        ("lex-invalid-hex-second", br'"\x0G"'),
+        ("lex-unterminated-hex", br'"\x'),
+    )
+    lexical_observations = {
+        name: lexical_parity(program, rust_observer, name, source)
+        for name, source in lexical_cases
+    }
+    assert lexical_observations["lex-exact-whitespace"].accepted
+    assert lexical_observations["lex-r-hash-number"].accepted
+    assert lexical_observations["lex-exact-whitespace"].tokens[1].raw == b" \t\r\n"
+    assert lexical_observations["lex-literal-payload"].tokens[0].decoded == "café😀".encode()
+    assert lexical_observations["lex-nested-comment-payload"].tokens[0].raw == (
+        "/* café /* 变量 */ μέτρο */".encode()
+    )
+    for name in (
+        "lex-unicode-identifier",
+        "lex-nonascii-identifier-tail",
+        "lex-nonascii-number-tail",
+        "lex-vertical-tab",
+        "lex-form-feed",
+        "lex-nonbreaking-space",
+        "lex-line-separator",
+        "lex-ideographic-space",
+        "lex-codepoint-escape",
+        "lex-short-codepoint-escape",
+        "lex-empty-codepoint-escape",
+        "lex-raw-string",
+        "lex-hashed-raw-string",
+        "lex-lf-in-literal",
+        "lex-cr-in-literal",
+        "lex-unsupported-ascii",
+    ):
+        assert lexical_observations[name].diagnostic == 2, name
+    assert lexical_observations["lex-apostrophe-escape"].diagnostic == 6
 
     repeat_source = (
         b"use repeated::observation; data Stable [copy] { "
@@ -477,7 +621,10 @@ def main() -> None:
     second = run(program, repeat_source)
     assert first == second, "parser observation is not deterministic"
 
-    print("Psi parser slices: 45 cases passed")
+    print(
+        "Psi parser slices: 45 cases passed; "
+        f"lexical profile parity: {len(lexical_cases)} cases passed"
+    )
 
 
 if __name__ == "__main__":

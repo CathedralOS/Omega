@@ -1,5 +1,8 @@
 use psi_source::Span;
 
+pub(crate) const OUTSIDE_LEXICAL_PROFILE_MESSAGE: &str =
+    "spelling is outside the current language profile";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexError {
     pub message: String,
@@ -12,5 +15,9 @@ impl LexError {
             message: message.into(),
             span,
         }
+    }
+
+    pub(crate) fn outside_lexical_profile(span: Span) -> Self {
+        Self::new(OUTSIDE_LEXICAL_PROFILE_MESSAGE, span)
     }
 }

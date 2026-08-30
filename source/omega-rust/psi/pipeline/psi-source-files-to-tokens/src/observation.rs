@@ -7,10 +7,11 @@ use psi_tokens::{
     CommentKind, KeywordKind, NumericBase, NumericLiteralKind, PunctuationKind, Token, TokenKind,
 };
 
+use crate::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
 use crate::{LexError, Lexer};
 
 pub const MAGIC: &[u8; 8] = b"OMGLEX1\0";
-pub const VERSION: u64 = 1;
+pub const VERSION: u64 = 2;
 const TOKEN_CAPACITY: usize = 16_384;
 const DECODED_CAPACITY: usize = 65_536;
 
@@ -21,7 +22,7 @@ pub fn encode(source: &[u8]) -> Vec<u8> {
     push_u64(&mut output, VERSION);
 
     if source.len() > retained.len() {
-        push_header(&mut output, false, 18, 1, 65_536, 65_536, retained);
+        push_header(&mut output, false, 10, 1, 65_536, 65_536, retained);
         push_u64(&mut output, 0);
         return output;
     }
@@ -39,10 +40,10 @@ pub fn encode(source: &[u8]) -> Vec<u8> {
     let decoded_overflow = first_decoded_overflow(tokens);
     let capacity_diagnostic =
         if let Some(index) = decoded_overflow.filter(|index| *index <= TOKEN_CAPACITY) {
-            Some((19, tokens[index].span.start, tokens[index].span.end, index))
+            Some((11, tokens[index].span.start, tokens[index].span.end, index))
         } else if tokens.len() > TOKEN_CAPACITY {
             let token = &tokens[TOKEN_CAPACITY];
-            Some((17, token.span.start, token.span.end, TOKEN_CAPACITY))
+            Some((9, token.span.start, token.span.end, TOKEN_CAPACITY))
         } else {
             None
         };
@@ -243,21 +244,13 @@ fn punctuation_tag(kind: PunctuationKind) -> u8 {
 
 fn diagnostic_code(error: &LexError) -> u8 {
     match error.message.as_str() {
+        OUTSIDE_LEXICAL_PROFILE_MESSAGE => 2,
         "unterminated block comment" => 3,
         "unterminated string literal" => 4,
         "unterminated string escape" => 5,
         message if message.starts_with("unsupported escape sequence") => 6,
         "unterminated hex escape" => 7,
         "invalid hex escape digit" => 8,
-        "unterminated unicode escape" => 9,
-        "expected `{` after `\\u`" => 10,
-        "empty unicode escape" => 11,
-        "invalid unicode escape digit" => 12,
-        "invalid unicode escape value" => 13,
-        "unicode escape is not a valid scalar value" => 14,
-        "invalid raw string delimiter" => 15,
-        "unterminated raw string literal" => 16,
-        message if message.starts_with("unsupported punctuation") => 2,
         message => panic!("unmapped Rust lexical diagnostic: {message}"),
     }
 }
@@ -273,12 +266,12 @@ mod tests {
     use super::{MAGIC, encode, first_decoded_overflow};
 
     #[test]
-    fn observation_preserves_raw_and_decoded_string_bytes() {
-        let encoded = encode(br##""line\n" r#"raw"#"##);
+    fn observation_preserves_source_and_decoded_string_bytes() {
+        let encoded = encode("\"line\\n\" \"café\"".as_bytes());
         assert_eq!(&encoded[..8], MAGIC);
         assert!(encoded.windows(8).any(|window| window == b"\"line\\n\""));
         assert!(encoded.windows(5).any(|window| window == b"line\n"));
-        assert!(encoded.windows(8).any(|window| window == b"r#\"raw\"#"));
+        assert!(encoded.windows(5).any(|window| window == "café".as_bytes()));
     }
 
     #[test]
@@ -293,7 +286,7 @@ mod tests {
 
     #[test]
     fn decoded_lengths_do_not_drift_across_consecutive_token_kinds() {
-        let source = br#""a" r"bc" x"#;
+        let source = br#""a" "bc" x"#;
         let encoded = encode(source);
         let mut cursor = 50 + source.len();
         let token_count = read_u64(&encoded, &mut cursor);
@@ -327,9 +320,24 @@ mod tests {
     }
 
     #[test]
-    fn observation_distinguishes_raw_source_spelling() {
-        assert_ne!(encode(b"\"a\""), encode(b"r\"a\""));
+    fn observation_distinguishes_source_escape_spelling() {
+        assert_ne!(encode(b"\"a\""), encode(b"\"\\x61\""));
         assert_ne!(encode(b"a b"), encode(b"a\tb"));
+    }
+
+    #[test]
+    fn observation_uses_one_profile_diagnostic_for_retired_spellings() {
+        for source in [
+            "变量".as_bytes(),
+            "a\u{00a0}b".as_bytes(),
+            br#""\u{61}""#,
+            b"r#\"raw\"#",
+            b"\"line\nvalue\"",
+        ] {
+            let encoded = encode(source);
+            assert_eq!(encoded[16], 0, "source: {source:?}");
+            assert_eq!(encoded[17], 2, "source: {source:?}");
+        }
     }
 
     #[test]
@@ -337,7 +345,7 @@ mod tests {
         let source = "; ".repeat(16_385);
         let encoded = encode(source.as_bytes());
         assert_eq!(encoded[16], 0);
-        assert_eq!(encoded[17], 17);
+        assert_eq!(encoded[17], 9);
         let token_count_offset = 50 + source.len();
         assert_eq!(
             u64::from_le_bytes(
@@ -361,7 +369,7 @@ mod tests {
     fn observation_retains_only_the_source_capacity_prefix() {
         let source = vec![b'a'; 65_537];
         let encoded = encode(&source);
-        assert_eq!(encoded[17], 18);
+        assert_eq!(encoded[17], 10);
         assert_eq!(
             u64::from_le_bytes(encoded[42..50].try_into().unwrap()),
             65_536

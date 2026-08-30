@@ -32,10 +32,9 @@ The Psi product role owns this stage; its hosted source belongs under
   keywords, and punctuation. Host Unicode classification is not language
   authority.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.
-- `lexer/strings.rs` owns cooked byte-literal scanning and byte-level escape
-  validation while advancing the lexer cursor. Its current raw-string and
-  codepoint-escape branches are retired migration debt under
-  **LEXICAL-PROFILE-V1**.
+- `lexer/strings.rs` owns quoted byte-literal scanning and byte-level escape
+  validation while advancing the lexer cursor. Raw-string and codepoint-escape
+  spellings reject through the closed lexical-profile diagnostic.
 - `lexer/strings/decode.rs` owns decoded string token bytes. Decoding copies
   literal-body source bytes and expands only the fixed byte escapes; it does not
   synthesize an encoding from Unicode scalar values.
@@ -62,3 +61,13 @@ The Psi product role owns this stage; its hosted source belongs under
 - Must preserve byte spans and source text slices faithfully enough for diagnostics and later lowering.
 - Must classify tokens only by spelling-level rules.
 - Must not own language meaning, import semantics, symbol resolution, type facts, proof facts, borrow facts, reach, or boundary authority.
+
+## Lexical Profile Replay
+
+Both maintained lexers implement Chapter 1's closed V1 profile. The generated
+Unicode identifier table and direct comparator dependency are absent. A
+versioned, semantic-free lexical observation preserves source bytes, decoded
+literal bytes, token coordinates, and the unified profile diagnostic. The
+product gate compares that observation byte-for-byte with the independently
+maintained Rust observer for accepted and rejected profile cases; this is
+differential evidence, not language authority.

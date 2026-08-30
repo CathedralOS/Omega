@@ -1732,7 +1732,6 @@ version = "0.1.0"
 dependencies = [
  "psi-source",
  "psi-tokens",
- "unicode-ident",
 ]
 
 [[package]]
