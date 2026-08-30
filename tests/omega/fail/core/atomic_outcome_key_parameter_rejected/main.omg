@@ -1,0 +1,10 @@
+use omega::language::core::layout;
+
+// Comparison keys and selected encoding laws are checked call evidence.  The
+// runtime carrier is parameterized only by its resident/proposal type.
+data Main {
+    invalid: AtomicTryExchangeOutcome<u32, u32>;
+}
+
+machine Main::main(&mut self) {
+}

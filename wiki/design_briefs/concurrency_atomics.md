@@ -297,14 +297,17 @@ reject instead of becoming aliases.
 The shared compiler ordering carrier also keeps observing decisive
 compare-exchange distinct from observing single-attempt compare-exchange, with
 the exact success/failure orderings and permission axis preserved through
-access-plan authorization. Source admission for the single-attempt form is not
-implemented yet: the checked/source trees do not have its three-arm closed
-result carrier, so mapping it to the decisive prior-value carrier would lose
-`Uncommitted`. The public identities, case paths, canonical order, and payloads
-are now fixed above. Until those carriers are implemented and retained through
-checked source, Terminal Psi, interpretation, lowering, package review, and
-replay, both the checked interpreter and the legacy native state-graph boundary
-reject any forged single-attempt operation before execution or lowering.
+access-plan authorization. All four flat generic outcome declarations now live
+in core together. Compiler-owned closed-shape identities and source canaries
+replay the two operation axes, public generic parameter, canonical case order,
+and exact payload names and types; neither `Key` nor selected encoding evidence
+enters those runtime shapes. Source admission for the single-attempt form is
+still not implemented: the checked/source operation path does not yet carry its
+three-arm result custody, so mapping it to the decisive prior-value carrier
+would lose `Uncommitted`. Until that carrier is retained through checked source,
+Terminal Psi, interpretation, lowering, package review, and replay, both the
+checked interpreter and the legacy native state-graph boundary reject any
+forged single-attempt operation before execution or lowering.
 
 The zero tag is a mismatch, not success. A zero-initialized instance establishes
 no atomic authority: only the checked operation and its contract establish that

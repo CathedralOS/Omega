@@ -2410,17 +2410,21 @@ Owners:
   placed-view validation authorizes only the matching permission row. The
   checked interpreter and legacy native state-graph boundary scan the complete
   checked expression arena and refuse single-attempt lowering: neither has the
-  three-arm runtime result carrier or a target operation identity. Only the
-  existing observing-decisive source call is currently derivable. A concrete
-  source-visible closed-result carrier and its parser/checker desugaring remain
-  prerequisites for `compare_exchange_once`; reusing the decisive prior-value
-  carrier would erase `Uncommitted`. The identities, case paths, order, and
-  payloads are settled; implement and retain them through checked source,
-  Terminal Psi, interpretation, lowering, package review, and replay. Migrate
-  the decisive scalar-return call with a targeted diagnostic rather than a
-  scalar overload. The observing carriers may land first, but publish all four
-  core identities together; the try operations remain fenced until their
-  custody and encoding-law rows exist. Source calls for the other families,
+  runtime result operation or a target operation identity. Only the existing
+  observing-decisive source call is currently derivable. All four flat generic
+  core outcome declarations are now live together. Their compiler-owned closed
+  shape identities retain the decisive/single-attempt and
+  observing/non-observing axes, canonical failure-first case order, and exact
+  payload disposition; source canaries independently replay the public generic
+  parameter and case/payload schemas. `Key` and the selected encoding law do
+  not enter any runtime outcome identity. Operation desugaring and checked
+  result custody remain prerequisites for `compare_exchange_once`; reusing the
+  decisive prior-value carrier would erase `Uncommitted`. Retain the exact
+  carrier through checked source, Terminal Psi, interpretation, lowering,
+  package review, and replay before admitting that operation. Migrate the
+  decisive scalar-return call with a targeted diagnostic rather than a scalar
+  overload. The try operations remain fenced until their custody and
+  encoding-law rows exist. Source calls for the other families,
   runtime-result custody, an atomic attempt or retry, the non-
   observing comparison key/selected-encoding law, Terminal rows, provider
   selection or installation, backend target operation identity, and executable

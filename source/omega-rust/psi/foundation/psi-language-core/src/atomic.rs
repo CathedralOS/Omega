@@ -57,6 +57,237 @@ pub enum AtomicObservingCompareExchangeResultShape {
     ExchangedOrMismatchedOrUncommittedObserved,
 }
 
+/// Whether a compare-exchange result describes a decisive operation or one
+/// single attempt.
+///
+/// This is an identity axis only. In particular, naming `SingleAttempt` does
+/// not authorize an atomic attempt or select an implementation strategy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicCompareExchangeAttemptAxis {
+    Decisive,
+    SingleAttempt,
+}
+
+/// Whether compare-exchange failure exposes the resident value.
+///
+/// This is an identity axis only. Custody, copyability, and access authority
+/// remain obligations of the carrier that uses an outcome identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicCompareExchangeObservationAxis {
+    Observing,
+    NonObserving,
+}
+
+/// One canonical case in the flat public compare-exchange outcome family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicCompareExchangeOutcomeCase {
+    Mismatched,
+    Exchanged,
+    Uncommitted,
+}
+
+impl AtomicCompareExchangeOutcomeCase {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Mismatched => "Mismatched",
+            Self::Exchanged => "Exchanged",
+            Self::Uncommitted => "Uncommitted",
+        }
+    }
+}
+
+/// Semantic role and exact field name of a compare-exchange outcome payload.
+///
+/// Every payload has the outcome's sole type parameter `T`; `Key` and any
+/// selected encoding law are deliberately absent from the runtime result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicCompareExchangeOutcomePayload {
+    Observed,
+    Proposed,
+    Displaced,
+}
+
+impl AtomicCompareExchangeOutcomePayload {
+    pub const fn field_name(self) -> &'static str {
+        match self {
+            Self::Observed => "observed",
+            Self::Proposed => "proposed",
+            Self::Displaced => "displaced",
+        }
+    }
+
+    pub const fn type_parameter_name(self) -> &'static str {
+        "T"
+    }
+}
+
+/// Canonical tag and optional payload for one flat outcome case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AtomicCompareExchangeOutcomeCaseSchema {
+    pub case: AtomicCompareExchangeOutcomeCase,
+    pub tag: u8,
+    pub payload: Option<AtomicCompareExchangeOutcomePayload>,
+}
+
+const OBSERVING_DECISIVE_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 2] = [
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Mismatched,
+        tag: 0,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Observed),
+    },
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Exchanged,
+        tag: 1,
+        payload: None,
+    },
+];
+
+const OBSERVING_SINGLE_ATTEMPT_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 3] = [
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Mismatched,
+        tag: 0,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Observed),
+    },
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Exchanged,
+        tag: 1,
+        payload: None,
+    },
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Uncommitted,
+        tag: 2,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Observed),
+    },
+];
+
+const NON_OBSERVING_DECISIVE_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 2] = [
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Mismatched,
+        tag: 0,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Proposed),
+    },
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Exchanged,
+        tag: 1,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Displaced),
+    },
+];
+
+const NON_OBSERVING_SINGLE_ATTEMPT_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 3] = [
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Mismatched,
+        tag: 0,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Proposed),
+    },
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Exchanged,
+        tag: 1,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Displaced),
+    },
+    AtomicCompareExchangeOutcomeCaseSchema {
+        case: AtomicCompareExchangeOutcomeCase::Uncommitted,
+        tag: 2,
+        payload: Some(AtomicCompareExchangeOutcomePayload::Proposed),
+    },
+];
+
+const OUTCOME_TYPE_PARAMETERS: [&str; 1] = ["T"];
+
+/// Compiler-owned nominal identity for one of the four flat public atomic
+/// compare-exchange outcome types.
+///
+/// The identity and its schema are descriptive compiler vocabulary. They do
+/// not prove that an operation occurred, grant access or value custody, select
+/// a provider, authorize lowering, or prescribe retry behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicCompareExchangeOutcomeIdentity {
+    AtomicCompareExchangeOutcome,
+    AtomicCompareExchangeOnceOutcome,
+    AtomicTryExchangeOutcome,
+    AtomicTryExchangeOnceOutcome,
+}
+
+impl AtomicCompareExchangeOutcomeIdentity {
+    pub const ALL: [Self; 4] = [
+        Self::AtomicCompareExchangeOutcome,
+        Self::AtomicCompareExchangeOnceOutcome,
+        Self::AtomicTryExchangeOutcome,
+        Self::AtomicTryExchangeOnceOutcome,
+    ];
+
+    pub const fn from_axes(
+        attempt: AtomicCompareExchangeAttemptAxis,
+        observation: AtomicCompareExchangeObservationAxis,
+    ) -> Self {
+        match (attempt, observation) {
+            (
+                AtomicCompareExchangeAttemptAxis::Decisive,
+                AtomicCompareExchangeObservationAxis::Observing,
+            ) => Self::AtomicCompareExchangeOutcome,
+            (
+                AtomicCompareExchangeAttemptAxis::SingleAttempt,
+                AtomicCompareExchangeObservationAxis::Observing,
+            ) => Self::AtomicCompareExchangeOnceOutcome,
+            (
+                AtomicCompareExchangeAttemptAxis::Decisive,
+                AtomicCompareExchangeObservationAxis::NonObserving,
+            ) => Self::AtomicTryExchangeOutcome,
+            (
+                AtomicCompareExchangeAttemptAxis::SingleAttempt,
+                AtomicCompareExchangeObservationAxis::NonObserving,
+            ) => Self::AtomicTryExchangeOnceOutcome,
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::AtomicCompareExchangeOutcome => "AtomicCompareExchangeOutcome",
+            Self::AtomicCompareExchangeOnceOutcome => "AtomicCompareExchangeOnceOutcome",
+            Self::AtomicTryExchangeOutcome => "AtomicTryExchangeOutcome",
+            Self::AtomicTryExchangeOnceOutcome => "AtomicTryExchangeOnceOutcome",
+        }
+    }
+
+    /// Exact public generic parameter list. The non-observing operation's
+    /// comparison `Key` is intentionally not part of any outcome identity.
+    pub const fn type_parameters(self) -> &'static [&'static str] {
+        &OUTCOME_TYPE_PARAMETERS
+    }
+
+    pub const fn attempt(self) -> AtomicCompareExchangeAttemptAxis {
+        match self {
+            Self::AtomicCompareExchangeOutcome | Self::AtomicTryExchangeOutcome => {
+                AtomicCompareExchangeAttemptAxis::Decisive
+            }
+            Self::AtomicCompareExchangeOnceOutcome | Self::AtomicTryExchangeOnceOutcome => {
+                AtomicCompareExchangeAttemptAxis::SingleAttempt
+            }
+        }
+    }
+
+    pub const fn observation(self) -> AtomicCompareExchangeObservationAxis {
+        match self {
+            Self::AtomicCompareExchangeOutcome | Self::AtomicCompareExchangeOnceOutcome => {
+                AtomicCompareExchangeObservationAxis::Observing
+            }
+            Self::AtomicTryExchangeOutcome | Self::AtomicTryExchangeOnceOutcome => {
+                AtomicCompareExchangeObservationAxis::NonObserving
+            }
+        }
+    }
+
+    /// The canonical failure-first case order. Tags are explicit so a caller
+    /// never has to derive public schema from Rust enum discriminants.
+    pub const fn cases(self) -> &'static [AtomicCompareExchangeOutcomeCaseSchema] {
+        match self {
+            Self::AtomicCompareExchangeOutcome => &OBSERVING_DECISIVE_CASES,
+            Self::AtomicCompareExchangeOnceOutcome => &OBSERVING_SINGLE_ATTEMPT_CASES,
+            Self::AtomicTryExchangeOutcome => &NON_OBSERVING_DECISIVE_CASES,
+            Self::AtomicTryExchangeOnceOutcome => &NON_OBSERVING_SINGLE_ATTEMPT_CASES,
+        }
+    }
+}
+
 impl AtomicObservingCompareExchangeOperation {
     pub const fn result_shape(self) -> AtomicObservingCompareExchangeResultShape {
         match self {
@@ -65,6 +296,30 @@ impl AtomicObservingCompareExchangeOperation {
             }
             Self::SingleAttempt => AtomicObservingCompareExchangeResultShape::
                 ExchangedOrMismatchedOrUncommittedObserved,
+        }
+    }
+
+    pub const fn outcome_identity(self) -> AtomicCompareExchangeOutcomeIdentity {
+        match self {
+            Self::Decisive => AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome,
+            Self::SingleAttempt => {
+                AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome
+            }
+        }
+    }
+}
+
+impl AtomicObservingCompareExchangeResultShape {
+    /// Recover the full public outcome identity represented by the legacy
+    /// observing-only checked-contract shape.
+    pub const fn outcome_identity(self) -> AtomicCompareExchangeOutcomeIdentity {
+        match self {
+            Self::ExchangedOrMismatchedObserved => {
+                AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome
+            }
+            Self::ExchangedOrMismatchedOrUncommittedObserved => {
+                AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome
+            }
         }
     }
 }
@@ -197,6 +452,135 @@ mod tests {
         assert_eq!(
             Operation::SingleAttempt.result_shape(),
             Shape::ExchangedOrMismatchedOrUncommittedObserved
+        );
+        assert_eq!(
+            Operation::Decisive.outcome_identity(),
+            Shape::ExchangedOrMismatchedObserved.outcome_identity()
+        );
+        assert_eq!(
+            Operation::SingleAttempt.outcome_identity(),
+            Shape::ExchangedOrMismatchedOrUncommittedObserved.outcome_identity()
+        );
+    }
+
+    #[test]
+    fn compare_exchange_outcomes_retain_the_complete_settled_two_axis_schema() {
+        use super::{
+            AtomicCompareExchangeAttemptAxis as Attempt,
+            AtomicCompareExchangeObservationAxis as Observation,
+            AtomicCompareExchangeOutcomeCase as Case,
+            AtomicCompareExchangeOutcomeCaseSchema as CaseSchema,
+            AtomicCompareExchangeOutcomeIdentity as Identity,
+            AtomicCompareExchangeOutcomePayload as Payload,
+        };
+
+        let expected = [
+            (
+                Identity::AtomicCompareExchangeOutcome,
+                "AtomicCompareExchangeOutcome",
+                Attempt::Decisive,
+                Observation::Observing,
+                vec![
+                    CaseSchema {
+                        case: Case::Mismatched,
+                        tag: 0,
+                        payload: Some(Payload::Observed),
+                    },
+                    CaseSchema {
+                        case: Case::Exchanged,
+                        tag: 1,
+                        payload: None,
+                    },
+                ],
+            ),
+            (
+                Identity::AtomicCompareExchangeOnceOutcome,
+                "AtomicCompareExchangeOnceOutcome",
+                Attempt::SingleAttempt,
+                Observation::Observing,
+                vec![
+                    CaseSchema {
+                        case: Case::Mismatched,
+                        tag: 0,
+                        payload: Some(Payload::Observed),
+                    },
+                    CaseSchema {
+                        case: Case::Exchanged,
+                        tag: 1,
+                        payload: None,
+                    },
+                    CaseSchema {
+                        case: Case::Uncommitted,
+                        tag: 2,
+                        payload: Some(Payload::Observed),
+                    },
+                ],
+            ),
+            (
+                Identity::AtomicTryExchangeOutcome,
+                "AtomicTryExchangeOutcome",
+                Attempt::Decisive,
+                Observation::NonObserving,
+                vec![
+                    CaseSchema {
+                        case: Case::Mismatched,
+                        tag: 0,
+                        payload: Some(Payload::Proposed),
+                    },
+                    CaseSchema {
+                        case: Case::Exchanged,
+                        tag: 1,
+                        payload: Some(Payload::Displaced),
+                    },
+                ],
+            ),
+            (
+                Identity::AtomicTryExchangeOnceOutcome,
+                "AtomicTryExchangeOnceOutcome",
+                Attempt::SingleAttempt,
+                Observation::NonObserving,
+                vec![
+                    CaseSchema {
+                        case: Case::Mismatched,
+                        tag: 0,
+                        payload: Some(Payload::Proposed),
+                    },
+                    CaseSchema {
+                        case: Case::Exchanged,
+                        tag: 1,
+                        payload: Some(Payload::Displaced),
+                    },
+                    CaseSchema {
+                        case: Case::Uncommitted,
+                        tag: 2,
+                        payload: Some(Payload::Proposed),
+                    },
+                ],
+            ),
+        ];
+
+        for (index, (identity, name, attempt, observation, cases)) in
+            expected.into_iter().enumerate()
+        {
+            assert_eq!(Identity::ALL[index], identity);
+            assert_eq!(identity.name(), name);
+            assert_eq!(identity.type_parameters(), ["T"]);
+            assert_eq!(identity.attempt(), attempt);
+            assert_eq!(identity.observation(), observation);
+            assert_eq!(Identity::from_axes(attempt, observation), identity);
+            assert_eq!(identity.cases(), cases);
+        }
+
+        assert_eq!(Case::Mismatched.name(), "Mismatched");
+        assert_eq!(Case::Exchanged.name(), "Exchanged");
+        assert_eq!(Case::Uncommitted.name(), "Uncommitted");
+        assert_eq!(Payload::Observed.field_name(), "observed");
+        assert_eq!(Payload::Proposed.field_name(), "proposed");
+        assert_eq!(Payload::Displaced.field_name(), "displaced");
+        assert!(
+            [Payload::Observed, Payload::Proposed, Payload::Displaced]
+                .into_iter()
+                .all(|payload| payload.type_parameter_name() == "T")
         );
     }
 }

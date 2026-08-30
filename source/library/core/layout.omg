@@ -172,6 +172,35 @@ pub data ExternalRead {
     case Take;
 }
 
+// Closed runtime results for the atomic compare/exchange permission family.
+// These are ordinary flat core data, not requirements: T alone determines
+// their runtime shape.  Comparison keys and selected encoding laws remain
+// checked call evidence and therefore never parameterize these carriers.
+// Declaration order is the canonical wire/runtime tag order: expected
+// failure first, committed success second, and an uncommitted single attempt
+// third only where that state exists.
+pub data AtomicCompareExchangeOutcome<T> {
+    case Mismatched(observed: T);
+    case Exchanged;
+}
+
+pub data AtomicCompareExchangeOnceOutcome<T> {
+    case Mismatched(observed: T);
+    case Exchanged;
+    case Uncommitted(observed: T);
+}
+
+pub data AtomicTryExchangeOutcome<T> {
+    case Mismatched(proposed: T);
+    case Exchanged(displaced: T);
+}
+
+pub data AtomicTryExchangeOnceOutcome<T> {
+    case Mismatched(proposed: T);
+    case Exchanged(displaced: T);
+    case Uncommitted(proposed: T);
+}
+
 pub data AtomicOperations [copy] {
     load: bool;
     store: bool;
