@@ -57,6 +57,7 @@ pub use handle_failures::{
     FilesystemInputUnknownDescriptorWriteReplayKind,
     FilesystemInputUnknownDescriptorWriteReplayRecord,
     FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
+    FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord,
 };
 #[cfg(test)]
 pub(crate) use handle_failures::{
@@ -71,6 +72,9 @@ pub(crate) use handle_failures::{
     unknown_descriptor_write_operation_from_exact_attempt,
     unknown_native_handle_close_handle_attempt,
     unknown_native_handle_close_handle_attempt_is_exact,
+    unknown_native_handle_final_path_name_by_handle_attempt,
+    unknown_native_handle_final_path_name_by_handle_attempt_is_exact,
+    unknown_native_handle_final_path_name_by_handle_from_exact_attempt,
 };
 pub use hard_links::{FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord};
 pub(crate) use hard_links::{output_hard_link_attempt, output_hard_link_record_from_attempt};

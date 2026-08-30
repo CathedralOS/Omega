@@ -75,6 +75,9 @@ impl<'program> Evaluator<'program> {
                             )
                             .and_then(|()| {
                                 self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
+                            })
+                            .and_then(|()| {
+                                self.reject_rooted_final_path_result(attempt_index, &call)
                             }) {
                             Err(halt) => Err(halt),
                             Ok(()) => {
@@ -915,6 +918,33 @@ impl<'program> Evaluator<'program> {
             );
         }
         Ok(())
+    }
+
+    fn reject_rooted_final_path_result(
+        &self,
+        attempt_index: usize,
+        call: &PreparedFilesystemCall,
+    ) -> EvalResult<()> {
+        if !self.rooted_build_paths_required
+            || !matches!(call, PreparedFilesystemCall::FinalPathNameByHandle { .. })
+        {
+            return Ok(());
+        }
+        if matches!(
+            self.filesystem_operation_attempts[attempt_index]
+                .logical_handle_inputs
+                .as_slice(),
+            [FilesystemLogicalHandleInput {
+                kind: FilesystemLogicalHandleKind::Native,
+                resolution: FilesystemLogicalHandleInputResolution::Unknown,
+                ..
+            }]
+        ) {
+            return Ok(());
+        }
+        trap(
+            "package build filesystem operation `final_path_name_by_handle` would expose a host-absolute path",
+        )
     }
 
     fn complete_logical_handle_observations(

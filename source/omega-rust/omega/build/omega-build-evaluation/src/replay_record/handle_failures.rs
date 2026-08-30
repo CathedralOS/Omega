@@ -71,6 +71,34 @@ pub(super) fn unknown_native_handle_close_failure_shape_is_exact(shape: &Attempt
         )
 }
 
+pub(super) fn unknown_native_handle_final_path_failure_shape_is_exact(
+    shape: &AttemptShape<'_>,
+) -> bool {
+    let [(2, ShapeScalar::U64(capacity)), (3, ShapeScalar::U32(_))] = shape.scalars.as_slice()
+    else {
+        return false;
+    };
+    let [(resolution_ordinal, resolution)] = shape.mutable_byte_resolutions.as_slice() else {
+        return false;
+    };
+    let [carrier] = shape.mutable_bytes.as_slice() else {
+        return false;
+    };
+    shape.operation == 31
+        && *resolution_ordinal == 1
+        && carrier.ordinal == 1
+        && usize::try_from(*capacity).is_ok_and(|capacity| capacity <= resolution.len())
+        && *resolution == carrier.pre
+        && carrier.pre == carrier.post
+        && shape.byte_operands.is_empty()
+        && unknown_handle_failure_core_except_bytes_with_outcome_is_exact(
+            shape,
+            NATIVE_HANDLE_KIND_TAG,
+            0,
+            6,
+        )
+}
+
 pub(super) fn unknown_descriptor_write_operation(operation: u16) -> bool {
     matches!(operation, 17 | 41 | 46 | 49)
 }
@@ -237,6 +265,18 @@ pub(super) fn validate_unknown_native_handle_close_failure_shape(
     } else {
         Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay unknown-native-handle close failure is internally inconsistent",
+        ))
+    }
+}
+
+pub(super) fn validate_unknown_native_handle_final_path_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_native_handle_final_path_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-native-handle final-path failure is internally inconsistent",
         ))
     }
 }

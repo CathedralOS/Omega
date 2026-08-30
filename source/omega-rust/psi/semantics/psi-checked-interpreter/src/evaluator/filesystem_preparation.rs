@@ -2254,13 +2254,7 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<PreparedFilesystemPreparation> {
         check_filesystem_arity(operation, arguments.len())?;
-        if self.rooted_build_paths_required
-            && matches!(
-                operation,
-                FilesystemHostOperation::Canonicalize
-                    | FilesystemHostOperation::FinalPathNameByHandle
-            )
-        {
+        if self.rooted_build_paths_required && operation == FilesystemHostOperation::Canonicalize {
             return Err(Halt::Trap(format!(
                 "package build filesystem operation `{}` would expose a host-absolute path",
                 operation.canonical_name()

@@ -47,6 +47,7 @@ use handle_failures::{
     unknown_descriptor_write_operation_failure_shape_is_exact,
     unknown_descriptor_write_payload_failure_shape_is_exact,
     unknown_descriptor_write_payload_operation, unknown_native_handle_close_failure_shape_is_exact,
+    unknown_native_handle_final_path_failure_shape_is_exact,
     validate_operand_free_unknown_descriptor_failure_shape,
     validate_unknown_descriptor_get_osfhandle_failure_shape,
     validate_unknown_descriptor_read_failure_shape,
@@ -56,6 +57,7 @@ use handle_failures::{
     validate_unknown_descriptor_write_operation_failure_shape,
     validate_unknown_descriptor_write_payload_failure_shape,
     validate_unknown_native_handle_close_failure_shape,
+    validate_unknown_native_handle_final_path_failure_shape,
 };
 use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
@@ -66,7 +68,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 41;
+const VERSION: u16 = 42;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -237,6 +239,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                         || unknown_descriptor_read_file_metadata_failure_shape_is_exact(shape)
                         || unknown_descriptor_get_osfhandle_failure_shape_is_exact(shape)
                         || unknown_native_handle_close_failure_shape_is_exact(shape)
+                        || unknown_native_handle_final_path_failure_shape_is_exact(shape)
                 })
                 .map(|_| shapes.len() - 1)
         })
@@ -582,6 +585,39 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay unknown-native-handle close failure could not be rehydrated",
+            )
+        });
+    }
+    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 31
+    {
+        let shape = &shapes[operation_suffix_start];
+        let [(1, buffer)] = shape.mutable_byte_resolutions.as_slice() else {
+            unreachable!("validated unknown-native-handle final path retains one exact carrier")
+        };
+        let [
+            (2, ShapeScalar::U64(capacity)),
+            (3, ShapeScalar::U32(flags)),
+        ] = shape.scalars.as_slice()
+        else {
+            unreachable!("validated unknown-native-handle final path retains exact scalars")
+        };
+        let typed_record = psi_checked_interpreter::FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord::new(
+            typed_source_record,
+            clone_bytes(buffer)?,
+            *capacity,
+            *flags,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-native-handle final path record is inconsistent",
+            )
+        })?;
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_final_path_name_by_handle_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-native-handle final path failure could not be rehydrated",
             )
         });
     }
@@ -1807,6 +1843,7 @@ fn validate_first_rung(
                 | 27
                 | 29
                 | 30
+                | 31
                 | 39
                 | 41
                 | 42
@@ -1902,6 +1939,7 @@ fn validate_first_rung(
                     | 27
                     | 29
                     | 30
+                    | 31
                     | 39
                     | 41
                     | 42
@@ -1959,6 +1997,10 @@ fn validate_first_rung(
         }
         if shapes.len() - cursor == 1 && shapes[cursor].operation == 29 {
             validate_unknown_native_handle_close_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 1 && shapes[cursor].operation == 31 {
+            validate_unknown_native_handle_final_path_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {

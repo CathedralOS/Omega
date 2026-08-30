@@ -1056,9 +1056,11 @@ through an exact requirement symbol owned by canonical toolchain
 calls even when an evaluator grant exists. The canonical signature maps to one
 of 50 closed, explicitly tagged operation identities; both providers match the
 same enum exhaustively, while aliases and platform alternatives stay distinct.
-Authorized results from `canonicalize` and `final_path_name_by_handle` remain
-bound to their exact root or reject. `read_link` returns only inert payload
-bytes; using that payload as a path requires checked resolution through a root.
+`canonicalize` and any `final_path_name_by_handle` call whose validated logical
+handle could return a path reject before exposing a host-absolute result. The
+exact `Native/Unknown` final-path failure may proceed because it cannot return
+path bytes. `read_link` returns only inert payload bytes; using that payload as
+a path requires checked resolution through a root.
 Observation-summary schema v20 carries operation-attempt schema v18: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
@@ -1587,6 +1589,14 @@ The row fixes scoped-real provider, scalar `0`, post-error `6`, and operand-zero
 checks only the compiler-owned synthetic handle model, not native-handle
 custody or a Windows security property.
 
+Summary v61 and replay-record v42 additionally admit one failed tag-31
+`final_path_name_by_handle` on an unknown native handle after the optional
+Source prefix. The row binds the complete unchanged mutable carrier, its
+bounded `u64` capacity, and `u32` flags, while fixing scoped-real provider,
+scalar `0`, post-error `6`, and `Native/Unknown`. No returned path exists.
+Provider-free replay checks only the compiler-owned synthetic handle model,
+not native path/handle custody or a Windows security property.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1638,8 +1648,8 @@ unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, v57/v38
 unknown-descriptor-write-payload, and v58/v39
 unknown-descriptor-read-file-metadata, and v59/v40
 unknown-descriptor-get-osfhandle, and v60/v41 unknown-native-handle-close
-grammars above may join them to verified operation replay and reproduced
-staged-output equality.
+grammars, plus v61/v42 unknown-native-handle-final-path above, may join them to
+verified operation replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1674,7 +1684,8 @@ unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, v57/v38
 unknown-descriptor-write-payload, and v58/v39
 unknown-descriptor-read-file-metadata, and v59/v40
 unknown-descriptor-get-osfhandle, and v60/v41 unknown-native-handle-close
-grammars above supply canonical operation replay and retained observed inputs.
+grammars, plus v61/v42 unknown-native-handle-final-path above, supply canonical
+operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

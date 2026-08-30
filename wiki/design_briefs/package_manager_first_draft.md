@@ -1742,6 +1742,14 @@ operand-zero `Native/Unknown`; every other lane and handoff is empty.
 Provider-free replay checks only the compiler-owned synthetic handle model,
 not native-handle custody or a Windows security property.
 
+Observation summary v61 and replay-record v42 additionally admit one failed
+tag-31 `final_path_name_by_handle` on an unknown native handle after the
+optional Source prefix. The row binds the complete unchanged mutable carrier,
+its bounded `u64` capacity, and `u32` flags, while fixing scoped-real provider,
+scalar `0`, post-error `6`, and `Native/Unknown`. No returned path exists.
+Provider-free replay checks only the compiler-owned synthetic handle model,
+not native path/handle custody or a Windows security property.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

@@ -347,6 +347,65 @@ fn baseline_retains_unknown_native_handle_close_replay_custody() {
     assert!(!replay.has_output_attempts());
 }
 
+#[test]
+fn baseline_retains_unknown_native_handle_final_path_replay_custody() {
+    let replay = unknown_descriptor_failure_baseline(
+        "unknown-final-path-name-by-handle",
+        r#"let mut buffer: [u8; 47];
+    buffer[0] = 11;
+    buffer[23] = 29;
+    buffer[46] = 173;
+    let length: i64 = builder.filesystem.final_path_name_by_handle(-1, &mut buffer, 47, 0);"#,
+    );
+    let [attempt] = replay.attempts() else {
+        panic!("final_path_name_by_handle baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 31);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            0
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(6));
+    assert_eq!(
+        attempt
+            .scalar_operands()
+            .iter()
+            .map(|operand| operand.value())
+            .collect::<Vec<_>>(),
+        vec![
+            psi_checked_interpreter::FilesystemScalarOperandValue::U64(47),
+            psi_checked_interpreter::FilesystemScalarOperandValue::U32(0),
+        ]
+    );
+    let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+        panic!("final-path baseline retains one resolution-time carrier")
+    };
+    let [carrier] = attempt.mutable_byte_operands() else {
+        panic!("final-path baseline retains one provider carrier")
+    };
+    assert_eq!(resolution.bytes().len(), 47);
+    assert_eq!(resolution.bytes()[0], 11);
+    assert_eq!(resolution.bytes()[23], 29);
+    assert_eq!(resolution.bytes()[46], 173);
+    assert_eq!(resolution.bytes(), carrier.pre_bytes());
+    assert_eq!(carrier.pre_bytes(), carrier.post_bytes());
+    let [handle] = attempt.logical_handle_inputs() else {
+        panic!("final-path baseline retains one native-handle input")
+    };
+    assert_eq!(
+        handle.kind(),
+        psi_checked_interpreter::FilesystemLogicalHandleKind::Native
+    );
+    assert_eq!(
+        handle.resolution(),
+        psi_checked_interpreter::FilesystemLogicalHandleInputResolution::Unknown
+    );
+    assert!(attempt.returned_paths().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
 fn assert_baseline_retains_unknown_descriptor_failure(
     label: &str,
     statement: &str,

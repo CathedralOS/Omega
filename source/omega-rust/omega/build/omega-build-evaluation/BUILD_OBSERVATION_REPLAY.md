@@ -425,3 +425,19 @@ Provider-free replay requires the exact modeled result, attempt, empty
 namespace, and teardown before issuing empty staged-output custody. This
 receipts only Omega's synthetic-handle model; it claims neither custody of an
 operating-system handle nor a Windows security property.
+
+## Unknown-native-handle final path (summary v61, replay record v42)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one tag-31 `final_path_name_by_handle` call on an unknown
+native handle. The row fixes scoped-real provider, scalar `0`, post-error `6`,
+and operand-zero `Native/Unknown`. It retains operand one's complete authored
+mutable carrier as equal resolution and provider pre/post states, operand-two's
+`u64` capacity bounded by that carrier, and operand-three's `u32` flags. No
+returned path, other evidence lane, or generated-source handoff exists.
+
+Both evaluators reject through their compiler-owned synthetic handle tables
+before reading a host path or changing the carrier. Provider-free replay
+requires the exact attempt, empty namespace, and teardown before issuing empty
+staged-output custody. This receipts only Omega's synthetic-handle model; it
+claims neither native path/handle custody nor a Windows security property.

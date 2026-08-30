@@ -342,7 +342,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 60);
+    assert_eq!(checked_observations.schema_version(), 61);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2787,6 +2787,127 @@ fn unknown_native_handle_close_failure_replays_exact_modeled_result() {
     }
 }
 
+#[test]
+fn unknown_native_handle_final_path_failure_replays_exact_authored_carrier() {
+    let fixtures = [
+        (
+            "final-path-name-by-handle",
+            r#"    self.buffer[0] = 11;
+    self.buffer[23] = 29;
+    self.buffer[46] = 173;
+    self.result = self.filesystem.final_path_name_by_handle(-1, &mut self.buffer, 47, 0);"#,
+            vec![31],
+        ),
+        (
+            "final-path-name-by-handle-after-source",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    self.buffer[0] = 11;
+    self.buffer[23] = 29;
+    self.buffer[46] = 173;
+    self.result = self.filesystem.final_path_name_by_handle(-1, &mut self.buffer, 47, 0);"#,
+            vec![2, 4, 8, 31],
+        ),
+    ];
+
+    for (label, body, operation_tags) in fixtures {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let compilation =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect("unknown-native-handle final path should compile and replay");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("unknown-native-handle final path retains observations");
+        assert!(summary.filesystem_replay_verdict().is_complete());
+        assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+        assert_eq!(
+            summary
+                .staged_output_tree()
+                .expect("modeled final-path failure retains empty Output custody")
+                .entry_count(),
+            0
+        );
+        assert_eq!(
+            summary
+                .filesystem_operation_attempts()
+                .iter()
+                .map(|attempt| attempt.operation_tag())
+                .collect::<Vec<_>>(),
+            operation_tags
+        );
+        let attempt = summary.filesystem_operation_attempts().last().unwrap();
+        assert_eq!(attempt.operation_tag(), 31);
+        assert_eq!(attempt.provider(), BuildFilesystemProvider::RealScoped);
+        assert_eq!(attempt.result(), BuildFilesystemOperationResult::Scalar(0));
+        assert_eq!(attempt.post_error(), 6);
+        assert_eq!(
+            attempt
+                .scalar_operands()
+                .iter()
+                .map(|operand| (operand.operand_ordinal(), operand.value()))
+                .collect::<Vec<_>>(),
+            vec![
+                (2, BuildFilesystemScalarOperandValue::U64(47)),
+                (3, BuildFilesystemScalarOperandValue::U32(0)),
+            ]
+        );
+        let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+            panic!("failed final path retains one resolution-time carrier")
+        };
+        let [carrier] = attempt.mutable_byte_operands() else {
+            panic!("failed final path retains one provider carrier")
+        };
+        assert_eq!(resolution.operand_ordinal(), 1);
+        assert_eq!(resolution.bytes().len(), 4096);
+        assert_eq!(resolution.bytes()[0], 11);
+        assert_eq!(resolution.bytes()[23], 29);
+        assert_eq!(resolution.bytes()[46], 173);
+        assert_eq!(carrier.pre_bytes(), resolution.bytes());
+        assert_eq!(carrier.post_bytes(), resolution.bytes());
+        let [handle] = attempt.logical_handle_inputs() else {
+            panic!("failed final path retains one native-handle input")
+        };
+        assert_eq!(handle.kind(), BuildFilesystemLogicalHandleKind::Native);
+        assert_eq!(
+            handle.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Unknown
+        );
+        assert!(attempt.returned_paths().is_empty());
+        assert!(attempt.logical_handle_output().is_none());
+        assert!(attempt.retired_logical_handles().is_empty());
+
+        let limits = BuildFilesystemReplayRecordLimits::default();
+        let record = capture_verified_build_filesystem_replay_record(summary, limits)
+            .expect("verified unknown-native-handle final path must encode")
+            .expect("verified modeled final-path failure retains review-only custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+                .expect("canonical modeled final-path failure record must recover");
+        std::fs::write(
+            project.join("main.omg"),
+            "data Main { value: u64; changed: u8; }\n",
+        )
+        .expect("change host source after modeled final-path failure capture");
+        let replayed = compile_to_checked_with_replay_record(
+            &project.join("main.omg"),
+            Some(profile.target_name()),
+            recovered,
+        )
+        .expect("modeled final-path failure replay must not invoke the host provider");
+        assert_eq!(
+            replayed
+                .build_observation_summary()
+                .expect("replayed modeled final-path failure retains observations")
+                .filesystem_operation_attempts(),
+            summary.filesystem_operation_attempts()
+        );
+
+        let _ = std::fs::remove_dir_all(project);
+    }
+}
+
 fn assert_unknown_descriptor_write_operation_failure_replay(
     label: &str,
     statement: &str,
@@ -4030,7 +4151,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 60);
+    assert_eq!(summary.schema_version(), 61);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -4223,7 +4344,10 @@ fn canonical_build_roots_reject_host_absolute_path_results() {
         ),
         (
             "final-path",
-            r#"    self.result = self.filesystem.final_path_name_by_handle(0, &mut self.buffer, 4096, 0);"#,
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.get_osfhandle(self.descriptor);
+    self.result = self.filesystem.final_path_name_by_handle(self.result, &mut self.buffer, 4096, 0);"#,
             "final_path_name_by_handle",
         ),
     ];
@@ -4931,7 +5055,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 60);
+    assert_eq!(summary.schema_version(), 61);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -5004,7 +5128,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 60);
+    assert_eq!(summary.schema_version(), 61);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
