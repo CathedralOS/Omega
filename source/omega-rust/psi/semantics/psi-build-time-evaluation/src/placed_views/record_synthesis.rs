@@ -78,13 +78,19 @@ pub(super) fn synthesize_exact_records(
         let schema = &schemas[&application.schema];
         let mut members = Vec::new();
         for field in &schema.fields {
-            let Some(entry) = plan
+            let entry = plan
                 .access()
                 .plan()
                 .entries()
                 .iter()
-                .find(|entry| entry.field() == field.name.as_str())
-            else {
+                .find(|entry| entry.field() == field.name.as_str());
+            if field.relevance.is_erased() && entry.is_none() {
+                // Schema reflection deliberately omits erased semantic fields.
+                // They remain available to the custody-agreement checker but
+                // must not acquire a synthesized physical accessor.
+                continue;
+            }
+            let Some(entry) = entry else {
                 return Err(vec![Diagnostic::error(format!(
                     "placed view `{}` lost canonical schema field `{}`",
                     application.synthetic_name,

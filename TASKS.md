@@ -2010,8 +2010,21 @@ Owners:
   exact arity, declaration order, opacity, fixed-carrier type-index identity,
   generic substitution, and mismatch rejection. This adds no placement
   operation, authority route, admission intermediate, occurrence identity, or
-  runtime domain carrier. Operations and compiler-checked custody agreement
-  remain open below.
+  runtime domain carrier. Operations and broader custody agreement remain open
+  below.
+
+  The first compiler-checked custody-agreement rung is now live when one
+  concrete named `PlacementCustody<P, T>` conformance names the exact concrete
+  policy/schema pair of an already retained source-derived `Placed<P, T>`
+  plan. Every direct erased record field omitted from that normalized physical
+  plan must occur once in the custody record under the same canonical field
+  path, exact normalized type, and multiplicity; represented fields must be
+  absent. Revalidation cites the exact `Policy::plan` machine and its retained
+  offset/width decision, and only the toolchain `core/layout.omg` trait receives
+  this meaning. The conformance remains ordinary evidence and grants no
+  storage, content, domain, provider, or establishment authority. Recursive and
+  case-dependent custody, planless agreement checking, generic placement
+  operation selection, and outcome dispositions remain open.
 
 - Implement the settled borrowed/owned `Placed<P, T>` establishment and
   retirement model from `Extent in Granted`, using ordinary subrange borrows

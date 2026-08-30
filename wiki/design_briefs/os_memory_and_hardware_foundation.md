@@ -720,8 +720,13 @@ The first source-vocabulary rung is live in core: opaque `Placed<P, T>`,
 `Extent::Vacant`, invariant indexed `Extent::Resident<P, T>`,
 `PlacementOutcome`, `PlacementReturn`, and the empty ordinary
 `PlacementCustody<P, T>` trait. These declarations name shapes only. Placement
-operations, authority issuance, and compiler checking of custody agreement
-remain later implementation work.
+operations and authority issuance remain later implementation work. One bounded
+agreement checker is now live for an exact concrete named conformance after its
+source-derived policy/schema plan has been retained: direct erased record fields
+must match the custody record by canonical path, exact type, and multiplicity,
+and represented fields must be absent. It recognizes only the toolchain core
+trait and grants none of the establishment authority still missing here.
+Recursive, case-dependent, and planless agreement remain later work.
 
 Retirement is reconstructed from the successful disposition row. Borrowed
 initialization constructs and destroys `T` wholly inside the exclusive borrow,

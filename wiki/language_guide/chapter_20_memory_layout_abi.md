@@ -827,6 +827,15 @@ names the exact plan machine and normalized field decision—for example that
 `Packet.bits` is represented at offset 0 with width 4—rather than reporting an
 unexplained field-set difference.
 
+The current first compiler rung checks this agreement for one concrete named
+conformance after the exact concrete `Placed<P, T>` policy/schema plan has been
+retained. It covers direct erased record fields only: canonical path, normalized
+type, and multiplicity must match exactly, and any field with a physical plan
+entry is rejected from custody with the retained offset/width decision. The
+checker recognizes the toolchain core trait rather than a same-spelled user
+trait. Recursive and case-dependent fields, planless agreements, and the
+generic establishment calls below remain unavailable.
+
 A generic placement operation carries both the custody type and the exact
 selected conformance:
 
