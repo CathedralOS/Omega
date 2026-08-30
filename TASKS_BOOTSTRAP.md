@@ -1233,6 +1233,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       root. Keep exact target span/presence, unscoped-reset, malformed-prefix,
       capacity, mixed-order, and publication vectors at the real Delta-compiler
       gate.
+    - [x] Complete two settled leaves of the shared type engine without adding
+      a consumer special case. General `Self` now emits the same payload-free
+      SelfType base as receivers, including inside nested fixed arrays and
+      slices; only a structural outer bracket may subsequently take a domain
+      suffix, matching the canonical parser's early return for bare `Self`.
+      Outer references accept one optional `'name` before `mut`/`write`, retain
+      its exact span in the existing reserved Reference payload, and reject a
+      missing, strict-keyword, repeated, or lifetime-after-access ordering
+      violation through the ordinary private type diagnostics. Reference node
+      demand and postorder are unchanged; the retired `&relaxed` spelling now
+      rejects instead of masquerading as future syntax. Current `C` signatures
+      use neither form, so body-boundary coverage remains 53 of 72; this is
+      full-language progress rather than a closure-shaped shortcut. Keep exact
+      Self nesting, bare-versus-structural domain, lifetime ordering/span,
+      access, reset, postorder, and consumer-isolation vectors at the real
+      Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
