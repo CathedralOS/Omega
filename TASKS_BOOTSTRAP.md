@@ -1118,6 +1118,25 @@ code, discover a closure, manufacture proof premises, or decide admission.
       claiming present `C`-closure progress. Exact positive, malformed,
       incomplete, capacity, reset, and mixed-order vectors wait for the real
       Delta-compiler gate.
+    - [x] Generalize the existing field-type continuation into one explicit
+      consumer-neutral type engine, then use it for complete comma-separated
+      ordinary `name: Type` machine parameter lists. Direct fields, case
+      payload fields, and parameters share the same named, unqualified-domain,
+      inclusive-literal-range, and nested-fixed-array parser and postorder node
+      materializer; no signature-specific type parser exists. The implicit
+      entry state owns the machine's contiguous parameter span and each row
+      retains canonical const/mutable/self flags as false until those forms are
+      implemented. Reject a trailing comma exactly as the canonical parser
+      does. Because machine and domain paths share one arena, snapshot the
+      declaration path before parameter types append domain members so free-vs-
+      attached identity and the final entry-name member cannot drift. Every
+      parameter consumes at least one type node, so `TypeNodes` dominates the
+      equal parameter table without a fabricated resource kind. Modifiers,
+      receivers, references, returns, generics, clauses, prefixed forms, and
+      nonempty bodies remain implementation-incomplete. This still completes
+      zero current `C` machine roots; it is the reusable signature foundation,
+      not a closure-coverage claim. Exact list/delimiter/path-isolation/
+      capacity/reset vectors remain assigned to the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
