@@ -983,15 +983,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
     D23 requires this encoder's exact payload preflight and adjacent vectors to
     migrate with `AlphaBootstrapV2`; the current 262,140-byte implementation
     remains a truthful V1 component until that coherent profile migration.
-  - [ ] **OWNER-BLOCKED — Q7: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
-    D22's exact Delta identity census before type formation after the remaining
-    transition-binder scope and collection-failure ordering rules are fixed.
+  - [ ] **IMPLEMENTATION — D24: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
+    D22 and D24's exact Delta identity census before type formation.
     Collect grammar-selected owner, machine, member, state, parameter, binder,
     and local scopes; reject the globally earliest later conflict; preserve
     ordered let visibility without active shadowing; permit local/member and
     disjoint-state spelling reuse; and reject every authored body on a boundary
-    owner as `InvalidBoundary`. Do not add first-wins lookup, omit executable
-    pattern binders, or retain a partial collector while Q7 is unresolved.
+    owner as `InvalidBoundary`. Collect every syntactic transition binder even
+    when its case or arity later fails; keep sibling arms disjoint; compare
+    declaration-start coordinates across duplicate and boundary candidates;
+    and never classify an ambiguous owner by its first row. Do not add first-
+    wins lookup, omit executable pattern binders, or retain a partial collector.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
@@ -1003,9 +1005,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     checking families, symbolic Alpha encoding/replay, all nine runtime traps,
     and boundary/adjacent private-resource obligations without materializing an
     unrun file corpus or claiming execution evidence.
-  - [ ] **OWNER-BLOCKED — Q7.** Complete the transition-binder and mixed
-    `DuplicateName`/`InvalidBoundary` rows after their exact scope, phase, and
-    coordinate rules are settled.
+  - [ ] Complete D24's transition-binder and mixed `DuplicateName`/
+    `InvalidBoundary` rows. Split sibling reuse from the `UnknownName` sibling-
+    reference rejection; pin active-outer collisions, unknown-case and wrong-
+    arity two-round diagnostics, both unrelated-failure source orders, and the
+    boundary/data-ambiguous owner.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
   and run that
   contract-derived suite through the real Gamma-written compiler and bind every
@@ -1766,11 +1770,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 through Q7 still own
+  allowed; weakened Omega semantics are not. Q1 through Q6 still own
   unresolved full-spec compiler or standalone-edge contracts. Q6 blocks
   source identity, semantic/lowering custody, and the application boundary;
-  Q7 blocks its named preceding-rung completion work. None prevents
-  implementation of independently settled source-shaped parser slices.
+  D24 unblocks the Delta census implementation. None prevents implementation
+  of independently settled source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full

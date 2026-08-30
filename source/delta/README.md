@@ -10,9 +10,9 @@ Omega document cannot amend Delta by acceptance.
 D22 fixes deterministic declaration identity beneath that contract: grammar-
 selected owner, machine, member, state, and local scopes; one pre-type scoped
 duplicate census; no active local shadowing; legal disjoint-state and member/
-local spelling reuse; and no authored machine bodies on boundary owners. Q7
-must still fix transition-arm binder scope and the exact collection diagnostic
-ordering before the complete census can land.
+local spelling reuse; and no authored machine bodies on boundary owners. D24
+completes that census with transition-arm binder scope, same-phase
+`DuplicateName`/`InvalidBoundary` ordering, and unique-owner classification.
 
 ## Canonical edges
 

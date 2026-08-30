@@ -38,10 +38,10 @@ types.
 D22 fixes declaration identity and lexical scope: grammar-selected namespaces,
 one pre-type scoped duplicate census, no active local shadowing, disjoint state-
 local reuse, and categorical `InvalidBoundary` rejection for authored machine
-bodies on boundary owners. The owner question `Complete Delta's census rules for
-transition binders and failures` narrowly remains over transition-arm binders and
-the coordinate/priority of competing collection failures; the compiler may not
-invent those accepted-language rules in a partial census.
+bodies on boundary owners. D24 completes the same census for transition payload
+binders, disjoint arm scope, and declaration-start ordering between
+`DuplicateName` and `InvalidBoundary`; owner kind is never inferred from an
+ambiguous owner row.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns
