@@ -25,6 +25,13 @@ pub(in crate::validation::catalog) const INTEGER_OR: TranslationFamilyDescriptor
         integer_or,
     );
 
+pub(in crate::validation::catalog) const INTEGER_XOR: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters,
+        straight_line_parameter::integer::bitwise::bitwise_xor::is_candidate,
+        integer_xor,
+    );
+
 pub(in crate::validation::catalog::dispatch) fn integer_and(
     source: &AbstractFunction,
     expected_target: NativeTarget,
@@ -47,4 +54,18 @@ pub(in crate::validation::catalog::dispatch) fn integer_or(
     straight_line_parameter::integer::bitwise::bitwise_or::validate(source, expected_target, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseOrParameters)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerBitwiseOrParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn integer_xor(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::bitwise::bitwise_xor::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseXorParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerBitwiseXorParameters)
 }

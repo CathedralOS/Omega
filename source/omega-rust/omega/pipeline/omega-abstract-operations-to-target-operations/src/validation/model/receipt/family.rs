@@ -51,6 +51,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerBitwiseOrParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrParameters
             }
+            Self::StraightLineIntegerBitwiseXorParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
+            }
         }
     }
 }

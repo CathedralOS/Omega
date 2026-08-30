@@ -17,6 +17,17 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has a sixteenth exact family
+for `IntegerBitwiseXor(parameter, parameter)`. XOR completes the named binary
+`bitwise` rung with its own source grammar, target replay, catalog identity,
+typed error/receipt vocabulary, fixtures, corruption suite, and optimized
+Terminal custody. It reuses only the shared whole-roster ABI and provenance
+mechanics. Independent replay covers all eight native fixed-width integer
+types, all five native targets, register and incoming-stack placements, mixed
+rosters, reversed and identical operands, and every retained target field;
+address and nonnative carriers fail closed. Architecture gates pin the XOR
+route and prevent its grammar from leaking into common source envelopes.
+
 [x] Fixed-view-copy artifact encoding now has a 62-line, meaningful v4
 protocol entrance instead of a 978-line codec catchall. The entrance alone
 owns magic/version admission and the stable rejection order: parse content,
@@ -157,14 +168,14 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first fifteen semantic
+and duplicate or overlapping matches fail closed. The first sixteen semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
 integer equality, strict ordering, or inclusive ordering of two same-type
 integer parameters, plus integer bitwise-not, integer-widen, and proof-bearing
-integer exact-cast of one parameter, and integer bitwise-AND or bitwise-OR of
-two parameters.
+integer exact-cast of one parameter, and integer bitwise-AND, bitwise-OR, or
+bitwise-XOR of two parameters.
 The parameter-expression families descend through a governed source-grammar
 map, integer-family coordinator, shared envelope, whole-roster ABI replay, and
 explicit direct/unary/bitwise/comparison joins. Boolean-not, integer bitwise-not,
@@ -726,8 +737,8 @@ parallel route or optional coordinator field.
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
   integer-less-than-parameters, integer-less-or-equal-parameters,
   integer-bitwise-not-parameter, integer-widen-parameter, and proof-bearing
-  integer-exact-cast-parameter, integer-bitwise-and-parameters, and
-  integer-bitwise-or-parameters
+  integer-exact-cast-parameter, integer-bitwise-and-parameters,
+  integer-bitwise-or-parameters, and integer-bitwise-xor-parameters
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -1015,7 +1026,7 @@ rewrite or opt a program into lossy floating-point semantics.
     ceiling. Keep protocol admission and authentication order in one tiny
     entrance; descend through content, copy, primitives, values, and selected
     plan taxonomies; and pin exact bytes plus failure precedence.
-38. [ ] Add `IntegerBitwiseXor(parameter, parameter)` as the sixteenth exact
+38. [x] Add `IntegerBitwiseXor(parameter, parameter)` as the sixteenth exact
     translation family beneath the existing named `bitwise` rung.
 39. [ ] Define a fixed-view-copy artifact v5 that explicitly carries the
     selected plan's structural-Unit-function roster. V4 intentionally decodes

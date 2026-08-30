@@ -14,6 +14,7 @@ pub use parameter::{
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerBitwiseOrParametersTranslationError,
+    StraightLineIntegerBitwiseXorParametersTranslationError,
     StraightLineIntegerEqualParametersTranslationError,
     StraightLineIntegerExactCastParameterTranslationError,
     StraightLineIntegerLessOrEqualParametersTranslationError,
@@ -72,6 +73,9 @@ pub enum AbstractToTargetTranslationFamilyError {
         StraightLineIntegerBitwiseAndParametersTranslationError,
     ),
     StraightLineIntegerBitwiseOrParameters(StraightLineIntegerBitwiseOrParametersTranslationError),
+    StraightLineIntegerBitwiseXorParameters(
+        StraightLineIntegerBitwiseXorParametersTranslationError,
+    ),
 }
 
 impl std::fmt::Display for AbstractToTargetTranslationValidationError {

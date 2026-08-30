@@ -2,12 +2,14 @@
 
 pub(crate) mod bitwise_and;
 pub(crate) mod bitwise_or;
+pub(crate) mod bitwise_xor;
 mod replay;
 
 use super::super::model::ReconstructedIntegerBitwiseParameters;
 use crate::validation::model::{
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseOrParametersTranslationError,
+    StraightLineIntegerBitwiseXorParametersTranslationError,
 };
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
@@ -44,5 +46,22 @@ pub(super) fn reconstruct_bitwise_or(
         target,
         super::super::source::integer::bitwise::reconstruct_bitwise_or,
         StraightLineIntegerBitwiseOrParametersTranslationError::TargetProvenance,
+    )
+}
+
+pub(super) fn reconstruct_bitwise_xor(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedIntegerBitwiseParameters,
+    StraightLineIntegerBitwiseXorParametersTranslationError,
+> {
+    replay::reconstruct(
+        function,
+        expected_target,
+        target,
+        super::super::source::integer::bitwise::reconstruct_bitwise_xor,
+        StraightLineIntegerBitwiseXorParametersTranslationError::TargetProvenance,
     )
 }
