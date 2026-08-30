@@ -946,19 +946,17 @@ fn checked_static_requirement_dispatch<'program>(
             contract.binding.is_some() && contract.kind == SignatureContractKind::Ensures
         })
         .collect::<Vec<_>>();
-    let ([required_input], [required_output]) =
-        (named_requires.as_slice(), named_ensures.as_slice())
-    else {
+    if named_ensures.is_empty() {
         return Err(rejected(
-            "the public requirement must own exactly one named requires input and one unconditional named ensures output",
-        ));
-    };
-    if contracts.len() != 2 {
-        return Err(rejected(
-            "additional unnamed public requires or ensures rows remain unsupported",
+            "the public requirement must own at least one unconditional named ensures output",
         ));
     }
-    for contract in [*required_input, *required_output] {
+    if contracts.len() != named_requires.len() + named_ensures.len() {
+        return Err(rejected(
+            "every public requires and ensures row must be named",
+        ));
+    }
+    for contract in named_requires.into_iter().chain(named_ensures) {
         let [ProofFact::Proposition(proposition)] =
             program.proof_facts.span_or_empty(contract.facts)
         else {

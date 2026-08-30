@@ -3886,36 +3886,62 @@ fn static_named_witness_requirement_call_hides_satisfier_strengthening_selector(
 }
 
 #[test]
-fn static_named_witness_requirement_call_fences_wider_public_lanes() {
+fn static_named_witness_requirement_call_preserves_uncapped_plural_public_lanes() {
     let source = r#"
         trait Evidence {}
-        proposition ready() evidence Evidence;
+        proposition first_ready() evidence Evidence;
+        proposition second_ready() evidence Evidence;
+        proposition third_ready() evidence Evidence;
         trait Producer {
             machine Self::produce(&self)
-            requires first: ready()
-            requires second: ready()
-            ensures public_out: ready();
+            requires first: first_ready()
+            requires second: second_ready()
+            requires third: third_ready()
+            ensures public_first: first_ready()
+            ensures public_second: second_ready()
+            ensures public_third: third_ready();
         }
         data Token {}
         TokenProducer: Token satisfies Producer {
             machine produce(&self)
-            requires local_first: ready()
-            requires local_second: ready()
-            ensures public_out: ready()
-            { public_out = local_first; }
+            requires local_first: first_ready()
+            requires local_second: second_ready()
+            requires local_third: third_ready()
+            ensures public_first: first_ready()
+            ensures public_second: second_ready()
+            ensures public_third: third_ready()
+            ensures private_out: first_ready()
+            {
+                public_first = local_first;
+                public_second = local_second;
+                public_third = local_third;
+                private_out = local_first;
+            }
         }
         machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
-        requires incoming_first: ready()
-        requires incoming_second: ready()
+        requires incoming_first: first_ready()
+        requires incoming_second: second_ready()
+        requires incoming_third: third_ready()
         {
-            let (; public_out: result) =
-                Order::produce(value; incoming_first, incoming_second);
+            let (; public_first: first_result, public_third: third_result) =
+                Order::produce(
+                    value;
+                    incoming_first,
+                    incoming_second,
+                    incoming_third
+                );
         }
         machine caller(value: &Token)
-        requires incoming_first: ready()
-        requires incoming_second: ready()
+        requires incoming_first: first_ready()
+        requires incoming_second: second_ready()
+        requires incoming_third: third_ready()
         {
-            invoke<Token, TokenProducer>(value; incoming_first, incoming_second);
+            invoke<Token, TokenProducer>(
+                value;
+                incoming_first,
+                incoming_second,
+                incoming_third
+            );
         }
     "#;
 
@@ -3925,12 +3951,232 @@ fn static_named_witness_requirement_call_fences_wider_public_lanes() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
-        .expect_err("the first static requirement rung must reject wider public lanes");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains(
-            "must own exactly one named requires input and one unconditional named ensures output",
+    let checked =
+        lower_typed_trees(typed).expect("an ordered plural static named-witness call should check");
+    let invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|_| invocation)
+        })
+        .expect("one plural static requirement call");
+    assert_eq!(invocation.evidence_arguments.len(), 3);
+    assert_eq!(invocation.outputs.len(), 3);
+    let input_names = invocation
+        .evidence_arguments
+        .iter()
+        .map(|argument| {
+            checked
+                .facts
+                .proof
+                .evidence_terms
+                .get(argument.callee_input)
+                .name
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(input_names, ["first", "second", "third"]);
+    let output_names = invocation
+        .outputs
+        .iter()
+        .map(|output| {
+            checked
+                .facts
+                .proof
+                .evidence_terms
+                .get(output.callee_output)
+                .name
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        output_names,
+        ["public_first", "public_second", "public_third"]
+    );
+    assert!(invocation.outputs[0].output.is_some());
+    assert_eq!(invocation.outputs[1].output, None);
+    assert!(invocation.outputs[2].output.is_some());
+    for output in invocation.outputs.iter().filter_map(|output| output.output) {
+        assert!(
+            invocation
+                .evidence_arguments
+                .iter()
+                .all(|argument| argument.source != output),
+            "static outputs remain fresh even when the realization forwards inputs",
+        );
+    }
+}
+
+#[test]
+fn static_named_witness_requirement_call_accepts_zero_inputs_and_plural_outputs() {
+    let source = r#"
+        trait Evidence {}
+        proposition first_ready() evidence Evidence;
+        proposition second_ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+
+        trait Producer {
+            machine Self::produce(&self)
+            ensures first: first_ready()
+            ensures second: second_ready();
+        }
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self)
+            ensures first: first_ready()
+            ensures second: second_ready()
+            {
+                first = ConcreteEvidence;
+                second = ConcreteEvidence;
+            }
+        }
+        machine invoke<Element, Order: Element satisfies Producer>(value: &Element) {
+            let (; first: selected) = Order::produce(value);
+        }
+        machine caller(value: &Token) {
+            invoke<Token, TokenProducer>(value);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("a zero-input plural-output static named-witness call should check");
+    let invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|_| invocation)
+        })
+        .expect("one zero-input static requirement call");
+    assert!(invocation.evidence_arguments.is_empty());
+    assert_eq!(invocation.outputs.len(), 2);
+    assert!(invocation.outputs[0].output.is_some());
+    assert_eq!(invocation.outputs[1].output, None);
+}
+
+#[test]
+fn static_named_witness_plural_inputs_reject_omission_or_reordering() {
+    let source = |arguments: &str| {
+        format!(
+            r#"
+                trait Evidence {{}}
+                proposition first_ready() evidence Evidence;
+                proposition second_ready() evidence Evidence;
+                trait Producer {{
+                    machine Self::produce(&self)
+                    requires first: first_ready()
+                    requires second: second_ready()
+                    ensures output: first_ready();
+                }}
+                data Token {{}}
+                TokenProducer: Token satisfies Producer {{
+                    machine produce(&self)
+                    requires local_first: first_ready()
+                    requires local_second: second_ready()
+                    ensures output: first_ready()
+                    {{ output = local_first; }}
+                }}
+                machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+                requires incoming_first: first_ready()
+                requires incoming_second: second_ready()
+                {{
+                    let (; output: result) = Order::produce(value; {arguments});
+                }}
+                machine caller(value: &Token)
+                requires incoming_first: first_ready()
+                requires incoming_second: second_ready()
+                {{
+                    invoke<Token, TokenProducer>(
+                        value;
+                        incoming_first,
+                        incoming_second
+                    );
+                }}
+            "#,
         )
+    };
+
+    let check_rejected = |source: String, expected: &str| {
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let diagnostics = lower_typed_trees(typed).expect_err("plural lane drift must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.message.contains(expected) })
+        );
+    };
+    check_rejected(
+        source("incoming_first"),
+        "supplies 1 erased evidence argument but its named requires lane has 2",
+    );
+    check_rejected(
+        source("incoming_second, incoming_first"),
+        "does not inhabit erased requires position 0",
+    );
+}
+
+#[test]
+fn static_named_witness_plural_public_contract_rejects_unnamed_rows() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Producer {
+            machine Self::produce(&self)
+            requires ready()
+            ensures output: ready();
+        }
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self)
+            requires ready()
+            ensures output: ready()
+            { output = ConcreteEvidence; }
+        }
+        ConcreteEvidence: satisfies Evidence {}
+        machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+        requires incoming: ready()
+        {
+            let (; output: result) = Order::produce(value);
+        }
+        machine caller(value: &Token)
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(value; incoming);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("an unnamed public requirement row must remain fenced");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("every public requires and ensures row must be named")
     }));
 }
 

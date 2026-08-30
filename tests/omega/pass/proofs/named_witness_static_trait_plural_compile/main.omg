@@ -1,0 +1,65 @@
+// Static requirement dispatch preserves every ordered public proof lane. A
+// caller may omit an output selector without dropping that lane from the
+// retained call surface, and selected outputs remain opaque requirement-level
+// witnesses rather than aliases of the satisfier's inputs.
+
+trait Evidence {
+}
+
+proposition first_ready() evidence Evidence;
+proposition second_ready() evidence Evidence;
+proposition third_ready() evidence Evidence;
+
+trait Producer {
+    machine Self::produce(&self)
+    requires first: first_ready()
+    requires second: second_ready()
+    requires third: third_ready()
+    ensures first_out: first_ready()
+    ensures second_out: second_ready()
+    ensures third_out: third_ready();
+}
+
+data Token {
+}
+
+TokenProducer: Token satisfies Producer {
+    machine produce(&self)
+    requires local_first: first_ready()
+    requires local_second: second_ready()
+    requires local_third: third_ready()
+    ensures first_out: first_ready()
+    ensures second_out: second_ready()
+    ensures third_out: third_ready()
+    {
+        first_out = local_first;
+        second_out = local_second;
+        third_out = local_third;
+    }
+}
+
+machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+requires incoming_first: first_ready()
+requires incoming_second: second_ready()
+requires incoming_third: third_ready()
+{
+    let (; first_out: first, third_out: third) = Order::produce(
+        value;
+        incoming_first,
+        incoming_second,
+        incoming_third
+    );
+}
+
+machine caller(value: &Token)
+requires incoming_first: first_ready()
+requires incoming_second: second_ready()
+requires incoming_third: third_ready()
+{
+    invoke<Token, TokenProducer>(
+        value;
+        incoming_first,
+        incoming_second,
+        incoming_third
+    );
+}
