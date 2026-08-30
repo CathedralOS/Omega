@@ -295,6 +295,7 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         type_parameters: HandleSpan::empty(),
         is_default: true,
         parameters: HandleSpan::empty(),
+        native_callback_parameters: Vec::new(),
         return_type: TypeReferenceHandle::invalid(),
         service_reach_is_installation_bound: false,
         service_reach_keyword_source_spans: Vec::new(),

@@ -428,6 +428,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             type_parameters: nested_type_parameters,
             is_default: false,
             parameters,
+            native_callback_parameters: Vec::new(),
             return_type,
             service_reach_is_installation_bound: false,
             service_reach_keyword_source_spans,

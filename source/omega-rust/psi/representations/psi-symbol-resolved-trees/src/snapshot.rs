@@ -575,12 +575,21 @@ pub struct StateSignatureSnapshot {
     pub type_parameters: Vec<String>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub native_callback_parameters: Vec<NativeCallbackParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NativeCallbackParameterSnapshot {
+    pub name: String,
+    pub binder: String,
+    pub native_ordinal: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1413,6 +1422,15 @@ fn state_signature_snapshot(
             .state_parameters(signature.parameters)
             .iter()
             .map(|parameter| state_parameter_snapshot(program, parameter))
+            .collect(),
+        native_callback_parameters: signature
+            .native_callback_parameters
+            .iter()
+            .map(|parameter| NativeCallbackParameterSnapshot {
+                name: parameter.name.to_string(),
+                binder: parameter.binder.to_string(),
+                native_ordinal: parameter.native_ordinal,
+            })
             .collect(),
         return_type: signature
             .return_type

@@ -1,7 +1,9 @@
 use crate::parser::data::{parse_machine_type_parameters, parse_trait_type_parameters};
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
-use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
+use crate::parser::state::{
+    parse_optional_return_type, parse_optional_state_parameters, parse_state_parameter,
+};
 use crate::parser::statement::{parse_asm_block_statement_handles, parse_statement_handle};
 use crate::parser::type_reference::parse_type_reference_handle;
 use psi_arena::{Handle, HandleSpan};
@@ -108,6 +110,11 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         ) = parse_signature_clauses(syntax_trees, rest, true)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
+        if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
+            return Err(rest.error_here(
+                "`native callback ... from ...` is permitted only on a bodyless boundary-trait requirement",
+            ));
+        }
         signature.is_default = is_default;
         if service_reach_is_installation_bound && (!is_boundary || is_default) {
             return Err(rest.error_here(
@@ -279,7 +286,8 @@ fn parse_trait_machine_signature<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, StateSignature> {
     let (name, input) = parse_trait_machine_name(input)?;
     let (generic_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
-    let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
+    let ((parameters, native_callback_parameters), input) =
+        parse_boundary_parameter_telescope(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
     let ((), input) = crate::parser::machine::parse_machine_parameter_contracts(
         syntax_trees,
@@ -295,6 +303,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             type_parameters: generic_parameters.type_parameters,
             is_default: false,
             parameters,
+            native_callback_parameters,
             return_type,
             service_reach_is_installation_bound: false,
             service_reach_keyword_source_spans: Vec::new(),
@@ -310,6 +319,79 @@ fn parse_trait_machine_signature<'tokens, 'source>(
         },
         input,
     ))
+}
+
+fn parse_boundary_parameter_telescope<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<psi_syntax_trees::item::StateParameterHandle>,
+        Vec<psi_syntax_trees::item::NativeCallbackParameterNode>,
+    ),
+> {
+    if !input.at_punctuation(PunctuationKind::LeftParen) {
+        return Ok(((HandleSpan::empty(), Vec::new()), input));
+    }
+
+    let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+    let mut parameter_start = Handle::invalid();
+    let mut parameter_count = 0u32;
+    let mut native_callback_parameters = Vec::new();
+    let mut native_ordinal = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightParen) {
+        if input.at_contextual("native") {
+            let input_after_native = input.take_contextual("native")?;
+            let input_after_callback = input_after_native.take_contextual("callback")?;
+            let (name, input_after_name) = input_after_callback.take_identifier()?;
+            let input_after_from = input_after_name.take_contextual("from")?;
+            let (binder, rest) = input_after_from.take_identifier()?;
+            if native_callback_parameters.iter().any(
+                |prior: &psi_syntax_trees::item::NativeCallbackParameterNode| prior.name == name,
+            ) {
+                return Err(rest.error_here(format!(
+                    "native callback parameter `{}` is declared more than once",
+                    name.as_str(),
+                )));
+            }
+            native_callback_parameters.push(psi_syntax_trees::item::NativeCallbackParameterNode {
+                name,
+                binder,
+                native_ordinal,
+            });
+            input = rest;
+        } else {
+            let (parameter, rest) = parse_state_parameter(syntax_trees, input)?;
+            let handle = syntax_trees.items.append_state_parameter_handle(parameter);
+            if parameter_count == 0 {
+                parameter_start = handle;
+            }
+            parameter_count = parameter_count
+                .checked_add(1)
+                .expect("state parameter span count overflow");
+            input = rest;
+        }
+        native_ordinal = native_ordinal
+            .checked_add(1)
+            .expect("native parameter telescope count overflow");
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        break;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+    let parameters = if parameter_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(parameter_start, parameter_count)
+    };
+    Ok(((parameters, native_callback_parameters), input))
 }
 
 fn parse_trait_machine_name<'tokens, 'source>(

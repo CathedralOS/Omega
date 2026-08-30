@@ -327,6 +327,15 @@ pub(crate) fn lower_state_signature(
         type_parameters: Default::default(),
         is_default: signature.is_default,
         parameters: Default::default(),
+        native_callback_parameters: signature
+            .native_callback_parameters
+            .iter()
+            .map(|parameter| typed::signature::NativeCallbackParameter {
+                name: crate::name::lower_name(&parameter.name),
+                binder: crate::name::lower_name(&parameter.binder),
+                native_ordinal: parameter.native_ordinal,
+            })
+            .collect(),
         return_type: signature
             .return_type
             .as_ref()

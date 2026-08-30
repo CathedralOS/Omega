@@ -181,6 +181,7 @@ impl SyntaxTrees {
             type_parameters: copied.type_parameters,
             is_default: copied.is_default,
             parameters: copied.parameters,
+            native_callback_parameters: copied.native_callback_parameters,
             return_type: copied.return_type,
             service_reach_is_installation_bound: copied.service_reach_is_installation_bound,
             service_reach_keyword_source_spans: copied.service_reach_keyword_source_spans,
@@ -890,6 +891,7 @@ impl SyntaxTrees {
             type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
+            native_callback_parameters: signature.native_callback_parameters.clone(),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             service_reach_keyword_source_spans: signature
@@ -919,6 +921,7 @@ impl SyntaxTrees {
             type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
             is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
+            native_callback_parameters: signature.native_callback_parameters.clone(),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             service_reach_keyword_source_spans: signature

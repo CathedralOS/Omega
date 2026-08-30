@@ -78,6 +78,26 @@ pub fn callback_native_parameter_id(
     .expect("callback native-parameter identity is nonzero")
 }
 
+/// Compiler-issued nominal identity for a declared native-parameter name.
+///
+/// This v2 domain deliberately replaces the earlier ordinal-derived report
+/// identity. Authored telescope order is retained separately and therefore a
+/// reorder changes application identity without silently renaming either
+/// parameter.
+pub fn nominal_callback_native_parameter_id(
+    canonical_requirement: &str,
+    canonical_parameter_name: &str,
+) -> NativeParameterId {
+    NativeParameterId::new(callback_nominal_report_fingerprint(
+        b"omega.callback-native-parameter.v2",
+        &[
+            canonical_requirement.as_bytes(),
+            canonical_parameter_name.as_bytes(),
+        ],
+    ))
+    .expect("nominal callback native-parameter identity is nonzero")
+}
+
 /// Compiler-issued identity of one complete target-closed native layout.
 /// Pointer geometry participates because it supplies the physical callback
 /// extent that is absent from the target-neutral layout report.
@@ -396,6 +416,25 @@ mod tests {
             callback_native_parameter_id("package::Registrar::other#exact", 0)
         );
         assert_ne!(parameter.get(), requirement.get());
+    }
+
+    #[test]
+    fn nominal_native_parameter_identity_is_name_owned_and_order_independent() {
+        let requirement = "package::Registrar::install#exact";
+        let callback = nominal_callback_native_parameter_id(requirement, "procedure");
+        assert_eq!(
+            callback,
+            nominal_callback_native_parameter_id(requirement, "procedure")
+        );
+        assert_ne!(
+            callback,
+            nominal_callback_native_parameter_id(requirement, "module")
+        );
+        assert_ne!(
+            callback,
+            nominal_callback_native_parameter_id("package::Other::install#exact", "procedure")
+        );
+        assert_ne!(callback, callback_native_parameter_id(requirement, 1));
     }
 
     #[test]

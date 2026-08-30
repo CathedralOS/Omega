@@ -38,6 +38,7 @@ pub struct StateSignatureStorage {
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
+    pub native_callback_parameters: Vec<NativeCallbackParameter>,
     pub return_type: Option<TypeReference>,
     pub invokes: HandleSpan<DiagnosticName>,
     /// EFX: normalized symbol-resolved boundary-service row.
@@ -57,6 +58,13 @@ pub struct StateSignatureStorage {
     /// conformance. Populated at the syntax->resolved lowering, copied --
     /// never re-derived -- downstream.
     pub terminates_guarantee: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NativeCallbackParameter {
+    pub name: DiagnosticName,
+    pub binder: DiagnosticName,
+    pub native_ordinal: u32,
 }
 
 impl Deref for StateSignature {

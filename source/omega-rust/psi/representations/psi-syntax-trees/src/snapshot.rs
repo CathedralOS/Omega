@@ -491,6 +491,8 @@ pub struct StateSignatureSnapshot {
     pub type_parameters: Vec<TypeParameterSnapshot>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub native_callback_parameters: Vec<NativeCallbackParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub service_reach_is_installation_bound: bool,
     pub service_reaches: Vec<IdentifierSnapshot>,
@@ -500,6 +502,13 @@ pub struct StateSignatureSnapshot {
     pub contracts: Vec<CapabilityContractSnapshot>,
     pub default_body: Vec<StatementSnapshot>,
     pub terminates_guarantee: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NativeCallbackParameterSnapshot {
+    pub name: IdentifierSnapshot,
+    pub binder: IdentifierSnapshot,
+    pub native_ordinal: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1623,6 +1632,15 @@ fn snapshot_state_signature(
                 snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
             })
             .collect(),
+        native_callback_parameters: signature
+            .native_callback_parameters
+            .iter()
+            .map(|parameter| NativeCallbackParameterSnapshot {
+                name: snapshot_identifier(&parameter.name),
+                binder: snapshot_identifier(&parameter.binder),
+                native_ordinal: parameter.native_ordinal,
+            })
+            .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
         service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
         service_reaches: snapshot_identifier_slice(
@@ -1675,6 +1693,15 @@ fn snapshot_state_signature_node(
             .iter()
             .map(|handle| {
                 snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
+            })
+            .collect(),
+        native_callback_parameters: signature
+            .native_callback_parameters
+            .iter()
+            .map(|parameter| NativeCallbackParameterSnapshot {
+                name: snapshot_identifier(&parameter.name),
+                binder: snapshot_identifier(&parameter.binder),
+                native_ordinal: parameter.native_ordinal,
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),

@@ -843,6 +843,7 @@ pub struct StateSignature {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
+    pub native_callback_parameters: Vec<NativeCallbackParameterNode>,
     pub return_type: crate::types::TypeReferenceHandle,
     /// `reaches <= Bound`: the listed row is an upper bound whose exact row is
     /// supplied by installation. Only bodyless boundary-trait requirements may
@@ -1238,6 +1239,7 @@ impl ItemTable {
             type_parameters: signature.type_parameters,
             is_default: signature.is_default,
             parameters: signature.parameters,
+            native_callback_parameters: signature.native_callback_parameters.clone(),
             return_type: signature.return_type,
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             service_reach_keyword_source_spans: signature
@@ -1352,6 +1354,17 @@ pub struct StateParameterNode {
     pub is_self: bool,
 }
 
+/// One compiler-private native callback parameter declared on a bodyless
+/// boundary requirement. It participates in the authored native telescope but
+/// is not an Omega runtime parameter and therefore has no type-reference or
+/// source-call argument.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NativeCallbackParameterNode {
+    pub name: Identifier,
+    pub binder: Identifier,
+    pub native_ordinal: u32,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureNode {
     pub name: Identifier,
@@ -1360,6 +1373,7 @@ pub struct StateSignatureNode {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
+    pub native_callback_parameters: Vec<NativeCallbackParameterNode>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub service_reach_is_installation_bound: bool,
     pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,

@@ -805,6 +805,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             right_path: &[CheckedStructuralPredicatePathSegment],
             comparisons: &mut Vec<CheckedBooleanExpression>,
             visiting: &mut Vec<psi_symbols::SymbolHandle>,
+            nested_mixed_seen: &mut bool,
+            allow_direct_nested_mixed: bool,
         ) -> Option<()> {
             if append_direct_structural_leaf_equality(
                 program,
@@ -864,6 +866,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 &right,
                                 comparisons,
                                 visiting,
+                                nested_mixed_seen,
+                                allow_direct_nested_mixed,
                             )?;
                         }
                         Some(())
@@ -925,6 +929,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                     &right,
                                     &mut arm,
                                     visiting,
+                                    nested_mixed_seen,
+                                    allow_direct_nested_mixed,
                                 )?;
                             }
                             let mut arm = arm.into_iter();
@@ -947,12 +953,24 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         Some(())
                     }
                     psi_typed_trees::data::DataShapeKind::Mixed => {
-                        // This first mixed-shape slice is whole-root only. A
-                        // mixed child below a record field, case payload, or
-                        // projected call needs its own complete path/replay
-                        // canary before it may reuse this carrier.
+                        // The first nested mixed-shape slice permits exactly
+                        // one direct field of the compared record. Deeper
+                        // records, case payloads, and two mixed siblings retain
+                        // their fail-closed fence until their independent path
+                        // and replay canaries land.
                         if !left_path.is_empty() || !right_path.is_empty() {
-                            return None;
+                            if !matches!(
+                                (left_path, right_path),
+                                (
+                                    [CheckedStructuralPredicatePathSegment::Field(_)],
+                                    [CheckedStructuralPredicatePathSegment::Field(_)]
+                                )
+                            ) || !allow_direct_nested_mixed
+                                || *nested_mixed_seen
+                            {
+                                return None;
+                            }
+                            *nested_mixed_seen = true;
                         }
                         for member in members {
                             let psi_typed_trees::data::DataMember::Field(field) = member else {
@@ -981,6 +999,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 &right,
                                 comparisons,
                                 visiting,
+                                nested_mixed_seen,
+                                allow_direct_nested_mixed,
                             )?;
                         }
                         let mut arms = Vec::new();
@@ -1039,6 +1059,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                     &right,
                                     &mut arm,
                                     visiting,
+                                    nested_mixed_seen,
+                                    allow_direct_nested_mixed,
                                 )?;
                             }
                             let mut arm = arm.into_iter();
@@ -1081,7 +1103,9 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 right_path: &mut Vec<CheckedStructuralPredicatePathSegment>,
                 output: &mut Vec<CheckedBooleanExpression>,
                 visiting: &mut Vec<psi_symbols::SymbolHandle>,
+                allow_direct_nested_mixed: bool,
             ) -> Option<()> {
+                let mut nested_mixed_seen = false;
                 append_acyclic_structural_equality(
                     program,
                     left_parameter,
@@ -1091,6 +1115,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     right_path,
                     output,
                     visiting,
+                    &mut nested_mixed_seen,
+                    allow_direct_nested_mixed,
                 )
             }
 
@@ -1108,6 +1134,12 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             if left_data.symbol != right_data.symbol || left_data.name != right_data.name {
                 return None;
             }
+            let allow_direct_nested_mixed = matches!(
+                psi_typed_trees::data::DataDefinition::shape_kind_from_members(
+                    program.data_members(left_data)
+                ),
+                psi_typed_trees::data::DataShapeKind::Record
+            );
             let mut comparisons = Vec::new();
             collect_comparisons(
                 program,
@@ -1118,6 +1150,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 &mut right_path,
                 &mut comparisons,
                 &mut Vec::new(),
+                allow_direct_nested_mixed,
             )?;
             let mut comparisons = comparisons.into_iter();
             let Some(first) = comparisons.next() else {

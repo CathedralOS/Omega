@@ -89,6 +89,23 @@ data NativeCallbackDemandIdentity {
     requirement: u64;
 }
 
+data NativeParameterOrigin {
+    case SemanticFormal(formal_ordinal: u64);
+    case PrivateCallback(binder: u64, requirement: u64);
+}
+
+data NativeParameterShape {
+    case Semantic(root: u64);
+    case TargetFunctionPointer(byte_size: u64, alignment: u64);
+}
+
+data NativeParameterIdentity {
+    identity: u64;
+    native_ordinal: u64;
+    origin: NativeParameterOrigin;
+    shape: NativeParameterShape;
+}
+
 data BoundarySignature {
     shapes: [ValueShape; 256];
     shape_count: u64 [0..=256];
@@ -96,6 +113,8 @@ data BoundarySignature {
     field_count: u64 [0..=256];
     parameters: [u64; 32];
     parameter_count: u64 [0..=32];
+    native_parameters: [NativeParameterIdentity; 32];
+    native_parameter_count: u64 [0..=32];
     callback_binders: [CallbackBinderIdentity; 32];
     callback_binder_count: u64 [0..=32];
     callback_demands: [NativeCallbackDemandIdentity; 32];
