@@ -536,9 +536,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 101 procedures; with the frontend
-    gate entry, the gate uses 102 of Beta's 128 procedure slots and compiles to
-    234,506 bytes, leaving 27,634 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 100 procedures; with the frontend
+    gate entry, the gate uses 101 of Beta's 128 procedure slots and compiles to
+    231,957 bytes, leaving 30,183 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -699,6 +699,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `bytes_emptyx`, `matchx`, `Bytesx`, and `Intx` as ordinary user spellings.
     This recovers 16,761 tape bytes and four procedure slots without changing
     Gamma meaning or emitted code.
+  - [x] Reuse that packed matcher for top-level `data` lookahead and merge the
+    byte-identical declared-type/constructor spelling validators into one
+    nominal-name predicate. D16 gives both forms the same capitalization and
+    `Int`/`Bytes` exclusions even though Q3 may keep their namespaces separate.
+    The complete 170-case gate is unchanged; the retained compiler drops one
+    procedure and 2,549 compiled bytes without changing accepted names,
+    source coordinates, or later identity ownership.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
