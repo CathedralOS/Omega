@@ -64,19 +64,26 @@ Delta cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
 parser therefore validates once and streams the same source through private
 states of one canonical invocation. Its retained slices sequence empty,
-trivia-only, ordinary `use path::member;`, basic `[pub] data`, and bare empty
-machine roots.
+trivia-only, ordinary `use path::member;`, basic `[pub] data`, and ordinary
+empty-body machine roots.
 One mixed root table preserves authored use/data/machine order. Bare ordinary
-machines retain an arbitrary name-like path, optional empty parentheses, and
-an immediately empty body. Each completed machine owns one implicit empty
-entry state, matching the canonical parser: a free machine uses the generated
-`entry` identity, while an attached machine names its entry with the final
-authored path member. Machine paths reuse the general path-member arena.
-Parameters, receivers, returns, generics, clauses, `pub`/`boundary`/target-
-scoped forms, bodyless declarations, and nonempty bodies remain incomplete;
-the parser never skips a body as opaque syntax. No current `C` machine is this
-small, so this is a durable representation checkpoint rather than a present
-closure-coverage claim.
+machines retain an arbitrary name-like path, optional parentheses containing a
+comma-separated list of ordinary `name: Type` parameters, and an immediately
+empty body. Parameters reuse the same type engine as data fields, including its
+current bare named, unqualified domain, inclusive literal range, and nested
+fixed-array forms. Each completed machine owns one implicit empty entry state
+and its contiguous parameter span, matching the canonical parser: a free
+machine uses the generated `entry` identity, while an attached machine names
+its entry with the final authored declaration-path member. Machine and domain
+paths share the general path-member arena, but a machine snapshots its path
+extent before parameter types can append domain members. A trailing parameter
+comma rejects as malformed. Parameter modifiers, receivers, references,
+returns, generics, clauses, `pub`/`boundary`/target-scoped forms, bodyless
+declarations, and nonempty bodies remain incomplete; the parser never skips a
+body as opaque syntax. Every current `C` machine requires at least a receiver,
+reference, richer type, prefix, clause, or nonempty body, so this remains a
+durable representation checkpoint rather than a present closure-coverage
+claim.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -95,25 +102,27 @@ uses a bounded invocation-local frame stack and emits named/array nodes in
 postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child
 spans instead of duplicating coordinates. Qualified, indexed, intersected,
-combined,
-exclusive, expression-bound, or multiple constraints; slices, references,
-generic types, rich array elements or lengths; governed built-ins such as
-`Slice`; numbered identities; field relevance; other public roots; and every
-other unimplemented valid form stop as implementation-incomplete rather than
+combined, exclusive, expression-bound, or multiple constraints; slices,
+references, generic types, rich array elements or lengths; governed built-ins
+such as `Slice`; numbered identities; field relevance; other public roots; and
+every other unimplemented valid form stop as implementation-incomplete rather than
 becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/implicit-state
 rows and 16,384 path-member/data-member/direct-field/payload-field/case/
-type-node/constraint rows, plus 128 scratch array frames. Only rows below their
-corresponding count may be inspected after `Complete`; every other status may
-leave unowned partial prefixes and authorizes no syntax-tree consumer. A
+machine-parameter/type-node/constraint rows, plus 128 scratch array frames.
+Only rows below their corresponding count may be inspected after `Complete`;
+every other status may leave unowned partial prefixes and authorizes no
+syntax-tree consumer. A
 repeated invocation invalidates old rows by resetting every count. Root
 capacity dominates use/data/machine/implicit-state capacity, while data-member
 capacity dominates direct-field/case capacity. Direct and payload fields share
 the type-node table, making `TypeNodes` independently exhaustible; its equal
-ceiling dominates payload-field and constraint capacity in the current slice.
-Import and domain paths share the independently exhaustible path-member arena. The
-meaningful resource distinctions are therefore `Roots`, `PathMembers`,
+ceiling dominates payload-field, machine-parameter, and constraint capacity in
+the current slice because every retained row of those kinds owns at least one
+type node.
+Import and domain paths share the independently exhaustible path-member arena.
+The meaningful resource distinctions are therefore `Roots`, `PathMembers`,
 `DataMembers`, `TypeNodes`, and `TypeDepth`. These are private compiler budgets
 to profile against the real compiler closure, not Omega source limits;
 exhaustion is retained for the future outer `Incomplete` mapping.
