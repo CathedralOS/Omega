@@ -1,9 +1,9 @@
 use super::scalar_representation::{
-    MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
-    mutable_scalar_representation_facts_equivalent, scalar_representation_facts_imply,
+    mutable_scalar_representation_facts, mutable_scalar_representation_facts_equivalent,
+    scalar_representation_facts_imply, MutableScalarRepresentationFacts,
 };
-use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::TypedTrees;
 use std::collections::HashSet;
 
 type SymbolIdentity = (u32, u32);
@@ -228,7 +228,9 @@ fn mutable_record_type_representation(
                 allow_stored_integer_projection,
             )?;
             let size = element.size.checked_mul(*length)?;
-            let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(*length)?);
+            let leaf_count = element.leaves.len().checked_mul(*length)?;
+            let mut leaves = Vec::new();
+            leaves.try_reserve_exact(leaf_count).ok()?;
             for index in 0..*length {
                 let element_offset = element.size.checked_mul(index)?;
                 for leaf in &element.leaves {
@@ -299,7 +301,9 @@ pub(super) fn repeat_representation(
     count: usize,
 ) -> Option<MutableRecordRepresentation> {
     let size = element.size.checked_mul(count)?;
-    let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
+    let leaf_count = element.leaves.len().checked_mul(count)?;
+    let mut leaves = Vec::new();
+    leaves.try_reserve_exact(leaf_count).ok()?;
     for index in 0..count {
         let base = element.size.checked_mul(index)?;
         for leaf in &element.leaves {
@@ -333,7 +337,9 @@ fn repeat_representation_with_stride(
             .checked_mul(count.checked_sub(1)?)?
             .checked_add(element.size)?
     };
-    let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
+    let leaf_count = element.leaves.len().checked_mul(count)?;
+    let mut leaves = Vec::new();
+    leaves.try_reserve_exact(leaf_count).ok()?;
     for index in 0..count {
         let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
@@ -443,5 +449,23 @@ mod tests {
         assert_eq!(representation.size, 1);
         assert_eq!(representation.align, 1);
         assert_eq!(representation.leaves.len(), 1);
+    }
+
+    #[test]
+    fn repeated_leaf_capacity_overflow_fails_closed() {
+        let mut program = TypedTrees::default();
+        let u8_type = named_type(&mut program, psi_symbols::SymbolHandle::invalid(), "u8");
+        let element = mutable_type_representation(&program, u8_type)
+            .expect("u8 has a one-byte representation");
+        let fixed_array = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: u8_type,
+                length: FixedArrayLength::Literal(usize::MAX),
+            });
+
+        assert!(mutable_type_representation(&program, fixed_array).is_none());
+        assert!(repeat_representation(&element, usize::MAX).is_none());
+        assert!(repeat_representation_with_stride(&element, usize::MAX, 1).is_none());
     }
 }

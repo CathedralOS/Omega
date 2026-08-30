@@ -433,6 +433,97 @@ fn literal_indexed_nested_record_array_recast_keeps_immediate_siblings_writable(
 }
 
 #[test]
+fn records_with_nested_array_fields_retain_exact_ranges_for_direct_and_array_targets() {
+    let source = r#"
+        data Payload {
+            prefix: u8;
+            code: u32;
+        }
+
+        data Packet {
+            marker: u8;
+            blocks: [[Payload; 2]; 2];
+            trailer: u16;
+        }
+
+        data Cell {
+            bytes: [u8; 256];
+        }
+
+        machine observe_packet(value: &Packet) {
+        }
+
+        machine observe_packets(value: &[Packet; 2]) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared_record: &Packet = &self.bytes[2] as &Packet;
+            observe_packet(shared_record);
+            let mutable_record: &mut Packet = &mut self.bytes[48] as &mut Packet;
+            mutable_record.blocks[1][1].code = 1;
+
+            let shared_array: &[Packet; 2] = &self.bytes[96] as &[Packet; 2];
+            observe_packets(shared_array);
+            let mutable_array: &mut [Packet; 2] =
+                &mut self.bytes[176] as &mut [Packet; 2];
+            mutable_array[1].blocks[1][1].code = 2;
+        }
+    "#;
+
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed)
+        .expect("record and record-array recasts with nested array fields should validate");
+    let facts = build_borrow_facts(&typed);
+    let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
+
+    assert_eq!(loans.len(), 4, "one loan per validated recast");
+    for (kind, start, end) in [
+        (psi_checked_trees::BorrowAccessKind::Read, 2, 42),
+        (psi_checked_trees::BorrowAccessKind::Mutable, 48, 88),
+        (psi_checked_trees::BorrowAccessKind::Read, 96, 176),
+        (psi_checked_trees::BorrowAccessKind::Mutable, 176, 256),
+    ] {
+        assert!(loans.iter().any(|loan| {
+            loan.kind == kind
+                && facts.loan_segments(loan) == [psi_facts::PlaceSegment::FixedRange { start, end }]
+        }));
+    }
+}
+
+#[test]
+fn record_array_with_nested_array_fields_rejects_padding_and_every_boundary() {
+    for mutation in [
+        "self.bytes[3] = 1;",
+        "self.bytes[4] = 1;",
+        "self.bytes[8] = 1;",
+        "self.bytes[14] = 1;",
+        "self.bytes[15] = 1;",
+        "self.bytes[22] = 1;",
+        "self.bytes[23] = 1;",
+        "self.bytes[42] = 1;",
+        "self.bytes[43] = 1;",
+        "self.bytes[82] = 1;",
+    ] {
+        let diagnostics = check_program(&indexed_mutable_array_field_record_recast_source(
+            mutation,
+            "view[1].blocks[1][1].code = 2;",
+        ))
+        .expect_err("record, nested-array, and repeated-record padding remain borrowed");
+
+        assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
+    }
+}
+
+#[test]
+fn record_array_with_nested_array_fields_keeps_immediate_siblings_writable() {
+    check_program(&indexed_mutable_array_field_record_recast_source(
+        "self.bytes[2] = 1; self.bytes[83] = 1;",
+        "view[1].blocks[1][1].code = 2;",
+    ))
+    .expect("the bytes immediately before and after [3, 83) are disjoint");
+}
+
+#[test]
 fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
     let source = r#"
         data Cell {
@@ -449,12 +540,8 @@ fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
 }
 
 #[test]
-fn record_arrays_with_noneligible_record_shapes_publish_no_precise_loan() {
+fn erased_and_atomic_field_records_publish_no_precise_loan() {
     let source = r#"
-        data ArrayRecord {
-            values: [u16; 2];
-        }
-
         data ErasedRecord {
             value: u16;
             proof [erased]: u16;
@@ -469,10 +556,8 @@ fn record_arrays_with_noneligible_record_shapes_publish_no_precise_loan() {
         }
 
         machine Cell::exercise(&mut self) {
-            let array_field: &[ArrayRecord; 2] =
-                &self.bytes[0] as &[ArrayRecord; 2];
             let erased_field: &[ErasedRecord; 2] =
-                &self.bytes[8] as &[ErasedRecord; 2];
+                &self.bytes[0] as &[ErasedRecord; 2];
             let atomic_direct: &AtomicRecord = &self.bytes[12] as &AtomicRecord;
             let atomic_array: &[AtomicRecord; 2] =
                 &self.bytes[16] as &[AtomicRecord; 2];
@@ -481,56 +566,121 @@ fn record_arrays_with_noneligible_record_shapes_publish_no_precise_loan() {
 
     assert_valid_recast_has_no_loan(
         source,
-        "array-bearing, erased-field, and atomic-field records stay outside exact custody",
+        "erased-field and atomic-field records stay outside exact custody",
     );
 }
 
 #[test]
-fn generic_invariant_cased_and_cyclic_record_arrays_publish_no_precise_loan() {
+fn zero_and_atomic_nested_array_fields_publish_no_precise_loan() {
+    let source = r#"
+        data ZeroArrayRecord {
+            marker: u8;
+            values: [[u16; 0]; 2];
+        }
+
+        data AtomicArrayRecord {
+            values: [[AtomicU32; 1]; 2];
+        }
+
+        data Cell {
+            bytes: [u8; 32];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let zero_direct: &ZeroArrayRecord = &self.bytes[0] as &ZeroArrayRecord;
+            let zero_array: &[ZeroArrayRecord; 2] =
+                &self.bytes[2] as &[ZeroArrayRecord; 2];
+            let atomic_direct: &AtomicArrayRecord =
+                &self.bytes[8] as &AtomicArrayRecord;
+            let atomic_array: &[AtomicArrayRecord; 2] =
+                &self.bytes[16] as &[AtomicArrayRecord; 2];
+        }
+    "#;
+
+    assert_valid_recast_has_no_loan(
+        source,
+        "zero nested arrays and atomic array leaves stay outside exact custody",
+    );
+}
+
+#[test]
+fn bool_and_constrained_nested_array_fields_publish_no_loan_and_keep_diagnostics() {
+    let bool_source = r#"
+        data BoolArrayRecord {
+            values: [[bool; 1]; 2];
+        }
+        data Cell { bytes: [u8; 4]; }
+        machine Cell::exercise(&mut self) {
+            let view: &BoolArrayRecord = &self.bytes[0] as &BoolArrayRecord;
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(bool_source, "must be recursively fact-free");
+
+    let constrained_source = r#"
+        domain u16::Small
+        requires
+            self <= 10;
+
+        data ConstrainedArrayRecord {
+            values: [[u16 in Small; 1]; 2];
+        }
+        data Cell { bytes: [u8; 4]; }
+        machine Cell::exercise(&mut self) {
+            let view: &ConstrainedArrayRecord =
+                &self.bytes[0] as &ConstrainedArrayRecord;
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(constrained_source, "must be recursively fact-free");
+}
+
+#[test]
+fn generic_invariant_cased_and_cyclic_array_fields_publish_no_precise_loan() {
     for (context, source) in [
         (
-            "generic record",
+            "generic record array field",
             r#"
                 data Generic<T> { value: T; }
+                data Holder { values: [Generic<u16>; 2]; }
                 data Cell { bytes: [u8; 16]; }
                 machine Cell::exercise(&mut self) {
-                    let view: &[Generic<u16>; 2] =
-                        &self.bytes[0] as &[Generic<u16>; 2];
+                    let view: &Holder = &self.bytes[0] as &Holder;
                 }
             "#,
         ),
         (
-            "invariant-bearing record",
+            "invariant-bearing record array field",
             r#"
                 data Invariant
                 where value <= limit,
                 { value: u16; limit: u16; }
+                data Holder { values: [Invariant; 2]; }
                 data Cell { bytes: [u8; 16]; }
                 machine Cell::exercise(&mut self) {
-                    let view: &[Invariant; 2] = &self.bytes[0] as &[Invariant; 2];
+                    let view: &Holder = &self.bytes[0] as &Holder;
                 }
             "#,
         ),
         (
-            "cased record",
+            "cased record array field",
             r#"
                 data Choice {
                     case First(value: u16);
                     case Second(value: u16);
                 }
+                data Holder { values: [Choice; 2]; }
                 data Cell { bytes: [u8; 16]; }
                 machine Cell::exercise(&mut self) {
-                    let view: &[Choice; 2] = &self.bytes[0] as &[Choice; 2];
+                    let view: &Holder = &self.bytes[0] as &Holder;
                 }
             "#,
         ),
         (
-            "cyclic record",
+            "cyclic record array field",
             r#"
-                data Node { next: Node; }
+                data Node { children: [Node; 1]; }
                 data Cell { bytes: [u8; 16]; }
                 machine Cell::exercise(&mut self) {
-                    let view: &[Node; 2] = &self.bytes[0] as &[Node; 2];
+                    let view: &Node = &self.bytes[0] as &Node;
                 }
             "#,
         ),
@@ -820,6 +970,34 @@ fn indexed_mutable_nested_record_array_recast_source(mutation: &str, final_use: 
             machine Cell::exercise(&mut self) {{
                 let view: &mut [[Desc; 2]; 2] =
                     &mut self.bytes[3] as &mut [[Desc; 2]; 2];
+                {mutation}
+                {final_use}
+            }}
+        "#
+    )
+}
+
+fn indexed_mutable_array_field_record_recast_source(mutation: &str, final_use: &str) -> String {
+    format!(
+        r#"
+            data Payload {{
+                prefix: u8;
+                code: u32;
+            }}
+
+            data Packet {{
+                marker: u8;
+                blocks: [[Payload; 2]; 2];
+                trailer: u16;
+            }}
+
+            data Cell {{
+                bytes: [u8; 88];
+            }}
+
+            machine Cell::exercise(&mut self) {{
+                let view: &mut [Packet; 2] =
+                    &mut self.bytes[3] as &mut [Packet; 2];
                 {mutation}
                 {final_use}
             }}

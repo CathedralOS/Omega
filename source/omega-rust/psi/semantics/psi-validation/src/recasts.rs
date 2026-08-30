@@ -271,7 +271,7 @@ fn closed_fact_free_record_symbol_is_eligible(
     symbol: psi_symbols::SymbolHandle,
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> bool {
-    if visiting.contains(&symbol) {
+    if !symbol.is_valid() || visiting.contains(&symbol) {
         return false;
     }
     visiting.push(symbol);
@@ -314,12 +314,18 @@ fn closed_fact_free_record_field_is_eligible(
     if let Some(primitive) = exact_primitive_type(program, type_reference) {
         return primitive != PrimitiveType::Bool && primitive.scalar_byte_size().is_some();
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return false;
-    };
-    closed_fact_free_record_symbol_is_eligible(program, *symbol, visiting)
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            closed_fact_free_record_symbol_is_eligible(program, *symbol, visiting)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } if *length > 0 => {
+            closed_fact_free_record_field_is_eligible(program, *element_type, visiting)
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
