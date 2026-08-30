@@ -589,6 +589,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     alongside `FAIL_OFF`, generate the two PC-zero adapters, validate D21's
     profile invariant, supply sealed `Bytes`, preflight every success/failure
     publication, and emit no partial bytes.
+  - [x] Preserve D30's generated resource identity at the sealed-input seam.
+    The emitted reader now transfers input-extent and heap-extent failures to
+    distinct adapter-owned terminals while containment remains independent;
+    neither resource path commits `r254` or a partial descriptor. Exact and
+    adjacent input/heap, zero-capacity, binary, containment, and deterministic-
+    reconstruction canaries exercise the split.
   - [ ] **OWNER-BLOCKED — Q4 GCOUT boundary priority and schema coordinates.**
     Before publishing the canonical compiler boundary, fix exact-end versus
     oversized-source priority, exact request-field coordinates, and the total

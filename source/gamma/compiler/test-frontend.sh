@@ -1702,7 +1702,8 @@ stamp_seed "$T/bytes-d21-probe.tape" "$SEED" "$T/bytes-d21-probe.exe" >/dev/null
     '    let read_zero_label = new_label()' \
     '    let length_label = new_label()' \
     '    let get_label = new_label()' \
-    '    let resource_label = new_label()' \
+    '    let input_resource_label = new_label()' \
+    '    let heap_resource_label = new_label()' \
     '    let internal_label = new_label()' \
     '    let unexpected_label = new_label()' \
     '    let empty_label = new_label()' \
@@ -1719,6 +1720,7 @@ stamp_seed "$T/bytes-d21-probe.tape" "$SEED" "$T/bytes-d21-probe.exe" >/dev/null
     '    let misaligned_heap = new_label()' \
     '    let after_read = new_label()' \
     '    let resource_heap_ok = new_label()' \
+    '    let heap_resource_heap_ok = new_label()' \
     '    define_label(entry_label)' \
     '    emit_runtime_init()' \
     '    emit_r(17, 30)' \
@@ -1797,7 +1799,7 @@ stamp_seed "$T/bytes-d21-probe.tape" "$SEED" "$T/bytes-d21-probe.exe" >/dev/null
     '    define_label(byte_two_ok)' \
     '    emit_imm(0, 7)' \
     '    emit_r(0, 0)' \
-    '    define_label(resource_label)' \
+    '    define_label(input_resource_label)' \
     '    emit_imm(21, 16777248)' \
     '    emit_rrx(16, 254, 21, resource_heap_ok)' \
     '    emit_jump(12, unexpected_label)' \
@@ -1807,14 +1809,22 @@ stamp_seed "$T/bytes-d21-probe.tape" "$SEED" "$T/bytes-d21-probe.exe" >/dev/null
     '    emit_rx(14, 22, unexpected_label)' \
     '    emit_imm(0, 6)' \
     '    emit_r(0, 0)' \
+    '    define_label(heap_resource_label)' \
+    '    emit_imm(21, 16777248)' \
+    '    emit_rrx(16, 254, 21, heap_resource_heap_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(heap_resource_heap_ok)' \
+    '    emit_imm(0, 5)' \
+    '    emit_r(0, 0)' \
     '    define_label(internal_label)' \
     '    emit_imm(0, 4)' \
     '    emit_r(0, 0)' \
     '    define_label(unexpected_label)' \
     '    emit_imm(0, 9)' \
     '    emit_r(0, 0)' \
-    '    emit_gamma_read_sealed_bytes(read_label, resource_label, internal_label, 3)' \
-    '    emit_gamma_read_sealed_bytes(read_zero_label, resource_label, internal_label, 0)' \
+    '    word[2096864] = internal_label' \
+    '    emit_gamma_read_sealed_bytes(read_label, input_resource_label, heap_resource_label, 3)' \
+    '    emit_gamma_read_sealed_bytes(read_zero_label, input_resource_label, heap_resource_label, 0)' \
     '    emit_bytes_length(length_label, internal_label)' \
     '    emit_bytes_get(get_label, unexpected_label, internal_label)' \
     '    let payload_ok = validate_payload()' \
@@ -2606,7 +2616,8 @@ for sealed_input_mode in e b x z o h H i; do
   sealed_input_status=$?
   case "$sealed_input_mode" in
     e|b|z|h) sealed_input_expected=7 ;;
-    x|o|H) sealed_input_expected=6 ;;
+    x|o) sealed_input_expected=6 ;;
+    H) sealed_input_expected=5 ;;
     i) sealed_input_expected=4 ;;
   esac
   if [ "$sealed_input_status" = "$sealed_input_expected" ] &&

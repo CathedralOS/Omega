@@ -334,10 +334,13 @@ output extent before replaying it to stdout, preventing partial artifacts.
 The dormant sealed-input reader is reusable emitted runtime machinery, not an
 application adapter or a profile choice. It accepts a compiler-supplied maximum,
 reads stdin exactly once into a flat `LEAF`, and atomically commits its aligned
-descriptor and heap cursor only after EOF and full extent validation. Its seven
-ordinary runtime paths plus one malformed-private-heap path pin empty and
-binary input, exact and adjacent source/heap limits, zero capacity, internal
-containment, no output, and byte-identical reconstruction. D19 now fixes the
+descriptor and heap cursor only after EOF and full extent validation. Input
+extent and heap extent transfer to distinct adapter-owned terminals while
+containment remains independently compiler-owned. Its seven ordinary runtime
+paths plus one malformed-private-heap path pin empty and binary input, exact
+and adjacent source/heap limits, zero capacity, unchanged heap publication on
+either resource failure, internal containment, no output, and byte-identical
+reconstruction. D19 now fixes the
 two closed profiles, their selected entries, result validation, and wire
 ownership, while D30 fixes their exact maxima and physical boundaries. Adapter
 emission remains implementation work.

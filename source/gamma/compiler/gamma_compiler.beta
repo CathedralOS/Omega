@@ -2244,12 +2244,15 @@ proc emit_checked_divmod(entry_label, failure_label, opcode) {
 ; does not select that profile or interpret the returned program value. It consumes
 ; sealed stdin once, stores the exact bytes in the private heap, and returns a
 ; canonical Bytes descriptor in r0. EOF at the exact maximum is accepted; the
-; adjacent byte transfers to the supplied resource label. No path writes
+; adjacent byte transfers to the supplied input-resource label. Heap extent
+; exhaustion transfers independently to `heap_resource_label`; neither path
+; changes r254 or publishes a partial descriptor. No path writes
 ; stdout. Generated r3..r14 plus the standard r249/r250 address scratch are
 ; caller-clobbered; r252/r253/r255 are preserved, and r254 changes only on
-; nonempty success.
-proc emit_gamma_read_sealed_bytes(entry_label, resource_label, internal_label,
-                                  maximum_bytes) {
+; nonempty success. The compiler-owned RUNTIME_INTERNAL_LABEL supplies the
+; containment destination without exceeding Beta's four-argument ABI.
+proc emit_gamma_read_sealed_bytes(entry_label, input_resource_label,
+                                  heap_resource_label, maximum_bytes) {
     state maximum_low { to invalid when (maximum_bytes < 0)  to valid }
     state valid {
         let loop = new_label()
@@ -2262,13 +2265,13 @@ proc emit_gamma_read_sealed_bytes(entry_label, resource_label, internal_label,
         emit_rr(2, 6, 254)
         emit_imm(7, 0)
         emit_imm(9, 16777216)
-        emit_rrx(15, 6, 9, internal_label)
-        emit_rrx(15, 255, 6, internal_label)
+        emit_rrx(15, 6, 9, word[2096864])
+        emit_rrx(15, 255, 6, word[2096864])
         emit_rr(2, 10, 6)
         emit_rr(4, 10, 9)
         emit_imm(9, 32)
         emit_rr(7, 10, 9)
-        emit_rx(14, 10, internal_label)
+        emit_rx(14, 10, word[2096864])
         emit_rr(2, 8, 6)
         emit_rr(3, 8, 9)
         emit_rr(2, 14, 8)
@@ -2278,10 +2281,10 @@ proc emit_gamma_read_sealed_bytes(entry_label, resource_label, internal_label,
         emit_rrx(16, 3, 4, done)
         emit_imm(4, maximum_bytes)
         emit_rrx(15, 7, 4, capacity_ok)
-        emit_jump(12, resource_label)
+        emit_jump(12, input_resource_label)
         define_label(capacity_ok)
         emit_rrx(15, 8, 255, heap_ok)
-        emit_jump(12, resource_label)
+        emit_jump(12, heap_resource_label)
         define_label(heap_ok)
         emit_rr(9, 8, 3)
         emit_imm(4, 1)
@@ -2300,8 +2303,8 @@ proc emit_gamma_read_sealed_bytes(entry_label, resource_label, internal_label,
         define_label(aligned)
         emit_rr(2, 12, 10)
         emit_rr(3, 12, 11)
-        emit_rrx(15, 12, 10, internal_label)
-        emit_rrx(15, 255, 12, resource_label)
+        emit_rrx(15, 12, 10, word[2096864])
+        emit_rrx(15, 255, 12, heap_resource_label)
         emit_imm(13, 1)
         emit_word_store(6, 0, 13)
         emit_word_store(6, 8, 14)
