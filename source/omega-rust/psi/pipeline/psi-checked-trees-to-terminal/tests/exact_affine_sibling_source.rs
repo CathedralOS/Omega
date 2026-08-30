@@ -1,10 +1,11 @@
-use psi_core::{IntegerSign, IntegerType, IntegerValue};
+use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm};
 use psi_proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::OperationKind;
 use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_with_effect_handler_measured,
@@ -22,6 +23,26 @@ const SOURCE: &str = r#"
     requires 1i8 <= root
     {
         root < 1i8 || (6i8 / (root * 1i8)) <= 6i8
+    }
+"#;
+
+const SIX_DEFINITION_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::divide_after_six_definitions(token: Token, root: i8) -> bool
+    requires -5i8 <= root, root <= 121i8
+    {
+        let first: i8 = root + 1i8;
+        let second: i8 = first + 1i8;
+        let third: i8 = second + 1i8;
+        let fourth: i8 = third + 1i8;
+        let fifth: i8 = fourth + 1i8;
+        let divisor: i8 = fifth + 1i8;
+        let quotient: i8 = 6i8 / divisor;
+        quotient <= 6i8
     }
 "#;
 
@@ -157,6 +178,143 @@ fn landed_affine_sibling_custody_crosses_source_codec_and_independent_verificati
         )
         .is_err(),
         "removing the landed-sibling citation invalidates the certificate",
+    );
+}
+
+#[test]
+fn six_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
+    let tokens = Lexer::new(SIX_DEFINITION_SOURCE)
+        .tokenize()
+        .expect("tokenize six-definition source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse six-definition source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve six-definition source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type six-definition affine divisor");
+    let checked = lower_typed_trees(typed).expect("check six-definition affine divisor");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(
+        &checked,
+        "Root::divide_after_six_definitions",
+    )
+    .expect("six-definition affine divisor lowers with a checked certificate");
+
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [root] = entry.parameters.as_slice() else {
+        panic!("entry retains one scalar root")
+    };
+    let (exact_divide, exact_divisor) = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            } => Some((obligation, right)),
+            _ => None,
+        })
+        .expect("source retains one exact divide");
+    let evidence = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .find(|evidence| evidence.obligation == exact_divide)
+        .expect("six-definition exact divide has evidence");
+    let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+        panic!("the exact divide uses the canonical certificate route")
+    };
+    let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = &certificate.proof.rule else {
+        panic!("the six-definition divisor selects the signed positive-divisor arm")
+    };
+    let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
+        panic!("the positive-divisor arm retains its affine custody")
+    };
+    assert_eq!(witness.root, ScalarTerm::value(root.id, root.scalar_type),);
+    assert_eq!(
+        witness.target,
+        ScalarTerm::value(exact_divisor, root.scalar_type),
+    );
+    assert_eq!(witness.definition_axioms, vec![1, 3, 5, 7, 9, 11]);
+    assert_eq!(
+        witness.literal_axioms,
+        vec![Some(0), Some(2), Some(4), Some(6), Some(8), Some(10)],
+    );
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("independent verification replays all six affine definitions");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("the six-definition entry has fixed fuel");
+    validate_fixed_entry_fuel(&verified, &fixed)
+        .expect("the six-definition fixed-fuel ceiling independently recomputes");
+    drop(verified);
+
+    let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    let decoded_module = decode_module(&module_bytes).expect("decode module");
+    let decoded_proof = decode_proof_bundle(&proof_bytes).expect("decode proof bundle v19");
+    assert_eq!(decoded_module, lowered.semantic_module);
+    assert_eq!(decoded_proof, lowered.proof_bundle);
+
+    let [token] = entry.structural_parameters.as_slice() else {
+        panic!("entry retains the Token cleanup root")
+    };
+    let structural_arguments = [TerminalStructuralValue {
+        opaque_identity: token.place.get(),
+        structural_type: token.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    }];
+    let scalar_arguments = [TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
+        value: IntegerValue::Signed(0),
+    }];
+    let mut handler = AcceptTerminalEffects;
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &module_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &scalar_arguments,
+        &structural_arguments,
+        &mut handler,
+    )
+    .expect("verified six-definition artifact interprets");
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
+    );
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+    assert!(measured.effects().is_empty());
+
+    let mut reordered = decoded_proof;
+    let reordered_evidence = reordered
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == exact_divide)
+        .expect("decoded six-definition exact-divide evidence");
+    let EvidenceRoute::CertificateDerived(certificate) = &mut reordered_evidence.route else {
+        unreachable!("selected certificate-derived evidence")
+    };
+    let ProofRule::DisjunctionIntroduction { disjunct, .. } = &mut certificate.proof.rule else {
+        unreachable!("selected signed disjunction proof")
+    };
+    let ProofRule::IntegerAffineBound { witness, .. } = &mut disjunct.rule else {
+        unreachable!("selected affine child")
+    };
+    witness.definition_axioms.swap(4, 5);
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &decoded_module,
+            &reordered,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "reordering the final two definition rows invalidates the certificate",
     );
 }
 
