@@ -955,15 +955,22 @@ proposition transport, float or computed implication, a mixed premise roster,
 unresolved identity, or argument adaptation remain fail closed, while generic
 owner substitution, general adapted arguments, non-arithmetic logical
 implication, and executable canonical Terminal replay remain fail closed.
-Arithmetic `Expression` entailment is implemented. Transport of quotient-domain
-membership and opaque proposition families uses the settled explicit third
-static theorem application on `Quotient::lift`. The compiler must derive and
-verify the complete ordered `Q -> P` transport schema for both representative
-sides, retain the selected theorem under the
-`ForwardPreconditionTransport` role, and replay the same role-tagged evidence in
-Terminal. Ambient domain linking, visibility search, an opaque solver verdict,
-or a mixed automatic/theorem row set cannot supply that authority. This lane is
-implementation work, not an open language-design question.
+Arithmetic `Expression` entailment is implemented. Checked planning for
+quotient-domain membership and opaque proposition families now consumes the
+settled explicit third static theorem application on `Quotient::lift`. It
+verifies the exact left/right/shared parameter roster and the complete
+fact-major public-`Q` `requires` and representative-`P` `ensures` rosters, with
+adjacent Left/Right substitutions for each authored fact. Certificate
+composition rejoins the exact `ForwardPreconditionTransport` role, complete
+closed selected application, and checked-body, pure-closure, unconditional-
+termination, and crash-free eligibility of both selected theorem entries. The
+result is a distinct checked-only transport-backed lift certificate; automatic
+implication and fixed-call rows are absent, while the theorem roster covers
+both dependent and fixed `P`. Terminal replay of the same role-tagged evidence
+remains open. Ambient domain linking, visibility search, an opaque solver
+verdict, or a mixed automatic/theorem row set cannot supply that authority.
+The remaining lane is implementation work, not an open language-design
+question.
 
 A proof-only Terminal preparation seam now covers only the total direct
 faithful `define` shape. Its all-or-nothing validation API produces one
@@ -990,11 +997,11 @@ stage-4 admission; checked operation/result lowering remains open.
 The collection migration is now live through sealed typed requests, checked
 relation planning, and the proof-only total-direct `define` Terminal seam.
 Three-argument `lift` retains `Congruence` followed by
-`ForwardPreconditionTransport`, but deliberately produces no automatic
-`Q -> P` certificate until its role-specific transport-schema verifier exists;
-selected and automatic transport are never mixed. Package review still
-blanket-rejects quotient contract calls and has no quotient-operation record to
-migrate.
+`ForwardPreconditionTransport`. Its role-specific checked verifier now produces
+the complete non-executable `Q -> P` transport certificate, and selected and
+automatic transport are never mixed. The proof-only Terminal seam still covers
+only total direct `define`; package review blanket-rejects quotient contract
+calls and has no quotient-operation record to migrate.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

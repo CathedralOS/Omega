@@ -339,6 +339,10 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         " plus exact {}",
                         plan.render_selected_theorem(program)
                     );
+                    let transport = plan
+                        .render_selected_transport(program)
+                        .map(|value| format!(" plus exact {value}"))
+                        .unwrap_or_default();
                     let theorem_schema = match &plan.theorem_schema_verification {
                         Ok(_) => format!(
                             " plus verified exact {}",
@@ -360,6 +364,23 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     let theorem_crash = congruence
                         .crash_free
                         .then_some(" plus checked crash-free theorem routes")
+                        .unwrap_or_default();
+                    let transport_schema = plan
+                        .render_transport_schema_verification()
+                        .map(|value| format!(" plus {value}"))
+                        .unwrap_or_default();
+                    let selected_transport = plan.theorem_evidence.get(1);
+                    let transport_termination = selected_transport
+                        .and_then(|transport| transport.termination)
+                        .map(|_| " plus checked forward-transport termination summary")
+                        .unwrap_or_default();
+                    let transport_purity = selected_transport
+                        .and_then(|transport| transport.purity)
+                        .map(|_| " plus checked pure forward-transport effect summary")
+                        .unwrap_or_default();
+                    let transport_crash = selected_transport
+                        .is_some_and(|transport| transport.crash_free)
+                        .then_some(" plus checked crash-free forward-transport routes")
                         .unwrap_or_default();
                     let result_path = if result_root.alias_count == 0 {
                         "the exact result root".to_owned()
@@ -408,6 +429,32 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     if !congruence.crash_free {
                         remaining.push("the selected theorem crash fence".to_owned());
                     }
+                    if let Some(transport) = selected_transport {
+                        if transport.termination.is_none() {
+                            remaining.push(
+                                "the selected forward-transport termination fence".to_owned(),
+                            );
+                        }
+                        if transport.purity.is_none() {
+                            remaining.push(
+                                "the selected forward-transport effect fence".to_owned(),
+                            );
+                        }
+                        if !transport.crash_free {
+                            remaining.push(
+                                "the selected forward-transport crash fence".to_owned(),
+                            );
+                        }
+                        if plan
+                            .transport_schema_verification
+                            .as_ref()
+                            .is_none_or(|verification| verification.is_err())
+                        {
+                            remaining.push(
+                                "exact selected forward-transport schema verification".to_owned(),
+                            );
+                        }
+                    }
                     if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
                         remaining.push("all normalized result exits".to_owned());
                     }
@@ -421,7 +468,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     }
                     remaining.push("canonical Terminal correspondence replay".to_owned());
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{fixed_call_preconditions}{correspondence_certificate} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{transport}{transport_schema}{transport_termination}{transport_purity}{transport_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{fixed_call_preconditions}{correspondence_certificate} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),

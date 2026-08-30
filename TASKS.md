@@ -10034,9 +10034,10 @@ Remaining N6/N8 work:
   adaptation remain fail-closed; generic owner substitution, general adapted
   lift arguments, non-arithmetic logical implication, and executable canonical
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
-  open. Arithmetic `Expression` entailment is implemented; transport
-  of quotient-domain membership and opaque proposition families is
-  implementation-blocked on the settled explicit transport lane. The
+  open. Arithmetic `Expression` entailment and the checked-only explicit
+  transport-schema lane are implemented; executable transport of quotient-
+  domain membership and opaque proposition families remains blocked on later
+  source-erasure and operation admission. The
   two-argument `lift` keeps the complete built-in exact/arithmetic implication
   route. The three-argument form selects one resultless checked theorem at the
   operation request and verifies it against the compiler-derived complete
@@ -10065,12 +10066,19 @@ Remaining N6/N8 work:
   canaries. Terminal format 42/vocabulary 45 bind the role discriminant before
   its role-specific payload and reject missing, duplicate, reversed, surplus,
   role/payload-mismatched, and unknown-tag evidence. Three-argument `lift`
-  retains `Congruence, ForwardPreconditionTransport` in canonical order but
-  remains fail-closed before correspondence-certificate production until the
-  complete ordered transport-schema verifier is implemented; it cannot fall
-  back to the automatic implication lane. Package review still has no quotient
-  operation record because quotient contract calls remain blanket-rejected,
-  so that representation migration remains open.
+  retains `Congruence, ForwardPreconditionTransport` in canonical order.
+  Checked planning now verifies the transport theorem's exact left/right/shared
+  parameter roster, complete fact-major public-`Q` `requires` and
+  representative-`P` `ensures` rosters with adjacent Left/Right substitutions,
+  exact role and selected closed static application, and both theorem entries'
+  checked-body, pure-closure, unconditional-termination, and crash-free
+  eligibility. It produces a distinct non-executable transport-backed lift
+  certificate with no automatic implication or fixed-call rows; dependent and
+  fixed `P` are both covered by the complete theorem roster. Terminal still
+  does not replay that checked transport certificate, and package review still
+  has no quotient operation record because quotient contract calls remain
+  blanket-rejected, so those representation and admission migrations remain
+  open.
 
   A failed built-in implication diagnostic must print the expected public and
   representative fact coordinates and point directly to

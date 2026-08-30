@@ -1,7 +1,8 @@
 use super::correspondence_certificate::{
     DirectLiftPreconditionProof, FixedRepresentativeCallPreconditions,
     FixedRepresentativeCallProof, QuotientCorrespondenceEvidence,
-    compose_lift_correspondence_certificate, derive_fixed_representative_call_preconditions,
+    compose_lift_correspondence_certificate, compose_lift_transport_correspondence_certificate,
+    derive_fixed_representative_call_preconditions,
 };
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeContractFactLocation,
@@ -51,6 +52,7 @@ use super::theorem_schema::{
     TheoremParameterRole, derive_expected_theorem_schema,
 };
 use super::theorem_schema_verification::verify_selected_theorem_schema;
+use super::transport_schema::verify_forward_precondition_transport_schema;
 
 fn exact_public_location(
     proof: &DirectLiftPreconditionProof,
@@ -1589,6 +1591,768 @@ fn selected_theorem_schema_verification_rejects_runtime_evidence_and_const_param
             Err(expected_error),
         );
     }
+}
+
+#[derive(Clone, Copy)]
+enum TransportSchemaMutation {
+    Exact,
+    MissingPremise,
+    ExtraPremise,
+    ReorderedPremise,
+    SideMajorPremiseOrder,
+    MissingConclusion,
+    WrongConclusion,
+    ReboundSharedConclusion,
+    NamedEvidenceLane,
+    UnexpectedContractKind,
+    WrongParameterType,
+}
+
+struct TransportSchemaFixture {
+    program: TypedTrees,
+    public_machine: Machine,
+    public_state: State,
+    representative: RepresentativeTelescope,
+    theorem: SelectedTheoremTelescope,
+    runtime: super::DirectLiftRuntimeCorrespondence,
+    expected_congruence: super::theorem_schema::ExpectedTheoremSchema,
+    public_partition: super::RepresentativePreconditionPartition,
+    representative_partition: super::RepresentativePreconditionPartition,
+}
+
+fn transport_schema_fixture(mutation: TransportSchemaMutation) -> TransportSchemaFixture {
+    let mut program = TypedTrees::default();
+    let carrier = carrier_type(&mut program);
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let quotient = quotient_type_over(
+        &mut program,
+        symbol(900),
+        "TransportQ",
+        symbol(901),
+        "TransportR",
+        carrier,
+    );
+    let relation = ExactQuotientRelation {
+        quotient_type: quotient,
+        quotient_symbol: symbol(900),
+        relation_symbol: symbol(901),
+    };
+
+    let representative_value_symbol = symbol(902);
+    let representative_shared_symbol = symbol(903);
+    let representative_value = named_argument(
+        &mut program,
+        "representative_value",
+        representative_value_symbol,
+    );
+    let representative_shared = named_argument(
+        &mut program,
+        "representative_shared",
+        representative_shared_symbol,
+    );
+    let representative_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(representative_value),
+        ProofFact::Expression(representative_shared),
+    ]);
+    let representative_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts: representative_facts,
+        ..Default::default()
+    }]);
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(904),
+        state_symbol: symbol(905),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: representative_value_symbol,
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: representative_shared_symbol,
+                type_reference: unit,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: carrier,
+        machine_contracts: representative_contracts,
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    let expected_congruence = derive_expected_theorem_schema(
+        &program,
+        &[
+            InputRelation::Quotient(relation),
+            InputRelation::ExactEquality(unit),
+        ],
+        relation,
+        &representative,
+    )
+    .expect("exact transport parameter roster");
+
+    let public_value_symbol = symbol(906);
+    let public_shared_symbol = symbol(907);
+    let public_value = named_argument(&mut program, "public_value", public_value_symbol);
+    let public_shared = named_argument(&mut program, "public_shared", public_shared_symbol);
+    let public_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(public_value),
+        ProofFact::Expression(public_shared),
+    ]);
+    let public_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts: public_facts,
+        ..Default::default()
+    }]);
+    let public_machine = Machine {
+        contracts: public_contracts,
+        ..Default::default()
+    };
+    let mut public_state = State::default();
+    for (parameter_symbol, name, type_reference) in [
+        (public_value_symbol, "public_value", quotient),
+        (public_shared_symbol, "public_shared", unit),
+    ] {
+        program.push_state_parameter(
+            &mut public_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated_static(name),
+                type_reference,
+                ..Default::default()
+            },
+        );
+    }
+    let runtime = super::DirectLiftRuntimeCorrespondence {
+        positions: vec![
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_value_symbol),
+                representative_parameter: representative_value_symbol,
+            },
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_shared_symbol),
+                representative_parameter: representative_shared_symbol,
+            },
+        ],
+    };
+    let input_relations = [
+        InputRelation::Quotient(relation),
+        InputRelation::ExactEquality(unit),
+    ];
+    let public_partition = derive_direct_lift_public_precondition_partition(
+        &program,
+        &public_machine,
+        &public_state,
+        &input_relations,
+        &runtime,
+    )
+    .expect("exact public transport partition");
+    let representative_partition =
+        derive_representative_precondition_partition(&program, &input_relations, &representative)
+            .expect("exact representative transport partition");
+
+    let left_symbol = symbol(908);
+    let right_symbol = symbol(909);
+    let shared_symbol = symbol(910);
+    let left = named_argument(&mut program, "left", left_symbol);
+    let right = named_argument(&mut program, "right", right_symbol);
+    let shared = named_argument(&mut program, "shared", shared_symbol);
+    let mut requires = vec![
+        ProofFact::Expression(left),
+        ProofFact::Expression(right),
+        ProofFact::Expression(shared),
+        ProofFact::Expression(shared),
+    ];
+    match mutation {
+        TransportSchemaMutation::MissingPremise => {
+            requires.pop();
+        }
+        TransportSchemaMutation::ExtraPremise => {
+            requires.push(ProofFact::Expression(shared));
+        }
+        TransportSchemaMutation::ReorderedPremise => requires.swap(0, 1),
+        TransportSchemaMutation::SideMajorPremiseOrder => {
+            requires = vec![
+                ProofFact::Expression(left),
+                ProofFact::Expression(shared),
+                ProofFact::Expression(right),
+                ProofFact::Expression(shared),
+            ];
+        }
+        _ => {}
+    }
+    let requires = program.proof_facts.insert_many(requires);
+    let mut conclusions = vec![
+        ProofFact::Expression(left),
+        ProofFact::Expression(right),
+        ProofFact::Expression(shared),
+        ProofFact::Expression(shared),
+    ];
+    match mutation {
+        TransportSchemaMutation::MissingConclusion => {
+            conclusions.pop();
+        }
+        TransportSchemaMutation::WrongConclusion => {
+            conclusions[2] = ProofFact::Expression(left);
+        }
+        TransportSchemaMutation::ReboundSharedConclusion => {
+            conclusions[3] = ProofFact::Expression(left);
+        }
+        _ => {}
+    }
+    let conclusions = program.proof_facts.insert_many(conclusions);
+    let theorem_machine_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        binding: matches!(mutation, TransportSchemaMutation::NamedEvidenceLane)
+            .then(|| Identifier::generated_static("transport_evidence")),
+        facts: requires,
+        ..Default::default()
+    }]);
+    let theorem_state_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: if matches!(mutation, TransportSchemaMutation::UnexpectedContractKind) {
+            SignatureContractKind::Crashes {
+                cause: psi_typed_trees::signature::CrashCause::Trap,
+            }
+        } else {
+            SignatureContractKind::Ensures
+        },
+        facts: conclusions,
+        ..Default::default()
+    }]);
+    let mut theorem_machine = Machine {
+        symbol: symbol(911),
+        contracts: theorem_machine_contracts,
+        ..Default::default()
+    };
+    let mut theorem_state = State {
+        symbol: symbol(912),
+        return_type: unit,
+        contracts: theorem_state_contracts,
+        ..Default::default()
+    };
+    for (position, (parameter_symbol, name, mut type_reference)) in [
+        (left_symbol, "left", carrier),
+        (right_symbol, "right", carrier),
+        (shared_symbol, "shared", unit),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if position == 2 && matches!(mutation, TransportSchemaMutation::WrongParameterType) {
+            type_reference = carrier;
+        }
+        program.push_state_parameter(
+            &mut theorem_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated_static(name),
+                type_reference,
+                ..Default::default()
+            },
+        );
+    }
+    program.push_machine_state(&mut theorem_machine, theorem_state);
+    program.push_machine(theorem_machine);
+    let theorem = SelectedTheoremTelescope {
+        machine_symbol: symbol(911),
+        state_symbol: symbol(912),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: left_symbol,
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: right_symbol,
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: shared_symbol,
+                type_reference: unit,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        machine_contracts: theorem_machine_contracts,
+        state_contracts: theorem_state_contracts,
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    TransportSchemaFixture {
+        program,
+        public_machine,
+        public_state,
+        representative,
+        theorem,
+        runtime,
+        expected_congruence,
+        public_partition,
+        representative_partition,
+    }
+}
+
+fn verify_transport_fixture(
+    fixture: &TransportSchemaFixture,
+) -> Result<super::transport_schema::VerifiedForwardPreconditionTransportSchema, RelationPlanError>
+{
+    verify_forward_precondition_transport_schema(
+        &fixture.program,
+        &fixture.public_machine,
+        &fixture.public_state,
+        &fixture.representative,
+        &fixture.theorem,
+        &fixture.runtime,
+        &fixture.expected_congruence,
+        &fixture.public_partition,
+        &fixture.representative_partition,
+    )
+}
+
+#[test]
+fn forward_transport_schema_certifies_complete_ordered_both_side_rosters() {
+    let fixture = transport_schema_fixture(TransportSchemaMutation::Exact);
+    let verified = verify_transport_fixture(&fixture).expect("exact transport schema");
+    assert_eq!(verified.parameters.len(), 3);
+    assert_eq!(verified.public_premises.len(), 4);
+    assert_eq!(verified.representative_conclusions.len(), 4);
+    assert_eq!(
+        verified
+            .public_premises
+            .iter()
+            .map(|row| row.application)
+            .collect::<Vec<_>>(),
+        vec![
+            TheoremApplicationSide::Left,
+            TheoremApplicationSide::Right,
+            TheoremApplicationSide::Left,
+            TheoremApplicationSide::Right,
+        ]
+    );
+    assert_eq!(verified.public_premises[0].source.fact_position, 0);
+    assert_eq!(verified.public_premises[1].source.fact_position, 0);
+    assert_eq!(verified.public_premises[2].source.fact_position, 1);
+    assert_eq!(verified.public_premises[2].actual.fact_position, 2);
+    assert_eq!(
+        verified.representative_conclusions[3].actual.fact_position,
+        3
+    );
+}
+
+#[test]
+fn forward_transport_schema_rejects_roster_and_substitution_mutations() {
+    for (mutation, expected) in [
+        (
+            TransportSchemaMutation::MissingPremise,
+            RelationPlanError::TransportSchemaPremiseCountMismatch,
+        ),
+        (
+            TransportSchemaMutation::ExtraPremise,
+            RelationPlanError::TransportSchemaPremiseCountMismatch,
+        ),
+        (
+            TransportSchemaMutation::ReorderedPremise,
+            RelationPlanError::TransportSchemaPublicPremiseMismatch(0),
+        ),
+        (
+            TransportSchemaMutation::SideMajorPremiseOrder,
+            RelationPlanError::TransportSchemaPublicPremiseMismatch(1),
+        ),
+        (
+            TransportSchemaMutation::MissingConclusion,
+            RelationPlanError::TransportSchemaConclusionCountMismatch,
+        ),
+        (
+            TransportSchemaMutation::WrongConclusion,
+            RelationPlanError::TransportSchemaRepresentativeConclusionMismatch(2),
+        ),
+        (
+            TransportSchemaMutation::ReboundSharedConclusion,
+            RelationPlanError::TransportSchemaRepresentativeConclusionMismatch(3),
+        ),
+        (
+            TransportSchemaMutation::NamedEvidenceLane,
+            RelationPlanError::TheoremSchemaNamedEvidenceLane,
+        ),
+        (
+            TransportSchemaMutation::UnexpectedContractKind,
+            RelationPlanError::TheoremSchemaUnexpectedContractKind,
+        ),
+        (
+            TransportSchemaMutation::WrongParameterType,
+            RelationPlanError::TheoremSchemaParameterTypeMismatch(2),
+        ),
+    ] {
+        let fixture = transport_schema_fixture(mutation);
+        assert_eq!(verify_transport_fixture(&fixture), Err(expected));
+    }
+}
+
+#[test]
+fn transport_certificate_requires_exact_role_identity_and_each_eligibility_fence() {
+    let fixture = transport_schema_fixture(TransportSchemaMutation::Exact);
+    let verified = verify_transport_fixture(&fixture).expect("exact transport schema");
+    let congruence = super::theorem_schema_verification::VerifiedTheoremSchema {
+        theorem_machine_symbol: symbol(920),
+        theorem_state_symbol: symbol(921),
+        parameters: Vec::new(),
+        relation_premises: Vec::new(),
+        legality_premises: Vec::new(),
+        conclusion: TheoremContractFactLocation {
+            owner: TheoremContractOwner::State,
+            contract_position: 0,
+            fact_position: 0,
+        },
+    };
+    let exact_evidence = super::PlannedQuotientTheoremEvidence {
+        role: QuotientTheoremRole::ForwardPreconditionTransport,
+        selected_application: fixture.theorem.clone(),
+        termination: Some(super::SelectedTheoremTermination {
+            machine_symbol: fixture.theorem.machine_symbol,
+            state_symbol: fixture.theorem.state_symbol,
+        }),
+        purity: Some(super::SelectedTheoremPurity {
+            machine_symbol: fixture.theorem.machine_symbol,
+            state_symbol: fixture.theorem.state_symbol,
+        }),
+        crash_free: true,
+    };
+    let certificate = compose_lift_transport_correspondence_certificate(
+        &Ok(congruence.clone()),
+        &{
+            let mut evidence = exact_evidence.clone();
+            evidence.role = QuotientTheoremRole::Congruence;
+            evidence.selected_application.machine_symbol = congruence.theorem_machine_symbol;
+            evidence.selected_application.state_symbol = congruence.theorem_state_symbol;
+            evidence.termination = Some(super::SelectedTheoremTermination {
+                machine_symbol: congruence.theorem_machine_symbol,
+                state_symbol: congruence.theorem_state_symbol,
+            });
+            evidence.purity = Some(super::SelectedTheoremPurity {
+                machine_symbol: congruence.theorem_machine_symbol,
+                state_symbol: congruence.theorem_state_symbol,
+            });
+            evidence
+        },
+        &Ok(verified.clone()),
+        &exact_evidence,
+        &fixture.runtime,
+    )
+    .expect("all transport eligibility and exact identity compose");
+    let mut congruence_evidence = exact_evidence.clone();
+    congruence_evidence.role = QuotientTheoremRole::Congruence;
+    congruence_evidence.selected_application.machine_symbol = congruence.theorem_machine_symbol;
+    congruence_evidence.selected_application.state_symbol = congruence.theorem_state_symbol;
+    congruence_evidence.termination = Some(super::SelectedTheoremTermination {
+        machine_symbol: congruence.theorem_machine_symbol,
+        state_symbol: congruence.theorem_state_symbol,
+    });
+    congruence_evidence.purity = Some(super::SelectedTheoremPurity {
+        machine_symbol: congruence.theorem_machine_symbol,
+        state_symbol: congruence.theorem_state_symbol,
+    });
+    let plan = super::DirectTerminalRelationPlan {
+        input_relations: vec![
+            InputRelation::Quotient(fixture.expected_congruence.relation_premises[0].relation),
+            InputRelation::ExactEquality(fixture.representative.parameters[1].type_reference),
+        ],
+        result_relation: fixture.expected_congruence.result_relation,
+        representative: fixture.representative.clone(),
+        representative_termination: None,
+        theorem_evidence: vec![congruence_evidence.clone(), exact_evidence.clone()],
+        expected_theorem_schema: fixture.expected_congruence.clone(),
+        theorem_schema_verification: Ok(congruence.clone()),
+        transport_schema_verification: Some(Ok(verified.clone())),
+        direct_lift_correspondence: Some(fixture.runtime.clone()),
+        define_correspondence: None,
+        public_precondition: Some(fixture.public_partition.clone()),
+        representative_precondition: Some(fixture.representative_partition.clone()),
+        direct_lift_precondition_implication: None,
+        fixed_representative_call_preconditions: None,
+        define_precondition_correspondence: None,
+        correspondence_certificate: Some(certificate.clone()),
+    };
+    assert!(plan.direct_lift_precondition_implication.is_none());
+    assert!(plan.fixed_representative_call_preconditions.is_none());
+    assert!(
+        !plan.has_undischarged_fixed_representative_preconditions(),
+        "the complete selected transport roster includes fixed P on both sides"
+    );
+    let QuotientCorrespondenceEvidence::DirectLiftWithTransport { runtime, transport } =
+        certificate.evidence
+    else {
+        panic!("selected transport must have a distinct no-automatic-row certificate variant")
+    };
+    assert_eq!(runtime, fixture.runtime);
+    assert_eq!(transport, verified);
+
+    let mut mutations = Vec::new();
+    let mut wrong_role = exact_evidence.clone();
+    wrong_role.role = QuotientTheoremRole::Congruence;
+    mutations.push(wrong_role);
+    let mut wrong_identity = exact_evidence.clone();
+    wrong_identity.selected_application.state_symbol = symbol(922);
+    mutations.push(wrong_identity);
+    let mut static_application_drift = exact_evidence.clone();
+    static_application_drift
+        .selected_application
+        .static_application
+        .lifetime_arguments
+        .push(Identifier::generated_static("drift"));
+    mutations.push(static_application_drift);
+    let mut missing_termination = exact_evidence.clone();
+    missing_termination.termination = None;
+    mutations.push(missing_termination);
+    let mut missing_purity = exact_evidence.clone();
+    missing_purity.purity = None;
+    mutations.push(missing_purity);
+    let mut crash_route = exact_evidence.clone();
+    crash_route.crash_free = false;
+    mutations.push(crash_route);
+    for mutation in mutations {
+        assert!(
+            compose_lift_transport_correspondence_certificate(
+                &Ok(congruence.clone()),
+                &congruence_evidence,
+                &Ok(verified.clone()),
+                &mutation,
+                &fixture.runtime,
+            )
+            .is_none()
+        );
+    }
+    let mut ineligible_congruence = congruence_evidence;
+    ineligible_congruence.purity = None;
+    assert!(
+        compose_lift_transport_correspondence_certificate(
+            &Ok(congruence),
+            &ineligible_congruence,
+            &Ok(verified),
+            &exact_evidence,
+            &fixture.runtime,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn direct_plan_composes_selected_transport_without_automatic_implication_rows() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(930),
+        "PlanTransportQ",
+        symbol(931),
+        "PlanTransportR",
+    );
+    let carrier = carrier_type(&mut program);
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+
+    let representative_parameter = symbol(932);
+    let mut representative_state = State {
+        symbol: symbol(933),
+        name: Identifier::generated_static("apply"),
+        return_type: carrier,
+        ..Default::default()
+    };
+    program.push_state_parameter(
+        &mut representative_state,
+        StateParameter {
+            symbol: representative_parameter,
+            name: Identifier::generated_static("value"),
+            type_reference: carrier,
+            ..Default::default()
+        },
+    );
+    let mut representative_machine = Machine {
+        symbol: symbol(934),
+        name: Identifier::generated_static("representative"),
+        termination_plan: psi_language_semantics::MachineTerminationPlan {
+            checked_summary: psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    program.push_machine_state(&mut representative_machine, representative_state);
+    program.push_machine(representative_machine);
+
+    let relation_symbol = symbol(931);
+    let left_symbol = symbol(935);
+    let right_symbol = symbol(936);
+    let left = named_argument(&mut program, "left", left_symbol);
+    let right = named_argument(&mut program, "right", right_symbol);
+    let relation_arguments = program
+        .expression_table
+        .insert_expression_handles([left, right]);
+    let relation_premise =
+        program
+            .proof_facts
+            .insert_many([ProofFact::Proposition(PropositionApplication {
+                proposition: relation_symbol,
+                name: Identifier::generated_static("PlanTransportR"),
+                binder_arguments: Box::default(),
+                arguments: relation_arguments,
+            })]);
+    let representative_call = |program: &mut TypedTrees, argument: ExpressionHandle| {
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([argument]);
+        let mut call = call_with_arguments(arguments);
+        call.target_symbol = symbol(933);
+        call.target = Identifier::generated_static("apply");
+        program.expression_table.insert(ExpressionNode::Call(call))
+    };
+    let left_result = representative_call(&mut program, left);
+    let right_result = representative_call(&mut program, right);
+    let conclusion_arguments = program
+        .expression_table
+        .insert_expression_handles([left_result, right_result]);
+    let conclusion =
+        program
+            .proof_facts
+            .insert_many([ProofFact::Proposition(PropositionApplication {
+                proposition: relation_symbol,
+                name: Identifier::generated_static("PlanTransportR"),
+                binder_arguments: Box::default(),
+                arguments: conclusion_arguments,
+            })]);
+    let congruence_machine_contracts =
+        program.signature_contracts.insert_many([SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: relation_premise,
+            ..Default::default()
+        }]);
+    let congruence_state_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Ensures,
+        facts: conclusion,
+        ..Default::default()
+    }]);
+    let mut congruence_state = State {
+        symbol: symbol(937),
+        return_type: unit,
+        contracts: congruence_state_contracts,
+        ..Default::default()
+    };
+    for (parameter_symbol, name) in [(left_symbol, "left"), (right_symbol, "right")] {
+        program.push_state_parameter(
+            &mut congruence_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated_static(name),
+                type_reference: carrier,
+                ..Default::default()
+            },
+        );
+    }
+    let mut congruence_machine = Machine {
+        symbol: symbol(938),
+        name: Identifier::generated_static("congruence"),
+        contracts: congruence_machine_contracts,
+        termination_plan: psi_language_semantics::MachineTerminationPlan {
+            checked_summary: psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    program.push_machine_state(&mut congruence_machine, congruence_state);
+    program.push_machine(congruence_machine);
+
+    let transport_left_symbol = symbol(939);
+    let transport_right_symbol = symbol(940);
+    let mut transport_state = State {
+        symbol: symbol(941),
+        return_type: unit,
+        ..Default::default()
+    };
+    for (parameter_symbol, name) in [
+        (transport_left_symbol, "left"),
+        (transport_right_symbol, "right"),
+    ] {
+        program.push_state_parameter(
+            &mut transport_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated_static(name),
+                type_reference: carrier,
+                ..Default::default()
+            },
+        );
+    }
+    let mut transport_machine = Machine {
+        symbol: symbol(942),
+        name: Identifier::generated_static("transport"),
+        termination_plan: psi_language_semantics::MachineTerminationPlan {
+            checked_summary: psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    program.push_machine_state(&mut transport_machine, transport_state);
+    program.push_machine(transport_machine);
+
+    let public_symbol = symbol(943);
+    let public_value = named_argument(&mut program, "value", public_symbol);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([public_value]);
+    let call = call_with_arguments(arguments);
+    let public_machine = Machine::default();
+    let mut public_state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    program.push_state_parameter(
+        &mut public_state,
+        StateParameter {
+            symbol: public_symbol,
+            name: Identifier::generated_static("value"),
+            type_reference: quotient,
+            ..Default::default()
+        },
+    );
+    let mut request = request_with_representative(symbol(933));
+    request.theorem_evidence[0].application.symbol = symbol(937);
+    let mut selected_transport = static_argument("transport");
+    selected_transport.symbol = symbol(941);
+    request.theorem_evidence = vec![
+        request.theorem_evidence[0].clone(),
+        QuotientTheoremSelection {
+            role: QuotientTheoremRole::ForwardPreconditionTransport,
+            application: selected_transport,
+        },
+    ]
+    .into_boxed_slice();
+
+    let plan =
+        derive_direct_terminal_plan(&program, &public_machine, &public_state, &call, &request)
+            .expect("the exact selected transport should complete checked relation planning");
+    assert!(
+        plan.transport_schema_verification
+            .as_ref()
+            .is_some_and(Result::is_ok)
+    );
+    assert!(plan.direct_lift_precondition_implication.is_none());
+    assert!(plan.fixed_representative_call_preconditions.is_none());
+    assert!(matches!(
+        plan.correspondence_certificate
+            .as_ref()
+            .map(|certificate| &certificate.evidence),
+        Some(QuotientCorrespondenceEvidence::DirectLiftWithTransport { .. })
+    ));
 }
 
 struct ArithmeticImplicationFixture {

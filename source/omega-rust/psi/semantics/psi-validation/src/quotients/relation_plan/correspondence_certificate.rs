@@ -21,7 +21,8 @@ use super::theorem_schema::{
     TheoremContractOwner,
 };
 use super::theorem_schema_verification::VerifiedTheoremSchema;
-use super::{RelationPlanError, RepresentativeTelescope};
+use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
+use super::{PlannedQuotientTheoremEvidence, RelationPlanError, RepresentativeTelescope};
 use crate::contract_entailment::{
     StrictArithmeticBindingValue, StrictArithmeticImplicationJudgment,
     StrictArithmeticSymbolBinding, strict_arithmetic_expression_implication,
@@ -97,6 +98,12 @@ pub(super) enum QuotientCorrespondenceEvidence {
         runtime: DirectLiftRuntimeCorrespondence,
         precondition: DirectLiftPreconditionImplication,
         fixed: FixedRepresentativeCallPreconditions,
+    },
+    DirectLiftWithTransport {
+        runtime: DirectLiftRuntimeCorrespondence,
+        /// Exact role-specific proof of the whole Q => P lane. Automatic
+        /// implication rows are structurally absent from this variant.
+        transport: VerifiedForwardPreconditionTransportSchema,
     },
     Define {
         runtime: DefineRuntimeCorrespondence,
@@ -352,7 +359,7 @@ pub(super) fn derive_fixed_representative_call_preconditions(
     Ok(FixedRepresentativeCallPreconditions { rows })
 }
 
-fn proof_value_substitutions(
+pub(super) fn proof_value_substitutions(
     runtime: &DirectLiftRuntimeCorrespondence,
     public_identity: impl Fn(usize) -> String,
 ) -> (Vec<ProofValueSubstitution>, Vec<ProofValueSubstitution>) {
@@ -704,6 +711,56 @@ pub(super) fn compose_lift_correspondence_certificate(
             fixed: fixed.clone(),
         },
     })
+}
+
+pub(super) fn compose_lift_transport_correspondence_certificate(
+    congruence: &Result<VerifiedTheoremSchema, RelationPlanError>,
+    congruence_evidence: &PlannedQuotientTheoremEvidence,
+    transport: &Result<VerifiedForwardPreconditionTransportSchema, RelationPlanError>,
+    transport_evidence: &PlannedQuotientTheoremEvidence,
+    runtime: &DirectLiftRuntimeCorrespondence,
+) -> Option<QuotientCorrespondenceCertificate> {
+    let verified_congruence = congruence.as_ref().ok()?;
+    let verified_transport = transport.as_ref().ok()?;
+    if !theorem_evidence_is_eligible(
+        congruence_evidence,
+        psi_typed_trees::expression::QuotientTheoremRole::Congruence,
+        verified_congruence.theorem_machine_symbol,
+        verified_congruence.theorem_state_symbol,
+    ) || !theorem_evidence_is_eligible(
+        transport_evidence,
+        verified_transport.role,
+        verified_transport.theorem_machine_symbol,
+        verified_transport.theorem_state_symbol,
+    ) || transport_evidence.selected_application != verified_transport.selected_application
+    {
+        return None;
+    }
+    Some(QuotientCorrespondenceCertificate {
+        theorem: verified_congruence.clone(),
+        evidence: QuotientCorrespondenceEvidence::DirectLiftWithTransport {
+            runtime: runtime.clone(),
+            transport: verified_transport.clone(),
+        },
+    })
+}
+
+fn theorem_evidence_is_eligible(
+    evidence: &PlannedQuotientTheoremEvidence,
+    role: psi_typed_trees::expression::QuotientTheoremRole,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> bool {
+    evidence.role == role
+        && evidence.selected_application.machine_symbol == machine_symbol
+        && evidence.selected_application.state_symbol == state_symbol
+        && evidence.termination.is_some_and(|termination| {
+            termination.machine_symbol == machine_symbol && termination.state_symbol == state_symbol
+        })
+        && evidence.purity.is_some_and(|purity| {
+            purity.machine_symbol == machine_symbol && purity.state_symbol == state_symbol
+        })
+        && evidence.crash_free
 }
 
 pub(super) fn compose_define_correspondence_certificate(

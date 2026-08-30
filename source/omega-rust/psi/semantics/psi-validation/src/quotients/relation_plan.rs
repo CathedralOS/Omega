@@ -28,12 +28,13 @@ mod terminal_bridge;
 mod theorem;
 mod theorem_schema;
 mod theorem_schema_verification;
+mod transport_schema;
 
 use correspondence_certificate::{
     DirectLiftPreconditionImplication, FixedRepresentativeCallPreconditions,
     QuotientCorrespondenceCertificate, compose_define_correspondence_certificate,
-    compose_lift_correspondence_certificate, derive_direct_lift_precondition_implication,
-    derive_fixed_representative_call_preconditions,
+    compose_lift_correspondence_certificate, compose_lift_transport_correspondence_certificate,
+    derive_direct_lift_precondition_implication, derive_fixed_representative_call_preconditions,
 };
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
@@ -62,6 +63,9 @@ use theorem::derive_selected_theorem_telescope;
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
 use theorem_schema::{ExpectedTheoremSchema, derive_expected_theorem_schema};
 use theorem_schema_verification::{VerifiedTheoremSchema, verify_selected_theorem_schema};
+use transport_schema::{
+    VerifiedForwardPreconditionTransportSchema, verify_forward_precondition_transport_schema,
+};
 
 #[cfg(test)]
 use result_flow::{
@@ -102,8 +106,8 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) representative: RepresentativeTelescope,
     pub(super) representative_termination: Option<RepresentativeTermination>,
     /// Exact role-ordered explicitly selected theorem applications and common
-    /// eligibility. Only the congruence entry participates in the currently
-    /// implemented schema/correspondence producer.
+    /// eligibility. Congruence and forward transport each retain their own
+    /// verified role-specific correspondence.
     pub(super) theorem_evidence: Vec<PlannedQuotientTheoremEvidence>,
     /// Exact compiler-derived contract expected from the selected theorem.
     expected_theorem_schema: ExpectedTheoremSchema,
@@ -112,6 +116,11 @@ pub(super) struct DirectTerminalRelationPlan {
     /// the correspondence rung must consume the certificate and cannot infer
     /// authority from the expected schema alone.
     pub(super) theorem_schema_verification: Result<VerifiedTheoremSchema, RelationPlanError>,
+    /// Present only for the canonical third theorem role. Its successful
+    /// certificate is the whole Q => P authority; no automatic row may be
+    /// combined with it.
+    pub(super) transport_schema_verification:
+        Option<Result<VerifiedForwardPreconditionTransportSchema, RelationPlanError>>,
     pub(super) direct_lift_correspondence: Option<DirectLiftRuntimeCorrespondence>,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
@@ -120,10 +129,11 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) fixed_representative_call_preconditions:
         Option<FixedRepresentativeCallPreconditions>,
     pub(super) define_precondition_correspondence: Option<DefinePreconditionCorrespondence>,
-    /// Exact theorem + bounded correspondence composition only. The admitted
-    /// fixed call obligations are retained, while general implication/
-    /// adaptation and Terminal replay remain outside this non-executable
-    /// certificate.
+    /// Exact theorem + bounded correspondence composition only. The automatic
+    /// form retains fixed call obligations; the selected-transport form proves
+    /// the complete dependent and fixed P roster without automatic rows.
+    /// General adaptation and Terminal replay remain outside this
+    /// non-executable certificate.
     pub(super) correspondence_certificate: Option<QuotientCorrespondenceCertificate>,
 }
 
@@ -187,6 +197,10 @@ pub(super) enum RelationPlanError {
     TheoremSchemaLegalityPremiseMismatch(usize),
     TheoremSchemaConclusionCountMismatch,
     TheoremSchemaConclusionMismatch,
+    TransportSchemaPremiseCountMismatch,
+    TransportSchemaPublicPremiseMismatch(usize),
+    TransportSchemaConclusionCountMismatch,
+    TransportSchemaRepresentativeConclusionMismatch(usize),
     DirectLiftOwnerRequiresSubstitution,
     DirectLiftRuntimeArityMismatch,
     DirectLiftParameterIdentityNotUnique,
@@ -311,6 +325,20 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::TheoremSchemaConclusionMismatch => formatter.write_str(
                 "the selected theorem conclusion is not the exact result relation over the two exact representative applications",
+            ),
+            Self::TransportSchemaPremiseCountMismatch => formatter.write_str(
+                "the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides",
+            ),
+            Self::TransportSchemaPublicPremiseMismatch(position) => write!(
+                formatter,
+                "selected transport public-Q premise {position} is missing, reordered, or does not exactly match its side-specific substitution"
+            ),
+            Self::TransportSchemaConclusionCountMismatch => formatter.write_str(
+                "the selected transport theorem's ensures fact count does not exactly match the complete ordered representative-P roster for both representative sides",
+            ),
+            Self::TransportSchemaRepresentativeConclusionMismatch(position) => write!(
+                formatter,
+                "selected transport representative-P conclusion {position} is missing, reordered, or does not exactly match its side-specific substitution"
             ),
             Self::DirectLiftOwnerRequiresSubstitution => formatter.write_str(
                 "the direct-lift precondition rung does not yet substitute a generic quotient owner",
@@ -640,7 +668,42 @@ pub(super) fn derive_direct_terminal_plan(
         )?),
         _ => None,
     };
+    let transport_schema_verification = match (
+        has_explicit_transport,
+        direct_lift_correspondence.as_ref(),
+        public_precondition.as_ref(),
+        representative_precondition.as_ref(),
+    ) {
+        (true, Some(runtime), Some(public), Some(representative_partition)) => {
+            let transport = &theorem_evidence[1].selected_application;
+            Some(verify_forward_precondition_transport_schema(
+                program,
+                machine,
+                state,
+                &representative,
+                transport,
+                runtime,
+                &expected_theorem_schema,
+                public,
+                representative_partition,
+            ))
+        }
+        _ => None,
+    };
     let correspondence_certificate = match request.kind {
+        QuotientOperationKind::Lift if has_explicit_transport => direct_lift_correspondence
+            .as_ref()
+            .zip(transport_schema_verification.as_ref())
+            .and_then(|(runtime, transport)| {
+                let selected_transport = &theorem_evidence[1];
+                compose_lift_transport_correspondence_certificate(
+                    &theorem_schema_verification,
+                    &theorem_evidence[0],
+                    transport,
+                    selected_transport,
+                    runtime,
+                )
+            }),
         QuotientOperationKind::Lift => direct_lift_correspondence
             .as_ref()
             .zip(direct_lift_precondition_implication.as_ref())
@@ -678,6 +741,7 @@ pub(super) fn derive_direct_terminal_plan(
         theorem_evidence,
         expected_theorem_schema,
         theorem_schema_verification,
+        transport_schema_verification,
         direct_lift_correspondence,
         define_correspondence,
         public_precondition,
@@ -833,6 +897,41 @@ impl DirectTerminalRelationPlan {
         )
     }
 
+    pub(super) fn render_selected_transport(&self, program: &TypedTrees) -> Option<String> {
+        let selected = self.theorem_evidence.get(1)?;
+        let parameters = selected
+            .selected_application
+            .parameters
+            .iter()
+            .map(|parameter| {
+                program.display_type_reference_with_constraints(parameter.type_reference)
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(format!(
+            "forward-transport#{}:state#{}({parameters})[static-bindings:{}]",
+            selected.selected_application.machine_symbol.arena_index(),
+            selected.selected_application.state_symbol.arena_index(),
+            selected
+                .selected_application
+                .static_application
+                .bindings
+                .len(),
+        ))
+    }
+
+    pub(super) fn render_transport_schema_verification(&self) -> Option<String> {
+        match self.transport_schema_verification.as_ref()? {
+            Ok(verified) => Some(format!(
+                "transport-schema=[parameters:{}, public-Q:{}, representative-P:{}]",
+                verified.parameters.len(),
+                verified.public_premises.len(),
+                verified.representative_conclusions.len(),
+            )),
+            Err(reason) => Some(format!("transport-schema verification failed: {reason}")),
+        }
+    }
+
     pub(super) fn render_expected_theorem_schema(&self) -> String {
         // Diagnostic summary only. Canonical equality is the structural
         // `ExpectedTheoremSchema`; equal counts never imply equal schemas.
@@ -891,6 +990,18 @@ impl DirectTerminalRelationPlan {
             return false;
         };
         if self.direct_lift_correspondence.is_some() {
+            if matches!(
+                self.correspondence_certificate
+                    .as_ref()
+                    .map(|certificate| &certificate.evidence),
+                Some(
+                    correspondence_certificate::QuotientCorrespondenceEvidence::DirectLiftWithTransport {
+                        ..
+                    }
+                )
+            ) {
+                return false;
+            }
             return self
                 .fixed_representative_call_preconditions
                 .as_ref()
@@ -978,6 +1089,9 @@ impl DirectTerminalRelationPlan {
                 correspondence_certificate::QuotientCorrespondenceEvidence::DirectLift {
                     ..
                 } => "direct-lift",
+                correspondence_certificate::QuotientCorrespondenceEvidence::DirectLiftWithTransport {
+                    ..
+                } => "direct-lift-with-transport",
                 correspondence_certificate::QuotientCorrespondenceEvidence::Define { .. } => {
                     "define"
                 }
