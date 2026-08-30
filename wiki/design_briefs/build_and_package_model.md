@@ -439,6 +439,18 @@ or aggregate network-byte count. Uniform command lifetime, captured-output,
 process-tree cleanup, and honest native resource controls remain valid because
 they apply without interpreting the host's helper graph.
 
+Primary Git selection follows the stable **Primary Git selection and
+consistency** contract in
+`source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`.
+An explicit absolute operator setting wins; otherwise the resolver snapshots a
+constrained absolute-entry `PATH` before reading package-controlled input,
+freezes one absolute executable, and uses it for the complete resolution.
+Hard-coded platform candidates and ownership, mode, or ACL admission rules do
+not establish trust. Checkpointed metadata and content comparisons detect
+ordinary within-operation drift only. Their path and hash may distinguish two
+run receipts but never immutable source identity, `PackageKey`, or lock-source
+meaning.
+
 The universal `GitSourceReceipt` binds the validated requested locator, primary
 Git invocation and outcome, authenticated commit/tree, validated
 materialization, and immutable snapshot. It does not claim the actual route,

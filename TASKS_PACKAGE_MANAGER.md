@@ -231,11 +231,23 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Source integration and fixtures
 
-- [ ] **PRIMARY-GIT-SELECTION-BOUNDARY — OWNER-BLOCKED.** Settle whether Omega
-  should use host `PATH`, an explicit operator setting, or the current
-  hard-coded executable candidates and custody checks. Retain no new trust
-  claim while **primary Git selection and consistency custody** remains open in
-  `OWNER_QUESTIONS.md`.
+- [ ] **PRIMARY-GIT-SELECTION-AND-CONSISTENCY — implement the settled host
+  selection boundary.** Follow **Primary Git selection and consistency** in
+  `source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`:
+  - accept one explicit absolute operator path, otherwise snapshot and search
+    only absolute `PATH` entries before package-controlled input is processed;
+  - exclude empty, relative, implicit-current-directory, workspace, fetched
+    source, build-output, quarantine, and resolver-cache candidates; on Windows
+    automatically select only a directly executable `git.exe`;
+  - freeze one absolute primary path for the operation, retain metadata checks
+    around launches and bounded content rehashes at acquisition/publication
+    checkpoints, and reject detected inconsistency without claiming host trust;
+  - delete the hard-coded candidate table and ownership, mode, set-id, and ACL
+    admission rules while preserving managed-link resolution and ordinary file,
+    launch, command-surface, resource, object, and snapshot validation; and
+  - canary explicit-setting precedence, constrained `PATH`, package-directory
+    exclusion, Windows batch-wrapper rejection, checkpointed drift, and the
+    receipt-provenance versus immutable-source-identity split.
 
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
   controls and negative cases on a native Windows worker and retain the results

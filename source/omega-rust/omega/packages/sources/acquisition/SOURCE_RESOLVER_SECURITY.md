@@ -1,8 +1,9 @@
 # Source resolver security boundary
 
-Status: engineering contract, revised 2026-08-29. This document describes the
-security properties that Omega's package-source resolver actually enforces. It
-does not define package or language syntax.
+Status: engineering contract, revised 2026-08-30. This document defines the
+security properties that Omega's package-source resolver must enforce;
+remaining implementation work is tracked in `TASKS_PACKAGE_MANAGER.md`. It does
+not define package or language syntax.
 
 ## Trust boundary
 
@@ -70,6 +71,49 @@ Platform or CI integrations may provide stronger credential isolation, but
 that is optional host policy rather than a prerequisite for resolving a
 package.
 
+## Primary Git selection and consistency
+
+Primary Git selection is an operator input, not package authority. The host
+may supply one explicit absolute executable path. Otherwise the resolver
+snapshots the invoking environment's `PATH` before it reads package-controlled
+input and resolves one executable from that snapshot. The selected path is
+made absolute once and every primary Git launch in that resolution uses it;
+the resolver never performs a later bare-name lookup from a repository,
+workspace, build-output, quarantine, or cache working directory.
+
+Automatic lookup considers only absolute `PATH` directory entries. Empty or
+relative entries, implicit current-directory search, and candidates inside a
+package-controlled workspace, source, build-output, quarantine, or resolver
+cache root reject as selections. On Windows the automatic form selects a
+directly executable `git.exe`. A `.bat` or `.cmd` wrapper has nonstandard
+argument decoding while package-controlled locator bytes reach Git's argument
+vector, so such a wrapper requires a separately specified safe invocation
+contract rather than ordinary automatic discovery. An explicit operator path
+does not make a package-controlled wrapper safe.
+
+The resolver records the selected absolute path, a bounded content identity,
+and checkpointed metadata. Metadata is compared around launches; executable
+content is rehashed at defined acquisition and publication checkpoints. A
+detected mismatch rejects that resolution as internally inconsistent. These
+checks establish neither continuous file immutability nor trust in Git, its
+helpers, the invoking user, or the operating system.
+
+Hard-coded platform candidate lists are not a compatibility fallback.
+Ownership, Unix mode, set-id state, ACL shape, and a content hash do not
+establish host trust and are not source-admission rules. A managed executable
+link may resolve normally; neither the link nor its ancestry establishes trust.
+Ordinary existence, regular-file, bounded-read, and launchability checks remain
+part of constructing a usable invocation. Host or CI policy owns selection and
+protection of the Git installation.
+
+The selected path and content identity remain operational provenance in the
+receipt for that particular run. They do not enter immutable source identity,
+`PackageKey`, or the semantic identity of a lock source. Different selected Git
+installations may therefore yield different resolution receipts while
+producing the same authenticated source identity. A dependency declaration,
+fetched repository, package source, and `build.omg` can neither select nor
+alter the primary executable.
+
 ## Host-routed network transport
 
 Networked discovery and fetch invoke the selected system Git under the
@@ -113,8 +157,10 @@ public constructor or decoder. Its canonical identity binds:
 - captured-output ceilings and observed counts; and
 - the retained cache-storage measurement accepted before publication.
 
-The receipt records what happened. It does not assert that host credentials,
-same-user authority, or every operating-system capability was excluded.
+The receipt records what happened. Its executable coordinate is per-run
+provenance rather than immutable source or package identity. It does not assert
+that the selected executable, host credentials, same-user authority, or every
+operating-system capability was trustworthy or excluded.
 Platform hardening rows remain part of the observation so consumers can see
 which controls were enforced, unavailable, or inapplicable; an unavailable
 optional hardening row does not invalidate an otherwise successful resolution.
