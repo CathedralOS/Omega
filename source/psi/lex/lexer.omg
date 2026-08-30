@@ -1,15 +1,12 @@
-use psi::lex::unicode_tables;
 use psi::source::source;
 use psi::tokens::tokens;
 
 // Source-to-token spelling phase for the first product-source live slice.
 // Chapter 1's LEXICAL-PROFILE-V1 is authoritative: ASCII identifiers,
 // space/tab/CR/LF whitespace, byte-preserving cooked literals, and no raw
-// strings or codepoint escapes. The XID table and broader accepted forms below
-// are migration debt, not ordinary Omega semantics.
+// strings or codepoint escapes.
 
 pub data Lexer {
-    unicode: UnicodeTables;
     source: SourceUnit;
     output: TokenStream;
 
@@ -31,14 +28,8 @@ pub data Lexer {
     copy_cursor: u64 in Trapping;
     copy_end: u64 in Trapping;
     escape_start: u64 in Trapping;
-    unicode_value: u32 in Trapping;
-    unicode_accumulator: u32 in Trapping;
-    unicode_digits: u32 in Trapping;
-    raw_hash_count: u64 in Trapping;
-    raw_content_start: u64 in Trapping;
-    raw_content_end: u64 in Trapping;
-    raw_match_cursor: u64 in Trapping;
-    raw_match_count: u64 in Trapping;
+    digit_value: u32 in Trapping;
+    comment_depth: u64 in Trapping;
 
     numeric_base: NumericBase;
     numeric_empty_digits: bool;
@@ -54,7 +45,6 @@ pub data Lexer {
 }
 
 pub machine Lexer::initialize(&mut self, source_id: u32 in Trapping) {
-    self.unicode.initialize();
     self.source.clear(SourceId { value: source_id });
     self.output.clear(SourceId { value: source_id });
     self.cursor = 0;
@@ -283,26 +273,9 @@ machine Lexer::is_whitespace(&mut self, scalar: u32 in Trapping) {
     transition scalar {
         9 -> yes()
         10 -> yes()
-        11 -> yes()
-        12 -> yes()
         13 -> yes()
         32 -> yes()
-        133 -> yes()
-        160 -> yes()
-        5760 -> yes()
-        8232 -> yes()
-        8233 -> yes()
-        8239 -> yes()
-        8287 -> yes()
-        12288 -> yes()
-        _ -> range_check()
-    }
-
-    state range_check(&mut self) {
-        transition scalar >= 8192 && scalar <= 8202 {
-            true -> yes()
-            _ -> no()
-        }
+        _ -> no()
     }
     state yes(&mut self) { self.predicate_result = true; }
     state no(&mut self) { self.predicate_result = false; }
@@ -315,12 +288,7 @@ machine Lexer::is_identifier_start(&mut self, scalar: u32 in Trapping) {
         _ -> upper()
     }
     state upper(&mut self) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower() } }
-    state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> non_ascii() } }
-    state non_ascii(&mut self) { transition scalar >= 128 { true -> xid() _ -> no() } }
-    state xid(&mut self) {
-        self.unicode.is_xid_start(scalar);
-        self.predicate_result = self.unicode.last_result;
-    }
+    state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> no() } }
     state yes(&mut self) { self.predicate_result = true; }
     state no(&mut self) { self.predicate_result = false; }
 }
@@ -333,12 +301,7 @@ machine Lexer::is_identifier_continue(&mut self, scalar: u32 in Trapping) {
     }
     state upper(&mut self) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower() } }
     state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> digit() } }
-    state digit(&mut self) { transition scalar >= 48 && scalar <= 57 { true -> yes() _ -> non_ascii() } }
-    state non_ascii(&mut self) { transition scalar >= 128 { true -> xid() _ -> no() } }
-    state xid(&mut self) {
-        self.unicode.is_xid_continue(scalar);
-        self.predicate_result = self.unicode.last_result;
-    }
+    state digit(&mut self) { transition scalar >= 48 && scalar <= 57 { true -> yes() _ -> no() } }
     state yes(&mut self) { self.predicate_result = true; }
     state no(&mut self) { self.predicate_result = false; }
 }
@@ -635,7 +598,7 @@ machine Lexer::lex_block_comment(&mut self) {
     self.token_start = self.cursor;
     self.decoded_start = self.output.decoded_length;
     self.cursor = self.cursor + 2;
-    self.unicode_digits = 1;
+    self.comment_depth = 1;
     transition { _ -> scan() }
 
     state scan(&mut self) {
@@ -663,7 +626,7 @@ machine Lexer::lex_block_comment(&mut self) {
     }
 
     state open(&mut self) {
-        self.unicode_digits = self.unicode_digits + 1;
+        self.comment_depth = self.comment_depth + 1;
         self.cursor = self.cursor + 2;
         transition { _ -> scan() }
     }
@@ -678,9 +641,9 @@ machine Lexer::lex_block_comment(&mut self) {
     }
 
     state close(&mut self) {
-        self.unicode_digits = self.unicode_digits - 1;
+        self.comment_depth = self.comment_depth - 1;
         self.cursor = self.cursor + 2;
-        transition self.unicode_digits == 0 {
+        transition self.comment_depth == 0 {
             true -> finish()
             _ -> scan()
         }
@@ -706,42 +669,17 @@ machine Lexer::lex_block_comment(&mut self) {
 }
 
 machine Lexer::hex_digit_value(&mut self, byte: u32 in Trapping) {
-    self.unicode_value = 4294967295;
+    self.digit_value = 4294967295;
     transition byte >= 48 && byte <= 57 {
         true -> decimal()
         _ -> lower()
     }
-    state decimal(&mut self) { self.unicode_value = byte - 48; }
+    state decimal(&mut self) { self.digit_value = byte - 48; }
     state lower(&mut self) { transition byte >= 97 && byte <= 102 { true -> lower_yes() _ -> upper() } }
-    state lower_yes(&mut self) { self.unicode_value = byte - 87; }
+    state lower_yes(&mut self) { self.digit_value = byte - 87; }
     state upper(&mut self) { transition byte >= 65 && byte <= 70 { true -> upper_yes() _ -> done() } }
-    state upper_yes(&mut self) { self.unicode_value = byte - 55; }
+    state upper_yes(&mut self) { self.digit_value = byte - 55; }
     state done(&mut self) {}
-}
-
-machine Lexer::append_scalar_utf8(&mut self, scalar: u32 in Trapping) {
-    transition scalar < 128 {
-        true -> one()
-        _ -> two_check()
-    }
-    state one(&mut self) { self.push_decoded(scalar as u8); }
-    state two_check(&mut self) { transition scalar < 2048 { true -> two() _ -> three_check() } }
-    state two(&mut self) {
-        self.push_decoded((192 + scalar / 64) as u8);
-        self.push_decoded((128 + scalar % 64) as u8);
-    }
-    state three_check(&mut self) { transition scalar < 65536 { true -> three() _ -> four() } }
-    state three(&mut self) {
-        self.push_decoded((224 + scalar / 4096) as u8);
-        self.push_decoded((128 + scalar / 64 % 64) as u8);
-        self.push_decoded((128 + scalar % 64) as u8);
-    }
-    state four(&mut self) {
-        self.push_decoded((240 + scalar / 262144) as u8);
-        self.push_decoded((128 + scalar / 4096 % 64) as u8);
-        self.push_decoded((128 + scalar / 64 % 64) as u8);
-        self.push_decoded((128 + scalar % 64) as u8);
-    }
 }
 
 machine Lexer::copy_source_to_decoded(&mut self) {
@@ -779,6 +717,13 @@ machine Lexer::lex_cooked_string(&mut self) {
         self.decode_at(self.cursor);
         transition self.scalar == 34 {
             true -> finish()
+            _ -> newline_check()
+        }
+    }
+
+    state newline_check(&mut self) {
+        transition self.scalar == 10 || self.scalar == 13 {
+            true -> outside_profile_line()
             _ -> slash()
         }
     }
@@ -812,20 +757,18 @@ machine Lexer::lex_cooked_string(&mut self) {
         self.byte0 = source_byte as u32 in Trapping;
         transition self.byte0 {
             34 -> escaped_quote()
-            39 -> escaped_apostrophe()
             92 -> escaped_slash()
             110 -> escaped_n()
             114 -> escaped_r()
             116 -> escaped_t()
             48 -> escaped_zero()
             120 -> hex_begin()
-            117 -> unicode_begin()
+            117 -> outside_profile_escape()
             _ -> unsupported_escape()
         }
     }
 
     state escaped_quote(&mut self) { self.push_decoded(34); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
-    state escaped_apostrophe(&mut self) { self.push_decoded(39); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
     state escaped_slash(&mut self) { self.push_decoded(92); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
     state escaped_n(&mut self) { self.push_decoded(10); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
     state escaped_r(&mut self) { self.push_decoded(13); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
@@ -844,7 +787,7 @@ machine Lexer::lex_cooked_string(&mut self) {
     state hex_first(&mut self) {
         let source_byte: u8 = self.source.byte_or_nul(self.index1);
         self.hex_digit_value(source_byte as u32 in Trapping);
-        self.byte1 = self.unicode_value;
+        self.byte1 = self.digit_value;
         transition self.byte1 < 16 {
             true -> hex_second()
             _ -> hex_invalid_first()
@@ -854,7 +797,7 @@ machine Lexer::lex_cooked_string(&mut self) {
     state hex_second(&mut self) {
         let source_byte: u8 = self.source.byte_or_nul(self.index2);
         self.hex_digit_value(source_byte as u32 in Trapping);
-        self.byte2 = self.unicode_value;
+        self.byte2 = self.digit_value;
         transition self.byte2 < 16 {
             true -> hex_emit()
             _ -> hex_invalid_second()
@@ -864,102 +807,6 @@ machine Lexer::lex_cooked_string(&mut self) {
     state hex_emit(&mut self) {
         self.push_decoded((self.byte1 * 16 + self.byte2) as u8);
         self.cursor = self.cursor + 3;
-        transition self.output.accepted { true -> scan() _ -> done() }
-    }
-
-    state unicode_begin(&mut self) {
-        self.index1 = self.cursor + 1;
-        transition self.index1 < self.source.length {
-            true -> unicode_brace()
-            _ -> unicode_unterminated()
-        }
-    }
-
-    state unicode_brace(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.index1);
-        transition source_byte == 123 {
-            true -> unicode_digits_begin()
-            _ -> unicode_expected_brace()
-        }
-    }
-
-    state unicode_digits_begin(&mut self) {
-        self.cursor = self.cursor + 2;
-        self.unicode_accumulator = 0;
-        self.unicode_digits = 0;
-        transition { _ -> unicode_digits_scan() }
-    }
-
-    state unicode_digits_scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> unicode_digit_or_close()
-            _ -> unicode_unterminated()
-        }
-    }
-
-    state unicode_digit_or_close(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        transition source_byte == 125 {
-            true -> unicode_close()
-            _ -> unicode_digit()
-        }
-    }
-
-    state unicode_digit(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.hex_digit_value(source_byte as u32 in Trapping);
-        self.byte1 = self.unicode_value;
-        transition self.byte1 < 16 {
-            true -> unicode_accumulate()
-            _ -> unicode_invalid_digit()
-        }
-    }
-
-    state unicode_accumulate(&mut self) {
-        transition self.unicode_accumulator <= 1114111 / 16 {
-            true -> unicode_accumulate_safe()
-            _ -> unicode_invalid_value()
-        }
-    }
-
-    state unicode_accumulate_safe(&mut self) {
-        self.unicode_accumulator = self.unicode_accumulator * 16 + self.byte1;
-        self.unicode_digits = self.unicode_digits + 1;
-        self.cursor = self.cursor + 1;
-        transition { _ -> unicode_digits_scan() }
-    }
-
-    state unicode_close(&mut self) {
-        transition self.unicode_digits > 0 {
-            true -> unicode_range()
-            _ -> unicode_empty()
-        }
-    }
-
-    state unicode_range(&mut self) {
-        transition self.unicode_accumulator <= 1114111 {
-            true -> unicode_surrogate_low()
-            _ -> unicode_invalid_value()
-        }
-    }
-
-    state unicode_surrogate_low(&mut self) {
-        transition self.unicode_accumulator >= 55296 {
-            true -> unicode_surrogate_high()
-            _ -> unicode_emit()
-        }
-    }
-
-    state unicode_surrogate_high(&mut self) {
-        transition self.unicode_accumulator <= 57343 {
-            true -> unicode_invalid_scalar()
-            _ -> unicode_emit()
-        }
-    }
-
-    state unicode_emit(&mut self) {
-        self.append_scalar_utf8(self.unicode_accumulator);
-        self.cursor = self.cursor + 1;
         transition self.output.accepted { true -> scan() _ -> done() }
     }
 
@@ -975,124 +822,20 @@ machine Lexer::lex_cooked_string(&mut self) {
     state hex_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedHexEscape, self.escape_start, self.source.length); }
     state hex_invalid_first(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 1, self.cursor + 2); }
     state hex_invalid_second(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 2, self.cursor + 3); }
-    state unicode_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedUnicodeEscape, self.escape_start, self.source.length); }
-    state unicode_expected_brace(&mut self) { self.reject(LexDiagnosticCode::ExpectedUnicodeEscapeBrace, self.cursor + 1, self.cursor + 2); }
-    state unicode_empty(&mut self) { self.reject(LexDiagnosticCode::EmptyUnicodeEscape, self.escape_start, self.cursor + 1); }
-    state unicode_invalid_digit(&mut self) { self.reject(LexDiagnosticCode::InvalidUnicodeEscapeDigit, self.cursor, self.cursor + 1); }
-    state unicode_invalid_value(&mut self) { self.reject(LexDiagnosticCode::InvalidUnicodeEscapeValue, self.escape_start, self.cursor + 1); }
-    state unicode_invalid_scalar(&mut self) { self.reject(LexDiagnosticCode::InvalidUnicodeScalar, self.escape_start, self.cursor + 1); }
-    state done(&mut self) {}
-}
-
-machine Lexer::lex_raw_string(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length;
-    self.cursor = self.cursor + 1;
-    self.raw_hash_count = 0;
-    transition { _ -> hashes() }
-
-    state hashes(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> hash_or_quote()
-            _ -> invalid_delimiter()
-        }
+    state outside_profile_escape(&mut self) {
+        self.reject(
+            LexDiagnosticCode::OutsideLexicalProfile,
+            self.escape_start,
+            self.cursor + 1
+        );
     }
-
-    state hash_or_quote(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        transition source_byte == 35 {
-            true -> hash()
-            _ -> quote()
-        }
+    state outside_profile_line(&mut self) {
+        self.reject(
+            LexDiagnosticCode::OutsideLexicalProfile,
+            self.cursor,
+            self.cursor + 1
+        );
     }
-
-    state hash(&mut self) {
-        self.raw_hash_count = self.raw_hash_count + 1;
-        self.cursor = self.cursor + 1;
-        transition { _ -> hashes() }
-    }
-
-    state quote(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        transition source_byte == 34 {
-            true -> body_begin()
-            _ -> invalid_delimiter()
-        }
-    }
-
-    state body_begin(&mut self) {
-        self.cursor = self.cursor + 1;
-        self.raw_content_start = self.cursor;
-        transition { _ -> body_scan() }
-    }
-
-    state body_scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> body_byte()
-            _ -> unterminated()
-        }
-    }
-
-    state body_byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        transition source_byte == 34 {
-            true -> candidate_begin()
-            _ -> body_advance()
-        }
-    }
-
-    state body_advance(&mut self) {
-        self.cursor = self.cursor + 1;
-        transition { _ -> body_scan() }
-    }
-
-    state candidate_begin(&mut self) {
-        self.raw_match_cursor = self.cursor + 1;
-        self.raw_match_count = 0;
-        transition { _ -> candidate_hashes() }
-    }
-
-    state candidate_hashes(&mut self) {
-        transition self.raw_match_count < self.raw_hash_count {
-            true -> candidate_bound()
-            _ -> matched()
-        }
-    }
-
-    state candidate_bound(&mut self) {
-        transition self.raw_match_cursor < self.source.length {
-            true -> candidate_hash()
-            _ -> body_advance()
-        }
-    }
-
-    state candidate_hash(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.raw_match_cursor);
-        transition source_byte == 35 {
-            true -> candidate_next()
-            _ -> body_advance()
-        }
-    }
-
-    state candidate_next(&mut self) {
-        self.raw_match_cursor = self.raw_match_cursor + 1;
-        self.raw_match_count = self.raw_match_count + 1;
-        transition { _ -> candidate_hashes() }
-    }
-
-    state matched(&mut self) {
-        self.raw_content_end = self.cursor;
-        self.copy_cursor = self.raw_content_start;
-        self.copy_end = self.raw_content_end;
-        self.copy_source_to_decoded();
-        self.cursor = self.raw_match_cursor;
-        self.token_end = self.cursor;
-        transition self.output.accepted { true -> emit() _ -> done() }
-    }
-
-    state emit(&mut self) { self.push_token(Token::StringLiteral); }
-    state invalid_delimiter(&mut self) { self.reject(LexDiagnosticCode::InvalidRawStringDelimiter, self.token_start, self.cursor + 1); }
-    state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedRawString, self.token_start, self.source.length); }
     state done(&mut self) {}
 }
 
@@ -1455,7 +1198,13 @@ machine Lexer::lex_punctuation(&mut self) {
     state single_semicolon(&mut self) { self.emit_punctuation(PunctuationKind::Semicolon, 1); }
     state single_slash(&mut self) { self.emit_punctuation(PunctuationKind::Slash, 1); }
     state single_tilde(&mut self) { self.emit_punctuation(PunctuationKind::Tilde, 1); }
-    state unsupported(&mut self) { self.reject(LexDiagnosticCode::UnsupportedPunctuation, self.token_start, self.token_start + self.scalar_width); }
+    state unsupported(&mut self) {
+        self.reject(
+            LexDiagnosticCode::OutsideLexicalProfile,
+            self.token_start,
+            self.token_start + self.scalar_width
+        );
+    }
 }
 
 machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u64 in Trapping) {
@@ -1464,12 +1213,112 @@ machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u64 in
     self.push_token(Token::Punctuation { punctuation: kind });
 }
 
+machine Lexer::reject_raw_string_candidate(&mut self) {
+    self.token_start = self.cursor;
+    self.cursor = self.cursor + 1;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.cursor < self.source.length {
+            true -> byte()
+            _ -> reject_prefix()
+        }
+    }
+
+    state byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 35 {
+            true -> hash()
+            _ -> quote()
+        }
+    }
+
+    state hash(&mut self) {
+        self.cursor = self.cursor + 1;
+        transition { _ -> scan() }
+    }
+
+    state quote(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+        transition source_byte == 34 {
+            true -> reject_quote()
+            _ -> reject_prefix()
+        }
+    }
+
+    state reject_quote(&mut self) {
+        self.reject(
+            LexDiagnosticCode::OutsideLexicalProfile,
+            self.token_start,
+            self.cursor + 1
+        );
+    }
+
+    state reject_prefix(&mut self) {
+        self.reject(
+            LexDiagnosticCode::OutsideLexicalProfile,
+            self.token_start,
+            self.cursor
+        );
+    }
+}
+
+machine Lexer::is_raw_string_candidate(&mut self) {
+    self.predicate_result = false;
+    self.candidate_cursor = self.cursor + 1;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.candidate_cursor < self.source.length {
+            true -> byte()
+            _ -> no()
+        }
+    }
+
+    state byte(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
+        transition source_byte == 35 {
+            true -> hash()
+            _ -> quote()
+        }
+    }
+
+    state hash(&mut self) {
+        self.candidate_cursor = self.candidate_cursor + 1;
+        transition { _ -> scan() }
+    }
+
+    state quote(&mut self) {
+        let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
+        transition source_byte == 34 {
+            true -> yes()
+            _ -> no()
+        }
+    }
+
+    state yes(&mut self) { self.predicate_result = true; }
+    state no(&mut self) { self.predicate_result = false; }
+}
+
 machine Lexer::lex_next(&mut self) {
     self.decode_at(self.cursor);
-    self.is_whitespace(self.scalar); let whitespace: bool = self.predicate_result;
-    transition whitespace {
-        true -> whitespace()
-        _ -> line_comment_bound()
+    transition self.scalar >= 128 {
+        true -> outside_profile_syntax()
+        _ -> whitespace_check()
+    }
+    state outside_profile_syntax(&mut self) {
+        self.reject(
+            LexDiagnosticCode::OutsideLexicalProfile,
+            self.cursor,
+            self.cursor + self.scalar_width
+        );
+    }
+    state whitespace_check(&mut self) {
+        self.is_whitespace(self.scalar); let whitespace: bool = self.predicate_result;
+        transition whitespace {
+            true -> whitespace()
+            _ -> line_comment_bound()
+        }
     }
     state whitespace(&mut self) { self.lex_whitespace(); }
     state line_comment_bound(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 47 && self.index1 < self.source.length { true -> comment_second() _ -> raw_check() } }
@@ -1481,13 +1330,20 @@ machine Lexer::lex_next(&mut self) {
     state line_comment(&mut self) { self.lex_line_comment(); }
     state block_comment_check(&mut self) { transition self.byte0 == 42 { true -> block_comment() _ -> raw_check() } }
     state block_comment(&mut self) { self.lex_block_comment(); }
-    state raw_check(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 114 && self.index1 < self.source.length { true -> raw_second() _ -> identifier_check() } }
-    state raw_second(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.index1);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 == 34 || self.byte0 == 35 { true -> raw() _ -> identifier_check() }
+    state raw_check(&mut self) {
+        transition self.scalar == 114 {
+            true -> raw_candidate()
+            _ -> identifier_check()
+        }
     }
-    state raw(&mut self) { self.lex_raw_string(); }
+    state raw_candidate(&mut self) {
+        self.is_raw_string_candidate(); let candidate: bool = self.predicate_result;
+        transition candidate {
+            true -> raw()
+            _ -> identifier_check()
+        }
+    }
+    state raw(&mut self) { self.reject_raw_string_candidate(); }
     state identifier_check(&mut self) { self.is_identifier_start(self.scalar); let starts: bool = self.predicate_result; transition starts { true -> identifier() _ -> number_check() } }
     state identifier(&mut self) { self.lex_identifier(); }
     state number_check(&mut self) { transition self.scalar >= 48 && self.scalar <= 57 { true -> number() _ -> leading_dot_check() } }

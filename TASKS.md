@@ -787,22 +787,26 @@ Remaining:
   drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
   and the complete declaration-classification migration.
 
-  **LEXICAL-PROFILE-V1:** migrate both maintained lexers to the closed lexical
-  contract in Chapter 1. Accept valid UTF-8 source framing, ASCII identifiers,
-  and exactly space/tab/CR/LF as syntactic whitespace; retain non-ASCII bytes in
-  comments and literal bodies. Remove Unicode-XID identifier acceptance,
-  `\u{...}` codepoint-to-UTF-8 synthesis, raw-string acceptance, the generated
-  `source/psi/lex/unicode_tables.omg` table, and the Rust `unicode-ident`
-  dependency. Remove the corresponding token diagnostics and harness protocol
-  rows rather than preserving dead vocabulary. Add cross-implementation
-  canaries that accept byte-preserving `"café"`, reject its establishment as
-  `AsciiOnly`, and reject NBSP, U+2028, U+3000, Unicode identifiers, codepoint
-  escapes, and raw strings with an "outside the current language profile"
-  diagnostic. Preserve the existing `u64` byte-coordinate/count migration;
-  `u32` remains appropriate only where source decoding temporarily carries a
-  Unicode scalar. Future Unicode identifiers or an Omega-native raw-payload
-  form require a new normative contract and do not preserve the retired
-  implementation spellings by default.
+  **LEXICAL-PROFILE-V1 is source-complete.** Both maintained lexers now enforce
+  the closed Chapter 1 contract: valid UTF-8 framing, ASCII identifiers, and
+  exactly space/tab/CR/LF as syntactic whitespace, while non-ASCII bytes remain
+  exact inside comments and quoted literal bodies. Unicode-XID classification,
+  codepoint-to-UTF-8 escapes, raw-string decoding, the generated product-source
+  Unicode table, and the comparator's direct `unicode-ident` dependency are
+  gone. One `OutsideLexicalProfile` diagnostic replaces the retired Unicode,
+  raw-string, and unsupported-punctuation vocabulary. Canonical lexical
+  observation format 2 and a gate-only lex mode compare 31 accepted/rejected
+  byte streams exactly across the Omega and Rust implementations, including
+  byte-preserving `"café"`, the closed whitespace set, invalid UTF-8, Unicode
+  identifier boundaries, codepoint/raw spellings, and quoted newlines. The
+  existing domain canary independently rejects establishing `AsciiOnly` for
+  `"café"`. Byte coordinates and lexer counts remain `u64`; the UTF-8 framing
+  decoder retains `u32` scalar scratch. Future Unicode identifiers or
+  an Omega-native raw-payload form require a new normative contract and do not
+  preserve the retired spellings by default. Executing the complete fresh
+  native product gate remains dependency-blocked on the already-recorded
+  attached-Unit transitive machine-plan boundary, not on lexical design or
+  source implementation.
 
   The evaluation-order ruling is closed. Every eager child evaluates exactly
   once in the language's authored left-to-right schedule: attached receiver
@@ -9769,11 +9773,12 @@ Remaining N6/N8 work:
   no such weakening: its fixed facts now join the same exact one-to-one
   position/static-substituted `Q <=> P` bijection as its dependent facts.
   Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
-  undersized or otherwise constrained byte-string targets, raw strings not
-  already context-landed for a bare fixed array, noncanonical or heterogeneous
-  byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
-  computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
-  or computed integer matrices, mismatched or computed float matrices,
+  undersized or otherwise constrained byte-string targets, byte-string values
+  not already context-landed for a bare fixed array, noncanonical or
+  heterogeneous byte/Boolean arrays, mismatched or out-of-range integer arrays,
+  mismatched or computed float arrays, noncanonical byte matrices, mismatched,
+  out-of-range, or computed integer matrices, mismatched or computed float
+  matrices,
   noncanonical or mismatched recursive primitive arrays, ragged arrays, other
   data nested arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or

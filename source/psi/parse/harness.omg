@@ -11,6 +11,7 @@ pub data ParserHarness {
     lexer: Lexer;
     parser: Parser;
     token_wire: TokenWireCoordinates;
+    lex_only: bool;
 }
 
 pub data TokenWireCoordinates [copy] {
@@ -37,7 +38,28 @@ reaches Console
 invokes Console;
 {
     self.lexer.initialize(1);
-    transition { _ -> read() }
+    self.lex_only = false;
+    transition { _ -> read_first() }
+
+    state read_first(&mut self) {
+        let input: ByteRead = self.console.read_byte();
+        transition input {
+            ByteRead::Byte { value } -> select_mode(value)
+            _ -> tokenize()
+        }
+    }
+
+    state select_mode(&mut self, value: i32) {
+        transition value == 0 {
+            true -> enable_lex_only()
+            _ -> retain(value)
+        }
+    }
+
+    state enable_lex_only(&mut self) {
+        self.lex_only = true;
+        transition { _ -> read() }
+    }
 
     state read(&mut self) {
         let input: ByteRead = self.console.read_byte();
@@ -68,9 +90,21 @@ invokes Console;
     state tokenize(&mut self) {
         self.lexer.tokenize();
         transition self.lexer.output.accepted {
-            true -> prepare_parse()
+            true -> accepted_lex_check()
             _ -> rejected()
         }
+    }
+
+    state accepted_lex_check(&mut self) {
+        transition self.lex_only {
+            true -> lex_accepted()
+            _ -> prepare_parse()
+        }
+    }
+
+    state lex_accepted(&mut self) {
+        self.write_lex_observation();
+        self.console.exit_process(0);
     }
 
     state prepare_parse(&mut self) {
@@ -513,7 +547,7 @@ machine ParserHarness::write_parse_observation(&mut self) {
 }
 
 // Versioned canonical lexical observation. Every scalar coordinate/count is
-// little-endian u64. The stream begins with `OMGLEX1\0`, version 1, then:
+// little-endian u64. The stream begins with `OMGLEX1\0`, version 2, then:
 // accepted byte, diagnostic tag, diagnostic source/start/end, exact retained
 // source bytes, and every retained token. Each token carries a structural kind
 // tag plus three metadata bytes, source/start/end, raw spelling, and decoded
@@ -527,7 +561,7 @@ machine ParserHarness::write_lex_observation(&mut self) {
     self.write_byte(88);
     self.write_byte(49);
     self.write_byte(0);
-    self.write_u64(1);
+    self.write_u64(2);
     transition self.lexer.output.accepted {
         true -> accepted_header()
         _ -> rejected_header()
@@ -543,24 +577,16 @@ machine ParserHarness::write_lex_observation(&mut self) {
         transition self.lexer.output.diagnostic.code {
             LexDiagnosticCode::None -> diagnostic_none()
             LexDiagnosticCode::InvalidUtf8 -> diagnostic(1)
-            LexDiagnosticCode::UnsupportedPunctuation -> diagnostic(2)
+            LexDiagnosticCode::OutsideLexicalProfile -> diagnostic(2)
             LexDiagnosticCode::UnterminatedBlockComment -> diagnostic(3)
             LexDiagnosticCode::UnterminatedStringLiteral -> diagnostic(4)
             LexDiagnosticCode::UnterminatedStringEscape -> diagnostic(5)
             LexDiagnosticCode::UnsupportedEscape -> diagnostic(6)
             LexDiagnosticCode::UnterminatedHexEscape -> diagnostic(7)
             LexDiagnosticCode::InvalidHexEscapeDigit -> diagnostic(8)
-            LexDiagnosticCode::UnterminatedUnicodeEscape -> diagnostic(9)
-            LexDiagnosticCode::ExpectedUnicodeEscapeBrace -> diagnostic(10)
-            LexDiagnosticCode::EmptyUnicodeEscape -> diagnostic(11)
-            LexDiagnosticCode::InvalidUnicodeEscapeDigit -> diagnostic(12)
-            LexDiagnosticCode::InvalidUnicodeEscapeValue -> diagnostic(13)
-            LexDiagnosticCode::InvalidUnicodeScalar -> diagnostic(14)
-            LexDiagnosticCode::InvalidRawStringDelimiter -> diagnostic(15)
-            LexDiagnosticCode::UnterminatedRawString -> diagnostic(16)
-            LexDiagnosticCode::TokenCapacityExceeded -> diagnostic(17)
-            LexDiagnosticCode::SourceCapacityExceeded -> diagnostic(18)
-            LexDiagnosticCode::DecodedCapacityExceeded -> diagnostic(19)
+            LexDiagnosticCode::TokenCapacityExceeded -> diagnostic(9)
+            LexDiagnosticCode::SourceCapacityExceeded -> diagnostic(10)
+            LexDiagnosticCode::DecodedCapacityExceeded -> diagnostic(11)
         }
     }
 

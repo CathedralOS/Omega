@@ -7,7 +7,6 @@ use psi_source::Span;
 use psi_tokens::{
     CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
 };
-use unicode_ident::{is_xid_continue, is_xid_start};
 
 mod numbers;
 mod strings;
@@ -83,15 +82,20 @@ impl<'source> Lexer<'source> {
         let Some((start, character)) = self.chars.next() else {
             return Ok(None);
         };
+        let raw_string_prefix_end = (character == 'r')
+            .then(|| self.raw_string_prefix_end(start))
+            .flatten();
 
-        let token = if character.is_whitespace() {
+        let token = if is_syntactic_whitespace(character) {
             self.lex_whitespace(start, character)
         } else if character == '/' && self.peek_character() == Some('/') {
             self.lex_line_comment(start)
         } else if character == '/' && self.peek_character() == Some('*') {
             self.lex_block_comment(start)?
-        } else if character == 'r' && matches!(self.peek_character(), Some('"') | Some('#')) {
-            self.lex_raw_string_token(start)?
+        } else if let Some(prefix_end) = raw_string_prefix_end {
+            return Err(LexError::outside_lexical_profile(Span::new(
+                start, prefix_end,
+            )));
         } else if is_identifier_start(character) {
             self.lex_identifier_or_keyword(start, character)
         } else if character.is_ascii_digit()
@@ -103,6 +107,11 @@ impl<'source> Lexer<'source> {
             self.lex_number(start, character)
         } else if character == '"' {
             self.lex_string_token(start)?
+        } else if !character.is_ascii() {
+            return Err(LexError::outside_lexical_profile(Span::new(
+                start,
+                start + character.len_utf8(),
+            )));
         } else {
             self.lex_punctuation(start, character)?
         };
@@ -131,7 +140,7 @@ impl<'source> Lexer<'source> {
         let mut end = start + first.len_utf8();
 
         while let Some((next_index, next)) = self.chars.peek().copied() {
-            if !next.is_whitespace() {
+            if !is_syntactic_whitespace(next) {
                 break;
             }
 
@@ -222,10 +231,10 @@ impl<'source> Lexer<'source> {
             .copied()
             .find(|(lexeme, _)| self.source[start..].starts_with(lexeme))
         else {
-            return Err(LexError::new(
-                format!("unsupported punctuation `{first}`"),
-                Span::new(start, start + first.len_utf8()),
-            ));
+            return Err(LexError::outside_lexical_profile(Span::new(
+                start,
+                start + first.len_utf8(),
+            )));
         };
 
         let mut consumed = 1usize;
@@ -243,14 +252,32 @@ impl<'source> Lexer<'source> {
     fn peek_character(&mut self) -> Option<char> {
         self.chars.peek().map(|(_, character)| *character)
     }
+
+    fn raw_string_prefix_end(&self, start: usize) -> Option<usize> {
+        let mut cursor = start + 1;
+        if self.source.as_bytes().get(cursor) == Some(&b'"') {
+            return Some(cursor + 1);
+        }
+        if self.source.as_bytes().get(cursor) != Some(&b'#') {
+            return None;
+        }
+        while self.source.as_bytes().get(cursor) == Some(&b'#') {
+            cursor += 1;
+        }
+        (self.source.as_bytes().get(cursor) == Some(&b'"')).then_some(cursor + 1)
+    }
 }
 
 fn is_identifier_start(character: char) -> bool {
-    character == '_' || is_xid_start(character)
+    character == '_' || character.is_ascii_alphabetic()
 }
 
 fn is_identifier_continue(character: char) -> bool {
-    character == '_' || is_xid_continue(character)
+    character == '_' || character.is_ascii_alphanumeric()
+}
+
+fn is_syntactic_whitespace(character: char) -> bool {
+    matches!(character, ' ' | '\t' | '\r' | '\n')
 }
 
 #[cfg(test)]

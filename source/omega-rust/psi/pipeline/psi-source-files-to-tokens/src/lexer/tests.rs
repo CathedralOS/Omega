@@ -4,6 +4,8 @@ use psi_tokens::{
     NumericLiteralKind, PunctuationKind, TokenKind,
 };
 
+use crate::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
+
 fn semantic_kinds(source: &str) -> Vec<TokenKind> {
     Lexer::new(source)
         .tokenize()
@@ -37,25 +39,24 @@ fn tokenizes_retired_invariant_word_as_identifier() {
 }
 
 #[test]
-fn tokenizes_unicode_identifiers() {
-    let tokens = Lexer::new("变量 café μέτρο")
+fn accepts_exact_ascii_identifier_grammar() {
+    let tokens = Lexer::new("_ alpha Z9 snake_case")
         .tokenize()
-        .expect("tokenization should succeed");
-
-    let semantic: Vec<_> = tokens
-        .iter()
-        .filter(|token| !token.is_non_semantic())
-        .collect();
-
-    assert_eq!(semantic.len(), 3);
+        .expect("ASCII identifiers should tokenize");
     assert!(
-        semantic
+        tokens
             .iter()
+            .filter(|token| !token.is_non_semantic())
             .all(|token| token.kind == TokenKind::Identifier)
     );
-    assert_eq!(semantic[0].lexeme.as_str(), "变量");
-    assert_eq!(semantic[1].lexeme.as_str(), "café");
-    assert_eq!(semantic[2].lexeme.as_str(), "μέτρο");
+}
+
+#[test]
+fn rejects_non_ascii_identifier_spelling() {
+    assert_profile_rejection("变量", 0, "变".len());
+    assert_profile_rejection("café", 3, 5);
+    assert_profile_rejection("μέτρο", 0, "μ".len());
+    assert_profile_rejection("1é", 1, 3);
 }
 
 #[test]
@@ -111,6 +112,27 @@ fn preserves_line_comments_and_whitespace() {
 }
 
 #[test]
+fn accepts_only_the_closed_syntactic_whitespace_set() {
+    let tokens = Lexer::new("a \t\r\nb")
+        .tokenize()
+        .expect("space, tab, CR, and LF should tokenize");
+    assert_eq!(tokens.len(), 3);
+    assert_eq!(tokens[1].kind, TokenKind::Whitespace);
+    assert_eq!(tokens[1].lexeme.as_str(), " \t\r\n");
+
+    for source in [
+        "a\u{000b}b",
+        "a\u{000c}b",
+        "a\u{00a0}b",
+        "a\u{2028}b",
+        "a\u{3000}b",
+    ] {
+        let character = source[1..].chars().next().expect("test character");
+        assert_profile_rejection(source, 1, 1 + character.len_utf8());
+    }
+}
+
+#[test]
 fn preserves_nested_block_comments() {
     let tokens = Lexer::new("let /* outer /* inner */ still outer */ value")
         .tokenize()
@@ -129,6 +151,19 @@ fn preserves_nested_block_comments() {
 }
 
 #[test]
+fn preserves_non_ascii_comment_and_literal_body_bytes() {
+    let source = "// café 变量\n/* μέτρο */ \"café😀\"";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("non-ASCII payload bytes should remain legal");
+
+    assert_eq!(tokens[0].lexeme.as_bytes(), "// café 变量".as_bytes());
+    assert_eq!(tokens[1].lexeme.as_bytes(), "/* μέτρο */".as_bytes());
+    assert_eq!(tokens[3].kind, TokenKind::StringLiteral);
+    assert_eq!(tokens[3].lexeme.as_bytes(), "café😀".as_bytes());
+}
+
+#[test]
 fn errors_on_unterminated_block_comment() {
     let error = Lexer::new("let /* comment")
         .tokenize()
@@ -138,18 +173,13 @@ fn errors_on_unterminated_block_comment() {
 }
 
 #[test]
-fn tokenizes_cooked_and_raw_strings() {
+fn tokenizes_cooked_byte_strings() {
     let cooked = Lexer::new("\"line\\nvalue\"")
-        .tokenize()
-        .expect("tokenization should succeed");
-    let raw = Lexer::new("r#\"line\\nvalue\"#")
         .tokenize()
         .expect("tokenization should succeed");
 
     assert_eq!(cooked[0].kind, TokenKind::StringLiteral);
     assert_eq!(cooked[0].lexeme.as_str(), "line\nvalue");
-    assert_eq!(raw[0].kind, TokenKind::StringLiteral);
-    assert_eq!(raw[0].lexeme.as_str(), "line\\nvalue");
 }
 
 #[test]
@@ -171,16 +201,34 @@ fn hex_escapes_decode_to_exact_bytes() {
 }
 
 #[test]
-fn cooked_unicode_and_raw_string_behavior_is_preserved() {
-    let cooked = Lexer::new(r#""café\u{1f600}""#)
-        .tokenize()
-        .expect("tokenization should succeed");
-    let raw = Lexer::new(r##"r#"café\xFF"#"##)
-        .tokenize()
-        .expect("tokenization should succeed");
+fn rejects_retired_codepoint_escapes_and_raw_strings() {
+    for source in [r#""\u{1f600}""#, r#""\u""#, r#""\u{}""#] {
+        assert_profile_rejection(source, 1, 3);
+    }
 
-    assert_eq!(cooked[0].lexeme.as_str(), "café😀");
-    assert_eq!(raw[0].lexeme.as_str(), r#"café\xFF"#);
+    assert_profile_rejection("r\"raw\"", 0, 2);
+    assert_profile_rejection("r##\"raw\"##", 0, 4);
+}
+
+#[test]
+fn raw_prefix_fragments_remain_ordinary_ascii_tokens() {
+    let tokens = Lexer::new("r#1 r###candidate")
+        .tokenize()
+        .expect("incomplete raw candidates are not reserved V1 syntax");
+    assert_eq!(
+        tokens
+            .iter()
+            .filter(|token| !token.is_non_semantic())
+            .map(|token| token.lexeme.as_str())
+            .collect::<Vec<_>>(),
+        ["r", "#", "1", "r", "#", "#", "#", "candidate"]
+    );
+}
+
+#[test]
+fn rejects_raw_newlines_in_quoted_literals() {
+    assert_profile_rejection("\"line\nvalue\"", 5, 6);
+    assert_profile_rejection("\"line\rvalue\"", 5, 6);
 }
 
 #[test]
@@ -272,4 +320,16 @@ fn captures_numeric_suffixes_and_empty_parts() {
             })),
         ]
     );
+}
+
+fn assert_profile_rejection(source: &str, expected_start: usize, expected_end: usize) {
+    let error = Lexer::new(source)
+        .tokenize()
+        .expect_err("spelling outside Lexical Profile V1 should reject");
+    assert_eq!(
+        error.message, OUTSIDE_LEXICAL_PROFILE_MESSAGE,
+        "source: {source:?}"
+    );
+    assert_eq!(error.span.start, expected_start, "source: {source:?}");
+    assert_eq!(error.span.end, expected_end, "source: {source:?}");
 }
