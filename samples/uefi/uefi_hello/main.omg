@@ -25,7 +25,7 @@
 boundary trait TextOutput {
     machine output_string(this: addr, text: addr);
 }
-uefi_x64 machine text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableSlot(1);
+uefi_x86_64 machine text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableSlot(1);
 
 // The fields of the EFI System Table we care about; con_out lands at +64 under
 // the C layout (sequential placement with natural alignment).

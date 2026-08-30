@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the portable whole-file lock
-// family selected through its windows_x64 implementation: CRT fd -> HANDLE,
+// family selected through its windows_x86_64 implementation: CRT fd -> HANDLE,
 // LockFileEx/UnlockFile, and immediate GetLastError capture for contention.
 // Two independent read/write handles prove both exclusive and shared conflict.
 // exits: 70 good; 71 setup/open; 72 exclusive; 73 expected WouldBlock;

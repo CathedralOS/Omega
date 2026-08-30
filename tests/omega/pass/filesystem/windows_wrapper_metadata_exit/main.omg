@@ -11,7 +11,7 @@
 // the faithful test of the decode. ino/uid/gid/blocks/blksize/change-time are 0 on
 // native windows (absent from `_stat64`; read from a synthetic tail a real
 // `_stat64` leaves zero), so they are not asserted. Windows-gated (the raw
-// `read_metadata` seam binds `_stat64` only on windows_x64); darwin covers the
+// `read_metadata` seam binds `_stat64` only on windows_x86_64); darwin covers the
 // same wrapper path via the native_metadata_* canaries.
 // exits: 70 ok; 71 write failed; 72 metadata not Ok; 73 wrong len; 74 not regular file; 75 is dir.
 use omega::language::std::filesystem;

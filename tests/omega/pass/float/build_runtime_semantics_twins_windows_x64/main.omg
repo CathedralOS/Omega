@@ -28,7 +28,7 @@ machine baseline_classifies_subnormal64(value: f64) -> bool {
     }
 }
 
-machine windows_x64_baseline_float_twin_code() -> u64 {
+machine windows_x86_64_baseline_float_twin_code() -> u64 {
     let one32: f32 = 1.0;
     let half_ulp32: f32 = 0.000000059604644775390625;
     let quarter_ulp32: f32 = 0.0000000298023223876953125;
@@ -118,11 +118,11 @@ machine windows_x64_baseline_float_twin_code() -> u64 {
 
 data Main {
     console: Console;
-    slots: [u8; windows_x64_baseline_float_twin_code()];
+    slots: [u8; windows_x86_64_baseline_float_twin_code()];
 }
 
 machine Main::main(&mut self) {
-    let runtime_code: u64 = windows_x64_baseline_float_twin_code();
+    let runtime_code: u64 = windows_x86_64_baseline_float_twin_code();
     self.slots[15] = 54;
     transition runtime_code == 16 && self.slots[15] == 54 {
         true -> good()

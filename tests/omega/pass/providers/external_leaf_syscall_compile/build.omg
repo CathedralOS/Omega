@@ -1,5 +1,5 @@
 // Linux syscall provider canary: each supported target selects its exact entry.
-target linux_x64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 
 machine build(builder: &mut Build) {

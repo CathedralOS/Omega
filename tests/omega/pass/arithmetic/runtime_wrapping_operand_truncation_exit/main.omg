@@ -8,7 +8,7 @@
 // now truncate nested Wrapping results to the node's width (zero/sign-extend
 // per the node's signedness) before the parent consumes them; x86_64
 // byte-verified (mov r10d,r10d after each wrapped subtraction in a
-// cross-compiled linux_x64 ELF). This supersedes the old "type-blind
+// cross-compiled linux_x86_64 ELF). This supersedes the old "type-blind
 // const-folder" TASKS entry: the cast-retag spelling (`0 as u32 in
 // Wrapping`) blocks the folder's literal window entirely, so the same
 // source now exercises the RUNTIME operand path -- which had this hole.

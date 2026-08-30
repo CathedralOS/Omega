@@ -11,7 +11,7 @@
 // the wide-64-bit-op + shared range tail shape (multiply/shl's skeleton),
 // with the unsigned tail direction-split per operator (subtract clamps
 // DOWNWARD through a signed compare); the multiply prologue movsx takes
-// the same per-side skip. Byte-pinned via the linux_x64 ELF pin.
+// the same per-side skip. Byte-pinned via the linux_x86_64 ELF pin.
 // exits: 70 = MIN; 71 = MAX (the old corruption); 99 = other.
 use omega::language::std::console;
 data Main { console: Console; }

@@ -12,7 +12,7 @@ established by Scheduler::grant;
 
 data SchedulerProvider {}
 
-linux_x64 machine SchedulerProvider::finish(&self, code: i32)
+linux_x86_64 machine SchedulerProvider::finish(&self, code: i32)
 satisfies Scheduler::finish
 via Binding::Syscall(231);
 

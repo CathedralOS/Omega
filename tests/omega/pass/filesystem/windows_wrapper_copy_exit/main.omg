@@ -1,4 +1,4 @@
-// RUN CANARY (exit 70) -- `copy` UNFENCED on windows_x64 (2026-07-08). copy uses
+// RUN CANARY (exit 70) -- `copy` UNFENCED on windows_x86_64 (2026-07-08). copy uses
 // open/read/close/open_create/write + set_len (`_chsize_s`) + read_metadata +
 // set_permissions -- all native on windows. Also fixed here: copy's
 // decoded-mode arg to set_permissions was a single-use `let` that elided into

@@ -1,4 +1,4 @@
-// COMPILE CANARY (linux_x64): checked x86 fences carry explicit memory-ordering
+// COMPILE CANARY (linux_x86_64): checked x86 fences carry explicit memory-ordering
 // contracts, no general-purpose register clobbers, and emit their exact SSE2
 // encodings. The compiler suite also selects linux_arm64 for this same source
 // and pins the target-specific refusal.
@@ -12,7 +12,7 @@ machine Main::main(&mut self) {
     }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

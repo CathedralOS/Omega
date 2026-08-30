@@ -13,7 +13,7 @@ use omega::language::core::float_operations;
 // 75 = `!=` on EQUAL floats read TRUE.
 // (x86_64's twin arms: ucomis* with operand-order-selected seta/setae for
 // ordering -- unordered-false for free -- and the parity branch pattern for
-// ==/!=; byte-verified in a cross-compiled linux_x64 ELF from the arm64 host,
+// ==/!=; byte-verified in a cross-compiled linux_x86_64 ELF from the arm64 host,
 // every leg's sequence found at its expected count.)
 use omega::language::std::console;
 data Main {

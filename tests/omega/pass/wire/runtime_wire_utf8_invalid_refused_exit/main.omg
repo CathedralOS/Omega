@@ -7,7 +7,7 @@
 // ByteSequencePredicate; aarch64 and x86_64 emit mask-selected validation
 // blocks over the decoded content (utf8 = a label-resolved compare/branch
 // walk on both, single-scratch lead-first dispatch on x86). PROMOTED from
-// tests/omega/pending when the x86_64 sequences landed; the linux_x64 ELF pin
+// tests/omega/pending when the x86_64 sequences landed; the linux_x86_64 ELF pin
 // asserts the emitted block prefix. Edge classes pinned separately by
 // runtime_wire_utf8_edge_verdicts_exit.
 // exits: 71 = the invalid bytes were accepted as Sound.

@@ -24,13 +24,13 @@ local_unchecked machine Helper::pick(&self) -> i32 {
     transition { _ -> 63 }
 }
 
-windows_x64 machine Helper::delta(&self) -> i32 {
+windows_x86_64 machine Helper::delta(&self) -> i32 {
     transition { _ -> 7 }
 }
 macos_arm64 machine Helper::delta(&self) -> i32 {
     transition { _ -> 7 }
 }
-linux_x64 machine Helper::delta(&self) -> i32 {
+linux_x86_64 machine Helper::delta(&self) -> i32 {
     transition { _ -> 7 }
 }
 linux_arm64 machine Helper::delta(&self) -> i32 {

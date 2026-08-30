@@ -4,7 +4,7 @@
 // STACK (the win64 shadow-space calling plan; args 1-4 ride rcx/rdx/r8/r9).
 // The canary passes addresses of MACHINE FIELDS as the out-params; firmware
 // writes through them after boot -- here the pin is the CALL SHAPE in .text
-// (cross-compiled for uefi_x64 on any host), not a live boot.
+// (cross-compiled for uefi_x86_64 on any host), not a live boot.
 boundary trait BootServices {
     machine get_memory_map(
         this: addr,
@@ -23,7 +23,7 @@ data EfiBootServicesTable {
     free_pages: addr;
     get_memory_map: addr;
 }
-uefi_x64 machine EfiBootServicesTable::get_memory_map_leaf(
+uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
     this: addr,
     map_size: &mut u64,
     map: addr,

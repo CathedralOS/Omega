@@ -1,6 +1,6 @@
 // Deployable array-element struct-copy probe: every hosted target selects its exact entry.
-target windows_x64 { }
-target linux_x64 { }
+target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 

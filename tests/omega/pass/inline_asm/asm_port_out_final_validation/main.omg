@@ -1,4 +1,4 @@
-// COMPILE CANARY (linux_x64 freestanding): an immediate port identity survives
+// COMPILE CANARY (linux_x86_64 freestanding): an immediate port identity survives
 // checked-assembly lowering into the independent final-byte validation record.
 // The transferred byte is ordinary data; the validator binds the privileged
 // destination and closed DX/AL/out envelope.
@@ -12,5 +12,5 @@ machine Main::main(&mut self) reaches PortIo {
     }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }

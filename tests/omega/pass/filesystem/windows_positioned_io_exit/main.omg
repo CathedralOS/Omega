@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER positioned-io
 // contract on windows (windows session slice 2): msvcrt fds have no
-// pread/pwrite, so the windows_x64 impl COMPOSES save-cursor / seek / op /
+// pread/pwrite, so the windows_x86_64 impl COMPOSES save-cursor / seek / op /
 // restore-cursor over the wired _lseeki64/_read/_write rows (posix targets
 // bind the atomic raw ops; darwin's raw-seam twin is
 // native_positioned_io). Writes "0123456789", reopens read+write, then

@@ -1,4 +1,4 @@
-// RUN CANARY (exit 70) -- ERGONOMIC-wrapper breadth on windows_x64, second
+// RUN CANARY (exit 70) -- ERGONOMIC-wrapper breadth on windows_x86_64, second
 // wave: wrapper machines riding already-wired msvcrt rows, natively
 // verified end to end. Covers WRAPPER rename (the two-path import call now
 // resolves each path PER ARGUMENT through the alias chain -- param-forwarded

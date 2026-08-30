@@ -1,4 +1,4 @@
-// COMPILE CANARY (linux_x64 freestanding): runtime port and MSR operands keep
+// COMPILE CANARY (linux_x86_64 freestanding): runtime port and MSR operands keep
 // their exact operand boundaries around independently validated privileged
 // opcode envelopes. Reads also retain their compiler-owned destination
 // relocations.
@@ -23,5 +23,5 @@ reaches MachineControl + PortIo
     }
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }

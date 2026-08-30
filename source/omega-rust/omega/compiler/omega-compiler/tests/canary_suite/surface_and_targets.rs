@@ -647,11 +647,11 @@ fn linux_x64_wrapping_shift_masked_count_bytes() {
 }
 
 #[test]
-fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
+fn linux_x86_64_cli_mvp_emits_elf_with_syscalls() {
     let sample = sample_project("cli/basics/cli_mvp");
     let main_path = sample.join("main.omg");
     let build_dir =
-        std::env::temp_dir().join(format!("omega-linux-x64-cli-mvp-{}", std::process::id()));
+        std::env::temp_dir().join(format!("omega-linux-x86-64-cli-mvp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CanaryCompileSpec {
@@ -660,9 +660,10 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
         target_name: Some("linux_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
-    .expect("linux_x64 cli_mvp should compile to an ELF executable");
+    .expect("linux_x86_64 cli_mvp should compile to an ELF executable");
 
-    let elf = fs::read(build_dir.join("omega-program")).expect("linux_x64 ELF should be emitted");
+    let elf =
+        fs::read(build_dir.join("omega-program")).expect("linux_x86_64 ELF should be emitted");
 
     // ELF64 magic + e_machine == EM_X86_64 (62) at offset 18.
     assert_eq!(&elf[0..4], b"\x7fELF", "ELF magic");

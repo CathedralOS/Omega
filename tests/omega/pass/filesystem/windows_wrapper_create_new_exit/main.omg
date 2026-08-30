@@ -1,4 +1,4 @@
-// RUN CANARY (exit 70) -- create_new UNFENCED on windows_x64 (portable-values
+// RUN CANARY (exit 70) -- create_new UNFENCED on windows_x86_64 (portable-values
 // payoff, 2026-07-08). Previously fenced: the wrapper composed DARWIN flag
 // words and darwin O_CREAT (0x200) is msvcrt O_TRUNC, so create_new/open_with
 // would silently TRUNCATE. Now the selected Windows adapter encodes semantic

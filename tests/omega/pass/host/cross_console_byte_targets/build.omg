@@ -1,11 +1,11 @@
 // Cross-compile pins for every hosted Console provider closure. The suite
-// inspects the windows_x64 (GetStdHandle + ReadFile/WriteFile import flavor)
-// and linux_x64 (read/write syscall flavor) encoder fragments and compiles
+// inspects the windows_x86_64 (GetStdHandle + ReadFile/WriteFile import flavor)
+// and linux_x86_64 (read/write syscall flavor) encoder fragments and compiles
 // both AArch64 closures structurally. Native confirmation needs those hosts.
-target windows_x64 {
+target windows_x86_64 {
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target macos_arm64 {

@@ -1,10 +1,10 @@
 // Structural pin for every target implementation of Filesystem::set_times.
 // The runtime assertion is Windows-only, but moving the formerly-portable
 // POSIX body into target files must keep all three POSIX selections healthy.
-target windows_x64 {
+target windows_x86_64 {
 }
 
-target linux_x64 {
+target linux_x86_64 {
 }
 
 target linux_arm64 {

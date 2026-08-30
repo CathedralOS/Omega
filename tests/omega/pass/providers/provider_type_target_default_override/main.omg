@@ -15,10 +15,10 @@ machine SecondProvider::choose() -> i32 satisfies Pick::choose {
 }
 
 data CanaryTargetProviders { }
-windows_x64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+windows_x86_64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
     defaults.select_provider<Pick, FirstProvider>();
 }
-linux_x64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
+linux_x86_64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {
     defaults.select_provider<Pick, FirstProvider>();
 }
 linux_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut CanaryTargetProviders) {

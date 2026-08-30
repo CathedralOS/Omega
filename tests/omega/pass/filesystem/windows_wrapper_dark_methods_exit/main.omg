@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70) -- previously-untested ergonomic wrapper methods on
-// windows_x64: create (writable File), sync (fsync/_commit), try_clone
+// windows_x86_64: create (writable File), sync (fsync/_commit), try_clone
 // (dup -- a File payload round-tripped through a value call and closed
 // separately), set_permissions (chmod), remove. The interpreter's virtual
 // fs is the differential oracle.

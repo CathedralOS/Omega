@@ -1,5 +1,5 @@
 use omega::language::core::extent;
-use omega::language::std::targets::uefi_x64;
+use omega::language::std::targets::uefi_x86_64;
 
 data Boot {
     launch_count: u64;

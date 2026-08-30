@@ -1,5 +1,5 @@
 // Register the freestanding x86-64 PE target used to inspect the entry stub.
-target uefi_x64 {
+target uefi_x86_64 {
 }
 
 machine build(builder: &mut Build) {
