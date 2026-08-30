@@ -1394,6 +1394,20 @@ pub(super) fn unknown_descriptor_failure_has_exact_core_shape(
     )
 }
 
+pub(super) fn unknown_descriptor_failure_has_exact_fixed_shape(
+    attempt: &FilesystemOperationAttempt,
+    operation_tag: u16,
+) -> bool {
+    attempt.byte_operands.is_empty()
+        && unknown_handle_failure_has_exact_fixed_shape_with_outcome(
+            attempt,
+            operation_tag,
+            UNKNOWN_DESCRIPTOR_RESULT,
+            BAD_DESCRIPTOR_ERROR,
+            FilesystemLogicalHandleKind::Descriptor,
+        )
+}
+
 fn unknown_descriptor_failure_has_exact_core_shape_with_outcome(
     attempt: &FilesystemOperationAttempt,
     operation_tag: u16,
@@ -1410,6 +1424,23 @@ fn unknown_descriptor_failure_has_exact_core_shape_with_outcome(
 }
 
 fn unknown_handle_failure_has_exact_core_shape_with_outcome(
+    attempt: &FilesystemOperationAttempt,
+    operation_tag: u16,
+    result: i64,
+    post_error: i32,
+    logical_handle_kind: FilesystemLogicalHandleKind,
+) -> bool {
+    unknown_handle_failure_has_exact_fixed_shape_with_outcome(
+        attempt,
+        operation_tag,
+        result,
+        post_error,
+        logical_handle_kind,
+    ) && attempt.mutable_i64_operand_resolutions.is_empty()
+        && attempt.mutable_i64_operands.is_empty()
+}
+
+fn unknown_handle_failure_has_exact_fixed_shape_with_outcome(
     attempt: &FilesystemOperationAttempt,
     operation_tag: u16,
     result: i64,
@@ -1433,9 +1464,9 @@ fn unknown_handle_failure_has_exact_core_shape_with_outcome(
             observed_byte_regions,
             metadata_observations,
             mutable_byte_operand_resolutions: _,
-            mutable_i64_operand_resolutions,
+            mutable_i64_operand_resolutions: _,
             mutable_byte_operands: _,
-            mutable_i64_operands,
+            mutable_i64_operands: _,
             authorized_paths,
             logical_handle_inputs,
             logical_handle_output: None,
@@ -1449,8 +1480,6 @@ fn unknown_handle_failure_has_exact_core_shape_with_outcome(
             && returned_paths.is_empty()
             && observed_byte_regions.is_empty()
             && metadata_observations.is_empty()
-            && mutable_i64_operand_resolutions.is_empty()
-            && mutable_i64_operands.is_empty()
             && authorized_paths.is_empty()
             && matches!(
                 logical_handle_inputs.as_slice(),

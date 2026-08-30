@@ -21,6 +21,9 @@ mod output_failures;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
+#[cfg(test)]
+mod read_dir_failure_tests;
+mod read_dir_failures;
 mod source_directories;
 #[cfg(test)]
 mod source_directory_tests;
@@ -107,6 +110,12 @@ pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{
     FilesystemInputOutputTreeReplayRecord, FilesystemOutputTreeEntryReplayRecord,
 };
+pub use read_dir_failures::FilesystemInputUnknownDescriptorReadDirReplayRecord;
+#[cfg(test)]
+pub(crate) use read_dir_failures::{
+    unknown_descriptor_read_dir_attempt, unknown_descriptor_read_dir_attempt_is_exact,
+    unknown_descriptor_read_dir_from_exact_attempt,
+};
 pub use source_directories::{
     FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
 };
@@ -131,6 +140,7 @@ pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
 ) -> bool {
     handle_failures::unknown_input_handle_failure_attempt_is_exact(attempt)
         || open_at_failures::unknown_descriptor_open_at_attempt_is_exact(attempt)
+        || read_dir_failures::unknown_descriptor_read_dir_attempt_is_exact(attempt)
         || unlink_at_failures::unknown_descriptor_unlink_at_attempt_is_exact(attempt)
         || native_mutation_failures::unknown_native_handle_mutation_attempt_is_exact(attempt)
 }
