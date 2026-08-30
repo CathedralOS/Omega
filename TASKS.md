@@ -3591,7 +3591,13 @@ Remaining:
   and whole-root Unit-call rebasing preserves the same prefixes. Independent
   verification rejects an enclosing-field substitution, while codec,
   interpreter, and fixed-fuel reuse the existing proposition vocabulary.
-  Deeper record nesting, case-payload or mixed-under-mixed placement, two mixed
+  The next bounded rung admits exactly two enclosing acyclic relevant record
+  fields before that same sole mixed occurrence. Every mixed common-field,
+  case-membership, and payload-leaf path retains both field identities in
+  order; `==`, `!=`, whole-root Unit-call rebasing, codecs, verification,
+  fixed fuel, and interpretation replay the exact `Field -> Field -> Mixed`
+  chain. Independent mutation of either enclosing field rejects. Three or more
+  enclosing fields, case-payload or mixed-under-mixed placement, two mixed
   sibling fields, direct projected mixed comparisons, recursive cycles,
   address and erased payload equality, and runtime sum layout remain fenced.
   Semantic codec format 33 / vocabulary

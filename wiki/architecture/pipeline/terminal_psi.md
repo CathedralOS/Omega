@@ -2055,11 +2055,16 @@ one relevant direct field whose type is the existing mixed shape. Every mixed
 common-field, case-membership, and payload-leaf path retains that enclosing
 field as its first segment, and whole-root Unit-call rebasing preserves it on
 both operands. No new proposition or format is added; independent structural-
-path replay rejects a substituted enclosing field. Deeper record nesting,
-mixed values below case payloads or another mixed shape, two mixed sibling
-fields, direct projected mixed comparisons, recursive cycles, address and
-erased payload equality, written `equals` bodies, and runtime sum layout remain
-outside this bounded terminal slice. When an acyclic
+path replay rejects a substituted enclosing field. The next bounded form
+admits exactly two enclosing relevant record fields. Every path carries both
+field identities before the sole mixed
+occurrence; equality, inequality, whole-root Unit-call rebasing, codecs,
+verification, fixed fuel, and interpretation replay that exact ordered chain,
+and mutation of either field rejects independently. Three or more enclosing
+fields, mixed values below case payloads or another mixed shape, two mixed
+sibling fields, direct projected mixed comparisons, recursive cycles, address
+and erased payload equality, written `equals` bodies, and runtime sum layout
+remain outside this bounded terminal slice. When an acyclic
 relevant record field reaches a payload-bearing sum, the same sum proposition
 is retained below that field path, and independent verification preserves the
 complete `Field -> Case -> Field` identity chain. Direct source-call rebasing
