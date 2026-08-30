@@ -22,6 +22,15 @@ contracts, authority and behavior, representation commitments, complete
 package records, and canonical rows. It does not inspect compiler state or
 encode persistence bytes.
 
+The current representation projection still records package-owned opaque data
+only as `Unbound`. D26's implementation task extends that incomplete
+projection with separate producer-availability and consumer-demand rows.
+Availability accepts no consumer choice; demand is owned by the selecting
+consumer and exists only
+for an actual runtime by-value crossing. The implementation must promote the
+retained structured opaque use rather than attempt to recover declarations or
+carrier identity from the aggregate calling-plan commitment.
+
 ## Capture
 
 `capture/` is the only compiler-facing branch. Begin with `capture/mod.rs`,

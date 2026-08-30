@@ -886,6 +886,37 @@ consumers must agree on one exact application. A missing, conflicting,
 lookalike-trait, foreign-target, or shape-invalid selection rejects with the
 full demand and selection provenance chain.
 
+The uniqueness rule is activation-wide: one compilation may select at most one
+application for each opaque declaration. An unused selection still occupies
+that slot, but produces no demand row because it created no by-value ABI
+dependency. Today exactly one authoritative build machine is evaluated per
+activation; completed build-configuration validation preserves the wider rule
+if orchestration later changes.
+
+Dependency-generated source arrives through the compiler-issued bundle above.
+The consumer does not rerun the dependency's build machine or inherit a
+selection made when that package was reviewed as its own root. The consumer's
+authoritative build selects one application for the active combined
+compilation. Different historical package-review demands therefore do not
+conflict merely because their packages appear in one source closure.
+
+Review records the existing weld as two facts. Producer availability binds the
+exact opaque declaration and public named-conformance/carrier surface without
+claiming acceptance of a consumer choice. Consumer demand exists only for an
+actual by-value use and binds the requirement application, selected target,
+opaque declaration, conformance or target-semantics source, carrier, derived
+shape and movement/finalization, evidence origin, closed-conformance
+commitment, and complete boundary-plan commitment. Foreign demands rejoin the
+producer's exact canonical rows and selected immutable source instance.
+
+The selecting build machine and source occurrence remain audit provenance and
+source custody, not application identity. Moving an unchanged selection cannot
+change ABI agreement. Within one compilation, the active application is used
+on both sides of every crossing. Future independently compiled artifacts must
+compare the same strong application commitments at their actual by-value
+composition edges; unrelated artifacts and historical source-review rows are
+not globally unified. Compact fingerprints remain report coordinates only.
+
 Selection remains nominal and argument-free. Target-specific values such as a
 Windows standard-output handle or Linux file descriptor belong inside the
 selected target-owned realization contract, not as value arguments to
@@ -3246,15 +3277,20 @@ contract baseline. Complete rows for the remaining unsupported forms and exact
 proof/admission dispositions still gate sealing.
 
 Claim-free opaque `boundary data` is retained in a separate representation-TCB
-lane. A demanded runtime by-value row binds the package-qualified declaration
-to its exact selected or compiler-derived representation application: the
-authorized source, target-semantics identity, closed shape graph or sealed ABI
-leaf, physical movement/finalization, representation version, and evidence
-origin. `Unbound` is accepted only when no runtime by-value crossing demands the
-declaration. Introduction or material change strongly recommends a code/ABI
-audit, while unchanged rows remain visible without recurring blanket approval.
-Opacity alone is not a blocking trust claim. Deployment policy may still
-classify an exact compiler-owned mechanism as dangerous and blocking.
+lane with producer-availability and consumer-demand rows. Availability binds
+the package-qualified declaration and public conformance/carrier surface but
+accepts no consumer selection. A demanded runtime by-value row is owned by the
+selecting consumer and binds its exact requirement application to the selected
+or compiler-derived representation: authorized source, carrier, target-
+semantics identity, closed shape graph or sealed ABI leaf, physical
+movement/finalization, representation version, evidence origin, and strong
+conformance and boundary-plan commitments. Foreign demand rejoins the exact
+producer rows and immutable source instance. `Unbound` is accepted only when no
+active runtime by-value crossing demands the declaration. Introduction or
+material change strongly recommends a code/ABI audit, while unchanged rows
+remain visible without recurring blanket approval. Opacity alone is not a
+blocking trust claim. Deployment policy may still classify an exact compiler-
+owned mechanism as dangerous and blocking.
 
 Accepted propositions, boundary/provider guarantees, authority establishment,
 executable mechanisms, and derived dangerous reach remain independent
