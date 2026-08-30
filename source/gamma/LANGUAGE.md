@@ -117,18 +117,38 @@ function call evaluates each argument once from left to right before entering
 the callee. Proper tail calls are required: terminating tail recursion cannot
 also depend on an implementation return-stack ceiling.
 
-`Int` is a checked signed 64-bit integer. Arithmetic overflow, division by zero,
-and signed division overflow trap. `eq` and `lt` on integers produce `0` or `1`;
-`if` treats zero as false and every other integer as true.
+`Int` is a checked signed 64-bit integer. `eq` and `lt` on integers produce `0`
+or `1`; `if` treats zero as false and every other integer as true.
 
 `Bytes` is an immutable finite byte sequence, not an algebraic list and not a
 raw-memory address. The six `bytes_*` forms above are closed built-ins:
 `bytes_empty` and `bytes_single` construct; `bytes_length` returns `Int`;
 `bytes_get` returns the selected byte as `Int`; `bytes_slice` takes start and
-length; and `bytes_concat` joins two sequences. A constructed byte must be in
-`0..255`; a negative or invalid index, slice, or length traps. The compiler
+length; and `bytes_concat` joins two sequences. Every valid `Bytes` has an exact
+logical length representable as a nonnegative `Int`. `bytes_empty`,
+`bytes_single`, and `bytes_slice` preserve that invariant. `bytes_concat` loads
+the operands' logical lengths and traps before allocation when their exact
+mathematical sum exceeds `INT64_MAX`; otherwise its result stores that exact
+sum. `bytes_length` is therefore total over every valid `Bytes`. The compiler
 may represent sealed input as a flat view and constructed output as chunks or a
 rope, but representation and storage coordinates are never Gamma values.
+
+The authored runtime trap conditions are closed:
+
+- the mathematical result of signed addition, subtraction, or multiplication
+  is not representable as `Int`;
+- integer division or remainder has a zero divisor, or applies the signed
+  overflow pair `INT64_MIN` and `-1`;
+- `bytes_single` receives a value outside `0..255`;
+- `bytes_get` receives a negative or out-of-range index;
+- `bytes_slice` receives a negative start or length, or a range not contained
+  in its input; or
+- `bytes_concat` would produce a logical length greater than `INT64_MAX`.
+
+Out-of-range integer literals are static rejection rather than runtime traps.
+A malformed private `Bytes` descriptor, an impossible checked state, or replay
+disagreement is `InternalFailure`; physical heap, stack, input, or output
+exhaustion is `Incomplete`. Neither condition is a Gamma trap.
 
 The compact primitive is required by the compiler customer. Representing the
 4 MiB input profile as one `Cons(Int, Bytes)` node per byte would require at
@@ -149,7 +169,13 @@ exact Gamma source. The ID is part of compilation identity and reconstruction
 evidence. It is not Gamma syntax, an ambient host flag, a filename convention,
 or a property inferred from source names.
 
-Version 1 has exactly two profiles:
+Version 1 has exactly two profiles. Each declares one exact maximum sealed-input
+extent satisfying `0 <= maximum <= INT64_MAX`. The compiler validates that
+bound as profile metadata before adapter emission; an admitted input can
+therefore always become a valid Gamma `Bytes`. An input exceeding the selected
+maximum is profile-owned `Incomplete`, not a Gamma trap.
+
+The two profiles are:
 
 - `ConformanceBytesV1` requires `main : Bytes -> Bytes`. Its adapter reads
   one sealed input, invokes `main`, preflights the complete returned value, and

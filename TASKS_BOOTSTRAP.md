@@ -525,7 +525,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     latter validates the exact resolved source-owned outcome schema and a total
     bijection between every `DeltaRejectReason` constructor and the
     profile-owned `DCOUT` v1 table before emission. A mismatch rejects through
-    `GCOUT`; no adapter may retain an unhandled case. Both adapters supply
+    `GCOUT`; no adapter may retain an unhandled case. Validate D21's
+    `0 <= maximum sealed input <= INT64_MAX` profile invariant before emission.
+    Both adapters supply
     sealed `Bytes`, own their closed external observation/resource profiles,
     preflight output, and never publish partial bytes.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
@@ -642,9 +644,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Execute all six operations, cross-boundary and nested slices, a 1,024-node
     rope, 12 invalid/malformed cases, and exact-last-row versus adjacent
     allocation exhaustion.
-    **OWNER-BLOCKED — Q4:** classify `bytes_concat` when its compact logical
-    length exceeds signed `Int`; the helper accepts a separately selected
-    checked-add terminal and otherwise remains complete.
+    D21 now classifies logical-length overflow as an authored trap. The helper
+    already loads stored logical lengths, checked-adds before allocation, and
+    writes the exact sum into the successful descriptor.
   - [x] Lower all six statically checked `bytes_*` forms through the eventual
     expression dispatcher. Reconstruct `Bytes` as `(1, descriptor)` and scalar
     results as `(0, value)`; evaluate one-, two-, and three-argument forms
@@ -653,11 +655,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     every form, nested ropes, a cross-rope slice, exact-end zero slicing, lazy
     conditional `Bytes` branches, an outer `Int` spill, and invalid byte/index/
     range traps. Recompile one nested `Bytes` source twice and require identical
-    raw payloads. Q4's logical-length overflow is intentionally not asserted.
+    raw payloads.
     Focused emitter/runtime probes compile the canonical emitter section alone
     so unrelated frontend growth cannot force those diagnostics past Beta's
     fixed payload ceiling; the actual lowering probe still compiles the whole
     canonical source.
+  - [ ] Pin D21 with one focused emitted-runtime canary that repeatedly doubles
+    a valid rope through stored logical lengths, accepts the final representable
+    value, and traps on the adjacent concatenation before allocation. Distinguish
+    that trap from malformed-descriptor `InternalFailure` and actual allocator
+    `Incomplete`; retain the heap cursor to prove no mutation on overflow.
   - [x] Bridge already-resolved ordinary and tail calls into the eventual
     expression backend without assigning a source identity. Consume
     the canonical source-order argument list, lower every argument non-tail
@@ -958,7 +965,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q9: OMEGA-COMPILER-REQUEST-WIRE-V1.** Freeze the
+  - [ ] **OWNER-BLOCKED — Q8: OMEGA-COMPILER-REQUEST-WIRE-V1.** Freeze the
     byte-exact standalone request and `OCOUT` schemas that carry D18's logical
     subject/invocation contract. Specify magic/version, scalar encoding,
     counts/lengths, canonical limits and exact end; every graph, package,
@@ -967,7 +974,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     order; and the complete Reject/Incomplete/InternalFailure payloads. The
     Rust host request layout is explicitly non-authoritative and neither `D`
     nor `C` may choose a private replacement.
-  - [ ] **DEPENDENCY-BLOCKED — Q9: OMEGA-COMPILER-REQUEST-V1.** After the wire
+  - [ ] **DEPENDENCY-BLOCKED — Q8: OMEGA-COMPILER-REQUEST-V1.** After the wire
     ruling, implement D18's canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
@@ -1664,8 +1671,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 and Q5 through Q9 still own
-  unresolved full-spec compiler or standalone-edge contracts. Q9 blocks
+  allowed; weakened Omega semantics are not. Q1 and Q4 through Q8 still own
+  unresolved full-spec compiler or standalone-edge contracts. Q8 blocks
   source identity, semantic/lowering custody, and the application boundary;
   the others do not block continued implementation of independently settled
   source-shaped parser slices.

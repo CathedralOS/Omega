@@ -5,6 +5,11 @@ algebraic data, exhaustive pattern matching, checked signed integers, immutable
 bytes, forward and mutual recursion, and proper tail calls. It is deliberately
 small but sufficient to implement the Delta compiler.
 
+D21 makes every valid `Bytes` logical length a nonnegative `Int`. Concatenation
+traps on an unrepresentable exact sum before allocation; physical storage
+failure remains profile-owned `Incomplete`, and malformed private descriptors
+remain `InternalFailure`.
+
 The normative contract is [`LANGUAGE.md`](LANGUAGE.md). The canonical edge is:
 
 ```text

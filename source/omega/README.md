@@ -55,7 +55,7 @@ activation/reach closure lands, and normalize `windows_x64` to
 `omega_compiler.delta` (`D`) now exists but is intentionally incomplete, and
 both descriptive compiler tapes remain absent. D18 fixes their logical sealed
 Omega request as a resolved package subject plus a bound invocation, complete
-deterministic build-visible snapshots, and the `OCOUT` compiler boundary. Q9
+deterministic build-visible snapshots, and the `OCOUT` compiler boundary. Q8
 must still freeze the authoritative request bytes, limits, validation order,
 and failure schemas before either standalone compiler can expose that edge. No
 raw-single-file stdin convention may stand in for it. Each compiler derives and

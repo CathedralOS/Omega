@@ -1977,8 +1977,9 @@ proc emit_checked_mod(entry_label, failure_label) {
 ; inputs and scalar/pointer outputs use r2..r4 and r0 respectively; general
 ; lowering reconstructs the public `(kind,payload)` pair.
 
-; A D19-selected application profile supplies `maximum_bytes`; this helper does
-; not select that profile or interpret the returned program value. It consumes
+; A D19-selected application profile supplies `maximum_bytes`; D21 requires the
+; compiler to validate it in `0..INT64_MAX` before adapter emission. This helper
+; does not select that profile or interpret the returned program value. It consumes
 ; sealed stdin once, stores the exact bytes in the private heap, and returns a
 ; canonical Bytes descriptor in r0. EOF at the exact maximum is accepted; the
 ; adjacent byte transfers to the supplied resource label. No path writes
@@ -2134,6 +2135,9 @@ proc emit_bytes_length(entry_label, internal_label) {
     return 0
 }
 
+; D21: add the operands' stored logical lengths before allocation. The selected
+; checked-add terminal is the authored trap; malformed descriptors use the
+; independent internal terminal and allocator failure remains separate.
 proc emit_bytes_concat(entry_label, heap_label, add_label, internal_label) {
     let return_left = new_label()
     let return_right = new_label()

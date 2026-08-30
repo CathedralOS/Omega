@@ -495,7 +495,8 @@ publishes the versioned rejection frame, and adapter-owned exhaustion or
 contradiction publishes outer `Incomplete` or `InternalFailure`. Every failure
 publishes no artifact prefix. Each profile owns its exact sealed-input maximum,
 entry contract, result validation, external observation profile, and private
-resource/status table.
+resource/status table. D21 requires that maximum to lie in
+`0..INT64_MAX`, checked as profile metadata before adapter emission.
 
 `Int` and `Bytes` remain Gamma's only built-in types. `DeltaRejectReason` and
 `DeltaCompileOutcome` remain ordinary source-owned nominal declarations; the
@@ -553,6 +554,31 @@ then checks bodies with explicit lexical-environment push/pop and exact source
 coordinates for the later conflicting binder. D20 replaces the temporary
 checker's accidental first-global and last-local lookup behavior and unblocks
 the source-to-resolved-identity joins in the Beta-written Gamma compiler.
+
+## D21 — Every Gamma Bytes value has an Int-representable logical length
+
+Every valid Gamma `Bytes` has one exact logical length in `0..INT64_MAX`.
+`bytes_empty`, `bytes_single`, and `bytes_slice` preserve that invariant.
+Compiler-generated sealed-input adapters may construct `Bytes` only under a
+D19 profile whose exact maximum input extent lies in the same range; the
+compiler validates that profile metadata before emitting the adapter.
+
+`bytes_concat` is the only length-increasing language constructor. It loads the
+operands' stored logical lengths, computes their exact mathematical sum before
+allocation, and traps if that sum exceeds `INT64_MAX`. No heap mutation or
+partial descriptor may precede the check. On success the new descriptor stores
+the exact sum, making `bytes_length : Bytes -> Int` total over valid values.
+Deliberate rope doubling can reach the guard with little physical storage, so
+the rule depends on logical length rather than representation size.
+
+The overflow is an authored Gamma trap because it depends only on the operand
+values. A representable concatenation that cannot allocate is profile-owned
+`Incomplete`; malformed private descriptors or impossible checked states are
+`InternalFailure`. D19 already maps a Gamma trap in the generated Delta-compiler
+application to outer `InternalFailure`, so D21 adds no halt tag or wire outcome.
+The Gamma guide owns the closed authored-trap condition list; exact published
+diagnostic subcodes, if distinguished, remain in the selected edge profile's
+versioned reason table.
 
 ## Dependency order
 
