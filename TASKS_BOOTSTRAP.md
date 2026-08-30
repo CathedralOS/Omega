@@ -148,7 +148,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   compiler owners, rung pages, repository map, and chain manifest now use this
   distinction consistently; paths that still contradict it are migration tasks
   above rather than alternate roles.
-- [ ] **BOOTSTRAP-ASCII-SOURCE:** Implement D15's one source-byte envelope for
+- [x] **BOOTSTRAP-ASCII-SOURCE:** Implement D15's one source-byte envelope for
   Alpha assembly, Beta, the fixed Gamma contract, and Delta. Reject before
   tokenization every byte other than HT, LF, CR, and printable ASCII; use
   explicit ASCII identifier/digit predicates, exactly space/tab/CR/LF trivia,
@@ -174,10 +174,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     comments in both bounded Gamma oracle surfaces and the temporary Python
     evaluator. The existing gates now retain matching positive and negative
     byte controls.
-  - [ ] **DEPENDENCY-BLOCKED — DELTA COMPILER:** Apply D15's already-fixed outer
-    envelope and D17's exact Delta lexical rules when the Gamma-written Delta
-    compiler exists. No current Delta parser or compiler implementation can
-    receive this code change.
+  - [x] Apply D15's fixed outer envelope and D17's exact Delta lexical rules in
+    `delta_compiler.gamma`. `check_source_bytes` rejects the complete source
+    before tokenization, and the retained lexical phase owns explicit ASCII
+    identifiers/digits, exact trivia/comment termination, printable literal
+    bytes, closed escapes, and exact rejection offsets.
 
 ## 1. Alpha execution floor
 
