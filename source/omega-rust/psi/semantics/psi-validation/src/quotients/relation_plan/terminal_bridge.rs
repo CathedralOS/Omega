@@ -126,7 +126,8 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
             }
             runtime
         }
-        QuotientCorrespondenceEvidence::DirectLift { .. } => {
+        QuotientCorrespondenceEvidence::DirectLift { .. }
+        | QuotientCorrespondenceEvidence::DirectLiftWithTransport { .. } => {
             return Err("the proof-only bridge admits faithful `define` only".to_owned());
         }
     };
