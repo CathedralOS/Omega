@@ -538,3 +538,51 @@ explicitly admitted generic implementation contract.
 - Tempting but wrong: accept a provider-authored `generic` flag, infer coverage
   from one successful application, or call a compiler/toolchain/version string
   a certificate that universal checking occurred.
+
+## Q11 — Define exact boundary-realization application evidence
+
+### Context
+
+A selected boundary-operator plan retains one realization row, while one
+artifact may demand many exact static applications of that coordinate. Package
+review already has an `ExactApplications` row, but production does not attach
+it or publish a checked use-side application carrier. The current application
+schema records only arity and untyped semantic strings, although an operator
+telescope may contain lifetime, type, const, machine, and proposition binders.
+A provisional ordinary-type carrier was rejected before landing because making
+it exact required independently re-solving those identity and substitution
+rules before this question had settled their shared representation.
+
+### Problem statement
+
+Choose what the compiler must recheck before one demanded static application
+may be published as covered. In particular, decide whether a generic checked
+realization is specialized and rechecked once per retained application, or
+whether each application must name a separately checked realization identity.
+Also choose the tagged structural representation that binds every application
+argument to its exact telescope category and domain. Merely copying the
+artifact's demand strings beside one selected realization would prove demand,
+not coverage.
+
+### Proposed direction
+
+Treat exact coverage as per-application compiler work. Reconstruct one tagged
+application from the checked use, substitute it into the selected realization,
+and re-run the applicable signature, contract, effect, target, and admission
+checks for that specialization. Retain the exact requirement coordinate,
+selected plan and realization, binder schema, tagged arguments, and rechecked
+specialization identity. Deduplicate and order only after those joins succeed.
+
+Keep this distinct from Q10: checking a finite demanded set does not establish
+universal generic coverage. Initially supporting only ordinary type binders is
+acceptable if every other telescope category remains explicitly fail-closed.
+
+### Alternates
+
+- Acceptable: require one separately checked concrete realization identity per
+  exact application rather than specializing one generic checked realization.
+- Acceptable: forbid exact coverage for selected binder categories until their
+  structural argument and substitution rules are implemented.
+- Tempting but wrong: call a canonical list of use-site strings coverage,
+  infer specialization from one successful generic declaration check, or erase
+  binder categories behind an arity-only schema.

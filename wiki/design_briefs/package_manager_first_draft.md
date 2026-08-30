@@ -1206,6 +1206,12 @@ incomplete recorded override. The projection never substitutes an overload
 display name, declaration order, or a runtime-layout-only type identity for
 this contract surface.
 
+Production exact package applications remain fail-closed. Q11 must first
+settle a tagged structural demand representation and its recheckable join to
+selected-realization evidence; an arity plus semantic strings is not sufficient
+authority, and a provisional type-only use carrier would pre-commit the wider
+static-binder design.
+
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
 fact rows, and domains are absent from trust reports. Exact selected-provider

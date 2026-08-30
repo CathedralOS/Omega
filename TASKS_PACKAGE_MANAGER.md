@@ -44,8 +44,10 @@ stop the item on one precise owner question before adding machinery.
     compiler-intrinsic ownership, and
     installation joins beyond the landed selected-provider upper-bound and
     realized-reach evidence;
-  - generic/exact-application boundary-provider family evidence under
-    **BOUNDARY-OPERATOR-FAMILY-SELECTION**;
+  - **OWNER-BLOCKED — Q10:** generic boundary-realization coverage;
+  - **OWNER-BLOCKED — Q11:** exact boundary-realization specialization and
+    tagged static-application demand and coverage evidence; production remains
+    fail-closed rather than publishing a provisional use-side carrier;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 

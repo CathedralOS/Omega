@@ -869,6 +869,11 @@ static telescope is a separate axis: coverage may be one generic realization or
 an exact application family covering every verifier-reconstructed concrete or
 symbolic demand. Generic applications are not overload coordinates.
 
+Production does not yet publish exact static-application demand or
+`ExactApplications` coverage. Q11 must first settle one tagged structural
+application representation and its recheckable join to selected-realization
+evidence; a provisional type-only use carrier would pre-commit that design.
+
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not
 redispatch through the selected operator family; spelling the operator inside
