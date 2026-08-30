@@ -485,6 +485,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     calls, exhaustive matches and complete static rejection of every
     nonexhaustive shape, checked `Int` traps, every `Bytes` operation, and
     invalid byte/range access.
+  - **OWNER-BLOCKED — Q6:** freeze global declaration identity, duplicate
+    binder handling, lexical scope, and shadowing before the canonical resolver
+    assigns meaning to ambiguous source. This blocks resolver/type-checker
+    completion only; source-envelope validation, strict grammar parsing, target
+    ABI work, and profile-independent emission machinery remain unblocked.
   - Implement the Gamma compiler's `GCOUT` boundary and generate each selected
     compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
     supplies sealed `Bytes`, validates structured returned rejection values,
