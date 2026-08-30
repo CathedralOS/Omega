@@ -84,11 +84,15 @@ receivers. Every parameter row records its canonical const/mutable/self flags;
 the implicit entry state owns the optional return node.
 
 The retained nonempty-body slices include ordinary semicolon-terminated call
-statements without acknowledgements, static/evidence arguments, or result
-discard. Each call owns a flattened receiver-member span, an exact target
+statements without acknowledgements, evidence arguments, or result discard.
+Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
-arguments are exact name/self paths represented by tagged expression nodes;
-zero arguments and trailing commas are supported. Ordinary assignments retain
+value arguments are exact name/self paths represented by tagged expression
+nodes; zero arguments and trailing commas are supported. Calls may also own a
+separate nonempty `<...>` lane of path-only static machine arguments. Qualified
+paths are retained exactly; const arguments, evidence projections, nested
+static applications, lifetime arguments, and empty or trailing-comma static
+lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
 place path; current values are self-member paths, qualified-name paths,
 booleans, or unsuffixed nonnegative decimal integer literals. Literal spelling
@@ -110,9 +114,10 @@ other public roots, bodyless declarations, and other body forms remain
 incomplete. The parser never skips a body as opaque
 syntax. In the current 72-root `C` closure, all 112
 parameter occurrences and all 72 complete parameter lists are representable,
-and 53 headers reach body parsing. Eleven are complete: four call-only roots
-and seven roots using the retained assignment slice. Every other reached body
-contains richer syntax.
+and 53 headers reach body parsing. Fifteen are complete: four initial call-only
+roots, seven roots using the retained assignment slice, and four target-provider
+roots using path-only static call arguments. Every other reached body contains
+richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -143,8 +148,8 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/implicit-state
 rows and 16,384 path-member/data-member/direct-field/payload-field/case/
-machine-parameter/type-node/constraint/statement/call/expression/argument rows,
-plus 128 scratch array frames.
+machine-parameter/type-node/constraint/statement/call/expression/argument/
+static-machine-argument rows, plus 128 scratch array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting
@@ -162,11 +167,13 @@ row, so
 `Expressions` dominates the equal argument table. Every call or assignment row
 owns one statement, so `Statements` dominates both equal statement-variant
 tables. Assignments own two expressions, making the expression table
-independently exhaustible. The meaningful
+independently exhaustible. A call may own multiple static machine arguments, so
+`StaticArguments` is independently exhaustible as well. The meaningful
 resource distinctions are therefore `Roots`, `PathMembers`, `DataMembers`,
-`TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`. These are private
-compiler budgets to profile against the real compiler closure, not Omega source
-limits; exhaustion is retained for the future outer `Incomplete` mapping.
+`TypeNodes`, `TypeDepth`, `Statements`, `Expressions`, and `StaticArguments`.
+These are private compiler budgets to profile against the real compiler
+closure, not Omega source limits; exhaustion is retained for the future outer
+`Incomplete` mapping.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
 preflight fact is retained. Q7 still owns binding each relative tree to a

@@ -357,10 +357,26 @@ data OmegaCallStatementSyntax {
     receiver_member_count: i32;
     receiver_starts_at_self: i32;
     target_member: i32;
+    first_machine_argument: i32;
+    machine_argument_count: i32;
     first_argument: i32;
     argument_count: i32;
     start: i32;
     end: i32;
+}
+
+data OmegaStaticMachineArgumentKind {
+    case Path;
+}
+
+data OmegaStaticMachineArgumentSyntax {
+    kind: OmegaStaticMachineArgumentKind;
+    first_path_member: i32;
+    path_member_count: i32;
+    start: i32;
+    end: i32;
+    payload0: i32;
+    payload1: i32;
 }
 
 data OmegaAssignmentStatementSyntax {
@@ -480,6 +496,9 @@ data OmegaParseDiagnosticCode {
     case ExpectedCallSemicolon;
     case ExpectedAssignmentValue;
     case ExpectedAssignmentSemicolon;
+    case ExpectedStaticArgument;
+    case ExpectedStaticArgumentEnd;
+    case ExpectedStaticCallOpen;
     case ExpectedDataFieldEnd;
 }
 
@@ -492,6 +511,7 @@ data OmegaParserResource {
     case TypeDepth;
     case Statements;
     case Expressions;
+    case StaticArguments;
 }
 
 data OmegaParser {
@@ -509,6 +529,7 @@ data OmegaParser {
     statements: [OmegaStatementSyntax; 16384];
     call_statements: [OmegaCallStatementSyntax; 16384];
     assignment_statements: [OmegaAssignmentStatementSyntax; 16384];
+    static_machine_arguments: [OmegaStaticMachineArgumentSyntax; 16384];
     expressions: [OmegaExpressionSyntax; 16384];
     call_arguments: [i32; 16384];
     data_members: [OmegaDataMemberSyntax; 16384];
@@ -531,6 +552,7 @@ data OmegaParser {
     statement_count: i32;
     call_statement_count: i32;
     assignment_statement_count: i32;
+    static_machine_argument_count: i32;
     expression_count: i32;
     call_argument_count: i32;
     data_member_count: i32;
@@ -604,7 +626,11 @@ data OmegaParser {
     call_first_path_member: i32;
     call_path_member_count: i32;
     call_receiver_starts_at_self: i32;
+    call_first_machine_argument: i32;
     call_first_argument: i32;
+    static_argument_first_path_member: i32;
+    static_argument_path_member_count: i32;
+    static_argument_start: i32;
     argument_first_path_member: i32;
     argument_path_member_count: i32;
     argument_starts_at_self: i32;
@@ -2692,6 +2718,7 @@ machine OmegaParser::parse_view(
     self.statement_count = 0;
     self.call_statement_count = 0;
     self.assignment_statement_count = 0;
+    self.static_machine_argument_count = 0;
     self.expression_count = 0;
     self.call_argument_count = 0;
     self.data_member_count = 0;
@@ -2764,7 +2791,11 @@ machine OmegaParser::parse_view(
     self.call_first_path_member = 0;
     self.call_path_member_count = 0;
     self.call_receiver_starts_at_self = 0;
+    self.call_first_machine_argument = 0;
     self.call_first_argument = 0;
+    self.static_argument_first_path_member = 0;
+    self.static_argument_path_member_count = 0;
+    self.static_argument_start = 0;
     self.argument_first_path_member = 0;
     self.argument_path_member_count = 0;
     self.argument_starts_at_self = 0;
@@ -2936,6 +2967,10 @@ machine OmegaParser::parse_view(
             47 -> call_semicolon_token()
             48 -> assignment_value_token()
             49 -> assignment_semicolon_token()
+            50 -> call_static_argument_token()
+            51 -> call_static_argument_tail_token()
+            52 -> call_static_argument_member_token()
+            53 -> static_call_open_token()
             _ -> internal_failure()
         }
     }
@@ -3145,6 +3180,26 @@ machine OmegaParser::parse_view(
             )
             49 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
+                source.len,
+                source.len
+            )
+            50 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticArgument,
+                source.len,
+                source.len
+            )
+            51 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticArgumentEnd,
+                source.len,
+                source.len
+            )
+            52 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticArgument,
+                source.len,
+                source.len
+            )
+            53 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticCallOpen,
                 source.len,
                 source.len
             )
@@ -3897,6 +3952,7 @@ machine OmegaParser::parse_view(
         self.call_start = self.scan.token_start;
         self.call_first_path_member = self.member_count;
         self.call_path_member_count = 0;
+        self.call_first_machine_argument = self.static_machine_argument_count;
         self.call_first_argument = self.call_argument_count;
         transition true { true -> retain_call_path_member() }
     }
@@ -3931,8 +3987,174 @@ machine OmegaParser::parse_view(
     state call_path_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> next_call_path_member()
+            OmegaPunctuationKind::Less -> begin_call_static_arguments()
             OmegaPunctuationKind::LeftParen -> call_target_available()
             OmegaPunctuationKind::Equal -> begin_assignment_statement()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_call_static_arguments() {
+        transition (self.call_receiver_starts_at_self == 0) ||
+            (self.call_path_member_count > 1) {
+            true -> scan_first_call_static_argument()
+            _ -> incomplete_root()
+        }
+    }
+
+    state scan_first_call_static_argument() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(50) }
+    }
+
+    state call_static_argument_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_call_static_argument()
+            OmegaTokenKind::Keyword -> call_static_argument_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state call_static_argument_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> incomplete_root()
+            _ -> begin_call_static_argument()
+        }
+    }
+
+    state begin_call_static_argument() {
+        self.static_argument_first_path_member = self.member_count;
+        self.static_argument_path_member_count = 0;
+        self.static_argument_start = self.scan.token_start;
+        transition true { true -> retain_call_static_argument_member() }
+    }
+
+    state retain_call_static_argument_member() {
+        transition self.member_count < 16384 {
+            true -> retain_call_static_argument_member_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::PathMembers,
+                16384,
+                self.member_count + 1
+            )
+        }
+    }
+
+    state retain_call_static_argument_member_bounded() {
+        self.members[self.member_count].start = self.scan.token_start;
+        self.members[self.member_count].end = self.scan.token_end;
+        self.member_count = self.member_count + 1;
+        self.static_argument_path_member_count =
+            self.static_argument_path_member_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(51) }
+    }
+
+    state call_static_argument_tail_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> call_static_argument_tail_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state call_static_argument_tail_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::ColonColon -> next_call_static_argument_member()
+            OmegaPunctuationKind::Comma -> retain_call_static_argument()
+            OmegaPunctuationKind::Greater -> retain_call_static_argument()
+            _ -> incomplete_root()
+        }
+    }
+
+    state next_call_static_argument_member() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(52) }
+    }
+
+    state call_static_argument_member_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_call_static_argument_member()
+            OmegaTokenKind::Keyword -> call_static_argument_member_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticArgument,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state call_static_argument_member_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticArgument,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedStaticArgument,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_call_static_argument_member()
+        }
+    }
+
+    state retain_call_static_argument() {
+        transition self.static_machine_argument_count < 16384 {
+            true -> retain_call_static_argument_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::StaticArguments,
+                16384,
+                self.static_machine_argument_count + 1
+            )
+        }
+    }
+
+    state retain_call_static_argument_bounded() {
+        self.static_machine_arguments[self.static_machine_argument_count].kind =
+            OmegaStaticMachineArgumentKind::Path;
+        self.static_machine_arguments[
+            self.static_machine_argument_count
+        ].first_path_member = self.static_argument_first_path_member;
+        self.static_machine_arguments[
+            self.static_machine_argument_count
+        ].path_member_count = self.static_argument_path_member_count;
+        self.static_machine_arguments[self.static_machine_argument_count].start =
+            self.static_argument_start;
+        self.static_machine_arguments[self.static_machine_argument_count].end =
+            self.members[self.member_count - 1].end;
+        self.static_machine_arguments[self.static_machine_argument_count].payload0 = 0;
+        self.static_machine_arguments[self.static_machine_argument_count].payload1 = 0;
+        self.static_machine_argument_count =
+            self.static_machine_argument_count + 1;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> next_call_static_argument()
+            OmegaPunctuationKind::Greater -> finish_call_static_arguments()
+            _ -> internal_failure()
+        }
+    }
+
+    state next_call_static_argument() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(50) }
+    }
+
+    state finish_call_static_arguments() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(53) }
+    }
+
+    state static_call_open_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> static_call_open_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state static_call_open_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftParen -> begin_call_arguments()
             _ -> incomplete_root()
         }
     }
@@ -4247,6 +4469,10 @@ machine OmegaParser::parse_view(
             self.call_receiver_starts_at_self;
         self.call_statements[self.call_statement_count].target_member =
             self.call_first_path_member + self.call_path_member_count - 1;
+        self.call_statements[self.call_statement_count].first_machine_argument =
+            self.call_first_machine_argument;
+        self.call_statements[self.call_statement_count].machine_argument_count =
+            self.static_machine_argument_count - self.call_first_machine_argument;
         self.call_statements[self.call_statement_count].first_argument =
             self.call_first_argument;
         self.call_statements[self.call_statement_count].argument_count =

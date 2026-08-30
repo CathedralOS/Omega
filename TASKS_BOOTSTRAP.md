@@ -1301,6 +1301,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the body boundary. Keep exact path-kind, literal-span, delimiter,
       expression/statement-capacity, reset, mixed-call/assignment, and partial-
       publication vectors at the real Delta-compiler gate.
+    - [x] Retain the first canonical static machine-call argument lane:
+      nonempty comma-separated path arguments in `<...>` immediately before
+      the value-argument list. Each path-only static argument owns its exact
+      member span and authored extent in a separate tagged arena; each call
+      owns the corresponding contiguous span independently of its runtime
+      arguments. Qualified paths are retained, while const arguments, evidence
+      projections, nested static applications, lifetime arguments, empty or
+      trailing-comma lists, and non-call comparison uses of `<` remain
+      implementation-incomplete. `StaticArguments` is independently
+      exhaustible because one call may own multiple rows; it does not overload
+      `Expressions` or invent a generic-instantiation phase during parsing.
+      This completes all four target-scoped
+      `ConsoleNativeProvider::provider_defaults` roots, raising completed
+      current `C` roots from eleven to fifteen while body-boundary coverage
+      remains 53 of 72. Keep exact path/list/delimiter, static-versus-value
+      ownership, capacity, reset, and Complete-only publication vectors at the
+      real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
