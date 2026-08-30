@@ -23,7 +23,7 @@ pub(super) fn assign_operation(
         }
         operation @ (TargetOperation::ReturnBoundaryPortReadU8 { .. }
         | TargetOperation::ExitProcessI32 { .. }) => boundary::assign(function, operation, target),
-        operation @ TargetOperation::UnitBody(_) => unit::assign(function, operation),
+        operation @ TargetOperation::UnitBody(_) => unit::assign(function, operation, target),
         operation @ TargetOperation::ReturnStructuralParameter { .. } => {
             structural_parameter::assign(operation, target)
         }

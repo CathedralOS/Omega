@@ -203,6 +203,19 @@ pub struct NormalizedForeignCallBinding {
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
 }
 
+/// One occurrence-specific fixed-width integer literal materialized for an
+/// evaluated normalized foreign call. The source identity and mathematical
+/// literal remain bound to the exact ordered placement selected by the
+/// evaluated boundary call plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedForeignScalarArgument {
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub immediate: IntegerValue,
+    pub parameter_index: u32,
+    pub placement: ValuePlacement,
+}
+
 /// Closed native settlement choice. Keeping evaluated imports disjoint from
 /// built-in realizations prevents locator custody from being stripped into a
 /// no-code boundary settlement.
@@ -387,14 +400,17 @@ pub enum TargetUnitOperation {
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },
-    /// One zero-argument Unit-returning evaluated import leaf. Native
-    /// settlement rejoins this exact carrier; lowering never accepts locator
-    /// or calling-plan strings from the call site.
+    /// One Unit-returning evaluated import leaf. Native settlement rejoins
+    /// this exact carrier; lowering never accepts locator or calling-plan
+    /// strings from the call site. The initial bounded scalar lane admits no
+    /// arguments or one fixed-width integer literal in the evaluated plan's
+    /// exact register placement.
     NormalizedForeignCall {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         provider_execution: ProviderExecutionBinding,
         binding: NormalizedForeignCallBinding,
+        scalar_arguments: Vec<NormalizedForeignScalarArgument>,
     },
     PortWrite {
         psi_operation: OperationId,

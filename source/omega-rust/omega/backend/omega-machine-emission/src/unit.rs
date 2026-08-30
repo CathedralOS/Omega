@@ -6,13 +6,13 @@ use omega_calling_conventions::{
 };
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord,
-    ForeignCallRelocation, InternalCallRelocation, InternalUnitCallArgumentRecord,
-    InternalUnitCallRecord, PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite,
-    StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
-    derive_completion_provider_custody,
+    ForeignCallRelocation, ForeignCallScalarArgumentRecord, InternalCallRelocation,
+    InternalUnitCallArgumentRecord, InternalUnitCallRecord, PortEffectRecord,
+    SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair, UnitCallStackEvidence,
+    UnitStackEvidence, derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use omega_target_operations::CallSiteOwner;
+use omega_target_operations::{CallSiteOwner, NormalizedForeignScalarArgument};
 use psi_core::MachineId;
 
 use super::{
@@ -336,6 +336,73 @@ pub(super) struct Aarch64UnitParameterHome {
     indirect: bool,
 }
 
+fn foreign_integer_shape(
+    source: psi_core::ValueId,
+    scalar_type: psi_core::IntegerType,
+) -> Result<ValueShape, EmissionError> {
+    if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed {
+        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+    }
+    let bits = super::require_native_integer_width(source, scalar_type)?;
+    let byte_size = bits / 8;
+    Ok(ValueShape::integer(byte_size, byte_size))
+}
+
+fn emit_foreign_integer_literal(
+    bytes: &mut Vec<u8>,
+    target: NativeTarget,
+    argument: &NormalizedForeignScalarArgument,
+) -> Result<(), EmissionError> {
+    let shape = foreign_integer_shape(argument.source_value, argument.scalar_type)?;
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size,
+        },
+    ] = argument.placement.locations.as_slice()
+    else {
+        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+    };
+    if argument.placement.shape != shape || *byte_size != shape.byte_size {
+        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+    }
+    let bits = super::integer_bits(
+        argument.source_value,
+        argument.scalar_type,
+        argument.immediate,
+    )?;
+    match target.architecture {
+        Architecture::X86_64 => {
+            let register = x86_unit_register(*register)?;
+            if argument.scalar_type.bits() <= 32 {
+                if register >= 8 {
+                    bytes.push(0x41);
+                }
+                bytes.push(0xb8 | (register & 7));
+                bytes.extend_from_slice(&(bits as u32).to_le_bytes());
+            } else {
+                bytes.push(0x48 | ((register >> 3) & 1));
+                bytes.push(0xb8 | (register & 7));
+                bytes.extend_from_slice(&bits.to_le_bytes());
+            }
+        }
+        Architecture::Aarch64 => {
+            let register = aarch64_unit_register(*register)?;
+            for chunk in 0..4 {
+                let immediate = ((bits >> (chunk * 16)) & 0xffff) as u32;
+                if chunk == 0 || immediate != 0 {
+                    let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
+                    let instruction =
+                        base | ((chunk as u32) << 21) | (immediate << 5) | u32::from(register);
+                    bytes.extend_from_slice(&instruction.to_le_bytes());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn emit_unit_body(
     body: &AssignedUnitBody,
     target: NativeTarget,
@@ -418,6 +485,7 @@ pub(super) fn emit_unit_body(
     let mut affine_cleanup = None;
     let mut established_affine_locals = Vec::new();
     let mut established_byte_sequences = std::collections::BTreeMap::new();
+    let mut established_integer_constants = std::collections::BTreeMap::new();
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
@@ -447,8 +515,19 @@ pub(super) fn emit_unit_body(
                     return Err(EmissionError::InvalidLinuxWriteLineCustody);
                 }
             }
-            AssignedUnitOperation::IntegerConstant { psi_operation, .. } => {
+            AssignedUnitOperation::IntegerConstant {
+                psi_operation,
+                result,
+                scalar_type,
+                value,
+            } => {
                 operation_site = Some(*psi_operation);
+                if established_integer_constants
+                    .insert(*result, (*scalar_type, *value))
+                    .is_some()
+                {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
             }
             AssignedUnitOperation::EstablishTrivialAffineLocal {
                 psi_operation,
@@ -561,10 +640,19 @@ pub(super) fn emit_unit_body(
                 boundary: _,
                 provider_execution,
                 binding: foreign,
+                scalar_arguments,
             } => {
                 operation_site = Some(*psi_operation);
+                if scalar_arguments.len() > 1 {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
                 let signature = omega_calling_conventions::CallSignature {
-                    parameters: Vec::new(),
+                    parameters: scalar_arguments
+                        .iter()
+                        .map(|argument| {
+                            foreign_integer_shape(argument.source_value, argument.scalar_type)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
                     result: None,
                 };
                 let validated = omega_calling_conventions::validate_boundary_entry_plan(
@@ -573,7 +661,13 @@ pub(super) fn emit_unit_body(
                 )
                 .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
                 let call_plan = &foreign.boundary_entry_plan.call;
+                let canonical = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                    omega_calling_conventions::CallingPolicy::native_for_target(target),
+                    &signature,
+                )
+                .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
                 if validated.plan() != &foreign.boundary_entry_plan
+                    || canonical.plan() != &foreign.boundary_entry_plan
                     || target.object_format != ObjectFormat::Elf
                     || foreign.locator.target().native_target() != target
                     || call_plan.policy
@@ -583,6 +677,37 @@ pub(super) fn emit_unit_body(
                     || call_plan.stack_alignment != 16
                 {
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
+                let mut emitted_scalar_arguments = Vec::new();
+                for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
+                    let parameter_index = u32::try_from(parameter_index)
+                        .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
+                    let Some((scalar_type, value)) =
+                        established_integer_constants.get(&argument.source_value)
+                    else {
+                        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                    };
+                    let Some(placement) = call_plan.parameters.get(parameter_index as usize) else {
+                        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                    };
+                    if argument.parameter_index != parameter_index
+                        || argument.scalar_type != *scalar_type
+                        || argument.immediate != *value
+                        || argument.placement != *placement
+                    {
+                        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                    }
+                    let code_offset = bytes.len();
+                    emit_foreign_integer_literal(&mut bytes, target, argument)?;
+                    emitted_scalar_arguments.push(ForeignCallScalarArgumentRecord {
+                        parameter_index,
+                        source_value: argument.source_value,
+                        scalar_type: argument.scalar_type,
+                        immediate: argument.immediate,
+                        placement: argument.placement.clone(),
+                        code_offset,
+                        byte_count: bytes.len() - code_offset,
+                    });
                 }
                 let shadow_bytes = u32::from(call_plan.shadow_bytes);
                 let mut allocation = None;
@@ -633,6 +758,7 @@ pub(super) fn emit_unit_body(
                     locator: foreign.locator.clone(),
                     provider_execution: (*provider_execution).into(),
                     call_plan: call_plan.clone(),
+                    scalar_arguments: emitted_scalar_arguments,
                     unit_stack: UnitCallStackEvidence {
                         outbound: stack_adjustment_pair(outbound, allocation, release),
                     },

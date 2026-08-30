@@ -4,11 +4,12 @@ use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryScalarArgument, LinuxExitGroupI32Realization,
     LinuxWriteLineRealization, MetadataOnlyPortRealization, NormalizedForeignCallBinding,
-    ProviderExecutionBinding, ProviderPlanReportIdentity, ScalarParameterLocation,
-    TargetBooleanControl, TargetBooleanExpression, TargetCallArgument, TargetConditionalBooleanArm,
-    TargetConditionalIntegerArm, TargetFunction, TargetIntegerControl, TargetIntegerExpression,
-    TargetOperation, TargetOperationPlan, TargetScalarExpression, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
+    NormalizedForeignScalarArgument, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression, TargetCallArgument,
+    TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetFunction, TargetIntegerControl,
+    TargetIntegerExpression, TargetOperation, TargetOperationPlan, TargetScalarExpression,
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitBody, TargetUnitOperation,
+    TerminalPsiProvenance,
 };
 use omega_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
@@ -124,6 +125,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
                                 boundary_entry_plan: boundary_entry_plan.clone(),
                                 same_stack_contribution: admitted_foreign_stack(),
                             },
+                            scalar_arguments: Vec::new(),
                         },
                         TargetUnitOperation::Return {
                             psi_edge: return_edge,
@@ -176,6 +178,293 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
         binding.boundary_entry_plan.call.stack_alignment = 8;
         assert_eq!(
             super::emit_machine_code(&assigned),
+            Err(EmissionError::InvalidNormalizedForeignCallCustody)
+        );
+    }
+}
+
+#[test]
+fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_the_call() {
+    let machine = MachineId::new(710).unwrap();
+    let boundary = BoundaryMachineId::new(710).unwrap();
+    let constant_operation = OperationId::new(710).unwrap();
+    let call_operation = OperationId::new(711).unwrap();
+    let return_edge = EdgeId::new(710).unwrap();
+    let source_value = psi_core::ValueId::new(710).unwrap();
+    let scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 64).unwrap();
+    let immediate = psi_core::IntegerValue::Signed(-37);
+    let provider_execution = ProviderExecutionBinding::from_execution_record(
+        ProviderPlanReportIdentity::new(711).unwrap(),
+        712,
+        713,
+        714,
+        715,
+    )
+    .unwrap();
+
+    for profile in [
+        omega_target::TargetProfile::LinuxX64,
+        omega_target::TargetProfile::LinuxArm64,
+    ] {
+        let target = profile.native_target();
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let boundary_entry_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &signature,
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let placement = boundary_entry_plan.call.parameters[0].clone();
+        let locator = omega_target::normalize_foreign_locator(
+            omega_target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libomega_foreign_test.so".to_vec(),
+                symbol: b"omega_foreign_i64".to_vec(),
+                version: b"OMEGA_TEST_1".to_vec(),
+            },
+            profile,
+        )
+        .unwrap();
+        let plan = TargetOperationPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([0x71; 32]),
+            },
+            target,
+            entry: machine,
+            functions: vec![TargetFunction {
+                machine,
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: vec![constant_operation, call_operation],
+                    edges: vec![return_edge],
+                },
+                operation: TargetOperation::UnitBody(TargetUnitBody {
+                    structural_types: Vec::new(),
+                    call_plan: evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &CallSignature {
+                            parameters: Vec::new(),
+                            result: None,
+                        },
+                    )
+                    .unwrap(),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        TargetUnitOperation::IntegerConstant {
+                            psi_operation: constant_operation,
+                            result: source_value,
+                            scalar_type,
+                            value: immediate,
+                        },
+                        TargetUnitOperation::NormalizedForeignCall {
+                            psi_operation: call_operation,
+                            boundary,
+                            provider_execution,
+                            binding: NormalizedForeignCallBinding {
+                                locator: locator.clone(),
+                                boundary_entry_plan: boundary_entry_plan.clone(),
+                                same_stack_contribution: admitted_foreign_stack(),
+                            },
+                            scalar_arguments: vec![NormalizedForeignScalarArgument {
+                                source_value,
+                                scalar_type,
+                                immediate,
+                                parameter_index: 0,
+                                placement: placement.clone(),
+                            }],
+                        },
+                        TargetUnitOperation::Return {
+                            psi_edge: return_edge,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }),
+            }],
+        };
+
+        let mut outer_target_drift = plan.clone();
+        outer_target_drift.target = match target.architecture {
+            omega_target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            omega_target::Architecture::Aarch64 => NativeTarget::linux_x64(),
+        };
+        assert!(assign_registers(&outer_target_drift).is_err());
+
+        let emitted = emit_machine_code(&plan).expect("emit evaluated foreign literal call");
+        let function = &emitted.functions[0];
+        let [call] = function.foreign_calls.as_slice() else {
+            panic!("one foreign relocation")
+        };
+        let [argument] = call.scalar_arguments.as_slice() else {
+            panic!("one retained foreign scalar argument")
+        };
+        assert_eq!(argument.parameter_index, 0);
+        assert_eq!(argument.source_value, source_value);
+        assert_eq!(argument.scalar_type, scalar_type);
+        assert_eq!(argument.immediate, immediate);
+        assert_eq!(argument.placement, placement);
+        assert!(argument.byte_count > 0);
+        assert!(argument.code_offset + argument.byte_count <= call.offset);
+        match target.architecture {
+            omega_target::Architecture::X86_64 => {
+                let mut expected = vec![0x48, 0xbf];
+                expected.extend_from_slice(&(-37_i64 as u64).to_le_bytes());
+                assert_eq!(
+                    &function.bytes
+                        [argument.code_offset..argument.code_offset + argument.byte_count],
+                    expected
+                );
+                assert_eq!(function.bytes[call.offset - 1], 0xe8);
+            }
+            omega_target::Architecture::Aarch64 => {
+                let expected = [0xd29f_fb60_u32, 0xf2bf_ffe0, 0xf2df_ffe0, 0xf2ff_ffe0]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    &function.bytes
+                        [argument.code_offset..argument.code_offset + argument.byte_count],
+                    expected
+                );
+                assert_eq!(
+                    &function.bytes[call.offset..call.offset + 4],
+                    &0x9400_0000_u32.to_le_bytes()
+                );
+            }
+        }
+
+        let assigned = assign_registers(&plan).unwrap();
+        let mutate_argument =
+            |mut assigned: omega_assigned_target_operations::AssignedOperationPlan,
+             mutate: &dyn Fn(&mut NormalizedForeignScalarArgument)| {
+                let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+                    &mut assigned.functions[0].operation
+                else {
+                    unreachable!()
+                };
+                let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+                scalar_arguments,
+                ..
+            } = &mut body.operations[1]
+            else {
+                unreachable!()
+            };
+                mutate(&mut scalar_arguments[0]);
+                assert_eq!(
+                    super::emit_machine_code(&assigned),
+                    Err(EmissionError::InvalidNormalizedForeignCallCustody)
+                );
+            };
+        mutate_argument(assigned.clone(), &|argument| {
+            argument.source_value = psi_core::ValueId::new(711).unwrap();
+        });
+        mutate_argument(assigned.clone(), &|argument| {
+            argument.scalar_type =
+                psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+        });
+        mutate_argument(assigned.clone(), &|argument| {
+            argument.immediate = psi_core::IntegerValue::Signed(-38);
+        });
+        mutate_argument(assigned.clone(), &|argument| {
+            argument.parameter_index = 1;
+        });
+        mutate_argument(assigned.clone(), &|argument| {
+            argument.placement.locations = vec![omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 4,
+                alignment: 4,
+            }];
+        });
+        mutate_argument(assigned.clone(), &|argument| {
+            argument.placement.locations[0] = omega_calling_conventions::ValueLocation::Register {
+                register: match target.architecture {
+                    omega_target::Architecture::X86_64 => MachineRegister::X86Rsi,
+                    omega_target::Architecture::Aarch64 => MachineRegister::Aarch64X(1),
+                },
+                value_byte_offset: 0,
+                byte_size: 8,
+            };
+        });
+
+        let mut address_carrier = assigned.clone();
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut address_carrier.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::IntegerConstant {
+            scalar_type,
+            value,
+            ..
+        } = &mut body.operations[0]
+        else {
+            unreachable!()
+        };
+        *scalar_type = psi_core::IntegerType::address(64).unwrap();
+        *value = psi_core::IntegerValue::Unsigned((-37_i64) as u64 as u128);
+        let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+            scalar_arguments,
+            ..
+        } = &mut body.operations[1]
+        else {
+            unreachable!()
+        };
+        scalar_arguments[0].scalar_type = psi_core::IntegerType::address(64).unwrap();
+        scalar_arguments[0].immediate = psi_core::IntegerValue::Unsigned((-37_i64) as u64 as u128);
+        assert_eq!(
+            super::emit_machine_code(&address_carrier),
+            Err(EmissionError::InvalidNormalizedForeignCallCustody)
+        );
+
+        let mut stripped = assigned.clone();
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut stripped.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+            scalar_arguments,
+            ..
+        } = &mut body.operations[1]
+        else {
+            unreachable!()
+        };
+        scalar_arguments.clear();
+        assert_eq!(
+            super::emit_machine_code(&stripped),
+            Err(EmissionError::InvalidNormalizedForeignCallCustody)
+        );
+
+        let mut duplicated = assigned;
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut duplicated.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+            scalar_arguments,
+            ..
+        } = &mut body.operations[1]
+        else {
+            unreachable!()
+        };
+        scalar_arguments.push(scalar_arguments[0].clone());
+        assert_eq!(
+            super::emit_machine_code(&duplicated),
+            Err(EmissionError::InvalidNormalizedForeignCallCustody)
+        );
+
+        let mut target_drift = assign_registers(&plan).unwrap();
+        target_drift.target = match target.architecture {
+            omega_target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+            omega_target::Architecture::Aarch64 => NativeTarget::linux_x64(),
+        };
+        assert_eq!(
+            super::emit_machine_code(&target_drift),
             Err(EmissionError::InvalidNormalizedForeignCallCustody)
         );
     }

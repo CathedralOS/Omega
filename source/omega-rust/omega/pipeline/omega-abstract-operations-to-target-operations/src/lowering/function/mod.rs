@@ -39,6 +39,9 @@ pub(super) fn lower_function(
                     Some(omega_target_operations::BoundarySettlementRealization::Builtin(
                         BoundaryRealization::LinuxExitGroupI32(_)
                     ))
+                        | Some(
+                            omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
+                        )
                 )
         )
     }) {

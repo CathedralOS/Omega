@@ -233,25 +233,24 @@ pub(super) fn lower_boundary_call(
                 foreign,
             ) = &binding.realization
             {
-                let signature = omega_calling_conventions::CallSignature {
-                    parameters: Vec::new(),
-                    result: None,
-                };
-                let Ok(validated) = omega_calling_conventions::validate_boundary_entry_plan(
-                    foreign.boundary_entry_plan.clone(),
-                    &signature,
-                ) else {
-                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
-                };
-                if !arguments.is_empty()
+                let scalar_arguments = lower_normalized_foreign_scalar_arguments(
+                    *boundary,
+                    declaration,
+                    arguments,
+                    &foreign.boundary_entry_plan,
+                    integer_constants,
+                )?;
+                if arguments.len() != declaration.scalar_parameters.len()
                     || !structural_arguments.is_empty()
                     || !completion_claim_sources.is_empty()
                     || !completion_receipts.is_empty()
-                    || !declaration.scalar_parameters.is_empty()
                     || !declaration.structural_parameters.is_empty()
                     || declaration.result.is_some()
-                    || validated.plan() != &foreign.boundary_entry_plan
                     || target.object_format != ObjectFormat::Elf
+                    || !matches!(
+                        foreign.locator.locator(),
+                        omega_target::ForeignLocatorCandidate::ElfVersioned { .. }
+                    )
                     || foreign.boundary_entry_plan.call.policy
                         != omega_calling_conventions::CallingPolicy::native_for_target(target)
                     || foreign.boundary_entry_plan.call.entry_control
@@ -265,6 +264,7 @@ pub(super) fn lower_boundary_call(
                     boundary: *boundary,
                     provider_execution: binding.provider_execution,
                     binding: foreign.clone(),
+                    scalar_arguments,
                 });
                 provenance.operations.push(*psi_operation);
                 return Ok(());
@@ -424,4 +424,228 @@ pub(super) fn lower_boundary_call(
         _ => unreachable!("boundary-call routing admits only boundary calls"),
     }
     Ok(())
+}
+
+fn lower_normalized_foreign_scalar_arguments(
+    boundary: BoundaryMachineId,
+    declaration: &psi_terminal::BoundaryMachineDeclaration,
+    arguments: &[ValueId],
+    boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
+    integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
+) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+    let scalar_parameter_shapes = match declaration.scalar_parameters.as_slice() {
+        [] => Vec::new(),
+        [ScalarType::Integer(integer_type)]
+            if integer_type.carrier() == psi_core::IntegerCarrier::Fixed
+                && matches!(integer_type.bits(), 8 | 16 | 32 | 64) =>
+        {
+            let bytes = integer_type.bits().div_ceil(8);
+            vec![ValueShape::integer(bytes, bytes.next_power_of_two().min(8))]
+        }
+        _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
+    };
+    let signature = CallSignature {
+        parameters: scalar_parameter_shapes.clone(),
+        result: None,
+    };
+    let validated = omega_calling_conventions::validate_boundary_entry_plan(
+        boundary_entry_plan.clone(),
+        &signature,
+    )
+    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    if arguments.len() != declaration.scalar_parameters.len()
+        || validated.plan() != boundary_entry_plan
+    {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    }
+    arguments
+        .iter()
+        .zip(&declaration.scalar_parameters)
+        .zip(&scalar_parameter_shapes)
+        .zip(&boundary_entry_plan.call.parameters)
+        .enumerate()
+        .map(
+            |(parameter_index, (((source_value, parameter), shape), placement))| {
+                let ScalarType::Integer(integer_type) = parameter else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                };
+                let Some((_, actual_type, immediate)) = integer_constants.get(source_value) else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                };
+                let [
+                    ValueLocation::Register {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] = placement.locations.as_slice()
+                else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                };
+                if actual_type != integer_type
+                    || placement.shape != *shape
+                    || u16::try_from(shape.byte_size) != Ok(*byte_size)
+                    || psi_core::ScalarTerm::integer(*integer_type, *immediate).is_err()
+                {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                }
+                Ok(omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: *source_value,
+                    scalar_type: *integer_type,
+                    immediate: *immediate,
+                    parameter_index: u32::try_from(parameter_index)
+                        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                    placement: placement.clone(),
+                })
+            },
+        )
+        .collect()
+}
+
+#[cfg(test)]
+mod normalized_foreign_scalar_tests {
+    use super::*;
+
+    fn declaration(
+        boundary: BoundaryMachineId,
+        scalar_parameters: Vec<ScalarType>,
+    ) -> psi_terminal::BoundaryMachineDeclaration {
+        psi_terminal::BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "Foreign::leaf".into(),
+            attachment: None,
+            scalar_parameters,
+            structural_parameters: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }
+    }
+
+    fn entry_plan(
+        target: NativeTarget,
+        scalar_type: IntegerType,
+    ) -> omega_calling_conventions::BoundaryEntryPlan {
+        let bytes = scalar_type.bits().div_ceil(8);
+        omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(bytes, bytes.next_power_of_two().min(8))],
+                result: None,
+            },
+        )
+        .expect("evaluated entry plan")
+        .plan()
+        .clone()
+    }
+
+    #[test]
+    fn fixed_integer_literal_preserves_source_type_value_order_and_register_placement() {
+        let boundary = BoundaryMachineId::new(41).expect("boundary");
+        let source = ValueId::new(42).expect("source");
+        let constant = OperationId::new(43).expect("constant");
+        let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let declaration = declaration(boundary, vec![ScalarType::Integer(integer_type)]);
+        let constants =
+            BTreeMap::from([(source, (constant, integer_type, IntegerValue::Signed(-17)))]);
+
+        for (target, expected_register) in [
+            (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
+            (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+        ] {
+            let plan = entry_plan(target, integer_type);
+            let arguments = lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &declaration,
+                &[source],
+                &plan,
+                &constants,
+            )
+            .expect("one evaluated literal argument");
+            let [argument] = arguments.as_slice() else {
+                panic!("one argument")
+            };
+            assert_eq!(argument.source_value, source);
+            assert_eq!(argument.scalar_type, integer_type);
+            assert_eq!(argument.immediate, IntegerValue::Signed(-17));
+            assert_eq!(argument.parameter_index, 0);
+            assert_eq!(argument.placement, plan.call.parameters[0]);
+            assert!(matches!(
+                argument.placement.locations.as_slice(),
+                [ValueLocation::Register { register, .. }] if *register == expected_register
+            ));
+        }
+    }
+
+    #[test]
+    fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
+        let boundary = BoundaryMachineId::new(51).expect("boundary");
+        let source = ValueId::new(52).expect("source");
+        let constant = OperationId::new(53).expect("constant");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let zero_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+            &CallSignature::default(),
+        )
+        .expect("zero-argument plan")
+        .plan()
+        .clone();
+        assert_eq!(
+            lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &declaration(boundary, Vec::new()),
+                &[],
+                &zero_plan,
+                &BTreeMap::new(),
+            ),
+            Ok(Vec::new())
+        );
+
+        let declaration = declaration(boundary, vec![ScalarType::Integer(i32_type)]);
+        let plan = entry_plan(NativeTarget::linux_x64(), i32_type);
+        let constants = BTreeMap::from([(source, (constant, i32_type, IntegerValue::Signed(9)))]);
+        for (arguments, constants) in [
+            (Vec::new(), constants.clone()),
+            (vec![source], BTreeMap::new()),
+            (
+                vec![source],
+                BTreeMap::from([(source, (constant, i32_type, IntegerValue::Unsigned(9)))]),
+            ),
+        ] {
+            assert!(matches!(
+                lower_normalized_foreign_scalar_arguments(
+                    boundary,
+                    &declaration,
+                    &arguments,
+                    &plan,
+                    &constants,
+                ),
+                Err(LoweringError::BoundaryRealizationMismatch(actual)) if actual == boundary
+            ));
+        }
+
+        let mut stack_plan = plan.clone();
+        stack_plan.call.parameters[0].locations = vec![ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 4,
+            alignment: 4,
+        }];
+        let mut result_plan = plan.clone();
+        result_plan.call.result = Some(plan.call.parameters[0].clone());
+        for invalid in [stack_plan, result_plan] {
+            assert!(
+                lower_normalized_foreign_scalar_arguments(
+                    boundary,
+                    &declaration,
+                    &[source],
+                    &invalid,
+                    &constants,
+                )
+                .is_err()
+            );
+        }
+    }
 }
