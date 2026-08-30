@@ -102,11 +102,13 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Repair Terminal closure for selected scalar checked-operator adapters before
-  any package profile claims their native realization. Checked dispatch and
-  ordinary package review are admitted independently; the existing named and
-  fixed-token adapter canaries currently reach checked execution while native
-  production rejects the missing scalar-adapter closure.
+  Repair Terminal planning for an attached Unit machine that binds a scalar
+  boundary/operator result and consumes it in a later call before any package
+  profile claims that native realization. The current Unit-effect planner
+  rejects the machine because the local initializer contributes a flow call
+  outside its call-statement-only shape. Checked dispatch and ordinary package
+  review remain independent; the existing named and fixed-token canaries reach
+  checked execution while native production rejects the absent Unit plan.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
   representation projection according to D26. Add separate producer-
