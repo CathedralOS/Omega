@@ -1,0 +1,1 @@
+`Binding::VtableSlot` is retired; declare the foreign table layout and use `Binding::VtableField(field)`

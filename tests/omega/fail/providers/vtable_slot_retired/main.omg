@@ -1,0 +1,7 @@
+boundary trait Firmware {
+    machine invoke(this: addr);
+}
+
+machine legacy(this: addr)
+satisfies Firmware::invoke
+via Binding::VtableSlot(payload_is_not_consumed);

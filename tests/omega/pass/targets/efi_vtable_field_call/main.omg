@@ -3,7 +3,7 @@
 // binding names the fn-ptr FIELD and the LAYOUT computes its
 // offset. No magic slot count: `reset` is a leading field (headers fall out
 // free), `output_string` lands at +8, and the emitted dispatch is
-// byte-identical to the VtableSlot(1) original --
+// byte-identical to the retired ordinal original --
 // `mov rax, [rcx+8]; call rax` (the suite test pins those bytes in the
 // cross-compiled PE on ANY host).
 boundary trait TextOutput { machine output_string(this: addr, text: addr); }
