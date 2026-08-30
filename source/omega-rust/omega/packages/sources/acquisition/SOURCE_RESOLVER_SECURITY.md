@@ -36,9 +36,8 @@ The resolver is responsible for:
 - bounding captured helper output, command duration, command count, accepted
   source/cache size, and the uniform process resources the selected host
   backend can honestly constrain; and
-- recording the requested endpoint, primary Git invocation, command outcomes,
-  source identities, limits, and observed resource use that produced a
-  successful result.
+- recording the primary Git invocation, command outcomes, source identities,
+  limits, and observed resource use that produced a successful result.
 
 Secrets never enter source declarations, `omega.lock`, source receipts, review
 evidence, or build inputs.
@@ -94,12 +93,9 @@ that requires an allowlist of host transport/helper identities or writable
 state locations is not part of the universal network path.
 
 Repository initialization and inspection have no ambient transport-helper
-requirement and may retain their closed execution and write policy. A
-deliberately hermetic host or CI profile may additionally close its complete
-configuration and executable set. Stronger confinement from such a profile is
-carried as separately typed evidence bound to the universal source receipt; it
-does not replace that receipt, change package identity, or become selectable by
-package source.
+requirement and may retain their closed execution and write policy. Operators
+that require stronger isolation provide it through their host, VM, container,
+or CI policy; Omega does not attest that external policy.
 
 ## Successful receipt
 
@@ -114,8 +110,6 @@ public constructor or decoder. Its canonical identity binds:
 - the selected primary Git executable and exact compiler-owned invocation;
 - every applicable lifecycle/resource policy and completed-command
   observation;
-- the normalized requested endpoint, without claiming the host's actual route
-  or socket peer;
 - captured-output ceilings and observed counts; and
 - the retained cache-storage measurement accepted before publication.
 

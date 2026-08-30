@@ -36,7 +36,6 @@ mod locator;
 mod resolution;
 
 pub use error::IdentityError;
-pub(crate) use git::GitRequestedNetworkEndpoint;
 pub use git::{
     GenericGitLineage, GitHubRepositoryLineage, GitLabRepositoryLineage, GitTransport,
     SourceLineage,

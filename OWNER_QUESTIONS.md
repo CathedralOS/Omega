@@ -293,3 +293,50 @@ acceptable if every other telescope category remains explicitly fail-closed.
 - Tempting but wrong: call a canonical list of use-site strings coverage,
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
+## Q6 — Settle primary Git selection and consistency custody
+
+### Context
+
+Package source may select a validated locator and revision, but it cannot select
+credentials, transport helpers, arbitrary Git arguments, or executable paths.
+HTTPS and SSH deliberately use the invoking user's ordinary host configuration.
+The remaining primary-Git path is different: Omega searches a hard-coded list
+of absolute executable locations, rejects symlinks and selected ownership,
+mode, and ACL states, hashes the executable, and rechecks it during resolution.
+
+### Problem statement
+
+Choose which part of that machinery is an Omega correctness boundary and which
+part is host policy. Before/after identity checks can detect executable drift
+within one resolution, but hard-coded locations and ownership or ACL rules
+cannot establish that Git, the invoking user, or the operating system is
+trustworthy. They may also reject ordinary host-managed installations while
+ignoring the operator's normal `PATH` choice.
+
+The package must never choose the executable. The open question is whether the
+operator does so through normal host lookup, an explicit Omega setting, or the
+current compiler-selected candidate list, and whether any retained executable
+observation blocks only same-operation inconsistency or also source admission.
+
+### Proposed direction
+
+Use normal host `PATH` resolution, with an optional explicit operator-owned
+Omega setting. Resolve that choice before processing package-controlled input.
+Retain the exact selected path/content identity and before/after drift checks as
+non-authoritative execution provenance and same-operation consistency. Remove
+ownership, mode, ACL, and hard-coded-location rules as purported trust
+establishment. Host or CI policy remains responsible for selecting and
+protecting a trustworthy Git installation.
+
+### Alternates
+
+- Acceptable: require an explicit operator-configured Git path and do no `PATH`
+  lookup, provided packages and `build.omg` cannot influence it.
+- Acceptable: keep conventional platform candidates only as a compatibility
+  fallback, provided they carry no stronger trust meaning than a host-selected
+  executable and legitimate managed links remain usable.
+- Tempting but wrong: treat root/user ownership, mode bits, ACL shape, a
+  hard-coded location, or a content hash as proof that Git or the host is
+  trustworthy.
+- Wrong: permit a package, dependency declaration, fetched repository, or
+  `build.omg` to choose or alter the Git executable.

@@ -922,11 +922,13 @@ protocol and rejects unless a future explicit host-service mechanism is
 separately designed. A scoped name or receiver never grants build authority.
 
 Dependency retrieval is a resolver operation performed before downloaded code
-runs. The resolver owns narrowly scoped network, archive-reading, expansion-
-limit, path-containment, and destination authority. A dependency's `build.omg`
-never inherits those providers. Imported boundary claims are inert until the
-root build accepts the dependency's fingerprinted complete claim set; any claim
-change invalidates that acceptance and appears in the lock/trust diff.
+runs. The host-selected Git/SSH stack owns transport and credential authority;
+the resolver owns the closed source protocol surface, archive reading,
+expansion limits, path containment, authenticated object graph, and immutable
+destination publication. A dependency's `build.omg` never inherits transport
+or resolver authority. Imported boundary claims are inert until root policy
+admits the compiler-derived complete claim set; any claim change appears in the
+lock/review diff.
 
 That acceptance records a root policy decision, not proof that an audit
 occurred. Omega can derive bounded capability, authority-flow, provider,

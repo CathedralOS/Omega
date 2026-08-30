@@ -1,8 +1,8 @@
-//! Validated Git locators, revisions, transports, and endpoint identity.
+//! Validated Git locators, revisions, and transports.
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::identity::digest::format_sha256;
-use crate::identity::{GitRequestedNetworkEndpoint, GitTransport, IdentityError, SourceLineage};
+use crate::identity::{GitTransport, IdentityError, SourceLineage};
 use crate::limits::{GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT};
 #[cfg(any(test, feature = "test-fixtures"))]
 use sha2::{Digest, Sha256};
@@ -18,7 +18,6 @@ pub struct GitSourceRequest {
     pub(crate) requested_revision: String,
     pub(crate) lineage: SourceLineage,
     pub(crate) execution_transport: GitExecutionTransport,
-    pub(crate) requested_network_endpoint: GitRequestedNetworkEndpoint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,9 +114,8 @@ impl GitSourceRequest {
                 IdentityError::MalformedGitLocator,
             ));
         }
-        let (lineage, locator_transport, requested_network_endpoint) =
-            SourceLineage::git_with_transport(&locator)
-                .map_err(GitSourceRequestError::InvalidLocator)?;
+        let (lineage, locator_transport) = SourceLineage::git_with_transport(&locator)
+            .map_err(GitSourceRequestError::InvalidLocator)?;
         let requested_revision = revision.unwrap_or_else(|| "HEAD".to_owned());
         validate_git_revision(&requested_revision)?;
         let locator_identity = canonical_git_locator(&lineage);
@@ -128,7 +126,6 @@ impl GitSourceRequest {
             requested_revision,
             lineage,
             execution_transport: GitExecutionTransport::from_locator_transport(locator_transport),
-            requested_network_endpoint,
         })
     }
 
@@ -159,15 +156,6 @@ impl GitSourceRequest {
 
     pub(crate) fn execution_transport(&self) -> GitExecutionTransport {
         self.execution_transport
-    }
-
-    /// Normalized endpoint identity derived from the accepted locator.
-    ///
-    /// This is source identity, not a claim about the host-selected route or
-    /// effective socket peer.
-    #[cfg(test)]
-    pub(crate) fn requested_network_endpoint(&self) -> &GitRequestedNetworkEndpoint {
-        &self.requested_network_endpoint
     }
 
     pub fn transport_profile(&self) -> GitTransportProfile {
