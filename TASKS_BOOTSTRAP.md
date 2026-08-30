@@ -1603,6 +1603,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       completed current `C` roots from fifty-five to fifty-six. All 56 roots
       that reach body parsing are now complete; the remaining seventeen stop
       in their headers.
+    - [x] Retain the first closed external-leaf declaration as one coherent
+      source-shaped form: `satisfies Trait::requirement via
+      Binding::CompilerIntrinsic;`. The satisfying clause owns explicit
+      optional-binding presence plus the exact `via`, `Binding`, and case spans;
+      the machine owns an explicit bodyless bit and the canonical empty implicit
+      entry carrying its existing parameters and return type. Other Binding
+      cases and richer clause continuations remain implementation-incomplete,
+      never false Omega rejections. No external-binding arena or resource kind
+      is introduced: every clause still owns its requirement path members, and
+      the bodyless entry uses the existing independently bounded state arena.
+      This completes all sixteen target-scoped
+      `ConsoleNativeProvider::{read_line,read_byte,write_byte,exit_process}`
+      leaves across the four selected targets, raising completed current `C`
+      roots from fifty-six to seventy-two. The sole remaining root,
+      `console_write_bytes`, stops in its termination-witness header.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
