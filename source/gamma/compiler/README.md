@@ -104,7 +104,7 @@ branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
 
-Q6 blocks the final declaration/binder resolver policy. Q5 blocks generated
+Q4 blocks the final declaration/binder resolver policy. Q3 blocks generated
 application-profile selection and therefore adapter publication/final tape.
 Neither question authorizes a subset compiler or blocks the strict parser,
 private target ABI, runtime helpers, direct emitter, or profile-independent
