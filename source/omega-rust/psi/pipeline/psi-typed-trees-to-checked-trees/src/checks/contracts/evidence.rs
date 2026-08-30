@@ -244,7 +244,7 @@ fn evidence_term_belongs_to_target(
     )
 }
 
-fn exact_target_evidence_parameters(
+pub(crate) fn exact_target_evidence_parameters(
     facts: &CheckFacts,
     target_machine_symbol: psi_symbols::SymbolHandle,
     target_state_symbol: psi_symbols::SymbolHandle,
@@ -253,7 +253,7 @@ fn exact_target_evidence_parameters(
     // ordinary call-fact builder. Walking those exact facts prevents an
     // unrelated or orphaned global evidence term with a lookalike owner from
     // entering this proof-expression call lane.
-    facts
+    let mut parameters = facts
         .proof
         .contract_facts
         .iter()
@@ -270,7 +270,40 @@ fn exact_target_evidence_parameters(
                 && checked.kind == contract.kind)
                 .then_some(parameter)
         })
-        .collect()
+        .collect::<Vec<_>>();
+    // A callable's erased evidence lane is declaration-lane order, not the
+    // incidental order in which owner-scoped contract facts entered the
+    // global arena. Keep proof-expression calls aligned with ordinary calls.
+    parameters.sort_by_key(|parameter| facts.proof.evidence_terms.get(*parameter).lane_position);
+    parameters
+}
+
+pub(crate) fn instantiate_contract_expression_evidence_parameter(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    target_state_symbol: psi_symbols::SymbolHandle,
+    parameter: Handle<CheckedEvidenceTerm>,
+) -> Option<CheckedPropositionApplication> {
+    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    if call.target_symbol != target_state_symbol
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+    {
+        return None;
+    }
+    let target_parameters = call_target_parameters(program, target_state_symbol)?;
+    instantiate_proof_expression_parameter(
+        program,
+        facts,
+        &crate::CallSite::Expression { expression, call },
+        target_parameters,
+        parameter,
+    )
 }
 
 fn exact_visible_evidence_sources(
@@ -556,4 +589,64 @@ fn call_target_name(
     target: psi_symbols::SymbolHandle,
 ) -> String {
     crate::labels::call_target_label(program, target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn proof_expression_target_lane_is_ordered_across_machine_and_state_owners() {
+        let machine = psi_symbols::SymbolHandle::from_arena_index(40);
+        let state = psi_symbols::SymbolHandle::from_arena_index(41);
+        let mut facts = CheckFacts::default();
+
+        let state_parameter = facts.proof.evidence_terms.append(CheckedEvidenceTerm {
+            owner: ContractProofFactOwner::MachineState {
+                machine_symbol: machine,
+                state_symbol: state,
+            },
+            lane_position: 1,
+            ..CheckedEvidenceTerm::default()
+        });
+        let machine_parameter = facts.proof.evidence_terms.append(CheckedEvidenceTerm {
+            owner: ContractProofFactOwner::Machine {
+                machine_symbol: machine,
+            },
+            lane_position: 0,
+            ..CheckedEvidenceTerm::default()
+        });
+
+        for (owner, parameter) in [
+            (
+                ContractProofFactOwner::MachineState {
+                    machine_symbol: machine,
+                    state_symbol: state,
+                },
+                state_parameter,
+            ),
+            (
+                ContractProofFactOwner::Machine {
+                    machine_symbol: machine,
+                },
+                machine_parameter,
+            ),
+        ] {
+            facts
+                .proof
+                .contract_facts
+                .append(psi_checked_trees::ContractProofFact {
+                    kind: ContractProofFactKind::Requires,
+                    owner,
+                    fact: Handle::invalid(),
+                    evidence_term: Some(parameter),
+                    qualification_authorization: None,
+                });
+        }
+
+        assert_eq!(
+            exact_target_evidence_parameters(&facts, machine, state),
+            [machine_parameter, state_parameter],
+        );
+    }
 }

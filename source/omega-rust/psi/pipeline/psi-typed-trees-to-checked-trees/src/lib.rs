@@ -91,6 +91,40 @@ pub fn derive_checked_nominal_call_target(
     authored_selections::derive_checked_nominal_call_target(program, facts, expression)
 }
 
+/// Rederive the erased requires lane for one exact proof-expression call
+/// target from checked contract facts. This is a compiler-internal package
+/// review seam; handles remain private joins and never enter review identity.
+pub fn derive_checked_contract_expression_evidence_parameters(
+    facts: &CheckFacts,
+    target_machine_symbol: psi_symbols::SymbolHandle,
+    target_state_symbol: psi_symbols::SymbolHandle,
+) -> Vec<psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>> {
+    checks::contracts::exact_target_evidence_parameters(
+        facts,
+        target_machine_symbol,
+        target_state_symbol,
+    )
+}
+
+/// Freshly instantiate one erased requires proposition against the current
+/// typed call arguments. Package review uses this after checking to reject a
+/// coordinated typed-tree edit paired with stale checked evidence custody.
+pub fn derive_checked_contract_expression_evidence_instantiation(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    target_state_symbol: psi_symbols::SymbolHandle,
+    parameter: psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>,
+) -> Option<psi_checked_trees::CheckedPropositionApplication> {
+    checks::contracts::instantiate_contract_expression_evidence_parameter(
+        program,
+        facts,
+        expression,
+        target_state_symbol,
+        parameter,
+    )
+}
+
 #[cfg(test)]
 pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
 

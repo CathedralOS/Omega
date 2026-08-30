@@ -213,3 +213,30 @@ fn evidence_call_projection_rejects_changed_lane() {
         "changed checked lane position 0",
     );
 }
+
+#[test]
+fn evidence_call_projection_rejects_argument_drift_after_checking() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    assert_tamper_rejected(
+        target,
+        |checked| {
+            let expression =
+                checked.facts.proof.contract_expression_evidence_calls[0].expression;
+            let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+                .expression_table
+                .expression(expression)
+                .clone()
+            else {
+                panic!("checked evidence occurrence must rejoin a call")
+            };
+            let argument = checked.expression_table.expression_handles(call.arguments)[0];
+            *checked.typed.expression_table.expression_mut(argument) =
+                psi_typed_trees::expression::ExpressionNode::Integer(
+                    psi_numerics::literals::IntegerLiteral::from_value(41),
+                );
+        },
+        "changed checked binding at lane 0",
+    );
+}
