@@ -38,7 +38,7 @@ fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesyste
     }
 }
 
-fn summary(operation_tag: u16) -> BuildObservationSummary {
+pub(super) fn summary(operation_tag: u16) -> BuildObservationSummary {
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
         ceiling: BuildObservationClass::Volatile,
