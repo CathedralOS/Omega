@@ -53,12 +53,15 @@ stop the item on one precise owner question before adding machinery.
     checked named-operator telescope binding, evaluated const value plus
     declared-carrier binding,
     artifact-qualified symbolic demand and final substitution, role-specific
-    realization replay, Q6's owner-blocked physical publication boundary, and
-    replacement of the provisional arity/string coverage identity. Lifetime,
-    machine, and proposition operator applications remain fail-closed. D28
-    authorizes no generic-coverage implementation until a checked generic
-    operator realization supplies a producer; generic assertions remain
-    non-authorizing;
+    realization replay, D32's optimized-projection-to-physical-child join, and
+    replacement of the provisional arity/string coverage identity. The
+    physical child must bind its exact Terminal parent and surviving optimized
+    operation occurrence, and the complete child set must match the derived
+    surviving occurrence set. Equal applications may share one semantic parent
+    but not one child. Lifetime, machine, and proposition operator applications
+    remain fail-closed. D28 authorizes no generic-coverage implementation until
+    a checked generic operator realization supplies a producer; generic
+    assertions remain non-authorizing;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -326,9 +329,13 @@ explicitly.
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Derive concrete static applications
   from checked uses, retain D29's normalized tagged type/const bindings, close
   artifact-qualified symbolic demands during final specialization, recheck the
-  selected role-specific realization and concrete physical plan, attach rows
-  to production selected plans, and add compiler-to-update tests. Exercise the
-  canonical empty application as well as distinct/equivalent const values.
+  selected role-specific semantic realization, attach rows to production
+  selected plans, and add compiler-to-update tests. Then implement D32's exact
+  native physical children over the validated optimized projection, including
+  per-occurrence parent bindings and missing/duplicate/stale/substituted/padded
+  rejection.
+  Exercise the canonical empty application as well as distinct/equivalent
+  const values.
   Keep compatibility failure when a public family gains an uncovered
   coordinate. Universal generic coverage remains deliberately unimplemented
   under D28; package evidence must never substitute declaration order, display

@@ -769,10 +769,13 @@ Remaining:
   type/const demands, const values normalize in their declared carrier,
   generic artifacts export only symbolic demand, and final specialization
   issues coverage after the selected checked-body, intrinsic, or exact
-  external realization and its physical plan recheck. Empty telescopes use one
-  canonical empty application. Bootstrap lowering cannot issue authoritative
-  coverage. Producing those exact rows remains work; genuinely universal
-  realization coverage stays deliberately unimplemented under D28, alongside
+  external semantic realization recheck. D32 then binds every surviving
+  optimized boundary-operation occurrence to one exact native physical child
+  carrying the target-lowering, assignment, relocation, and emitted-span
+  joins. Empty telescopes use one canonical empty application. Bootstrap
+  lowering cannot issue authoritative coverage. Producing those exact rows
+  remains work; genuinely universal realization coverage stays deliberately
+  unimplemented under D28, alongside
   public-leaf delegation/recursive redispatch and the external-leaf
   source-form migration below.
 

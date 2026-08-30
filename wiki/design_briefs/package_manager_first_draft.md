@@ -1243,6 +1243,17 @@ checked generic operator realization exists today, so generic coverage remains
 deliberately unrepresented; provider assertions and one successful
 specialization grant nothing.
 
+D32 keeps that package-facing semantic evidence separate from native physical
+realization. The immutable canonical Terminal artifact feeds a validated
+optimization projection. Every surviving boundary-operation occurrence
+carrying a D29 row has one `NativeArtifact` physical child bound to both its
+Terminal parent and distinct optimized-operation identity. Equal applications
+may share a semantic parent row but not a physical child. Native replay derives
+the survivor set and rejects missing, duplicate, stale, substituted, or padded
+children. Package
+review does not claim assigned homes, relocation, or emitted bytes merely
+because its semantic D29 row is complete.
+
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
 fact rows, and domains are absent from trust reports. Exact selected-provider

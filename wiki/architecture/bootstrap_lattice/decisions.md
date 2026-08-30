@@ -909,12 +909,13 @@ fixture. The first executable rung reconstructs and rechecks the finite exact
 application set demanded by each emitted artifact. Bodyless, external, opaque,
 compiler-intrinsic, and separately supplied realizations remain exact-only.
 
-Every emitted application requires one closed compiler-recheckable coverage
-fact binding its tagged arguments, selected realization, and concrete physical
-obligations before publication. Exact applications remain mandatory even if a
-future checked generic realization has universal semantic evidence; universal
-checking never creates concrete instances or physical plans. D29 fixes that
-exact fact and its realization-specific checking rules.
+Every emitted application requires one closed compiler-recheckable semantic
+coverage fact binding its tagged arguments and selected realization, followed
+by one exact physical child for each operation surviving verified optimization.
+Exact applications remain mandatory even if a future checked generic
+realization has universal semantic evidence; universal checking never creates
+concrete instances or physical plans. D29 fixes the semantic fact and its
+realization-specific checking rules; D32 fixes the physical continuation.
 
 A future compiler-issued generic row is permitted only for an exact checked
 Omega body validated on the pristine pre-monomorphization graph under its
@@ -970,14 +971,15 @@ checked-use coordinates remain separate provenance.
 A checked generic Omega realization is specialized once for each distinct
 closed demanded application through the ordinary authoritative machine-
 specialization path. The compiler rechecks the substituted signature,
-contracts, effects, target restrictions, and admissions, then establishes the
-concrete representation, layout, calling plan, and emitted execution. The
-coverage fact retains the exact requirement coordinate, tagged application,
-strong selected-provider-plan identity, and one role-tagged realization
-payload. The closed realization roles are specialized checked body,
-nongeneric checked body, compiler intrinsic, and externally admitted concrete
-authority. The role discriminant participates in canonical identity; roles do
-not share optional template, specialization, or external-authority fields.
+contracts, effects, target restrictions, admissions, selected provider plan,
+and semantic realization. The Terminal coverage fact retains the exact
+requirement coordinate, tagged application, strong selected-provider-plan
+identity, and one role-tagged realization payload. The closed realization
+roles are specialized checked body, nongeneric checked body, compiler
+intrinsic, and externally admitted concrete authority. The role discriminant
+participates in canonical identity; roles do not share optional template,
+specialization, or external-authority fields. D32 separately joins every
+surviving executable row to its late physical realization.
 
 The empty telescope is one canonical empty application. It performs no
 substitution and is the ordinary cheap path for monomorphic boundary
@@ -1002,11 +1004,12 @@ demanded boundary application.
 Terminal and package replay recompute the closed application and its
 role-specific realization commitment from retained structural facts. They
 reject open or missing binders, category erasure, const-carrier drift,
-application/plan substitution, stale physical plans, unsupported binder
+application/plan substitution, stale early plans, unsupported binder
 categories, and any coverage row produced before its demand was closed. D28's
 future universal semantic row remains complementary: it can establish
 symbolic selection coverage, but every emitted artifact still carries D29's
-finite concrete applications and physical plans.
+finite concrete applications and D32's physical child receipts for the
+surviving executable projection.
 
 ## D30 — Physical Gamma application profiles and compiler boundaries
 
@@ -1147,6 +1150,59 @@ offset is `InternalFailure(InvalidReturnedOutcome)`, and no refusal publishes a
 tape prefix. The adapter has not been published, so D31 revises its V1 schema
 and checked table projection in place; a post-publication schema change would
 require an explicit profile version.
+
+## D32 — Split semantic boundary coverage from physical realization
+
+Terminal Psi owns the semantic half of D29 boundary-operator coverage. Each
+row binds the exact checked use to its source-free operation, closed tagged
+application, strong selected-provider-plan identity, and role-tagged semantic
+realization. Equal closed applications may share that semantic row while their
+checked-use coordinates remain separate provenance. Package and Terminal
+replay may publish that semantic evidence
+without claiming register assignment, final call placement, relocation, or
+emitted bytes that do not yet exist.
+
+A plan may enter Terminal only when its carrier and independent validator can
+live at architectural rank `representations` or below without a backend-owned
+type, and the fact is reconstructible before assignment and emission from
+Terminal semantics, the admitted target schema, and selected plans alone. The
+dependency-layer guard enforces carrier ownership; independent reconstruction
+enforces that a backend result was not merely renamed or laundered into a low
+layer. Schema-derived representation, layout, access, and calling plans may
+meet that rule. Assigned registers or stack homes, final placement,
+relocations, and emitted-byte custody do not.
+
+Terminal remains immutable through optimization. A verified optimization run
+publishes a validated transformed unit or projection retaining the canonical
+`TerminalPsiIdentity`; it does not mint a post-optimization Terminal. Each
+surviving boundary-operation occurrence carrying a D29 row then receives one
+physical child receipt in `NativeArtifact`. Multiple occurrences may share one
+semantic parent row, but their optimized-operation identities and physical
+children remain distinct. The child binds both the domain-separated strong
+identity of its canonical Terminal D29 parent row and its exact surviving
+optimized operation/projection identity, then retains the target-lowering,
+instruction-selection, assignment, relocation, and emitted-byte-span joins.
+
+Native replay derives the surviving boundary-operation occurrence set from the
+published validated optimization projection and requires exact correspondence
+with the physical children. Missing, duplicate, stale, substituted, or padded
+children reject. An eliminated occurrence needs no child only when the verified
+optimization proof establishes that elimination. With no optimization the
+projection is the identity projection. Rechecking a byte digest or a self-
+consistent physical receipt without both parent bindings establishes no
+semantic-to-physical relation.
+
+One realized-artifact envelope may contain the canonical Terminal artifact,
+validated optimization projection, and physical children, but their evidence
+classes and replay rules remain distinct. A package or semantic claim may stop
+at Terminal; a native or external execution claim must recheck the complete
+physical relation. D32 introduces no `Chi` stage, backend-to-representation
+dependency, or layering exception merely to preserve older wording.
+
+Every strong evidence commitment is domain-separated by a stable schema and
+semantic role. A subject, composition joint, Terminal parent, optimized
+projection, or physical child commitment is therefore unusable in another
+role even when its underlying bytes or compact report coordinates coincide.
 
 ## Dependency order
 

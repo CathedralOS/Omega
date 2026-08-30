@@ -1133,20 +1133,22 @@ typed binders. That is a symbolic demand, not coverage. Final composition
 substitutes reachable specialization arguments and publishes coverage only
 after every argument is closed and validated against its category, carrier,
 domain, bounds, and `where` requirements. Equal closed applications deduplicate
-only after their selected-plan, realization, semantic, target, admission, and
-physical joins succeed. Checked source-use coordinates remain independent
-provenance even when they share one coverage row.
+only after their selected-plan, realization, semantic, target, and admission
+joins succeed. Checked source-use coordinates remain independent provenance
+even when they share one semantic coverage row. D32 separately requires one
+physical child for each boundary-operation occurrence that survives verified
+optimization.
 
 For a checked generic body, the compiler creates an ordinary authoritative
 machine specialization per distinct closed application and rechecks the
 substituted signature, contracts, effects, target restrictions, admissions,
-representation, layout, calling plan, and emitted execution. The retained
-coverage row carries the exact requirement, tagged application, strong
-selected-plan identity, and a role-tagged realization payload. The closed
-roles are specialized checked body, nongeneric checked body, exact compiler
-intrinsic, and externally admitted concrete authority. The role discriminant
-is part of canonical identity; role-specific fields are not optional members
-of one common payload.
+selected provider plan, and semantic realization. The retained Terminal row
+carries the exact requirement, tagged application, strong selected-plan
+identity, and a role-tagged realization payload. The closed roles are
+specialized checked body, nongeneric checked body, exact compiler intrinsic,
+and externally admitted concrete authority. The role discriminant is part of
+canonical identity; role-specific fields are not optional members of one
+common payload.
 
 A declaration with no static telescope has one canonical empty application.
 It performs no substitution but still rejoins its exact selected plan and
@@ -1156,6 +1158,32 @@ authority for every application. Zero-commitment bootstrap lowering is not a
 coverage role. A builtin fallback that selects no boundary requirement emits
 no row, while an authoritative artifact rejects a demanded boundary operation
 that has not migrated from bootstrap lowering to a selected realization.
+
+Terminal coverage establishes meaning, not emitted execution. An early
+representation, layout, access, or calling plan may join that row only when its
+carrier and validator belong at `representations` rank or below and the fact
+is reconstructible before backend assignment or emission. Merely moving a
+backend-shaped carrier downward does not satisfy that rule. Assigned registers
+and stack homes, final call placement, relocation, and emitted bytes remain
+physical facts owned by native realization.
+
+Optimization does not rewrite the canonical Terminal artifact. Its validated
+projection retains the canonical `TerminalPsiIdentity` and identifies the D29
+boundary-operation occurrences that survive as executable operations. Every
+such occurrence has exactly one native physical child bound to both its
+domain-separated Terminal parent identity and distinct optimized-operation
+identity. Equal applications may share one semantic parent row but never one
+physical child. The child retains the target
+lowering, instruction selection, assignment, relocation, and emitted-byte-span
+joins. Native replay rejects a missing, duplicate, stale, substituted, or
+padded child. It permits omission only when the verified optimization proof
+establishes elimination; without optimization the projection is the identity
+projection.
+
+Package review may publish the semantic Terminal row. Native or external
+execution authority additionally requires the physical child and complete set
+correspondence above. Housing both in one `NativeArtifact` envelope does not
+merge their evidence classes or replay rules.
 
 A future universal row may be compiler-issued only for an exact checked Omega
 body validated on the pristine symbolic graph. Its typed telescope retains

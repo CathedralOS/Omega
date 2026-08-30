@@ -982,13 +982,25 @@ lifetime, machine, and proposition arguments remain fail-closed. Empty
 telescopes use one canonical empty application without substitution.
 
 Checked generic bodies reuse ordinary authoritative specialization and recheck
-the substituted semantic, target, admission, representation, layout, calling,
-and emission facts. The coverage row then binds the exact requirement,
+the substituted semantic, target, admission, selected-plan, and realization
+facts. The Terminal coverage row then binds the exact requirement,
 application, strong selected plan, and a role-tagged specialized-body,
 nongeneric-body, compiler-intrinsic, or external-authority payload. Bodyless
 and external supply stays exact-only. Bootstrap lowering is non-authoritative
 and cannot publish coverage. D28 deliberately adds no universal generic
 carrier until a checked generic operator realization exists.
+
+D32 keeps physical realization distinct. A validated optimization projection
+retains the immutable canonical Terminal identity and identifies the surviving
+executable boundary-operation occurrences carrying D29 rows. Equal applications
+may share one semantic parent, but each surviving occurrence receives one
+`NativeArtifact` physical child bound to both its domain-separated Terminal
+parent and distinct optimized-operation identity, with the complete target-
+lowering, selection, assignment, relocation, and emitted-span relation. Native
+replay derives the
+surviving set and rejects missing, duplicate, stale, substituted, or padded
+children. A verified eliminated occurrence needs no child. Package review may
+stop at semantic coverage; native or external execution claims may not.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not
