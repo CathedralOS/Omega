@@ -13,6 +13,9 @@ mod locks;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
+mod source_directories;
+#[cfg(test)]
+mod source_directory_tests;
 #[cfg(test)]
 mod source_read_link_tests;
 mod source_read_links;
@@ -44,6 +47,12 @@ pub(crate) use locks::{
 pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{
     FilesystemInputOutputTreeReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+};
+pub use source_directories::{
+    FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
+};
+pub(crate) use source_directories::{
+    source_directory_chain_attempts, source_directory_chain_is_exact,
 };
 pub use source_read_links::FilesystemSourceReadLinkReplayRecord;
 pub(crate) use source_read_links::{source_read_link_attempt, source_read_link_attempt_is_exact};
