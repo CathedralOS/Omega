@@ -185,11 +185,13 @@ package review remains non-admitting.
 
 ## P6 — Integration fixtures
 
-- [ ] **DESIGN-BLOCKED — OWNER Q5: HOST-ROUTED-SOURCE-TRANSPORT.** Decide
-  whether the resolver's CONNECT broker is optional host hardening or universal
-  package semantics. The current forced HTTPS proxy and SSH `ProxyCommand`
-  contradict the settled ambient-host contract; do not expand Omega into a
-  proxy, SSH, or credential provider to preserve them.
+- [ ] **DESIGN-BLOCKED — OWNER Q5: HOST-ROUTED-SOURCE-TRANSPORT.** Remove the
+  universal CONNECT broker and false direct-route/transfer claims, then apply
+  the owner-selected child-policy boundary for host-configured Git/SSH helpers.
+  Forced proxy overrides and native policy that silently blocks the ambient
+  helpers exposed after their removal are one coupled transport problem; do
+  not preserve either by expanding Omega into a proxy, SSH, credential, or
+  host-configuration provider.
 
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
   accepted-lock absence and recovery, sealed representation mechanism/ABI,
