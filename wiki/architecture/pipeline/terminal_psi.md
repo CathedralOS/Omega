@@ -954,7 +954,16 @@ places, the Unit return discards them as `[4, 3, 2, 1, 0]`, and the verifier,
 codec, interpreter, Omega lowering, native emission, object/image replay, and
 installation encoding retain the common root plus exact six fuel units.
 Missing/reordered operations or cleanup, changed indices/root length, and
-length-seven or wider prefixes reject; no runtime liveness bitmap or cleanup
+wider prefixes at that rung reject; no runtime liveness bitmap or cleanup loop
+is introduced.
+
+The following bounded carrier admits the same shape at length seven with
+establishments `[0, 1, 2, 3, 4, 5]`. Terminal publishes six ordered zero-ABI
+local places, the Unit return discards them as `[5, 4, 3, 2, 1, 0]`, and the
+verifier, codec, interpreter, Omega lowering, native emission, object/image
+replay, and installation encoding retain the common root plus exact seven fuel
+units. Missing/reordered operations or cleanup, changed indices/root length,
+and length-eight or wider prefixes reject; no runtime liveness bitmap or cleanup
 loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a

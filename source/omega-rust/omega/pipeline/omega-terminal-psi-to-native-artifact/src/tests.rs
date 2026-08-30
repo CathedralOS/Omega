@@ -68,6 +68,20 @@ const DEEPEST_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const SIXTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 7];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+    }
+"#;
+
 const RANKED_COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
     data Root {}
@@ -84,7 +98,7 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
 "#;
 
 #[test]
-fn verified_write_only_primitive_store_fails_closed_before_native_lowering() {
+fn verified_write_only_primitive_store_stops_at_physical_lowering_fence() {
     let checked = checked(
         r#"
             data Sink {}
@@ -104,17 +118,20 @@ fn verified_write_only_primitive_store_fails_closed_before_native_lowering() {
         .expect("encode write-only store semantics");
     let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
         .expect("encode write-only store proof bundle");
-    let error = omega_psi_to_abstract_operations::lower_artifact_sections(
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
         &semantic,
         &proof,
         &psi_proof_admission::AdmissionProfile::default(),
     )
-    .expect_err("native lowering has no physical store custody yet");
+    .expect("verified write-only store reaches target-neutral Omega");
+    let error = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+        &abstract_plan,
+        omega_target::NativeTarget::linux_x64(),
+    )
+    .expect_err("native lowering has no physical primitive-scalar or store custody yet");
     assert!(matches!(
         error,
-        omega_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
-            omega_psi_to_abstract_operations::LoweringError::UnsupportedWriteOnlyPrimitiveStore(_)
-        )
+        omega_abstract_operations_to_target_operations::LoweringError::UnsupportedStructuralPrimitiveScalar(_)
     ));
 }
 
@@ -508,6 +525,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
         (WIDER_CONSTRUCTION_PREFIX_SOURCE, 3_usize),
         (DEEPER_CONSTRUCTION_PREFIX_SOURCE, 4_usize),
         (DEEPEST_CONSTRUCTION_PREFIX_SOURCE, 5_usize),
+        (SIXTH_CONSTRUCTION_PREFIX_SOURCE, 6_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(
