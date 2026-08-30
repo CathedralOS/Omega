@@ -106,7 +106,10 @@ place path; current values are self-member paths, qualified-name paths,
 booleans, unsuffixed nonnegative decimal integer literals, or strings. Integer
 spelling is retained by source span and is not evaluated during parsing;
 strings retain the exact token span and scanner-proven decoded byte length
-without a decoded-byte mirror. Shallow struct literals accept an exact one-
+without a decoded-byte mirror. Assignment values may combine those retained
+primaries and shallow struct literals through a left-associated `+` chain;
+every operator materializes a source-ordered binary node without evaluation or
+type guessing. Shallow struct literals accept an exact one-
 member record or two-member case type path and a comma-separated named field
 list with an optional trailing comma. Canonical adjacent fields without commas,
 nested struct literals, and richer field expressions remain incomplete until a
@@ -136,13 +139,14 @@ combinations, other public roots, bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 54 headers reach body parsing. Twenty-two are complete: four
+representable, and 54 headers reach body parsing. Twenty-three are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
 root, `Lexer::{is_whitespace,push_decoded}` through explicit states and
 transitions, and `ConsoleNativeProvider::{write,write_line}` through exact
-satisfies and reach clauses.
+satisfies and reach clauses, plus `Lexer::emit_punctuation` through retained
+addition.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -175,7 +179,7 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
 machine-clause/type-node/constraint/statement/call/assignment/transition/
-expression/argument/
+expression/binary-expression/argument/
 static-machine-argument/struct-literal/struct-field rows, plus 128 scratch
 array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
@@ -203,6 +207,8 @@ both equal struct tables. Every static machine argument owns at least one
 same-capacity path-member row, so `PathMembers` dominates that table as well.
 Every retained machine clause owns at least one path member, so `PathMembers`
 also dominates the equal clause ledger.
+Every binary row owns its expression node, so `Expressions` dominates that
+equal table as well.
 The meaningful
 resource distinctions are therefore `Roots`, `States`, `PathMembers`,
 `DataMembers`, `TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`.
