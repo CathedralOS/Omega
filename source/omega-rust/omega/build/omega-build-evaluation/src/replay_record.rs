@@ -38,8 +38,9 @@ use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
 use handle_failures::{
     operand_free_unknown_descriptor_failure_shape_is_exact,
-    operand_free_unknown_descriptor_operation,
+    operand_free_unknown_descriptor_operation, unknown_descriptor_seek_failure_shape_is_exact,
     validate_operand_free_unknown_descriptor_failure_shape,
+    validate_unknown_descriptor_seek_failure_shape,
 };
 use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
@@ -50,7 +51,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 33;
+const VERSION: u16 = 34;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -211,7 +212,10 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .or_else(|| {
             shapes
                 .last()
-                .filter(|shape| operand_free_unknown_descriptor_failure_shape_is_exact(shape))
+                .filter(|shape| {
+                    operand_free_unknown_descriptor_failure_shape_is_exact(shape)
+                        || unknown_descriptor_seek_failure_shape_is_exact(shape)
+                })
                 .map(|_| shapes.len() - 1)
         })
         .unwrap_or(shapes.len());
@@ -352,6 +356,28 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay operand-free unknown-descriptor failure could not be rehydrated",
+            )
+        });
+    }
+    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 10
+    {
+        let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
+            shapes[operation_suffix_start].scalars.as_slice()
+        else {
+            unreachable!("validated unknown-descriptor seek retains exact scalar operands")
+        };
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorSeekReplayRecord::new(
+                typed_source_record,
+                *offset,
+                *whence,
+            );
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_seek_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-descriptor seek failure could not be rehydrated",
             )
         });
     }
@@ -1563,7 +1589,7 @@ fn validate_first_rung(
     while cursor < shapes.len() {
         if matches!(
             shapes[cursor].operation,
-            1 | 8 | 9 | 11 | 19 | 20 | 27 | 43 | 44 | 45
+            1 | 8 | 9 | 10 | 11 | 19 | 20 | 27 | 43 | 44 | 45
         ) {
             break;
         }
@@ -1637,7 +1663,7 @@ fn validate_first_rung(
         && shapes.first().is_some_and(|shape| {
             matches!(
                 shape.operation,
-                1 | 8 | 9 | 11 | 19 | 20 | 27 | 43 | 44 | 45
+                1 | 8 | 9 | 10 | 11 | 19 | 20 | 27 | 43 | 44 | 45
             )
         });
     if event_count == 0 && !begins_with_replay_suffix {
@@ -1650,6 +1676,10 @@ fn validate_first_rung(
             && operand_free_unknown_descriptor_operation(shapes[cursor].operation)
         {
             validate_operand_free_unknown_descriptor_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 1 && shapes[cursor].operation == 10 {
+            validate_unknown_descriptor_seek_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {

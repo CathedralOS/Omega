@@ -1666,6 +1666,16 @@ compiler observation evidence, not an audit attestation or package-admission
 decision; process CPU, memory, and remaining whole-session quotas stay
 separate.
 
+Observation summary v53 and replay-record v34 additionally admit an optional
+exact Source prefix followed by one failed tag-10 `seek` on an unknown
+descriptor. The row binds scoped-real provider, scalar `-1`, post-error `9`,
+operand-zero `Descriptor/Unknown`, and the authored operand-one `i64` offset
+and operand-two `i32` origin; every other lane and generated-source handoff is
+empty. Provider-free replay uses the exact scalars in a fresh virtual descriptor
+table and issues empty staged-output custody only after attempt, result,
+namespace, and teardown equality. Alternate scalar shapes, handles, failures,
+repetition, and mixed lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

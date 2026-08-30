@@ -288,3 +288,20 @@ This is compiler-issued observation evidence, not package admission authority
 and not proof that a human or LLM performed an audit. Process CPU, memory, and
 remaining whole-session quotas stay separate gates before package policy may
 treat the evidence as authority-bearing.
+
+## Unknown-descriptor seek (summary v53, replay record v34)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one tag-10 `seek` on an unknown descriptor. The operation
+must use the scoped real provider, return scalar `-1` with post-error state `9`
+(`bad descriptor`), retain operand zero as `Descriptor/Unknown`, and retain the
+authored operand-one `i64` offset and operand-two `i32` origin exactly. Every
+path, byte, mutable carrier, output, retirement, refusal, and generated-source
+handoff lane is empty.
+
+Provider-free replay executes the same offset and origin against a fresh
+virtual descriptor table and requires exact result, attempt, empty namespace,
+and teardown equality. The complete no-effect sequence receives explicit empty
+staged-output custody on initial evaluation and record recovery. Wrong scalar
+types or ordinals, alternate handles or errors, repeated seeks, and mixtures
+with Output mutation or another failure remain non-receipted.

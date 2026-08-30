@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemLogicalHandleIdentity,
     BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleInputResolution,
-    BuildFilesystemLogicalHandleKind, BuildObservationClass,
+    BuildFilesystemLogicalHandleKind, BuildFilesystemScalarOperand, BuildObservationClass,
 };
 
 fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesystemOperationAttempt {
@@ -49,6 +49,21 @@ fn summary(operation_tag: u16) -> BuildObservationSummary {
         included_source_handoffs: Vec::new(),
         staged_output_tree: None,
     }
+}
+
+fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservationSummary {
+    let mut summary = summary(10);
+    summary.filesystem_operation_attempts[0].scalar_operands = vec![
+        BuildFilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: BuildFilesystemScalarOperandValue::I64(offset),
+        },
+        BuildFilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: BuildFilesystemScalarOperandValue::I32(whence),
+        },
+    ];
+    summary
 }
 
 #[test]
@@ -116,4 +131,76 @@ fn operand_free_unknown_descriptor_failures_reject_shape_drift() {
             filesystem_attempt_ordinal: 1,
         });
     assert!(capture_verified_build_filesystem_replay_record(&handoff, limits).is_err());
+}
+
+#[test]
+fn unknown_descriptor_seek_failure_records_authored_scalars_exactly() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let captured = capture_verified_build_filesystem_replay_record(
+        &unknown_descriptor_seek_summary(-17, 2),
+        limits,
+    )
+    .expect("exact unknown-descriptor seek failure encodes")
+    .expect("verified seek failure retains replay custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("exact unknown-descriptor seek failure recovers");
+    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("exact seek failure rehydrates through its typed constructor");
+
+    let [attempt] = replay.attempts() else {
+        panic!("unknown-descriptor seek replay must retain one exact attempt")
+    };
+    assert_eq!(attempt.operation_tag(), 10);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            -1
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(9));
+    assert_eq!(
+        attempt
+            .scalar_operands()
+            .iter()
+            .map(|operand| (operand.operand_ordinal(), operand.value()))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                1,
+                psi_checked_interpreter::FilesystemScalarOperandValue::I64(-17)
+            ),
+            (
+                2,
+                psi_checked_interpreter::FilesystemScalarOperandValue::I32(2)
+            ),
+        ]
+    );
+    assert!(!replay.has_output_attempts());
+}
+
+#[test]
+fn unknown_descriptor_seek_failure_rejects_scalar_and_side_lane_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+
+    let mut wrong_type = unknown_descriptor_seek_summary(4, 1);
+    wrong_type.filesystem_operation_attempts[0].scalar_operands[0].value =
+        BuildFilesystemScalarOperandValue::U64(4);
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_type, limits).is_err());
+
+    let mut wrong_ordinal = unknown_descriptor_seek_summary(4, 1);
+    wrong_ordinal.filesystem_operation_attempts[0].scalar_operands[1].operand_ordinal = 3;
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_ordinal, limits).is_err());
+
+    let mut missing = unknown_descriptor_seek_summary(4, 1);
+    missing.filesystem_operation_attempts[0]
+        .scalar_operands
+        .pop();
+    assert!(capture_verified_build_filesystem_replay_record(&missing, limits).is_err());
+
+    let mut retired = unknown_descriptor_seek_summary(4, 1);
+    retired.filesystem_operation_attempts[0]
+        .retired_logical_handles
+        .push(BuildFilesystemLogicalHandleIdentity::new(1).unwrap());
+    assert!(capture_verified_build_filesystem_replay_record(&retired, limits).is_err());
 }

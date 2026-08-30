@@ -42,12 +42,17 @@ pub(crate) use duplicates::{
     output_duplicate_attempts, output_duplicate_record_from_attempts,
     output_logical_handle_identities, validate_output_duplicate_replay,
 };
-#[cfg(test)]
-pub(crate) use handle_failures::unknown_descriptor_operation_attempt;
-pub(crate) use handle_failures::unknown_descriptor_operation_from_exact_attempt;
 pub use handle_failures::{
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
+    FilesystemInputUnknownDescriptorSeekReplayRecord,
+};
+#[cfg(test)]
+pub(crate) use handle_failures::{
+    unknown_descriptor_operation_attempt, unknown_descriptor_seek_attempt,
+};
+pub(crate) use handle_failures::{
+    unknown_descriptor_operation_from_exact_attempt, unknown_descriptor_seek_from_exact_attempt,
 };
 pub use hard_links::{FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord};
 pub(crate) use hard_links::{output_hard_link_attempt, output_hard_link_record_from_attempt};

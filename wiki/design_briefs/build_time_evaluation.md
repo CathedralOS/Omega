@@ -732,6 +732,15 @@ disposition with the attempts, handoffs, and tree. The verdict is execution
 evidence, not package admission or an audit attestation; CPU, memory, and
 remaining whole-session quotas remain independent policy gates.
 
+Summary v53 and filesystem replay-record v34 add one exact no-effect failure
+row: an optional Source prefix followed by tag-10 `seek` on an unknown
+descriptor. Replay binds the authored `i64` offset and `i32` origin alongside
+the fixed scoped-real provider, scalar `-1`, post-error `9`, and
+`Descriptor/Unknown` input. Every other evidence lane and generated-source
+handoff is empty. Provider-free execution against a fresh virtual descriptor
+table must reproduce the complete attempt and teardown before the compiler
+issues empty staged-output custody.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR certificate may remove runtime fuel metering, but its scalar does
 not predict the target's worst-cycle path.
