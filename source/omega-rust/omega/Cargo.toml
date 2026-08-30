@@ -16,7 +16,7 @@ omega-core = { path = "representations/omega-core" }
 omega-package-manager = { path = "packages/manager" }
 omega-package-source = { path = "packages/source" }
 omega-package-compilation = { path = "build/omega-package-compilation" }
-omega-resolver-execution = { path = "packages/resolver-execution" }
+omega-resolver-execution = { path = "packages/source/resolver-execution" }
 omega-target = { path = "representations/omega-target" }
 omega-trust-ledger = { path = "build/omega-trust-ledger" }
 psi-checked-trees-to-terminal = { path = "../psi/pipeline/psi-checked-trees-to-terminal" }

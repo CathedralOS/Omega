@@ -1,34 +1,34 @@
 # Omega Packages
 
-Start in [`manager`](manager/README.md) for a user operation. The directory
-names describe responsibilities; Cargo metadata retains the fully qualified
-crate names used by Rust.
+Start in [`manager`](manager/README.md) for anything the `omega` binary does.
+The two supporting areas follow the package lifecycle downward.
 
 ```text
 packages/
 ├── README.md                    this entrance
-├── manager/                     operations, declarations, graph, and review policy
+├── manager/                     complete workflows and package policy
 ├── source/                      immutable local and Git source acquisition
-├── resolver-execution/          confined native resolver processes
-├── evidence/                    checked compiler state as inert package evidence
-└── advisory/                    optional model-facing review tooling
+│   └── resolver-execution/      confined native source helper processes
+└── review/                      support for package review
+    ├── evidence/                checked compiler state as inert evidence
+    └── advisory/                optional model-facing review tooling
 ```
 
 The dependency direction is one-way:
 
 ```text
-omega-package-manager ──→ omega-package-source ──→ omega-resolver-execution
-                      └─→ omega-package-evidence
-omega-package-advisory ──→ omega-package-manager
+manager ──→ source ──→ source/resolver-execution
+        └─→ review/evidence
+review/advisory ──→ manager
 ```
 
-`omega-package-evidence` understands compiler semantics but cannot admit
-packages. `omega-resolver-execution` understands host confinement but cannot
-choose package identity or policy. `omega-package-manager` composes those
-results, but mutating install and update transactions remain gated by
+`review/evidence` understands compiler semantics but cannot admit packages.
+`source/resolver-execution` understands host confinement but cannot choose
+package identity or policy. `manager` composes those results, but mutating
+install and update transactions remain gated by
 [`TASKS_PACKAGE_MANAGER.md`](../../../../TASKS_PACKAGE_MANAGER.md).
 
-`omega-package-advisory` consumes deterministic bounded manager output. Its
+`review/advisory` consumes deterministic bounded manager output. Its
 model protocol and recommendations are optional and never participate in
 acceptance.
 
