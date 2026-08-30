@@ -427,28 +427,6 @@ satisfies CheckedMath::identity;
             "without one checked implementation body",
         ),
         (
-            "crash-contract",
-            r#"pub data CheckedMath {}
-pub operator CheckedMath::identity(value: i32) -> i32
-crashes Trap;
-pub machine provide_identity(input: i32) -> i32
-satisfies CheckedMath::identity
-{ input }
-"#,
-            "outcome-specific or crash contracts outside checked operator refinement",
-        ),
-        (
-            "provider-crash",
-            r#"pub data CheckedMath {}
-pub operator CheckedMath::identity(value: i32) -> i32;
-pub machine provide_identity(input: i32) -> i32
-satisfies CheckedMath::identity
-crashes Trap
-{ input }
-"#,
-            "nonempty checked crash behavior outside checked operator refinement",
-        ),
-        (
             "fixed-token-boundary",
             r#"pub data CheckedMath {}
 pub boundary operator - CheckedMath::negate(value: i32) -> i32;
@@ -749,5 +727,71 @@ satisfies CheckedMath::identity
         diagnostic
             .message
             .contains("duplicate exact operator realization")
+    }));
+}
+
+#[test]
+fn checked_operator_crash_routes_must_refine_the_declared_ceiling() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let compile = |provider_route: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub data CheckedMath {{}}
+pub operator CheckedMath::checked(value: bool) -> i32
+crashes Trap
+    value;
+pub machine provide_checked(input: bool) -> i32
+satisfies CheckedMath::checked
+crashes Trap
+    {provider_route}
+{{
+    transition {{
+        {provider_route} -> fail()
+        _ -> 0i32
+    }}
+
+    state fail() -> i32 {{
+        crash Trap;
+    }}
+}}
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+    };
+
+    let checked = compile("input").expect("renamed exact crash route should refine the operator");
+    let review = project_checked_package_review(&checked)
+        .expect("checked operator crash refinement should project");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_checked")
+        .expect("checked operator provider callable");
+    assert_eq!(callable.operator_realizations().len(), 1);
+    assert_eq!(callable.checked_crash().published().len(), 1);
+    assert_eq!(callable.checked_crash().checked_sites().len(), 1);
+
+    let diagnostics = compile("!input")
+        .expect_err("a disjoint provider crash route must not refine the operator ceiling");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("its `crashes Trap` routes are not contained by the operator crash ceiling")
     }));
 }

@@ -269,17 +269,15 @@ pub(super) fn project_callable_conformances(
             if compilation.operator_contracts(operator).iter().any(|contract| {
                 matches!(
                     contract.kind,
-                    psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
-                        ..
-                    } | psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
+                    psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. }
                 )
             }) {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes operator `{}::{}` with outcome-specific or crash contracts outside checked operator refinement",
+                    "reviewed callable `{}` realizes operator `{}::{}` with outcome-specific contracts outside checked operator refinement",
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            let Some(provider_envelope) = compilation
+            let Some(_provider_envelope) = compilation
                 .facts
                 .contract_plans
                 .realized_envelope(machine.symbol)
@@ -289,15 +287,6 @@ pub(super) fn project_callable_conformances(
                     machine.name
                 ))]);
             };
-            if !provider_envelope.checked_crash.published().is_empty()
-                || !provider_envelope.checked_crash.checked_sites().is_empty()
-                || !provider_envelope.checked_crash.checked_calls().is_empty()
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes operator `{}::{}` with nonempty checked crash behavior outside checked operator refinement",
-                    machine.name, conformance.name, requirement_name
-                ))]);
-            }
             psi_validation::validate_checked_operator_realization_contract(
                 &compilation.typed,
                 machine,

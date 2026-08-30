@@ -324,6 +324,103 @@ pub(crate) fn check_operator_contract_conformance(
             )));
         }
     }
+    check_operator_crash_contract_refinement(
+        program,
+        machine,
+        operator,
+        &operator_identity,
+        &name_map,
+        diagnostics,
+    );
+}
+
+fn check_operator_crash_contract_refinement(
+    program: &TypedTrees,
+    machine: &Machine,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    operator_identity: &str,
+    name_map: &[(SymbolHandle, String, SymbolHandle, String)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let requirement_contracts = program.operator_contracts(operator);
+    let provider_contracts = program.machine_contracts(machine);
+    let mut checked_causes = Vec::new();
+    for provider_contract in provider_contracts {
+        let SignatureContractKind::Crashes { cause } = provider_contract.kind else {
+            continue;
+        };
+        if checked_causes.contains(&cause) {
+            continue;
+        }
+        checked_causes.push(cause);
+
+        let provider = operator_crash_bucket(program, provider_contracts, cause)
+            .expect("a provider crash contract contributes its own bucket");
+        let requirement = operator_crash_bucket(program, requirement_contracts, cause);
+        let valid = requirement.is_some_and(|requirement| {
+            requirement.unconditional
+                || (!provider.unconditional
+                    && provider.routes.iter().all(|provided| {
+                        requirement.routes.iter().any(|required| {
+                            operator_contract_expressions_match(
+                                program, *required, *provided, name_map,
+                            )
+                        })
+                    }))
+        });
+        if !valid {
+            diagnostics.push(Diagnostic::error(format!(
+                "checked operator provider `{}` does not refine `{operator_identity}`: its `crashes {cause:?}` routes are not contained by the operator crash ceiling",
+                machine.name,
+            )));
+        }
+    }
+}
+
+struct OperatorCrashBucket {
+    unconditional: bool,
+    routes: Vec<ExpressionHandle>,
+}
+
+fn operator_crash_bucket(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    cause: psi_typed_trees::signature::CrashCause,
+) -> Option<OperatorCrashBucket> {
+    let matching = contracts
+        .iter()
+        .filter(|contract| {
+            matches!(contract.kind, SignatureContractKind::Crashes { cause: actual } if actual == cause)
+        })
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return None;
+    }
+    let mut unconditional = false;
+    let mut routes = Vec::new();
+    for contract in matching {
+        let mut contract_routes = Vec::new();
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if matches!(
+                program.expression_table.expression(*expression),
+                ExpressionNode::Boolean(true)
+            ) {
+                continue;
+            }
+            contract_routes.push(*expression);
+        }
+        if contract_routes.is_empty() {
+            unconditional = true;
+        }
+        routes.extend(contract_routes);
+    }
+    Some(OperatorCrashBucket {
+        unconditional,
+        routes,
+    })
 }
 
 fn operator_contract_expressions_match(

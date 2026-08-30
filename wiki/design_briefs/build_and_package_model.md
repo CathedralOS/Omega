@@ -2120,10 +2120,23 @@ repeats that exact symbol, slot, checked-adapter binding, package, and machine
 join. A positive named-boundary canary covers the unique-candidate route.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
 dispatch exists. Authored selection across a same-path overloaded family
-must use the atomic family rule above. Operators
-with outcome-specific or crash contracts, and providers with any nonempty
-checked crash behavior, reject until their refinement rules exist. The
-association is a retained compiler-private
+must use the atomic family rule above. Operators with outcome-specific
+contracts reject until their refinement rules exist.
+
+Package review v90/canonical row v48 admits checked operator crash refinement.
+For each provider crash cause, the compiler substitutes operator parameters
+with realization parameters and requires every provider route to be an exact
+member of the operator route set. An unconditional operator route admits any
+provider route for that cause; an unconditional provider route requires an
+unconditional operator route. Omitted provider causes narrow the contract.
+Undeclared causes and stronger routes reject. Ordinary checked-crash
+validation still proves that the realization body stays within its own
+published routes, and projection reruns the operator-refinement judgment
+before retaining the existing complete operator, callable, and checked-crash
+rows. This is deliberately structural containment, not an unimplemented
+logical-implication prover.
+
+The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a
 trusted component rewriting typed state and checked facts; it is not a reason
 for nominal Chi.
