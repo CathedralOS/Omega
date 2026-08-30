@@ -539,12 +539,15 @@ remain subject to their separate footprint and overlap judgment. A validated
 recast of a whole named value or member retains an ordinary shared or mutable
 loan on that exact source place. A recast at an exact literal index into a fixed
 byte array may now retain one complete half-open fixed-range loan when its
-target is a fact-free primitive or one nonzero closed acyclic tree of
-nongeneric, quotient-free, all-relevant fact-free records, and the ordinary
-recast judgment has proved the whole footprint in bounds. Normalized record
-padding remains inside that range. Runtime or merely bounded offsets, slices,
-array targets, generic/invariant-bearing/erased/cased records, and other indexed
-forms remain conservative. Last-use accounting compares the canonical
+target is a fact-free primitive, one nonzero literal fixed array of a direct
+fact-free non-Boolean fixed-width primitive element, or one nonzero closed
+acyclic tree of nongeneric, quotient-free, all-relevant fact-free records, and
+the ordinary recast judgment has proved the whole footprint in bounds. The
+array extent comes from its normalized exactly tiled representation, and
+normalized record padding remains inside that range. Runtime or merely bounded
+offsets, slices, nested or record-element array targets,
+generic/invariant-bearing/erased/cased records, and other indexed forms remain
+conservative. Last-use accounting compares the canonical
 field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.
