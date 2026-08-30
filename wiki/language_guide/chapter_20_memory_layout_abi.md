@@ -1277,10 +1277,11 @@ Record-terminal arrays instead repeat the complete normalized record extent,
 including internal, tail, and inter-element padding. Both extents come from the
 shared layout representation rather than source-level size arithmetic, and
 record resolution follows exact symbol identity. Eligible records may contain
-recursively nonzero literal array fields ending in the same exact primitive or
-closed-record shapes; their complete normalized padding and repeated strides
-remain protected. Zero-length record-contained arrays remain conservative on
-this indexed-loan path.
+recursively literal array fields ending in the same exact primitive or closed-
+record shapes. A zero-length field participates only when its terminal
+independently qualifies and the containing record remains nonzero; it adds no
+leaves but its element alignment can still induce protected padding. Total
+zero-size targets remain conservative on this indexed-loan path.
 
 An interior slice recast starts at a proven index in a fixed byte array and
 consumes the complete remaining region. Its descriptor is

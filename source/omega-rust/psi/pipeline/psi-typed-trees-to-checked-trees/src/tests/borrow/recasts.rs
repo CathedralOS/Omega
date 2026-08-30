@@ -524,6 +524,98 @@ fn record_array_with_nested_array_fields_keeps_immediate_siblings_writable() {
 }
 
 #[test]
+fn nonzero_records_with_zero_array_fields_retain_direct_and_array_ranges() {
+    let source = r#"
+        data Leaf {
+            value: u16;
+        }
+
+        data ZeroFieldRecord {
+            marker: u8;
+            empty_primitives: [[u32; 0]; 2];
+            empty_records: [[Leaf; 0]; 2];
+            tail: u32;
+        }
+
+        data Cell {
+            bytes: [u8; 56];
+        }
+
+        machine observe_record(value: &ZeroFieldRecord) {
+        }
+
+        machine observe_records(value: &[ZeroFieldRecord; 2]) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared_record: &ZeroFieldRecord =
+                &self.bytes[2] as &ZeroFieldRecord;
+            observe_record(shared_record);
+            let mutable_record: &mut ZeroFieldRecord =
+                &mut self.bytes[12] as &mut ZeroFieldRecord;
+            mutable_record.tail = 1;
+
+            let shared_array: &[ZeroFieldRecord; 2] =
+                &self.bytes[24] as &[ZeroFieldRecord; 2];
+            observe_records(shared_array);
+            let mutable_array: &mut [ZeroFieldRecord; 2] =
+                &mut self.bytes[40] as &mut [ZeroFieldRecord; 2];
+            mutable_array[1].tail = 2;
+        }
+    "#;
+
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed)
+        .expect("otherwise-nonzero records may retain validated zero array fields");
+    let facts = build_borrow_facts(&typed);
+    let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
+
+    assert_eq!(loans.len(), 4, "one loan per validated zero-field recast");
+    for (kind, start, end) in [
+        (psi_checked_trees::BorrowAccessKind::Read, 2, 10),
+        (psi_checked_trees::BorrowAccessKind::Mutable, 12, 20),
+        (psi_checked_trees::BorrowAccessKind::Read, 24, 40),
+        (psi_checked_trees::BorrowAccessKind::Mutable, 40, 56),
+    ] {
+        assert!(loans.iter().any(|loan| {
+            loan.kind == kind
+                && facts.loan_segments(loan) == [psi_facts::PlaceSegment::FixedRange { start, end }]
+        }));
+    }
+}
+
+#[test]
+fn zero_field_record_array_recast_rejects_padding_and_record_boundaries() {
+    for mutation in [
+        "self.bytes[3] = 1;",
+        "self.bytes[4] = 1;",
+        "self.bytes[6] = 1;",
+        "self.bytes[7] = 1;",
+        "self.bytes[10] = 1;",
+        "self.bytes[11] = 1;",
+        "self.bytes[12] = 1;",
+        "self.bytes[18] = 1;",
+    ] {
+        let diagnostics = check_program(&indexed_mutable_zero_field_record_recast_source(
+            mutation,
+            "view[1].tail = 2;",
+        ))
+        .expect_err("zero fields add no bytes but the enclosing padded records stay borrowed");
+
+        assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
+    }
+}
+
+#[test]
+fn zero_field_record_array_recast_keeps_immediate_siblings_writable() {
+    check_program(&indexed_mutable_zero_field_record_recast_source(
+        "self.bytes[2] = 1; self.bytes[19] = 1;",
+        "view[1].tail = 2;",
+    ))
+    .expect("the bytes immediately before and after [3, 19) are disjoint");
+}
+
+#[test]
 fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
     let source = r#"
         data Cell {
@@ -571,13 +663,8 @@ fn erased_and_atomic_field_records_publish_no_precise_loan() {
 }
 
 #[test]
-fn zero_and_atomic_nested_array_fields_publish_no_precise_loan() {
+fn atomic_nested_array_fields_publish_no_precise_loan() {
     let source = r#"
-        data ZeroArrayRecord {
-            marker: u8;
-            values: [[u16; 0]; 2];
-        }
-
         data AtomicArrayRecord {
             values: [[AtomicU32; 1]; 2];
         }
@@ -587,9 +674,6 @@ fn zero_and_atomic_nested_array_fields_publish_no_precise_loan() {
         }
 
         machine Cell::exercise(&mut self) {
-            let zero_direct: &ZeroArrayRecord = &self.bytes[0] as &ZeroArrayRecord;
-            let zero_array: &[ZeroArrayRecord; 2] =
-                &self.bytes[2] as &[ZeroArrayRecord; 2];
             let atomic_direct: &AtomicArrayRecord =
                 &self.bytes[8] as &AtomicArrayRecord;
             let atomic_array: &[AtomicArrayRecord; 2] =
@@ -597,9 +681,87 @@ fn zero_and_atomic_nested_array_fields_publish_no_precise_loan() {
         }
     "#;
 
+    assert_valid_recast_has_no_loan(source, "atomic array leaves stay outside exact custody");
+}
+
+#[test]
+fn zero_length_unsupported_terminals_do_not_skip_recursive_validation() {
+    let bool_source = r#"
+        data Holder { marker: u8; absent: [bool; 0]; }
+        data Cell { bytes: [u8; 4]; }
+        machine Cell::exercise(&mut self) {
+            let view: &Holder = &self.bytes[0] as &Holder;
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(bool_source, "must be recursively fact-free");
+
+    let constrained_source = r#"
+        domain u16::Small
+        requires
+            self <= 10;
+        data Holder { marker: u8; absent: [u16 in Small; 0]; }
+        data Cell { bytes: [u8; 4]; }
+        machine Cell::exercise(&mut self) {
+            let view: &Holder = &self.bytes[0] as &Holder;
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(constrained_source, "must be recursively fact-free");
+
+    let atomic_source = r#"
+        data Holder { marker: u8; absent: [AtomicU32; 0]; }
+        data Cell { bytes: [u8; 4]; }
+        machine Cell::exercise(&mut self) {
+            let view: &Holder = &self.bytes[0] as &Holder;
+        }
+    "#;
+    assert_valid_recast_has_no_loan(
+        atomic_source,
+        "a zero count cannot erase an atomic terminal's authority fence",
+    );
+
+    for (context, source) in [
+        (
+            "zero-length generic terminal",
+            r#"
+                data Generic<T> { value: T; }
+                data Holder { marker: u8; absent: [Generic<u16>; 0]; }
+                data Cell { bytes: [u8; 4]; }
+                machine Cell::exercise(&mut self) {
+                    let view: &Holder = &self.bytes[0] as &Holder;
+                }
+            "#,
+        ),
+        (
+            "zero-length array-mediated cycle",
+            r#"
+                data Node { marker: u8; absent: [Node; 0]; }
+                data Cell { bytes: [u8; 4]; }
+                machine Cell::exercise(&mut self) {
+                    let view: &Node = &self.bytes[0] as &Node;
+                }
+            "#,
+        ),
+    ] {
+        assert_typed_recast_has_no_loan(source, context);
+    }
+}
+
+#[test]
+fn zero_size_records_and_record_arrays_publish_no_precise_loan() {
+    let source = r#"
+        data ZeroSize {
+            absent: [[u32; 0]; 2];
+        }
+        data Cell { bytes: [u8; 4]; }
+        machine Cell::exercise(&mut self) {
+            let direct: &ZeroSize = &self.bytes[0] as &ZeroSize;
+            let array: &[ZeroSize; 2] = &self.bytes[0] as &[ZeroSize; 2];
+        }
+    "#;
+
     assert_valid_recast_has_no_loan(
         source,
-        "zero nested arrays and atomic array leaves stay outside exact custody",
+        "canonical zero-size targets cannot publish an empty loan authority",
     );
 }
 
@@ -998,6 +1160,34 @@ fn indexed_mutable_array_field_record_recast_source(mutation: &str, final_use: &
             machine Cell::exercise(&mut self) {{
                 let view: &mut [Packet; 2] =
                     &mut self.bytes[3] as &mut [Packet; 2];
+                {mutation}
+                {final_use}
+            }}
+        "#
+    )
+}
+
+fn indexed_mutable_zero_field_record_recast_source(mutation: &str, final_use: &str) -> String {
+    format!(
+        r#"
+            data Leaf {{
+                value: u16;
+            }}
+
+            data ZeroFieldRecord {{
+                marker: u8;
+                empty_primitives: [[u32; 0]; 2];
+                empty_records: [[Leaf; 0]; 2];
+                tail: u32;
+            }}
+
+            data Cell {{
+                bytes: [u8; 24];
+            }}
+
+            machine Cell::exercise(&mut self) {{
+                let view: &mut [ZeroFieldRecord; 2] =
+                    &mut self.bytes[3] as &mut [ZeroFieldRecord; 2];
                 {mutation}
                 {final_use}
             }}
