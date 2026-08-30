@@ -841,7 +841,7 @@ impl FilesystemReplay {
     }
 }
 
-fn unknown_handle_input_failure_replay_from_record(
+pub(super) fn unknown_handle_input_failure_replay_from_record(
     source_input: Option<FilesystemSourceInputReplayRecord>,
     operation: FilesystemOperationAttempt,
     operation_is_exact: fn(&FilesystemOperationAttempt) -> bool,
@@ -866,7 +866,7 @@ fn unknown_handle_input_failure_replay_from_record(
     })
 }
 
-fn unknown_handle_input_failure_replay_from_observations(
+pub(super) fn unknown_handle_input_failure_replay_from_observations(
     observations: &EvaluationObservations,
     operation_is_exact: fn(&FilesystemOperationAttempt) -> bool,
     operation_name: &str,
@@ -1382,7 +1382,7 @@ fn unknown_descriptor_failure_has_exact_base_shape(
         && unknown_descriptor_failure_has_exact_core_shape(attempt, operation_tag)
 }
 
-fn unknown_descriptor_failure_has_exact_core_shape(
+pub(super) fn unknown_descriptor_failure_has_exact_core_shape(
     attempt: &FilesystemOperationAttempt,
     operation_tag: u16,
 ) -> bool {
@@ -1508,7 +1508,7 @@ pub(crate) fn unknown_descriptor_set_file_times_attempt(
     attempt
 }
 
-fn unknown_descriptor_failure_attempt(
+pub(super) fn unknown_descriptor_failure_attempt(
     operation_tag: u16,
     scalar_operands: Vec<FilesystemScalarOperand>,
 ) -> FilesystemOperationAttempt {

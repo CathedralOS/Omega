@@ -16,6 +16,7 @@ mod locks;
 #[cfg(test)]
 mod native_mutation_failure_tests;
 mod native_mutation_failures;
+mod open_at_failures;
 mod output_failures;
 mod output_tree;
 #[cfg(test)]
@@ -88,6 +89,12 @@ pub use native_mutation_failures::{
     FilesystemInputUnknownNativeHandleMutationReplayKind,
     FilesystemInputUnknownNativeHandleMutationReplayRecord,
 };
+pub use open_at_failures::FilesystemInputUnknownDescriptorOpenAtReplayRecord;
+#[cfg(test)]
+pub(crate) use open_at_failures::{
+    unknown_descriptor_open_at_attempt, unknown_descriptor_open_at_attempt_is_exact,
+    unknown_descriptor_open_at_from_exact_attempt,
+};
 pub use output_failures::{
     FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemOutputAbsentRemoveKind,
     FilesystemOutputAbsentRemoveReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
@@ -116,5 +123,6 @@ pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
     attempt: &crate::FilesystemOperationAttempt,
 ) -> bool {
     handle_failures::unknown_input_handle_failure_attempt_is_exact(attempt)
+        || open_at_failures::unknown_descriptor_open_at_attempt_is_exact(attempt)
         || native_mutation_failures::unknown_native_handle_mutation_attempt_is_exact(attempt)
 }
