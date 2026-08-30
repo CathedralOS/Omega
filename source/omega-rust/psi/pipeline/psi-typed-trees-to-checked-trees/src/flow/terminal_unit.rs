@@ -1,17 +1,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
-    CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedBoundaryScalarReturnPlans, CheckedIntegerBinaryKind,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedPayloadlessCaseReturnMachinePlan, CheckedPayloadlessGuardedCallEvidencePlan,
-    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralCallPlan,
-    CheckedStructuralCallReturnMachinePlan, CheckedStructuralCallReturnPlans,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
+    CheckFacts, CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
+    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
+    CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
+    CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
     CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
@@ -136,6 +137,12 @@ pub(crate) fn build_checked_unit_effect_plans(
                     plan.trivial_affine_locals
                         .iter()
                         .map(|local| local.type_identity.as_str()),
+                )
+                .chain(
+                    plan.trivial_affine_locals
+                        .iter()
+                        .filter_map(|local| local.construction.as_ref())
+                        .map(|element| element.root_type_identity.as_str()),
                 )
         }))
         .collect::<BTreeSet<_>>();

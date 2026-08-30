@@ -879,6 +879,18 @@ typed custody crosses Omega's five native artifact pipelines without runtime
 bytes. Nonempty, mutable, qualified, content-bearing, nominal-cleanup, and
 post-effect locals remain fenced.
 
+The bounded construction-prefix extension admits exactly one additional local
+shape: an uninitialized mutable `[T; 3]` with empty, unqualified, claim-free
+affine-record elements, followed by literal establishments of indices `0` then
+`1` and an ordinary Unit return. Terminal publishes two zero-ABI local places
+whose construction metadata retains the common array-root type and indices.
+The verifier reconstructs the exact root declaration, increasing establishment
+sequence, decreasing cleanup sequence `[1, 0]`, and static operation/edge fuel
+ordinals. The codec, Omega lowering, native emission, object/image replay, and
+installation encoding retain the same metadata; none may infer it from layout
+or introduce a runtime liveness bitmap. Dynamic indices and wider construction
+plans remain fenced.
+
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
 finite nonempty list of claim-free, unqualified affine parameters whose records
 are empty or contain only relevant Terminal-supported Boolean/integer fields, plus

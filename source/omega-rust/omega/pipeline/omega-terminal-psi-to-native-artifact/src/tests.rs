@@ -23,6 +23,16 @@ fn checked(source: &str) -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+const CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 3];
+        values[0] = Empty {};
+        values[1] = Empty {};
+    }
+"#;
+
 const RANKED_COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
     data Root {}
@@ -629,6 +639,126 @@ fn hosted_custody() -> (
     .expect("ProgramEntry Terminal artifact");
     let (artifact, receipt) = produced.into_parts();
     (artifact, receipt, source)
+}
+
+#[test]
+fn construction_prefix_reaches_native_image_and_installation_custody() {
+    let checked = checked(CONSTRUCTION_PREFIX_SOURCE);
+    let terminal =
+        psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, "Root::cleanup_prefix")
+            .expect("canonical construction-prefix artifact");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        terminal.semantic_bytes(),
+        terminal.proof_bytes(),
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("verified construction prefix enters Omega");
+
+    for target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target_plan = omega_abstract_operations_to_target_operations::
+            lower_to_target_operations_with_provider_executions(&abstract_plan, target, &[])
+            .expect("construction prefix reaches target operations");
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                .expect("construction prefix has no ABI local assignment");
+        let mut invalid_assigned = assigned.clone();
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut invalid_assigned.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::EstablishTrivialAffineLocal {
+            place,
+            ..
+        } = &mut body.operations[0]
+        else {
+            unreachable!()
+        };
+        let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+            construction: Some(construction),
+            ..
+        } = &mut place.kind
+        else {
+            unreachable!()
+        };
+        construction.index = 1;
+        assert!(omega_machine_emission::emit_machine_code(&invalid_assigned).is_err());
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("construction prefix reaches native cleanup emission");
+        let function = &emitted.functions[0];
+        let cleanup = function
+            .unit_affine_cleanup
+            .as_ref()
+            .expect("native function retains Unit cleanup custody");
+        assert_eq!(cleanup.locals.len(), 2);
+        assert!(cleanup.locals.iter().enumerate().all(
+            |(index, (_, place, element_type))| matches!(
+                place.kind,
+                psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    structural_type,
+                    construction: Some(construction),
+                } if usize::try_from(declaration_ordinal) == Ok(index)
+                    && structural_type == element_type.id
+                    && usize::try_from(construction.index) == Ok(index)
+            )
+        ));
+        assert_eq!(
+            cleanup.actions,
+            cleanup
+                .locals
+                .iter()
+                .rev()
+                .map(|(_, place, _)| {
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place.id)
+                })
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(function.fuel_attribution.len(), 3);
+        assert!(function.fuel_attribution.iter().all(|row| row.units == 1));
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object validation reconstructs construction cleanup");
+        let image = omega_image_emission::emit_executable_image(&object, 0)
+            .expect("image retains construction cleanup custody");
+        omega_image_emission::validate_executable_image(&object, &image)
+            .expect("image independently validates construction cleanup");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .expect("construction cleanup enters installation custody");
+        let bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("construction installation encodes");
+        let decoded = omega_image_emission::decode_installation_record(&bytes)
+            .expect("construction installation decodes");
+        assert_eq!(
+            decoded.functions()[0].unit_affine_cleanup,
+            Some(cleanup.clone())
+        );
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("decoded installation binds construction image");
+
+        let mut wrong_index = emitted.clone();
+        let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+            construction: Some(construction),
+            ..
+        } = &mut wrong_index.functions[0]
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .locals[0]
+            .1
+            .kind
+        else {
+            unreachable!()
+        };
+        construction.index = 1;
+        assert!(omega_image_emission::build_object_artifact(&wrong_index).is_err());
+    }
 }
 
 #[test]

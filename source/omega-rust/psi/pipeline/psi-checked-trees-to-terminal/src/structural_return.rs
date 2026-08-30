@@ -185,6 +185,7 @@ pub(super) fn lower_structural_return_machine(
             StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal: *declaration_ordinal,
                 structural_type: *structural_type,
+                construction: None,
             },
         );
     }

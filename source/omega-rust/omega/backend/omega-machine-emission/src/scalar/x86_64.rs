@@ -1660,10 +1660,12 @@ fn emit_x86_64_expression_node(
                     let mut negative_one = vec![0x48, 0xf7, 0xd8]; // neg rax
                     emit_x86_64_mov_r10(&mut negative_one, maximum);
                     if scalar_type.bits() == 64 {
-                        negative_one.extend_from_slice(&[0x49, 0x0f, 0x40, 0xc2]); // cmovo rax, r10
+                        negative_one.extend_from_slice(&[0x49, 0x0f, 0x40, 0xc2]);
+                    // cmovo rax, r10
                     } else {
                         negative_one.extend_from_slice(&[0x4c, 0x39, 0xd0]); // cmp rax, r10
-                        negative_one.extend_from_slice(&[0x49, 0x0f, 0x4f, 0xc2]); // cmovg rax, r10
+                        negative_one.extend_from_slice(&[0x49, 0x0f, 0x4f, 0xc2]);
+                        // cmovg rax, r10
                     }
                     negative_one.extend_from_slice(&[0x48, 0x83, 0xc4, 0x08]);
                     emit_x86_64_normalize(&mut negative_one, scalar_type);

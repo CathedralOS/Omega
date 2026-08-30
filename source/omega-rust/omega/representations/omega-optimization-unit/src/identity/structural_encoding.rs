@@ -44,10 +44,15 @@ pub(super) fn encode_place_declaration(
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
+            construction,
         } => {
-            bytes.u8(6);
+            bytes.u8(if construction.is_some() { 7 } else { 6 });
             bytes.u32(declaration_ordinal);
             bytes.id(structural_type);
+            if let Some(construction) = construction {
+                bytes.id(construction.root_structural_type);
+                bytes.u64(construction.index);
+            }
         }
     }
 }

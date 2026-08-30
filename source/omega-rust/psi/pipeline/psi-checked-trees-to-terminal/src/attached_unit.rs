@@ -542,6 +542,19 @@ pub(super) fn lower_attached_unit_closure_including(
                     kind: StructuralPlaceKind::TrivialAffineLocal {
                         declaration_ordinal: local.declaration_ordinal,
                         structural_type: lookup_type_id(&type_ids, &local.type_identity)?,
+                        construction: local
+                            .construction
+                            .as_ref()
+                            .map(|element| {
+                                Ok(psi_core::AffineConstructionElement {
+                                    root_structural_type: lookup_type_id(
+                                        &type_ids,
+                                        &element.root_type_identity,
+                                    )?,
+                                    index: element.index,
+                                })
+                            })
+                            .transpose()?,
                     },
                 })
             })
@@ -629,6 +642,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         StructuralPlaceKind::TrivialAffineLocal {
                             declaration_ordinal: ordinal,
                             structural_type,
+                            ..
                         } if ordinal == *declaration_ordinal
                             && structural_type == lookup_type_id(&type_ids, type_identity)?
                     ) {

@@ -11,15 +11,15 @@
 use std::num::NonZeroU64;
 
 use omega_program_entry_plan::{
-    UefiHandleProtocolInvocationPlan, UefiHandleProtocolStatus,
-    plan_uefi_handle_protocol_invocation,
+    plan_uefi_handle_protocol_invocation, UefiHandleProtocolInvocationPlan,
+    UefiHandleProtocolStatus,
 };
 use omega_target::{
-    TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
-    UefiBootServicesNativeFieldLayout, ValidatedUefiBootServicesHeaderIntegrity,
-    plan_uefi_boot_services_native_layout,
+    plan_uefi_boot_services_native_layout, TargetProfile, UefiBootServicesNativeField,
+    UefiBootServicesNativeFieldKind, UefiBootServicesNativeFieldLayout,
+    ValidatedUefiBootServicesHeaderIntegrity,
 };
-pub use omega_target::{UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiProtocolGuid};
+pub use omega_target::{UefiProtocolGuid, UEFI_LOADED_IMAGE_PROTOCOL_GUID};
 
 use super::{
     LifecycleScopedUefiBootServicesProjection, ReleasedUefiSystemTableScope,
@@ -625,22 +625,21 @@ impl<'system_table> UefiApplicationFirmwareLedger<'system_table> {
 mod tests {
     use super::*;
     use crate::{
-        UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
-        UefiSystemTableOccurrenceId, join_lifecycle_scoped_uefi_system_table,
-        join_uefi_application_physical_arrival,
+        join_lifecycle_scoped_uefi_system_table, join_uefi_application_physical_arrival,
         prepare_uefi_application_bootstrap_adapter_invocation,
-        project_uefi_application_boot_services,
+        project_uefi_application_boot_services, UefiApplicationBootstrapLedgerId,
+        UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId, UefiSystemTableOccurrenceId,
     };
     use omega_program_entry_plan::{
-        ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
-        UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
-        UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_uefi_x64_physical_boundary_entry_plan,
-        exact_uefi_x64_physical_contract_package_source_digest,
+        exact_uefi_x64_physical_boundary_entry_plan,
+        exact_uefi_x64_physical_contract_package_source_digest, ProgramEntryPhysicalContractPlan,
+        UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
+        UEFI_X64_STATUS_TYPE_IDENTITY, UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
     };
     use omega_target::{
-        ProgramEntryPhysicalContractPackage, UEFI_BOOT_SERVICES_SIGNATURE,
-        UEFI_SYSTEM_TABLE_SIGNATURE, plan_uefi_system_table_native_layout,
-        validate_uefi_boot_services_occurrence, validate_uefi_system_table_occurrence,
+        plan_uefi_system_table_native_layout, validate_uefi_boot_services_occurrence,
+        validate_uefi_system_table_occurrence, ProgramEntryPhysicalContractPackage,
+        UEFI_BOOT_SERVICES_SIGNATURE, UEFI_SYSTEM_TABLE_SIGNATURE,
     };
 
     fn id<T>(value: u64, constructor: impl FnOnce(u64) -> Result<T, ExternalRootDiagnostic>) -> T {

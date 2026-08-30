@@ -58,6 +58,7 @@ pub struct ProgramEntryPhysicalContractPlan {
     calling_plan_report_fingerprint: u64,
     boundary_entry_plan: BoundaryEntryPlan,
     guaranteed_entry_stack_application: omega_target::SymbolicTargetObservationApplication,
+    guaranteed_entry_stack: omega_target::TargetEntryStackGuarantee,
 }
 
 impl ProgramEntryPhysicalContractPlan {
@@ -112,6 +113,16 @@ impl ProgramEntryPhysicalContractPlan {
                 target_slot.owner,
             )
             .map_err(|error| error.to_string())?;
+        let guaranteed_entry_stack = omega_target::TargetSemantics::close_guaranteed_entry_stack::<
+            omega_target::UefiX86_64,
+        >(target_slot.owner)
+        .map_err(|error| error.to_string())?;
+        if guaranteed_entry_stack.application() != &guaranteed_entry_stack_application {
+            return Err(
+                "physical UEFI entry contract target-stack application and numeric closure drifted"
+                    .into(),
+            );
+        }
         Ok(Self {
             target_slot,
             requirement_identity,
@@ -123,6 +134,7 @@ impl ProgramEntryPhysicalContractPlan {
             calling_plan_report_fingerprint,
             boundary_entry_plan,
             guaranteed_entry_stack_application,
+            guaranteed_entry_stack,
         })
     }
 
@@ -184,6 +196,13 @@ impl ProgramEntryPhysicalContractPlan {
     ) -> &omega_target::SymbolicTargetObservationApplication {
         &self.guaranteed_entry_stack_application
     }
+
+    /// Exact numeric target-contract closure of the symbolic entry-stack
+    /// observation. Runtime firmware conformance remains a separate arrival
+    /// admission.
+    pub const fn guaranteed_entry_stack(&self) -> &omega_target::TargetEntryStackGuarantee {
+        &self.guaranteed_entry_stack
+    }
 }
 
 fn hash_digest_field(digest: &mut Sha256, bytes: &[u8]) {
@@ -194,7 +213,7 @@ fn hash_digest_field(digest: &mut Sha256, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use omega_calling_conventions::{
-        CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+        evaluate_ordinary_boundary_entry_plan, CallSignature, CallingPolicy, ValueShape,
     };
 
     use super::*;

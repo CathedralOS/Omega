@@ -410,9 +410,20 @@ Each rejecting rung is retained in a stage-tagged error rather than flattened
 to a diagnostic; a malformed procedure-call placeholder therefore returns the
 descriptor owner still carrying the exact image, interpreter, and normalized
 imports. Both Linux profiles replay to deterministic production output, while
-the result remains the non-installable custody carrier above. This remains a
-pre-integration seam because the ordinary production object builder does not
-yet retain normalized foreign imports. Production import retention, optional
+the result remains the non-installable custody carrier above. The object-
+boundary production-retention prerequisite is now source-free:
+`MachineCodeFunction` can own ordered `ForeignCallRelocation` rows joining one
+semantic call owner and exact native relocation field to the complete
+`NormalizedForeignLocator`. Ordinary object construction independently replays
+the x86-64 `CALL rel32` or AArch64 `BL` placeholder, semantic provenance,
+target, order, uniqueness, and diagnostic-fingerprint collision boundary. It
+then deduplicates exact locators into unresolved import symbols, the atomic
+locator side table, and distinct call-site relocations. The dynamic-ELF driver
+tests now begin at this ordinary object builder rather than constructing its
+private result. The preceding assigned-target and machine-emission stages still
+have no foreign-call operation that joins the selected normalized host binding
+to its call site, so ordinary source compilation does not populate the new
+carrier yet. That lowering and its foreign-call stack custody, optional
 `.gnu.hash`, and ordinary source `via` evaluation remain open. An owned direct
 `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a

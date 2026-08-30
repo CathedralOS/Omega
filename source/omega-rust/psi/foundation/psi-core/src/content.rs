@@ -99,7 +99,18 @@ pub enum StructuralPlaceKind {
     TrivialAffineLocal {
         declaration_ordinal: u32,
         structural_type: StructuralTypeId,
+        /// Present only for one statically ordered element of an abandoned
+        /// fixed-array construction. The root type and literal index make the
+        /// prefix schedule independently replayable without turning the
+        /// uninitialized aggregate into an ABI input.
+        construction: Option<AffineConstructionElement>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AffineConstructionElement {
+    pub root_structural_type: StructuralTypeId,
+    pub index: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

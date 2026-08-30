@@ -13,6 +13,56 @@ use psi_core::{MachineId, StructuralTypeId};
 
 use super::{ObjectError, exact_partial_cleanup_partition};
 
+pub(super) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bool {
+    let construction_locals = cleanup
+        .locals
+        .iter()
+        .filter_map(|(_, place, element_type)| match place.kind {
+            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+                construction: Some(construction),
+            } => Some((
+                declaration_ordinal,
+                structural_type,
+                construction,
+                element_type.id,
+            )),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if construction_locals.is_empty() {
+        return true;
+    }
+    construction_locals.len() == 2
+        && construction_locals.len() == cleanup.locals.len()
+        && construction_locals.iter().enumerate().all(
+            |(index, (ordinal, structural_type, construction, declared_type))| {
+                usize::try_from(*ordinal) == Ok(index)
+                    && usize::try_from(construction.index) == Ok(index)
+                    && structural_type == declared_type
+            },
+        )
+        && construction_locals
+            .first()
+            .is_some_and(|(_, element_type, first, _)| {
+                construction_locals
+                    .iter()
+                    .all(|(_, candidate_type, candidate, _)| {
+                        candidate_type == element_type
+                            && candidate.root_structural_type == first.root_structural_type
+                    })
+                    && cleanup.structural_types.iter().any(|root| {
+                        root.id == first.root_structural_type
+                            && matches!(
+                                root.shape,
+                                psi_terminal::StructuralTypeShape::FixedArray { element, length: 3 }
+                                    if element == *element_type
+                            )
+                    })
+            })
+}
+
 pub(super) fn validate_unit_affine_cleanup(
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
@@ -28,6 +78,9 @@ pub(super) fn validate_unit_affine_cleanup(
     partially_consumed_affine_array: bool,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitAffineCleanupEvidence(machine);
+    if !exact_construction_prefix(cleanup) {
+        return Err(invalid());
+    }
     let end = cleanup
         .code_offset
         .checked_add(cleanup.byte_count)
@@ -361,6 +414,7 @@ pub(super) fn validate_unit_affine_cleanup(
                         psi_core::StructuralPlaceKind::TrivialAffineLocal {
                             declaration_ordinal,
                             structural_type: local_type,
+                            ..
                         } if usize::try_from(declaration_ordinal) == Ok(ordinal)
                             && local_type == structural_type.id
                     )

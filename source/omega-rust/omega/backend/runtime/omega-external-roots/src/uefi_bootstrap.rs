@@ -9,11 +9,11 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use omega_program_entry_plan::{
-    ProgramEntryPhysicalContractPlan, exact_uefi_x64_physical_boundary_entry_plan,
+    exact_uefi_x64_physical_boundary_entry_plan, ProgramEntryPhysicalContractPlan,
 };
 use omega_target::{
-    TargetProfile, ValidatedUefiSystemTableHeaderIntegrity, ValidatedUefiSystemTableNativeLayout,
-    plan_uefi_system_table_native_layout,
+    plan_uefi_system_table_native_layout, TargetProfile, ValidatedUefiSystemTableHeaderIntegrity,
+    ValidatedUefiSystemTableNativeLayout,
 };
 
 use crate::{
@@ -746,6 +746,263 @@ impl UefiApplicationBootstrapAdapterInvocationReadiness<'_> {
     }
 }
 
+/// Exact numeric inputs to same-stack UEFI bootstrap planning.
+///
+/// These coordinates are not WCSU derivation evidence. Later compiler/runtime
+/// producers must bind each value to the generated shell, checked adapter,
+/// closed continuation/provider graph, and target reserve that produced it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UefiApplicationBootstrapSameStackDemandComponents {
+    generated_shell_wcsu_bytes: u64,
+    live_adapter_frames_wcsu_bytes: u64,
+    maximum_nested_continuation_provider_wcsu_bytes: u64,
+    target_reserve_bytes: u64,
+}
+
+impl UefiApplicationBootstrapSameStackDemandComponents {
+    pub const fn new(
+        generated_shell_wcsu_bytes: u64,
+        live_adapter_frames_wcsu_bytes: u64,
+        maximum_nested_continuation_provider_wcsu_bytes: u64,
+        target_reserve_bytes: u64,
+    ) -> Self {
+        Self {
+            generated_shell_wcsu_bytes,
+            live_adapter_frames_wcsu_bytes,
+            maximum_nested_continuation_provider_wcsu_bytes,
+            target_reserve_bytes,
+        }
+    }
+
+    pub const fn generated_shell_wcsu_bytes(self) -> u64 {
+        self.generated_shell_wcsu_bytes
+    }
+
+    pub const fn live_adapter_frames_wcsu_bytes(self) -> u64 {
+        self.live_adapter_frames_wcsu_bytes
+    }
+
+    pub const fn maximum_nested_continuation_provider_wcsu_bytes(self) -> u64 {
+        self.maximum_nested_continuation_provider_wcsu_bytes
+    }
+
+    pub const fn target_reserve_bytes(self) -> u64 {
+        self.target_reserve_bytes
+    }
+}
+
+/// Planning result for the settled UEFI same-stack inequality.
+///
+/// The result binds the complete four-term demand to one physical-arrival
+/// readiness and the exact target-owned numeric guarantee. It remains a plan,
+/// not runtime stack/environment admission or proof that the supplied demand
+/// coordinates came from emitted code.
+#[must_use = "UEFI same-stack budget plan must be retained for later adapter composition"]
+pub struct UefiApplicationBootstrapSameStackBudgetPlan {
+    readiness_authority: u64,
+    ledger: UefiApplicationBootstrapLedgerId,
+    session: UefiFirmwareSessionId,
+    invocation: UefiPhysicalInvocationId,
+    image_handle_occurrence: UefiImageHandleOccurrenceId,
+    system_table_occurrence: UefiSystemTableOccurrenceId,
+    phase_lease: UefiBootServicesPhaseLeaseId,
+    phase_generation: u64,
+    physical_calling_plan_commitment: [u8; 32],
+    target_entry_stack_guarantee: omega_target::TargetEntryStackGuarantee,
+    components: UefiApplicationBootstrapSameStackDemandComponents,
+    required_entry_stack_bytes: u64,
+}
+
+impl std::fmt::Debug for UefiApplicationBootstrapSameStackBudgetPlan {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UefiApplicationBootstrapSameStackBudgetPlan")
+            .field("ledger", &self.ledger)
+            .field("session", &self.session)
+            .field("invocation", &self.invocation)
+            .field("image_handle_occurrence", &self.image_handle_occurrence)
+            .field("system_table_occurrence", &self.system_table_occurrence)
+            .field("phase_lease", &self.phase_lease)
+            .field("components", &self.components)
+            .field(
+                "required_entry_stack_bytes",
+                &self.required_entry_stack_bytes,
+            )
+            .field(
+                "guaranteed_entry_stack_bytes",
+                &self
+                    .target_entry_stack_guarantee
+                    .guaranteed_available_bytes(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl UefiApplicationBootstrapSameStackBudgetPlan {
+    pub const fn ledger_id(&self) -> UefiApplicationBootstrapLedgerId {
+        self.ledger
+    }
+
+    pub const fn firmware_session(&self) -> UefiFirmwareSessionId {
+        self.session
+    }
+
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.invocation
+    }
+
+    pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
+        self.image_handle_occurrence
+    }
+
+    pub const fn system_table_occurrence(&self) -> UefiSystemTableOccurrenceId {
+        self.system_table_occurrence
+    }
+
+    pub const fn phase_lease_id(&self) -> UefiBootServicesPhaseLeaseId {
+        self.phase_lease
+    }
+
+    pub const fn physical_calling_plan_commitment(&self) -> &[u8; 32] {
+        &self.physical_calling_plan_commitment
+    }
+
+    pub const fn target_entry_stack_guarantee(&self) -> &omega_target::TargetEntryStackGuarantee {
+        &self.target_entry_stack_guarantee
+    }
+
+    pub const fn components(&self) -> UefiApplicationBootstrapSameStackDemandComponents {
+        self.components
+    }
+
+    pub const fn required_entry_stack_bytes(&self) -> u64 {
+        self.required_entry_stack_bytes
+    }
+
+    pub const fn remaining_entry_stack_bytes(&self) -> u64 {
+        self.target_entry_stack_guarantee
+            .guaranteed_available_bytes()
+            - self.required_entry_stack_bytes
+    }
+
+    /// Rejoin the planning result to the exact still-live adapter-readiness
+    /// custody. Public report coordinates alone cannot substitute a readiness
+    /// minted by another private firmware ledger.
+    pub fn matches_exact_adapter_readiness(
+        &self,
+        readiness: &UefiApplicationBootstrapAdapterInvocationReadiness<'_>,
+    ) -> bool {
+        self.readiness_authority == readiness.arrival.image_handle.authority
+            && self.ledger == readiness.ledger_id()
+            && self.session == readiness.firmware_session()
+            && self.invocation == readiness.physical_invocation()
+            && self.image_handle_occurrence == readiness.image_handle_occurrence()
+            && self.system_table_occurrence == readiness.system_table_occurrence()
+            && self.phase_lease == readiness.arrival.system_table.phase_lease.lease
+            && self.phase_generation == readiness.arrival.system_table.phase_lease.generation
+            && self.physical_calling_plan_commitment == readiness.physical_calling_plan_commitment
+            && &self.target_entry_stack_guarantee
+                == readiness.arrival.physical_contract.guaranteed_entry_stack()
+    }
+}
+
+/// Replay the exact UEFI physical plan and check the settled same-stack
+/// bootstrap inequality:
+///
+/// `shell + live adapter frames + max nested continuation/provider + reserve
+/// <= target guarantee`.
+///
+/// Every contributor must be explicit and nonzero. This closes the numeric
+/// planning relation only; component provenance and runtime firmware
+/// conformance remain required before invocation admission.
+pub fn plan_uefi_application_bootstrap_same_stack_budget(
+    readiness: &UefiApplicationBootstrapAdapterInvocationReadiness<'_>,
+    components: UefiApplicationBootstrapSameStackDemandComponents,
+) -> Result<UefiApplicationBootstrapSameStackBudgetPlan, ExternalRootDiagnostic> {
+    if !readiness
+        .arrival
+        .physical_contract
+        .matches_exact_uefi_x64_physical_contract()
+    {
+        return Err(ExternalRootDiagnostic(
+            "UEFI same-stack planning requires the exact target-owned physical contract".into(),
+        ));
+    }
+    let expected = exact_uefi_x64_physical_boundary_entry_plan();
+    if readiness.physical_calling_plan_commitment != expected.contract_commitment_digest() {
+        return Err(ExternalRootDiagnostic(
+            "UEFI same-stack planning physical calling-plan commitment drifted".into(),
+        ));
+    }
+    let guarantee = readiness.arrival.physical_contract.guaranteed_entry_stack();
+    if !guarantee.matches_exact_uefi_x64_entry_stack_guarantee()
+        || guarantee.application()
+            != readiness
+                .arrival
+                .physical_contract
+                .guaranteed_entry_stack_application()
+        || guarantee.required_alignment() != u64::from(expected.plan().call.stack_alignment)
+    {
+        return Err(ExternalRootDiagnostic(
+            "UEFI same-stack planning target guarantee did not replay the exact physical contract"
+                .into(),
+        ));
+    }
+
+    let contributions = [
+        (
+            "generated shell WCSU",
+            components.generated_shell_wcsu_bytes,
+        ),
+        (
+            "live adapter-frame WCSU",
+            components.live_adapter_frames_wcsu_bytes,
+        ),
+        (
+            "maximum nested continuation/provider WCSU",
+            components.maximum_nested_continuation_provider_wcsu_bytes,
+        ),
+        ("explicit target reserve", components.target_reserve_bytes),
+    ];
+    let mut required_entry_stack_bytes = 0_u64;
+    for (name, bytes) in contributions {
+        if bytes == 0 {
+            return Err(ExternalRootDiagnostic(format!(
+                "UEFI same-stack planning omitted {name}"
+            )));
+        }
+        required_entry_stack_bytes =
+            required_entry_stack_bytes
+                .checked_add(bytes)
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(
+                        "UEFI same-stack planning demand addition overflowed".into(),
+                    )
+                })?;
+    }
+    if required_entry_stack_bytes > guarantee.guaranteed_available_bytes() {
+        return Err(ExternalRootDiagnostic(format!(
+            "UEFI same-stack bootstrap requires {required_entry_stack_bytes} bytes but the selected target guarantees only {} bytes",
+            guarantee.guaranteed_available_bytes(),
+        )));
+    }
+
+    Ok(UefiApplicationBootstrapSameStackBudgetPlan {
+        readiness_authority: readiness.arrival.image_handle.authority,
+        ledger: readiness.ledger_id(),
+        session: readiness.firmware_session(),
+        invocation: readiness.physical_invocation(),
+        image_handle_occurrence: readiness.image_handle_occurrence(),
+        system_table_occurrence: readiness.system_table_occurrence(),
+        phase_lease: readiness.arrival.system_table.phase_lease.lease,
+        phase_generation: readiness.arrival.system_table.phase_lease.generation,
+        physical_calling_plan_commitment: readiness.physical_calling_plan_commitment,
+        target_entry_stack_guarantee: guarantee.clone(),
+        components,
+        required_entry_stack_bytes,
+    })
+}
+
 /// Recoverable readiness rejection retaining the complete physical arrival.
 #[derive(Debug)]
 #[must_use = "UEFI adapter-readiness rejection retains physical-arrival custody"]
@@ -954,14 +1211,14 @@ mod tests {
     use super::*;
     use omega_calling_conventions::{MachineRegister, ValueLocation};
     use omega_program_entry_plan::{
-        UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
-        UEFI_X64_STATUS_TYPE_IDENTITY, UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
         exact_uefi_x64_physical_boundary_entry_plan,
         exact_uefi_x64_physical_contract_package_source_digest,
+        UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
+        UEFI_X64_STATUS_TYPE_IDENTITY, UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
     };
     use omega_target::{
-        ProgramEntryPhysicalContractPackage, UEFI_SYSTEM_TABLE_SIGNATURE,
-        validate_uefi_system_table_occurrence,
+        validate_uefi_system_table_occurrence, ProgramEntryPhysicalContractPackage,
+        UEFI_SYSTEM_TABLE_SIGNATURE,
     };
 
     const REVISION: u32 = (2 << 16) | 100;
@@ -1070,6 +1327,30 @@ mod tests {
         physical_contract(UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, |_| {})
     }
 
+    fn adapter_readiness<'a>(
+        ledger: &mut UefiApplicationFirmwareLedger<'a>,
+        bytes: &'a [u8],
+        base: u64,
+    ) -> UefiApplicationBootstrapAdapterInvocationReadiness<'a> {
+        let image_handle = ledger
+            .admit_image_handle_occurrence(id(
+                base,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap();
+        let (integrity, provenance, lease) = inputs(ledger, bytes, base + 1, base + 2);
+        let system_table =
+            join_lifecycle_scoped_uefi_system_table(ledger, integrity, provenance, lease).unwrap();
+        let arrival = join_uefi_application_physical_arrival(
+            ledger,
+            image_handle,
+            system_table,
+            exact_physical_contract(),
+        )
+        .unwrap();
+        prepare_uefi_application_bootstrap_adapter_invocation(ledger, arrival).unwrap()
+    }
+
     fn item_block<'a>(source: &'a str, declaration: &str) -> &'a str {
         let start = source.find(declaration).expect("source declaration");
         let body = &source[start..];
@@ -1130,14 +1411,196 @@ mod tests {
             .unwrap();
         assert_eq!(released.ledger, ledger.ledger_id());
         ledger.begin_firmware_return().unwrap();
-        assert!(
-            ledger
-                .acquire_boot_services_phase_lease(id(
-                    15,
-                    UefiBootServicesPhaseLeaseId::from_normalized_identity
-                ))
-                .is_err()
+        assert!(ledger
+            .acquire_boot_services_phase_lease(id(
+                15,
+                UefiBootServicesPhaseLeaseId::from_normalized_identity
+            ))
+            .is_err());
+    }
+
+    #[test]
+    fn same_stack_budget_replays_target_guarantee_and_all_four_contributors() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(150);
+        let readiness = adapter_readiness(&mut ledger, &bytes, 153);
+        let components = UefiApplicationBootstrapSameStackDemandComponents::new(
+            4 * 1024,
+            8 * 1024,
+            96 * 1024,
+            16 * 1024,
         );
+        let plan = plan_uefi_application_bootstrap_same_stack_budget(&readiness, components)
+            .expect("four-term UEFI stack demand fits the target guarantee");
+
+        assert_eq!(plan.ledger_id(), ledger.ledger_id());
+        assert_eq!(plan.firmware_session(), ledger.firmware_session());
+        assert_eq!(plan.physical_invocation(), ledger.physical_invocation());
+        assert_eq!(
+            plan.image_handle_occurrence(),
+            readiness.image_handle_occurrence()
+        );
+        assert_eq!(
+            plan.system_table_occurrence(),
+            readiness.system_table_occurrence()
+        );
+        assert_eq!(
+            plan.phase_lease_id(),
+            readiness.arrival.system_table.phase_lease_id()
+        );
+        assert!(plan.matches_exact_adapter_readiness(&readiness));
+        assert_eq!(plan.components(), components);
+        assert_eq!(plan.required_entry_stack_bytes(), 124 * 1024);
+        assert_eq!(plan.remaining_entry_stack_bytes(), 4 * 1024);
+        assert_eq!(
+            plan.target_entry_stack_guarantee()
+                .guaranteed_available_bytes(),
+            128 * 1024,
+        );
+        assert_eq!(plan.target_entry_stack_guarantee().required_alignment(), 16,);
+        assert_eq!(
+            plan.physical_calling_plan_commitment(),
+            readiness.physical_calling_plan_commitment(),
+        );
+
+        let exact_boundary = plan_uefi_application_bootstrap_same_stack_budget(
+            &readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(
+                4 * 1024,
+                8 * 1024,
+                100 * 1024,
+                16 * 1024,
+            ),
+        )
+        .expect("the exact target-guarantee boundary is admitted");
+        assert_eq!(exact_boundary.required_entry_stack_bytes(), 128 * 1024);
+        assert_eq!(exact_boundary.remaining_entry_stack_bytes(), 0);
+
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn same_stack_budget_rejects_public_coordinate_substitution_across_private_ledgers() {
+        let first_bytes = valid_occurrence(120);
+        let second_bytes = valid_occurrence(120);
+        let mut first_ledger = ledger(180);
+        let mut second_ledger = ledger(180);
+        let first_readiness = adapter_readiness(&mut first_ledger, &first_bytes, 183);
+        let second_readiness = adapter_readiness(&mut second_ledger, &second_bytes, 183);
+        assert_eq!(first_readiness.ledger_id(), second_readiness.ledger_id());
+        assert_eq!(
+            first_readiness.firmware_session(),
+            second_readiness.firmware_session()
+        );
+        assert_eq!(
+            first_readiness.physical_invocation(),
+            second_readiness.physical_invocation()
+        );
+        assert_eq!(
+            first_readiness.image_handle_occurrence(),
+            second_readiness.image_handle_occurrence()
+        );
+        assert_eq!(
+            first_readiness.system_table_occurrence(),
+            second_readiness.system_table_occurrence()
+        );
+
+        let plan = plan_uefi_application_bootstrap_same_stack_budget(
+            &first_readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(
+                4 * 1024,
+                8 * 1024,
+                96 * 1024,
+                16 * 1024,
+            ),
+        )
+        .unwrap();
+        assert!(plan.matches_exact_adapter_readiness(&first_readiness));
+        assert!(!plan.matches_exact_adapter_readiness(&second_readiness));
+
+        let UefiApplicationBootstrapAdapterInvocationReadiness {
+            arrival: first_arrival,
+            ..
+        } = first_readiness;
+        let UefiApplicationPhysicalArrival {
+            system_table: first_table,
+            ..
+        } = first_arrival;
+        first_ledger
+            .release_lifecycle_scoped_system_table(first_table)
+            .unwrap();
+        let UefiApplicationBootstrapAdapterInvocationReadiness {
+            arrival: second_arrival,
+            ..
+        } = second_readiness;
+        let UefiApplicationPhysicalArrival {
+            system_table: second_table,
+            ..
+        } = second_arrival;
+        second_ledger
+            .release_lifecycle_scoped_system_table(second_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn same_stack_budget_rejects_every_omitted_contributor_and_overflow() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(160);
+        let readiness = adapter_readiness(&mut ledger, &bytes, 163);
+        let exact = [4 * 1024, 8 * 1024, 96 * 1024, 16 * 1024];
+        for omitted in 0..exact.len() {
+            let mut values = exact;
+            values[omitted] = 0;
+            let error = plan_uefi_application_bootstrap_same_stack_budget(
+                &readiness,
+                UefiApplicationBootstrapSameStackDemandComponents::new(
+                    values[0], values[1], values[2], values[3],
+                ),
+            )
+            .unwrap_err();
+            assert!(error.0.contains("omitted"));
+        }
+
+        let overflow = plan_uefi_application_bootstrap_same_stack_budget(
+            &readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(u64::MAX, 1, 1, 1),
+        )
+        .unwrap_err();
+        assert!(overflow.0.contains("overflowed"));
+
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn same_stack_budget_rejects_demand_above_the_target_guarantee() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(170);
+        let readiness = adapter_readiness(&mut ledger, &bytes, 173);
+        let error = plan_uefi_application_bootstrap_same_stack_budget(
+            &readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(
+                4 * 1024,
+                8 * 1024,
+                112 * 1024,
+                16 * 1024,
+            ),
+        )
+        .unwrap_err();
+        assert!(error.0.contains("guarantees only 131072 bytes"));
+
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
     }
 
     #[test]
@@ -1334,12 +1797,10 @@ mod tests {
             exact_physical_contract(),
         )
         .unwrap_err();
-        assert!(
-            error
-                .diagnostic()
-                .0
-                .contains("different physical invocation")
-        );
+        assert!(error
+            .diagnostic()
+            .0
+            .contains("different physical invocation"));
         let (_image_handle, system_table, _contract, _) = error.into_parts();
         exact
             .release_lifecycle_scoped_system_table(system_table)
@@ -1499,12 +1960,10 @@ mod tests {
         let (integrity, provenance, lease) = inputs(&mut exact, &bytes, 43, 44);
         let error = join_lifecycle_scoped_uefi_system_table(&foreign, integrity, provenance, lease)
             .unwrap_err();
-        assert!(
-            error
-                .diagnostic()
-                .0
-                .contains("different physical invocation")
-        );
+        assert!(error
+            .diagnostic()
+            .0
+            .contains("different physical invocation"));
         let (integrity, provenance, lease, _) = error.into_parts();
         let scoped =
             join_lifecycle_scoped_uefi_system_table(&exact, integrity, provenance, lease).unwrap();

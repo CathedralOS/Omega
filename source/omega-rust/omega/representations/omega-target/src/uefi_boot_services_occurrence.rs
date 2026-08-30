@@ -248,7 +248,7 @@ fn crc32_with_zeroed_field(bytes: &[u8], crc32_offset: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TargetProfile, plan_uefi_boot_services_native_layout};
+    use crate::{plan_uefi_boot_services_native_layout, TargetProfile};
 
     fn layout() -> ValidatedUefiBootServicesNativeLayout {
         plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap()
@@ -281,42 +281,34 @@ mod tests {
     fn rejects_signature_coverage_reserved_and_crc_drift() {
         let mut bytes = valid_occurrence(376);
         bytes[0] ^= 1;
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("signature")
-        );
+        assert!(validate_uefi_boot_services_occurrence(layout(), &bytes)
+            .unwrap_err()
+            .diagnostic()
+            .message
+            .contains("signature"));
 
         let mut bytes = valid_occurrence(376);
         bytes[12..16].copy_from_slice(&375_u32.to_le_bytes());
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("does not cover")
-        );
+        assert!(validate_uefi_boot_services_occurrence(layout(), &bytes)
+            .unwrap_err()
+            .diagnostic()
+            .message
+            .contains("does not cover"));
 
         let mut bytes = valid_occurrence(376);
         bytes[20] = 1;
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("Reserved")
-        );
+        assert!(validate_uefi_boot_services_occurrence(layout(), &bytes)
+            .unwrap_err()
+            .diagnostic()
+            .message
+            .contains("Reserved"));
 
         let mut bytes = valid_occurrence(376);
         bytes[152] ^= 1;
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("CRC32")
-        );
+        assert!(validate_uefi_boot_services_occurrence(layout(), &bytes)
+            .unwrap_err()
+            .diagnostic()
+            .message
+            .contains("CRC32"));
     }
 }

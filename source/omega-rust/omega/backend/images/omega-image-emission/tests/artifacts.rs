@@ -187,6 +187,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 fuel_attribution: vec![
@@ -389,6 +390,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             unit_parameters: Vec::new(),
             scalar_stack: None,
             internal_calls: Vec::new(),
+            foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
             unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                 psi_edge: return_edge,
@@ -2206,6 +2208,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
@@ -2290,7 +2293,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "9883a4a74c543a344835fc38404b11bd2d777cefa9e3ae2650c45d62113c9da2"
+        "6d74f6abaae159cde404f8d6d4d18e058370cb9ed513925a228f8f7763e89e9a"
     );
 
     let mut changed_plan = plan;
@@ -2484,6 +2487,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             unit_parameters: Vec::new(),
             scalar_stack: None,
             internal_calls: Vec::new(),
+            foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
             unit_affine_cleanup: None,
             fuel_attribution: vec![
@@ -2658,6 +2662,7 @@ fn two_function_plan() -> MachineCodePlan {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
@@ -2683,6 +2688,7 @@ fn two_function_plan() -> MachineCodePlan {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
@@ -2726,6 +2732,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
@@ -2757,6 +2764,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                     scalar_stack: None,
                     offset: call_offset,
                 }],
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 fuel_attribution: Vec::new(),
@@ -3689,6 +3697,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: vec![operation_call(operation_id(1), machine_id(2))],
+                foreign_calls: Vec::new(),
                 internal_unit_calls: vec![operation_custody(operation_id(1), machine_id(2))],
                 unit_affine_cleanup: Some(empty_return(edge_id(1))),
                 fuel_attribution: vec![
@@ -3731,6 +3740,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 unit_parameters: Vec::new(),
                 scalar_stack: None,
                 internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                     structural_types: Vec::new(),
@@ -3792,6 +3802,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     scalar_stack: None,
                     offset: 5,
                 }],
+                foreign_calls: Vec::new(),
                 internal_unit_calls: vec![InternalUnitCallRecord {
                     owner: CallSiteOwner::CleanupAction {
                         edge: edge_id(3),

@@ -51,6 +51,7 @@ pub(super) fn lower_ordinary_machine(
             psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 structural_type,
+                ..
             } => Some((place, declaration_ordinal, structural_type)),
             _ => None,
         })

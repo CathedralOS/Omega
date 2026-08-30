@@ -1354,6 +1354,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             ));
         }
         if let Some(cleanup) = &function.unit_affine_cleanup {
+            if !super::unit_affine_cleanup::exact_construction_prefix(cleanup) {
+                return Err(InstallationError::InvalidUnitAffineCleanup(
+                    function.machine,
+                ));
+            }
             let end = cleanup
                 .code_offset
                 .checked_add(cleanup.byte_count)
@@ -1499,6 +1504,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             psi_core::StructuralPlaceKind::TrivialAffineLocal {
                                 declaration_ordinal,
                                 structural_type: local_type,
+                                ..
                             } if usize::try_from(declaration_ordinal) == Ok(ordinal)
                                 && local_type == structural_type.id
                         ) || !matches!(
@@ -1823,7 +1829,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     local.kind,
                     psi_core::StructuralPlaceKind::TrivialAffineLocal {
                         declaration_ordinal,
-                        structural_type
+                        structural_type,
+                        construction: None,
                     } if usize::try_from(declaration_ordinal) == Ok(index)
                         && structural_type == local_type.id
                 ) || local.id == returned.source.place

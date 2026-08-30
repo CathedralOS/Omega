@@ -203,6 +203,14 @@ pub(super) fn lower_unit_structural_types(
         }
         for local in &machine.trivial_affine_locals {
             collect(plans, &local.type_identity, &mut active, &mut selected)?;
+            if let Some(construction) = &local.construction {
+                collect(
+                    plans,
+                    &construction.root_type_identity,
+                    &mut active,
+                    &mut selected,
+                )?;
+            }
         }
     }
     for (boundary, _) in boundaries {

@@ -23,9 +23,9 @@ use psi_terminal::{
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
-    ReconstructedTerminalObligationOwner, VerificationError, reconstruct_operation_obligations,
-    reconstruct_terminal_obligations, validate_module, verify_module,
+    reconstruct_operation_obligations, reconstruct_terminal_obligations, validate_module,
+    verify_module, EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
+    ReconstructedTerminalObligationOwner, VerificationError,
 };
 
 #[test]
@@ -373,6 +373,7 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
     };
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("selected caller term reuses exact callee provenance");
+
     let mut omitted = module.clone();
     let OperationKind::CallStructural {
         selected_evidence, ..

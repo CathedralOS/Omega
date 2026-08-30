@@ -2,8 +2,9 @@
 //!
 //! An application names the selected projection, subject, semantics version,
 //! and deployment profile. It deliberately carries no runtime observation or
-//! stack address. The UEFI entry-stack byte bound remains symbolic until the
-//! later target-closure producer supplies the value.
+//! stack address. Target closure separately turns that symbolic application
+//! into one exact numeric guarantee while preserving the distinction between
+//! a selected target contract and conformance of a physical invocation.
 
 use sha2::{Digest, Sha256};
 
@@ -23,6 +24,8 @@ mod sealed {
 pub trait TargetEntryStackSubject: sealed::EntryStackSubject {
     const SUBJECT_IDENTITY: &'static str;
     const REQUIRED_PROFILE: TargetProfile;
+    const GUARANTEED_AVAILABLE_BYTES: u64;
+    const REQUIRED_ALIGNMENT: u64;
 }
 
 /// Compiler-owned subject of the UEFI x86-64 physical-entry stack guarantee.
@@ -34,6 +37,10 @@ impl sealed::EntryStackSubject for UefiX86_64 {}
 impl TargetEntryStackSubject for UefiX86_64 {
     const SUBJECT_IDENTITY: &'static str = UEFI_X86_64_SUBJECT;
     const REQUIRED_PROFILE: TargetProfile = TargetProfile::UefiX64;
+    // UEFI Specification 2.11 section 2.3.4 requires x64 boot-services
+    // execution to have at least 128 KiB of available, 16-byte-aligned stack.
+    const GUARANTEED_AVAILABLE_BYTES: u64 = 128 * 1024;
+    const REQUIRED_ALIGNMENT: u64 = 16;
 }
 
 /// Closed symbolic target-observation application retained by compatibility
@@ -78,6 +85,51 @@ impl SymbolicTargetObservationApplication {
 
     pub fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
         TargetSemantics::guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
+            .is_ok_and(|expected| self == &expected)
+    }
+}
+
+/// Numeric closure of one symbolic entry-stack target observation.
+///
+/// This is target-contract compatibility evidence only. It neither observes a
+/// runtime stack nor admits that the current firmware invocation conforms to
+/// the selected profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetEntryStackGuarantee {
+    application: SymbolicTargetObservationApplication,
+    guaranteed_available_bytes: u64,
+    required_alignment: u64,
+    non_authoritative_compatibility_report_identity: u64,
+    compatibility_commitment: [u8; 32],
+}
+
+impl TargetEntryStackGuarantee {
+    pub const fn application(&self) -> &SymbolicTargetObservationApplication {
+        &self.application
+    }
+
+    pub const fn guaranteed_available_bytes(&self) -> u64 {
+        self.guaranteed_available_bytes
+    }
+
+    pub const fn required_alignment(&self) -> u64 {
+        self.required_alignment
+    }
+
+    /// Deterministic report coordinate over the complete numeric closure. It
+    /// is not authority and cannot replace exact field replay.
+    pub const fn non_authoritative_compatibility_report_identity(&self) -> u64 {
+        self.non_authoritative_compatibility_report_identity
+    }
+
+    /// Domain-separated commitment to the symbolic application and exact
+    /// numeric target guarantee.
+    pub const fn compatibility_commitment(&self) -> &[u8; 32] {
+        &self.compatibility_commitment
+    }
+
+    pub fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
+        TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
             .is_ok_and(|expected| self == &expected)
     }
 }
@@ -156,6 +208,28 @@ impl TargetSemantics {
             compatibility_commitment,
         })
     }
+
+    /// Close one symbolic application against its compiler-owned target
+    /// subject definition. This selects a numeric target-contract guarantee;
+    /// it does not establish runtime environment conformance.
+    pub fn close_guaranteed_entry_stack<Subject>(
+        selected_profile: TargetProfile,
+    ) -> Result<TargetEntryStackGuarantee, TargetSemanticObservationError>
+    where
+        Subject: TargetEntryStackSubject,
+    {
+        let application = Self::guaranteed_entry_stack::<Subject>(selected_profile)?;
+        let non_authoritative_compatibility_report_identity =
+            closed_report_identity::<Subject>(&application);
+        let compatibility_commitment = closed_commitment::<Subject>(&application);
+        Ok(TargetEntryStackGuarantee {
+            application,
+            guaranteed_available_bytes: Subject::GUARANTEED_AVAILABLE_BYTES,
+            required_alignment: Subject::REQUIRED_ALIGNMENT,
+            non_authoritative_compatibility_report_identity,
+            compatibility_commitment,
+        })
+    }
 }
 
 fn report_identity(subject: &str, profile: TargetProfile) -> u64 {
@@ -178,6 +252,40 @@ fn commitment(subject: &str, profile: TargetProfile) -> [u8; 32] {
     hash_field(&mut digest, subject.as_bytes());
     hash_field(&mut digest, &PROJECTION_SEMANTICS_VERSION.to_le_bytes());
     hash_field(&mut digest, profile.identity().as_str().as_bytes());
+    digest.finalize().into()
+}
+
+fn closed_report_identity<Subject>(application: &SymbolicTargetObservationApplication) -> u64
+where
+    Subject: TargetEntryStackSubject,
+{
+    let mut hash = Fnv1a::new();
+    hash.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
+    hash.bytes(
+        &application
+            .non_authoritative_compatibility_report_identity
+            .to_le_bytes(),
+    );
+    hash.bytes(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
+    hash.bytes(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
+    hash.finish()
+}
+
+fn closed_commitment<Subject>(application: &SymbolicTargetObservationApplication) -> [u8; 32]
+where
+    Subject: TargetEntryStackSubject,
+{
+    let mut digest = Sha256::new();
+    hash_field(
+        &mut digest,
+        b"omega.target-semantics.closed-entry-stack-guarantee.v1",
+    );
+    hash_field(&mut digest, application.compatibility_commitment());
+    hash_field(
+        &mut digest,
+        &Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes(),
+    );
+    hash_field(&mut digest, &Subject::REQUIRED_ALIGNMENT.to_le_bytes());
     digest.finalize().into()
 }
 
@@ -265,5 +373,60 @@ mod tests {
         let mut commitment = exact;
         commitment.compatibility_commitment[0] ^= 1;
         assert!(!commitment.matches_exact_uefi_x64_entry_stack_application());
+    }
+
+    #[test]
+    fn uefi_x64_target_closure_selects_the_normative_numeric_stack_guarantee() {
+        let guarantee =
+            TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
+                .unwrap();
+        assert!(guarantee.matches_exact_uefi_x64_entry_stack_guarantee());
+        assert_eq!(guarantee.guaranteed_available_bytes(), 128 * 1024);
+        assert_eq!(guarantee.required_alignment(), 16);
+        assert!(guarantee
+            .application()
+            .matches_exact_uefi_x64_entry_stack_application());
+        assert_ne!(
+            guarantee.non_authoritative_compatibility_report_identity(),
+            guarantee
+                .application()
+                .non_authoritative_compatibility_report_identity(),
+        );
+        assert_ne!(guarantee.compatibility_commitment(), &[0; 32]);
+    }
+
+    #[test]
+    fn numeric_guarantee_rejects_cross_target_closure() {
+        for profile in TargetProfile::ALL {
+            let result = TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(profile);
+            assert_eq!(result.is_ok(), profile == TargetProfile::UefiX64);
+        }
+    }
+
+    #[test]
+    fn every_numeric_guarantee_coordinate_tamper_fails_exact_replay() {
+        let exact =
+            TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
+                .unwrap();
+
+        let mut application = exact.clone();
+        application.application.subject = "DifferentSubject";
+        assert!(!application.matches_exact_uefi_x64_entry_stack_guarantee());
+
+        let mut bytes = exact.clone();
+        bytes.guaranteed_available_bytes += 1;
+        assert!(!bytes.matches_exact_uefi_x64_entry_stack_guarantee());
+
+        let mut alignment = exact.clone();
+        alignment.required_alignment *= 2;
+        assert!(!alignment.matches_exact_uefi_x64_entry_stack_guarantee());
+
+        let mut report = exact.clone();
+        report.non_authoritative_compatibility_report_identity ^= 1;
+        assert!(!report.matches_exact_uefi_x64_entry_stack_guarantee());
+
+        let mut commitment = exact;
+        commitment.compatibility_commitment[0] ^= 1;
+        assert!(!commitment.matches_exact_uefi_x64_entry_stack_guarantee());
     }
 }

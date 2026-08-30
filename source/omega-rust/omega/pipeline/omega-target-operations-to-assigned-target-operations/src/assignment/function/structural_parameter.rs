@@ -73,7 +73,8 @@ pub(super) fn assign(
                         local.kind,
                         psi_core::StructuralPlaceKind::TrivialAffineLocal {
                             declaration_ordinal,
-                            structural_type
+                            structural_type,
+                            construction: None,
                         } if usize::try_from(declaration_ordinal) == Ok(index)
                             && structural_type == local_type.id
                     ) || local.id == source.place

@@ -691,6 +691,15 @@ pub struct CheckedStructuralReturnMachinePlan {
 pub struct CheckedTrivialAffineStructuralLocalPlan {
     pub declaration_ordinal: u32,
     pub type_identity: String,
+    /// Present only for a statically established fixed-array construction
+    /// element. The root stays semantic metadata and never becomes an input.
+    pub construction: Option<CheckedAffineConstructionElementPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedAffineConstructionElementPlan {
+    pub root_type_identity: String,
+    pub index: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

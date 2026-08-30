@@ -17,6 +17,7 @@ omega-optimization-pipeline = { path = "../optimization/omega-optimization-pipel
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-target = { path = "../../representations/omega-target" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }

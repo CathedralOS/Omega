@@ -1010,6 +1010,7 @@ pub(super) fn build_structural_return_machine(
             Some(CheckedTrivialAffineStructuralLocalPlan {
                 declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
                 type_identity,
+                construction: None,
             })
         })
         .collect::<Option<Vec<_>>>()?;

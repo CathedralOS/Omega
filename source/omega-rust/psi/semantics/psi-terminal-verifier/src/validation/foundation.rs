@@ -522,19 +522,20 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 StructuralPlaceKind::TrivialAffineLocal {
                     declaration_ordinal,
                     structural_type,
-                } => Some((place.id, declaration_ordinal, structural_type)),
+                    construction,
+                } => Some((place.id, declaration_ordinal, structural_type, construction)),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        trivial_affine_locals.sort_by_key(|(_, declaration_ordinal, _)| *declaration_ordinal);
+        trivial_affine_locals.sort_by_key(|(_, declaration_ordinal, _, _)| *declaration_ordinal);
         if trivial_affine_locals.iter().enumerate().any(
-            |(expected, (_, declaration_ordinal, _))| {
+            |(expected, (_, declaration_ordinal, _, _))| {
                 u32::try_from(expected).ok() != Some(*declaration_ordinal)
             },
         ) {
             return Err(ModuleError::NonCanonicalTrivialAffineLocals(machine.id));
         }
-        for (place, _, structural_type) in &trivial_affine_locals {
+        for (place, _, structural_type, _) in &trivial_affine_locals {
             let Some(declaration) = types.get(structural_type) else {
                 return Err(ModuleError::UnknownStructuralType(*structural_type));
             };
@@ -548,6 +549,43 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 );
             }
         }
+        let construction_elements = trivial_affine_locals
+            .iter()
+            .filter_map(|(_, ordinal, structural_type, construction)| {
+                construction.map(|construction| (*ordinal, *structural_type, construction))
+            })
+            .collect::<Vec<_>>();
+        if !construction_elements.is_empty() {
+            let exact_prefix = construction_elements.len() == 2
+                && construction_elements.len() == trivial_affine_locals.len()
+                && construction_elements.iter().enumerate().all(
+                    |(index, (ordinal, _, construction))| {
+                        usize::try_from(*ordinal) == Ok(index)
+                            && usize::try_from(construction.index) == Ok(index)
+                    },
+                );
+            let exact_root =
+                construction_elements
+                    .first()
+                    .is_some_and(|(_, element_type, first)| {
+                        construction_elements
+                            .iter()
+                            .all(|(_, candidate_type, candidate)| {
+                                candidate_type == element_type
+                                    && candidate.root_structural_type == first.root_structural_type
+                            })
+                            && types.get(&first.root_structural_type).is_some_and(|root| {
+                                matches!(
+                                    root.shape,
+                                    StructuralTypeShape::FixedArray { element, length: 3 }
+                                        if element == *element_type
+                                )
+                            })
+                    });
+            if !exact_prefix || !exact_root {
+                return Err(ModuleError::NonCanonicalTrivialAffineLocals(machine.id));
+            }
+        }
         let establishments = machine
             .blocks
             .iter()
@@ -559,7 +597,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .collect::<Vec<_>>();
         let expected_establishments = trivial_affine_locals
             .iter()
-            .map(|(place, _, _)| *place)
+            .map(|(place, _, _, _)| *place)
             .collect::<Vec<_>>();
         if !trivial_affine_locals.is_empty()
             && (machine.blocks.len() != 1

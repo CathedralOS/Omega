@@ -91,7 +91,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 37;
+const FORMAT_MARKER: u16 = 38;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1615,10 +1615,15 @@ fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) 
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
+            construction,
         } => {
-            writer.u8(3);
+            writer.u8(if construction.is_some() { 7 } else { 3 });
             writer.u32(declaration_ordinal);
             writer.id(structural_type);
+            if let Some(construction) = construction {
+                writer.id(construction.root_structural_type);
+                writer.u64(construction.index);
+            }
         }
     }
 }
@@ -1733,6 +1738,15 @@ fn decode_structural_place_kind(
         3 => StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: reader.u32()?,
             structural_type: reader.id("StructuralTypeId")?,
+            construction: None,
+        },
+        7 => StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: reader.u32()?,
+            structural_type: reader.id("StructuralTypeId")?,
+            construction: Some(psi_core::AffineConstructionElement {
+                root_structural_type: reader.id("StructuralTypeId")?,
+                index: reader.u64()?,
+            }),
         },
         tag => return Err(CodecError::InvalidTag("StructuralPlaceKind", tag)),
     })
@@ -1765,10 +1779,10 @@ mod structural_place_wire_tests {
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid = bytes;
-        invalid[0] = 7;
+        invalid[0] = 8;
         assert_eq!(
             decode_structural_place_kind(&mut Reader::new(&invalid)),
-            Err(CodecError::InvalidTag("StructuralPlaceKind", 7))
+            Err(CodecError::InvalidTag("StructuralPlaceKind", 8))
         );
     }
 }

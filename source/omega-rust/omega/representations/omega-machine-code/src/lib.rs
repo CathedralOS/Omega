@@ -107,6 +107,13 @@ pub struct MachineCodeFunction {
     /// object construction validates the surrounding opcode before accepting
     /// the relocation.
     pub internal_calls: Vec<InternalCallRelocation>,
+    /// Source-free foreign call sites whose physical locator was already
+    /// normalized against the selected target. Unlike an internal call, the
+    /// target is one atomic object-format locator rather than a semantic
+    /// machine identity. Object construction must replay the exact native call
+    /// placeholder before it can publish an unresolved import symbol and
+    /// relocation.
+    pub foreign_calls: Vec<ForeignCallRelocation>,
     /// Complete ordered semantic and ABI custody for in-module Unit calls.
     pub internal_unit_calls: Vec<InternalUnitCallRecord>,
     /// Exact zero-code affine-local establishment and Unit-return cleanup
@@ -142,6 +149,19 @@ pub struct MachineCodeFunction {
     /// interval. Claim identities are semantic metadata, never hidden ABI
     /// words.
     pub structural_return: Option<StructuralReturnRecord>,
+}
+
+/// Exact source-free custody for one call to a normalized foreign locator.
+///
+/// `offset` names the mutable relocation field: the four-byte displacement
+/// following x86-64 `CALL rel32`, or the complete AArch64 `BL` instruction.
+/// Raw object/symbol/version bytes remain private inside the normalized locator
+/// and are never reconstructed from an Omega or object-local symbol name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForeignCallRelocation {
+    pub owner: CallSiteOwner,
+    pub offset: usize,
+    pub locator: omega_target::NormalizedForeignLocator,
 }
 
 impl MachineCodeFunction {

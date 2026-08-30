@@ -352,7 +352,7 @@ fn derive_output(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ObjectFunction;
+    use crate::build_object_artifact;
     use omega_image::FinalImageInput;
     use omega_image_elf::{
         admit_elf_dynamic_executable, apply_elf_dynamic_address_fixups,
@@ -367,52 +367,21 @@ mod tests {
         serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
         serialize_elf_section_header_table,
     };
-    use omega_object_file::{
-        NormalizedImportPlan, ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan,
-        RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-    };
+    use omega_machine_code::{ForeignCallRelocation, MachineCodeFunction, MachineCodePlan};
     use omega_target::{
         ForeignLocatorCandidate, TargetProfile, normalize_elf_interpreter_plan,
         normalize_foreign_locator,
     };
-    use omega_target_operations::TerminalPsiProvenance;
-    use psi_core::MachineId;
+    use omega_target_operations::{CallSiteOwner, TerminalPsiProvenance};
+    use psi_core::{MachineId, OperationId};
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-    fn artifact(target: TargetProfile) -> ObjectArtifact {
+    fn machine_code_plan(target: TargetProfile) -> MachineCodePlan {
         let native = target.native_target();
-        let mut object = ObjectPlan::with_capacity(native, 1, 3);
-        object.layout.sections.insert(SectionPlan {
-            kind: SectionKind::Text,
-            size: 64,
-            alignment: 16,
-        });
-        let entry = object.layout.symbols.insert(SymbolPlan {
-            name: "_start".to_owned(),
-            section: SymbolSection::Section(SectionKind::Text),
-            offset: 0,
-            size: 64,
-            kind: SymbolKind::Function,
-            import_library: String::new(),
-        });
-        object.layout.entry_symbol = entry;
-
-        let mut imported = Vec::new();
-        for (index, name) in [b"alpha_call".as_slice(), b"beta_call"]
+        let locators = [b"alpha_call".as_slice(), b"beta_call"]
             .into_iter()
-            .enumerate()
-        {
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name: format!("__omega_dynamic_import_{index}"),
-                section: SymbolSection::None,
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Import,
-                import_library: String::new(),
-            });
-            object.layout.normalized_imports.push(NormalizedImportPlan {
-                symbol,
-                locator: normalize_foreign_locator(
+            .map(|name| {
+                normalize_foreign_locator(
                     ForeignLocatorCandidate::ElfVersioned {
                         object: b"libproduction-emitter.so".to_vec(),
                         symbol: name.to_vec(),
@@ -420,84 +389,76 @@ mod tests {
                     },
                     target,
                 )
-                .unwrap(),
-            });
-            imported.push(symbol);
-        }
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
 
         let mut text = vec![0; 64];
-        let mut relocations = RelocationPlan::with_record_capacity(native, 3);
-        for (ordinal, (instruction_offset, symbol_handle)) in
-            [(0, imported[0]), (8, imported[0]), (16, imported[1])]
-                .into_iter()
-                .enumerate()
+        let mut operations = Vec::new();
+        let mut foreign_calls = Vec::new();
+        for (ordinal, (instruction_offset, locator_index)) in
+            [(0, 0), (8, 0), (16, 1)].into_iter().enumerate()
         {
-            let (offset, kind) = match target {
+            let offset = match target {
                 TargetProfile::LinuxX64 => {
                     text[instruction_offset] = 0xe8;
-                    (instruction_offset + 1, RelocationKind::X86_64Relative32)
+                    instruction_offset + 1
                 }
                 TargetProfile::LinuxArm64 => {
                     text[instruction_offset..instruction_offset + 4]
                         .copy_from_slice(&[0, 0, 0, 0x94]);
-                    (instruction_offset, RelocationKind::Aarch64Branch26)
+                    instruction_offset
                 }
                 _ => unreachable!(),
             };
-            relocations.push_record(RelocationRecord {
-                origin: RelocationOrigin::Instruction {
-                    function_symbol_handle: entry,
-                    selected_instruction_index: ordinal as u32,
-                },
-                section: SectionKind::Text,
+            let operation = OperationId::new(ordinal as u64 + 1).unwrap();
+            operations.push(operation);
+            foreign_calls.push(ForeignCallRelocation {
+                owner: CallSiteOwner::Operation(operation),
                 offset,
-                byte_width: 4,
-                symbol_handle,
-                addend: 0,
-                kind,
+                locator: locators[locator_index].clone(),
             });
         }
 
         let machine = MachineId::new(1).unwrap();
-        ObjectArtifact {
+        MachineCodePlan {
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([0x5a; 32]),
             },
             target: native,
             entry: machine,
-            object,
-            relocations,
-            text_bytes: text,
-            functions: vec![ObjectFunction {
+            functions: vec![MachineCodeFunction {
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
-                    operations: Vec::new(),
+                    operations,
                     edges: Vec::new(),
                 },
-                symbol: entry,
-                text_offset: 0,
-                byte_count: 64,
+                bytes: text,
                 unit_stack: None,
-                scalar_stack: None,
-                unit_call_stacks: Vec::new(),
-                scalar_call_stacks: Vec::new(),
-                internal_unit_calls: Vec::new(),
-                unit_parameters: Vec::new(),
                 unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: Vec::new(),
+                foreign_calls,
+                internal_unit_calls: Vec::new(),
                 unit_affine_cleanup: None,
                 scalar_affine_cleanup: None,
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
                 ranked_u32_countdown: None,
+                fuel_attribution: Vec::new(),
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
                 structural_return: None,
             }],
-            fuel_attribution: Vec::new(),
-            port_effects: Vec::new(),
-            boundary_settlements: Vec::new(),
         }
+    }
+
+    fn artifact(target: TargetProfile) -> ObjectArtifact {
+        build_object_artifact(&machine_code_plan(target)).expect("normalized foreign-call object")
     }
 
     fn admitted(artifact: &ObjectArtifact, target: TargetProfile) -> ValidatedElfDynamicExecutable {
@@ -545,6 +506,18 @@ mod tests {
     fn import_bearing_object_orchestration_is_exact_for_both_linux_targets() {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let artifact = artifact(target);
+            assert_eq!(artifact.object().layout.normalized_imports.len(), 2);
+            assert_eq!(
+                artifact
+                    .object()
+                    .layout
+                    .symbols
+                    .iter()
+                    .filter(|(_, symbol)| symbol.kind == omega_object_file::SymbolKind::Import)
+                    .count(),
+                2,
+            );
+            assert_eq!(artifact.relocations().record_count(), 3);
             let first = emit_dynamic_elf_image(&artifact, interpreter(target)).unwrap();
             let replay = emit_dynamic_elf_image(&artifact, interpreter(target)).unwrap();
 
@@ -555,6 +528,23 @@ mod tests {
             assert!(first.output().bytes.starts_with(b"\x7fELF"));
             assert!(first.output().format.contains("dynamic-executable"));
         }
+    }
+
+    #[test]
+    fn object_builder_rejects_foreign_placeholder_and_target_drift() {
+        let mut malformed = machine_code_plan(TargetProfile::LinuxX64);
+        malformed.functions[0].bytes[0] = 0x90;
+        assert!(matches!(
+            build_object_artifact(&malformed),
+            Err(crate::ObjectError::InvalidForeignCallSite { .. })
+        ));
+
+        let mut wrong_target = machine_code_plan(TargetProfile::LinuxX64);
+        wrong_target.target = TargetProfile::LinuxArm64.native_target();
+        assert!(matches!(
+            build_object_artifact(&wrong_target),
+            Err(crate::ObjectError::ForeignCallTargetMismatch { .. })
+        ));
     }
 
     #[test]
