@@ -3305,6 +3305,7 @@ machine OmegaParser::parse_view(
             77 -> local_data_name_after_mut_token()
             78 -> local_data_colon_token()
             79 -> local_data_initial_value_token()
+            80 -> additive_call_argument_token()
             _ -> internal_failure()
         }
     }
@@ -3655,6 +3656,11 @@ machine OmegaParser::parse_view(
             )
             79 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedLocalDataInitialValue,
+                source.len,
+                source.len
+            )
+            80 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCallArgument,
                 source.len,
                 source.len
             )
@@ -6127,21 +6133,29 @@ machine OmegaParser::parse_view(
 
     state begin_call_true_argument() {
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
         transition true { true -> retain_boolean_expression(1) }
     }
 
     state begin_call_false_argument() {
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
         transition true { true -> retain_boolean_expression(0) }
     }
 
     state begin_call_integer_argument() {
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
         transition true { true -> check_integer_expression() }
     }
 
     state begin_call_string_argument() {
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
         transition true { true -> retain_string_expression() }
     }
 
@@ -6150,6 +6164,8 @@ machine OmegaParser::parse_view(
         self.argument_name_member_count = 1;
         self.argument_path_kind = OmegaPathExpressionKind::Name;
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
         transition true { true -> begin_path_expression() }
     }
 
@@ -6158,6 +6174,8 @@ machine OmegaParser::parse_view(
         self.argument_name_member_count = 0;
         self.argument_path_kind = OmegaPathExpressionKind::SelfValue;
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
         transition true { true -> begin_path_expression() }
     }
 
@@ -6260,6 +6278,7 @@ machine OmegaParser::parse_view(
 
     state path_expression_plus() {
         transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> retain_call_argument_path()
             OmegaExpressionConsumer::AssignmentValue ->
                 retain_assignment_value_path()
             OmegaExpressionConsumer::LocalDataInitialValue ->
@@ -6272,6 +6291,7 @@ machine OmegaParser::parse_view(
 
     state path_expression_minus() {
         transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> retain_call_argument_path()
             OmegaExpressionConsumer::AssignmentValue ->
                 retain_assignment_value_path()
             OmegaExpressionConsumer::LocalDataInitialValue ->
@@ -6793,14 +6813,9 @@ machine OmegaParser::parse_view(
     }
 
     state retain_call_argument_handle() {
-        self.call_arguments[self.call_argument_count] = self.expression_count;
+        self.assignment_value_expression = self.expression_count;
         self.expression_count = self.expression_count + 1;
-        self.call_argument_count = self.call_argument_count + 1;
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Comma -> next_call_argument()
-            OmegaPunctuationKind::RightParen -> finish_call_arguments()
-            _ -> internal_failure()
-        }
+        transition true { true -> finish_assignment_value_operand() }
     }
 
     state retain_assignment_value_handle() {
@@ -7137,6 +7152,10 @@ machine OmegaParser::parse_view(
         transition true { true -> assignment_value_token() }
     }
 
+    state additive_call_argument_token() {
+        transition true { true -> assignment_value_token() }
+    }
+
     state assignment_keyword_value() {
         transition self.scan.keyword {
             OmegaKeywordKind::True -> retain_boolean_expression(1)
@@ -7362,6 +7381,8 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::Comma -> retain_call_literal_argument()
             OmegaPunctuationKind::RightParen -> retain_call_literal_argument()
+            OmegaPunctuationKind::Plus -> retain_call_literal_argument()
+            OmegaPunctuationKind::Minus -> retain_call_literal_argument()
             _ -> incomplete_root()
         }
     }
@@ -7401,13 +7422,8 @@ machine OmegaParser::parse_view(
     }
 
     state retain_call_literal_argument_bounded() {
-        self.call_arguments[self.call_argument_count] = self.expression_result;
-        self.call_argument_count = self.call_argument_count + 1;
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Comma -> next_call_argument()
-            OmegaPunctuationKind::RightParen -> finish_call_arguments()
-            _ -> internal_failure()
-        }
+        self.assignment_value_expression = self.expression_result;
+        transition true { true -> finish_assignment_value_operand() }
     }
 
     state retain_assignment_literal_value() {
@@ -7417,10 +7433,28 @@ machine OmegaParser::parse_view(
 
     state finish_assignment_value_operand() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Semicolon -> finish_assignment_expression()
+            OmegaPunctuationKind::Semicolon -> finish_semicolon_additive_value()
+            OmegaPunctuationKind::Comma -> finish_call_additive_value()
+            OmegaPunctuationKind::RightParen -> finish_call_additive_value()
             OmegaPunctuationKind::Plus -> select_assignment_add()
             OmegaPunctuationKind::Minus -> select_assignment_subtract()
             _ -> internal_failure()
+        }
+    }
+
+    state finish_semicolon_additive_value() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::AssignmentValue -> finish_assignment_expression()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                finish_assignment_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state finish_call_additive_value() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> finish_assignment_expression()
+            _ -> incomplete_root()
         }
     }
 
@@ -7447,10 +7481,33 @@ machine OmegaParser::parse_view(
 
     state finish_additive_value() {
         transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> retain_call_additive_argument()
             OmegaExpressionConsumer::AssignmentValue -> retain_assignment_statement()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_local_data_initial_value()
             _ -> incomplete_root()
+        }
+    }
+
+    state retain_call_additive_argument() {
+        transition self.call_argument_count < 16384 {
+            true -> retain_call_additive_argument_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.call_argument_count + 1
+            )
+        }
+    }
+
+    state retain_call_additive_argument_bounded() {
+        self.call_arguments[self.call_argument_count] =
+            self.assignment_value_expression;
+        self.call_argument_count = self.call_argument_count + 1;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> next_call_argument()
+            OmegaPunctuationKind::RightParen -> finish_call_arguments()
+            _ -> internal_failure()
         }
     }
 
@@ -7475,7 +7532,7 @@ machine OmegaParser::parse_view(
             self.assignment_pending_operator_start;
         self.assignment_binary_operator_end = self.assignment_pending_operator_end;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(48) }
+        transition true { true -> scan_next_additive_operand() }
     }
 
     state retain_assignment_binary_expression(continuation: i32) {
@@ -7527,7 +7584,15 @@ machine OmegaParser::parse_view(
             self.assignment_pending_operator_start;
         self.assignment_binary_operator_end = self.assignment_pending_operator_end;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(48) }
+        transition true { true -> scan_next_additive_operand() }
+    }
+
+    state scan_next_additive_operand() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> scan_semantic(80)
+            OmegaExpressionConsumer::LocalDataInitialValue -> scan_semantic(79)
+            _ -> scan_semantic(48)
+        }
     }
 
     state retain_assignment_statement() {

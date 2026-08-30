@@ -141,7 +141,8 @@ expression path as assignments; absent initializers are represented by an
 explicit presence bit rather than a valid-looking handle. Ordinary call
 initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
-optional receiver handle. Call arguments retain the existing primary slice.
+optional receiver handle. Call arguments retain the existing primary slice and
+reuse the same left-associated `+`/`-` engine as assignments and locals.
 Nested calls, evidence/acknowledgement lanes, casts, indexed initializers,
 unary, grouped, and other richer initializers remain implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
@@ -166,7 +167,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 56 headers reach body parsing. Forty are complete: four
+representable, and 56 headers reach body parsing. Forty-three are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -186,6 +187,9 @@ lex_identifier,lex_whitespace,consume_suffix}` complete through canonical local
 bindings and the shared additive initializer path. `Lexer::{lex_line_comment,
 lex_block_comment,copy_source_to_decoded,is_raw_string_candidate}` complete
 through retained call-valued local initializers.
+`Lexer::{validate_utf8,dot_starts_float,reject_raw_string_candidate}` complete
+through retained additive ordinary call arguments; `Lexer::lex_next` advances
+through the same syntax but still stops at a later cast.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,

@@ -1522,19 +1522,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       current `C` roots from thirty-six to forty while body-boundary coverage
       remains 56 of 73. `reject_raw_string_candidate` advances to an additive
       ordinary call argument rather than being counted prematurely.
-    - [ ] Generalize the existing additive expression engine into ordinary call
+    - [x] Generalize the existing additive expression engine into ordinary call
       arguments rather than adding an argument-only binary parser. This is the
       current first blocker for `Lexer::{validate_utf8,dot_starts_float,
-      reject_raw_string_candidate,lex_next}` and should complete all four roots
-      while preserving each call's contiguous argument-handle span.
+      reject_raw_string_candidate,lex_next}`. It completes the first three and
+      advances `lex_next` to its later cast, raising completed current `C` roots
+      from forty to forty-three while preserving each call's contiguous
+      argument-handle span and keeping body-boundary coverage at 56 of 73.
     - [ ] Generalize indexed expressions into the local-initializer lane for
       `Parser::{parse_data,skip_trivia,parse_roots}` and to advance
-      `Lexer::span_equals`. Retain assignment-RHS casts for
-      `Lexer::{decode_at,lex_cooked_string,consume_digits,lex_number,
-      lex_punctuation}`, qualified case/destructure guards for `Main::main` and
-      `Lexer::digit_in_base`, and the already-specified cast form in transition-
-      target arguments for `Parser::load_current`. Each is an ordinary syntax
-      capability, not a closure-specific rewrite.
+      `Lexer::span_equals`. Retain assignment-RHS casts—the current first
+      blocker in `Lexer::{decode_at,lex_cooked_string,consume_digits,lex_number,
+      lex_punctuation,lex_next}`—and the already-specified cast form in a
+      transition-target argument for `Parser::load_current`. Retain qualified
+      case/destructure guards for `Main::main` and `Lexer::digit_in_base`. Each
+      is an ordinary syntax capability, not a closure-specific rewrite.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
