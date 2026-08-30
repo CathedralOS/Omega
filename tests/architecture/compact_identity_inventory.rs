@@ -516,10 +516,15 @@ fn checked_operator_provider_reports_retain_strong_plan_authority() {
         let path = root.join(relative);
         let dispatch = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        let direct_join = dispatch.contains(
+            "plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()",
+        );
+        let centralized_join = dispatch
+            .contains("plan.identity_digest().as_bytes() == commitment.as_bytes()")
+            && dispatch.contains("operator_use.provider_plan_commitment");
         assert!(
-            dispatch.contains(
-                "plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()",
-            ) && dispatch.contains("without an exact commitment")
+            (direct_join || centralized_join)
+                && dispatch.contains("without an exact commitment")
                 && dispatch.contains("exact commitment that does not match"),
             "selected operator dispatch must join on the strong plan commitment in {}",
             path.display(),
