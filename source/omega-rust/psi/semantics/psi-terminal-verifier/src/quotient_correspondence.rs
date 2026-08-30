@@ -4,14 +4,16 @@ use std::collections::BTreeSet;
 
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
-    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientTheoremParameter,
-    QuotientTheoremParameterRole,
+    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientTheoremCorrespondence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRole,
 };
 use psi_terminal::{QuotientCorrespondenceIdentity, RetainedQuotientCorrespondence};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuotientCorrespondenceReplayError {
     UnsupportedOperationKind,
+    NonCanonicalTheoremRoleCollection,
+    TheoremRolePayloadMismatch,
     NonHermeticIdentity,
     NonEmptyStaticApplication,
     CallableIdentityCollision,
@@ -36,28 +38,52 @@ pub fn replay_non_executable_quotient_correspondence(
     retained: &RetainedQuotientCorrespondence,
 ) -> Result<(), QuotientCorrespondenceReplayError> {
     let certificate = &retained.certificate;
+    validate_theorem_roles(certificate)?;
     if certificate.operation_kind != QuotientCorrespondenceOperationKind::Define {
         return Err(QuotientCorrespondenceReplayError::UnsupportedOperationKind);
     }
+    let theorem_evidence = &certificate.theorem_evidence[0];
+    let QuotientTheoremCorrespondence::Congruence(theorem) = &theorem_evidence.correspondence
+    else {
+        return Err(QuotientCorrespondenceReplayError::TheoremRolePayloadMismatch);
+    };
     validate_callable(&certificate.public_operation)?;
     validate_callable(&certificate.representative.callable)?;
-    validate_callable(&certificate.selected_theorem.callable)?;
+    for evidence in &certificate.theorem_evidence {
+        validate_callable(&evidence.selected_application.callable)?;
+    }
     if !certificate
         .representative
         .static_application
         .bindings
         .is_empty()
-        || !certificate
-            .selected_theorem
-            .static_application
-            .bindings
-            .is_empty()
+        || certificate.theorem_evidence.iter().any(|evidence| {
+            !evidence
+                .selected_application
+                .static_application
+                .bindings
+                .is_empty()
+        })
     {
         return Err(QuotientCorrespondenceReplayError::NonEmptyStaticApplication);
     }
     if certificate.public_operation == certificate.representative.callable
-        || certificate.public_operation == certificate.selected_theorem.callable
-        || certificate.representative.callable == certificate.selected_theorem.callable
+        || certificate.theorem_evidence.iter().any(|evidence| {
+            certificate.public_operation == evidence.selected_application.callable
+                || certificate.representative.callable == evidence.selected_application.callable
+        })
+        || certificate
+            .theorem_evidence
+            .iter()
+            .enumerate()
+            .any(|(position, evidence)| {
+                certificate.theorem_evidence[..position]
+                    .iter()
+                    .any(|earlier| {
+                        earlier.selected_application.callable
+                            == evidence.selected_application.callable
+                    })
+            })
     {
         return Err(QuotientCorrespondenceReplayError::CallableIdentityCollision);
     }
@@ -93,19 +119,14 @@ pub fn replay_non_executable_quotient_correspondence(
 
     let (parameters, left_arguments, right_arguments, relation_rows) =
         expected_theorem_shape(&certificate.input_relations)?;
-    if certificate.theorem.parameters != parameters {
+    if theorem.parameters != parameters {
         return Err(QuotientCorrespondenceReplayError::TheoremParameterMismatch);
     }
-    if certificate.theorem.relation_premises.len() != relation_rows.len() {
+    if theorem.relation_premises.len() != relation_rows.len() {
         return Err(QuotientCorrespondenceReplayError::TheoremRelationPremiseMismatch);
     }
     let mut coordinates = BTreeSet::new();
-    for (actual, expected) in certificate
-        .theorem
-        .relation_premises
-        .iter()
-        .zip(relation_rows)
-    {
+    for (actual, expected) in theorem.relation_premises.iter().zip(relation_rows) {
         if actual.expected_position != expected.0
             || actual.relation != expected.1
             || actual.left_parameter != expected.2
@@ -117,15 +138,15 @@ pub fn replay_non_executable_quotient_correspondence(
             return Err(QuotientCorrespondenceReplayError::DuplicateTheoremCoordinate);
         }
     }
-    if !certificate.theorem.legality_premises.is_empty() {
+    if !theorem.legality_premises.is_empty() {
         return Err(QuotientCorrespondenceReplayError::NonEmptyLegalityPremises);
     }
-    if !coordinates.insert(certificate.theorem.conclusion.actual) {
+    if !coordinates.insert(theorem.conclusion.actual) {
         return Err(QuotientCorrespondenceReplayError::DuplicateTheoremCoordinate);
     }
-    if certificate.theorem.conclusion.relation != certificate.result_relation.relation
-        || certificate.theorem.conclusion.left.arguments != left_arguments
-        || certificate.theorem.conclusion.right.arguments != right_arguments
+    if theorem.conclusion.relation != certificate.result_relation.relation
+        || theorem.conclusion.left.arguments != left_arguments
+        || theorem.conclusion.right.arguments != right_arguments
     {
         return Err(QuotientCorrespondenceReplayError::TheoremConclusionMismatch);
     }
@@ -139,6 +160,44 @@ pub fn replay_non_executable_quotient_correspondence(
             expected,
             actual: retained.identity.clone(),
         });
+    }
+    Ok(())
+}
+
+fn validate_theorem_roles(
+    certificate: &CanonicalQuotientCorrespondence,
+) -> Result<(), QuotientCorrespondenceReplayError> {
+    let expected: &[QuotientTheoremRole] = match certificate.operation_kind {
+        QuotientCorrespondenceOperationKind::Lift | QuotientCorrespondenceOperationKind::Define => {
+            &[QuotientTheoremRole::Congruence]
+        }
+        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport => &[
+            QuotientTheoremRole::Congruence,
+            QuotientTheoremRole::ForwardPreconditionTransport,
+        ],
+    };
+    if certificate
+        .theorem_evidence
+        .iter()
+        .map(|evidence| evidence.role)
+        .ne(expected.iter().copied())
+    {
+        return Err(QuotientCorrespondenceReplayError::NonCanonicalTheoremRoleCollection);
+    }
+    for evidence in &certificate.theorem_evidence {
+        let matches = matches!(
+            (evidence.role, &evidence.correspondence),
+            (
+                QuotientTheoremRole::Congruence,
+                QuotientTheoremCorrespondence::Congruence(_)
+            ) | (
+                QuotientTheoremRole::ForwardPreconditionTransport,
+                QuotientTheoremCorrespondence::ForwardPreconditionTransport(_)
+            )
+        );
+        if !matches {
+            return Err(QuotientCorrespondenceReplayError::TheoremRolePayloadMismatch);
+        }
     }
     Ok(())
 }
@@ -236,14 +295,14 @@ fn independent_identity(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> QuotientCorrespondenceIdentity {
     let mut writer = ReplayIdentityWriter::new();
-    writer.string("omega.quotient-correspondence.total-direct-define.v1");
+    writer.string("omega.quotient-correspondence.theorem-roles.v2");
     writer.byte(match certificate.operation_kind {
         QuotientCorrespondenceOperationKind::Lift => 1,
         QuotientCorrespondenceOperationKind::Define => 2,
+        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport => 3,
     });
     writer.callable(&certificate.public_operation);
     writer.application(&certificate.representative);
-    writer.application(&certificate.selected_theorem);
     writer.len(certificate.input_relations.len());
     for relation in &certificate.input_relations {
         match relation {
@@ -267,8 +326,47 @@ fn independent_identity(
         writer.u32(position.public_position);
         writer.u32(position.representative_position);
     }
-    writer.len(certificate.theorem.parameters.len());
-    for parameter in &certificate.theorem.parameters {
+    writer.len(certificate.theorem_evidence.len());
+    for evidence in &certificate.theorem_evidence {
+        writer.byte(match evidence.role {
+            QuotientTheoremRole::Congruence => 1,
+            QuotientTheoremRole::ForwardPreconditionTransport => 2,
+        });
+        writer.application(&evidence.selected_application);
+        match &evidence.correspondence {
+            QuotientTheoremCorrespondence::Congruence(congruence) => {
+                writer.byte(1);
+                write_congruence_identity(&mut writer, congruence);
+            }
+            QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) => {
+                writer.byte(2);
+                writer.len(transport.public_premises.len());
+                for coordinate in &transport.public_premises {
+                    writer.coordinate(*coordinate);
+                }
+                writer.len(transport.representative_conclusions.len());
+                for coordinate in &transport.representative_conclusions {
+                    writer.coordinate(*coordinate);
+                }
+            }
+        }
+        writer.byte(1);
+        writer.byte(1);
+        writer.byte(1);
+    }
+    writer.byte(1);
+    writer.byte(1);
+    writer.u32(certificate.result_flow.state_position);
+    writer.u32(certificate.result_flow.statement_position);
+    QuotientCorrespondenceIdentity(writer.finish())
+}
+
+fn write_congruence_identity(
+    writer: &mut ReplayIdentityWriter,
+    congruence: &psi_language_semantics::quotient_correspondence::QuotientCongruenceCorrespondence,
+) {
+    writer.len(congruence.parameters.len());
+    for parameter in &congruence.parameters {
         writer.u32(parameter.theorem_position);
         match parameter.role {
             QuotientTheoremParameterRole::QuotientLeft { input_position } => {
@@ -285,36 +383,28 @@ fn independent_identity(
             }
         }
     }
-    writer.len(certificate.theorem.relation_premises.len());
-    for premise in &certificate.theorem.relation_premises {
+    writer.len(congruence.relation_premises.len());
+    for premise in &congruence.relation_premises {
         writer.u32(premise.expected_position);
         writer.coordinate(premise.actual);
         writer.string(&premise.relation);
         writer.u32(premise.left_parameter);
         writer.u32(premise.right_parameter);
     }
-    writer.len(certificate.theorem.legality_premises.len());
-    for premise in &certificate.theorem.legality_premises {
+    writer.len(congruence.legality_premises.len());
+    for premise in &congruence.legality_premises {
         writer.coordinate(*premise);
     }
-    writer.coordinate(certificate.theorem.conclusion.actual);
-    writer.string(&certificate.theorem.conclusion.relation);
-    writer.len(certificate.theorem.conclusion.left.arguments.len());
-    for argument in &certificate.theorem.conclusion.left.arguments {
+    writer.coordinate(congruence.conclusion.actual);
+    writer.string(&congruence.conclusion.relation);
+    writer.len(congruence.conclusion.left.arguments.len());
+    for argument in &congruence.conclusion.left.arguments {
         writer.u32(*argument);
     }
-    writer.len(certificate.theorem.conclusion.right.arguments.len());
-    for argument in &certificate.theorem.conclusion.right.arguments {
+    writer.len(congruence.conclusion.right.arguments.len());
+    for argument in &congruence.conclusion.right.arguments {
         writer.u32(*argument);
     }
-    writer.byte(1);
-    writer.byte(1);
-    writer.byte(1);
-    writer.byte(1);
-    writer.byte(1);
-    writer.u32(certificate.result_flow.state_position);
-    writer.u32(certificate.result_flow.statement_position);
-    QuotientCorrespondenceIdentity(writer.finish())
 }
 
 struct ReplayIdentityWriter {
@@ -384,14 +474,17 @@ impl ReplayIdentityWriter {
 mod tests {
     use psi_core::{BlockId, ContractId, EdgeId, MachineId};
     use psi_language_semantics::quotient_correspondence::{
-        CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientContractFactCoordinate,
-        QuotientContractOwner, QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
-        QuotientDefineRuntimePosition, QuotientDirectResultFlow, QuotientMachineApplication,
+        CanonicalQuotientCorrespondence, QuotientCallableIdentity,
+        QuotientCongruenceCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
+        QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
+        QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+        QuotientForwardPreconditionTransportCorrespondence, QuotientMachineApplication,
         QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
         QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
         QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-        QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremParameter,
-        QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+        QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+        QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+        QuotientTheoremRole,
     };
     use psi_terminal::{
         Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
@@ -434,10 +527,6 @@ mod tests {
                 callable: callable("Carrier::apply"),
                 static_application: QuotientStaticApplication { bindings: vec![] },
             },
-            selected_theorem: QuotientMachineApplication {
-                callable: callable("apply_respects"),
-                static_application: QuotientStaticApplication { bindings: vec![] },
-            },
             input_relations: vec![
                 QuotientPositionalRelation::Quotient(input.clone()),
                 QuotientPositionalRelation::ExactEquality {
@@ -456,52 +545,97 @@ mod tests {
                     representative_position: 1,
                 },
             ],
-            theorem: QuotientTheoremCorrespondence {
-                parameters: vec![
-                    QuotientTheoremParameter {
-                        theorem_position: 0,
-                        role: QuotientTheoremParameterRole::QuotientLeft { input_position: 0 },
-                    },
-                    QuotientTheoremParameter {
-                        theorem_position: 1,
-                        role: QuotientTheoremParameterRole::QuotientRight { input_position: 0 },
-                    },
-                    QuotientTheoremParameter {
-                        theorem_position: 2,
-                        role: QuotientTheoremParameterRole::Shared { input_position: 1 },
-                    },
-                ],
-                relation_premises: vec![QuotientTheoremRelationPremise {
-                    expected_position: 0,
-                    actual: coordinate(0),
-                    relation: input.relation,
-                    left_parameter: 0,
-                    right_parameter: 1,
-                }],
-                legality_premises: vec![],
-                conclusion: QuotientTheoremConclusion {
-                    actual: coordinate(1),
-                    relation: result.relation,
-                    left: QuotientRepresentativeApplication {
-                        arguments: vec![0, 2],
-                    },
-                    right: QuotientRepresentativeApplication {
-                        arguments: vec![1, 2],
-                    },
+            theorem_evidence: vec![QuotientTheoremEvidence {
+                role: QuotientTheoremRole::Congruence,
+                selected_application: QuotientMachineApplication {
+                    callable: callable("apply_respects"),
+                    static_application: QuotientStaticApplication { bindings: vec![] },
                 },
-            },
+                correspondence: QuotientTheoremCorrespondence::Congruence(
+                    QuotientCongruenceCorrespondence {
+                        parameters: vec![
+                            QuotientTheoremParameter {
+                                theorem_position: 0,
+                                role: QuotientTheoremParameterRole::QuotientLeft {
+                                    input_position: 0,
+                                },
+                            },
+                            QuotientTheoremParameter {
+                                theorem_position: 1,
+                                role: QuotientTheoremParameterRole::QuotientRight {
+                                    input_position: 0,
+                                },
+                            },
+                            QuotientTheoremParameter {
+                                theorem_position: 2,
+                                role: QuotientTheoremParameterRole::Shared { input_position: 1 },
+                            },
+                        ],
+                        relation_premises: vec![QuotientTheoremRelationPremise {
+                            expected_position: 0,
+                            actual: coordinate(0),
+                            relation: input.relation,
+                            left_parameter: 0,
+                            right_parameter: 1,
+                        }],
+                        legality_premises: vec![],
+                        conclusion: QuotientTheoremConclusion {
+                            actual: coordinate(1),
+                            relation: result.relation,
+                            left: QuotientRepresentativeApplication {
+                                arguments: vec![0, 2],
+                            },
+                            right: QuotientRepresentativeApplication {
+                                arguments: vec![1, 2],
+                            },
+                        },
+                    },
+                ),
+                eligibility: QuotientTheoremEligibility {
+                    purity: QuotientPurityCertificate::PureClosure,
+                    termination: QuotientTerminationCertificate::Unconditional,
+                    crash: QuotientCrashCertificate::CrashFree,
+                },
+            }],
             representative_eligibility: QuotientRepresentativeEligibility {
                 purity: QuotientPurityCertificate::PureClosure,
                 termination: QuotientTerminationCertificate::Unconditional,
             },
-            theorem_eligibility: QuotientTheoremEligibility {
-                purity: QuotientPurityCertificate::PureClosure,
-                termination: QuotientTerminationCertificate::Unconditional,
-                crash: QuotientCrashCertificate::CrashFree,
-            },
             result_flow: QuotientDirectResultFlow {
                 state_position: 0,
                 statement_position: 7,
+            },
+        }
+    }
+
+    fn congruence(
+        certificate: &mut CanonicalQuotientCorrespondence,
+    ) -> &mut QuotientCongruenceCorrespondence {
+        let QuotientTheoremCorrespondence::Congruence(congruence) =
+            &mut certificate.theorem_evidence[0].correspondence
+        else {
+            panic!("congruence fixture")
+        };
+        congruence
+    }
+
+    fn transport_evidence() -> QuotientTheoremEvidence {
+        QuotientTheoremEvidence {
+            role: QuotientTheoremRole::ForwardPreconditionTransport,
+            selected_application: QuotientMachineApplication {
+                callable: callable("apply_transports_preconditions"),
+                static_application: QuotientStaticApplication { bindings: vec![] },
+            },
+            correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(
+                QuotientForwardPreconditionTransportCorrespondence {
+                    public_premises: vec![coordinate(2)],
+                    representative_conclusions: vec![coordinate(3), coordinate(4)],
+                },
+            ),
+            eligibility: QuotientTheoremEligibility {
+                purity: QuotientPurityCertificate::PureClosure,
+                termination: QuotientTerminationCertificate::Unconditional,
+                crash: QuotientCrashCertificate::CrashFree,
             },
         }
     }
@@ -576,6 +710,67 @@ mod tests {
     }
 
     #[test]
+    fn theorem_role_collection_is_exact_ordered_and_identity_bearing() {
+        let mut missing = certificate();
+        missing.theorem_evidence.clear();
+        assert_eq!(
+            replayed(missing),
+            Err(QuotientCorrespondenceReplayError::NonCanonicalTheoremRoleCollection)
+        );
+
+        let mut duplicate = certificate();
+        duplicate
+            .theorem_evidence
+            .push(duplicate.theorem_evidence[0].clone());
+        assert_eq!(
+            replayed(duplicate),
+            Err(QuotientCorrespondenceReplayError::NonCanonicalTheoremRoleCollection)
+        );
+
+        let mut missing_transport = certificate();
+        missing_transport.operation_kind =
+            QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport;
+        assert_eq!(
+            replayed(missing_transport),
+            Err(QuotientCorrespondenceReplayError::NonCanonicalTheoremRoleCollection)
+        );
+
+        let mut reversed = certificate();
+        reversed.operation_kind =
+            QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport;
+        reversed.theorem_evidence.push(transport_evidence());
+        reversed.theorem_evidence.swap(0, 1);
+        assert_eq!(
+            replayed(reversed),
+            Err(QuotientCorrespondenceReplayError::NonCanonicalTheoremRoleCollection)
+        );
+
+        let mut valid_three_argument_lift = certificate();
+        valid_three_argument_lift.operation_kind =
+            QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport;
+        valid_three_argument_lift
+            .theorem_evidence
+            .push(transport_evidence());
+        assert_eq!(
+            replayed(valid_three_argument_lift),
+            Err(QuotientCorrespondenceReplayError::UnsupportedOperationKind)
+        );
+
+        let mut mismatched_payload = certificate();
+        mismatched_payload.theorem_evidence[0].correspondence = transport_evidence().correspondence;
+        assert_eq!(
+            replayed(mismatched_payload),
+            Err(QuotientCorrespondenceReplayError::TheoremRolePayloadMismatch)
+        );
+
+        let canonical = retain_non_executable_quotient_correspondence(certificate());
+        let mut role_mutation = certificate();
+        role_mutation.theorem_evidence[0].role = QuotientTheoremRole::ForwardPreconditionTransport;
+        let role_mutation = retain_non_executable_quotient_correspondence(role_mutation);
+        assert_ne!(canonical.identity, role_mutation.identity);
+    }
+
+    #[test]
     fn rejects_every_structural_drift_independently() {
         let mut changed = certificate();
         changed.operation_kind = QuotientCorrespondenceOperationKind::Lift;
@@ -603,7 +798,8 @@ mod tests {
         );
 
         let mut changed = certificate();
-        changed.selected_theorem.callable = changed.representative.callable.clone();
+        changed.theorem_evidence[0].selected_application.callable =
+            changed.representative.callable.clone();
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::CallableIdentityCollision)
@@ -638,35 +834,41 @@ mod tests {
         );
 
         let mut changed = certificate();
-        changed.theorem.parameters.swap(0, 1);
+        congruence(&mut changed).parameters.swap(0, 1);
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::TheoremParameterMismatch)
         );
 
         let mut changed = certificate();
-        changed.theorem.relation_premises[0].right_parameter = 2;
+        congruence(&mut changed).relation_premises[0].right_parameter = 2;
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::TheoremRelationPremiseMismatch)
         );
 
         let mut changed = certificate();
-        changed.theorem.legality_premises.push(coordinate(8));
+        congruence(&mut changed)
+            .legality_premises
+            .push(coordinate(8));
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::NonEmptyLegalityPremises)
         );
 
         let mut changed = certificate();
-        changed.theorem.conclusion.actual = coordinate(0);
+        congruence(&mut changed).conclusion.actual = coordinate(0);
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::DuplicateTheoremCoordinate)
         );
 
         let mut changed = certificate();
-        changed.theorem.conclusion.left.arguments.swap(0, 1);
+        congruence(&mut changed)
+            .conclusion
+            .left
+            .arguments
+            .swap(0, 1);
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::TheoremConclusionMismatch)

@@ -142,17 +142,29 @@ fn extracts_one_source_free_total_direct_define_without_weakening_normal_validat
             .declaration
             .starts_with("package:")
     );
+    assert_eq!(row.theorem_evidence.len(), 1);
+    assert_eq!(
+        row.theorem_evidence[0].role,
+        psi_language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence
+    );
     assert!(
-        row.selected_theorem
+        row.theorem_evidence[0]
+            .selected_application
             .callable
             .declaration
             .starts_with("package:")
     );
     assert_eq!(row.runtime_positions.len(), 1);
     assert_eq!(row.input_relations.len(), 1);
-    assert_eq!(row.theorem.parameters.len(), 2);
-    assert_eq!(row.theorem.relation_premises.len(), 1);
-    assert!(row.theorem.legality_premises.is_empty());
+    let psi_language_semantics::quotient_correspondence::QuotientTheoremCorrespondence::Congruence(
+        theorem,
+    ) = &row.theorem_evidence[0].correspondence
+    else {
+        panic!("define must retain a congruence payload")
+    };
+    assert_eq!(theorem.parameters.len(), 2);
+    assert_eq!(theorem.relation_premises.len(), 1);
+    assert!(theorem.legality_premises.is_empty());
 
     let diagnostics = validate_program(&program)
         .expect_err("ordinary validation must retain the executable quotient-operation fence");

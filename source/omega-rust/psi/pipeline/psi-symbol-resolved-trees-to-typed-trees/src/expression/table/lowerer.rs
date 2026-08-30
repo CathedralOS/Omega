@@ -428,12 +428,30 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 "the sealed `Quotient` operation namespace cannot be shadowed by an authored declaration",
             ));
         }
-        let [representative_operation, selected_theorem] = call.machine_arguments.as_ref() else {
-            return Err(Diagnostic::error(format!(
-                "`Quotient::{}` requires exactly two static arguments: one representative operation and one exact resultless theorem machine",
+        let (representative_operation, selected_theorems) = call
+            .machine_arguments
+            .split_first()
+            .ok_or_else(|| Diagnostic::error(format!(
+                "`Quotient::{}` requires a representative operation and its canonical theorem evidence",
                 call.target,
-            )));
+            )))?;
+        let expected_theorem_count = match kind {
+            typed::expression::QuotientOperationKind::Define => 1,
+            typed::expression::QuotientOperationKind::Lift => {
+                if selected_theorems.len() == 1 || selected_theorems.len() == 2 {
+                    selected_theorems.len()
+                } else {
+                    return Err(Diagnostic::error(
+                        "`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order",
+                    ));
+                }
+            }
         };
+        if selected_theorems.len() != expected_theorem_count {
+            return Err(Diagnostic::error(
+                "`Quotient::define` requires exactly `F, Congruence`; forward transport is not a `define` role",
+            ));
+        }
         if representative_operation.const_literal.is_some()
             || representative_operation.evidence_projection.is_some()
             || !representative_operation.symbol.is_valid()
@@ -445,23 +463,43 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 call.target,
             )));
         }
-        if selected_theorem.const_literal.is_some()
-            || selected_theorem.evidence_projection.is_some()
-            || !selected_theorem.symbol.is_valid()
-            || program.symbols.get(selected_theorem.symbol).kind != psi_symbols::SymbolKind::State
-        {
-            return Err(Diagnostic::error(format!(
-                "the second static argument to `Quotient::{}` must resolve exactly to one resultless theorem machine entry; conformance or structural proof discovery is not permitted",
-                call.target,
-            )));
+        for (position, selected_theorem) in selected_theorems.iter().enumerate() {
+            if selected_theorem.const_literal.is_some()
+                || selected_theorem.evidence_projection.is_some()
+                || !selected_theorem.symbol.is_valid()
+                || program.symbols.get(selected_theorem.symbol).kind
+                    != psi_symbols::SymbolKind::State
+            {
+                return Err(Diagnostic::error(format!(
+                    "static theorem argument {} to `Quotient::{}` must resolve exactly to one resultless theorem machine entry; conformance or structural proof discovery is not permitted",
+                    position + 2,
+                    call.target,
+                )));
+            }
         }
+
+        let theorem_evidence = selected_theorems
+            .iter()
+            .enumerate()
+            .map(
+                |(position, selected)| typed::expression::QuotientTheoremSelection {
+                    role: if position == 0 {
+                        typed::expression::QuotientTheoremRole::Congruence
+                    } else {
+                        typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
+                    },
+                    application: crate::expression::lower_static_machine_argument(selected),
+                },
+            )
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
         Ok(Some(typed::expression::QuotientOperationRequest {
             kind,
             representative_operation: crate::expression::lower_static_machine_argument(
                 representative_operation,
             ),
-            selected_theorem: crate::expression::lower_static_machine_argument(selected_theorem),
+            theorem_evidence,
         }))
     }
 

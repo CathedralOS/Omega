@@ -14,7 +14,11 @@ pub struct QuotientCallableIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum QuotientCorrespondenceOperationKind {
+    /// Two-static-argument `Quotient::lift<F, Congruence>`.
     Lift,
+    /// Three-static-argument
+    /// `Quotient::lift<F, Congruence, ForwardPreconditionTransport>`.
+    LiftWithForwardPreconditionTransport,
     Define,
 }
 
@@ -104,7 +108,7 @@ pub struct QuotientTheoremConclusion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct QuotientTheoremCorrespondence {
+pub struct QuotientCongruenceCorrespondence {
     pub parameters: Vec<QuotientTheoremParameter>,
     pub relation_premises: Vec<QuotientTheoremRelationPremise>,
     /// The total direct bridge requires this roster to be empty. Retaining it
@@ -112,6 +116,26 @@ pub struct QuotientTheoremCorrespondence {
     /// already discharged.
     pub legality_premises: Vec<QuotientContractFactCoordinate>,
     pub conclusion: QuotientTheoremConclusion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientTheoremRole {
+    Congruence,
+    ForwardPreconditionTransport,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct QuotientForwardPreconditionTransportCorrespondence {
+    /// Complete ordered public-Q premises cited by the selected transport.
+    pub public_premises: Vec<QuotientContractFactCoordinate>,
+    /// Complete ordered representative-P conclusions proved by the transport.
+    pub representative_conclusions: Vec<QuotientContractFactCoordinate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientTheoremCorrespondence {
+    Congruence(QuotientCongruenceCorrespondence),
+    ForwardPreconditionTransport(QuotientForwardPreconditionTransportCorrespondence),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -142,6 +166,14 @@ pub struct QuotientTheoremEligibility {
     pub crash: QuotientCrashCertificate,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct QuotientTheoremEvidence {
+    pub role: QuotientTheoremRole,
+    pub selected_application: QuotientMachineApplication,
+    pub correspondence: QuotientTheoremCorrespondence,
+    pub eligibility: QuotientTheoremEligibility,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QuotientDirectResultFlow {
     pub state_position: u32,
@@ -157,12 +189,10 @@ pub struct CanonicalQuotientCorrespondence {
     pub operation_kind: QuotientCorrespondenceOperationKind,
     pub public_operation: QuotientCallableIdentity,
     pub representative: QuotientMachineApplication,
-    pub selected_theorem: QuotientMachineApplication,
     pub input_relations: Vec<QuotientPositionalRelation>,
     pub result_relation: QuotientRelationIdentity,
     pub runtime_positions: Vec<QuotientDefineRuntimePosition>,
-    pub theorem: QuotientTheoremCorrespondence,
+    pub theorem_evidence: Vec<QuotientTheoremEvidence>,
     pub representative_eligibility: QuotientRepresentativeEligibility,
-    pub theorem_eligibility: QuotientTheoremEligibility,
     pub result_flow: QuotientDirectResultFlow,
 }

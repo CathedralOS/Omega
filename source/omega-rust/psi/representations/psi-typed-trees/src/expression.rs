@@ -2189,17 +2189,28 @@ pub enum QuotientOperationKind {
     Define,
 }
 
-/// Exact source-selected identities for `Quotient::lift<F, Congruence>` and
-/// `Quotient::define<F, Congruence>`. The optional explicit transport theorem
-/// remains queued for this boundary. It deliberately carries no
-/// derived quotient admission or executable lowering authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientTheoremRole {
+    Congruence,
+    ForwardPreconditionTransport,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientTheoremSelection {
+    pub role: QuotientTheoremRole,
+    /// One exact selected resultless theorem-machine application, never a
+    /// conformance or structurally discovered proof.
+    pub application: StaticMachineArgument,
+}
+
+/// Exact source-selected identities for the sealed quotient operation forms.
+/// The role-ordered theorem roster is retained before any derived quotient
+/// admission and grants no executable lowering authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotientOperationRequest {
     pub kind: QuotientOperationKind,
     pub representative_operation: StaticMachineArgument,
-    /// One exact selected resultless theorem-machine application, never a
-    /// conformance or structurally discovered proof.
-    pub selected_theorem: StaticMachineArgument,
+    pub theorem_evidence: Box<[QuotientTheoremSelection]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

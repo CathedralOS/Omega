@@ -29,8 +29,8 @@ use psi_typed_trees::data::{
 use psi_typed_trees::domain::{ProofFact, ProofMembershipFact};
 use psi_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, QuotientOperationKind,
-    QuotientOperationRequest, StaticMachineArgument, StaticSymbolApplication,
-    TableBinaryExpression, TableCallExpression, TableNamePath,
+    QuotientOperationRequest, QuotientTheoremRole, QuotientTheoremSelection, StaticMachineArgument,
+    StaticSymbolApplication, TableBinaryExpression, TableCallExpression, TableNamePath,
 };
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
@@ -558,7 +558,11 @@ fn request_with_representative(symbol: SymbolHandle) -> QuotientOperationRequest
     QuotientOperationRequest {
         kind: QuotientOperationKind::Lift,
         representative_operation,
-        selected_theorem: static_argument("ExactRespect"),
+        theorem_evidence: vec![QuotientTheoremSelection {
+            role: QuotientTheoremRole::Congruence,
+            application: static_argument("ExactRespect"),
+        }]
+        .into_boxed_slice(),
     }
 }
 
@@ -623,7 +627,7 @@ fn selected_theorem_requires_a_bodyful_checked_machine() {
     let mut program = TypedTrees::default();
     let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let mut request = request_with_representative(SymbolHandle::invalid());
-    request.selected_theorem = push_custom_selected_theorem(
+    request.theorem_evidence[0].application = push_custom_selected_theorem(
         &mut program,
         psi_language_semantics::MachineSupplyMode::Boundary,
         false,
@@ -631,7 +635,7 @@ fn selected_theorem_requires_a_bodyful_checked_machine() {
     );
 
     assert_eq!(
-        derive_selected_theorem_telescope(&program, &request),
+        derive_selected_theorem_telescope(&program, &request.theorem_evidence[0].application),
         Err(RelationPlanError::TheoremMustBeCheckedBody)
     );
 }
@@ -641,7 +645,7 @@ fn selected_theorem_requires_a_resultless_machine() {
     let mut program = TypedTrees::default();
     let result = carrier_type(&mut program);
     let mut request = request_with_representative(SymbolHandle::invalid());
-    request.selected_theorem = push_custom_selected_theorem(
+    request.theorem_evidence[0].application = push_custom_selected_theorem(
         &mut program,
         psi_language_semantics::MachineSupplyMode::CheckedBody,
         true,
@@ -649,7 +653,7 @@ fn selected_theorem_requires_a_resultless_machine() {
     );
 
     assert_eq!(
-        derive_selected_theorem_telescope(&program, &request),
+        derive_selected_theorem_telescope(&program, &request.theorem_evidence[0].application),
         Err(RelationPlanError::TheoremMustBeResultless)
     );
 }
@@ -698,10 +702,11 @@ fn selected_theorem_retains_the_exact_closed_static_application() {
         arguments: vec![selected_type].into_boxed_slice(),
     }));
     let mut request = request_with_representative(SymbolHandle::invalid());
-    request.selected_theorem = selected_theorem;
+    request.theorem_evidence[0].application = selected_theorem;
 
-    let theorem = derive_selected_theorem_telescope(&program, &request)
-        .expect("one closed theorem application should derive");
+    let theorem =
+        derive_selected_theorem_telescope(&program, &request.theorem_evidence[0].application)
+            .expect("one closed theorem application should derive");
     assert_eq!(theorem.machine_symbol, symbol(720));
     assert_eq!(theorem.state_symbol, symbol(721));
     assert_eq!(theorem.static_application.bindings.len(), 1);
@@ -749,7 +754,7 @@ fn push_representative(
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);
     let mut request = request_with_representative(symbol(91));
-    request.selected_theorem = push_selected_theorem(program);
+    request.theorem_evidence[0].application = push_selected_theorem(program);
     request
 }
 
@@ -847,7 +852,7 @@ fn push_generic_representative_application(program: &mut TypedTrees) -> Quotient
         lifetime_arguments: Box::default(),
         arguments: vec![type_argument, const_argument, machine_argument].into_boxed_slice(),
     }));
-    request.selected_theorem = push_selected_theorem(program);
+    request.theorem_evidence[0].application = push_selected_theorem(program);
     request
 }
 
@@ -918,27 +923,29 @@ fn direct_plan_retains_exact_input_and_result_quotient_identities() {
     assert_eq!(plan.result_relation.relation_symbol, symbol(4));
     assert_eq!(plan.representative.machine_symbol, symbol(90));
     assert_eq!(plan.representative.state_symbol, symbol(91));
-    assert_eq!(plan.selected_theorem.machine_symbol, symbol(700));
-    assert_eq!(plan.selected_theorem.state_symbol, symbol(701));
+    let congruence = &plan.theorem_evidence[0];
+    assert_eq!(congruence.role, QuotientTheoremRole::Congruence);
+    assert_eq!(congruence.selected_application.machine_symbol, symbol(700));
+    assert_eq!(congruence.selected_application.state_symbol, symbol(701));
     assert_eq!(
-        plan.selected_theorem.static_application.bindings,
+        congruence.selected_application.static_application.bindings,
         Vec::new()
     );
     assert_eq!(
-        plan.selected_theorem_termination,
+        congruence.termination,
         Some(super::SelectedTheoremTermination {
             machine_symbol: symbol(700),
             state_symbol: symbol(701),
         })
     );
     assert_eq!(
-        plan.selected_theorem_purity,
+        congruence.purity,
         Some(super::SelectedTheoremPurity {
             machine_symbol: symbol(700),
             state_symbol: symbol(701),
         })
     );
-    assert!(plan.selected_theorem_crash_free);
+    assert!(congruence.crash_free);
     assert_eq!(plan.representative.parameters.len(), 2);
     assert!(plan.representative.parameters[0].is_self);
     assert!(!plan.representative.parameters[1].is_self);

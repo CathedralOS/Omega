@@ -208,9 +208,13 @@ selection to interpret its meaning. It contains:
 The first quotient correspondence carrier is proof-only. `TerminalModule`
 retains a strictly identity-ordered table for the narrow monomorphic, total,
 direct faithful `define` certificate. The codec serializes the complete
-source-free certificate and rederives its retained identity on decode;
-representation validation independently reconstructs its theorem,
-correspondence, eligibility, and direct-result shape. A nonempty table is still
+source-free certificate, including its canonically role-ordered theorem
+evidence, and rederives its retained identity on decode. The role discriminant
+precedes the selected application and role-specific payload in identity and
+canonical bytes. Representation validation rejects missing, duplicate,
+reversed, surplus, role/payload-mismatched, and unknown-tag evidence before it
+independently reconstructs the theorem, correspondence, eligibility, and
+direct-result shape. A nonempty table is still
 rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
 therefore a canonical-retention prerequisite, not executable quotient
@@ -414,7 +418,7 @@ arity, or provider substitution rejects. Reusable local or re-entrant reborrow
 authority does not follow. The verifier also rejects widening, target
 disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
-Terminal format 40/vocabulary 43 adds one executable direct whole-root
+Terminal format 41/vocabulary 44 adds one executable direct whole-root
 primitive-integer replacement. `PrimitiveScalar` is an honest structural
 referent shape rather than a synthetic record, and
 `WriteOnlyPrimitiveStore(destination, value)` is Unit, unconditional, and
