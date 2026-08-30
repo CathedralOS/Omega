@@ -1787,14 +1787,20 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             }
                             [
                                 StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                                StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
+                                StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2 | 3)),
                             ] => {
                                 let leaf_stride = u32::from(argument.shape.byte_size)
                                     .next_multiple_of(u32::from(argument.shape.alignment));
                                 let Some(outer_stride) = argument.element_stride else {
                                     return true;
                                 };
-                                let expected_outer_stride = leaf_stride.checked_mul(3);
+                                let Some(inner_length) =
+                                    [3_u32, 4_u32].into_iter().find(|length| {
+                                        leaf_stride.checked_mul(*length) == Some(outer_stride)
+                                    })
+                                else {
+                                    return true;
+                                };
                                 let expected_offset = outer_stride
                                     .checked_mul(u32::try_from(*outer).unwrap_or(u32::MAX))
                                     .and_then(|offset| {
@@ -1804,7 +1810,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     });
                                 argument.root_structural_type == argument.structural_type
                                     || argument.fixed_array_length != Some(2)
-                                    || Some(outer_stride) != expected_outer_stride
+                                    || *inner >= u64::from(inner_length)
                                     || Some(argument.source_byte_offset) != expected_offset
                                     || outer_stride.checked_mul(2)
                                         != Some(u32::from(argument.source.shape.byte_size))
@@ -2211,7 +2217,7 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
             [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
                 | [
                     StructuralPathSegment::FixedIndex(0 | 1),
-                    StructuralPathSegment::FixedIndex(0 | 1 | 2),
+                    StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3),
                 ]
         )
 }

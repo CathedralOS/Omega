@@ -211,19 +211,17 @@ pub(crate) fn is_bounded_partial_affine_path(
                     )
                 )
             }))
-        || (matches!(
-            path,
-            [
-                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
-                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)
-            ]
-        ) && types.get(&root).is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                psi_terminal::StructuralTypeShape::FixedArray { length: 2, element }
-                    if types.get(&element).is_some_and(|inner| {
-                        matches!(inner.shape, psi_terminal::StructuralTypeShape::FixedArray { length: 3, .. })
-                    })
-            )
-        }))
+        || (matches!(path, [psi_terminal::StructuralPathSegment::FixedIndex(_), psi_terminal::StructuralPathSegment::FixedIndex(_)])
+            && types.get(&root).is_some_and(|declaration| {
+                let psi_terminal::StructuralTypeShape::FixedArray { length: 2, element } = declaration.shape else {
+                    return false;
+                };
+                let Some(inner) = types.get(&element) else {
+                    return false;
+                };
+                let psi_terminal::StructuralTypeShape::FixedArray { length: inner_length @ (3 | 4), .. } = inner.shape else {
+                    return false;
+                };
+                matches!(path, [psi_terminal::StructuralPathSegment::FixedIndex(outer), psi_terminal::StructuralPathSegment::FixedIndex(index)] if *outer < 2 && *index < inner_length)
+            }))
 }

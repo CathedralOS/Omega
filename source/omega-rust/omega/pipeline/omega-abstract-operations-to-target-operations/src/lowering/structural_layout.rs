@@ -294,8 +294,8 @@ pub(super) fn expected_maximal_residual_subtrees(
         matches!(
             path.as_slice(),
             [
-                StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2)
+                StructuralPathSegment::FixedIndex(_),
+                StructuralPathSegment::FixedIndex(_)
             ]
         )
     }) {
@@ -306,7 +306,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: 3,
+            length: inner_length @ (3 | 4),
         } = declarations.get(&element)?.shape
         else {
             return None;
@@ -327,18 +327,18 @@ pub(super) fn expected_maximal_residual_subtrees(
             .filter_map(|(path, _)| match path.as_slice() {
                 [
                     StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
-                ] => Some((*outer, *inner)),
+                    StructuralPathSegment::FixedIndex(inner),
+                ] if *inner < inner_length => Some((*outer, *inner)),
                 _ => None,
             })
             .collect::<BTreeMap<_, _>>();
         if moved_by_outer.len() != 2 {
             return None;
         }
-        let mut residuals = Vec::with_capacity(4);
+        let mut residuals = Vec::with_capacity(if inner_length == 3 { 4 } else { 6 });
         for outer in (0_u64..2).rev() {
             let moved_inner = *moved_by_outer.get(&outer)?;
-            for inner in (0_u64..3).rev() {
+            for inner in (0_u64..inner_length).rev() {
                 if inner != moved_inner {
                     residuals.push((
                         vec![
@@ -370,7 +370,7 @@ pub(super) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
             | [
                 StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3),
             ]
     )
 }

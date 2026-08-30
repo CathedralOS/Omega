@@ -296,6 +296,16 @@ structural order. An ordinary edge abandoning partial construction cleans the
 established prefix in reverse; trap and nuclear-abort edges clean nothing. No
 runtime liveness bitmap or data-dependent cleanup loop is introduced.
 
+The bounded recursively nested carrier now admits inner lengths three and four
+under one exact rule. A claim-free, unqualified affine `[[T; N]; 2]`, where
+`N` is three or four and `T` is a checked record without nominal cleanup, may
+move exactly one literal leaf from each outer element through two ordinary Unit
+calls. Authored calls retain their order; the return cleans every remaining
+leaf with outer indices decreasing and then inner indices decreasing. The
+length-four successor therefore carries six no-code residuals while retaining
+the same five call/return fuel units. Inner length five, another outer length,
+same-outer or nonliteral moves, and runtime liveness machinery remain fenced.
+
 The first construction-prefix implementation is deliberately narrower than
 that general rule. An uninitialized mutable `[T; 3]`, where `T` is an
 unqualified, claim-free empty affine record with no nominal cleanup, may

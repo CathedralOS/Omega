@@ -1141,12 +1141,27 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
             Sink::take(values[1][0]);
             Sink::take(values[0][1]);
         }
+        machine Root::nested_four(values: [[Token; 4]; 2]) {
+            Sink::take(values[1][3]);
+            Sink::take(values[0][1]);
+        }
         machine Root::same_outer(values: [[Token; 3]; 2]) {
             Sink::take(values[0][0]);
             Sink::take(values[0][1]);
         }
         machine Root::one(values: [[Token; 3]; 2]) {
             Sink::take(values[1][2]);
+        }
+        machine Root::same_outer_four(values: [[Token; 4]; 2]) {
+            Sink::take(values[0][0]);
+            Sink::take(values[0][3]);
+        }
+        machine Root::one_four(values: [[Token; 4]; 2]) {
+            Sink::take(values[1][3]);
+        }
+        machine Root::too_wide(values: [[Token; 5]; 2]) {
+            Sink::take(values[1][4]);
+            Sink::take(values[0][1]);
         }
         "#,
     );
@@ -1185,7 +1200,41 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         vec![(1, 2), (1, 1), (0, 2), (0, 0)],
         "outer and inner live complements both descend",
     );
-    for machine in ["same_outer", "one"] {
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "nested_four"))
+        .expect("one leaf move per outer quartet leaves six exact residual leaves");
+    assert_eq!(
+        plan.machine.operations[..2]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => path(&structural_arguments[0].path),
+                _ => panic!("nested quartet cleanup contains calls before return"),
+            })
+            .collect::<Vec<_>>(),
+        vec![(1, 3), (0, 1)],
+        "authored nested-quartet move order is retained",
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| path(&discard.path))
+            .collect::<Vec<_>>(),
+        vec![(1, 2), (1, 1), (1, 0), (0, 3), (0, 2), (0, 0)],
+        "quartet outer and inner live complements both descend",
+    );
+    for machine in [
+        "same_outer",
+        "one",
+        "same_outer_four",
+        "one_four",
+        "too_wide",
+    ] {
         assert!(
             checked
                 .facts

@@ -131,6 +131,17 @@ const NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_QUARTET_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Sink {}
+    machine Sink::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 4]; 2]) {
+        Sink::take(values[1][3]);
+        Sink::take(values[0][1]);
+    }
+"#;
+
 #[test]
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
@@ -976,11 +987,12 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
     assert_eq!(meter.usage().total_units(), 5);
 }
 
-#[test]
-fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
-    let tokens = Lexer::new(NESTED_AFFINE_ARRAY_SOURCE)
-        .tokenize()
-        .expect("tokenize");
+fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter(
+    source: &str,
+    expected_moves: &[(u64, u64)],
+    expected_residuals: &[(u64, u64)],
+) {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
@@ -1018,7 +1030,7 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
                 _ => panic!("nested body retains only Unit calls"),
             })
             .collect::<Vec<_>>(),
-        vec![(1, 0), (0, 1)],
+        expected_moves,
     );
     let Terminator::ReturnUnitPartialAffine {
         edge,
@@ -1036,7 +1048,7 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
                 path(&discard.path)
             })
             .collect::<Vec<_>>(),
-        vec![(1, 2), (1, 1), (0, 2), (0, 0)],
+        expected_residuals,
     );
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -1067,6 +1079,62 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
         )
         .is_err(),
         "reversed nested residual order rejects",
+    );
+
+    let mut wrong_inner_length = lowered.semantic_module.clone();
+    let outer = wrong_inner_length
+        .structural_types
+        .iter()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("outer array declaration");
+    let psi_terminal::StructuralTypeShape::FixedArray { element: inner, .. } = outer.shape else {
+        unreachable!()
+    };
+    let inner = wrong_inner_length
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.id == inner)
+        .expect("inner array declaration");
+    let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut inner.shape else {
+        unreachable!()
+    };
+    *length = if *length == 3 { 4 } else { 3 };
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &wrong_inner_length,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "cross-width inner declaration mutation rejects",
+    );
+
+    let mut out_of_bounds_path = lowered.semantic_module.clone();
+    let entry = out_of_bounds_path
+        .machines
+        .iter_mut()
+        .find(|candidate| candidate.id == out_of_bounds_path.entry)
+        .unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut entry.blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let [_, StructuralPathSegment::FixedIndex(inner)] = structural_arguments[0].path.as_mut_slice()
+    else {
+        unreachable!()
+    };
+    *inner = u64::try_from(expected_residuals.len() / 2 + 1).expect("bounded inner width");
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &out_of_bounds_path,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "one-past-inner-width path mutation rejects",
     );
 
     let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
@@ -1102,6 +1170,20 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 5);
+}
+
+#[test]
+fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
+    assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter(
+        NESTED_AFFINE_ARRAY_SOURCE,
+        &[(1, 0), (0, 1)],
+        &[(1, 2), (1, 1), (0, 2), (0, 0)],
+    );
+    assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter(
+        NESTED_AFFINE_QUARTET_SOURCE,
+        &[(1, 3), (0, 1)],
+        &[(1, 2), (1, 1), (1, 0), (0, 3), (0, 2), (0, 0)],
+    );
 }
 
 #[test]
