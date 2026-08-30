@@ -23,6 +23,7 @@ pub use parameter::{
     StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationReceipt,
+    StraightLineWrappingIntegerAddParametersTranslationReceipt,
 };
 pub use roster::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
@@ -57,5 +58,8 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationReceipt,
+    ),
+    StraightLineWrappingIntegerAddParameters(
+        StraightLineWrappingIntegerAddParametersTranslationReceipt,
     ),
 }

@@ -135,6 +135,10 @@ pub(crate) fn check(audit: &mut Audit) {
         ),
         ("AArch64 MOVN proposal", REQUIRED_MOVN_COMPUTE_LEAVES),
         ("extracted focused tests", REQUIRED_EXTRACTED_TEST_LEAVES),
+        (
+            "exact arithmetic translation",
+            REQUIRED_TRANSLATION_ARITHMETIC_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

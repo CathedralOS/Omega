@@ -1,8 +1,9 @@
 //! Optimizer module role: executable entrance. Typed integer-expression source grammar entrance.
 //!
-//! Exact unary, bitwise, and comparison grammars own their result-envelope
+//! Exact unary, arithmetic, bitwise, and comparison grammars own their result-envelope
 //! choice. This rung owns only their common typed-parameter lookup.
 
+pub(in crate::validation::straight_line_parameter) mod arithmetic;
 pub(in crate::validation::straight_line_parameter) mod bitwise;
 pub(in crate::validation::straight_line_parameter) mod comparison;
 pub(in crate::validation::straight_line_parameter) mod unary;

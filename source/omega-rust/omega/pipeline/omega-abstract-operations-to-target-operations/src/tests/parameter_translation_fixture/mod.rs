@@ -2,11 +2,13 @@
 
 use super::*;
 
+mod arithmetic;
 mod bitwise;
 mod comparison;
 mod direct;
 mod unary;
 
+pub(super) use arithmetic::*;
 pub(super) use bitwise::*;
 pub(super) use comparison::*;
 pub(super) use direct::*;

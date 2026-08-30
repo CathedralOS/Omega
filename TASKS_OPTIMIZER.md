@@ -19,9 +19,9 @@ decision. Only true language-semantic questions belong in
 2. [x] Split the fixed-view-copy artifact architecture from v4 to v5. V5
    carries `SelectedInstructionPlan::structural_unit_functions`; v4 remains
    byte-stable and decodes that field as empty.
-3. [ ] Add abstract-to-target translation validation for
-   `WrappingIntegerAdd(parameter, parameter)`, then wrapping subtract and
-   multiply as separate exact catalog rows and leaves.
+3. [>] Add exact wrapping arithmetic parameter translation families.
+   `WrappingIntegerAdd(parameter, parameter)` is complete; wrapping subtract
+   and multiply remain separate catalog rows and leaves.
 4. [x] Repair the four stale optimization-pipeline proof fixtures whose exact
    add/subtract goals are still represented by `KernelDerived(Truth)`. Use
    checked certificate-derived proofs; do not weaken proof admission.
@@ -64,7 +64,7 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
-- [x] Audit all 277 governed `lib.rs`/`mod.rs` files and explicitly classify
+- [x] Audit all 292 governed `lib.rs`/`mod.rs` files and explicitly classify
   each at its source as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall. The
@@ -133,7 +133,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Sixteen abstract-to-target families, selected incoming
+  machine-rule family. Seventeen abstract-to-target families, selected incoming
   u12 folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
@@ -171,10 +171,11 @@ decision. Only true language-semantic questions belong in
 - [x] Selected construction classifies a complete function body through one
   scalar-family catalog and returns registers and blocks together.
 - [x] Exact incoming-u12 add/subtract immediate folds.
-- [ ] Add exact wrapping add/subtract/multiply parameter translation families.
-  Each owns source grammar, target replay, typed error/receipt, corruption, and
-  optimized-custody leaves while sharing only whole-roster ABI/provenance
-  mechanics.
+- [>] Add exact wrapping add/subtract/multiply parameter translation families.
+  Wrapping add now owns its catalog row, source grammar, target replay, typed
+  error/receipt, corruption, and optimized-custody leaves. Wrapping subtract
+  and multiply remain; share only whole-roster ABI/provenance mechanics until
+  a second exact arithmetic family proves another helper is real.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

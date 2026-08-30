@@ -21,6 +21,7 @@ pub use parameter::{
     StraightLineIntegerLessThanParametersTranslationError,
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
+    StraightLineWrappingIntegerAddParametersTranslationError,
 };
 pub use terminal::StraightLineScalarCrashTranslationError;
 
@@ -75,6 +76,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerBitwiseOrParameters(StraightLineIntegerBitwiseOrParametersTranslationError),
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationError,
+    ),
+    StraightLineWrappingIntegerAddParameters(
+        StraightLineWrappingIntegerAddParametersTranslationError,
     ),
 }
 

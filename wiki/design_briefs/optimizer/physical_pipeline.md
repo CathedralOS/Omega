@@ -15,23 +15,25 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of those
 producer routes. It first binds Psi identity, requested target, entry, function
 count/order, machine, and attachment, then descends into exact family replay.
-Its first sixteen families reconstruct parameterless straight-line integer and
+Its first seventeen families reconstruct parameterless straight-line integer and
 Boolean literal returns, scalar `Crash`, direct integer and Boolean parameter
 returns, Boolean negation of a parameter, and equality of two Boolean
 parameters, equality of two same-type integer parameters, or strict/inclusive
 ordering of two same-type integer parameters, plus integer bitwise-not and
 integer-widen or proof-bearing integer exact-cast of one parameter, and integer
-bitwise-AND, bitwise-OR, or bitwise-XOR of two same-type parameters, without
+bitwise-AND, bitwise-OR, bitwise-XOR, or wrapping-add of two same-type integer
+parameters, without
 calling `lowering`, `KnownScalar`, or the scalar-return
 helper. The distinct parameter families share governed source-envelope and
 whole-roster ABI replay rungs, which independently apply the target's calling
 policy to prove every incoming register or stack location. Parameter replay
-descends through explicit direct, unary, bitwise, and comparison rungs. Those
+descends through explicit direct, unary, arithmetic, bitwise, and comparison
+rungs. Those
 joins bind operand/result identity and exact operation/edge provenance;
 Boolean equality,
 typed integer equality, and strict or inclusive integer ordering retain ordered
 and identical operands through recursive `ReturnBooleanExpression` receipts,
-while integer bitwise-not, bitwise-AND, bitwise-OR, and bitwise-XOR retain
+while integer bitwise-not, bitwise-AND, bitwise-OR, bitwise-XOR, and wrapping-add retain
 exact-width operands, integer-widen retains distinct source/target types, and exact-cast
 additionally retains its
 proof obligation through `ReturnIntegerExpression`. The optimized custody test
