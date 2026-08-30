@@ -462,19 +462,21 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
-Package review additionally owns one unobservable version-1 evaluation sponsor
+Package review additionally owns one unobservable version-2 evaluation sponsor
 across the complete resolved closure. The current compiler policy grants
-100,000,000 deterministic evaluator fuel units to that session while retaining
+100,000,000 deterministic evaluator fuel units and 16 MiB of compiler-owned
+BuildLog output to that session while retaining
 the ordinary 100,000-unit ceiling for an effect-free invocation and
 10,000,000-unit ceiling for a granted invocation. Initial evaluation and
-automatic provider-free replay debit the same account;
-dependencies cannot raise it. The version-2 usage receipt binds the step
-schedule, per-invocation ceiling, optional sponsor schema and session ceiling,
-and distinct initial/replay charges. Successful closure review rejects unless
-the sum of retained charges exactly equals the sponsor account. The ambient
+automatic provider-free replay debit the same shared sponsor;
+dependencies cannot raise it. The version-3 usage receipt binds the step
+schedule, per-invocation ceiling, optional sponsor schema and session ceilings,
+and distinct initial/replay fuel and BuildLog charges. Successful closure
+review rejects unless both retained charge totals exactly equal the sponsor's
+counters. The ambient
 interpreter development override does not alter package-policy evaluation.
-These are deterministic work limits, not claims about CPU time, resident
-memory, or hostile-process containment.
+These are deterministic work and retained-log limits, not claims about CPU
+time, resident memory, or hostile-process containment.
 
 Package build filesystem authority enters through the one `Build` activation,
 which exposes an immutable `BuildSource` capability and a fresh writable
@@ -750,8 +752,9 @@ replay teardown, and a matching staged-output commitment or sponsored custody.
 The compiler fails closed rather than issuing `Complete` without source replay
 or staged-output custody. Observation identity binds the verdict schema and
 disposition with the attempts, handoffs, and tree. The verdict is execution
-evidence, not package admission or an audit attestation; CPU, memory, and
-remaining whole-session quotas remain independent policy gates.
+evidence, not package admission or an audit attestation. Host CPU and RSS
+controls are deployment availability policy; they do not strengthen the
+verdict or turn review into authority.
 
 Summary v53 and filesystem replay-record v34 add one exact no-effect failure
 row: an optional Source prefix followed by tag-10 `seek` on an unknown

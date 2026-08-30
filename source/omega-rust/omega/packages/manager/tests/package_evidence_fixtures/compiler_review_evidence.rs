@@ -45,7 +45,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let usage = issued
                 .build_evaluation_usage()
                 .expect("package review retains sponsored build-evaluation usage");
-            assert_eq!(usage.usage_schema_version, 2);
+            assert_eq!(usage.usage_schema_version, 3);
             assert_eq!(usage.step_schedule_marker, 1);
             assert_eq!(
                 usage.invocation_fuel_ceiling,
@@ -55,11 +55,14 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     100_000
                 }
             );
-            assert_eq!(usage.sponsor_schema_version, Some(1));
+            assert_eq!(usage.sponsor_schema_version, Some(2));
             assert_eq!(usage.session_fuel_ceiling, Some(100_000_000));
+            assert_eq!(usage.session_build_log_byte_ceiling, Some(16 * 1024 * 1024));
             assert!(usage.fuel_units > 0);
             assert!(usage.fuel_units <= usage.invocation_fuel_ceiling);
             assert!(usage.replay_fuel_units <= usage.invocation_fuel_ceiling);
+            assert_eq!(usage.build_log_bytes, 0);
+            assert_eq!(usage.replay_build_log_bytes, 0);
             closure_build_fuel = closure_build_fuel
                 .checked_add(usage.fuel_units)
                 .and_then(|total| total.checked_add(usage.replay_fuel_units))

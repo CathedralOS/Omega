@@ -62,11 +62,13 @@ package review remains non-admitting.
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
   - extend the landed compiler-owned, closure-wide deterministic fuel sponsor
-    with peak-live-cell, temporary/result-byte, console-output, attempt-count,
-    and live-handle ceilings;
-  - enforce hard process CPU and memory containment before a package-review
-    verdict can be authority-bearing. Deterministic evaluator fuel is not CPU,
-    and the filesystem staging account is not memory containment.
+    with peak-live-cell, temporary/result-byte, attempt-count, and live-handle
+    ceilings. BuildLog now has its own closure-wide exact byte account.
+
+  Host CPU/RSS limits are deployment availability policy, not package evidence
+  and not a precondition that turns review into authority. Projects that need
+  stronger availability isolation run `omega` under their selected CI,
+  container, VM, or job controls.
 
   A summary or observation digest alone is not a receipt.
 
@@ -309,12 +311,12 @@ explicitly.
   those existing facets. The explicit compiler-owned `BuildLog` facet and exact
   `write_line` dispatch have landed: log bytes are retained separately from
   runtime Console output and bound into build-observation identity without
-  granting a boundary-service reach. Its byte ceiling remains part of the
-  resource-ceiling work above. Build evaluation must admit no ordinary runtime
-  boundary service merely because it is filesystem- or console-shaped. Retain
-  exact build-effect and observation rows, while `FilesystemSponsor` remains
-  the enforcement boundary for source/output roots, symlinks, limits,
-  descriptors, and staging custody.
+  granting a boundary-service reach. Initial evaluation and replay debit one
+  compiler-owned closure-wide BuildLog byte account. Build evaluation must
+  admit no ordinary runtime boundary service merely because it is filesystem-
+  or console-shaped. Retain exact build-effect and observation rows, while
+  `FilesystemSponsor` remains the enforcement boundary for source/output
+  roots, symlinks, limits, descriptors, and staging custody.
 
   Audit every non-test `SourceOrigin::Toolchain` consumer. Preserve it for core,
   intrinsics, and virtual compiler sources such as `<build-prelude>`; replace
@@ -328,12 +330,13 @@ explicitly.
   facets, not through a std authority exception.
 
 - [ ] Complete generic/exact-application coverage for
-  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Package review now retains complete
-  declaration-family coordinates, exact provider and target, selection
-  authority, and the canonical coordinate-to-plan mapping. Extend that closed
-  carrier when exact applications become admissible, and keep compatibility
-  failure when a public family gains an uncovered coordinate. Concrete exact-
-  application production remains implementation work. **OWNER-BLOCKED —
+  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. The carrier, selected-closure
+  commitment, package projection, canonical encoding, and blocking update
+  comparison have landed. Derive concrete static applications from checked
+  provider realizations, retain normalized type/lifetime bindings, attach the
+  canonical rows to production selected-plan facts, and add compiler-to-update
+  end-to-end tests. Keep compatibility failure when a public family gains an
+  uncovered coordinate. **OWNER-BLOCKED —
   generic realization coverage:** do not add a `Generic` evidence variant until
   the owner settles what compiler-recheckable fact establishes universal
   coverage for checked and bodyless/external realizations. Package evidence

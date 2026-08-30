@@ -81,6 +81,14 @@ impl<'program> Evaluator<'program> {
                 )));
             }
         };
+        let appended = bytes
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| Halt::Resource("build log byte count overflowed".to_owned()))?;
+        self.charge_build_log_bytes(appended)?;
+        self.build_log
+            .try_reserve(appended)
+            .map_err(|_| Halt::Resource("build log allocation was refused".to_owned()))?;
         self.build_log.extend_from_slice(&bytes);
         self.build_log.push(b'\n');
         Ok(true)

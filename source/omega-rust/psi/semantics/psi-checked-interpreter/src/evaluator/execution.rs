@@ -82,6 +82,19 @@ impl<'program> Evaluator<'program> {
         self.build_evaluation_sponsor = sponsor;
     }
 
+    pub(super) fn charge_build_log_bytes(&mut self, bytes: usize) -> EvalResult<()> {
+        let bytes = u64::try_from(bytes)
+            .map_err(|_| Halt::Resource("BuildLog byte count overflowed".to_owned()))?;
+        if let Some(sponsor) = &self.build_evaluation_sponsor {
+            sponsor
+                .charge_build_log_bytes(bytes)
+                .map_err(Halt::Resource)?;
+        }
+        self.usage
+            .charge_build_log_bytes(bytes)
+            .ok_or_else(|| Halt::Resource("BuildLog byte accounting overflowed".to_owned()))
+    }
+
     // ---- entry --------------------------------------------------------------
 
     pub(super) fn run_entry(&mut self, entry_machine_name: &str) -> EvalResult<()> {
