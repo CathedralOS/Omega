@@ -1,4 +1,5 @@
 use super::*;
+use std::path::PathBuf;
 
 #[test]
 fn git_source_resolves_exact_commit_and_local_identity() {
@@ -72,6 +73,36 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         alternate_policy_observation.identity(),
         resolved.receipt().identity(),
         "the final observation must bind compiler source ceilings"
+    );
+    let mut alternate_executable = PendingResolvedGitSource::from_issued(&resolved);
+    let immutable_source = (
+        alternate_executable.commit.clone(),
+        alternate_executable.tree.clone(),
+        alternate_executable.materialized_tree.clone(),
+        alternate_executable.local.content_identity.clone(),
+    );
+    alternate_executable.git_executable.path = PathBuf::from("/operator/alternate/git");
+    alternate_executable.git_executable.content_identity = "ab".repeat(32);
+    let alternate_executable_receipt = issue_git_source_receipt(
+        &alternate_executable,
+        LocalSourceLimits::default(),
+        resolved.retained_storage_observation(),
+    )
+    .expect("issue receipt for alternate primary Git provenance");
+    assert_ne!(
+        alternate_executable_receipt.identity(),
+        resolved.receipt().identity(),
+        "primary Git path and content distinguish operation receipts"
+    );
+    assert_eq!(
+        immutable_source,
+        (
+            alternate_executable.commit,
+            alternate_executable.tree,
+            alternate_executable.materialized_tree,
+            alternate_executable.local.content_identity,
+        ),
+        "primary Git provenance does not enter immutable source identity"
     );
     let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
     unjoined_result.command_execution_observations.pop();

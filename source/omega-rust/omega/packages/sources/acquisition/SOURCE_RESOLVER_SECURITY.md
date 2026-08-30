@@ -114,6 +114,12 @@ producing the same authenticated source identity. A dependency declaration,
 fetched repository, package source, and `build.omg` can neither select nor
 alter the primary executable.
 
+The retained source-resolver storage session owns this frozen selection. Its
+operator constructors accept an explicit executable and controlled-root
+exclusions; the automatic constructor snapshots `PATH` once. Git source and
+workspace-member lanes inherit that same selection, so acquisition never
+re-reads ambient executable search state after package declarations begin.
+
 ## Host-routed network transport
 
 Networked discovery and fetch invoke the selected system Git under the

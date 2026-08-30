@@ -65,9 +65,14 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
 
     let storage_base = temp_root("workspace-projection-resolution-storage");
     std::fs::create_dir_all(&storage_base).expect("create storage base");
-    let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
     let request = local_git_request(&repository, "HEAD");
+    let primary_git = test_system_git_executor(request.execution_transport())
+        .expect("select fixture Git")
+        .identity
+        .path;
+    let storage =
+        SourceResolverStorage::for_hardened_base_with_primary_git(&storage_base, primary_git)
+            .expect("retain resolver storage");
     let member = SourceRelativePath::parse("packages/member").expect("member path");
     let mut planner = FixedWorkspacePlanner {
         member: member.clone(),

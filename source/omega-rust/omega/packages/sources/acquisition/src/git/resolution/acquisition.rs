@@ -29,6 +29,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
     request: &GitSourceRequest,
     cache_dir: &Path,
     cache_directory: &CapabilityDirectory,
+    primary_git: &Path,
     limits: LocalSourceLimits,
     pin: Option<&GitAcquisitionPin>,
     materialize: impl FnOnce(
@@ -56,7 +57,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
         }
     }
     let execution_transport = request.execution_transport();
-    let executor = GitExecutor::system(execution_transport, limits)?;
+    let executor = GitExecutor::selected(primary_git, execution_transport, limits)?;
     let mut materialize = Some(materialize);
     let result = (|| {
         let requested_rev = request.requested_revision();
