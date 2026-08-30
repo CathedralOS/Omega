@@ -20,6 +20,89 @@ ASSEMBLER="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
 trap 'trash "$TMP"' EXIT
+OUTCOME_CODES="$OMEGA_PATH_BETA_COMPILER/outcomes-v1.tsv"
+
+outcome_name() {
+  kind=$1
+  code=$2
+  awk -F '\t' -v kind="$kind" -v code="$code" \
+    '$1 == kind && $2 == code { print $3; found = 1 } END { if (!found) exit 1 }' \
+    "$OUTCOME_CODES"
+}
+
+outcome_coordinate_space() {
+  kind=$1
+  code=$2
+  awk -F '\t' -v kind="$kind" -v code="$code" \
+    '$1 == kind && $2 == code { print $4; found = 1 } END { if (!found) exit 1 }' \
+    "$OUTCOME_CODES"
+}
+
+# Decode one already-staged compiler failure. This consumer enforces the
+# canonical carrier; it never repairs or infers missing producer fields.
+decode_failure() {
+  frame=$1
+  halt_tag=$2
+  [ "$(wc -c < "$frame" | tr -d ' ')" -eq 40 ] || return 1
+  set -- $(od -An -tu1 -v "$frame")
+  [ "$#" -eq 40 ] || return 1
+  [ "$1" -eq 255 ] && [ "$2" -eq 66 ] && [ "$3" -eq 67 ] &&
+    [ "$4" -eq 79 ] && [ "$5" -eq 85 ] && [ "$6" -eq 84 ] &&
+    [ "$7" -eq 1 ] && [ "$8" -eq 0 ] || return 1
+  shift 8
+  decoded_kind=$1
+  decoded_space=$2
+  [ "$3" -eq 0 ] && [ "$4" -eq 0 ] || return 1
+  shift 4
+  decoded_code=$(( $1 + ($2 << 8) + ($3 << 16) + ($4 << 24) ))
+  shift 4
+  decoded_coordinate=$(( $1 + ($2 << 8) + ($3 << 16) + ($4 << 24) + ($5 << 32) + ($6 << 40) + ($7 << 48) + ($8 << 56) ))
+  shift 8
+  decoded_limit=$(( $1 + ($2 << 8) + ($3 << 16) + ($4 << 24) + ($5 << 32) + ($6 << 40) + ($7 << 48) + ($8 << 56) ))
+  shift 8
+  decoded_requested=$(( $1 + ($2 << 8) + ($3 << 16) + ($4 << 24) + ($5 << 32) + ($6 << 40) + ($7 << 48) + ($8 << 56) ))
+  [ "$decoded_kind" -eq "$halt_tag" ] || return 1
+  case "$decoded_kind" in
+    1)
+      decoded_family=reject
+      [ "$decoded_space" -eq 1 ] && [ "$decoded_limit" -eq 0 ] &&
+        [ "$decoded_requested" -eq 0 ] || return 1
+      ;;
+    2)
+      decoded_family=incomplete
+      [ "$decoded_space" -eq 1 ] || [ "$decoded_space" -eq 2 ] || return 1
+      [ "$decoded_requested" -gt "$decoded_limit" ] || return 1
+      ;;
+    3)
+      decoded_family=internal
+      [ "$decoded_space" -ge 0 ] && [ "$decoded_space" -le 3 ] &&
+        [ "$decoded_limit" -eq 0 ] && [ "$decoded_requested" -eq 0 ] || return 1
+      ;;
+    *) return 1 ;;
+  esac
+  decoded_name=$(outcome_name "$decoded_family" "$decoded_code") || return 1
+  decoded_space_name=$(outcome_coordinate_space "$decoded_family" "$decoded_code") || return 1
+  case "$decoded_space_name" in
+    none) expected_space=0 ;;
+    source_byte) expected_space=1 ;;
+    emitted_payload_byte) expected_space=2 ;;
+    internal_row) expected_space=3 ;;
+    *) return 1 ;;
+  esac
+  [ "$decoded_space" -eq "$expected_space" ] || return 1
+}
+
+expect_failure() {
+  frame=$1
+  halt_tag=$2
+  expected_name=$3
+  expected_limit=$4
+  expected_requested=$5
+  decode_failure "$frame" "$halt_tag" &&
+    [ "$decoded_name" = "$expected_name" ] &&
+    [ "$decoded_limit" -eq "$expected_limit" ] &&
+    [ "$decoded_requested" -eq "$expected_requested" ]
+}
 
 "$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/compiler.tape"
 stamp_seed "$TMP/compiler.tape" "$SEED" "$TMP/compiler" >/dev/null
@@ -111,10 +194,28 @@ reject() {
   printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
   status=$?
   set -e
-  if [ "$status" -ne 0 ] && [ ! -s "$TMP/$name.out" ]; then
+  if [ "$status" -eq 1 ] && expect_failure "$TMP/$name.out" "$status" invalid_source 0 0; then
     pass=$((pass + 1))
   else
-    echo "FAIL $name: invalid source status=$status output=$(wc -c < "$TMP/$name.out" | tr -d ' ')" >&2
+    echo "FAIL $name: invalid source did not return canonical Reject (status=$status, output=$(wc -c < "$TMP/$name.out" | tr -d ' '))" >&2
+    fail=$((fail + 1))
+  fi
+}
+
+incomplete() {
+  name=$1
+  resource=$2
+  limit=$3
+  requested=$4
+  source=$5
+  set +e
+  printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
+  status=$?
+  set -e
+  if [ "$status" -eq 2 ] && expect_failure "$TMP/$name.out" "$status" "$resource" "$limit" "$requested"; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: resource refusal did not return canonical Incomplete/$resource (status=$status)" >&2
     fail=$((fail + 1))
   fi
 }
@@ -140,8 +241,8 @@ accept_compile_extent() {
 }
 
 # A memory-invalid run is outside the admitted Beta profile, but the generated
-# tape must contain it before any physical tape/stack access rather than aliasing
-# another Alpha region. Its numeric host status is deliberately not pinned.
+# tape must contain it as runtime status 251 before any physical tape/stack
+# access rather than aliasing another Alpha region.
 contain_memory_fault() {
   name=$1
   source=$2
@@ -155,7 +256,7 @@ contain_memory_fault() {
   "$TMP/$name" </dev/null > "$TMP/$name.stdout"
   status=$?
   set -e
-  if [ "$status" -ne 0 ] && [ ! -s "$TMP/$name.stdout" ]; then
+  if [ "$status" -eq 251 ] && [ ! -s "$TMP/$name.stdout" ]; then
     pass=$((pass + 1))
   else
     echo "FAIL $name: invalid memory escaped containment (status $status)" >&2
@@ -349,14 +450,52 @@ reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
 reject decimal_overflow 'proc main() { return 18446744073709551616 }'
 reject bad_character "proc main() { return '\\x' }"
 
+reject_noncanonical_frame() {
+  name=$1
+  frame=$2
+  halt_tag=$3
+  if decode_failure "$frame" "$halt_tag"; then
+    echo "FAIL $name: noncanonical compiler observation decoded" >&2
+    fail=$((fail + 1))
+  else
+    pass=$((pass + 1))
+  fi
+}
+
+# The observation consumer is fail-closed: it stages output and admits neither
+# malformed diagnostics nor partial/trapping producer output as an artifact.
+dd if="$TMP/missing_expression.out" of="$TMP/frame-truncated" bs=39 count=1 2>/dev/null
+reject_noncanonical_frame diagnostic_truncated "$TMP/frame-truncated" 1
+cp "$TMP/missing_expression.out" "$TMP/frame-unknown-code"
+printf '\177' | dd of="$TMP/frame-unknown-code" bs=1 seek=12 conv=notrunc 2>/dev/null
+reject_noncanonical_frame diagnostic_unknown_code "$TMP/frame-unknown-code" 1
+cp "$TMP/missing_expression.out" "$TMP/frame-reserved"
+printf '\001' | dd of="$TMP/frame-reserved" bs=1 seek=10 conv=notrunc 2>/dev/null
+reject_noncanonical_frame diagnostic_reserved_field "$TMP/frame-reserved" 1
+cp "$TMP/missing_expression.out" "$TMP/frame-coordinate-space"
+printf '\002' | dd of="$TMP/frame-coordinate-space" bs=1 seek=9 conv=notrunc 2>/dev/null
+reject_noncanonical_frame diagnostic_coordinate_space "$TMP/frame-coordinate-space" 1
+cp "$TMP/missing_expression.out" "$TMP/frame-kind-mismatch"
+printf '\002' | dd of="$TMP/frame-kind-mismatch" bs=1 seek=8 conv=notrunc 2>/dev/null
+reject_noncanonical_frame diagnostic_halt_disagreement "$TMP/frame-kind-mismatch" 1
+cp "$TMP/missing_expression.out" "$TMP/frame-unknown-version"
+printf '\002' | dd of="$TMP/frame-unknown-version" bs=1 seek=6 conv=notrunc 2>/dev/null
+reject_noncanonical_frame diagnostic_unknown_version "$TMP/frame-unknown-version" 1
+cp "$TMP/missing_expression.out" "$TMP/frame-partial-output"
+printf '\000' >> "$TMP/frame-partial-output"
+reject_noncanonical_frame diagnostic_partial_output "$TMP/frame-partial-output" 1
+: > "$TMP/frame-trap"
+reject_noncanonical_frame diagnostic_trap "$TMP/frame-trap" 132
+reject_noncanonical_frame runtime_250_not_compiler_outcome "$TMP/missing_expression.out" 250
+reject_noncanonical_frame runtime_251_not_compiler_outcome "$TMP/missing_expression.out" 251
+
 # Pin each source-shape table at its last admitted row and first refused row.
-# These are private compiler ceilings; Q16 still owns their eventual typed
-# outcome carrier. Until that ruling, every refusal must remain fail-closed and
-# publish no partial tape.
+# These are private compiler ceilings and every refusal returns the exact
+# version-1 Incomplete carrier without publishing artifact bytes.
 ident_64=$(awk 'BEGIN { for (i = 0; i < 64; i++) printf "a" }')
 ident_65="${ident_64}a"
 accept identifier_limit "proc main() { let $ident_64 = 42 return $ident_64 }" 42
-reject identifier_extent "proc main() { let $ident_65 = 1 return 0 }"
+incomplete identifier_extent identifier_bytes 64 65 "proc main() { let $ident_65 = 1 return 0 }"
 
 deep_64='proc main() { return '
 i=0
@@ -367,7 +506,7 @@ while [ "$i" -lt 64 ]; do deep_64="${deep_64})"; i=$((i + 1)); done
 deep_64="${deep_64} }"
 accept nesting_limit "$deep_64" 1
 deep_65=$(printf '%s' "$deep_64" | sed 's/return /return (/; s/ }$/) }/')
-reject nesting_extent "$deep_65"
+incomplete nesting_extent syntax_depth 64 65 "$deep_65"
 
 nested_calls_64='proc main() { return '
 i=0
@@ -378,7 +517,7 @@ while [ "$i" -lt 64 ]; do nested_calls_64="${nested_calls_64})"; i=$((i + 1)); d
 nested_calls_64="${nested_calls_64} } proc identity(x) { return x }"
 accept call_nesting_limit "$nested_calls_64" 1
 nested_calls_65=$(printf '%s' "$nested_calls_64" | sed 's/return /return identity(/; s/ } proc identity/) } proc identity/')
-reject call_nesting_extent "$nested_calls_65"
+incomplete call_nesting_extent syntax_depth 64 65 "$nested_calls_65"
 
 deep_load_64='proc main() { return '
 i=0
@@ -389,45 +528,56 @@ while [ "$i" -lt 64 ]; do deep_load_64="${deep_load_64}]"; i=$((i + 1)); done
 deep_load_64="${deep_load_64} }"
 accept load_nesting_limit "$deep_load_64" 0
 deep_load_65=$(printf '%s' "$deep_load_64" | sed 's/return /return word[/; s/ }$/] }/')
-reject load_nesting_extent "$deep_load_65"
+incomplete load_nesting_extent syntax_depth 64 65 "$deep_load_65"
 
 # A fixed emit body lets the gate hit Alpha's 262140-byte runnable payload
 # exactly. The second source requests 262141 bytes and must publish nothing.
 tape_limit=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21829; i++) printf "a"; print "\") return 1 + 1 }" }')
 accept_compile_extent output_limit "$tape_limit" 262140
 tape_over=$(awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 21834; i++) printf "a"; print "\") return 0 }" }')
-reject output_extent "$tape_over"
+incomplete output_extent payload_bytes 262140 262141 "$tape_over"
 
 wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 14000; i++) printf "+1"; print " }" }')
-reject expression_output_extent "$wide"
+set +e
+printf '%s\n' "$wide" | "$TMP/compiler" > "$TMP/expression_output_extent.out"
+status=$?
+set -e
+if [ "$status" -eq 2 ] && decode_failure "$TMP/expression_output_extent.out" "$status" &&
+   [ "$decoded_name" = payload_bytes ] && [ "$decoded_limit" -eq 262140 ] &&
+   [ "$decoded_requested" -gt 262140 ]; then
+  pass=$((pass + 1))
+else
+  echo "FAIL expression_output_extent: did not return canonical payload Incomplete" >&2
+  fail=$((fail + 1))
+fi
 slots_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " let v%d = %d", i, i; print " return v63 }" }')
 accept slot_limit "$slots_64" 63
 slots_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
-reject slot_extent "$slots_65"
+incomplete slot_extent frame_slot_rows 64 65 "$slots_65"
 calls_1024=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1024; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
 accept call_global_limit "$calls_1024" 0
 calls_1025=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1025; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
-reject call_global_extent "$calls_1025"
+incomplete call_global_extent call_rows 1024 1025 "$calls_1025"
 procs_128=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 127; i++) printf "proc p%d() { return %d }\n", i, i }')
 accept procedure_limit "$procs_128" 0
 procs_129="$procs_128 proc overflow() { return 0 }"
-reject procedure_extent "$procs_129"
+incomplete procedure_extent procedure_rows 128 129 "$procs_129"
 states_128=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" }')
 accept state_proc_limit "$states_128" 0
 states_129=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " return 0 }" }')
-reject state_proc_extent "$states_129"
+incomplete state_proc_extent procedure_state_rows 128 129 "$states_129"
 states_1024=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" } }')
 accept state_global_limit "$states_1024" 0
 states_1025="$states_1024 proc extra() { state overflow { return 0 } }"
-reject state_global_extent "$states_1025"
+incomplete state_global_extent global_state_rows 1024 1025 "$states_1025"
 edges_256=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 256; i++) printf " to done"; print " state done { return 0 } }" }')
 accept edge_proc_limit "$edges_256" 0
 edges_257=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 257; i++) printf " to done"; print " state done { return 0 } }" }')
-reject edge_proc_extent "$edges_257"
+incomplete edge_proc_extent procedure_edge_rows 256 257 "$edges_257"
 edges_1024=$(awk 'BEGIN { for (p = 0; p < 4; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 256; i++) printf " to done"; print " state done { return 0 } }" } }')
 accept edge_global_limit "$edges_1024" 0
 edges_1025="$edges_1024 proc extra_edges() { to done state done { return 0 } }"
-reject edge_global_extent "$edges_1025"
+incomplete edge_global_extent global_edge_rows 1024 1025 "$edges_1025"
 
 # The 32768-fixup and 65536-internal-label arrays are secondary corruption
 # guards rather than independently reachable source-profile limits: every row
@@ -452,10 +602,10 @@ set +e
 "$TMP/compiler" < "$limit_source" > "$TMP/source-over.out"
 status=$?
 set -e
-if [ "$status" -eq 2 ] && [ ! -s "$TMP/source-over.out" ]; then
+if [ "$status" -eq 2 ] && expect_failure "$TMP/source-over.out" "$status" source_bytes 1048576 1048577; then
   pass=$((pass + 1))
 else
-  echo "FAIL source_over: expected status 2 and empty output, got status $status" >&2
+  echo "FAIL source_over: expected canonical source-bytes Incomplete, got status $status" >&2
   fail=$((fail + 1))
 fi
 
