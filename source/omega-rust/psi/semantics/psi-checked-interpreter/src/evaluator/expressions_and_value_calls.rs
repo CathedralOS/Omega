@@ -49,7 +49,8 @@ impl<'program> Evaluator<'program> {
                     Ok(cell) => Ok(cell.borrow().clone()),
                     Err(_) => {
                         let receiver = self.eval_expression(member.receiver, frame)?;
-                        let field = self.field_cell(&receiver.cell(), member.member.as_str())?;
+                        let receiver = self.allocate_cell(receiver)?;
+                        let field = self.field_cell(&receiver, member.member.as_str())?;
                         Ok(self.deref_cell(field).borrow().clone())
                     }
                 }
@@ -68,8 +69,8 @@ impl<'program> Evaluator<'program> {
                 let cell = self.resolve_place(inner.target, frame)?;
                 // Re-borrow collapse: see eval_argument's Mutable arm.
                 let target = match &*cell.borrow() {
-                    Value::Ref(target) => Rc::clone(target),
-                    _ => Rc::clone(&cell),
+                    Value::Ref(target) => target.clone(),
+                    _ => cell.clone(),
                 };
                 Ok(Value::Ref(target))
             }
@@ -165,7 +166,7 @@ impl<'program> Evaluator<'program> {
                             .record_view_type_layout(source_type, &mut HashSet::new())
                             .is_some()
                     {
-                        let source = value.clone().cell();
+                        let source = self.allocate_cell(value.clone())?;
                         let cells = self.snapshot_typed_value_bytes(&source, source_type)?;
                         if let Some(value) =
                             self.assemble_record_view_type(cast.target_type, &cells, 0)?
@@ -220,7 +221,8 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::ArrayLiteral(values) => {
                 let mut elements = Vec::new();
                 for value in self.program.expression_table.expression_handles(values) {
-                    elements.push(self.eval_expression(*value, frame)?.cell());
+                    let value = self.eval_expression(*value, frame)?;
+                    elements.push(self.allocate_cell(value)?);
                 }
                 Ok(Value::Array(elements))
             }
@@ -283,7 +285,7 @@ impl<'program> Evaluator<'program> {
             let receiver = self.eval_argument(operands[0], frame)?;
             self.deref_cell(receiver)
         } else {
-            Rc::clone(&frame.self_cell)
+            frame.self_cell.clone()
         };
         let mut arguments = Vec::with_capacity(operands.len() - usize::from(has_self));
         for operand in operands.into_iter().skip(usize::from(has_self)) {
@@ -556,11 +558,13 @@ impl<'program> Evaluator<'program> {
                                 .map(|data| data.symbol)
                                 .unwrap_or_else(SymbolHandle::invalid),
                             variant_name: variant_name.to_owned(),
-                            payload: negative
-                                .map(|negative| {
-                                    vec![("negative".to_owned(), Value::Bool(negative).cell())]
-                                })
-                                .unwrap_or_default(),
+                            payload: match negative {
+                                Some(negative) => vec![(
+                                    "negative".to_owned(),
+                                    self.allocate_cell(Value::Bool(negative))?,
+                                )],
+                                None => Vec::new(),
+                            },
                         })
                     }
                     _ => unsupported("float classification argument is not a float"),
@@ -740,7 +744,7 @@ impl<'program> Evaluator<'program> {
                     // nature (`let r = self.console.read_byte()`).
                     self.host_boundary_touched = true;
                     self.non_fs_host_boundary_touched = true;
-                    return Ok(self.read_stdin_byte_value());
+                    return self.read_stdin_byte_value();
                 }
                 if let Some(value) = self.virtual_time_host_value(target) {
                     self.host_boundary_touched = true;
@@ -1037,9 +1041,13 @@ impl<'program> Evaluator<'program> {
                         .map(|data| data.symbol)
                         .unwrap_or_else(SymbolHandle::invalid),
                     variant_name: variant_name.to_owned(),
-                    payload: negative
-                        .map(|negative| vec![("negative".to_owned(), Value::Bool(negative).cell())])
-                        .unwrap_or_default(),
+                    payload: match negative {
+                        Some(negative) => vec![(
+                            "negative".to_owned(),
+                            self.allocate_cell(Value::Bool(negative))?,
+                        )],
+                        None => Vec::new(),
+                    },
                 }
             }
             "is_finite" => Value::Bool(FloatSemantics::is_finite(&operands[0])),
@@ -1191,7 +1199,7 @@ impl<'program> Evaluator<'program> {
         if call.receiver.is_valid() {
             if let Ok(cell) = self.resolve_place(call.receiver, frame) {
                 let cell = self.deref_cell(cell);
-                let is_self = Rc::ptr_eq(&cell, &frame.self_cell);
+                let is_self = Cell::ptr_eq(&cell, &frame.self_cell);
                 if !is_self {
                     if let Some(machine) = self.machine_for_instance_state(&cell, target) {
                         return Ok((machine, target.to_owned(), cell));
@@ -1230,7 +1238,7 @@ impl<'program> Evaluator<'program> {
                         })
                         .cloned()
                     {
-                        return Ok((machine, target.to_owned(), Rc::clone(&frame.self_cell)));
+                        return Ok((machine, target.to_owned(), frame.self_cell.clone()));
                     }
                 }
             }
@@ -1242,11 +1250,7 @@ impl<'program> Evaluator<'program> {
         if receiver_is_self {
             if let Some(machine) = self.current_machine(frame) {
                 if self.find_state(machine, target).is_some() {
-                    return Ok((
-                        machine.clone(),
-                        target.to_owned(),
-                        Rc::clone(&frame.self_cell),
-                    ));
+                    return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
                 }
             }
         }
@@ -1259,7 +1263,7 @@ impl<'program> Evaluator<'program> {
         let entry_state = self
             .machine_entry_state_name(&machine)
             .ok_or_else(|| Halt::Unsupported(format!("value-call `{target}` has no state")))?;
-        Ok((machine, entry_state, Rc::clone(&frame.self_cell)))
+        Ok((machine, entry_state, frame.self_cell.clone()))
     }
 
     /// Construct a `data` value from a struct literal `Type { field: value, .. }`. Fields
@@ -1293,7 +1297,7 @@ impl<'program> Evaluator<'program> {
                 Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
                 None => value,
             };
-            fields.insert(field.name.as_str().to_owned(), value.cell());
+            fields.insert(field.name.as_str().to_owned(), self.allocate_cell(value)?);
         }
         Ok(Value::Struct {
             type_symbol,
@@ -1341,12 +1345,12 @@ impl<'program> Evaluator<'program> {
             };
             let name = common_field.name.as_str().to_owned();
             let value = self.default_value_for_type(common_field.type_reference)?;
-            payload.push((name, value.cell()));
+            payload.push((name, self.allocate_cell(value)?));
         }
         for field in self.program.data_payload_fields(variant) {
             let name = field.name.as_str().to_owned();
             let value = self.default_value_for_type(field.type_reference)?;
-            payload.push((name, value.cell()));
+            payload.push((name, self.allocate_cell(value)?));
         }
         for field in self.program.expression_table.struct_fields(literal.fields) {
             let value = self.eval_expression(field.value, frame)?;
@@ -1359,7 +1363,7 @@ impl<'program> Evaluator<'program> {
                     field.name.as_str()
                 ));
             };
-            slot.1 = value.cell();
+            slot.1 = self.allocate_cell(value)?;
         }
 
         Ok(Value::Enum {

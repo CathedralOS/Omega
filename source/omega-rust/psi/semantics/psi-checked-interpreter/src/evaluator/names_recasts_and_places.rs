@@ -2,7 +2,7 @@ use super::*;
 
 impl<'program> Evaluator<'program> {
     pub(super) fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
-        let container = self.deref_cell(Rc::clone(container));
+        let container = self.deref_cell(container.clone());
         let borrowed = container.borrow();
         match &*borrowed {
             Value::Struct {
@@ -20,7 +20,7 @@ impl<'program> Evaluator<'program> {
             } => payload
                 .iter()
                 .find(|(name, _)| name == field)
-                .map(|(_, cell)| Rc::clone(cell))
+                .map(|(_, cell)| cell.clone())
                 .ok_or_else(|| {
                     Halt::Trap(format!(
                         "case `{variant_name}` carries no payload field `{field}`"
@@ -28,11 +28,13 @@ impl<'program> Evaluator<'program> {
                 }),
             // `slice.len` / `array.len` in member form produces a fresh length.
             Value::Array(elements) if field == "len" => {
-                Ok(Value::Int(elements.len() as i64).cell())
+                self.allocate_cell(Value::Int(elements.len() as i64))
             }
             // A text literal flowing into a `&[u8] in Utf8` parameter observes
             // its UTF-8 byte count, matching the native `<literal>.len` fold.
-            Value::Str(text) if field == "len" => Ok(Value::Int(text.borrow().len() as i64).cell()),
+            Value::Str(text) if field == "len" => {
+                self.allocate_cell(Value::Int(text.borrow().len() as i64))
+            }
             other => trap(format!("cannot read field `{field}` of {other:?}")),
         }
     }
@@ -52,7 +54,7 @@ impl<'program> Evaluator<'program> {
             }
         }
         // An enum value reference (`CellId::R02` / `Command::Look`) resolves to an Enum.
-        if let Some(enum_value) = self.enum_value_from_path(members) {
+        if let Some(enum_value) = self.enum_value_from_path(members)? {
             return Ok(enum_value);
         }
         let cell = self.resolve_name_place(path, frame)?;
@@ -194,7 +196,7 @@ impl<'program> Evaluator<'program> {
                 && source_layout.is_some()
             {
                 return Ok(Some((
-                    Rc::clone(&source),
+                    source.clone(),
                     MutableScalarRecast::AggregateTyped {
                         source,
                         source_type,
@@ -460,38 +462,49 @@ impl<'program> Evaluator<'program> {
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
-    fn enum_value_from_path(&self, members: &[psi_typed_trees::name::Identifier]) -> Option<Value> {
+    fn enum_value_from_path(
+        &self,
+        members: &[psi_typed_trees::name::Identifier],
+    ) -> EvalResult<Option<Value>> {
         if members.len() != 2 {
-            return None;
+            return Ok(None);
         }
         let type_name = members[0].as_str();
         let variant_name = members[1].as_str();
-        let data = self.find_data_by_name(type_name)?;
+        let Some(data) = self.find_data_by_name(type_name) else {
+            return Ok(None);
+        };
         let is_variant = self.program.data_members(data).iter().any(|member| {
             matches!(member, DataMember::Variant(variant) if variant.name.as_str() == variant_name)
         });
-        is_variant.then(|| {
+        if !is_variant {
+            return Ok(None);
+        }
+        let common: Vec<(String, Cell)> = self
+            .program
+            .data_members(data)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                _ => None,
+            })
+            .map(|field| {
+                Ok((
+                    field.name.as_str().to_owned(),
+                    self.allocate_cell(self.default_for_type(field.type_reference))?,
+                ))
+            })
+            .collect::<EvalResult<_>>()?;
+        Ok(Some(
             // MIXED shapes: a bare payload-less case still carries the COMMON
             // fields, zero-initialized (scalar-only by validation, so the
             // primitive default is the zero value). Pure sums add nothing.
-            let common: Vec<(String, Cell)> = self
-                .program
-                .data_members(data)
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => Some((
-                        field.name.as_str().to_owned(),
-                        self.default_for_type(field.type_reference).cell(),
-                    )),
-                    _ => None,
-                })
-                .collect();
             Value::Enum {
                 type_symbol: data.symbol,
                 variant_name: variant_name.to_owned(),
                 payload: common,
-            }
-        })
+            },
+        ))
     }
 
     // ---- place resolution ---------------------------------------------------
@@ -533,7 +546,7 @@ impl<'program> Evaluator<'program> {
         // Head: `self`, a local, or a self-field (implicit self).
         let head = members[0].as_str();
         let mut cell = if head == "self" {
-            Rc::clone(&frame.self_cell)
+            frame.self_cell.clone()
         } else if let Some(local) = frame.get(head) {
             local
         } else {
@@ -759,11 +772,11 @@ impl<'program> Evaluator<'program> {
                         if single == "self" || frame.get(single).is_some() {
                             return None;
                         }
-                        (Rc::clone(&frame.self_cell), single.clone())
+                        (frame.self_cell.clone(), single.clone())
                     }
                     [head, middle @ .., last] => {
                         let mut cell = if head == "self" {
-                            Rc::clone(&frame.self_cell)
+                            frame.self_cell.clone()
                         } else if let Some(local) = frame.get(head) {
                             local
                         } else {
@@ -847,7 +860,7 @@ impl<'program> Evaluator<'program> {
     /// parameter reaches the aliased place). Otherwise the cell itself.
     pub(super) fn deref_cell(&self, cell: Cell) -> Cell {
         let inner = match &*cell.borrow() {
-            Value::Ref(target) => Some(Rc::clone(target)),
+            Value::Ref(target) => Some(target.clone()),
             _ => None,
         };
         inner.unwrap_or(cell)
@@ -866,10 +879,10 @@ impl<'program> Evaluator<'program> {
         usize::try_from(raw).map_err(|_| Halt::Trap(format!("array index {raw} out of range")))
     }
 
-    /// Resolve one element CELL of an `Array` place (sharing the same `Rc`, so a write
+    /// Resolve one element CELL of an `Array` place (sharing the same allocation, so a write
     /// through the returned cell aliases the array element).
     pub(super) fn element_cell(&self, container: &Cell, index: usize) -> EvalResult<Cell> {
-        let container = self.deref_cell(Rc::clone(container));
+        let container = self.deref_cell(container.clone());
         let borrowed = container.borrow();
         match &*borrowed {
             Value::Array(elements) => elements
@@ -919,10 +932,8 @@ impl<'program> Evaluator<'program> {
                     Value::Str(text) => text
                         .borrow()
                         .iter()
-                        .map(|byte| {
-                            std::rc::Rc::new(std::cell::RefCell::new(Value::Int(i64::from(*byte))))
-                        })
-                        .collect(),
+                        .map(|byte| self.allocate_cell(Value::Int(i64::from(*byte))))
+                        .collect::<EvalResult<Vec<_>>>()?,
                     other => return trap(format!("cannot subslice {other:?}")),
                 }
             }

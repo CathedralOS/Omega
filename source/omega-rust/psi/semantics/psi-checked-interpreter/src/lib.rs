@@ -13,8 +13,8 @@
 //!
 //! ## Value & store model (the crux: aliasing)
 //! Every storage place -- local, struct field, machine instance -- is an
-//! `Rc<RefCell<Value>>` ([`value::Cell`]). A `&mut place` argument evaluates to a
-//! [`Value::Ref`] holding a CLONE of the *same* `Rc`, so a write through the reference
+//! allocation-owned [`value::Cell`]. A `&mut place` argument evaluates to a
+//! [`Value::Ref`] holding a clone of the *same* cell, so a write through the reference
 //! mutates the original cell. Multi-level `&mut` aliasing is therefore correct by
 //! construction -- this is exactly the property the native backend is known to get
 //! wrong (an `&mut`-write through a call chain that does not persist). Once the
@@ -180,7 +180,7 @@ impl EvaluationUsageSchemaIdentity {
 }
 
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
-    EvaluationUsageSchemaIdentity(5);
+    EvaluationUsageSchemaIdentity(6);
 
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
@@ -195,6 +195,7 @@ pub struct EvaluationUsage {
     fuel_ceiling: u64,
     build_log_bytes: u64,
     filesystem_operation_attempts: u64,
+    peak_live_cells: u64,
     result_cells: u64,
     result_text_bytes: u64,
 }
@@ -5821,6 +5822,7 @@ impl EvaluationUsage {
             fuel_ceiling,
             build_log_bytes: 0,
             filesystem_operation_attempts: 0,
+            peak_live_cells: 0,
             result_cells: 0,
             result_text_bytes: 0,
         }
@@ -5853,6 +5855,12 @@ impl EvaluationUsage {
         self.filesystem_operation_attempts
     }
 
+    /// Maximum semantic interpreter-cell allocations live concurrently during
+    /// this invocation. This is an allocation count, not a byte estimate.
+    pub const fn peak_live_cells(self) -> u64 {
+        self.peak_live_cells
+    }
+
     /// Number of value cells retained by the successful evaluation result.
     /// Scalar and unit roots count as one cell; each structured value counts
     /// its root plus every recursively retained field, payload, or element.
@@ -5882,6 +5890,10 @@ impl EvaluationUsage {
     fn charge_filesystem_operation_attempt(&mut self) -> Option<()> {
         self.filesystem_operation_attempts = self.filesystem_operation_attempts.checked_add(1)?;
         Some(())
+    }
+
+    fn record_peak_live_cells(&mut self, peak_live_cells: u64) {
+        self.peak_live_cells = peak_live_cells;
     }
 
     fn record_result_custody(&mut self, result_cells: u64, result_text_bytes: u64) {

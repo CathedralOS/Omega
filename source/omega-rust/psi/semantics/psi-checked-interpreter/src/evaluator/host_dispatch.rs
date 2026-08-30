@@ -116,7 +116,7 @@ impl<'program> Evaluator<'program> {
                 // zero case; sentinel spellings vetoed).
                 // No CRLF normalization: byte-level readers see the stream
                 // as-is.
-                Ok(Some(self.read_stdin_byte_value()))
+                Ok(Some(self.read_stdin_byte_value()?))
             }
             "write_byte" => {
                 // Append one byte (the argument's low 8 bits) to stdout.

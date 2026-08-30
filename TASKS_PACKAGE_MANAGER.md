@@ -61,10 +61,17 @@ package review remains non-admitting.
   - retain exact failed and denied outcomes, including their rooted/refused
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
-  - extend the landed compiler-owned, closure-wide deterministic fuel sponsor
-    with peak-live-cell and temporary logical-payload ceilings. BuildLog bytes,
-    canonical filesystem operation attempts, concurrently live filesystem
-    handles, and successful result cells/Text bytes now have closure-wide
+  - replace the replay-retention guard that mixes Rust `size_of` values with
+    logical payload lengths with either canonical encoded-byte accounting or
+    explicitly named deterministic retention weights. Until then it is only an
+    implementation availability guard, not exact payload or memory evidence;
+  - add exact peak-live byte accounts only where the compiler owns a complete
+    allocation lifetime: evaluator `Text` backing payloads, filesystem scratch
+    buffers, and retained find-cursor name snapshots. Do not add one generic
+    “temporary logical payload” or memory ceiling: partial participation would
+    misstate allocator/RSS containment. BuildLog bytes, canonical filesystem
+    operation attempts, concurrently live filesystem handles and interpreter
+    cells, and successful result cells/Text bytes now have closure-wide
     compiler-owned accounts.
 
   Host CPU/RSS limits are deployment availability policy, not package evidence

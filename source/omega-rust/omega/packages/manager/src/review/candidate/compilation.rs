@@ -312,6 +312,25 @@ fn compile_resolved_package_reviews_in_session(
             },
         );
     }
+    let reported_live_cell_peak = Some(
+        reviews
+            .iter()
+            .filter_map(|review| review.build_evaluation_usage())
+            .flat_map(|usage| [usage.peak_live_cells, usage.replay_peak_live_cells])
+            .max()
+            .unwrap_or(0),
+    );
+    let sponsored_live = evaluation_sponsor.live_cells();
+    let sponsored_peak = evaluation_sponsor.peak_live_cells();
+    if reported_live_cell_peak != Some(sponsored_peak) || sponsored_live != 0 {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildLiveCellAccountingMismatch {
+                reported_peak: reported_live_cell_peak,
+                sponsored_peak,
+                sponsored_live,
+            },
+        );
+    }
     let reported_result_cells = reviews.iter().try_fold(0u64, |total, review| {
         let Some(usage) = review.build_evaluation_usage() else {
             return Some(total);

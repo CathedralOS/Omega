@@ -44,6 +44,7 @@ impl<'program> Evaluator<'program> {
             filesystem_operation_attempt_stack: Vec::new(),
             private_layout_placements: Vec::new(),
             usage: EvaluationUsage::empty(step_budget),
+            cell_meter: CellMeter::new(None),
             build_evaluation_sponsor: None,
             // OMEGA_INTERP_STEP_BUDGET overrides the default for
             // measurement / long-running sample runs (dev knob, same
@@ -78,9 +79,19 @@ impl<'program> Evaluator<'program> {
         fuel_ceiling: u64,
         sponsor: Option<BuildEvaluationSponsor>,
     ) {
+        debug_assert_eq!(self.cell_meter.peak(), 0);
         self.step_budget = fuel_ceiling;
         self.usage.set_fuel_ceiling(fuel_ceiling);
+        self.cell_meter = CellMeter::new(sponsor.clone());
         self.build_evaluation_sponsor = sponsor;
+    }
+
+    pub(super) fn allocate_cell(&self, value: Value) -> EvalResult<Cell> {
+        self.cell_meter.allocate(value).map_err(Halt::Resource)
+    }
+
+    pub(super) fn finish_cell_usage(&mut self) {
+        self.usage.record_peak_live_cells(self.cell_meter.peak());
     }
 
     pub(super) fn charge_build_log_bytes(&mut self, bytes: usize) -> EvalResult<()> {
@@ -237,8 +248,11 @@ impl<'program> Evaluator<'program> {
         let instance = self.instantiate_machine(&machine)?;
         let argument_cells = arguments
             .into_iter()
-            .map(|argument| EvaluatedArgument::plain(argument.into_value().cell()))
-            .collect();
+            .map(|argument| {
+                let value = argument.into_value_with(&|value| self.allocate_cell(value))?;
+                Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
+            })
+            .collect::<EvalResult<Vec<_>>>()?;
         let returned =
             self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
         let value = returned.ok_or_else(|| {
@@ -310,8 +324,11 @@ impl<'program> Evaluator<'program> {
         let instance = self.instantiate_machine(&machine)?;
         let argument_cells: Vec<Cell> = arguments
             .into_iter()
-            .map(|argument| argument.into_value().cell())
-            .collect();
+            .map(|argument| {
+                let value = argument.into_value_with(&|value| self.allocate_cell(value))?;
+                self.allocate_cell(value)
+            })
+            .collect::<EvalResult<_>>()?;
         // Keep the cells: a `&mut` parameter aliases its cell, so the run's
         // mutations are visible here afterward.
         let kept: Vec<Cell> = argument_cells.clone();
@@ -363,7 +380,7 @@ impl<'program> Evaluator<'program> {
                 let frame = Frame {
                     locals: RefCell::new(BTreeMap::new()),
                     type_locals: RefCell::new(BTreeMap::new()),
-                    self_cell: Value::Unit.cell(),
+                    self_cell: self.allocate_cell(Value::Unit)?,
                     machine_symbol: SymbolHandle::invalid(),
                     scalar_locals: RefCell::new(BTreeMap::new()),
                     mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
@@ -373,15 +390,14 @@ impl<'program> Evaluator<'program> {
             } else {
                 self.default_value_for_type(owned.type_reference)?
             };
-            fields.insert(owned.name.as_str().to_owned(), value.cell());
+            fields.insert(owned.name.as_str().to_owned(), self.allocate_cell(value)?);
         }
 
-        Ok(Value::Struct {
+        self.allocate_cell(Value::Struct {
             type_symbol: machine.symbol,
             type_name: machine.name.as_str().to_owned(),
             fields,
-        }
-        .cell())
+        })
     }
 
     /// Insert a `data` definition's fields (with defaults) into `fields`. Nested `data`
@@ -413,7 +429,7 @@ impl<'program> Evaluator<'program> {
             // Field defaults are retired: every field ZII zero-initializes.
             let value =
                 self.default_value_for_type_with_bindings(field.type_reference, bindings)?;
-            fields.insert(name, value.cell());
+            fields.insert(name, self.allocate_cell(value)?);
         }
         Ok(())
     }
@@ -497,10 +513,9 @@ impl<'program> Evaluator<'program> {
                 if let Some(count) = count {
                     let mut elements = Vec::with_capacity(count);
                     for _ in 0..count {
-                        elements.push(
-                            self.default_value_for_type_with_bindings(element_type, bindings)?
-                                .cell(),
-                        );
+                        let value =
+                            self.default_value_for_type_with_bindings(element_type, bindings)?;
+                        elements.push(self.allocate_cell(value)?);
                     }
                     return Ok(Value::Array(elements));
                 }
@@ -586,7 +601,7 @@ impl<'program> Evaluator<'program> {
                 for field in payload_fields {
                     let value =
                         self.default_value_for_type_with_bindings(field.type_reference, bindings)?;
-                    payload.push((field.name.as_str().to_owned(), value.cell()));
+                    payload.push((field.name.as_str().to_owned(), self.allocate_cell(value)?));
                 }
                 return Ok(Value::Enum {
                     type_symbol,
@@ -801,7 +816,7 @@ impl<'program> Evaluator<'program> {
 
             let frame = self.bind_frame(
                 &state,
-                Rc::clone(&instance),
+                instance.clone(),
                 &current_args,
                 machine.symbol,
                 &carried,
@@ -855,7 +870,7 @@ impl<'program> Evaluator<'program> {
                     args,
                 }) => {
                     if target_machine.symbol == machine.symbol
-                        && Rc::ptr_eq(&target_instance, &instance)
+                        && Cell::ptr_eq(&target_instance, &instance)
                     {
                         // Carry this state's bindings forward to the sibling state.
                         carried = frame.locals.into_inner();
@@ -906,10 +921,10 @@ impl<'program> Evaluator<'program> {
             if parameter.is_self {
                 continue;
             }
-            let argument = args
-                .get(arg_index)
-                .cloned()
-                .unwrap_or_else(|| EvaluatedArgument::plain(Value::Unit.cell()));
+            let argument = match args.get(arg_index).cloned() {
+                Some(argument) => argument,
+                None => EvaluatedArgument::plain(self.allocate_cell(Value::Unit)?),
+            };
             let cell = argument.cell;
             // Coerce a by-value ARGUMENT to the param's declared width/domain at
             // the binding, matching the native truncating/clamping/trapping store
@@ -938,7 +953,10 @@ impl<'program> Evaluator<'program> {
                         _ => None,
                     };
                     match scalar {
-                        Some(value) => self.coerce_scalar_with(value, primitive, domain)?.cell(),
+                        Some(value) => {
+                            let value = self.coerce_scalar_with(value, primitive, domain)?;
+                            self.allocate_cell(value)?
+                        }
                         None => cell,
                     }
                 }

@@ -114,7 +114,8 @@ fn compile_package_build_log() {
     let usage = checked
         .build_evaluation_usage()
         .expect("BuildLog execution retains deterministic usage");
-    assert_eq!(usage.usage_schema_version, 5);
+    assert_eq!(usage.usage_schema_version, 6);
+    assert!(usage.peak_live_cells > 0);
     assert_eq!(
         usage.build_log_bytes,
         u64::try_from(BUILD_LOG_LINE.len() + 1).expect("short test log")
@@ -171,7 +172,7 @@ fn sponsored_build_log_rejects_atomically_at_the_exact_closure_ceiling() {
     let filesystem_sponsor = FilesystemSponsor::new(&build_root).expect("sponsor build root");
     let build_log_ceiling = u64::try_from(BUILD_LOG_LINE.len()).expect("short test log");
     let evaluation_sponsor = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(1_000_000, build_log_ceiling, 1024, 64, 1024, 1024)
+        BuildEvaluationSponsorLimits::new(1_000_000, build_log_ceiling, 1024, 64, 1024, 1024, 1024)
             .expect("nonzero test ceilings"),
     );
 

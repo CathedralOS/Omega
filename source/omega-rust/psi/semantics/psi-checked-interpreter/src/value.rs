@@ -1,14 +1,118 @@
+use crate::build_evaluation_sponsor::{BuildEvaluationLiveCellLease, BuildEvaluationSponsor};
 use psi_symbols::SymbolHandle;
-use std::cell::RefCell;
+use std::cell::{Cell as CounterCell, RefCell};
 use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::rc::Rc;
 
-/// A storage cell. The interpreter models every place (local, field, array element,
-/// machine instance) as an `Rc<RefCell<Value>>`. Aliasing -- the whole reason this
-/// oracle exists -- is correct BY CONSTRUCTION: a `&mut x` argument is a `Value::Ref`
-/// that holds a CLONE of the same `Rc`, so a write through the reference mutates the
-/// original cell. This is exactly the property the native backend gets wrong.
-pub type Cell = Rc<RefCell<Value>>;
+/// A storage cell. Every alias clones the same allocation, so a write through a
+/// reference mutates the original cell. A sponsored cell also owns one lifetime
+/// lease; cloning does not double-charge it and the final alias retires it.
+#[derive(Clone)]
+pub struct Cell(Rc<CellAllocation>);
+
+#[derive(Debug)]
+struct CellAllocation {
+    value: RefCell<Value>,
+    _lease: Option<LiveCellLease>,
+}
+
+impl std::fmt::Debug for Cell {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("Cell").field(&self.0.value).finish()
+    }
+}
+
+impl Deref for Cell {
+    type Target = RefCell<Value>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.value
+    }
+}
+
+impl Cell {
+    fn new(value: Value, lease: Option<LiveCellLease>) -> Self {
+        Self(Rc::new(CellAllocation {
+            value: RefCell::new(value),
+            _lease: lease,
+        }))
+    }
+
+    pub(crate) fn ptr_eq(left: &Self, right: &Self) -> bool {
+        Rc::ptr_eq(&left.0, &right.0)
+    }
+}
+
+#[derive(Debug, Default)]
+struct CellMeterAccount {
+    live: CounterCell<u64>,
+    peak: CounterCell<u64>,
+}
+
+/// Per-evaluator exact cell-lifetime meter. The optional sponsor adds one
+/// closure-wide reservation before each allocation; neither count is a byte or
+/// resident-memory estimate.
+#[derive(Debug, Clone)]
+pub(crate) struct CellMeter {
+    account: Rc<CellMeterAccount>,
+    sponsor: Option<BuildEvaluationSponsor>,
+}
+
+impl CellMeter {
+    pub(crate) fn new(sponsor: Option<BuildEvaluationSponsor>) -> Self {
+        Self {
+            account: Rc::new(CellMeterAccount::default()),
+            sponsor,
+        }
+    }
+
+    pub(crate) fn allocate(&self, value: Value) -> Result<Cell, String> {
+        let sponsor_lease = self
+            .sponsor
+            .as_ref()
+            .map(BuildEvaluationSponsor::reserve_live_cell)
+            .transpose()?;
+        let live = self
+            .account
+            .live
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| "evaluator live-cell accounting overflowed".to_owned())?;
+        self.account.live.set(live);
+        self.account.peak.set(self.account.peak.get().max(live));
+        Ok(Cell::new(
+            value,
+            Some(LiveCellLease {
+                meter: self.clone(),
+                _sponsor_lease: sponsor_lease,
+            }),
+        ))
+    }
+
+    pub(crate) fn peak(&self) -> u64 {
+        self.account.peak.get()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn live(&self) -> u64 {
+        self.account.live.get()
+    }
+}
+
+#[derive(Debug)]
+struct LiveCellLease {
+    meter: CellMeter,
+    _sponsor_lease: Option<BuildEvaluationLiveCellLease>,
+}
+
+impl Drop for LiveCellLease {
+    fn drop(&mut self) {
+        let live = self.meter.account.live.get();
+        debug_assert!(live > 0);
+        self.meter.account.live.set(live.saturating_sub(1));
+    }
+}
 
 /// A semantic runtime value. Width/signedness of integers is tracked separately by the
 /// evaluator from the declared type; the value itself stores an `i64` payload (skeleton:
@@ -62,8 +166,9 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn cell(self) -> Cell {
-        Rc::new(RefCell::new(self))
+    #[cfg(test)]
+    pub(crate) fn cell(self) -> Cell {
+        Cell::new(self, None)
     }
 
     pub fn str(value: impl Into<String>) -> Value {
@@ -107,38 +212,50 @@ impl Value {
     /// cells, sharing them), which is correct for `&mut` aliasing but WRONG for a value-semantic
     /// copy like `self.f = self.arr[1]; self.f.x = 50` -- that must not touch `arr[1]`. Used by
     /// the evaluator at every value-semantic copy site (assignment, `let` initializer).
-    pub fn deep_clone(&self) -> Value {
+    pub(crate) fn deep_clone_with<E>(
+        &self,
+        allocate: &impl Fn(Value) -> Result<Cell, E>,
+    ) -> Result<Value, E> {
         match self {
             Value::Struct {
                 type_symbol,
                 type_name,
                 fields,
-            } => Value::Struct {
+            } => Ok(Value::Struct {
                 type_symbol: *type_symbol,
                 type_name: type_name.clone(),
                 fields: fields
                     .iter()
-                    .map(|(name, cell)| (name.clone(), cell.borrow().deep_clone().cell()))
-                    .collect(),
-            },
+                    .map(|(name, cell)| {
+                        let value = cell.borrow().deep_clone_with(allocate)?;
+                        Ok((name.clone(), allocate(value)?))
+                    })
+                    .collect::<Result<_, E>>()?,
+            }),
             Value::Enum {
                 type_symbol,
                 variant_name,
                 payload,
-            } => Value::Enum {
+            } => Ok(Value::Enum {
                 type_symbol: *type_symbol,
                 variant_name: variant_name.clone(),
                 payload: payload
                     .iter()
-                    .map(|(name, cell)| (name.clone(), cell.borrow().deep_clone().cell()))
-                    .collect(),
-            },
-            Value::Array(elements) => Value::Array(
+                    .map(|(name, cell)| {
+                        let value = cell.borrow().deep_clone_with(allocate)?;
+                        Ok((name.clone(), allocate(value)?))
+                    })
+                    .collect::<Result<_, E>>()?,
+            }),
+            Value::Array(elements) => Ok(Value::Array(
                 elements
                     .iter()
-                    .map(|cell| cell.borrow().deep_clone().cell())
-                    .collect(),
-            ),
+                    .map(|cell| {
+                        let value = cell.borrow().deep_clone_with(allocate)?;
+                        allocate(value)
+                    })
+                    .collect::<Result<_, E>>()?,
+            )),
             // Scalars keep their value; a `Str` keeps its shared buffer (status quo -- not the
             // subject of this fix); a `Ref` MUST keep sharing the referent cell.
             Value::Unit
@@ -146,16 +263,46 @@ impl Value {
             | Value::Bool(_)
             | Value::Float(_)
             | Value::Str(_)
-            | Value::Ref(_) => self.clone(),
+            | Value::Ref(_) => Ok(self.clone()),
         }
     }
 
-    /// Follow a `Ref` to the underlying cell, returning a clone of the same `Rc` so the
+    /// Follow a `Ref` to the underlying cell, returning a clone of the same allocation so the
     /// aliasing is preserved. Non-references return `None`.
     pub fn as_ref_cell(&self) -> Option<Cell> {
         match self {
-            Value::Ref(cell) => Some(Rc::clone(cell)),
+            Value::Ref(cell) => Some(cell.clone()),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::BuildEvaluationSponsorLimits;
+
+    #[test]
+    fn metered_cell_aliases_share_one_lifetime_reservation() {
+        let sponsor = BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(10, 10, 10, 10, 1, 10, 10).expect("nonzero limits"),
+        );
+        let meter = CellMeter::new(Some(sponsor.clone()));
+        let cell = meter.allocate(Value::Int(1)).expect("first cell");
+        let alias = cell.clone();
+        assert_eq!(meter.live(), 1);
+        assert_eq!(meter.peak(), 1);
+        assert_eq!(sponsor.live_cells(), 1);
+        assert!(meter.allocate(Value::Int(2)).is_err());
+        drop(cell);
+        assert_eq!(meter.live(), 1);
+        drop(alias);
+        assert_eq!(meter.live(), 0);
+        assert_eq!(sponsor.live_cells(), 0);
+        let replacement = meter
+            .allocate(Value::Int(3))
+            .expect("final alias released capacity");
+        assert_eq!(meter.peak(), 1);
+        drop(replacement);
     }
 }

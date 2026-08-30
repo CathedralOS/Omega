@@ -124,7 +124,7 @@ impl<'program> Evaluator<'program> {
             let raw = match &*value_cell.borrow() {
                 Value::Struct { fields, .. } => fields
                     .get(field_name)
-                    .map(|cell| self.deref_cell(Rc::clone(cell)))
+                    .map(|cell| self.deref_cell(cell.clone()))
                     .ok_or_else(|| {
                         Halt::Trap(format!(
                             "`{schema_name}::encode` value has no field `{field_name}`"
@@ -156,7 +156,7 @@ impl<'program> Evaluator<'program> {
                         let child_raw = match &*raw.borrow() {
                             Value::Struct { fields, .. } => fields
                                 .get(child_name)
-                                .map(|cell| self.deref_cell(Rc::clone(cell)))
+                                .map(|cell| self.deref_cell(cell.clone()))
                                 .ok_or_else(|| {
                                     Halt::Trap(format!(
                                         "`{schema_name}::encode` nested field `{field_name}` has no member `{child_name}`"
@@ -185,18 +185,18 @@ impl<'program> Evaluator<'program> {
                     // runtime length beside the inline items array.
                     let (items, live) = match repeated.carrier {
                         psi_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
-                            (Rc::clone(&raw), repeated.max_count)
+                            (raw.clone(), repeated.max_count)
                         }
                         psi_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
                             let (items, length) = match &*raw.borrow() {
                                 Value::Struct { fields, .. } => {
-                                    let items = fields.get("items").map(Rc::clone).ok_or_else(|| {
+                                    let items = fields.get("items").cloned().ok_or_else(|| {
                                         Halt::Trap(format!(
                                             "`{schema_name}::encode` FixedVec field `{field_name}` has no `items`"
                                         ))
                                     })?;
                                     let length =
-                                        fields.get("length").map(Rc::clone).ok_or_else(|| {
+                                        fields.get("length").cloned().ok_or_else(|| {
                                             Halt::Trap(format!(
                                                 "`{schema_name}::encode` FixedVec field `{field_name}` has no `length`"
                                             ))
@@ -222,7 +222,7 @@ impl<'program> Evaluator<'program> {
                         Value::Array(elements) => {
                             for element in elements.iter().take(live) {
                                 let element_raw =
-                                    self.deref_cell(Rc::clone(element)).borrow().as_int().ok_or_else(
+                                    self.deref_cell(element.clone()).borrow().as_int().ok_or_else(
                                         || {
                                             Halt::Trap(format!(
                                                 "`{schema_name}::encode` repeated field `{field_name}` element is not a scalar value"
@@ -256,7 +256,7 @@ impl<'program> Evaluator<'program> {
                     let mut body = Vec::new();
                     for element in &elements {
                         let element_raw =
-                            self.deref_cell(Rc::clone(element)).borrow().as_int().ok_or_else(
+                            self.deref_cell(element.clone()).borrow().as_int().ok_or_else(
                                 || {
                                     Halt::Trap(format!(
                                         "`{schema_name}::encode` borrowed scalar-slice field `{field_name}` element is not a scalar value"
@@ -308,7 +308,7 @@ impl<'program> Evaluator<'program> {
                         let mut content = Vec::with_capacity(elements.len());
                         for element in &elements {
                             let byte = self
-                                .deref_cell(Rc::clone(element))
+                                .deref_cell(element.clone())
                                 .borrow()
                                 .as_int()
                                 .ok_or_else(|| {
@@ -602,7 +602,7 @@ impl<'program> Evaluator<'program> {
 
             let field_cell = match &*value_cell.borrow() {
                 Value::Struct { fields, .. } => {
-                    fields.get(field_name).map(Rc::clone).ok_or_else(|| {
+                    fields.get(field_name).cloned().ok_or_else(|| {
                         Halt::Trap(format!(
                             "`{schema_name}::decode` value has no field `{field_name}`"
                         ))
@@ -653,8 +653,8 @@ impl<'program> Evaluator<'program> {
                     }
                     let elements: Vec<Cell> = bytes
                         .iter()
-                        .map(|byte| Value::Int(i64::from(*byte)).cell())
-                        .collect();
+                        .map(|byte| self.allocate_cell(Value::Int(i64::from(*byte))))
+                        .collect::<EvalResult<_>>()?;
                     cursor += take;
                     *field_cell.borrow_mut() = Value::Array(elements);
                 }
@@ -682,7 +682,7 @@ impl<'program> Evaluator<'program> {
                         let decoded = wire_decoded_scalar_value(raw, *encoding)?;
                         let child_cell = match &*field_cell.borrow() {
                             Value::Struct { fields, .. } => {
-                                fields.get(child_name).map(Rc::clone).ok_or_else(|| {
+                                fields.get(child_name).cloned().ok_or_else(|| {
                                     Halt::Trap(format!(
                                         "`{schema_name}::decode` nested field `{field_name}` has no member `{child_name}`"
                                     ))
@@ -724,19 +724,19 @@ impl<'program> Evaluator<'program> {
                     }
                     let (items_cell, count_cell) = match encoding.carrier {
                         psi_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
-                            (Rc::clone(&field_cell), None)
+                            (field_cell.clone(), None)
                         }
                         psi_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
                             match &*field_cell.borrow() {
                                 Value::Struct { fields, .. } => {
                                     let items =
-                                        fields.get("items").map(Rc::clone).ok_or_else(|| {
+                                        fields.get("items").cloned().ok_or_else(|| {
                                             Halt::Trap(format!(
                                                 "`{schema_name}::decode` FixedVec field `{field_name}` has no `items`"
                                             ))
                                         })?;
                                     let length =
-                                        fields.get("length").map(Rc::clone).ok_or_else(|| {
+                                        fields.get("length").cloned().ok_or_else(|| {
                                             Halt::Trap(format!(
                                                 "`{schema_name}::decode` FixedVec field `{field_name}` has no `length`"
                                             ))
@@ -767,7 +767,7 @@ impl<'program> Evaluator<'program> {
                         let decoded_value = wire_decoded_scalar_value(raw_value, encoding.element)?;
                         let element_cell = match &*items_cell.borrow() {
                             Value::Array(elements) => {
-                                elements.get(index).map(Rc::clone).ok_or_else(|| {
+                                elements.get(index).cloned().ok_or_else(|| {
                                     Halt::Trap(format!(
                                         "`{schema_name}::decode` repeated field `{field_name}` has no element {index}"
                                     ))
