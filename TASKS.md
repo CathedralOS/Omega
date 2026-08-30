@@ -2085,10 +2085,15 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
+  A third bounded represented-record level is now live under the same nonzero,
+  acyclic, non-generic, case-free rules. Its custody projection preserves all
+  three enclosing field identities and must completely cover every erased
+  descendant admitted by the bounded classifier; a direct erased leaf cannot
+  conceal an unsupported deeper descendant.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A third
+  storage, content, domain, provider, or establishment authority. A fourth
   represented record level and broader
   recursion, structurally zero-layout wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
