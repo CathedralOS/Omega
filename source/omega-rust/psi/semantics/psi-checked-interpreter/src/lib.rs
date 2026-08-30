@@ -105,6 +105,7 @@ pub use filesystem_replay::{
     FilesystemInputUnknownDescriptorWriteReplayKind,
     FilesystemInputUnknownDescriptorWriteReplayRecord,
     FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
+    FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord,
     FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDirectoryReplayRecord,
     FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
     FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,

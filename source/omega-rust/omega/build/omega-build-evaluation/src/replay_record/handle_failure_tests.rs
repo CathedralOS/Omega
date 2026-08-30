@@ -4,8 +4,9 @@ use crate::{
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemMutableByteOperand,
-    BuildFilesystemMutableByteOperandResolution, BuildFilesystemScalarOperand,
-    BuildObservationClass,
+    BuildFilesystemMutableByteOperandResolution, BuildFilesystemReturnedPath,
+    BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind,
+    BuildFilesystemScalarOperand, BuildObservationClass,
 };
 
 fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesystemOperationAttempt {
@@ -82,6 +83,37 @@ fn unknown_native_handle_close_summary() -> BuildObservationSummary {
     summary.filesystem_operation_attempts[0].post_error = 6;
     summary.filesystem_operation_attempts[0].logical_handle_inputs[0].kind =
         BuildFilesystemLogicalHandleKind::Native;
+    summary
+}
+
+fn unknown_native_handle_final_path_summary() -> BuildObservationSummary {
+    let mut summary = summary(31);
+    let carrier = vec![17; 47];
+    summary.filesystem_operation_attempts[0].result = BuildFilesystemOperationResult::Scalar(0);
+    summary.filesystem_operation_attempts[0].post_error = 6;
+    summary.filesystem_operation_attempts[0].logical_handle_inputs[0].kind =
+        BuildFilesystemLogicalHandleKind::Native;
+    summary.filesystem_operation_attempts[0].scalar_operands = vec![
+        BuildFilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: BuildFilesystemScalarOperandValue::U64(47),
+        },
+        BuildFilesystemScalarOperand {
+            operand_ordinal: 3,
+            value: BuildFilesystemScalarOperandValue::U32(0),
+        },
+    ];
+    summary.filesystem_operation_attempts[0].mutable_byte_operand_resolutions =
+        vec![BuildFilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: carrier.clone(),
+        }];
+    summary.filesystem_operation_attempts[0].mutable_byte_operands =
+        vec![BuildFilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: carrier.clone(),
+            post_bytes: carrier,
+        }];
     summary
 }
 
@@ -873,4 +905,65 @@ fn unknown_native_handle_close_failure_rejects_model_drift() {
         .retired_logical_handles
         .push(BuildFilesystemLogicalHandleIdentity::new(1).unwrap());
     assert!(capture_verified_build_filesystem_replay_record(&invented_retirement, limits).is_err());
+}
+
+#[test]
+fn unknown_native_handle_final_path_failure_round_trips_exact_carrier() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let summary = unknown_native_handle_final_path_summary();
+    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+        .expect("exact unknown-native-handle final path encodes")
+        .expect("verified final-path failure retains replay custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("exact unknown-native-handle final path recovers");
+    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("exact final-path failure rehydrates through its typed constructor");
+
+    let [attempt] = replay.attempts() else {
+        panic!("unknown-native-handle final-path replay retains one attempt")
+    };
+    assert_eq!(attempt.operation_tag(), 31);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            0
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(6));
+    let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+        panic!("final-path failure retains one resolution-time carrier")
+    };
+    let [carrier] = attempt.mutable_byte_operands() else {
+        panic!("final-path failure retains one provider carrier")
+    };
+    assert_eq!(resolution.bytes(), carrier.pre_bytes());
+    assert_eq!(carrier.pre_bytes(), carrier.post_bytes());
+    assert!(attempt.returned_paths().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
+#[test]
+fn unknown_native_handle_final_path_failure_rejects_carrier_and_scalar_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+
+    let mut oversized_capacity = unknown_native_handle_final_path_summary();
+    oversized_capacity.filesystem_operation_attempts[0].scalar_operands[0].value =
+        BuildFilesystemScalarOperandValue::U64(48);
+    assert!(capture_verified_build_filesystem_replay_record(&oversized_capacity, limits).is_err());
+
+    let mut changed_post = unknown_native_handle_final_path_summary();
+    changed_post.filesystem_operation_attempts[0].mutable_byte_operands[0].post_bytes[0] ^= 1;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_post, limits).is_err());
+
+    let mut invented_path = unknown_native_handle_final_path_summary();
+    invented_path.filesystem_operation_attempts[0]
+        .returned_paths
+        .push(BuildFilesystemReturnedPath {
+            operand_ordinal: 1,
+            kind: BuildFilesystemReturnedPathKind::FinalPath,
+            completeness: BuildFilesystemReturnedPathCompleteness::Complete,
+            bytes: b"invented".to_vec(),
+        });
+    assert!(capture_verified_build_filesystem_replay_record(&invented_path, limits).is_err());
 }

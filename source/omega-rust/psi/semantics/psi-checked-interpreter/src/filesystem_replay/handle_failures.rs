@@ -21,9 +21,11 @@ const WRITE_AT_OPERATION_TAG: u16 = 7;
 const SEEK_OPERATION_TAG: u16 = 10;
 const CLOSE_HANDLE_OPERATION_TAG: u16 = 29;
 const GET_OSF_HANDLE_OPERATION_TAG: u16 = 30;
+const FINAL_PATH_NAME_BY_HANDLE_OPERATION_TAG: u16 = 31;
 const READ_FILE_METADATA_OPERATION_TAG: u16 = 39;
 const SET_FILE_TIMES_OPERATION_TAG: u16 = 42;
 const UNKNOWN_NATIVE_HANDLE_CLOSE_RESULT: i64 = 0;
+const UNKNOWN_NATIVE_HANDLE_FINAL_PATH_RESULT: i64 = 0;
 const INVALID_HANDLE_ERROR: i32 = 6;
 const SET_FILE_TIMES_MINIMUM_CARRIER_BYTES: usize = 32;
 
@@ -116,6 +118,64 @@ pub struct FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemInputUnknownNativeHandleCloseHandleReplayRecord {
     source_input: Option<FilesystemSourceInputReplayRecord>,
+}
+
+/// Optional exact Source-input prefix followed by one failed final-path query
+/// on an unknown compiler-owned synthetic native handle.
+///
+/// The authored buffer, capacity, and flags are retained. The fixed result and
+/// error describe only Omega's compiler-owned synthetic handle model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+    buffer: Vec<u8>,
+    capacity: u64,
+    flags: u32,
+}
+
+impl FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord {
+    pub fn new(
+        source_input: Option<FilesystemSourceInputReplayRecord>,
+        buffer: Vec<u8>,
+        capacity: u64,
+        flags: u32,
+    ) -> Result<Self, String> {
+        let capacity_on_host = usize::try_from(capacity).map_err(|_| {
+            "filesystem replay final_path_name_by_handle capacity exceeds this host".to_owned()
+        })?;
+        if capacity_on_host > buffer.len() {
+            return Err(
+                "filesystem replay final_path_name_by_handle capacity exceeds its mutable buffer"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            source_input,
+            buffer,
+            capacity,
+            flags,
+        })
+    }
+
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        &self.buffer
+    }
+
+    pub const fn capacity(&self) -> u64 {
+        self.capacity
+    }
+
+    pub const fn flags(&self) -> u32 {
+        self.flags
+    }
+
+    fn into_parts(self) -> (Option<FilesystemSourceInputReplayRecord>, Vec<u8>, u64, u32) {
+        (self.source_input, self.buffer, self.capacity, self.flags)
+    }
 }
 
 impl FilesystemInputUnknownNativeHandleCloseHandleReplayRecord {
@@ -573,6 +633,32 @@ impl FilesystemReplay {
         )
     }
 
+    /// Construct the closed optional-Source plus one final-path failure on an
+    /// unknown compiler-owned synthetic native handle from typed evidence.
+    pub fn from_input_unknown_native_handle_final_path_name_by_handle_record(
+        record: FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, buffer, capacity, flags) = record.into_parts();
+        unknown_handle_input_failure_replay_from_record(
+            source_input,
+            unknown_native_handle_final_path_name_by_handle_attempt(buffer, capacity, flags),
+            unknown_native_handle_final_path_name_by_handle_attempt_is_exact,
+            "final_path_name_by_handle",
+        )
+    }
+
+    /// Validate observed evidence for an optional Source-input prefix followed
+    /// by the exact modeled final-path failure on an unknown synthetic handle.
+    pub fn from_input_unknown_native_handle_final_path_name_by_handle_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        unknown_handle_input_failure_replay_from_observations(
+            observations,
+            unknown_native_handle_final_path_name_by_handle_attempt_is_exact,
+            "final_path_name_by_handle",
+        )
+    }
+
     /// Construct the closed optional-Source plus one unknown-descriptor
     /// `get_osfhandle` failure from typed compiler-owned evidence.
     pub fn from_input_unknown_descriptor_get_osfhandle_record(
@@ -902,6 +988,91 @@ pub(crate) fn unknown_native_handle_close_handle_attempt() -> FilesystemOperatio
     attempt
 }
 
+pub(crate) fn unknown_native_handle_final_path_name_by_handle_from_exact_attempt(
+    attempt: &FilesystemOperationAttempt,
+) -> Option<(&[u8], u64, u32)> {
+    let [capacity, flags] = attempt.scalar_operands.as_slice() else {
+        return None;
+    };
+    let (
+        FilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: FilesystemScalarOperandValue::U64(capacity),
+        },
+        FilesystemScalarOperand {
+            operand_ordinal: 3,
+            value: FilesystemScalarOperandValue::U32(flags),
+        },
+    ) = (capacity, flags)
+    else {
+        return None;
+    };
+    let [resolution] = attempt.mutable_byte_operand_resolutions.as_slice() else {
+        return None;
+    };
+    let [provider_carrier] = attempt.mutable_byte_operands.as_slice() else {
+        return None;
+    };
+    let capacity_on_host = usize::try_from(*capacity).ok()?;
+    (attempt.byte_operands.is_empty()
+        && resolution.operand_ordinal == 1
+        && provider_carrier.operand_ordinal == 1
+        && capacity_on_host <= resolution.bytes.len()
+        && resolution.bytes == provider_carrier.pre_bytes
+        && resolution.bytes == provider_carrier.post_bytes
+        && unknown_handle_failure_has_exact_core_shape_with_outcome(
+            attempt,
+            FINAL_PATH_NAME_BY_HANDLE_OPERATION_TAG,
+            UNKNOWN_NATIVE_HANDLE_FINAL_PATH_RESULT,
+            INVALID_HANDLE_ERROR,
+            FilesystemLogicalHandleKind::Native,
+        ))
+    .then_some((resolution.bytes.as_slice(), *capacity, *flags))
+}
+
+pub(crate) fn unknown_native_handle_final_path_name_by_handle_attempt_is_exact(
+    attempt: &FilesystemOperationAttempt,
+) -> bool {
+    unknown_native_handle_final_path_name_by_handle_from_exact_attempt(attempt).is_some()
+}
+
+pub(crate) fn unknown_native_handle_final_path_name_by_handle_attempt(
+    buffer: Vec<u8>,
+    capacity: u64,
+    flags: u32,
+) -> FilesystemOperationAttempt {
+    let resolution_buffer = buffer.clone();
+    let pre_buffer = buffer.clone();
+    let mut attempt = unknown_descriptor_failure_attempt(
+        FINAL_PATH_NAME_BY_HANDLE_OPERATION_TAG,
+        vec![
+            FilesystemScalarOperand {
+                operand_ordinal: 2,
+                value: FilesystemScalarOperandValue::U64(capacity),
+            },
+            FilesystemScalarOperand {
+                operand_ordinal: 3,
+                value: FilesystemScalarOperandValue::U32(flags),
+            },
+        ],
+    );
+    attempt.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(UNKNOWN_NATIVE_HANDLE_FINAL_PATH_RESULT),
+        post_error: INVALID_HANDLE_ERROR,
+    });
+    attempt.logical_handle_inputs[0].kind = FilesystemLogicalHandleKind::Native;
+    attempt.mutable_byte_operand_resolutions = vec![FilesystemMutableByteOperandResolution {
+        operand_ordinal: 1,
+        bytes: resolution_buffer,
+    }];
+    attempt.mutable_byte_operands = vec![FilesystemMutableByteOperand {
+        operand_ordinal: 1,
+        pre_bytes: pre_buffer,
+        post_bytes: buffer,
+    }];
+    attempt
+}
+
 pub(crate) fn unknown_descriptor_seek_from_exact_attempt(
     attempt: &FilesystemOperationAttempt,
 ) -> Option<(i64, i32)> {
@@ -1184,6 +1355,7 @@ pub(crate) fn unknown_input_handle_failure_attempt_is_exact(
 ) -> bool {
     unknown_descriptor_operation_attempt_is_exact(attempt)
         || unknown_native_handle_close_handle_attempt_is_exact(attempt)
+        || unknown_native_handle_final_path_name_by_handle_attempt_is_exact(attempt)
         || unknown_descriptor_get_osfhandle_attempt_is_exact(attempt)
         || unknown_descriptor_seek_attempt_is_exact(attempt)
         || unknown_descriptor_read_attempt_is_exact(attempt)

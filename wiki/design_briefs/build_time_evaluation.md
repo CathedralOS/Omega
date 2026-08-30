@@ -507,8 +507,10 @@ entered; a package-authored lookalike remains an ordinary unsupported call even
 under granted execution. The selected canonical signature then maps to a
 closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Package-rooted execution
-rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
-absolute paths. `read_link` payload remains inert and acquires no rooted
+rejects `canonicalize` and any `final_path_name_by_handle` call whose validated
+logical handle could return a path because that result is host-absolute. An
+exact `Native/Unknown` failure may proceed because it cannot return path bytes.
+`read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
 summary schema v20 carries operation-attempt schema v18, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
@@ -808,6 +810,14 @@ The row fixes scoped-real provider, scalar `0`, post-error `6`, and operand-zero
 `Native/Unknown`; every other lane and handoff is empty. Provider-free replay
 checks only the compiler-owned synthetic handle model, not native-handle
 custody or a Windows security property.
+
+Summary v61 and filesystem replay-record v42 add exact failed tag-31
+`final_path_name_by_handle` on an unknown native handle after the optional
+Source prefix. The row binds the complete unchanged mutable carrier, its
+bounded `u64` capacity, and `u32` flags, while fixing scoped-real provider,
+scalar `0`, post-error `6`, and `Native/Unknown`. No returned path exists.
+Provider-free replay checks only the compiler-owned synthetic handle model,
+not native path/handle custody or a Windows security property.
 
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
