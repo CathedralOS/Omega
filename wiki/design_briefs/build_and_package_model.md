@@ -285,6 +285,29 @@ commitment includes those bytes and verifies them against retained staged-tree
 custody rather than rereading an output path. Resolving a path, writing output,
 and publishing generated source remain three separate operations.
 
+Before evaluating the selected root build machine, the compiler constructs the
+same coherent private typed stage that later checked lowering consumes. It has
+already completed pre-resolution evaluation, target filtering, symbol and type
+resolution, semantic pre-checks, and exact dynamic-call binding. The compiler
+then prepares the existing static-machine-specialized build projection, derives
+its operational and service-reach plans, and validates the root's complete
+authored build-authority ceiling. The base typed stage, specialized projection,
+reach plans, exact source-snapshot commitment, and admission verdict form one
+activation-local admitted build checkpoint. Build evaluation executes only the
+prepared projection from that checkpoint.
+
+Generated source produced by that activation occupies a strictly later scope
+stratum. It may resolve declarations from the admitted authored stratum, but a
+generated declaration is never a resolution candidate for an authored source
+occurrence, including any helper in the build machine's transitive closure.
+Generated units may resolve together within their later stratum. This one-way
+scope makes the admitted build meaning stable by construction; the compiler
+does not rerun resolution and try to prove that an overload, conformance, or
+provider introduced later happened not to change it. Final checking continues
+from the retained base checkpoint plus this generated extension. Rebuilding a
+second typed frontend and recovering the selected build machine only by source
+span and name is implementation debt, not the semantic model.
+
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review
 orchestration compiles dependency-first and requires one bundle for every
@@ -299,6 +322,54 @@ the injected bytes. Missing, duplicate, foreign, root-self, target/closure, and
 same-review custody mismatches reject. This carrier is neither canonical
 admission evidence nor a package instance and has no decoder or public
 constructor.
+
+## Canonical standalone compiler request
+
+D18 fixes one logical request for the Delta-written and self-hosted standalone
+Omega compilers. `OmegaCompilationSubject` contains the resolved graph, selected
+root and role, requester-local aliases and edges, each stable `PackageKey` plus
+its exact resolved revision/tree/content coordinate, and complete immutable
+build-visible snapshots for the selected package occurrences. An already
+accepted dependency may additionally carry its sealed `PackageInstance`; the
+selected root's artifact-bearing `PackageInstance` is a result of successful
+compilation and is not circular request input.
+`OmegaInvocation` contains the requested product, canonical target profile,
+external admission inputs, and an exact binding to that subject. One versioned
+sealed frame carries both. The explicit bootstrap Alpha-tape product is a
+normal product identity; it is never inferred from a filename, the host, or the
+first program entry found.
+
+Each package snapshot is a deterministic virtual filesystem rather than a
+filesystem replay transcript. It contains every file, directory, absence,
+link, and exposed metadata observation available to `BuildSource`; path and
+directory enumeration use canonical raw-byte order. Ambient host files,
+environment, clocks, randomness, and network access are not compiler inputs.
+`BuildOutput` starts as one fresh activation-local tree. Evaluation may emit a
+replay record afterward, but that operation trace is partial evidence about one
+execution and cannot replace the complete input snapshot.
+
+The request is decoded and checked before source processing: malformed or
+duplicate identities, dangling graph references, inconsistent lengths or
+custody, and trailing bytes reject. Behavioral `build.omg` evaluation remains
+inside each compiler; the request supplies product, target, and admissions but
+does not supply selected providers, roots, generated source, subsystem, or
+optimization conclusions. Those are derived from the admitted checkpoint and
+remain durable configuration for subsequent checked lowering and artifact
+production.
+
+Orchestration materializes packages in deterministic dependency order. A
+completed dependency contributes its durable generated-source bundle,
+commitments, and review evidence to the consumer; its live typed checkpoint is
+not retained and its build machine is not rerun. The consumer's one reach
+analysis traverses the complete declarations callable by its selected root
+build machine, so no graph-wide barrier of half-compiled libraries exists.
+
+The compiler edge uses `OCOUT` under D13's common boundary family. Halt tags 0,
+1, 2, and 3 mean `Complete`, `Reject`, `Incomplete`, and `InternalFailure`;
+success is the raw artifact, every failure uses the edge-owned versioned frame,
+and no failure publishes an artifact prefix. Diagnostic order is fixed phase
+order followed by request-byte offset for framing failures, or canonical
+package order, source-unit order, and byte offset for source diagnostics.
 
 The post-relocation filesystem-producing two-package canary remains blocked only
 on the Build-facet engineering migration in

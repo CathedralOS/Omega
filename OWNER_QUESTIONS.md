@@ -384,80 +384,7 @@ descriptor before the check completes.
   `Incomplete`, rely on eventual physical allocation to make it unreachable,
   or silently flatten ropes until a private resource limit decides meaning.
 
-## Q7 — Freeze the canonical Omega compiler invocation
-
-### Context
-
-The two top bootstrap edges compile exact package-resolved source closures:
-Delta-written `D` produces `omega0`, then `omega0` compiles the multi-package
-Omega closure `C` into `omega`. Both compilers are standalone Alpha tapes and
-therefore receive only sealed byte input. `C` spans `source/psi` and
-`source/omega`; package ownership, dependency aliases, authored versus generated
-source custody, source identity, build role, selected target/product, and trust
-admissions can all affect the compilation question.
-
-The maintained Rust comparator receives those facts as an in-memory typed
-`CompileRequest` and `PackageCompilationInputs`. That host API is not a
-canonical serialization, and its current product choices do not include the
-bootstrap operation “compile this Omega compiler closure to an Alpha tape.” No
-document presently defines equivalent sealed bytes, their canonical ordering,
-or the Omega compiler edge's exact failure boundary.
-
-### Problem statement
-
-Choose the complete canonical request consumed by `omega0` and `omega`. At
-minimum, fix:
-
-1. request magic/version and exact trailing-byte rule;
-2. root package identity and build role;
-3. ordered package identities, dependency aliases, and closure edges;
-4. ordered authored, generated, and toolchain source units with owner/relative
-   identity, exact bytes, length, and any independently checked digest;
-5. requested product, target/build profile, and accepted admission inputs;
-6. the explicit bootstrap Alpha-tape product used by `omega0 C -> omega`; and
-7. resource, rejection, incomplete, internal-failure, and no-partial-output
-   framing for this accepted-language edge.
-
-Without this contract, `D` cannot choose `Main`, source-coordinate custody,
-package lookup, target activation, or output publication without inventing
-observable compiler behavior. This blocks the executable entry and boundary,
-not boundary-independent internals such as exact Alpha tape encoding.
-
-### Proposed direction
-
-Define one versioned canonical Omega compilation-request frame produced only
-after package resolution. Keep discovery, filesystem traversal, network access,
-and ambient host policy outside the compiler tape. The frame carries the exact
-closed request facts above in canonical order; the compiler revalidates framing,
-identity uniqueness, graph references, lengths, and source custody before
-checking Omega. Give bootstrap Alpha tape an explicit product identity rather
-than inferring it from filenames or source declarations. Define a distinct
-Omega-compiler outcome family whose exact tables and coordinate vocabulary are
-owned beside this request.
-
-Use the same logical request for the Delta-written and self-hosted compilers so
-their agreement compares one question. A hosted adapter may construct the frame
-from typed host data, but its bytes—not the Rust object layout or CLI—cross the
-canonical edge.
-
-### Alternates
-
-- Acceptable: publish separately identified fixed-profile compiler tapes,
-  provided each tape still receives a complete canonical package/source closure
-  and binds its product/target unambiguously.
-- Acceptable: split immutable package/source custody from a smaller invocation
-  frame, provided both exact subjects and their binding are reconstructed at the
-  edge.
-- Tempting but wrong: treat stdin as one anonymous `.omg` file, concatenate
-  files with magic whitespace, or infer package boundaries and source identity
-  from paths embedded in source text.
-- Tempting but wrong: make the ambient filesystem, CLI arguments, Rust
-  `CompileRequest` layout, package-manager database, or host target the
-  bootstrap compiler's undeclared input.
-- Tempting but wrong: hardwire the first self-build closure or recognize `C` by
-  file/hash/AST allowlist instead of accepting the same compositional Omega
-  request shape required for ordinary compilation.
-## Q8 — Define the device-operation source contract
+## Q7 — Define the device-operation source contract
 
 ### Context
 
@@ -510,7 +437,7 @@ consumed candidate unchanged for retry.
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
 
-## Q9 — Attribute selected opaque representations across package reviews
+## Q8 — Attribute selected opaque representations across package reviews
 
 ### Context
 
@@ -567,7 +494,7 @@ already occurred.
   or a lockfile string "agreement" without rejoining the exact declarations
   and strong compiler-issued application.
 
-## Q10 — Establish generic boundary-realization coverage
+## Q9 — Establish generic boundary-realization coverage
 
 ### Context
 

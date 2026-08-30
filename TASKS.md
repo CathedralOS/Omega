@@ -10935,6 +10935,18 @@ checked-result arithmetic decision listed below.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
   package-scoped providers, no ambient filesystem escape, and generated-source
   rechecking under consumer ceilings.
+- **BUILD-ADMISSION-CHECKPOINT:** implement D18 in the maintained Rust
+  comparator. Retain the existing coherent `CheckedFrontend`, prepared static-
+  machine-specialized build projection, operational/service-reach plans, source
+  commitment, and authority verdict as one activation-local checkpoint. Run
+  the selected root build from that projection, then continue final checking
+  from the retained base. Give own generated source a later scope stratum whose
+  declarations can see authored declarations but can never resolve an authored
+  occurrence. Delete the current full frontend rebuild and nominal
+  `(source_span, name)` build-machine rebind once the continuation exists. Pin
+  exact build-helper reach, generated overload/conformance non-interference by
+  scope, dependency-bundle no-rerun, no-source-reread, and configuration/
+  evidence retention canaries.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or
@@ -11034,7 +11046,7 @@ checked-result arithmetic decision listed below.
   result/evidence custody, and compiler-issued ordering-scope construction.
   The five semantic families and retained structural contexts are already
   settled; do not synthesize checked rows until a real source operation can
-  emit them. See `OWNER_QUESTIONS.md` Q8.
+  emit them. See `OWNER_QUESTIONS.md` Q7.
 - After that source contract lands, add sealed provider requirements for DMA
   publication/acquisition, cache maintenance, MMIO notification, and
   posted-write completion. Every emitted
