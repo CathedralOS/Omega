@@ -55,6 +55,19 @@ const DEEPER_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const DEEPEST_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 6];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+    }
+"#;
+
 const RANKED_COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
     data Root {}
@@ -494,6 +507,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
         (CONSTRUCTION_PREFIX_SOURCE, 2_usize),
         (WIDER_CONSTRUCTION_PREFIX_SOURCE, 3_usize),
         (DEEPER_CONSTRUCTION_PREFIX_SOURCE, 4_usize),
+        (DEEPEST_CONSTRUCTION_PREFIX_SOURCE, 5_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(
@@ -542,6 +556,37 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             let root_structural_type = construction.root_structural_type;
             construction.index = 1;
             assert!(omega_machine_emission::emit_machine_code(&invalid_assigned).is_err());
+            let mut redirected_root = assigned.clone();
+            let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut redirected_root.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let omega_assigned_target_operations::AssignedUnitOperation::EstablishTrivialAffineLocal {
+                place,
+                ..
+            } = &mut body.operations[prefix_length - 1]
+            else {
+                unreachable!()
+            };
+            let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                structural_type,
+                construction: Some(construction),
+                ..
+            } = &mut place.kind
+            else {
+                unreachable!()
+            };
+            construction.root_structural_type = *structural_type;
+            assert!(omega_machine_emission::emit_machine_code(&redirected_root).is_err());
+            let mut reordered_establishments = assigned.clone();
+            let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut reordered_establishments.functions[0].operation
+            else {
+                unreachable!()
+            };
+            body.operations.swap(0, 1);
+            assert!(omega_machine_emission::emit_machine_code(&reordered_establishments).is_err());
             let mut wrong_root_length = assigned.clone();
             let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
                 &mut wrong_root_length.functions[0].operation
@@ -631,6 +676,54 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             construction.index = 1;
             assert!(omega_image_emission::build_object_artifact(&wrong_index).is_err());
 
+            let mut redirected_root = emitted.clone();
+            let (_, place, _) = &mut redirected_root.functions[0]
+                .unit_affine_cleanup
+                .as_mut()
+                .unwrap()
+                .locals[prefix_length - 1];
+            let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                structural_type,
+                construction: Some(construction),
+                ..
+            } = &mut place.kind
+            else {
+                unreachable!()
+            };
+            construction.root_structural_type = *structural_type;
+            assert!(omega_image_emission::build_object_artifact(&redirected_root).is_err());
+
+            let mut wrong_root_length = emitted.clone();
+            let root = wrong_root_length.functions[0]
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .locals[0]
+                .1
+                .kind;
+            let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                construction: Some(construction),
+                ..
+            } = root
+            else {
+                unreachable!()
+            };
+            let cleanup = wrong_root_length.functions[0]
+                .unit_affine_cleanup
+                .as_mut()
+                .unwrap();
+            let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut cleanup
+                .structural_types
+                .iter_mut()
+                .find(|declaration| declaration.id == construction.root_structural_type)
+                .expect("construction root type")
+                .shape
+            else {
+                unreachable!()
+            };
+            *length = u64::try_from(prefix_length).expect("bounded prefix length");
+            assert!(omega_image_emission::build_object_artifact(&wrong_root_length).is_err());
+
             let mut reordered_cleanup = emitted.clone();
             reordered_cleanup.functions[0]
                 .unit_affine_cleanup
@@ -674,7 +767,7 @@ fn checked_adapter_plan(
         name: name.into(),
         provider_type: provider.into(),
         provider_type_package_identity: None,
-        target: "uefi_x64".into(),
+        target: "uefi_x86_64".into(),
         schema: ServiceSchema {
             trait_name: requirement_owner.into(),
             trait_package_identity: None,

@@ -1098,7 +1098,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-        allow_length_five: bool,
+        allow_construction_lengths: bool,
     ) -> Option<String> {
         let mut resolved = type_reference;
         loop {
@@ -1112,12 +1112,12 @@ impl<'program> ShapeCollector<'program> {
         }
         let TypeReferenceNode::FixedArray {
             element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2 | 3 | 4 | 5)),
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2 | 3 | 4 | 5 | 6)),
         } = self.program.type_reference_table.type_reference(resolved)
         else {
             return self.add_type(type_reference, binders, &[]);
         };
-        if *length == 5 && !allow_length_five {
+        if *length >= 5 && !allow_construction_lengths {
             return None;
         }
         let nested_element = match self

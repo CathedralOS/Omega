@@ -264,6 +264,20 @@ const UNIT_AFFINE_DEEPER_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_DEEPEST_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 6];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -545,6 +559,11 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             4_usize,
             5_u64,
         ),
+        (
+            UNIT_AFFINE_DEEPEST_CONSTRUCTION_PREFIX_SOURCE,
+            5_usize,
+            6_u64,
+        ),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -644,6 +663,17 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
         };
         construction.index = 1;
         assert!(psi_terminal_verifier::validate_module_representation(&wrong_index).is_err());
+
+        let mut redirected_root = lowered.semantic_module.clone();
+        let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+            construction: Some(construction),
+            ..
+        } = &mut redirected_root.machines[0].structural_places[prefix_length - 1].kind
+        else {
+            unreachable!()
+        };
+        construction.root_structural_type = locals[0].2;
+        assert!(psi_terminal_verifier::validate_module_representation(&redirected_root).is_err());
 
         let mut wrong_root_length = lowered.semantic_module.clone();
         let root = locals[0].3.root_structural_type;
