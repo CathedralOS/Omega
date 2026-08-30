@@ -45,9 +45,11 @@ stop the item on one precise owner question before adding machinery.
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand, coverage-composition, and installation-issuance joins;
-  - **OWNER-BLOCKED — generic boundary-realization coverage** and
-    **exact boundary-realization application evidence**; production remains
-    fail-closed for those forms rather than publishing provisional carriers;
+  - **OWNER-BLOCKED — exact boundary-realization application evidence**;
+    production remains fail-closed rather than publishing a provisional
+    arity/string carrier. D28 authorizes no generic-coverage implementation
+    until a checked generic operator realization supplies a producer; generic
+    assertions remain non-authorizing;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 

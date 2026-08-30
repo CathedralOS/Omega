@@ -883,6 +883,52 @@ or linear obligation introduced by substitution. This is the general rule
 already exercised by `TaskOutcome`, atomic outcomes, and retry-custody sums;
 it does not determine an operation's disposition table.
 
+## D28 — Exact applications precede universal generic boundary coverage
+
+Generic boundary requirements are real: core array and fixed-vector operators
+carry type and const telescopes such as `<T, const N: u64>`. No checked generic
+Omega machine currently realizes one of those operators, however. Production
+therefore gains no generic-coverage carrier from a provider assertion or test
+fixture. The first executable rung reconstructs and rechecks the finite exact
+application set demanded by each emitted artifact. Bodyless, external, opaque,
+compiler-intrinsic, and separately supplied realizations remain exact-only.
+
+Every emitted application requires one closed compiler-recheckable coverage
+fact binding its tagged arguments, selected realization, and concrete physical
+obligations before publication. Exact applications remain mandatory even if a
+future checked generic realization has universal semantic evidence; universal
+checking never creates concrete instances or physical plans. The remaining
+owner decision chooses whether that fact specializes and rechecks one generic
+realization or names a separately checked concrete realization.
+
+A future compiler-issued generic row is permitted only for an exact checked
+Omega body validated on the pristine pre-monomorphization graph under its
+complete symbolic telescope. The row binds the requirement and realization
+telescopes, every binder category, declared domain and bound, the exact binder
+mapping, requirement coordinate, realization template, symbolic provider
+routing and dispatch, and the transitive admissions needed to replay that
+semantic check. The requirement domain must imply the realization domain. A
+realization may reorder binders through an exact bijection, but it may not
+collapse independent binders or narrow an unrestricted parameter to a stronger
+property such as `[copy]`.
+
+The universal quantifier ranges over source-semantic applications satisfying
+the authored telescope and its `where` requirements. Target layout limits are
+not part of that domain: they belong to the exact concrete application check.
+A target may still qualify the row when provider routing or transitive
+admissions are target-specific. Symbolic plan coverage means provider routing
+and dispatch only; it expressly does not establish `Calling<C>`, byte layout,
+register classes, stack placement, or any other shape-dependent physical plan.
+
+The exact-application implementation owns the first shared typed-telescope
+carrier. Arity and semantic strings are not evidence. Universal generic
+coverage remains unrepresented and fail-closed until an actual checked generic
+operator realization supplies a client. A future foreign generic contract
+requires its own independently recheckable verifier and remains distinct from
+checked-body evidence. Provider-authored `generic` flags, one successful
+concrete compilation, toolchain strings, and compact fingerprints never prove
+universal coverage.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

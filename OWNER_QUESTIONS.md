@@ -91,52 +91,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q2 — Establish generic boundary-realization coverage
-
-### Context
-
-An atomic boundary-operator family selection must cover every overload
-coordinate. A coordinate with a static telescope may be covered either by the
-complete concrete application set demanded by the artifact or by one genuinely
-generic realization. Exact-application rows already have a closed structural
-carrier and remain fail-closed when absent. No production carrier currently
-states why one realization covers every admissible static application.
-
-### Problem statement
-
-Choose the compiler-recheckable fact that permits package and artifact evidence
-to publish generic coverage. Ordinary type checking of a generic Omega body may
-be sufficient for a checked realization, but a bodyless or external
-realization has no body from which the compiler can derive parametric coverage.
-Treating either a provider assertion or successful compilation of one concrete
-application as universal coverage would manufacture a guarantee.
-
-### Proposed direction
-
-Permit generic coverage only for an exact checked Omega realization that the
-compiler has checked under its complete symbolic static telescope. Retain the
-exact binder categories and domains, requirement coordinate, realization,
-selected plan, target, and transitive admissions needed to re-run that check.
-This proves dispatch and plan coverage, not the truth of admitted external
-behavior.
-
-Bodyless, external, opaque, or separately supplied realizations do not acquire
-generic coverage from an authored claim. They must provide the complete exact
-application family demanded by the artifact, or use a separately designed and
-explicitly admitted generic implementation contract.
-
-### Alternates
-
-- Acceptable: forbid generic coverage entirely and require canonical exact
-  application families for every emitted artifact.
-- Acceptable: define a recheckable generic implementation contract for foreign
-  artifacts, provided it has an independent verifier and remains distinct from
-  ordinary checked-body evidence.
-- Tempting but wrong: accept a provider-authored `generic` flag, infer coverage
-  from one successful application, or call a compiler/toolchain/version string
-  a certificate that universal checking occurred.
-
-## Q3 — Define exact boundary-realization application evidence
+## Q2 — Define exact boundary-realization application evidence
 
 ### Context
 
@@ -170,8 +125,10 @@ checks for that specialization. Retain the exact requirement coordinate,
 selected plan and realization, binder schema, tagged arguments, and rechecked
 specialization identity. Deduplicate and order only after those joins succeed.
 
-Keep this distinct from Q2: checking a finite demanded set does not establish
-universal generic coverage. Initially supporting only ordinary type binders is
+Keep this distinct from D28's deliberately unimplemented universal-template
+rule: every emitted artifact still closes its finite demanded application set,
+even when a future checked generic body has already established symbolic
+semantic coverage. Initially supporting only ordinary type binders is
 acceptable if every other telescope category remains explicitly fail-closed.
 
 ### Alternates
@@ -184,7 +141,7 @@ acceptable if every other telescope category remains explicitly fail-closed.
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
 
-## Q4 — Fix the physical D19 Gamma application profiles
+## Q3 — Fix the physical D19 Gamma application profiles
 
 ### Context
 
@@ -243,7 +200,7 @@ application profile's outcomes.
   that ceiling, derive wire codes from constructor order, reuse `BCOUT` magic,
   or let `main`/type names select the profile.
 
-## Q5 — Complete Delta v1 type-formation rejection rules
+## Q4 — Complete Delta v1 type-formation rejection rules
 
 ### Context
 
