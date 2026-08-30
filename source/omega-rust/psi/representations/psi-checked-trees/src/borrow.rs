@@ -169,10 +169,7 @@ impl BorrowAccessKind {
     /// authority may attenuate to write-only authority, while write-only
     /// authority may never acquire observation. The result records resource
     /// bookkeeping only and grants no restored-use or Terminal authority.
-    pub fn direct_reborrow_effect(
-        &self,
-        child: &Self,
-    ) -> Option<CheckedReborrowAccessEffect> {
+    pub fn direct_reborrow_effect(&self, child: &Self) -> Option<CheckedReborrowAccessEffect> {
         match (self, child) {
             (Self::Read, Self::Read) => Some(CheckedReborrowAccessEffect::SharedRelease),
             (Self::Mutable, Self::Read) => Some(CheckedReborrowAccessEffect::SharedFreeze),
@@ -433,7 +430,14 @@ pub enum CheckedReborrowResourceDisposition {
     #[default]
     Reactivate,
     CascadeThroughRetiredParent,
-    RetireOrDiscard,
+    /// The child and its final retained parent carrier close at the same
+    /// non-authorizing semantic boundary. This closes the checked lineage; it
+    /// does not return root custody or authorize disposal.
+    SameBoundaryLineageClosure,
+    /// A state-exit boundary reaches the exact direct-root lifetime after its
+    /// final retained descendant closes. This is checked-only root handoff and
+    /// grants no cleanup, transfer, or linear-discharge authority.
+    StateExitDirectRootHandoff,
 }
 
 /// One retired carrier traversed by a cascading disposition.

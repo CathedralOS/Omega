@@ -1469,9 +1469,20 @@ fingerprint; the earlier scalar admitted composer is no longer an admission
 path. The report includes per-domain demand, body-domain closure, and complete
 normalized context/epoch rows without exposing code addresses. Hardware arrival
 and its domain closure still need derivation from sealed target facts, generated
-adapter epochs still need derivation from emitted bytes, and admitted context
-sets still need a completeness proof before this is a complete `StackPlan` for
-every entry origin.
+adapter coverage still needs widening beyond the first receiver-free x86
+semantic ProgramStorage wrapper, and admitted context sets still need a
+completeness proof before this is a complete `StackPlan` for every entry
+origin. That first generated wrapper is independently replayed from its
+canonical template and resolved private-continuation call. Its exact installed
+artifact/entry, boundary ABI, Terminal body, and context closure bind three
+ordered epochs; the live 72-byte outgoing frame contributes to `Enter`, remains
+live while body WCSU joins `Body`, and remains present until `Exit` releases it.
+The evidence retains exact emitted bytes and call coordinates under a generated
+origin. The existing installation seam seals the installed-code occurrence and
+entry offset, but not yet equality between the resolved wrapper bytes and that
+interval of the installed image; that narrow binder remains before this is an
+installed-stub-byte derivation. It establishes stack geometry, not firmware
+invocation or a physical stack mutation.
 
 A sealed provider-execution binding joins the normalized selected provider
 plan, exact entry/boundary/reach, and all three resource realizations into

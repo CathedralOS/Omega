@@ -8,14 +8,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStack,
-    EntryStackEpoch, EntryStackRealization, EntryStackStage, Preemption, StackDomainRef,
-    ValidatedBoundaryEntryPlan, ValidatedEntryStackDomainClosure, ValidatedEntryStackRealization,
-    X86_64TargetDerivedHardwareArrival, validate_entry_stack_domain_closure,
+    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, CallSignature,
+    CallingPolicy, EntryStack, EntryStackEpoch, EntryStackRealization, EntryStackStage, Preemption,
+    StackDomainRef, StackOccupancy, ValidatedBoundaryEntryPlan, ValidatedEntryStackDomainClosure,
+    ValidatedEntryStackRealization, ValueShape, X86_64TargetDerivedHardwareArrival,
+    evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
     validate_entry_stack_realization,
 };
 use omega_executable_installation::{
     ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
+};
+use omega_isa_x86_64::{
+    X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperResolution,
+    validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
 };
 use psi_layout_plans::EntryStubId;
 
@@ -174,7 +179,49 @@ pub enum ArrivalStackRealizationOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdapterStackRealizationOrigin {
     None,
+    GeneratedProgramStorageSemanticWrapper,
     OpaqueProvider,
+}
+
+/// Untrusted emitted-operation rows for the one receiver-free x86 semantic
+/// ProgramStorage wrapper. Admission independently replays both the canonical
+/// template and its resolved private-continuation call before retaining them.
+#[derive(Debug, Clone, Copy)]
+pub struct X86_64GeneratedProgramStorageAdapterEmission<'a> {
+    pub request: X86_64SemanticUnitWrapperEncodingRequest,
+    pub template_bytes: &'a [u8],
+    pub resolved_bytes: &'a [u8],
+    pub wrapper_section_offset: u64,
+    pub continuation_section_offset: u64,
+}
+
+/// Exact replayed generated-adapter evidence retained behind root admission.
+/// The compact fingerprint is report-only; the canonical request, resolved
+/// bytes, and call coordinates remain the authority-bearing facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedProgramStorageAdapterStackEvidence {
+    request: X86_64SemanticUnitWrapperEncodingRequest,
+    resolved_bytes: Vec<u8>,
+    resolution: X86_64SemanticUnitWrapperResolution,
+    non_authoritative_report_fingerprint: u64,
+}
+
+impl GeneratedProgramStorageAdapterStackEvidence {
+    pub const fn request(&self) -> X86_64SemanticUnitWrapperEncodingRequest {
+        self.request
+    }
+
+    pub fn resolved_bytes(&self) -> &[u8] {
+        &self.resolved_bytes
+    }
+
+    pub const fn resolution(&self) -> X86_64SemanticUnitWrapperResolution {
+        self.resolution
+    }
+
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
+    }
 }
 
 /// Complete auditable provenance for one bound entry realization.
@@ -199,6 +246,7 @@ pub struct EntryStackRealizationEvidence {
     arrival_origin: ArrivalStackRealizationOrigin,
     adapter_origin: AdapterStackRealizationOrigin,
     target_rule_report_fingerprint: Option<u64>,
+    generated_adapter: Option<GeneratedProgramStorageAdapterStackEvidence>,
     validation_receipt: Option<StackValidationReceiptId>,
 }
 
@@ -257,6 +305,10 @@ impl EntryStackRealizationEvidence {
 
     pub const fn target_rule_report_fingerprint(&self) -> Option<u64> {
         self.target_rule_report_fingerprint
+    }
+
+    pub const fn generated_adapter(&self) -> Option<&GeneratedProgramStorageAdapterStackEvidence> {
+        self.generated_adapter.as_ref()
     }
 
     pub const fn validation_receipt(&self) -> Option<StackValidationReceiptId> {
@@ -360,6 +412,7 @@ pub fn bind_opaque_adapter_stack_realization(
         arrival_origin: ArrivalStackRealizationOrigin::OpaqueProvider,
         adapter_origin: AdapterStackRealizationOrigin::OpaqueProvider,
         target_rule_report_fingerprint: None,
+        generated_adapter: None,
         validation_receipt: Some(arrival_contexts.validation_receipt()),
     };
     debug_assert!(realization_evidence.matches_installed_code_entry(installed_code, entry));
@@ -456,6 +509,7 @@ pub fn bind_direct_generated_entry_stack_realization(
             arrival_origin: ArrivalStackRealizationOrigin::NoHardwareArrival,
             adapter_origin: AdapterStackRealizationOrigin::None,
             target_rule_report_fingerprint: None,
+            generated_adapter: None,
             validation_receipt: None,
         },
     })
@@ -538,6 +592,167 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
             arrival_origin: ArrivalStackRealizationOrigin::X86_64TargetRule,
             adapter_origin: AdapterStackRealizationOrigin::None,
             target_rule_report_fingerprint: Some(target_arrival.report_fingerprint()),
+            generated_adapter: None,
+            validation_receipt: None,
+        },
+    })
+}
+
+/// Bind the exact emitted receiver-free x86 ProgramStorage wrapper to one
+/// installed Terminal entry. This is generated adapter evidence only: it
+/// proves the wrapper's stack geometry and resolved continuation call, not
+/// firmware invocation or an actual stack mutation.
+pub fn bind_x86_64_generated_program_storage_adapter_stack_realization(
+    summary: &ProviderStackSummary,
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    body_domains: ValidatedEntryStackDomainClosure,
+    emission: X86_64GeneratedProgramStorageAdapterEmission<'_>,
+) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
+    let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence else {
+        return Err(ExternalRootDiagnostic(
+            "generated ProgramStorage adapter requires emitter-derived Terminal body evidence"
+                .into(),
+        ));
+    };
+    if installed_code.architecture() != omega_target::Architecture::X86_64 {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 generated ProgramStorage adapter cannot bind a non-x86 installed artifact"
+                .into(),
+        ));
+    }
+    if !binding.matches_installed_entry(installed_code, entry)
+        || !installed_code.binds_entry_offset(entry, emission.wrapper_section_offset)
+    {
+        return Err(ExternalRootDiagnostic(
+            "generated ProgramStorage adapter body evidence names a different installed entry"
+                .into(),
+        ));
+    }
+    let expected_boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::MicrosoftX64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(16, 8), ValueShape::integer(16, 8)],
+            result: None,
+        },
+    )
+    .expect("the closed receiver-free ProgramStorage wrapper ABI validates");
+    if boundary.plan().call != expected_boundary.plan().call {
+        return Err(ExternalRootDiagnostic(
+            "generated ProgramStorage adapter requires the exact receiver-free Microsoft-x64 semantic continuation ABI"
+                .into(),
+        ));
+    }
+    let template =
+        validate_x86_64_semantic_unit_wrapper_template(emission.request, emission.template_bytes)
+            .map_err(|_| {
+            ExternalRootDiagnostic(
+                "generated ProgramStorage adapter template failed exact emitted-operation replay"
+                    .into(),
+            )
+        })?;
+    let resolved = validate_x86_64_resolved_semantic_unit_wrapper(
+        &template,
+        template.relocation(),
+        emission.wrapper_section_offset,
+        emission.continuation_section_offset,
+        emission.resolved_bytes,
+    )
+    .map_err(|_| {
+        ExternalRootDiagnostic(
+            "generated ProgramStorage adapter continuation call failed exact emitted-operation replay"
+                .into(),
+        )
+    })?;
+    if body_domains.boundary_stack() != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "generated ProgramStorage adapter stack-domain closure drifted from the boundary stack disposition"
+                .into(),
+        ));
+    }
+
+    let frame_bytes = u64::from(emission.request.outgoing_frame_byte_count);
+    let frame_alignment = u64::from(emission.request.pre_call_stack_alignment);
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: body_domains
+            .contexts()
+            .iter()
+            .map(|context| ArrivalContextRealization {
+                context: context.context,
+                epochs: [
+                    EntryStackStage::Enter,
+                    EntryStackStage::Body,
+                    EntryStackStage::Exit,
+                ]
+                .map(|stage| EntryStackEpoch {
+                    stage,
+                    active_domain: context.domain,
+                    occupancy_by_domain: vec![StackOccupancy {
+                        domain: context.domain,
+                        bytes: frame_bytes,
+                        alignment: frame_alignment,
+                    }],
+                    nesting: boundary.plan().state.preemption,
+                })
+                .into(),
+            })
+            .collect(),
+    })
+    .map_err(|error| {
+        ExternalRootDiagnostic(format!(
+            "generated ProgramStorage adapter stack realization is invalid: {}",
+            error.0
+        ))
+    })?;
+    validate_bound_entry_stack_realization(
+        summary,
+        boundary,
+        installed_code,
+        entry,
+        &body_domains,
+        &realization,
+    )?;
+
+    let resolution = resolved.resolution();
+    let mut adapter_fingerprint = Fnv1a::new();
+    adapter_fingerprint.u64(0x6765_6e5f_7073_7772); // "gen_pswr"
+    adapter_fingerprint.bytes(resolved.bytes());
+    adapter_fingerprint.u64(resolution.wrapper_section_offset);
+    adapter_fingerprint.u64(resolution.continuation_section_offset);
+    adapter_fingerprint.u64(resolution.next_instruction_section_offset);
+    adapter_fingerprint.u64(resolution.displacement as u64);
+    let generated_adapter = GeneratedProgramStorageAdapterStackEvidence {
+        request: emission.request,
+        resolved_bytes: resolved.bytes().to_vec(),
+        resolution,
+        non_authoritative_report_fingerprint: adapter_fingerprint.finish(),
+    };
+    Ok(BoundEpochStackCompositionInput {
+        pure: EpochStackCompositionInput {
+            root: summary.root,
+            provider: summary.provider,
+            realization: realization.clone(),
+            body_wcsu_bytes: summary.local_wcsu_bytes(),
+            body_wcsu_alignment: summary.wcsu_alignment(),
+        },
+        body_evidence: summary.local_evidence.clone(),
+        realization_evidence: EntryStackRealizationEvidence {
+            root: summary.root,
+            provider: summary.provider,
+            architecture: installed_code.architecture(),
+            installed_code: installed_code.identity(),
+            installed_code_context: installed_code.receipt_context(),
+            artifact: installed_code.artifact(),
+            entry,
+            boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
+            boundary_contract_commitment: boundary.contract_commitment_digest(),
+            body_domains,
+            realization,
+            arrival_origin: ArrivalStackRealizationOrigin::NoHardwareArrival,
+            adapter_origin: AdapterStackRealizationOrigin::GeneratedProgramStorageSemanticWrapper,
+            target_rule_report_fingerprint: None,
+            generated_adapter: Some(generated_adapter),
             validation_receipt: None,
         },
     })
@@ -820,7 +1035,8 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         });
         report_fingerprint.u64(match evidence.adapter_origin() {
             AdapterStackRealizationOrigin::None => 0,
-            AdapterStackRealizationOrigin::OpaqueProvider => 1,
+            AdapterStackRealizationOrigin::GeneratedProgramStorageSemanticWrapper => 1,
+            AdapterStackRealizationOrigin::OpaqueProvider => 2,
         });
         report_fingerprint.u64(evidence.root().normalized_identity());
         report_fingerprint.u64(evidence.provider().normalized_identity());
@@ -838,6 +1054,12 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         report_fingerprint.u64(
             evidence
                 .target_rule_report_fingerprint()
+                .unwrap_or_default(),
+        );
+        report_fingerprint.u64(
+            evidence
+                .generated_adapter()
+                .map(GeneratedProgramStorageAdapterStackEvidence::report_fingerprint)
                 .unwrap_or_default(),
         );
         report_fingerprint.u64(

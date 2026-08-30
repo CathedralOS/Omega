@@ -67,7 +67,14 @@ scanners, or receipts.
   cast-intersection endpoints may use only a kernel-checked `Truth` child; the
   checker derives and validates the exact endpoint itself. This extends no
   proof tag or verifier search route.
-  Implement exact shift-left and exact add/subtract/multiply next, then make
+  Exact shift-left now retains the independent canonical count question before
+  the mathematical shifted-value carrier bounds. Its untrusted producer may
+  search prior facts and recursively compose checked cast/affine/shift endpoint
+  certificates, while the verifier replays only the serialized route. The
+  direct endpoint checker binds the proof-only shift expression without citing
+  the operation's own result equation, and replays explicit count endpoints;
+  sign-crossing bounds choose the sound minimum or maximum count independently.
+  Implement exact add/subtract/multiply next, then make
   `kernel_proposition` total rather than optional. Deterministic schema-local normalization may fold
   closed mathematical expressions, bare carrier inclusion, and vacuous bounds.
   Symbolic interval propagation, affine reduction, aliases, and other
@@ -6624,20 +6631,19 @@ Owners:
   concurrent-sibling, final-restoration, and transactional tamper canaries are
   live. Each row keeps exact child, parent, resource, activation, weakening,
   cohort/path, phase, and target identity; missing, reordered, substituted, or
-  drifted rows reject before resource arenas rebuild. These dispositions remain
-  checked-only and grant no restored use, cleanup, root custody, or Terminal
-  authority.
+  drifted rows reject before resource arenas rebuild. The former overloaded
+  terminal disposition is now split exactly: a same-boundary lineage closure
+  ends at the coincident retained carrier, while only a `StateExit` event whose
+  final target is the exact direct-root lifetime records direct-root handoff.
+  Swapping either label, phase, path, or target rejects under independent
+  replay. These dispositions remain checked-only and grant no restored use,
+  cleanup, root custody, or Terminal authority.
 
   Complete the settled reborrow-restoration model:
 
-  - replace the overloaded terminal variant with distinct same-boundary
-    lineage-closure and state-exit direct-root-handoff outcomes;
   - add checked suspension/freeze-containment evidence as an ordinary sibling
     of the existing compatibility certificates, joined to exact resources,
     access, formation, weakening, and projection identity;
-  - close exclusive chains deepest-first, close shared cohorts as sets with one
-    parent restoration, then implement retired-parent cascades and exact root
-    handoff; and
   - publish restored use or root custody to Terminal only after independent
     replay. Root handoff must not authorize cleanup, transfer, or linear
     discharge.
@@ -9356,8 +9362,20 @@ reach or trust, and private proof improvements do not change public identity.
 
   Remaining: produce the x86 fact carrier directly from the installed
   gate/TSS realization rather than a test target-fact fixture; add other target
-  arrival rules as their installation facts land; derive nontrivial generated
-  adapter enter/exit epochs from replayed emitted operations. Add no
+  arrival rules as their installation facts land. The first nontrivial
+  generated-adapter rung now replays the existing receiver-free x86 semantic
+  ProgramStorage wrapper's canonical template and resolved private-continuation
+  call, binds the exact installed artifact/entry, boundary ABI, Terminal body,
+  and context closure, and derives ordered `Enter`/`Body`/`Exit` epochs with
+  the live 72-byte outgoing frame retained in each epoch. Exact emitted bytes
+  and call coordinates remain behind a generated origin; mutations,
+  installed-subject substitution, and ABI substitution reject before
+  composition. The current installation seam binds the exact installed-code
+  occurrence and entry offset, but does not yet expose a sealed comparison
+  between the resolved wrapper bytes and that interval of the installed image;
+  add that binder before calling this an installed-stub-byte derivation. Extend
+  this derivation only when other generated adapters land. It proves neither
+  firmware invocation nor an actual stack mutation. Add no
   architecture-specific frame vocabulary to source and do not infer adapter
   transitions by pattern-matching raw bytes.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`

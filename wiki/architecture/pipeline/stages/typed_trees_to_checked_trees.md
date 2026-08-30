@@ -346,29 +346,27 @@ Current ownership is:
   through retired parent carriers, completed restoration, or Terminal
   authority.
   A separate checked-only lifecycle arena now consumes the same exact handles
-  in semantic phase batches. Its current replay state is `Available`,
-  `SuspendedBy` one exact child, or `RetiredWhileSuspended`; an ending suspended
-  carrier remains pending and emits no premature restoration event. An
-  available child end records one non-authorizing disposition: direct parent
-  reactivation, an ordered cascade through retired resource handles to a live
-  parent or direct-root lifetime, or the currently combined retire/discard
-  result when the parent retires in the same phase. Replay retains every
-  traversed weakening and validates the whole event arena before either
-  resource arena is rebuilt.
+  in semantic phase batches using the closed nine-cell `Read` / `Mutable` /
+  `WriteOnly` relation from the ownership guide. Its replay state distinguishes
+  available carriers, one exact exclusive suspension, a mutable carrier frozen
+  by a shared cohort, and either form retired while descendants retain the
+  pending route. `Read` from `Read` releases without restoration; `Read` from
+  `Mutable` joins a cohort and restores mutation only after its final member;
+  permitted exclusive children suspend one exact branch and restore the
+  parent's original access. Exclusive paths close deepest-first, shared
+  cohorts release as a set, and retired carriers retain their ordered weakening
+  path.
 
-  The settled completion must replace that polarity-blind single-child model.
-  Parent-to-child access attenuation is the closed nine-cell `Read` /
-  `Mutable` / `WriteOnly` relation from the ownership guide, not a Boolean
-  `is_exclusive` test. `Read` from `Read` releases without restoration;
-  `Read` from `Mutable` creates a shared cohort that freezes mutation until its
-  final descendant ends; permitted exclusive children suspend one exact branch
-  and restore the parent's original access. The combined terminal result must
-  split same-boundary lineage closure from state-exit direct-root handoff.
-  Exclusive paths close deepest-first, while a shared cohort releases as a set
-  and restores its frozen parent once. Checked suspension/freeze-containment
-  evidence must rejoin the exact access and resource rows before any outcome
-  becomes authorizing. Root handoff grants the borrow layer no cleanup,
-  transfer, or linear-consumption authority.
+  The two terminal checked dispositions are exact rather than overloaded.
+  A parent carrier ending at the child's same semantic boundary records
+  `SameBoundaryLineageClosure`; only `StateExit` ending at the exact
+  direct-root lifetime records `StateExitDirectRootHandoff`. Independent replay
+  reconstructs the phase, path, and final target and rejects either label in
+  the other circumstance before either resource arena is rebuilt. Both remain
+  non-authorizing. Checked suspension/freeze-containment evidence must still
+  rejoin the exact access and resource rows before any outcome becomes
+  authorizing, and Terminal publication remains open. Root handoff grants the
+  borrow layer no cleanup, transfer, or linear-consumption authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

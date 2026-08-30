@@ -31,6 +31,12 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_installation_evidence::{FuelAttributionEvidence, ObjectEvidence, StackDemandEvidence};
+use omega_isa_x86_64::{
+    canonical_x86_64_semantic_unit_wrapper_encoding_request,
+    encode_x86_64_semantic_unit_wrapper_template,
+    resolve_x86_64_semantic_unit_wrapper_private_continuation,
+    validate_x86_64_resolved_semantic_unit_wrapper,
+};
 use psi_extents::{
     AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappingEraId,
@@ -269,6 +275,17 @@ fn interrupted_boundary() -> ValidatedBoundaryEntryPlan {
     let mut plan = ordinary.plan().clone();
     plan.state.stack = EntryStack::Interrupted;
     validate_boundary_entry_plan(plan, &signature).expect("interrupted boundary")
+}
+
+fn generated_program_storage_boundary() -> ValidatedBoundaryEntryPlan {
+    evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::MicrosoftX64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(16, 8), ValueShape::integer(16, 8)],
+            result: None,
+        },
+    )
+    .expect("receiver-free ProgramStorage semantic continuation boundary")
 }
 
 fn body_domains(
@@ -722,6 +739,256 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
             .0
             .contains("drifted from the boundary stack disposition")
     );
+}
+
+#[test]
+fn generated_program_storage_adapter_replays_emitted_operations_and_composes_three_epochs() {
+    let entry = entry_id(0x831);
+    let code = installed_code(0x832, entry);
+    let boundary = generated_program_storage_boundary();
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x83; 32]),
+    };
+    let artifact = TestObject {
+        identity: psi,
+        entry: machine,
+        bytes: vec![0; 64],
+    };
+    let demand = TestStackDemand {
+        identity: psi,
+        entry: machine,
+        contributing: BTreeSet::from([machine]),
+    };
+    let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
+        .expect("terminal stack closure binds exact installed bytes");
+    let root = root_id(0x833, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x834, RootProviderId::from_normalized_identity);
+    let summary =
+        ProviderStackSummary::from_entry(root, provider, boundary.plan().state.stack, installed);
+
+    let request = canonical_x86_64_semantic_unit_wrapper_encoding_request(
+        omega_target::NativeTarget::uefi_x64(),
+    );
+    let template =
+        encode_x86_64_semantic_unit_wrapper_template(request).expect("canonical wrapper template");
+    let resolved = resolve_x86_64_semantic_unit_wrapper_private_continuation(
+        &template,
+        template.relocation(),
+        16,
+        32,
+    )
+    .expect("resolved private continuation call");
+    let bound = bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: template.bytes(),
+            resolved_bytes: resolved.bytes(),
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect("generated adapter binds exact installed entry and body evidence");
+
+    assert_eq!(
+        bound.realization_evidence().arrival_origin(),
+        ArrivalStackRealizationOrigin::NoHardwareArrival
+    );
+    assert_eq!(
+        bound.realization_evidence().adapter_origin(),
+        AdapterStackRealizationOrigin::GeneratedProgramStorageSemanticWrapper
+    );
+    assert_eq!(bound.realization_evidence().validation_receipt(), None);
+    let generated = bound
+        .realization_evidence()
+        .generated_adapter()
+        .expect("exact generated-adapter evidence");
+    assert_eq!(generated.request(), request);
+    assert_eq!(generated.resolved_bytes(), resolved.bytes());
+    assert_eq!(generated.resolution(), resolved.resolution());
+    assert_ne!(generated.report_fingerprint(), 0);
+    let epochs = &bound
+        .realization_evidence()
+        .realization()
+        .realization()
+        .contexts[0]
+        .epochs;
+    assert_eq!(
+        epochs.iter().map(|epoch| epoch.stage).collect::<Vec<_>>(),
+        [
+            EntryStackStage::Enter,
+            EntryStackStage::Body,
+            EntryStackStage::Exit,
+        ]
+    );
+    for epoch in epochs {
+        assert_eq!(epoch.active_domain, StackDomainRef::Interrupted);
+        assert_eq!(
+            epoch.occupancy_by_domain,
+            [omega_calling_conventions::StackOccupancy {
+                domain: StackDomainRef::Interrupted,
+                bytes: 72,
+                alignment: 16,
+            }]
+        );
+    }
+
+    let composition = compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: root_id(0x835, NestingRelationId::from_normalized_identity),
+            edges: BTreeSet::new(),
+        },
+        [&bound],
+    )
+    .expect("generated adapter epochs compose with the Terminal body");
+    assert_eq!(
+        composition.domain(StackDomain::Interrupted),
+        Some(DomainStackDemand {
+            bytes: 144,
+            alignment: 16,
+        }),
+        "the live 72-byte wrapper frame aligns before the 64-byte body WCSU",
+    );
+}
+
+#[test]
+fn generated_program_storage_adapter_rejects_mutation_and_installed_subject_substitution() {
+    let entry = entry_id(0x841);
+    let code = installed_code(0x842, entry);
+    let boundary = generated_program_storage_boundary();
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x84; 32]),
+    };
+    let artifact = TestObject {
+        identity: psi,
+        entry: machine,
+        bytes: vec![0; 64],
+    };
+    let demand = TestStackDemand {
+        identity: psi,
+        entry: machine,
+        contributing: BTreeSet::from([machine]),
+    };
+    let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
+        .expect("terminal stack closure");
+    let root = root_id(0x843, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x844, RootProviderId::from_normalized_identity);
+    let summary =
+        ProviderStackSummary::from_entry(root, provider, boundary.plan().state.stack, installed);
+    let request = canonical_x86_64_semantic_unit_wrapper_encoding_request(
+        omega_target::NativeTarget::uefi_x64(),
+    );
+    let template =
+        encode_x86_64_semantic_unit_wrapper_template(request).expect("canonical wrapper template");
+    let resolved = resolve_x86_64_semantic_unit_wrapper_private_continuation(
+        &template,
+        template.relocation(),
+        16,
+        32,
+    )
+    .expect("resolved wrapper");
+
+    let mut mutated_template = template.bytes().to_vec();
+    mutated_template[3] ^= 8;
+    let error = bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: &mutated_template,
+            resolved_bytes: resolved.bytes(),
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect_err("reserve-byte mutation must reject before epoch derivation");
+    assert!(
+        error
+            .0
+            .contains("template failed exact emitted-operation replay")
+    );
+
+    let mut mutated_resolved = resolved.bytes().to_vec();
+    mutated_resolved[81] ^= 1;
+    assert!(
+        validate_x86_64_resolved_semantic_unit_wrapper(
+            &template,
+            template.relocation(),
+            16,
+            32,
+            &mutated_resolved,
+        )
+        .is_err(),
+        "redirecting the resolved private call must fail target replay",
+    );
+    let error = bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: template.bytes(),
+            resolved_bytes: &mutated_resolved,
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect_err("resolved call redirection must reject before epoch derivation");
+    assert!(
+        error
+            .0
+            .contains("continuation call failed exact emitted-operation replay")
+    );
+
+    let foreign_entry = entry_id(0x845);
+    let foreign_code = installed_code(0x846, foreign_entry);
+    let error = bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &foreign_code,
+        foreign_entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: template.bytes(),
+            resolved_bytes: resolved.bytes(),
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect_err("body evidence cannot cross to another installed artifact and entry");
+    assert!(error.0.contains("different installed entry"));
+
+    let incompatible_boundary = crate::tests::boundary();
+    let error = bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &summary,
+        &incompatible_boundary,
+        &code,
+        entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: template.bytes(),
+            resolved_bytes: resolved.bytes(),
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect_err("the generated wrapper cannot bind a different continuation ABI");
+    assert!(error.0.contains("receiver-free Microsoft-x64"));
 }
 
 #[test]

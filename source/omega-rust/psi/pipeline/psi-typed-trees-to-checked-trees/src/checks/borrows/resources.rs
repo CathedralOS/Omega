@@ -3,8 +3,7 @@ use psi_checked_trees::{
     CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
     CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
     CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
-    CheckedReborrowAccessEffect,
-    CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
     CheckedRetiredParentResourceDispositionStep, FlowFacts, FlowInvalidationSource,
@@ -780,13 +779,7 @@ fn resolve_disposition_event(
     reborrows: &[CheckedReborrowLoanResourceDraft],
     installation: &[ParentResourceIndex],
     completed_resources: &[ParentResourceIndex],
-) -> Result<
-    (
-        CheckedReborrowDispositionEventDraft,
-        DispositionUpdate,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(CheckedReborrowDispositionEventDraft, DispositionUpdate), Vec<Diagnostic>> {
     let Some(child) = reborrows.get(child_index) else {
         return Err(reborrow_disposition_drift());
     };
@@ -843,27 +836,22 @@ fn resolve_disposition_event(
                             DispositionTargetIndex::ParentResource(retired)
                         }
                     };
-                    break (
-                        CheckedReborrowResourceDisposition::RetireOrDiscard,
-                        final_target,
-                        DispositionUpdate::None,
-                    );
+                    let disposition =
+                        closing_disposition(boundary, retired_boundary, &final_target)?;
+                    break (disposition, final_target, DispositionUpdate::None);
                 }
                 match retired {
                     ParentResourceIndex::Direct(index) => {
                         if direct.get(index).is_none() {
                             return Err(reborrow_disposition_drift());
                         }
+                        let final_target = DispositionTargetIndex::DirectRootLifetime(index);
                         let disposition = if boundary.phase == LifecyclePhase::StateExit {
-                            CheckedReborrowResourceDisposition::RetireOrDiscard
+                            closing_disposition(boundary, retired_boundary, &final_target)?
                         } else {
                             CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
                         };
-                        break (
-                            disposition,
-                            DispositionTargetIndex::DirectRootLifetime(index),
-                            DispositionUpdate::None,
-                        );
+                        break (disposition, final_target, DispositionUpdate::None);
                     }
                     ParentResourceIndex::Reborrow(index) => {
                         let Some(next) = installation.get(index).copied() else {
@@ -920,6 +908,22 @@ fn resolve_disposition_event(
     ))
 }
 
+fn closing_disposition(
+    boundary: LifecycleBoundaryKey,
+    retired_boundary: LifecycleBoundaryKey,
+    final_target: &DispositionTargetIndex,
+) -> Result<CheckedReborrowResourceDisposition, Vec<Diagnostic>> {
+    if boundary.phase == LifecyclePhase::StateExit
+        && matches!(final_target, DispositionTargetIndex::DirectRootLifetime(_))
+    {
+        return Ok(CheckedReborrowResourceDisposition::StateExitDirectRootHandoff);
+    }
+    if retired_boundary == boundary {
+        return Ok(CheckedReborrowResourceDisposition::SameBoundaryLineageClosure);
+    }
+    Err(reborrow_disposition_drift())
+}
+
 fn resolve_shared_disposition_event(
     child_index: usize,
     child_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
@@ -928,13 +932,7 @@ fn resolve_shared_disposition_event(
     child: &CheckedReborrowLoanResourceDraft,
     immediate_parent: ParentResourceIndex,
     completed_resources: &[ParentResourceIndex],
-) -> Result<
-    (
-        CheckedReborrowDispositionEventDraft,
-        DispositionUpdate,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(CheckedReborrowDispositionEventDraft, DispositionUpdate), Vec<Diagnostic>> {
     let child_resource = ParentResourceIndex::Reborrow(child_index);
     let (disposition, shared_cohort, update) = match child.access_effect {
         CheckedReborrowAccessEffect::SharedRelease => {
