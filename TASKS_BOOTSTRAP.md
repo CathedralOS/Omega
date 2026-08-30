@@ -529,11 +529,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 96
-    procedures; with the frontend gate entry, the gate uses 97 of Beta's 128
-    procedure slots and compiles to 239,696 bytes, leaving 22,444 bytes below
-    Alpha's runnable payload ceiling for
-    lowering and the eventual adapter.
+    and retains no alternate compiler or tape. Generated fixed-offset word
+    access is centralized through two emitter helpers using caller-clobbered
+    `r249`/`r250`; this changes no layout or runtime path and prevents repeated
+    four-instruction address sequences from consuming the compiler's own fixed
+    tape budget. The retained source declares 98 procedures; with the frontend
+    gate entry, the gate uses 99 of Beta's 128 procedure slots and compiles to
+    225,027 bytes, leaving 37,113 bytes below Alpha's runnable payload ceiling
+    for lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
     application adapter. Reserve `r252`/`r253` for the downward stack and frame
     base and `r254`/`r255` for the upward heap and its limit. Directly emit heap
@@ -685,8 +688,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   compiler source is an accepted compiler artifact. The retained gates pass 48
   interpreter cases, the fail-closed arena case, 78 compiler-frontend cases,
   one exact emitter probe, six executed runtime-containment probes, 16 checked
-  `Int` paths, 20 source-to-code lowering cases, one byte-determinism comparison,
-  and 106 independent differential cases.
+  `Int` paths, 31 source-to-code lowering cases, two byte-determinism
+  comparisons, 14 compact-`Bytes` runtime paths, two arbitrary-arity/frame-ABI
+  paths, three algebraic-value ABI paths, and 106 independent differential
+  cases.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,

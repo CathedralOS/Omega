@@ -13,13 +13,14 @@ and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
 runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup failures, executes six generated runtime-containment programs,
-exercises 16 checked-`Int` paths, runs 20 source-to-code lowering cases, and
-reconstructs one nested payload twice byte-identically. It publishes no compiler
-artifact.
+exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, compares
+two repeated payloads byte-identically, and executes 14 compact-`Bytes`, two
+arbitrary-arity/frame-ABI, and three algebraic-value ABI paths. It publishes no
+compiler artifact.
 
-The retained compiler source declares 96 procedures. With the fixed frontend
-gate entry, the compiled gate uses 97 of Beta's 128 procedure slots and compiles
-to 239,696 bytes. The remaining 22,444 bytes under
+The retained compiler source declares 98 procedures. With the fixed frontend
+gate entry, the compiled gate uses 99 of Beta's 128 procedure slots and compiles
+to 225,027 bytes. The remaining 37,113 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -97,9 +98,12 @@ mixed allocations. The adjacent probe covers 600 fields, nested and nullary
 values, malformed private pointers, and the exact heap edge. Source
 constructor-tag and pattern-slot assignment remains Q3-blocked.
 
-Generated code reserves `r252` for the downward stack pointer, `r253` for the
-current frame base, `r254` for the upward heap pointer, and `r255` for the heap
-limit. Each frame retains the previous base, caller's pre-argument cursor,
+Generated code treats `r249`/`r250` as caller-clobbered fixed-offset address
+scratch, reserves `r252` for the downward stack pointer, `r253` for the current
+frame base, `r254` for the upward heap pointer, and `r255` for the heap limit.
+Central emitter helpers own the scratch pair so repeated field/frame accesses
+do not duplicate address-building logic or tape. Each frame retains the previous
+base, caller's pre-argument cursor,
 fixed local slots, and two-word parameters at its high end. A mandatory 16-byte
 header bounds live Alpha return addresses before hidden-stack/heap overlap;
 tail relocation preflights its complete target and copies pairs high-to-low
