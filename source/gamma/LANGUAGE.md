@@ -311,15 +311,37 @@ DCOUT  0 none, 1 Delta source, 2 emitted payload, 3 internal row
 ```
 
 `GCREQ` validation precedes Gamma lexing, declaration/type/match checking,
-selected-profile schema validation, and lowering/emission. A malformed or
-unknown profile therefore wins before any source defect and reports a request
-coordinate; a selected-profile schema mismatch reports its exact source
-coordinate. The closed tables are `compiler/gcout-v1.tsv`,
+selected-profile schema validation, and lowering/emission. The fixed header
+and magic/version/reserved bytes precede profile selection; profile selection
+precedes the declared source-length provision; and only an admitted length is
+followed by exactly that many body bytes plus one exact-end probe. Consequently
+a four-byte length cannot require attacker-selected input consumption before
+`Incomplete(source_bytes)`. Unknown profile and source-length exhaustion anchor
+at request bytes 8 and 12 respectively. Body truncation and one trailing byte
+are `malformed_request` at the first missing or trailing request byte.
+
+After an otherwise valid frontend pass, profile-schema categories are ordered
+`missing_entry`, `entry_schema_mismatch`, then `profile_schema_mismatch`.
+Within one category an absent required declaration with coordinate space
+`none` precedes located defects, then located defects use their earliest Gamma-
+source coordinate. Missing `main` has no coordinate; a wrong present `main`
+anchors at its declaration name. `DeltaCompilerV1` uses
+`profile_schema_mismatch` with no coordinate for an absent required nominal
+member and with a source coordinate for a present malformed member or reason-
+code bijection. `ConformanceBytesV1` cannot emit that reason.
+
+The closed tables are `compiler/gcout-v1.tsv`,
 `compiler/dcout-v1.tsv`, `compiler/profiles-v1.tsv`, and
 `compiler/conformance-observations-v1.tsv`. They are checked projections of
 constants embedded in the compiler artifact, not files consulted by the
 completed offline runtime. Generated-program statuses 248 through 254 remain
 separate runtime observations, never compiler-boundary cases.
+
+`gcout-v1.tsv` also records the request-profile contexts in which each code is
+canonical. `unselected` means no valid profile has yet been established. The
+request/outcome join checks this column because a detached GCOUT frame does not
+repeat the profile ID; a profile-impossible code is a noncanonical compiler
+result rather than an authored rejection.
 
 ## Compilation requirements
 

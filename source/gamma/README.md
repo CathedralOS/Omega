@@ -42,8 +42,9 @@ resolver is implemented. The compiler now validates both exact D19 entry
 schemas, D31's attributed/aggregate storage outcomes, and the declaration-
 order-independent 26-code Delta rejection bijection. D30 fixes `GCREQ`, both
 profile IDs and maxima, the generated-runtime observation block, and the exact
-`GCOUT`/`DCOUT` identities and tables. Adapter
-completion, remaining lowering, and publication remain open. Complete
+`GCOUT`/`DCOUT` identities and tables. D33 fixes the bounded request order,
+schema-category priority, absence coordinates, and per-profile code legality.
+Adapter completion, remaining lowering, and publication remain open. Complete
 fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an

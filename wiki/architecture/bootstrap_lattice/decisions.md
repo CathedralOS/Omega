@@ -1042,10 +1042,13 @@ stack and 112-MiB immutable heap. Exact and adjacent refusal canaries accompany
 every selected maximum.
 
 Envelope validation precedes Gamma lexing, declaration and type checking,
-selected-profile schema checking, and lowering/emission. An unknown or
-malformed profile therefore wins before any Gamma-source defect and reports a
-`GCREQ`-byte coordinate; an entry or profile-schema mismatch reports its exact
-Gamma-source coordinate. `GCOUT` V1 uses magic
+selected-profile schema checking, and lowering/emission. D33 fixes the bounded
+suborder: fixed header and profile selection precede the declared source
+provision, while body exact-end validation occurs only after that provision is
+admitted. An unknown or malformed profile therefore wins before any Gamma-
+source defect and reports a `GCREQ`-byte coordinate. Schema rejections use
+D33's category priority and truthful source-or-none coordinates. `GCOUT` V1
+uses magic
 `[FF 47 43 4F 55 54 01 00]`; `DCOUT` V1 uses
 `[FF 44 43 4F 55 54 01 00]`. Both retain the common 40-byte compiler-failure
 frame and halt tags 0 Complete, 1 Reject, 2 Incomplete, and 3 InternalFailure.
@@ -1059,7 +1062,9 @@ DCOUT: 0 none, 1 Delta source, 2 emitted payload, 3 internal row
 The closed tables in `source/gamma/compiler/gcout-v1.tsv` and
 `dcout-v1.tsv` are normative. `GCOUT` exposes authored semantic rejection
 classes rather than the compiler's private parser states or former one-bit
-failure flag. Its compiler-resource limits are 4,194,304 source bytes, 65,536
+failure flag. Its profile-context column is checked against the originating
+request; the detached frame does not carry that context. Its compiler-resource
+limits are 4,194,304 source bytes, 65,536
 total type rows, 65,536 constructor rows, 32,768 function rows, 65,536 active
 environment rows, 65,536 coverage rows, 114,294,752 syntax-arena bytes, 1,024
 parse levels, 65,535 live local slots, 65,536 labels, 116,508 fixups, and
@@ -1203,6 +1208,63 @@ Every strong evidence commitment is domain-separated by a stable schema and
 semantic role. A subject, composition joint, Terminal parent, optimized
 projection, or physical child commitment is therefore unusable in another
 role even when its underlying bytes or compact report coordinates coincide.
+
+## D33 — GCOUT admission and schema diagnosis are bounded and total
+
+The standalone Beta-written Gamma compiler decides `GCREQ` in one bounded
+order. It first obtains the fixed 16-byte header, reporting a truncated header
+at its first missing request byte. It then validates magic, version, and
+reserved bytes, reporting the first differing byte; validates the complete
+profile ID, anchoring `unknown_profile` at byte 8; and compares the declared
+little-endian `u32` source length with the selected profile's provision,
+anchoring `Incomplete(source_bytes)` at byte 12 with the declaration as
+`requested`. Only an admitted length causes the compiler to read that many
+body bytes and one exact-end probe. Early EOF reports the first missing body
+byte and one extra byte reports the first trailing byte as
+`malformed_request`.
+
+The length provision therefore precedes body exact-end validation. A four-byte
+length may not force the compiler to consume an attacker-selected extent merely
+to reject it, and a profile-specific limit cannot be consulted before the
+profile is known. The admitted body plus one-byte probe is the maximum request
+body work required before Gamma source processing.
+
+After the ordinary Gamma frontend has accepted the source, selected-profile
+schema diagnosis uses the fixed category order `missing_entry` (19),
+`entry_schema_mismatch` (20), then `profile_schema_mismatch` (21). Category
+priority precedes coordinate order. Within one category, missing required facts
+using coordinate space `none` precede located defects; located defects use the
+smallest Gamma-source coordinate. Exact-coordinate ties produce the same public
+outcome rather than exposing validator traversal.
+
+No `main` is code 19 with coordinate space `none` and coordinate zero. A
+present `main` with the wrong selected-profile signature is code 20 at the
+`main` declaration name. For `DeltaCompilerV1`, an entirely absent required
+nominal type, constructor, or rejection reason is code 21 with space `none`; a
+present malformed declaration, constructor payload, outcome shape, or
+reason-to-DCOUT-code bijection is code 21 at its declaration or constructor
+name. `ConformanceBytesV1` has no nominal profile schema beyond
+`main : Bytes -> Bytes`, so it cannot emit code 21. A missing type mentioned by
+source remains the earlier ordinary `unknown_type` rejection, not a schema
+candidate.
+
+The normative `gcout-v1.tsv` records allowed coordinate spaces and request-
+profile contexts. `unselected` denotes a failure before one valid profile is
+known. `malformed_request` is legal while unselected or after either profile
+has been selected; `unknown_profile` is legal only while unselected; code 21 is
+legal only for profile 2. Every later code lists its selected profiles. The
+request/outcome join, not a detached GCOUT decoder, checks that availability
+because the 40-byte frame does not repeat the profile ID. A code impossible for
+the originating request is a noncanonical compiler result, not an authored
+rejection.
+
+The frame layout and version do not change. Space 0 and coordinate zero were
+already the canonical representation of no coordinate; D33 revises the checked
+table projection because codes 19 and 21 previously claimed only Gamma-source
+coordinates. The completed compiler retains all schema `(reason, coordinate)`
+candidates and applies the ordering above. A Boolean validator, one shared
+`FAIL_OFF`, adapter-emission order, or first encountered row cannot define the
+public wire result.
 
 ## Dependency order
 
