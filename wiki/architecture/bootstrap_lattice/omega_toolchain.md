@@ -82,7 +82,7 @@ activations publish durable generated-source bundles and evidence; a consumer
 does not rerun them and no graph-wide set of live partial frontend checkpoints
 is carried. The Omega edge publishes raw success bytes or its edge-specific
 `OCOUT` failure frame under the common four-case compiler boundary, never a
-partial artifact. Q3 still owns the inner field/tag tables, exact commitment
+partial artifact. Q2 still owns the inner field/tag tables, exact commitment
 preimage, closed failure/resource tables, phase order, and scalar provisions.
 `OCOUT` keeps the shared 40-byte header; only a package/source
 coordinate adds the exact eight-byte package-and-unit tail. Diagnostics in

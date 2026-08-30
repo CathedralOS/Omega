@@ -38,13 +38,14 @@ for a Beta-written translator that already parsed Delta.
 D19 makes the generated application adapter a sealed compilation input rather
 than Gamma syntax. `ConformanceBytesV1` selects pure
 `main : Bytes -> Bytes`; `DeltaCompilerV1` selects the source-owned pure
-`main : Bytes -> DeltaCompileOutcome`. The latter sum contains only
-`Complete(Bytes)` and a structured Delta rejection, and its profile-owned
-reason-code table is checked as a complete bijection over the exact resolved
-constructors before emission. A generated Alpha adapter owns sealed byte I/O,
-private exhaustion, internal failure, and the selected external observation
-contract. Gamma source receives no general I/O primitive and matching names do
-not select `DCOUT`.
+`main : Bytes -> DeltaCompileOutcome`. The latter sum contains success, a
+structured Delta rejection, and D31's attributed/aggregate application-static-
+storage refusals. Its profile-owned reason-code table is checked as a complete
+bijection over the exact resolved constructors before emission. A generated
+Alpha adapter owns sealed byte I/O, validates the sole source-authored
+Incomplete resource, and owns every private exhaustion, internal failure, and
+selected external observation. Gamma source receives no general I/O primitive
+and matching names do not select `DCOUT`.
 
 D20 fixes the resolver beneath those profiles. Types, constructors, functions,
 and local values occupy four grammar-selected namespaces. Globals are unique

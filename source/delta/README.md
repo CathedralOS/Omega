@@ -13,6 +13,9 @@ duplicate census; no active local shadowing; legal disjoint-state and member/
 local spelling reuse; and no authored machine bodies on boundary owners. D24
 completes that census with transition-arm binder scope, same-phase
 `DuplicateName`/`InvalidBoundary` ordering, and unique-owner classification.
+D31 completes type formation: positive array lengths, zero-field records,
+mixed-data rejection, exact `never`/view/`Console` placement, structural
+diagnostic anchors, and profile-owned static-storage refusal.
 
 ## Canonical edges
 

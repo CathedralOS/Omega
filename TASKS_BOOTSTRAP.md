@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, named-type candidate scan, and symbolic Alpha encoding | resolve Q2, complete type/body checking and lowering, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, named-type candidate scan, and symbolic Alpha encoding | implement D31 type formation, complete body checking and lowering, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -592,7 +592,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     table covers identifiers through 24 bytes and fixes D17's 26 reason codes
     independently of declaration order; staged private identities are
     consumable only when the validator succeeds, and it authors no candidate
-    adapter bytes. Six adjacent cases accept both profiles, reverse every reason
+    adapter bytes. Seven adjacent cases accept both profiles, reverse every reason
     declaration while preserving the mapping, and reject a wrong entry, missing
     reason, extra outcome constructor, and wrong `Reject` payload.
   - [x] **D30 — PHYSICAL GAMMA APPLICATION PROFILES.** Fix `GCREQ` V1,
@@ -611,14 +611,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     neither resource path commits `r254` or a partial descriptor. Exact and
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
-  - [ ] **OWNER-BLOCKED — Q5 Beta call-row profile for the complete Gamma
+  - [ ] **OWNER-BLOCKED — Q4 Beta call-row profile for the complete Gamma
     compiler.** The retained source consumes exactly 994 of D23's 1,024
     non-builtin call rows before a production entry or either adapter. A focused
     adjacent probe admits thirty further calls and refuses the thirty-first as
     canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
     total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
     publication, or silently revise the Alpha-written compiler profile.
-  - [ ] **OWNER-BLOCKED — Q4 GCOUT boundary priority and schema coordinates.**
+  - [ ] **OWNER-BLOCKED — Q3 GCOUT boundary priority and schema coordinates.**
     Before publishing the canonical compiler boundary, fix exact-end versus
     oversized-source priority, exact request-field coordinates, and the total
     partition/priority/absence coordinate for schema rejection codes 19 through
@@ -638,9 +638,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source now declares 115 procedures; with the
-    frontend gate entry, the gate uses 116 of the persisted V2 artifact's 256
-    procedure slots. It compiles to 329,015 bytes, leaving 719,557 bytes below
+    tape budget. The retained source now declares 116 procedures; with the
+    frontend gate entry, the gate uses 117 of the persisted V2 artifact's 256
+    procedure slots. It compiles to 333,928 bytes, leaving 714,644 bytes below
     the V2 runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
@@ -860,7 +860,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     gate retains a real exact-maximum compiler tape with representative source,
     named lemmas, normalization, scratch, simultaneous outer maxima, balanced
     arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
-    tapes reproduce exactly; the current consolidated Gamma gate is 204/204
+    tapes reproduce exactly; the current consolidated Gamma gate is 205/205
     after replacing five redundant full-source compiler variants with one
     whole-function emitter. Ordinary density work remains useful but is no
     longer a condition for the retired V1 ceiling.
@@ -1109,15 +1109,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
     owner table. Retain the globally earliest unknown spelling candidate at its
     exact type start beside the collected native syntax for later shape,
     recursion, body, and lowering passes. Do not promote that candidate to a
-    rejection before Q2 fixes its priority against other type-formation
-    failures. The source type-checks through the full Gamma frontend gate;
+    rejection before D31's structural priority is implemented. The source
+    type-checks through the full Gamma frontend gate;
     behavioral canaries remain dependency-blocked on the real Gamma compiler
     edge.
-  - [ ] **OWNER-BLOCKED — Q2 DELTA TYPE FORMATION.** Settle zero-length arrays,
-    empty data declarations, forbidden `never`/view placements, `Console` type
-    placement, and same-coordinate failure priority before implementing the
-    remaining type-formation judgment. Do not derive these language results
-    from host layout or traversal order.
+  - [x] **D31 — DELTA-TYPE-FORMATION-V1.** Fix lengths `1..INT32_MAX`, empty
+    data as one zero-field record, mixed-data rejection, exact
+    `never`/view/`Console` placement, and disjoint structural anchors. Valid
+    source that exceeds one selected application-static-storage profile returns
+    attributed or aggregate outer `Incomplete`; it is never a Delta rejection.
+  - [ ] **IMPLEMENTATION — D31 DELTA TYPE FORMATION.** Implement lengths
+    `1..INT32_MAX`, zero-field records, mixed-data rejection, exact
+    `never`/view/`Console` placement, and structurally anchored candidate
+    selection. Add exact positive/negative canaries plus attributed and
+    aggregate `ApplicationStaticStorageBytes` refusal. Derive the selected
+    application-static-storage limit from the final nonaliasing generated-
+    program map; do not make that profile limit a Delta validity rule or infer
+    diagnostics from traversal order.
 - [x] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
@@ -1161,7 +1169,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q3: COMPLETE D25 OMEGA-COMPILER-REQUEST-WIRE-V1.**
+  - [ ] **OWNER-BLOCKED — Q2: COMPLETE D25 OMEGA-COMPILER-REQUEST-WIRE-V1.**
     Complete the byte-exact `OCREQ` and `OCOUT` profiles shared by `D` and `C`.
     Encode the committed canonical subject and invocation, structural package
     keys, separately selected immutable revisions, graph indices, closed-tree
@@ -1181,7 +1189,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       invocation spans on success. It does not call the source parser, invent a
       package/source identity, add `Main`, or publish `OCOUT`. Exact malformed
       frame vectors remain assigned to the real Delta-compiler gate.
-  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q3 AND INCOMPLETE D:
+  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q2 AND INCOMPLETE D:
     D18/D25 OMEGA-COMPILER-REQUEST-V1.** Implement the canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
@@ -1969,11 +1977,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
   allowed; weakened Omega semantics are not. Q1 still owns an unresolved
-  full-spec Omega contract. Q2 blocks the earlier Delta compiler edge, while Q3
-  blocks the standalone Omega compiler's exact inner wire and failure profile.
-  D25 fixes that edge's logical request and outer envelope, and D24 unblocks the
-  Delta census implementation. None prevents implementation of independently
-  settled source-shaped parser slices.
+  full-spec Omega contract. D31 unblocks the earlier Delta compiler's
+  type-formation implementation, while Q2 blocks the standalone Omega
+  compiler's exact inner wire and failure profile. D25 fixes that edge's
+  logical request and outer envelope, and D24 unblocks the Delta census
+  implementation. None prevents implementation of independently settled
+  source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full

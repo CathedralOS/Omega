@@ -43,11 +43,17 @@ binders, disjoint arm scope, and declaration-start ordering between
 `DuplicateName` and `InvalidBoundary`; owner kind is never inferred from an
 ambiguous owner row.
 
+D31 fixes type formation: arrays admit `1..INT32_MAX`, empty data is one
+zero-field record, mixed data rejects, `never`/view/`Console` placement has one
+structural reason and coordinate, and traversal never chooses a diagnostic.
+Valid source that exceeds one selected application-static-storage profile
+produces attributed or aggregate outer `Incomplete`, never a Delta rejection.
+
 The canonical compiler source now implements complete parsing, that identity
 census, a whole-program scan retaining the earliest absent named-type candidate,
 and pure symbolic Alpha encoding. It deliberately does not promote the
-candidate to `UnknownType` until Q2 fixes competition with the other
-type-formation failures. Remaining type/body checking, lowering, `main`, tape
+candidate to `UnknownType` until D31's structural competition is implemented.
+Remaining type/body checking, lowering, `main`, tape
 publication, and refinement are open implementation work.
 
 Every source-visible bound, resource-profile parameter, and private

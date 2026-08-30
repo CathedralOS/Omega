@@ -138,6 +138,8 @@ stamp_seed "$T/local-profile.tape" "$SEED" "$T/local-profile.exe" >/dev/null 2>&
     '        retained_delta = retained_delta * (word[10750224] == 1)' \
     '        retained_delta = retained_delta * (word[10750232] == 2)' \
     '        retained_delta = retained_delta * (word[10750240] == 3)' \
+    '        retained_delta = retained_delta * (word[10750256] == 29)' \
+    '        retained_delta = retained_delta * (word[10750264] == 30)' \
     '        return 3 - 2 * (conformance_identity != 0) - (delta_status == 1) * retained_delta' \
     '    }' \
     '    state frontend_failed { return 4 }' \
@@ -2464,11 +2466,13 @@ d19_reason_reverse='(NonexhaustiveSum) (DuplicatePattern) (InvalidTerminal) (Inv
 d19_reason_missing='(NonexhaustiveSum) (DuplicatePattern) (InvalidTerminal) (InvalidControlTarget) (EscapingView) (UseBeforeInitialization) (InvalidPlace) (ArityMismatch) (TypeMismatch) (UnknownName) (InvalidArrayLength) (InvalidDataShape) (RecursiveValueType) (UnknownType) (InvalidBoundary) (InvalidEntry) (MissingEntry) (DuplicateName) (UnexpectedEnd) (UnexpectedToken) (IntegerLiteralOutOfRange) (InvalidEscape) (UnterminatedString) (InvalidCharacterLiteral) (InvalidToken)'
 d19_schema_case '(def main ((input Bytes)) Bytes input)' 1 'ConformanceBytesV1 exact entry'
 d19_schema_case '(def main ((input Int)) Bytes (bytes_empty))' 3 'ConformanceBytesV1 wrong parameter type'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 2 'DeltaCompilerV1 exact schema and reversed reason order'
-d19_schema_case "(data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'missing DCOUT reason row'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int) (Other)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'extra outcome constructor'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong Reject offset payload'
-unset d19_reason_reverse d19_reason_missing d19_schema_status
+d19_outcomes='(Complete Bytes) (Reject DeltaRejectReason Int) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 2 'DeltaCompilerV1 exact schema and reversed reason order'
+d19_schema_case "(data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'missing DCOUT reason row'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome $d19_outcomes (Other)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'extra outcome constructor'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong Reject offset payload'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int) (StorageIncompleteAt Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong attributed storage payload'
+unset d19_reason_reverse d19_reason_missing d19_outcomes d19_schema_status
 printf '%s' '(def main ((value Int)) Int value)' | "$T/function-metadata.exe" > "$T/function-metadata.out"
 function_metadata_status=$?
 if [ "$function_metadata_status" = 1 ] && [ ! -s "$T/function-metadata.out" ]; then

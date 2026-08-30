@@ -19,6 +19,8 @@ least one of these holds and the normative contract is revised explicitly:
 - deterministic byte input and artifact/diagnostic output;
 - explicit process termination and failure;
 - finite nominal data, sums, records, arrays, and bounded views;
+- zero-field records and positive fixed-array lengths with target capacity kept
+  outside language validity;
 - checked integer arithmetic sufficient for compiler indexing and layout;
 - deterministic control flow, calls, and recursion with explicit resource
   ceilings;

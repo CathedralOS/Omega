@@ -336,12 +336,13 @@ exhaustion yields `Incomplete`, never a Gamma result, rejection, divergence
 verdict, or partial artifact.
 
 A Gamma compiler application publishes a typed `main` under D19's sealed
-application-profile selection. The Delta compiler returns only
-`Complete(Bytes)` or `Reject(DeltaRejectReason, source_offset)`. The accepted
-Delta contract owns the source-declared closed reason sum, while the selected
-profile owns its explicit constructor-to-code table; declaration order is not
-a wire code. The generated Alpha adapter alone reads sealed input, invokes pure
-`main`, writes raw success bytes, and maps private exhaustion or a trap to outer
+application-profile selection. The Delta compiler returns `Complete(Bytes)`,
+`Reject(DeltaRejectReason, source_offset)`, or D31's two exact
+application-static-storage refusals. The accepted Delta contract owns the
+source-declared closed reason sum, while the selected profile owns its explicit
+constructor-to-code table; declaration order is not a wire code. The generated
+Alpha adapter alone reads sealed input, invokes pure `main`, writes raw success
+bytes, and maps checked storage refusal, private exhaustion, or a trap to outer
 `Incomplete` or `InternalFailure` cases.
 
 Compiler boundaries share D13's four halt tags and canonical failure-frame
@@ -391,9 +392,10 @@ parser, arena, declaration, parameter, or output ceilings inside an
 implementation remain private budgets whose exhaustion is outer `Incomplete`,
 not a language rejection or limit.
 
-The Gamma-written compiler exposes a source-owned pure
-`main : Bytes -> Complete(Bytes) | Reject(DeltaRejectReason, Int)`. D19's sealed
-`DeltaCompilerV1` selection validates that exact nominal schema and the complete
+The Gamma-written compiler exposes D19's source-owned pure
+`main : Bytes -> DeltaCompileOutcome`. That sum carries success, typed Delta
+rejection, and D31's two selected-profile static-storage refusals. The sealed
+`DeltaCompilerV1` selection validates the exact nominal schema and complete
 reason-code bijection before its adapter alone owns sealed input, the four
 compiler halt tags, `DCOUT` framing, and outer resource/internal failures. The
 compiler emits an unwrapped Alpha tape and is accepted only by direct checked
@@ -466,7 +468,7 @@ identity.
 D25 supplies the authoritative outer framing and canonical-content rules for
 this logical request and outcome. It retains each selected immutable source
 revision independently from the stable `PackageKey`, but deliberately gives no
-V1 wire identity to the future accepted `PackageInstance` carrier. Q3 owns the
+V1 wire identity to the future accepted `PackageInstance` carrier. Q2 owns the
 still-missing inner field/tag tables, commitment preimage, failure-code tables,
 phase order, and scalar provisions needed for one byte-interoperable wire.
 
@@ -491,19 +493,25 @@ exact Gamma schema:
 ```text
 (data DeltaCompileOutcome
   (Complete Bytes)
-  (Reject DeltaRejectReason Int))
+  (Reject DeltaRejectReason Int)
+  (StorageIncompleteAt Int Int Int)
+  (StorageIncompleteTotal Int Int))
 
 (def main ((source Bytes)) DeltaCompileOutcome ...)
 ```
 
-The `Int` is the exact source byte offset. `DeltaCompilerV1` generates D17's
-`DCOUT` adapter: `Complete` publishes the unwrapped Alpha tape, `Reject`
-publishes the versioned rejection frame, and adapter-owned exhaustion or
-contradiction publishes outer `Incomplete` or `InternalFailure`. Every failure
-publishes no artifact prefix. Each profile owns its exact sealed-input maximum,
-entry contract, result validation, external observation profile, and private
-resource/status table. D21 requires that maximum to lie in
-`0..INT64_MAX`, checked as profile metadata before adapter emission.
+The rejection `Int` is the exact source byte offset. D31's storage cases carry
+`(limit, requested, source_offset)` and `(limit, requested)` respectively and
+are the sole source-authored path to outer `Incomplete`.
+`DeltaCompilerV1` generates D17's `DCOUT` adapter: `Complete` publishes the
+unwrapped Alpha tape, `Reject` publishes the versioned rejection frame, checked
+storage refusal publishes the corresponding resource frame, and adapter-owned
+exhaustion or contradiction publishes outer `Incomplete` or
+`InternalFailure`. Every failure publishes no artifact prefix. Each profile
+owns its exact sealed-input maximum, entry contract, result validation,
+external observation profile, and private resource/status table. D21 requires
+that maximum to lie in `0..INT64_MAX`, checked as profile metadata before
+adapter emission.
 
 `Int` and `Bytes` remain Gamma's only built-in types. `DeltaRejectReason` and
 `DeltaCompileOutcome` remain ordinary source-owned nominal declarations; the
@@ -515,7 +523,7 @@ never select a profile.
 Before emitting any adapter, the compiler resolves and retains the exact entry,
 result type, outcome constructors, and rejection-reason constructors, then
 checks them against the already selected profile. The outcome sum has exactly
-the required two constructors and payloads. The profile-owned `DCOUT` table is
+the required four constructors and payloads. The profile-owned `DCOUT` table is
 a checked bijection over the complete source-declared reason sum: every exact
 constructor has one unique in-range code and every table row identifies one
 exact constructor. Codes never derive from spelling or declaration order. A
@@ -716,7 +724,7 @@ arithmetic, and therefore never turns hostile framing into a trap and outer
 The identity, outer section extents, exact end, and canonical semantic contents
 in this decision are fixed. They do not by themselves assign every inner row's
 byte order, width, tag, or reserved fields, nor the closed failure/resource
-numbers. Q3 completes those physical tables before either compiler may claim a
+numbers. Q2 completes those physical tables before either compiler may claim a
 full V1 decoder or publisher.
 
 The subject encodes package rows in ascending recomputed
@@ -1053,10 +1061,10 @@ total type rows, 65,536 constructor rows, 32,768 function rows, 65,536 active
 environment rows, 65,536 coverage rows, 114,294,752 syntax-arena bytes, 1,024
 parse levels, 65,535 live local slots, 65,536 labels, 116,508 fixups, and
 1,048,572 payload bytes. `DCOUT` retains D17 rejection codes 1 through 26
-unchanged and distinguishes its 4-MiB input, 15-MiB stack, 112-MiB heap, and
-1,048,572-byte output resources. Limit and requested fields carry the exact
-selected values; changing a producer layout does not silently renumber the
-stable resource classes.
+unchanged and distinguishes its 4-MiB input, 15-MiB stack, 112-MiB heap,
+1,048,572-byte output, and D31 application-static-storage resources. Limit and
+requested fields carry the exact selected values; changing a producer layout
+does not silently renumber the stable resource classes.
 
 `ConformanceBytesV1` is a generated-program observation rather than a compiler
 boundary. It publishes stdout only after the complete returned `Bytes` passes
@@ -1070,13 +1078,13 @@ as a declared failure. Divergence has no terminal observation. The temporary
 `interp.beta` oracle predates this block; its private 252-through-255 meanings are
 interpreted only by its own harness and grant no generated-program authority.
 
-`DeltaCompilerV1` translates generated-runtime conditions into `DCOUT`:
-input, stack, heap, and output exhaustion become Incomplete; a Gamma trap,
-memory-containment violation, malformed return, invalid rejection offset,
-replay disagreement, or adapter contradiction becomes InternalFailure. A
-returned `Complete` publishes only the fully preflighted raw tape, and a
-returned `Reject` publishes the corresponding D17 frame. No failure publishes
-a partial artifact.
+`DeltaCompilerV1` translates generated-runtime conditions into `DCOUT`: input,
+stack, heap, output, and a validated D31 storage refusal become Incomplete; a
+Gamma trap, memory-containment violation, malformed return or storage payload,
+invalid rejection offset, replay disagreement, or adapter contradiction becomes
+InternalFailure. A returned `Complete` publishes only the fully preflighted raw
+tape, and a returned `Reject` publishes the corresponding D17 frame. No failure
+publishes a partial artifact.
 
 `profiles-v1.tsv`, `conformance-observations-v1.tsv`, `gcout-v1.tsv`, and
 `dcout-v1.tsv` are checked projections of constants embedded in the compiler
@@ -1086,6 +1094,59 @@ accidental implementation fact may be replaced, a profile fact may change
 through a coordinated version revision, and a semantic invariant changes only
 for an articulated language reason; settled records do not forbid a better
 long-term design.
+
+## D31 — Delta type formation is structural and profile-independent
+
+A Delta array length is admitted exactly in `1..INT32_MAX`. Zero is
+`InvalidArrayLength` at its literal; a negative spelling is not a `NAT` and
+fails in parsing, while a positive token above `INT32_MAX` is
+`IntegerLiteralOutOfRange`. Type formation never consults an Alpha memory map,
+host layout, or current compiler capacity. Consequently a valid array may be
+too large for one selected application profile without becoming invalid Delta.
+
+An empty `data X {}` is explicitly one zero-field record with one
+zero-initialized value. It is never an empty sum. A declaration mixing fields
+and cases remains `InvalidDataShape` at its declaration name. This is a Delta
+rule, not an inference from Omega's separate `Empty`, `Record`, `Enum`, and
+`Mixed` representation categories.
+
+`never` is admitted only as the exact outer machine-return type. Every other
+occurrence is `TypeMismatch` at the `never` token. A view is admitted only as
+an outer parameter or local type; a forbidden view is `EscapingView` at its
+outermost forbidden `&`, and that structural placement failure suppresses
+defects nested beneath it. `Console` is a sealed entry capability admitted only
+at exact `Main.console`. Every other occurrence belongs to the entry-shape
+judgment and is `InvalidEntry`; `InvalidBoundary` remains declaration-
+collection-only.
+
+Type formation derives all shape, placement, recursion, and unknown-type
+candidates from the complete D22/D24 census and chooses the smallest packed
+source coordinate independent of traversal and reason-table order. The
+structural anchors above are disjoint. Two distinct reasons at one exact anchor
+are a compiler contradiction and therefore `InternalFailure`, never a private
+priority rule.
+
+After `CheckDelta` succeeds, target realization expands only storage roots
+reachable in the selected application. An unused large type consumes no
+application storage. A single reachable expanded array that alone exceeds the
+selected static-storage extent produces
+`Incomplete(ApplicationStaticStorageBytes, limit, requested)` at that array's
+length literal. If individually fitting roots, repeated instances, or several
+fields exceed the extent only in aggregate, the same resource uses coordinate
+space `none`. The aggregate requested amount is the exact canonical complete
+demand rather than a traversal prefix, and both forms require
+`requested > limit`.
+
+`DeltaCompileOutcome` therefore adds the exact source-owned constructors
+`StorageIncompleteAt(limit, requested, source_offset)` and
+`StorageIncompleteTotal(limit, requested)`. The selected D19/D30 adapter checks
+their complete payloads and maps them to DCOUT Incomplete resource code 5.
+These are the only source-authored Incomplete outcomes; input, stack, heap, and
+output exhaustion remain adapter-owned. A malformed limit, request, or source
+offset is `InternalFailure(InvalidReturnedOutcome)`, and no refusal publishes a
+tape prefix. The adapter has not been published, so D31 revises its V1 schema
+and checked table projection in place; a post-publication schema change would
+require an explicit profile version.
 
 ## Dependency order
 

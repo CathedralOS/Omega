@@ -39,9 +39,10 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
 Remaining type/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. Q2 owns the type-formation cases
-that D17 does not yet classify exactly; the existing source is therefore not
-yet a compiler edge and no validation may describe it as one.
+final publication remain implementation gaps. D31 now fixes the complete
+type-formation cases and candidate ordering; implementing that judgment remains
+the next compiler step. The existing source is therefore not yet a compiler
+edge and no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
 completes the collector contract for transition-arm binders and exact
@@ -64,7 +65,8 @@ accumulating the earliest potential `UnknownType` coordinate independent of
 traversal order. It preserves the collected native syntax rather than
 serializing a resolved tree. The candidate is not yet promoted to a rejection:
 data-shape, recursive-value, placement, entry, and body judgments remain
-separate, and Q2 blocks their exact within-phase composition.
+separate, and D31 now supplies their exact within-phase composition for
+implementation.
 
 ## Contract-derived conformance plan
 
@@ -78,7 +80,7 @@ Gamma-written compiler and its selected D19 adapter.
 | Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
 | Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
-| Type and body checking | forward owners/machines/states; finite records/sums/arrays; views only in admitted positions; complete scalar and sum transitions | every reason from `UnknownType` through `NonexhaustiveSum`, at the first offending type, expression, statement, pattern, or control target; exact `Console`, `Main`, and entry shapes |
+| Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; complete scalar and sum transitions | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
 The payload row describes the current `AlphaBootstrapV2` profile selected by
@@ -110,6 +112,18 @@ payload arity. Mixed collection controls cover both source orderings of
 unrelated `DuplicateName` and `InvalidBoundary`, plus a boundary/data-ambiguous
 owner that produces only its duplicate until repaired.
 
+D31 makes the type-formation gate finite and exact. Positive controls include
+lengths 1 and `INT32_MAX`, one zero-field record value, `never` only as the
+outer return type, views only as parameter/local roots, and `Console` only at
+`Main.console`. Negative controls include zero at its length literal, mixed data
+at its declaration name, every misplaced `never`, every forbidden outer view,
+and every other `Console` placement. Nested defects beneath a forbidden view do
+not displace its outer `EscapingView`; structurally impossible same-anchor
+reason collisions are internal contradictions. Storage-profile controls cover
+an unused oversized type, one reachable decisive array with a source
+coordinate, and aggregate-only exhaustion with no coordinate. Both storage
+refusals preserve exact `(limit, requested)` and publish no tape.
+
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
 `NonBoolean`, `Assertion`, and `NonExhaustiveTransition`—and preserve the exact
@@ -130,14 +144,16 @@ backend was less economical than authoring the specified direct components.
 
 - author `delta_compiler.gamma` against D17 and
   [`../LANGUAGE.md`](../LANGUAGE.md);
-- expose pure `main : Bytes -> DeltaCompileOutcome`, with only
-  `Complete(Bytes)` and `Reject(DeltaRejectReason, Int)` authored outcomes;
+- expose pure `main : Bytes -> DeltaCompileOutcome`, with `Complete(Bytes)`,
+  `Reject(DeltaRejectReason, Int)`, and D31's attributed/aggregate
+  application-static-storage refusal outcomes;
 - compile under D19's sealed `DeltaCompilerV1` profile, which checks the exact
   source-owned entry/outcome schema and a total constructor-to-code bijection
   before emission;
 - let the generated adapter implement D30's 4-MiB input profile,
   1,048,572-byte output maximum, exact `DCOUT` identity/table, and outer
-  `Incomplete`/`InternalFailure` outcomes;
+  `Incomplete`/`InternalFailure` outcomes, including validation of D31's sole
+  source-authored `Incomplete` resource;
 - compile it with `gamma_compiler_bytecode.tape`;
 - emit one exact Alpha tape without external older-rung semantic tools;
 - reconstruct Gamma source and Alpha artifact semantics independently;

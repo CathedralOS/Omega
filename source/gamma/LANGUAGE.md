@@ -208,12 +208,16 @@ The two profiles are:
 ```text
 (data DeltaCompileOutcome
   (Complete Bytes)
-  (Reject DeltaRejectReason Int))
+  (Reject DeltaRejectReason Int)
+  (StorageIncompleteAt Int Int Int)
+  (StorageIncompleteTotal Int Int))
 
 (def main ((source Bytes)) DeltaCompileOutcome ...)
 ```
 
-The `Int` in `Reject` is the source byte offset. D17 and
+The `Int` in `Reject` is the source byte offset. The storage-refusal payloads
+are respectively `(limit, requested, source_offset)` and `(limit, requested)`;
+they report only D31's selected application-static-storage capacity. D17 and
 `source/delta/LANGUAGE.md` own the source-declared closed
 `DeltaRejectReason` and `DeltaCompileOutcome` sums. `Int` and `Bytes` remain
 Gamma's only built-in types; the profile injects no hidden nominal declaration.
@@ -223,7 +227,7 @@ the published wire boundary stable; codes never derive from declaration order.
 
 Before emission, the compiler resolves and retains the exact `main`, outcome
 type, outcome constructors, and reason constructors. It requires exactly the
-two displayed outcome cases and payloads. The `DCOUT` table must be a total
+four displayed outcome cases and payloads. The `DCOUT` table must be a total
 checked bijection over the complete reason sum: every exact constructor has one
 unique in-range code, and every table entry identifies one exact constructor.
 Matching names or shapes never select the profile and do not make nominal types
@@ -239,14 +243,21 @@ as follows:
 - `Reject(reason, offset)` validates the exact reason and
   `0 <= offset <= input length`, writes the accepted-edge diagnostic frame, and
   halts 1.
+- `StorageIncompleteAt(limit, requested, offset)` validates the selected
+  application-static-storage limit, `requested > limit`, and an in-range source
+  offset, writes `DCOUT::Incomplete(ApplicationStaticStorageBytes)` in
+  coordinate space 1, and halts 2. Any failed payload check is
+  `InternalFailure(InvalidReturnedOutcome)`.
+- `StorageIncompleteTotal(limit, requested)` performs the same limit checks,
+  writes that resource in coordinate space 0, and halts 2.
 - private source, heap, stack, output, or adapter exhaustion writes an
   `Incomplete` frame and halts 2.
 - a Gamma trap, impossible checked state, adapter contradiction, or replay
   disagreement writes an `InternalFailure` frame and halts 3.
 
-`Incomplete` and `InternalFailure` are adapter outcomes rather than constructors
-of `DeltaCompileOutcome`: they occur precisely when pure `main` does not return a
-source-authored value. No failure path publishes partial artifact bytes.
+The two storage constructors are the sole source-authored path to
+`Incomplete`; input, stack, heap, output, and every `InternalFailure` remain
+adapter-owned. No failure path publishes partial artifact bytes.
 
 ### Conformance observation profile
 

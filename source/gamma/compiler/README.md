@@ -17,14 +17,14 @@ input, resolved-expression, selected-match, and whole-function paths. One
 full-source test emitter now covers ordinary and proper-tail calls,
 constructors, locals, matches, and general expressions instead of rebuilding
 five redundant compiler variants. It also pins malformed whole-function
-metadata and exact/adjacent label capacity before payload mutation. Six D19
+metadata and exact/adjacent label capacity before payload mutation. Seven D19
 schema cases cover both profiles, reversed reason declaration order, and
 missing/malformed outcome rows without emitting an adapter. The gate publishes
 no compiler artifact.
 
-The retained compiler source declares 115 procedures. With the fixed frontend
-gate entry, the compiled gate uses 116 of Beta's 256 procedure slots and
-compiles to 329,015 bytes. The remaining 719,557 bytes under
+The retained compiler source declares 116 procedures. With the fixed frontend
+gate entry, the compiled gate uses 117 of Beta's 256 procedure slots and
+compiles to 333,928 bytes. The remaining 714,644 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -138,10 +138,11 @@ publication.
 
 D19 schema admission now resolves the exact `main` signature for both profiles.
 For `DeltaCompilerV1` it additionally validates the two source-owned nominal
-types, the exact `Complete`/`Reject` field lists, all 26 nullary rejection
-constructors, and the fixed code bijection without using declaration order or
-runtime constructor kinds. D30 now fixes the physical sealed request, exact
-profile maxima, Conformance observations, and complete `GCOUT`/`DCOUT` tables.
+types, the exact `Complete`/`Reject` and D31 storage-refusal field lists, all 26
+nullary rejection constructors, and the fixed code bijection without using
+declaration order or runtime constructor kinds. D30 now fixes the physical
+sealed request, exact profile maxima, Conformance observations, and complete
+`GCOUT`/`DCOUT` tables.
 The remaining work is implementation: retain one semantic rejection code
 alongside `FAIL_OFF`, emit the two PC-zero adapters, embed the table constants,
 and publish no canonical artifact until the projections and exact/adjacent
@@ -342,7 +343,8 @@ and adjacent source/heap limits, zero capacity, unchanged heap publication on
 either resource failure, internal containment, no output, and byte-identical
 reconstruction. D19 now fixes the
 two closed profiles, their selected entries, result validation, and wire
-ownership, while D30 fixes their exact maxima and physical boundaries. Adapter
+ownership, while D30 fixes their exact maxima and physical boundaries and D31
+adds the checked application-static-storage resource. Adapter
 emission remains implementation work.
 
 The direct emitter owns byte/word append, label definition, and

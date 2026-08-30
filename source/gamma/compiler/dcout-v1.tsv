@@ -29,6 +29,7 @@ incomplete	1	input_bytes	delta_source_byte
 incomplete	2	stack_bytes	internal_row
 incomplete	3	heap_bytes	internal_row
 incomplete	4	output_bytes	emitted_payload_byte
+incomplete	5	application_static_storage_bytes	delta_source_byte_or_none
 internal	1	gamma_trap	none
 internal	2	memory_containment_violation	internal_row
 internal	3	invalid_returned_outcome	internal_row
