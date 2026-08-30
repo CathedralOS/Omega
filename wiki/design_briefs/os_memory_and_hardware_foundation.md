@@ -1252,9 +1252,13 @@ non-authoritative. The bound invocation consumes an activated mapping and an exa
 provider receipt establishing nonempty write rights, pinning, and
 non-publication, writes through the opaque installed-entry context, and returns
 the mapping as written but still unpublished; failures return the complete
-linear input. Consumer semantic validation/publication, physical AOT
-invocation, schema decoding, PCC/final-code validation, source linear
-integration, and live replacement remain.
+linear input. Successful writing also retains a hash-free exact copy of the
+complete destination image. Installation, external-root, and compiler-bound
+consumers compare the current complete byte view with that producer output
+before observation; this establishes no consumer-specific value or publication
+authority. Consumer semantic validation/publication, physical AOT invocation,
+schema decoding, PCC/final-code validation, source linear integration, and live
+replacement remain.
 
 This invariant covers every route to execute permission. Translation providers
 require admitted-artifact provenance before deriving an executable mapping,
