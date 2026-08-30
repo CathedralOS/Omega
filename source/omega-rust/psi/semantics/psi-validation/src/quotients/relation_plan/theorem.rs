@@ -10,7 +10,7 @@ use super::{RelationPlanError, RepresentativeStaticApplication};
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::QuotientOperationRequest;
+use psi_typed_trees::expression::StaticMachineArgument;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::SignatureContract;
 use psi_typed_trees::state::State;
@@ -40,9 +40,8 @@ pub(in crate::quotients) struct SelectedTheoremTelescope {
 
 pub(super) fn derive_selected_theorem_telescope(
     program: &TypedTrees,
-    request: &QuotientOperationRequest,
+    selected: &StaticMachineArgument,
 ) -> Result<SelectedTheoremTelescope, RelationPlanError> {
-    let selected = &request.selected_theorem;
     let (machine, state) = selected_theorem_machine_state(program, selected.symbol)?;
     if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present

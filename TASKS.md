@@ -6348,7 +6348,7 @@ Owners:
   A bounded executable Terminal rung is now live for one direct whole-root
   unrestricted primitive integer replacement inside a checked in-module Unit
   callee. Checked planning retains the exact literal expression and
-  write-only parameter coordinate. Terminal format 40/vocabulary 43 adds an
+  write-only parameter coordinate. Terminal format 41/vocabulary 44 adds an
   honest `PrimitiveScalar` structural referent plus a Unit
   `WriteOnlyPrimitiveStore` naming the destination place and preceding SSA
   value. Codec replay and independent verification require exact scalar type,
@@ -9848,6 +9848,19 @@ Remaining N6/N8 work:
   role tag. Unknown tags are artifact-version incompatibilities and must never
   be skipped by an older decoder. Do not reserve a reverse-transport role until
   theorem-mediated `define` is separately designed.
+
+  The collection migration is implemented through sealed typed requests,
+  checked relation planning, the proof-only total-direct `define`
+  correspondence, canonical Terminal identity/codec/replay, and mutation
+  canaries. Terminal format 41/vocabulary 44 bind the role discriminant before
+  its role-specific payload and reject missing, duplicate, reversed, surplus,
+  role/payload-mismatched, and unknown-tag evidence. Three-argument `lift`
+  retains `Congruence, ForwardPreconditionTransport` in canonical order but
+  remains fail-closed before correspondence-certificate production until the
+  complete ordered transport-schema verifier is implemented; it cannot fall
+  back to the automatic implication lane. Package review still has no quotient
+  operation record because quotient contract calls remain blanket-rejected,
+  so that representation migration remains open.
 
   A failed built-in implication diagnostic must print the expected public and
   representative fact coordinates and point directly to

@@ -981,6 +981,15 @@ a batch with one unsupported request yields no partial rows. This is a
 source-erasure, module-retention, and replay prerequisite, not executable
 stage-4 admission; checked operation/result lowering remains open.
 
+The collection migration is now live through sealed typed requests, checked
+relation planning, and the proof-only total-direct `define` Terminal seam.
+Three-argument `lift` retains `Congruence` followed by
+`ForwardPreconditionTransport`, but deliberately produces no automatic
+`Q -> P` certificate until its role-specific transport-schema verifier exists;
+selected and automatic transport are never mixed. Package review still
+blanket-rejects quotient contract calls and has no quotient-operation record to
+migrate.
+
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
 container equality, use runtime `==`/`!=`, or appear as the target of proof-only

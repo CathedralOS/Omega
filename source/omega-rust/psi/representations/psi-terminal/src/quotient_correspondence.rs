@@ -5,7 +5,8 @@
 
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
-    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientTheoremParameterRole,
+    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientTheoremCorrespondence,
+    QuotientTheoremParameterRole, QuotientTheoremRole,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -33,14 +34,14 @@ fn quotient_correspondence_identity(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> QuotientCorrespondenceIdentity {
     let mut writer = IdentityWriter::new();
-    writer.string("omega.quotient-correspondence.total-direct-define.v1");
+    writer.string("omega.quotient-correspondence.theorem-roles.v2");
     writer.byte(match certificate.operation_kind {
         QuotientCorrespondenceOperationKind::Lift => 1,
         QuotientCorrespondenceOperationKind::Define => 2,
+        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport => 3,
     });
     writer.callable(&certificate.public_operation);
     writer.application(&certificate.representative);
-    writer.application(&certificate.selected_theorem);
     writer.len(certificate.input_relations.len());
     for relation in &certificate.input_relations {
         match relation {
@@ -64,8 +65,47 @@ fn quotient_correspondence_identity(
         writer.u32(position.public_position);
         writer.u32(position.representative_position);
     }
-    writer.len(certificate.theorem.parameters.len());
-    for parameter in &certificate.theorem.parameters {
+    writer.len(certificate.theorem_evidence.len());
+    for evidence in &certificate.theorem_evidence {
+        writer.byte(match evidence.role {
+            QuotientTheoremRole::Congruence => 1,
+            QuotientTheoremRole::ForwardPreconditionTransport => 2,
+        });
+        writer.application(&evidence.selected_application);
+        match &evidence.correspondence {
+            QuotientTheoremCorrespondence::Congruence(congruence) => {
+                writer.byte(1);
+                write_congruence(&mut writer, congruence);
+            }
+            QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) => {
+                writer.byte(2);
+                writer.len(transport.public_premises.len());
+                for coordinate in &transport.public_premises {
+                    writer.coordinate(*coordinate);
+                }
+                writer.len(transport.representative_conclusions.len());
+                for coordinate in &transport.representative_conclusions {
+                    writer.coordinate(*coordinate);
+                }
+            }
+        }
+        writer.byte(1); // theorem pure closure
+        writer.byte(1); // theorem unconditional termination
+        writer.byte(1); // theorem crash free
+    }
+    writer.byte(1); // representative pure closure
+    writer.byte(1); // representative unconditional termination
+    writer.u32(certificate.result_flow.state_position);
+    writer.u32(certificate.result_flow.statement_position);
+    QuotientCorrespondenceIdentity(writer.finish())
+}
+
+fn write_congruence(
+    writer: &mut IdentityWriter,
+    congruence: &psi_language_semantics::quotient_correspondence::QuotientCongruenceCorrespondence,
+) {
+    writer.len(congruence.parameters.len());
+    for parameter in &congruence.parameters {
         writer.u32(parameter.theorem_position);
         match parameter.role {
             QuotientTheoremParameterRole::QuotientLeft { input_position } => {
@@ -82,36 +122,28 @@ fn quotient_correspondence_identity(
             }
         }
     }
-    writer.len(certificate.theorem.relation_premises.len());
-    for premise in &certificate.theorem.relation_premises {
+    writer.len(congruence.relation_premises.len());
+    for premise in &congruence.relation_premises {
         writer.u32(premise.expected_position);
         writer.coordinate(premise.actual);
         writer.string(&premise.relation);
         writer.u32(premise.left_parameter);
         writer.u32(premise.right_parameter);
     }
-    writer.len(certificate.theorem.legality_premises.len());
-    for premise in &certificate.theorem.legality_premises {
+    writer.len(congruence.legality_premises.len());
+    for premise in &congruence.legality_premises {
         writer.coordinate(*premise);
     }
-    writer.coordinate(certificate.theorem.conclusion.actual);
-    writer.string(&certificate.theorem.conclusion.relation);
-    writer.len(certificate.theorem.conclusion.left.arguments.len());
-    for argument in &certificate.theorem.conclusion.left.arguments {
+    writer.coordinate(congruence.conclusion.actual);
+    writer.string(&congruence.conclusion.relation);
+    writer.len(congruence.conclusion.left.arguments.len());
+    for argument in &congruence.conclusion.left.arguments {
         writer.u32(*argument);
     }
-    writer.len(certificate.theorem.conclusion.right.arguments.len());
-    for argument in &certificate.theorem.conclusion.right.arguments {
+    writer.len(congruence.conclusion.right.arguments.len());
+    for argument in &congruence.conclusion.right.arguments {
         writer.u32(*argument);
     }
-    writer.byte(1); // representative pure closure
-    writer.byte(1); // representative unconditional termination
-    writer.byte(1); // theorem pure closure
-    writer.byte(1); // theorem unconditional termination
-    writer.byte(1); // theorem crash free
-    writer.u32(certificate.result_flow.state_position);
-    writer.u32(certificate.result_flow.statement_position);
-    QuotientCorrespondenceIdentity(writer.finish())
 }
 
 struct IdentityWriter {

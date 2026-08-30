@@ -1,13 +1,14 @@
 use psi_core::{BlockId, ContractId, EdgeId, MachineId};
 use psi_language_semantics::quotient_correspondence::{
-    CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientContractFactCoordinate,
-    QuotientContractOwner, QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
-    QuotientDefineRuntimePosition, QuotientDirectResultFlow, QuotientMachineApplication,
-    QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
-    QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
+    CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
+    QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
+    QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
+    QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
     QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremParameter,
-    QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremRole,
 };
 use psi_terminal::{
     Block, MachineContract, RetainedQuotientCorrespondence, TerminalMachine, TerminalMachineResult,
@@ -52,50 +53,55 @@ fn correspondence(owner: &str) -> RetainedQuotientCorrespondence {
             callable: callable("Carrier::apply"),
             static_application: QuotientStaticApplication { bindings: vec![] },
         },
-        selected_theorem: QuotientMachineApplication {
-            callable: callable("apply_respects"),
-            static_application: QuotientStaticApplication { bindings: vec![] },
-        },
         input_relations: vec![QuotientPositionalRelation::Quotient(input.clone())],
         result_relation: result.clone(),
         runtime_positions: vec![QuotientDefineRuntimePosition {
             public_position: 0,
             representative_position: 0,
         }],
-        theorem: QuotientTheoremCorrespondence {
-            parameters: vec![
-                QuotientTheoremParameter {
-                    theorem_position: 0,
-                    role: QuotientTheoremParameterRole::QuotientLeft { input_position: 0 },
-                },
-                QuotientTheoremParameter {
-                    theorem_position: 1,
-                    role: QuotientTheoremParameterRole::QuotientRight { input_position: 0 },
-                },
-            ],
-            relation_premises: vec![QuotientTheoremRelationPremise {
-                expected_position: 0,
-                actual: coordinate(0),
-                relation: input.relation,
-                left_parameter: 0,
-                right_parameter: 1,
-            }],
-            legality_premises: vec![],
-            conclusion: QuotientTheoremConclusion {
-                actual: coordinate(1),
-                relation: result.relation,
-                left: QuotientRepresentativeApplication { arguments: vec![0] },
-                right: QuotientRepresentativeApplication { arguments: vec![1] },
+        theorem_evidence: vec![QuotientTheoremEvidence {
+            role: QuotientTheoremRole::Congruence,
+            selected_application: QuotientMachineApplication {
+                callable: callable("apply_respects"),
+                static_application: QuotientStaticApplication { bindings: vec![] },
             },
-        },
+            correspondence: QuotientTheoremCorrespondence::Congruence(
+                QuotientCongruenceCorrespondence {
+                    parameters: vec![
+                        QuotientTheoremParameter {
+                            theorem_position: 0,
+                            role: QuotientTheoremParameterRole::QuotientLeft { input_position: 0 },
+                        },
+                        QuotientTheoremParameter {
+                            theorem_position: 1,
+                            role: QuotientTheoremParameterRole::QuotientRight { input_position: 0 },
+                        },
+                    ],
+                    relation_premises: vec![QuotientTheoremRelationPremise {
+                        expected_position: 0,
+                        actual: coordinate(0),
+                        relation: input.relation,
+                        left_parameter: 0,
+                        right_parameter: 1,
+                    }],
+                    legality_premises: vec![],
+                    conclusion: QuotientTheoremConclusion {
+                        actual: coordinate(1),
+                        relation: result.relation,
+                        left: QuotientRepresentativeApplication { arguments: vec![0] },
+                        right: QuotientRepresentativeApplication { arguments: vec![1] },
+                    },
+                },
+            ),
+            eligibility: QuotientTheoremEligibility {
+                purity: QuotientPurityCertificate::PureClosure,
+                termination: QuotientTerminationCertificate::Unconditional,
+                crash: QuotientCrashCertificate::CrashFree,
+            },
+        }],
         representative_eligibility: QuotientRepresentativeEligibility {
             purity: QuotientPurityCertificate::PureClosure,
             termination: QuotientTerminationCertificate::Unconditional,
-        },
-        theorem_eligibility: QuotientTheoremEligibility {
-            purity: QuotientPurityCertificate::PureClosure,
-            termination: QuotientTerminationCertificate::Unconditional,
-            crash: QuotientCrashCertificate::CrashFree,
         },
         result_flow: QuotientDirectResultFlow {
             state_position: 0,
@@ -163,7 +169,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 40_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 41_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         psi_terminal::VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -172,6 +178,25 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     assert_ne!(
         semantic_fingerprint(&module).unwrap(),
         semantic_fingerprint(&module_with(Vec::new())).unwrap()
+    );
+}
+
+#[test]
+fn decoding_rejects_unknown_quotient_theorem_role_tag() {
+    let module = module_with(vec![correspondence("Public::apply")]);
+    let mut bytes = encode_module(&module).expect("quotient correspondence encodes");
+    let theorem = format!("package:{}::apply_respects", "01".repeat(32));
+    let declaration = bytes
+        .windows(theorem.len())
+        .rposition(|window| window == theorem.as_bytes())
+        .expect("canonical payload selected theorem declaration bytes");
+    let role = declaration
+        .checked_sub(5)
+        .expect("role precedes length-framed theorem declaration");
+    bytes[role] = 0xff;
+    assert_eq!(
+        decode_module(&bytes),
+        Err(CodecError::InvalidTag("QuotientTheoremRole", 0xff))
     );
 }
 

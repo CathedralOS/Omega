@@ -282,6 +282,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                 program, machine, state, call, request,
             ) {
                 Ok(plan) => {
+                    let congruence = &plan.theorem_evidence[0];
                     let representative_purity = relation_plan::pure_representative_effect(
                         &plan.representative,
                         &operational,
@@ -348,16 +349,16 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                             plan.render_expected_theorem_schema()
                         ),
                     };
-                    let theorem_termination = plan
-                        .selected_theorem_termination
+                    let theorem_termination = congruence
+                        .termination
                         .map(|_| " plus checked theorem termination summary")
                         .unwrap_or_default();
-                    let theorem_purity = plan
-                        .selected_theorem_purity
+                    let theorem_purity = congruence
+                        .purity
                         .map(|_| " plus checked pure theorem effect summary")
                         .unwrap_or_default();
-                    let theorem_crash = plan
-                        .selected_theorem_crash_free
+                    let theorem_crash = congruence
+                        .crash_free
                         .then_some(" plus checked crash-free theorem routes")
                         .unwrap_or_default();
                     let result_path = if result_root.alias_count == 0 {
@@ -398,13 +399,13 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     if termination.is_empty() {
                         remaining.push("the termination fence".to_owned());
                     }
-                    if plan.selected_theorem_termination.is_none() {
+                    if congruence.termination.is_none() {
                         remaining.push("the selected theorem termination fence".to_owned());
                     }
-                    if plan.selected_theorem_purity.is_none() {
+                    if congruence.purity.is_none() {
                         remaining.push("the selected theorem effect fence".to_owned());
                     }
-                    if !plan.selected_theorem_crash_free {
+                    if !congruence.crash_free {
                         remaining.push("the selected theorem crash fence".to_owned());
                     }
                     if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
@@ -1416,7 +1417,11 @@ mod tests {
                 quotient_operation: Some(QuotientOperationRequest {
                     kind: QuotientOperationKind::Lift,
                     representative_operation: static_argument("representative"),
-                    selected_theorem: static_argument("ExactRespect"),
+                    theorem_evidence: vec![psi_typed_trees::expression::QuotientTheoremSelection {
+                        role: psi_typed_trees::expression::QuotientTheoremRole::Congruence,
+                        application: static_argument("ExactRespect"),
+                    }]
+                    .into_boxed_slice(),
                 }),
                 private_layout_operation: None,
                 arguments,

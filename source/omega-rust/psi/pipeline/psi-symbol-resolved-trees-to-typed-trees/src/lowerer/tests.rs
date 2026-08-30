@@ -1611,13 +1611,19 @@ fn retains_exact_sealed_quotient_operation_request_without_admitting_it() {
         psi_symbols::SymbolKind::State
     );
     assert_eq!(
-        typed
-            .symbols
-            .name(typed.symbols.get(request.selected_theorem.symbol).parent,),
+        typed.symbols.name(
+            typed
+                .symbols
+                .get(request.theorem_evidence[0].application.symbol)
+                .parent,
+        ),
         "representative_respects"
     );
     assert_eq!(
-        typed.symbols.get(request.selected_theorem.symbol).kind,
+        typed
+            .symbols
+            .get(request.theorem_evidence[0].application.symbol)
+            .kind,
         psi_symbols::SymbolKind::State
     );
 }
@@ -1666,7 +1672,7 @@ fn sealed_quotient_define_requires_both_exact_static_identities() {
     assert!(
         diagnostic
             .message
-            .contains("requires exactly two static arguments"),
+            .contains("requires exactly `F, Congruence`"),
         "unexpected diagnostic: {}",
         diagnostic.message
     );

@@ -1,14 +1,15 @@
 //! Canonical source erasure for the total direct faithful-definition bridge.
 
 use psi_language_semantics::quotient_correspondence::{
-    CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientContractFactCoordinate,
-    QuotientContractOwner, QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
-    QuotientDefineRuntimePosition, QuotientDirectResultFlow, QuotientMachineApplication,
-    QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
-    QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
+    CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
+    QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
+    QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
+    QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
     QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremParameter,
-    QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremRole,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
@@ -34,6 +35,13 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
     representative_purity: RepresentativePurity,
     result_flow: CompleteSingleStateResultFlow,
 ) -> Result<CanonicalQuotientCorrespondence, String> {
+    let [planned_theorem] = plan.theorem_evidence.as_slice() else {
+        return Err("faithful `define` requires exactly one Congruence theorem entry".to_owned());
+    };
+    if planned_theorem.role != psi_typed_trees::expression::QuotientTheoremRole::Congruence {
+        return Err("faithful `define` theorem evidence has a noncanonical role".to_owned());
+    }
+    let selected_theorem = &planned_theorem.selected_application;
     require_single_entry(program, public_machine, public_state, "public operation")?;
     require_empty_owner_telescope(program, public_machine, "public operation")?;
 
@@ -51,8 +59,8 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
     )?;
     let (theorem_machine, theorem_state) = exact_machine_state(
         program,
-        plan.selected_theorem.machine_symbol,
-        plan.selected_theorem.state_symbol,
+        selected_theorem.machine_symbol,
+        selected_theorem.state_symbol,
         "selected theorem",
     )?;
     require_single_entry(program, theorem_machine, theorem_state, "selected theorem")?;
@@ -63,9 +71,9 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
             .static_application
             .lifetime_arguments
             .is_empty()
-        || !plan.selected_theorem.static_application.bindings.is_empty()
-        || !plan
-            .selected_theorem
+        || !selected_theorem.static_application.bindings.is_empty()
+        || !plan.theorem_evidence[0]
+            .selected_application
             .static_application
             .lifetime_arguments
             .is_empty()
@@ -94,7 +102,7 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
         "representative",
     )?;
     require_plain_immutable_parameters(
-        plan.selected_theorem
+        selected_theorem
             .parameters
             .iter()
             .map(|parameter| (parameter.is_mutable, parameter.is_self)),
@@ -133,9 +141,9 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
     if plan.representative_termination.is_none()
         || representative_purity.machine_symbol != plan.representative.machine_symbol
         || representative_purity.state_symbol != plan.representative.state_symbol
-        || plan.selected_theorem_termination.is_none()
-        || plan.selected_theorem_purity.is_none()
-        || !plan.selected_theorem_crash_free
+        || planned_theorem.termination.is_none()
+        || planned_theorem.purity.is_none()
+        || !planned_theorem.crash_free
     {
         return Err("purity, termination, or theorem crash eligibility is incomplete".to_owned());
     }
@@ -208,19 +216,22 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
         operation_kind: QuotientCorrespondenceOperationKind::Define,
         public_operation: callable_identity(program, public_machine)?,
         representative: machine_application(program, representative_machine)?,
-        selected_theorem: machine_application(program, theorem_machine)?,
         input_relations,
         result_relation,
         runtime_positions,
-        theorem,
+        theorem_evidence: vec![QuotientTheoremEvidence {
+            role: QuotientTheoremRole::Congruence,
+            selected_application: machine_application(program, theorem_machine)?,
+            correspondence: QuotientTheoremCorrespondence::Congruence(theorem),
+            eligibility: QuotientTheoremEligibility {
+                purity: QuotientPurityCertificate::PureClosure,
+                termination: QuotientTerminationCertificate::Unconditional,
+                crash: QuotientCrashCertificate::CrashFree,
+            },
+        }],
         representative_eligibility: QuotientRepresentativeEligibility {
             purity: QuotientPurityCertificate::PureClosure,
             termination: QuotientTerminationCertificate::Unconditional,
-        },
-        theorem_eligibility: QuotientTheoremEligibility {
-            purity: QuotientPurityCertificate::PureClosure,
-            termination: QuotientTerminationCertificate::Unconditional,
-            crash: QuotientCrashCertificate::CrashFree,
         },
         result_flow: QuotientDirectResultFlow {
             state_position: 0,
@@ -233,11 +244,12 @@ fn theorem_correspondence(
     program: &TypedTrees,
     plan: &DirectTerminalRelationPlan,
     certificate: &QuotientCorrespondenceCertificate,
-) -> Result<QuotientTheoremCorrespondence, String> {
+) -> Result<QuotientCongruenceCorrespondence, String> {
     let expected = &plan.expected_theorem_schema;
     let verified = &certificate.theorem;
-    if verified.theorem_machine_symbol != plan.selected_theorem.machine_symbol
-        || verified.theorem_state_symbol != plan.selected_theorem.state_symbol
+    let selected_theorem = &plan.theorem_evidence[0].selected_application;
+    if verified.theorem_machine_symbol != selected_theorem.machine_symbol
+        || verified.theorem_state_symbol != selected_theorem.state_symbol
         || verified.parameters.len() != expected.parameters.len()
     {
         return Err("verified theorem identity or parameter roster drifted".to_owned());
@@ -252,9 +264,7 @@ fn theorem_correspondence(
                 .iter()
                 .find(|parameter| parameter.expected_position == position)
                 .ok_or_else(|| "verified theorem parameter coordinate is absent".to_owned())?;
-            if verified_parameter.theorem_symbol
-                != plan.selected_theorem.parameters[position].symbol
-            {
+            if verified_parameter.theorem_symbol != selected_theorem.parameters[position].symbol {
                 return Err("verified theorem parameter symbol drifted".to_owned());
             }
             let input_position =
@@ -297,7 +307,7 @@ fn theorem_correspondence(
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    Ok(QuotientTheoremCorrespondence {
+    Ok(QuotientCongruenceCorrespondence {
         parameters,
         relation_premises,
         legality_premises: Vec::new(),

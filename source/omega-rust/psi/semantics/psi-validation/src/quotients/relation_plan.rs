@@ -8,7 +8,8 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{
-    QuotientOperationKind, QuotientOperationRequest, StaticMachineArgument, TableCallExpression,
+    QuotientOperationKind, QuotientOperationRequest, QuotientTheoremRole, StaticMachineArgument,
+    TableCallExpression,
 };
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
@@ -100,11 +101,10 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
     pub(super) representative_termination: Option<RepresentativeTermination>,
-    /// Exact explicitly selected resultless theorem-machine application.
-    pub(super) selected_theorem: SelectedTheoremTelescope,
-    pub(super) selected_theorem_termination: Option<SelectedTheoremTermination>,
-    pub(super) selected_theorem_purity: Option<SelectedTheoremPurity>,
-    pub(super) selected_theorem_crash_free: bool,
+    /// Exact role-ordered explicitly selected theorem applications and common
+    /// eligibility. Only the congruence entry participates in the currently
+    /// implemented schema/correspondence producer.
+    pub(super) theorem_evidence: Vec<PlannedQuotientTheoremEvidence>,
     /// Exact compiler-derived contract expected from the selected theorem.
     expected_theorem_schema: ExpectedTheoremSchema,
     /// Structural verification pairs every expected row with one exact
@@ -125,6 +125,15 @@ pub(super) struct DirectTerminalRelationPlan {
     /// adaptation and Terminal replay remain outside this non-executable
     /// certificate.
     pub(super) correspondence_certificate: Option<QuotientCorrespondenceCertificate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PlannedQuotientTheoremEvidence {
+    pub(super) role: QuotientTheoremRole,
+    pub(super) selected_application: SelectedTheoremTelescope,
+    pub(super) termination: Option<SelectedTheoremTermination>,
+    pub(super) purity: Option<SelectedTheoremPurity>,
+    pub(super) crash_free: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,6 +170,7 @@ pub(super) enum RelationPlanError {
     RepresentativeLifetimeApplicationRequiresElision,
     RepresentativePropositionApplicationUnsupported(usize),
     TheoremEntryDoesNotResolveExactly,
+    NonCanonicalTheoremRoleCollection,
     TheoremMustBeCheckedBody,
     TheoremMustBeResultless,
     TheoremStaticApplicationInvalid,
@@ -244,6 +254,9 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::TheoremEntryDoesNotResolveExactly => formatter.write_str(
                 "the selected theorem does not resolve to one exact machine entry",
+            ),
+            Self::NonCanonicalTheoremRoleCollection => formatter.write_str(
+                "the quotient theorem evidence is missing, duplicated, surplus, or not in canonical Congruence/ForwardPreconditionTransport order",
             ),
             Self::TheoremMustBeCheckedBody => formatter.write_str(
                 "the selected theorem must be one bodyful checked machine; boundary, accepted, and external proof sources cannot license quotient substitution",
@@ -457,21 +470,41 @@ pub(super) fn derive_direct_terminal_plan(
     };
     let representative_termination =
         unconditional_representative_termination(program, &representative);
-    let selected_theorem = theorem::derive_selected_theorem_telescope(program, request)?;
-    let selected_theorem_termination =
-        theorem::unconditional_selected_theorem_termination(program, &selected_theorem);
+    validate_theorem_role_collection(request)?;
     let theorem_operational = psi_effects::infer_operational_may(program);
     let theorem_reaches = psi_effects::infer_service_reaches(program, &theorem_operational);
-    let selected_theorem_purity = theorem::pure_selected_theorem_effect(
-        &selected_theorem,
-        &theorem_operational,
-        &theorem_reaches,
-    );
-    let selected_theorem_crash_free = crate::denotational_calls::has_no_crash_routes(
-        program,
-        selected_theorem.machine_symbol,
-        &theorem_operational,
-    );
+    let theorem_evidence = request
+        .theorem_evidence
+        .iter()
+        .map(|evidence| {
+            let selected_application =
+                theorem::derive_selected_theorem_telescope(program, &evidence.application)?;
+            let termination =
+                theorem::unconditional_selected_theorem_termination(program, &selected_application);
+            let purity = theorem::pure_selected_theorem_effect(
+                &selected_application,
+                &theorem_operational,
+                &theorem_reaches,
+            );
+            let crash_free = crate::denotational_calls::has_no_crash_routes(
+                program,
+                selected_application.machine_symbol,
+                &theorem_operational,
+            );
+            Ok(PlannedQuotientTheoremEvidence {
+                role: evidence.role,
+                selected_application,
+                termination,
+                purity,
+                crash_free,
+            })
+        })
+        .collect::<Result<Vec<_>, RelationPlanError>>()?;
+    // A selected transport is authoritative for the whole Q => P lane. Until
+    // its role-specific schema verifier is live, do not silently fall back to
+    // the automatic per-row implication producer.
+    let has_explicit_transport = theorem_evidence.len() == 2;
+    let selected_theorem = &theorem_evidence[0].selected_application;
     let expected_theorem_schema = derive_expected_theorem_schema(
         program,
         &input_relations,
@@ -481,7 +514,7 @@ pub(super) fn derive_direct_terminal_plan(
     let theorem_schema_verification = verify_selected_theorem_schema(
         program,
         &representative,
-        &selected_theorem,
+        selected_theorem,
         &expected_theorem_schema,
     );
     let direct_lift_correspondence = (request.kind == QuotientOperationKind::Lift)
@@ -556,45 +589,55 @@ pub(super) fn derive_direct_terminal_plan(
         _ => None,
     };
     let direct_lift_precondition_implication = match (
+        has_explicit_transport,
         direct_lift_correspondence.as_ref(),
         public_precondition.as_ref(),
         representative_precondition.as_ref(),
         theorem_schema_verification.as_ref().ok(),
     ) {
-        (Some(runtime), Some(public), Some(representative_partition), Some(verified_theorem)) => {
-            Some(derive_direct_lift_precondition_implication(
-                program,
-                machine,
-                state,
-                &representative,
-                public,
-                representative_partition,
-                runtime,
-                &expected_theorem_schema,
-                verified_theorem,
-            )?)
-        }
+        (
+            false,
+            Some(runtime),
+            Some(public),
+            Some(representative_partition),
+            Some(verified_theorem),
+        ) => Some(derive_direct_lift_precondition_implication(
+            program,
+            machine,
+            state,
+            &representative,
+            public,
+            representative_partition,
+            runtime,
+            &expected_theorem_schema,
+            verified_theorem,
+        )?),
         _ => None,
     };
     let fixed_representative_call_preconditions = match (
+        has_explicit_transport,
         direct_lift_correspondence.as_ref(),
         public_precondition.as_ref(),
         representative_precondition.as_ref(),
         theorem_schema_verification.as_ref().ok(),
     ) {
-        (Some(runtime), Some(public), Some(representative_partition), Some(verified_theorem)) => {
-            Some(derive_fixed_representative_call_preconditions(
-                program,
-                machine,
-                state,
-                &representative,
-                public,
-                representative_partition,
-                runtime,
-                &expected_theorem_schema,
-                verified_theorem,
-            )?)
-        }
+        (
+            false,
+            Some(runtime),
+            Some(public),
+            Some(representative_partition),
+            Some(verified_theorem),
+        ) => Some(derive_fixed_representative_call_preconditions(
+            program,
+            machine,
+            state,
+            &representative,
+            public,
+            representative_partition,
+            runtime,
+            &expected_theorem_schema,
+            verified_theorem,
+        )?),
         _ => None,
     };
     let correspondence_certificate = match request.kind {
@@ -632,10 +675,7 @@ pub(super) fn derive_direct_terminal_plan(
         result_relation,
         representative,
         representative_termination,
-        selected_theorem,
-        selected_theorem_termination,
-        selected_theorem_purity,
-        selected_theorem_crash_free,
+        theorem_evidence,
         expected_theorem_schema,
         theorem_schema_verification,
         direct_lift_correspondence,
@@ -647,6 +687,33 @@ pub(super) fn derive_direct_terminal_plan(
         define_precondition_correspondence,
         correspondence_certificate,
     })
+}
+
+fn validate_theorem_role_collection(
+    request: &QuotientOperationRequest,
+) -> Result<(), RelationPlanError> {
+    let expected_roles: &[QuotientTheoremRole] = match request.kind {
+        QuotientOperationKind::Define => &[QuotientTheoremRole::Congruence],
+        QuotientOperationKind::Lift if request.theorem_evidence.len() == 1 => {
+            &[QuotientTheoremRole::Congruence]
+        }
+        QuotientOperationKind::Lift if request.theorem_evidence.len() == 2 => &[
+            QuotientTheoremRole::Congruence,
+            QuotientTheoremRole::ForwardPreconditionTransport,
+        ],
+        QuotientOperationKind::Lift => {
+            return Err(RelationPlanError::NonCanonicalTheoremRoleCollection);
+        }
+    };
+    if request
+        .theorem_evidence
+        .iter()
+        .map(|evidence| evidence.role)
+        .ne(expected_roles.iter().copied())
+    {
+        return Err(RelationPlanError::NonCanonicalTheoremRoleCollection);
+    }
+    Ok(())
 }
 
 enum ExactRelationLookup {
@@ -748,8 +815,9 @@ impl DirectTerminalRelationPlan {
     }
 
     pub(super) fn render_selected_theorem(&self, program: &TypedTrees) -> String {
-        let parameters = self
-            .selected_theorem
+        let selected_theorem = &self.theorem_evidence[0].selected_application;
+        let parameters = self.theorem_evidence[0]
+            .selected_application
             .parameters
             .iter()
             .map(|parameter| {
@@ -759,9 +827,9 @@ impl DirectTerminalRelationPlan {
             .join(", ");
         format!(
             "theorem#{}:state#{}({parameters})[static-bindings:{}]",
-            self.selected_theorem.machine_symbol.arena_index(),
-            self.selected_theorem.state_symbol.arena_index(),
-            self.selected_theorem.static_application.bindings.len(),
+            selected_theorem.machine_symbol.arena_index(),
+            selected_theorem.state_symbol.arena_index(),
+            selected_theorem.static_application.bindings.len(),
         )
     }
 
