@@ -1089,6 +1089,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       type shapes used by every current `C`-closure data field, without claiming
       that the surrounding root grammar or full closure is implemented. Keep
       exact depth/node/delimiter vectors at the real Delta-compiler gate.
+    - [x] Retain the first durable machine root without inventing a body skip:
+      a bare ordinary machine with an arbitrary name-like path, optional empty
+      parentheses, and an immediately empty body. Publish it in the existing
+      mixed root ledger and retain the one implicit empty entry state required
+      by the canonical parser even for a zero-parameter Unit machine. A free
+      path records the generated `entry` identity; an attached path records the
+      final authored member as the entry identity, while the full path reuses
+      the shared path-member arena. Root capacity dominates the equal machine
+      and implicit-state tables, and only `Complete` publishes their prefixes.
+      Parameters, receivers, returns, generics, clauses, `pub`/`boundary`/
+      target-scoped and bodyless forms, and every nonempty body remain
+      implementation-incomplete rather than being skipped, guessed, or falsely
+      accepted. No current `C` machine has an empty body, so this checkpoint
+      establishes the durable representation and control boundary without
+      claiming present `C`-closure progress. Exact positive, malformed,
+      incomplete, capacity, reset, and mixed-order vectors wait for the real
+      Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
