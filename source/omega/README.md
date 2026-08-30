@@ -45,7 +45,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns strict source-view UTF-8 framing, the complete source-neutral lexical scanner, the first one-invocation source-shaped parser slice, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
+| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
 
 The four empty target declarations in `build.omg` are temporary compatibility
 scaffolding, not product architecture. Delete them as soon as immutable target
@@ -63,13 +63,29 @@ while the artifacts are absent.
 Delta cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
 parser therefore validates once and streams the same source through private
-states of one canonical invocation. Its first retained slice sequences empty,
-trivia-only, and ordinary `use path::member;` roots, preserving ordered path
-members and byte spans relative to that one view. Any other lexically valid
-root stops as implementation-incomplete rather than becoming a false Omega
-rejection. The fixed use/member tables are private compiler budgets; their
-exhaustion is retained for the future outer `Incomplete` mapping and is not an
-Omega source limit.
+states of one canonical invocation. Its retained slices sequence empty,
+trivia-only, ordinary `use path::member;`, and basic `[pub] data` roots.
+One mixed root table preserves authored use/data order. Data syntax retains an
+optional `[copy]` property, bare named fields, payload-free cases, contextual
+`case: Type` fields, optional final member semicolons, mixed field/case order,
+and relative spans in separate live-prefix tables. Compact kind/index ledgers
+reach the use/data or field/case child spans instead of duplicating coordinates.
+Payload cases, richer types, governed built-ins such as `Slice`, numbered
+members/properties, other public roots, and every other unimplemented valid
+form stop as implementation-incomplete rather than becoming false Omega
+rejections.
+
+The provisional backing tables hold 4,096 root/use/data rows and 16,384
+path-member/data-member/field/case/named-type rows. Only rows below their
+corresponding count may be inspected after `Complete`; every other status may
+leave unowned partial prefixes and authorizes no syntax-tree consumer. A
+repeated invocation invalidates old rows by resetting every count. Root
+capacity dominates use/data capacity, while
+data-member capacity dominates field/case/type-reference capacity, so the only
+resource distinctions are `Roots`, `PathMembers`, and `DataMembers`. These are
+private compiler budgets to profile against the real compiler closure, not
+Omega source limits; exhaustion is retained for the future outer `Incomplete`
+mapping.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
 preflight fact is retained. Q7 still owns binding each relative tree to a
