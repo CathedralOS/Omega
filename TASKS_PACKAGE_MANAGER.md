@@ -38,13 +38,13 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - call-bearing domain predicates beyond the exact nominal, builtin,
-    byte-predicate, and collection-view targets; computed member receivers
-    outside the closed structural expression vocabulary; and
-    structural witness arguments not retained by their owning typed or checked
-    representation;
-  - demonstrated missing semantic-role, permission-frontier,
-    compiler-intrinsic ownership, and installation joins;
+  - quotient calls, evidence-bearing calls, proposition/evidence static
+    arguments, forwarded or symbolic const arguments, and non-data nested
+    static applications whose structural witness is not retained by its owning
+    typed or checked representation;
+  - generic or lifetime-parameterized external/top-level realizations,
+    unsupported compiler-intrinsic execution identities, and the remaining
+    provider-demand, coverage-composition, and installation-issuance joins;
   - **OWNER-BLOCKED — generic boundary-realization coverage** and
     **exact boundary-realization application evidence**; production remains
     fail-closed for those forms rather than publishing provisional carriers;
