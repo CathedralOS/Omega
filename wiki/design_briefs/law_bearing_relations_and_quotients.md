@@ -778,10 +778,12 @@ subject/trait shape validates this closed selection but does not infer its
 non-lifetime arguments; visibility and ambient uniqueness never participate.
 
 The first executable static requirement-call carrier is intentionally smaller
-than that general model. An attached caller's explicit proof-static binder may
-be specialized to one concrete named conformance whose direct requirement and realization are
-non-generic one-state Unit callables. The requirement owns exactly one
-subjectless named input and one subjectless unconditional named output.
+than that general model. An attached or free caller's explicit proof-static
+binder may be specialized to one concrete named conformance whose direct
+requirement and realization are non-generic one-state Unit callables. The
+requirement may own any finite ordered set of subjectless named inputs,
+including none, and must own at least one subjectless unconditional named
+output; unnamed public rows remain outside this carrier.
 Specialization retains the exact closed application and row before rewriting
 the executable target. The selected row may be an inline realization or the
 trait's exact default realization. Default reuse remains conformance-scoped:
@@ -792,9 +794,9 @@ proposition, interface, lane, and public selector. The caller receives a fresh o
 the satisfier's local alias, appended strengthening, forwarded term, and
 producer provenance remain private. Terminal retains the normalized public
 requirement separately from the owner-scoped application and concrete runtime
-callee, and verification rejoins all three without adding evidence arguments,
-storage, operations, or fuel. Free callers, inherited requirement
-rows, generic public surfaces, subject-bearing or wider named lanes, direct
+callee, and verification rejoins every ordered lane with all three without
+adding runtime arguments, storage, operations, or fuel. Inherited requirement
+rows, generic or subject-bearing public surfaces, unnamed rows, direct
 conformance-name calls, scalar results, and dynamic dispatch remain closed.
 
 Proof-only evaluation, when a transparent body is actually

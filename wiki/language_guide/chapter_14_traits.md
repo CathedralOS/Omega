@@ -1098,20 +1098,21 @@ witness. Satisfier-private producer conformances and proof identities remain
 hidden behind the declared evidence interface. This abstraction adds no runtime
 field, dictionary entry, calling-plan argument, allocation, cleanup, or fuel.
 
-The current compiler implements the first static form through an attached
-caller's explicit proof-static conformance binder. The selected trait,
+The current compiler implements the first static form through an attached or
+free caller's explicit proof-static conformance binder. The selected trait,
 requirement, conformance, and one-state Unit realization must be concrete and
-non-generic; the public requirement is limited to one subjectless named input
-and one subjectless unconditional named output. The call exposes the
-requirement selector and a fresh opaque witness even if the realization
-forwards its local input or publishes stronger direct-call outputs. The exact
+non-generic. The public requirement may own any finite ordered set of
+subjectless named inputs, including none, and must own at least one subjectless
+unconditional named output; every public row in this form is named. A call may
+select any output subset, while omitted selectors remain fact-only. Each
+selected output is a fresh opaque witness even if the realization forwards its
+local input or publishes stronger direct-call outputs. The exact
 realization may come from the selected conformance's trait default; each
 conformance keeps a distinct closed-application commitment and generated
-realization identity, and an inline override takes precedence. Free callers,
-direct calls through a conformance name, inherited
-requirement rows, wider or subject-bearing public lanes, scalar results, and
-dynamic named-witness calls remain unavailable until their complete carriers
-land.
+realization identity, and an inline override takes precedence. Direct calls
+through a conformance name, inherited requirement rows, generic,
+subject-bearing, or unnamed public lanes, scalar results, and dynamic
+named-witness calls remain unavailable until their complete carriers land.
 
 Value-wide facts belong to the carrier's default domain: field constraints and
 the data signature's `where` facts. Algebraic laws remain resultless theorem

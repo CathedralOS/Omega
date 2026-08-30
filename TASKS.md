@@ -9841,10 +9841,13 @@ Remaining N6/N8 work:
   rows only after that pinned prefix. Inherited checked facts now reuse the
   exact satisfier evidence terms, including their lane positions, rather than
   dropping term custody. The first static-call rung is also live. An attached
-  generic caller may select one exact concrete named conformance through an explicit
-  proof-static binder and call its direct concrete, non-generic, one-state Unit
-  requirement when that public requirement owns exactly one subjectless named
-  `requires` lane and one subjectless unconditional named `ensures` lane.
+  or free generic caller may select one exact concrete named conformance through
+  an explicit proof-static binder and call its direct concrete, non-generic,
+  one-state Unit requirement. The public requirement may own any finite ordered
+  set of subjectless named `requires` lanes, including none, and must own at
+  least one subjectless unconditional named `ensures` lane; every public row in
+  this rung is named. The plural source canary retains three inputs and three
+  outputs while omitting one selector at the call site.
   Monomorphization retains the call-local closed application and exact
   requirement-to-realization row instead of replacing public proof identity
   with the executable satisfier. The same bounded lane now accepts the
@@ -9865,9 +9868,9 @@ Remaining N6/N8 work:
   requirement lanes: incoming alias renames are compatible and outgoing
   selector renames are breaking, while private call-site dispatch remains
   implementation content. Generic trait/requirement/satisfier or proposition
-  telescopes, inherited requirement rows, direct named-conformance
-  calls, scalar results, subject-bearing lanes, additional unnamed or wider
-  public contract rows, free callers, and dynamic dispatch remain fail closed.
+  telescopes, inherited requirement rows, direct named-conformance calls,
+  scalar results, subject-bearing lanes, unnamed public contract rows, and
+  dynamic dispatch remain fail closed.
   Next extend broader static calls and runtime trait dispatch. A satisfying
   machine must assign every inherited output on each applicable ordinary exit
   and may not omit, rename, weaken, or replace it. Direct concrete calls may
