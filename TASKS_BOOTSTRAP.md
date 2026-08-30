@@ -1555,9 +1555,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       coverage remains 56 of 73. `Parser::{parse_data,skip_trivia,parse_roots}`
       advance to qualified token-pattern guards. Numeric, range, additive,
       nested, and chained indexes remain implementation-incomplete.
-    - [ ] Retain qualified case/destructure guards for `Main::main` and
-      `Lexer::digit_in_base`. Each remaining item is an ordinary syntax
-      capability, not a closure-specific rewrite.
+    - [x] Retain bare/qualified path guards and the qualified two-member case
+      pattern `Type::Case { fields }` as source-shaped transition data. Braces
+      are explicit; a dedicated contiguous pattern-field ledger distinguishes
+      shorthand bindings from fixed path-expression matches, while every field
+      still owns a shared path-member entry so `PathMembers` dominates the
+      equal ledger. This preserves the information needed to rewrite bindings
+      against the transition subject later without treating target names as
+      accidental locals. Empty braces, comma-separated mixtures, trailing
+      commas, and `..` remain explicit. Record/tuple patterns, renamed/waived
+      fields, proof selectors, `if` guards, and non-path fixed values remain
+      implementation-incomplete. This completes `Main::main`,
+      `Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse_roots}`,
+      raising completed current `C` roots from forty-eight to fifty-three while
+      body-boundary coverage remains 56 of 73. The three remaining body-
+      reaching roots need grouped/multiplicative or unary expressions; none
+      remains blocked on a closure-specific pattern rewrite.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and

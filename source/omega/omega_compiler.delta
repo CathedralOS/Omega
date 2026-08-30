@@ -445,12 +445,30 @@ data OmegaTransitionGuardKind {
     case Always;
     case Boolean;
     case Integer;
+    case Path;
+    case Destructure;
+}
+
+data OmegaTransitionPatternFieldKind {
+    case Bind;
+    case Match;
+}
+
+data OmegaTransitionPatternFieldSyntax {
+    member: i32;
+    kind: OmegaTransitionPatternFieldKind;
+    binding: OmegaRelativeSpan;
+    value: i32;
+    start: i32;
+    end: i32;
 }
 
 // The first transition slice retains zero or one subject and expands every arm
 // into one ordinary statement, matching the canonical syntax tree. Guard
-// spelling stays source-shaped; target is one authored zero-argument state
-// name. Richer subjects, patterns, and targets remain parser-incomplete.
+// spelling stays source-shaped. Qualified case paths and their optional braces
+// retain a contiguous field ledger; shorthand fields bind their own names and
+// fixed path values remain ordinary expressions. Richer subjects, patterns,
+// and targets remain parser-incomplete.
 data OmegaTransitionStatementSyntax {
     has_subject: i32;
     subject: i32;
@@ -458,6 +476,11 @@ data OmegaTransitionStatementSyntax {
     guard_boolean: i32;
     guard_start: i32;
     guard_end: i32;
+    guard_first_path_member: i32;
+    guard_path_member_count: i32;
+    guard_first_pattern_field: i32;
+    guard_pattern_field_count: i32;
+    guard_has_rest: i32;
     target: OmegaRelativeSpan;
     first_argument: i32;
     argument_count: i32;
@@ -522,6 +545,7 @@ data OmegaExpressionConsumer {
     case CastValue;
     case IndexedBase;
     case IndexedIndex;
+    case TransitionPatternFieldValue;
 }
 
 data OmegaStructLiteralFieldSyntax {
@@ -702,6 +726,7 @@ data OmegaParser {
     assignment_statements: [OmegaAssignmentStatementSyntax; 16384];
     local_data_statements: [OmegaLocalDataStatementSyntax; 16384];
     transition_statements: [OmegaTransitionStatementSyntax; 16384];
+    transition_pattern_fields: [OmegaTransitionPatternFieldSyntax; 16384];
     static_machine_arguments: [OmegaStaticMachineArgumentSyntax; 16384];
     expressions: [OmegaExpressionSyntax; 16384];
     binary_expressions: [OmegaBinaryExpressionSyntax; 16384];
@@ -739,6 +764,7 @@ data OmegaParser {
     assignment_statement_count: i32;
     local_data_statement_count: i32;
     transition_statement_count: i32;
+    transition_pattern_field_count: i32;
     static_machine_argument_count: i32;
     expression_count: i32;
     binary_expression_count: i32;
@@ -895,6 +921,15 @@ data OmegaParser {
     transition_guard_boolean: i32;
     transition_guard_start: i32;
     transition_guard_end: i32;
+    transition_guard_first_path_member: i32;
+    transition_guard_path_member_count: i32;
+    transition_guard_first_pattern_field: i32;
+    transition_guard_pattern_field_count: i32;
+    transition_guard_has_rest: i32;
+    transition_pattern_member_start: i32;
+    transition_pattern_member_end: i32;
+    transition_pattern_member: i32;
+    transition_pattern_value_expression: i32;
     transition_arrow_start: i32;
     transition_arrow_end: i32;
     transition_target_start: i32;
@@ -2990,6 +3025,7 @@ machine OmegaParser::parse_view(
     self.assignment_statement_count = 0;
     self.local_data_statement_count = 0;
     self.transition_statement_count = 0;
+    self.transition_pattern_field_count = 0;
     self.static_machine_argument_count = 0;
     self.expression_count = 0;
     self.binary_expression_count = 0;
@@ -3145,6 +3181,15 @@ machine OmegaParser::parse_view(
     self.transition_guard_boolean = 0;
     self.transition_guard_start = 0;
     self.transition_guard_end = 0;
+    self.transition_guard_first_path_member = 0;
+    self.transition_guard_path_member_count = 0;
+    self.transition_guard_first_pattern_field = 0;
+    self.transition_guard_pattern_field_count = 0;
+    self.transition_guard_has_rest = 0;
+    self.transition_pattern_member_start = 0;
+    self.transition_pattern_member_end = 0;
+    self.transition_pattern_member = 0;
+    self.transition_pattern_value_expression = 0;
     self.transition_arrow_start = 0;
     self.transition_arrow_end = 0;
     self.transition_target_start = 0;
@@ -3349,6 +3394,12 @@ machine OmegaParser::parse_view(
             80 -> additive_call_argument_token()
             81 -> cast_domain_token()
             82 -> cast_end_token()
+            83 -> transition_guard_path_tail_token()
+            84 -> transition_guard_path_member_token()
+            85 -> transition_destructure_field_or_end_token()
+            86 -> transition_destructure_field_end_token()
+            87 -> transition_destructure_rest_end_token()
+            88 -> transition_pattern_field_value_token()
             _ -> internal_failure()
         }
     }
@@ -3717,6 +3768,36 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            83 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArrow,
+                source.len,
+                source.len
+            )
+            84 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
+            85 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
+            86 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
+            87 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
+            88 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -3788,6 +3869,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::TransitionPatternFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
         }
     }
 
@@ -3843,6 +3929,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::TransitionPatternFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                source.len,
+                source.len
+            )
         }
     }
 
@@ -3895,6 +3986,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::TransitionPatternFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
                 source.len,
                 source.len
             )
@@ -5483,7 +5579,7 @@ machine OmegaParser::parse_view(
             "_"
         ) {
             1 -> retain_wildcard_transition_guard()
-            _ -> incomplete_root()
+            _ -> begin_transition_guard_path()
         }
     }
 
@@ -5501,8 +5597,311 @@ machine OmegaParser::parse_view(
         transition self.scan.keyword {
             OmegaKeywordKind::True -> retain_boolean_transition_guard(1)
             OmegaKeywordKind::False -> retain_boolean_transition_guard(0)
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> incomplete_root()
+            _ -> begin_transition_guard_path()
+        }
+    }
+
+    state begin_transition_guard_path() {
+        self.transition_guard_first_path_member = self.member_count;
+        self.transition_guard_path_member_count = 0;
+        self.transition_guard_first_pattern_field = 0;
+        self.transition_guard_pattern_field_count = 0;
+        self.transition_guard_has_rest = 0;
+        self.transition_guard_start = self.scan.token_start;
+        transition true { true -> retain_transition_guard_path_member() }
+    }
+
+    state retain_transition_guard_path_member() {
+        transition self.member_count < 16384 {
+            true -> retain_transition_guard_path_member_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::PathMembers,
+                16384,
+                self.member_count + 1
+            )
+        }
+    }
+
+    state retain_transition_guard_path_member_bounded() {
+        self.members[self.member_count].start = self.scan.token_start;
+        self.members[self.member_count].end = self.scan.token_end;
+        self.member_count = self.member_count + 1;
+        self.transition_guard_path_member_count =
+            self.transition_guard_path_member_count + 1;
+        self.transition_guard_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(83) }
+    }
+
+    state transition_guard_path_tail_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_guard_path_tail_punctuation()
             _ -> incomplete_root()
         }
+    }
+
+    state transition_guard_path_tail_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::ColonColon -> next_transition_guard_path_member()
+            OmegaPunctuationKind::LeftBrace -> begin_transition_destructure()
+            OmegaPunctuationKind::Arrow -> retain_path_transition_guard()
+            _ -> incomplete_root()
+        }
+    }
+
+    state next_transition_guard_path_member() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(84) }
+    }
+
+    state transition_guard_path_member_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_transition_guard_path_member()
+            OmegaTokenKind::Keyword -> transition_guard_path_member_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state transition_guard_path_member_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_transition_guard_path_member()
+        }
+    }
+
+    state retain_path_transition_guard() {
+        self.transition_guard_kind = OmegaTransitionGuardKind::Path;
+        self.transition_guard_boolean = 0;
+        transition true { true -> retain_transition_arrow() }
+    }
+
+    state begin_transition_destructure() {
+        transition (self.transition_has_subject == 1) &&
+            (self.transition_guard_path_member_count == 2) {
+            true -> begin_transition_destructure_bounded()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_transition_destructure_bounded() {
+        self.transition_guard_kind = OmegaTransitionGuardKind::Destructure;
+        self.transition_guard_boolean = 0;
+        self.transition_guard_first_pattern_field =
+            self.transition_pattern_field_count;
+        self.transition_guard_pattern_field_count = 0;
+        self.transition_guard_has_rest = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(85) }
+    }
+
+    state transition_destructure_field_or_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_transition_destructure_field()
+            OmegaTokenKind::Keyword -> transition_destructure_field_keyword()
+            OmegaTokenKind::Punctuation ->
+                transition_destructure_field_or_end_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state transition_destructure_field_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> incomplete_root()
+            _ -> begin_transition_destructure_field()
+        }
+    }
+
+    state transition_destructure_field_or_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> finish_transition_destructure()
+            OmegaPunctuationKind::DotDot -> retain_transition_destructure_rest()
+            OmegaPunctuationKind::Semicolon -> incomplete_root()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_transition_destructure_field() {
+        transition self.member_count < 16384 {
+            true -> begin_transition_destructure_field_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::PathMembers,
+                16384,
+                self.member_count + 1
+            )
+        }
+    }
+
+    state begin_transition_destructure_field_bounded() {
+        self.transition_pattern_member_start = self.scan.token_start;
+        self.transition_pattern_member_end = self.scan.token_end;
+        self.transition_pattern_member = self.member_count;
+        self.members[self.member_count].start = self.scan.token_start;
+        self.members[self.member_count].end = self.scan.token_end;
+        self.member_count = self.member_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(86) }
+    }
+
+    state transition_destructure_field_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_destructure_field_end_punctuation()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> incomplete_root()
+        }
+    }
+
+    state transition_destructure_field_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> retain_bound_transition_pattern_field()
+            OmegaPunctuationKind::RightBrace -> retain_bound_transition_pattern_field()
+            OmegaPunctuationKind::Colon -> begin_transition_pattern_field_value()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_transition_pattern_field_value() {
+        self.expression_consumer =
+            OmegaExpressionConsumer::TransitionPatternFieldValue;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(88) }
+    }
+
+    state transition_pattern_field_value_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> begin_named_transition_pattern_value()
+            OmegaTokenKind::Keyword -> transition_pattern_field_value_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state transition_pattern_field_value_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> begin_self_transition_pattern_value()
+            _ -> begin_named_transition_pattern_value()
+        }
+    }
+
+    state begin_named_transition_pattern_value() {
+        self.argument_starts_at_self = 0;
+        self.argument_name_member_count = 1;
+        self.argument_path_kind = OmegaPathExpressionKind::Name;
+        transition true { true -> begin_path_expression() }
+    }
+
+    state begin_self_transition_pattern_value() {
+        self.argument_starts_at_self = 1;
+        self.argument_name_member_count = 0;
+        self.argument_path_kind = OmegaPathExpressionKind::SelfValue;
+        transition true { true -> begin_path_expression() }
+    }
+
+    state retain_bound_transition_pattern_field() {
+        transition true { true -> retain_bound_transition_pattern_field_bounded() }
+    }
+
+    state retain_bound_transition_pattern_field_bounded() {
+        self.transition_pattern_fields[
+            self.transition_pattern_field_count
+        ].member = self.transition_pattern_member;
+        self.transition_pattern_fields[self.transition_pattern_field_count].kind =
+            OmegaTransitionPatternFieldKind::Bind;
+        self.transition_pattern_fields[
+            self.transition_pattern_field_count
+        ].binding.start = self.transition_pattern_member_start;
+        self.transition_pattern_fields[
+            self.transition_pattern_field_count
+        ].binding.end = self.transition_pattern_member_end;
+        self.transition_pattern_fields[self.transition_pattern_field_count].value = 0;
+        self.transition_pattern_fields[self.transition_pattern_field_count].start =
+            self.transition_pattern_member_start;
+        self.transition_pattern_fields[self.transition_pattern_field_count].end =
+            self.transition_pattern_member_end;
+        transition true { true -> finish_retain_transition_pattern_field() }
+    }
+
+    state retain_matched_transition_pattern_field() {
+        transition true { true -> retain_matched_transition_pattern_field_bounded() }
+    }
+
+    state retain_matched_transition_pattern_field_bounded() {
+        self.transition_pattern_fields[
+            self.transition_pattern_field_count
+        ].member = self.transition_pattern_member;
+        self.transition_pattern_fields[self.transition_pattern_field_count].kind =
+            OmegaTransitionPatternFieldKind::Match;
+        self.transition_pattern_fields[
+            self.transition_pattern_field_count
+        ].binding.start = 0;
+        self.transition_pattern_fields[
+            self.transition_pattern_field_count
+        ].binding.end = 0;
+        self.transition_pattern_fields[self.transition_pattern_field_count].value =
+            self.transition_pattern_value_expression;
+        self.transition_pattern_fields[self.transition_pattern_field_count].start =
+            self.transition_pattern_member_start;
+        self.transition_pattern_fields[self.transition_pattern_field_count].end =
+            self.expression_end;
+        transition true { true -> finish_retain_transition_pattern_field() }
+    }
+
+    state finish_retain_transition_pattern_field() {
+        self.transition_pattern_field_count =
+            self.transition_pattern_field_count + 1;
+        self.transition_guard_pattern_field_count =
+            self.transition_guard_pattern_field_count + 1;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> next_transition_destructure_field()
+            OmegaPunctuationKind::RightBrace -> finish_transition_destructure()
+            _ -> internal_failure()
+        }
+    }
+
+    state next_transition_destructure_field() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(85) }
+    }
+
+    state retain_transition_destructure_rest() {
+        self.transition_guard_has_rest = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(87) }
+    }
+
+    state transition_destructure_rest_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_destructure_rest_end_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state transition_destructure_rest_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> finish_transition_destructure()
+            OmegaPunctuationKind::Comma -> next_transition_destructure_field()
+            _ -> incomplete_root()
+        }
+    }
+
+    state finish_transition_destructure() {
+        self.transition_guard_end = self.scan.token_end;
+        transition true { true -> after_transition_guard() }
     }
 
     state retain_wildcard_transition_guard() {
@@ -5510,6 +5909,9 @@ machine OmegaParser::parse_view(
         self.transition_guard_boolean = 0;
         self.transition_guard_start = self.scan.token_start;
         self.transition_guard_end = self.scan.token_end;
+        self.transition_guard_path_member_count = 0;
+        self.transition_guard_pattern_field_count = 0;
+        self.transition_guard_has_rest = 0;
         transition true { true -> after_transition_guard() }
     }
 
@@ -5518,6 +5920,9 @@ machine OmegaParser::parse_view(
         self.transition_guard_boolean = 0;
         self.transition_guard_start = self.scan.token_start;
         self.transition_guard_end = self.scan.token_end;
+        self.transition_guard_path_member_count = 0;
+        self.transition_guard_pattern_field_count = 0;
+        self.transition_guard_has_rest = 0;
         transition true { true -> after_transition_guard() }
     }
 
@@ -5526,6 +5931,9 @@ machine OmegaParser::parse_view(
         self.transition_guard_boolean = value;
         self.transition_guard_start = self.scan.token_start;
         self.transition_guard_end = self.scan.token_end;
+        self.transition_guard_path_member_count = 0;
+        self.transition_guard_pattern_field_count = 0;
+        self.transition_guard_has_rest = 0;
         transition true { true -> after_transition_guard() }
     }
 
@@ -5682,6 +6090,22 @@ machine OmegaParser::parse_view(
             self.transition_guard_start;
         self.transition_statements[self.transition_statement_count].guard_end =
             self.transition_guard_end;
+        self.transition_statements[
+            self.transition_statement_count
+        ].guard_first_path_member = self.transition_guard_first_path_member;
+        self.transition_statements[
+            self.transition_statement_count
+        ].guard_path_member_count = self.transition_guard_path_member_count;
+        self.transition_statements[
+            self.transition_statement_count
+        ].guard_first_pattern_field =
+            self.transition_guard_first_pattern_field;
+        self.transition_statements[
+            self.transition_statement_count
+        ].guard_pattern_field_count =
+            self.transition_guard_pattern_field_count;
+        self.transition_statements[self.transition_statement_count].guard_has_rest =
+            self.transition_guard_has_rest;
         self.transition_statements[self.transition_statement_count].target.start =
             self.transition_target_start;
         self.transition_statements[self.transition_statement_count].target.end =
@@ -6469,6 +6893,8 @@ machine OmegaParser::parse_view(
                 retain_struct_field_value_path()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 retain_transition_target_argument_path()
+            OmegaExpressionConsumer::TransitionPatternFieldValue ->
+                retain_path_expression()
             _ -> incomplete_root()
         }
     }
@@ -6488,6 +6914,8 @@ machine OmegaParser::parse_view(
                 retain_struct_field_value_path()
             OmegaExpressionConsumer::ExpressionStatement ->
                 retain_path_expression()
+            OmegaExpressionConsumer::TransitionPatternFieldValue ->
+                retain_path_expression()
             _ -> incomplete_root()
         }
     }
@@ -6496,6 +6924,8 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_transition_subject_path()
+            OmegaExpressionConsumer::TransitionPatternFieldValue ->
+                incomplete_root()
             _ -> begin_struct_literal_from_path()
         }
     }
@@ -6587,6 +7017,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaExpressionConsumer::TransitionPatternFieldValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
                 self.scan.token_start,
                 self.scan.token_end
             )
@@ -6900,6 +7335,8 @@ machine OmegaParser::parse_view(
                 retain_path_expression_bounded()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_path_expression_bounded()
+            OmegaExpressionConsumer::TransitionPatternFieldValue ->
+                retain_path_expression_bounded()
         }
     }
 
@@ -6955,6 +7392,8 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::IndexedBase -> retain_indexed_base_handle()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_index_handle()
+            OmegaExpressionConsumer::TransitionPatternFieldValue ->
+                retain_transition_pattern_field_value_handle()
         }
     }
 
@@ -7011,6 +7450,15 @@ machine OmegaParser::parse_view(
         self.expression_consumer = OmegaExpressionConsumer::IndexedIndex;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(74) }
+    }
+
+    state retain_transition_pattern_field_value_handle() {
+        self.transition_pattern_value_expression = self.expression_count;
+        self.expression_end = self.members[
+            self.argument_first_path_member + self.argument_path_member_count - 1
+        ].end;
+        self.expression_count = self.expression_count + 1;
+        transition true { true -> retain_matched_transition_pattern_field() }
     }
 
     state retain_struct_field_value_handle() {
@@ -7495,6 +7943,7 @@ machine OmegaParser::parse_view(
             OmegaExpressionConsumer::CastValue -> incomplete_root()
             OmegaExpressionConsumer::IndexedBase -> incomplete_root()
             OmegaExpressionConsumer::IndexedIndex -> incomplete_root()
+            OmegaExpressionConsumer::TransitionPatternFieldValue -> incomplete_root()
         }
     }
 

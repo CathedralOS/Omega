@@ -124,11 +124,17 @@ statement spans. A retained transition has either no subject or one precedence-
 correct subject over path, boolean, and unsuffixed nonnegative decimal integer
 primaries with additive, comparison, `&&`, and `||` operators, and expands each
 boolean, integer, or wildcard arm into an ordinary statement targeting one
-named state. Current named targets own a contiguous argument-expression span
+named state. Arms also retain bare name paths and qualified two-member case
+paths with optional braces. Braced case patterns own a contiguous field ledger
+over shorthand bindings and fixed path-expression matches, preserving the
+distinction between `Type::Case` and `Type::Case {}` plus exact binding and
+field spelling for later resolution. Current named targets own a contiguous
+argument-expression span
 over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
 strings, and shallow struct literals, with an optional trailing comma. A
 subjectless block retains absence explicitly and does not manufacture a unit
-expression. Computed or multiple subjects, richer patterns and guards, richer
+expression. Computed or multiple subjects, record/tuple patterns, renamed or
+waived fields, non-path fixed values, proof selectors, richer guards, richer
 target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
 incomplete. Richer expressions and statements likewise stop the root as
@@ -148,8 +154,8 @@ Path-valued casts reuse the same expression and type engines in assignments,
 locals, ordinary call arguments, and transition-target arguments. They retain
 the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix; richer postfix values, recasts, domain arguments, unary,
-grouped, nested/chained indexing, and other richer initializers remain implementation-
-incomplete.
+grouped, nested/chained indexing, and other richer initializers remain
+implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or one path-indexed expression with a path index. The statement
@@ -172,7 +178,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 56 headers reach body parsing. Forty-eight are complete: four
+representable, and 56 headers reach body parsing. Fifty-three are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -198,9 +204,11 @@ through the same syntax. Path-valued casts complete
 `Lexer::{consume_digits,lex_punctuation,lex_next}` and
 `Parser::load_current`. Reusing the indexed-expression builder for local
 initializers completes `Lexer::span_equals`; the three Parser roots that use the
-same form advance to qualified token-pattern guards. The eight other reached
-bodies stop at qualified payload/token guards, grouped/multiplicative
-expressions, or a unary expression.
+same form advance to qualified token-pattern guards. Retaining qualified case
+paths, shorthand bindings, and fixed path matches then completes `Main::main`,
+`Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse_roots}`. The
+three other reached bodies stop at grouped/multiplicative expressions or a
+unary expression.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -234,7 +242,7 @@ The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 machine-clause/type-node/constraint/statement/call-statement/call-expression/
 cast-expression/assignment/local-data/transition/expression/binary-expression/
 indexed-expression/
-argument/static-machine-
+argument/transition-pattern-field/static-machine-
 argument/struct-literal/struct-field rows,
 plus 128 scratch
 type-array frames and 128 transition-expression values/operators.
@@ -265,6 +273,9 @@ both equal struct tables. Every static machine argument owns at least one
 same-capacity path-member row, so `PathMembers` dominates that table as well.
 Every retained machine clause owns at least one path member, so `PathMembers`
 also dominates the equal clause ledger.
+Every retained transition-pattern field owns one path member for its spelled
+field, so `PathMembers` also dominates the equal pattern-field ledger even when
+a fixed match adds its own expression path.
 Every binary row owns its expression node, so `Expressions` dominates that
 equal table as well.
 Every indexed row likewise owns its expression node, so it introduces no new
