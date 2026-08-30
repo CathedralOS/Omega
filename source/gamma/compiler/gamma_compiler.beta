@@ -333,6 +333,165 @@ proc name_is_packed(off, low, high, length) {
     state exact { return 1 - is_ident_continue(byte[2097152 + off + length]) }
     state no { return 0 }
 }
+; D19's exact source-owned Delta schema contains identifiers longer than the
+; ordinary two-word keyword matcher. Codes 1..26 are the ruled DCOUT v1
+; rejection bijection, followed by the two nominal types and two outcome
+; constructors. Initialize this private compile-time table only while checking
+; the selected schema; later function labels and retained D19 identities reuse
+; COVERAGE without deriving any code from declaration order or hashing.
+proc d19_initialize_name_table() {
+    word[10747904] = 17
+    word[10747912] = 6009043717031620169
+    word[10747920] = 8392812383809205615
+    word[10747928] = 101
+    word[10747936] = 12
+    word[10747944] = 6081101311069548105
+    word[10747952] = 1852140399
+    word[10747960] = 0
+    word[10747968] = 23
+    word[10747976] = 4856122212424773193
+    word[10747984] = 8243122663157031272
+    word[10747992] = 30506441441044812
+    word[10748000] = 18
+    word[10748008] = 7956010554822520405
+    word[10748016] = 7598263422842926177
+    word[10748024] = 26478
+    word[10748032] = 13
+    word[10748040] = 5000237400500629065
+    word[10748048] = 435677127539
+    word[10748056] = 0
+    word[10748064] = 24
+    word[10748072] = 5508576788985704009
+    word[10748080] = 8453094191384589417
+    word[10748088] = 7306930284705238900
+    word[10748096] = 15
+    word[10748104] = 8386658464824651349
+    word[10748112] = 31073759541879909
+    word[10748120] = 0
+    word[10748128] = 13
+    word[10748136] = 8386658464824651349
+    word[10748144] = 431346771045
+    word[10748152] = 0
+    word[10748160] = 13
+    word[10748168] = 8386093285582599492
+    word[10748176] = 435626790501
+    word[10748184] = 0
+    word[10748192] = 12
+    word[10748200] = 5001087310405790029
+    word[10748208] = 2037544046
+    word[10748216] = 0
+    word[10748224] = 12
+    word[10748232] = 5000237400500629065
+    word[10748240] = 2037544046
+    word[10748248] = 0
+    word[10748256] = 15
+    word[10748264] = 4784064618386845257
+    word[10748272] = 34184234804344175
+    word[10748280] = 0
+    word[10748288] = 11
+    word[10748296] = 6083931467101728341
+    word[10748304] = 6647929
+    word[10748312] = 0
+    word[10748320] = 18
+    word[10748328] = 8532477904463029586
+    word[10748336] = 8742724331636872805
+    word[10748344] = 25968
+    word[10748352] = 16
+    word[10748360] = 4928179806462701129
+    word[10748368] = 7309449295925703777
+    word[10748376] = 0
+    word[10748384] = 18
+    word[10748392] = 4712007024348917321
+    word[10748400] = 7453005812473098866
+    word[10748408] = 26740
+    word[10748416] = 11
+    word[10748424] = 5651585902874160725
+    word[10748432] = 6647137
+    word[10748440] = 0
+    word[10748448] = 12
+    word[10748456] = 7886763153591138644
+    word[10748464] = 1751348321
+    word[10748472] = 0
+    word[10748480] = 13
+    word[10748488] = 8316263370955780673
+    word[10748496] = 448345170285
+    word[10748504] = 0
+    word[10748512] = 12
+    word[10748520] = 5792870934917836361
+    word[10748528] = 1701011820
+    word[10748536] = 0
+    word[10748544] = 23
+    word[10748552] = 8245922027830342485
+    word[10748560] = 7809639177543108965
+    word[10748568] = 31084746152966761
+    word[10748576] = 12
+    word[10748584] = 7453010364735910725
+    word[10748592] = 2003134806
+    word[10748600] = 0
+    word[10748608] = 20
+    word[10748616] = 4856122212424773193
+    word[10748624] = 7013349745640107631
+    word[10748632] = 1952802674
+    word[10748640] = 15
+    word[10748648] = 6081101311069548105
+    word[10748656] = 30506424327828069
+    word[10748664] = 0
+    word[10748672] = 16
+    word[10748680] = 8386093285582599492
+    word[10748688] = 7958535042360234085
+    word[10748696] = 0
+    word[10748704] = 16
+    word[10748712] = 8458156441485602638
+    word[10748720] = 7887302017652716659
+    word[10748728] = 0
+    word[10748736] = 17
+    word[10748744] = 7666624519186703684
+    word[10748752] = 8030869648334676837
+    word[10748760] = 110
+    word[10748768] = 19
+    word[10748776] = 7885595558393177412
+    word[10748784] = 7166481890917771632
+    word[10748792] = 6647151
+    word[10748800] = 8
+    word[10748808] = 7310579611546251075
+    word[10748816] = 0
+    word[10748824] = 0
+    word[10748832] = 6
+    word[10748840] = 127970252055890
+    word[10748848] = 0
+    word[10748856] = 0
+    return 0
+}
+
+proc d19_name_matches(off, code) {
+    let i = 0
+    state code {
+        to no when ((code < 1) + (code > 30) != 0)
+        let base = 10747904 + (code - 1) * 32
+        let length = word[base]
+        to loop
+    }
+    state loop {
+        to exact when (i == length)
+        to no when (byte[2097152 + off + i] != byte[base + 8 + i])
+        i = i + 1
+        to loop
+    }
+    state exact { return 1 - is_ident_continue(byte[2097152 + off + length]) }
+    state no { return 0 }
+}
+
+proc d19_name_code(off) {
+    let code = 1
+    state loop { to compare when (code <= 30)  return 0 }
+    state compare {
+        to found when (d19_name_matches(off, code) == 1)
+        code = code + 1
+        to loop
+    }
+    state found { return code }
+}
+
 
 ; Closed D16 builtin identity. Return 1 empty, 2 single, 3 length, 4 get,
 ; 5 slice, 6 concat, or 0 for an ordinary function name.
@@ -3106,6 +3265,142 @@ proc lower_expr(expr, tail_position) {
     }
 }
 
+; ---- D19 selected application schemas --------------------------------
+;
+; These checks consume only resolved D20 identities and author no candidate
+; payload.  The still-unruled compilation-request envelope, exact profile
+; maxima, and GCOUT/DCOUT resource tables remain outside this slice.
+
+proc validate_d19_conformance_schema() {
+    let function_index = 0
+    let main_count = 0
+    let main_identity = 0
+    state loop { to row when (function_index < word[2097120])  to result }
+    state row {
+        let name_off = word[8388608 + function_index * 32]
+        let is_main = name_is_packed(name_off, 1852399981, 0, 4)
+        main_count = main_count + is_main
+        main_identity = main_identity + (function_index + 1) * is_main
+        function_index = function_index + 1
+        to loop
+    }
+    state result {
+        to invalid when (main_count != 1)
+        let main_index = main_identity - 1
+        let profile = word[8388608 + main_index * 32 + 16]
+        to invalid when (profile / 4294967296 != 1)
+        let parameters = word[8388608 + main_index * 32 + 8]
+        let parameter = word[parameters + 8]
+        let accepted = (profile % 65536 == 1) * (word[parameter + 16] == 1)
+        return main_identity * accepted
+    }
+    state invalid { return 0 }
+}
+
+proc d19_fields_match(fields, first_type, second_type, expected_count) {
+    let cursor = fields
+    let seen = 0
+    let invalid = 0
+    state loop { to row when (cursor != 0)  return (seen == expected_count) * (invalid == 0) }
+    state row {
+        let actual_type = word[cursor + 8]
+        invalid = invalid + (word[cursor] % 256 != 6)
+        invalid = invalid + (seen >= expected_count)
+        invalid = invalid + (seen == 0) * (actual_type != first_type)
+        invalid = invalid + (seen == 1) * (actual_type != second_type)
+        seen = seen + 1
+        cursor = word[cursor + 16]
+        to loop
+    }
+}
+
+proc validate_d19_delta_schema() {
+    d19_initialize_name_table()
+    let reason_type = 0 - 1
+    let outcome_type = 0 - 1
+    let type_index = 2
+    state type_loop { to type_row when (type_index < word[2097104])  to constructor_start }
+    state type_row {
+        let type_code = d19_name_code(word[6291456 + type_index * 8])
+        reason_type = reason_type + (type_index + 1) * (type_code == 27)
+        outcome_type = outcome_type + (type_index + 1) * (type_code == 28)
+        type_index = type_index + 1
+        to type_loop
+    }
+    state constructor_start {
+        let constructor_index = 0
+        let reason_count = 0
+        let outcome_count = 0
+        let complete_identity = 0
+        let reject_identity = 0
+        let schema_invalid = (reason_type < 2) + (outcome_type < 2)
+        to constructor_loop
+    }
+    state constructor_loop { to constructor_row when (constructor_index < word[2097096])  to function_start }
+    state constructor_row {
+        let owner_type = word[6815744 + constructor_index * 24 + 8]
+        let constructor_code = d19_name_code(word[6815744 + constructor_index * 24])
+        let fields = word[6815744 + constructor_index * 24 + 16]
+        let is_reason = owner_type == reason_type
+        let is_outcome = owner_type == outcome_type
+        let is_complete = is_outcome * (constructor_code == 29)
+        let is_reject = is_outcome * (constructor_code == 30)
+        let reason_fields_ok = d19_fields_match(fields, 0, 0, 0)
+        let complete_fields_ok = d19_fields_match(fields, 1, 0, 1)
+        let reject_fields_ok = d19_fields_match(fields, reason_type, 0, 2)
+        schema_invalid = schema_invalid + is_reason * (constructor_code < 1)
+        schema_invalid = schema_invalid + is_reason * (constructor_code > 26)
+        schema_invalid = schema_invalid + is_reason * (1 - reason_fields_ok)
+        schema_invalid = schema_invalid + is_outcome * (1 - is_complete - is_reject)
+        schema_invalid = schema_invalid + is_complete * (1 - complete_fields_ok)
+        schema_invalid = schema_invalid + is_reject * (1 - reject_fields_ok)
+        reason_count = reason_count + is_reason
+        outcome_count = outcome_count + is_outcome
+        complete_identity = complete_identity + (constructor_index + 1) * is_complete
+        reject_identity = reject_identity + (constructor_index + 1) * is_reject
+        word[10750000 + (constructor_code - 1) * 8] = (constructor_index + 1) * (is_reason + is_outcome)
+        constructor_index = constructor_index + 1
+        to constructor_loop
+    }
+    state function_start {
+        let function_index = 0
+        let main_count = 0
+        let main_identity = 0
+        to function_loop
+    }
+    state function_loop { to function_row when (function_index < word[2097120])  to result }
+    state function_row {
+        let function_name = word[8388608 + function_index * 32]
+        let is_main = name_is_packed(function_name, 1852399981, 0, 4)
+        main_count = main_count + is_main
+        main_identity = main_identity + (function_index + 1) * is_main
+        function_index = function_index + 1
+        to function_loop
+    }
+    state result {
+        schema_invalid = schema_invalid + (reason_count != 26)
+        schema_invalid = schema_invalid + (outcome_count != 2)
+        schema_invalid = schema_invalid + (complete_identity == 0)
+        schema_invalid = schema_invalid + (reject_identity == 0)
+        schema_invalid = schema_invalid + (main_count != 1)
+        to invalid when (schema_invalid != 0)
+        let main_index = main_identity - 1
+        let main_profile = word[8388608 + main_index * 32 + 16]
+        to invalid when (main_profile / 4294967296 != 1)
+        let main_parameters = word[8388608 + main_index * 32 + 8]
+        let main_parameter = word[main_parameters + 8]
+        schema_invalid = (main_profile % 65536 != outcome_type) + (word[main_parameter + 16] != 1)
+        to invalid when (schema_invalid != 0)
+        word[10750208] = complete_identity
+        word[10750216] = reject_identity
+        word[10750224] = main_identity
+        word[10750232] = reason_type
+        word[10750240] = outcome_type
+        return 1
+    }
+    state invalid { return 0 }
+}
+
 ; ---- resolved whole-function emission --------------------------------
 ;
 ; D20 has already retained exact one-based function identities and a packed
@@ -3121,10 +3416,14 @@ proc validate_gamma_function_rows() {
     let parameter_cursor = 0
     let parameter_seen = 0
     let next_parameter_cursor = 0
-    state count_low { to invalid_count when (function_count < 1)  to count_high }
-    state count_high { to invalid_count when (function_count > 32768)  to arena_low }
-    state arena_low { to invalid_arena when (arena_end < 16777248)  to arena_high }
-    state arena_high { to invalid_arena when (arena_end > 131072000)  to arena_align }
+    state count {
+        to invalid_count when ((function_count < 1) + (function_count > 32768) != 0)
+        to arena
+    }
+    state arena {
+        to invalid_arena when ((arena_end < 16777248) + (arena_end > 131072000) != 0)
+        to arena_align
+    }
     state arena_align {
         to invalid_arena when ((arena_end - 16777248) % 32 != 0)
         let function_index = 0
@@ -3139,23 +3438,21 @@ proc validate_gamma_function_rows() {
         let maximum_locals = (profile / 65536) % 65536
         let parameter_count = profile / 4294967296
         let frame_prefix = 16 + maximum_locals * 16
-        to invalid_profile when (return_type >= word[2097104])
-        to invalid_profile when (frame_prefix < 16)
-        to invalid_profile when (frame_prefix % 16 != 0)
-        to invalid_profile when (frame_prefix > 15728640)
-        to invalid_profile when (parameter_count < 0)
-        to invalid_profile when (parameter_count > 983040)
-        to invalid_profile when (parameter_count > (15728640 - frame_prefix) / 16)
+        let profile_invalid = (return_type >= word[2097104])
+        profile_invalid = profile_invalid + (frame_prefix < 16)
+        profile_invalid = profile_invalid + (frame_prefix % 16 != 0)
+        profile_invalid = profile_invalid + (frame_prefix > 15728640)
+        profile_invalid = profile_invalid + (parameter_count < 0)
+        profile_invalid = profile_invalid + (parameter_count > 983040)
+        profile_invalid = profile_invalid + (parameter_count > (15728640 - frame_prefix) / 16)
+        to invalid_profile when (profile_invalid != 0)
         to body_bounds
     }
     state body_bounds {
-        to invalid_body when (body < 16777248)
-        to invalid_body when (body > arena_end - 32)
+        to invalid_body when ((body < 16777248) + (body > arena_end - 32) != 0)
         to invalid_body when ((body - 16777248) % 32 != 0)
         let body_tag = word[body] % 256
-        to invalid_body when (body_tag < 0)
-        to invalid_body when (body_tag == 6)
-        to invalid_body when (body_tag > 8)
+        to invalid_body when ((body_tag < 0) + (body_tag == 6) + (body_tag > 8) != 0)
         parameter_cursor = word[8388608 + function_index * 32 + 8]
         parameter_seen = 0
         to parameter_loop
@@ -3166,24 +3463,22 @@ proc validate_gamma_function_rows() {
         to parameter_link
     }
     state parameter_link {
-        to invalid_parameter when (parameter_cursor < 16777248)
-        to invalid_parameter when (parameter_cursor > arena_end - 32)
+        to invalid_parameter when ((parameter_cursor < 16777248) + (parameter_cursor > arena_end - 32) != 0)
         to invalid_parameter when ((parameter_cursor - 16777248) % 32 != 0)
-        to invalid_parameter when (word[parameter_cursor] % 256 != 6)
-        to invalid_parameter when (word[parameter_cursor + 24] != 0)
+        to invalid_parameter when ((word[parameter_cursor] % 256 != 6) + (word[parameter_cursor + 24] != 0) != 0)
         let parameter = word[parameter_cursor + 8]
         next_parameter_cursor = word[parameter_cursor + 16]
         to parameter_node
     }
     state parameter_node {
-        to invalid_parameter when (parameter < 16777248)
-        to invalid_parameter when (parameter > arena_end - 32)
+        to invalid_parameter when ((parameter < 16777248) + (parameter > arena_end - 32) != 0)
         to invalid_parameter when ((parameter - 16777248) % 32 != 0)
-        to invalid_parameter when (parameter >= parameter_cursor)
-        to invalid_parameter when (word[parameter] % 256 != 50)
-        to invalid_parameter when (word[parameter + 16] < 0)
-        to invalid_parameter when (word[parameter + 16] >= word[2097104])
-        to invalid_parameter when (word[parameter + 24] != parameter_seen + 1)
+        let parameter_invalid = (parameter >= parameter_cursor)
+        parameter_invalid = parameter_invalid + (word[parameter] % 256 != 50)
+        parameter_invalid = parameter_invalid + (word[parameter + 16] < 0)
+        parameter_invalid = parameter_invalid + (word[parameter + 16] >= word[2097104])
+        parameter_invalid = parameter_invalid + (word[parameter + 24] != parameter_seen + 1)
+        to invalid_parameter when (parameter_invalid != 0)
         to parameter_next_check when (next_parameter_cursor != 0)
         to parameter_advance
     }

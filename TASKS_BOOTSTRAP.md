@@ -547,18 +547,25 @@ code, discover a closure, manufacture proof premises, or decide admission.
       fields, reuse-derived maximum, exact/adjacent local capacity, and profile
       counts. The variable/let/call/constructor/match source joins and
       whole-function body emission consume those profiles.
-  - Implement D19's sealed application-profile input as part of the exact Gamma
-    compilation question and reconstruction evidence. Generate exactly
-    `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
-    `DeltaCompilerV1` (`main : Bytes -> DeltaCompileOutcome`) adapters. The
-    latter validates the exact resolved source-owned outcome schema and a total
-    bijection between every `DeltaRejectReason` constructor and the
-    profile-owned `DCOUT` v1 table before emission. A mismatch rejects through
-    `GCOUT`; no adapter may retain an unhandled case. Validate D21's
-    `0 <= maximum sealed input <= INT64_MAX` profile invariant before emission.
-    Both adapters supply
-    sealed `Bytes`, own their closed external observation/resource profiles,
-    preflight output, and never publish partial bytes.
+  - [x] Resolve D19's two exact application schemas without selecting a boundary
+    from source names. `ConformanceBytesV1` requires the unique resolved
+    `main : Bytes -> Bytes`. `DeltaCompilerV1` requires the exact source-owned
+    `DeltaRejectReason`, `DeltaCompileOutcome`, `Complete(Bytes)`,
+    `Reject(DeltaRejectReason, Int)`, and `main` identities. A private exact-name
+    table covers identifiers through 24 bytes and fixes D17's 26 reason codes
+    independently of declaration order; staged private identities are
+    consumable only when the validator succeeds, and it authors no candidate
+    adapter bytes. Six adjacent cases accept both profiles, reverse every reason
+    declaration while preserving the mapping, and reject a wrong entry, missing
+    reason, extra outcome constructor, and wrong `Reject` payload.
+  - [ ] **OWNER-BLOCKED — Q4 D19 PHYSICAL PROFILES.** Fix the sealed
+    source-plus-profile request encoding, numeric profile IDs, both exact input
+    maxima, Conformance observation table, `GCOUT` identity/tables, and the
+    missing `DCOUT` magic/resource/internal tables. Then generate the two PC-zero
+    adapters, validate D21's `0 <= maximum sealed input <= INT64_MAX` invariant,
+    supply sealed `Bytes`, preflight all success/failure output, and publish no
+    partial bytes. The logical D19 contracts and source-owned Delta schema are
+    settled; only these exact boundary facts block canonical adapter bytes.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
@@ -573,9 +580,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source now declares 109 procedures; with the
-    frontend gate entry, the gate uses 110 of the persisted V2 artifact's 256
-    procedure slots. It compiles to 293,875 bytes, leaving 754,697 bytes below
+    tape budget. The retained source now declares 115 procedures; with the
+    frontend gate entry, the gate uses 116 of the persisted V2 artifact's 256
+    procedure slots. It compiles to 329,015 bytes, leaving 719,557 bytes below
     the V2 runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
@@ -795,7 +802,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     gate retains a real exact-maximum compiler tape with representative source,
     named lemmas, normalization, scratch, simultaneous outer maxima, balanced
     arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
-    tapes reproduce exactly; the current consolidated Gamma gate is 198/198
+    tapes reproduce exactly; the current consolidated Gamma gate is 204/204
     after replacing five redundant full-source compiler variants with one
     whole-function emitter. Ordinary density work remains useful but is no
     longer a condition for the retired V1 ceiling.

@@ -37,8 +37,10 @@ compact immutable-`Bytes` helpers, resolved expression lowering, the
 arbitrary-arity/proper-tail-call frame and algebraic-value ABIs, profile-neutral
 whole-function label/body emission, and a dormant profile-parameterized
 sealed-input reader. D19 fixes its two possible application contracts and D20's
-resolver is implemented, but adapter completion, remaining lowering, and
-publication remain implementation work. Complete
+resolver is implemented. The compiler now validates both exact D19 entry
+schemas and the declaration-order-independent 26-code Delta rejection
+bijection, but Q4's physical profile facts, adapter completion, remaining
+lowering, and publication remain open. Complete
 fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an

@@ -118,6 +118,36 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 }
 stamp_seed "$T/local-profile.tape" "$SEED" "$T/local-profile.exe" >/dev/null 2>&1
 
+# D19 schema selection is pure compiler-side admission. This focused entry
+# checks both exact profiles and the declaration-order-independent DCOUT reason
+# mapping without emitting an application adapter or choosing unruled profile
+# constants.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to frontend_failed when (frontend_status != 1)' \
+    '        let conformance_identity = validate_d19_conformance_schema()' \
+    '        let delta_status = validate_d19_delta_schema()' \
+    '        let retained_delta = (word[10750000] == 26)' \
+    '        retained_delta = retained_delta * (word[10750200] == 1)' \
+    '        retained_delta = retained_delta * (word[10750208] == 27)' \
+    '        retained_delta = retained_delta * (word[10750216] == 28)' \
+    '        retained_delta = retained_delta * (word[10750224] == 1)' \
+    '        retained_delta = retained_delta * (word[10750232] == 2)' \
+    '        retained_delta = retained_delta * (word[10750240] == 3)' \
+    '        return 3 - 2 * (conformance_identity != 0) - (delta_status == 1) * retained_delta' \
+    '    }' \
+    '    state frontend_failed { return 4 }' \
+    '}'
+} | "$T/bc.exe" > "$T/d19-schema.tape" || {
+  echo "bc(gamma_compiler.beta + D19 schema gate) failed"
+  exit 1
+}
+stamp_seed "$T/d19-schema.tape" "$SEED" "$T/d19-schema.exe" >/dev/null 2>&1
+
 {
   runtime_emitter_source
   printf '%s\n' \
@@ -2035,7 +2065,10 @@ fi
 stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
 
 # Test-only row-zero root wrapper. Production root selection and the generated
-# application adapter remain sealed-profile output owned by D19.
+# application adapter remain sealed-profile output owned by D19. The executable
+# return-kind/root-frame postcondition is authored directly because the Beta
+# seed's global call-edge table is at its ruled ceiling; validate_payload()
+# still replays its instruction boundaries and targets before publication.
 {
   sed -n '1,$p' gamma_compiler.beta
   printf '%s\n' \
@@ -2059,11 +2092,7 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        let concat_label = 12' \
     '        let failure_label = 13' \
     '        let internal_label = 14' \
-    '        let result_kind_label = 15' \
-    '        let root_stack_label = 16' \
-    '        let root_base_label = 17' \
-    '        let unexpected_label = 18' \
-    '        word[2097032] = 19' \
+    '        word[2097032] = 15' \
     '        word[2097000] = stack_label' \
     '        word[2096992] = add_label' \
     '        word[2096984] = sub_label' \
@@ -2091,18 +2120,39 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        word[11010048 + entry_label * 8] = word[2097040] + 1' \
     '        emit_runtime_init()' \
     '        emit_gamma_call_frame(stack_label, row_zero_label, row_zero_prefix, 0)' \
-    '        emit_imm(20, 0)' \
-    '        emit_rrx(16, 0, 20, result_kind_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(result_kind_label)' \
-    '        emit_imm(20, 16777216)' \
-    '        emit_rrx(16, 252, 20, root_stack_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(root_stack_label)' \
-    '        emit_rrx(16, 253, 20, root_base_label)' \
-    '        emit_jump(12, unexpected_label)' \
-    '        define_label(root_base_label)' \
-    '        emit_r(0, 1)' \
+    '        let guard_start = word[2097040]' \
+    '        byte[133169152 + guard_start] = 1' \
+    '        byte[133169153 + guard_start] = 20' \
+    '        word[133169154 + guard_start] = 0' \
+    '        byte[133169162 + guard_start] = 16' \
+    '        byte[133169163 + guard_start] = 0' \
+    '        byte[133169164 + guard_start] = 20' \
+    '        word[133169165 + guard_start] = guard_start + 30' \
+    '        byte[133169173 + guard_start] = 12' \
+    '        word[133169174 + guard_start] = guard_start + 82' \
+    '        byte[133169182 + guard_start] = 1' \
+    '        byte[133169183 + guard_start] = 20' \
+    '        word[133169184 + guard_start] = 16777216' \
+    '        byte[133169192 + guard_start] = 16' \
+    '        byte[133169193 + guard_start] = 252' \
+    '        byte[133169194 + guard_start] = 20' \
+    '        word[133169195 + guard_start] = guard_start + 60' \
+    '        byte[133169203 + guard_start] = 12' \
+    '        word[133169204 + guard_start] = guard_start + 82' \
+    '        byte[133169212 + guard_start] = 16' \
+    '        byte[133169213 + guard_start] = 253' \
+    '        byte[133169214 + guard_start] = 20' \
+    '        word[133169215 + guard_start] = guard_start + 80' \
+    '        byte[133169223 + guard_start] = 12' \
+    '        word[133169224 + guard_start] = guard_start + 82' \
+    '        byte[133169232 + guard_start] = 0' \
+    '        byte[133169233 + guard_start] = 1' \
+    '        byte[133169234 + guard_start] = 1' \
+    '        byte[133169235 + guard_start] = 0' \
+    '        word[133169236 + guard_start] = 252' \
+    '        byte[133169244 + guard_start] = 0' \
+    '        byte[133169245 + guard_start] = 0' \
+    '        word[2097040] = guard_start + 94' \
     '        let bodies_ok = emit_gamma_function_bodies()' \
     '        to bodies_emitted' \
     '    }' \
@@ -2113,9 +2163,6 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        emit_r(0, 0)' \
     '        define_label(internal_label)' \
     '        emit_imm(0, 254)' \
-    '        emit_r(0, 0)' \
-    '        define_label(unexpected_label)' \
-    '        emit_imm(0, 252)' \
     '        emit_r(0, 0)' \
     '        emit_stack_reserver(stack_label, failure_label)' \
     '        emit_heap_allocator(heap_label, failure_label)' \
@@ -2393,6 +2440,25 @@ stamp_seed "$T/match-metadata.tape" "$SEED" "$T/match-metadata.exe" >/dev/null 2
 stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
+d19_schema_case() { # source expected-status description
+  printf '%s' "$1" | "$T/d19-schema.exe" > "$T/d19-schema.out"
+  d19_schema_status=$?
+  if [ "$d19_schema_status" = "$2" ] && [ ! -s "$T/d19-schema.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL D19 schema $3: status $d19_schema_status, output $(wc -c < "$T/d19-schema.out" | tr -d ' ') bytes"
+  fi
+}
+d19_reason_reverse='(NonexhaustiveSum) (DuplicatePattern) (InvalidTerminal) (InvalidControlTarget) (EscapingView) (UseBeforeInitialization) (InvalidPlace) (ArityMismatch) (TypeMismatch) (UnknownName) (InvalidArrayLength) (InvalidDataShape) (RecursiveValueType) (UnknownType) (InvalidBoundary) (InvalidEntry) (MissingEntry) (DuplicateName) (UnexpectedEnd) (UnexpectedToken) (IntegerLiteralOutOfRange) (InvalidEscape) (UnterminatedString) (InvalidCharacterLiteral) (InvalidToken) (InvalidSourceByte)'
+d19_reason_missing='(NonexhaustiveSum) (DuplicatePattern) (InvalidTerminal) (InvalidControlTarget) (EscapingView) (UseBeforeInitialization) (InvalidPlace) (ArityMismatch) (TypeMismatch) (UnknownName) (InvalidArrayLength) (InvalidDataShape) (RecursiveValueType) (UnknownType) (InvalidBoundary) (InvalidEntry) (MissingEntry) (DuplicateName) (UnexpectedEnd) (UnexpectedToken) (IntegerLiteralOutOfRange) (InvalidEscape) (UnterminatedString) (InvalidCharacterLiteral) (InvalidToken)'
+d19_schema_case '(def main ((input Bytes)) Bytes input)' 1 'ConformanceBytesV1 exact entry'
+d19_schema_case '(def main ((input Int)) Bytes (bytes_empty))' 3 'ConformanceBytesV1 wrong parameter type'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 2 'DeltaCompilerV1 exact schema and reversed reason order'
+d19_schema_case "(data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'missing DCOUT reason row'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int) (Other)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'extra outcome constructor'
+d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong Reject offset payload'
+unset d19_reason_reverse d19_reason_missing d19_schema_status
 printf '%s' '(def main ((value Int)) Int value)' | "$T/function-metadata.exe" > "$T/function-metadata.out"
 function_metadata_status=$?
 if [ "$function_metadata_status" = 1 ] && [ ! -s "$T/function-metadata.out" ]; then
