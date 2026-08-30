@@ -349,6 +349,9 @@ explicitly.
   under D28; package evidence must never substitute declaration order, display
   signatures, ordinals, authored assertions, bootstrap lowering, or
   reach-selected subsets.
+  Removal or retention of the non-authorizing provider-asserted arity/string
+  scaffold is owner-blocked on `OWNER_QUESTIONS.md` Q6; do not extend that
+  scaffold while the question is open.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external
