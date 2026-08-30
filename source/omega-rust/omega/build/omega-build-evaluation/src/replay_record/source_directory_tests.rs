@@ -128,8 +128,9 @@ fn summary() -> BuildObservationSummary {
             psi_checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: source_directory_attempts(),
         canonical_source_metadata_identity: None,
-        source_inputs_replay_verified: true,
-        operation_replay_verified: true,
+        filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
+            BuildFilesystemReplayDisposition::Complete,
+        ),
         included_source_handoffs: Vec::new(),
         staged_output_tree: None,
     }

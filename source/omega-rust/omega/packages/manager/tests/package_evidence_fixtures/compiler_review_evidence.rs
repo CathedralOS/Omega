@@ -76,8 +76,12 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 "only generated-table executes its declared filesystem build"
             );
             if executes_filesystem_build {
-                assert!(observations.source_inputs_replay_verified());
-                assert!(observations.operation_replay_verified());
+                assert!(
+                    observations
+                        .filesystem_replay_verdict()
+                        .replays_source_inputs()
+                );
+                assert!(observations.filesystem_replay_verdict().is_complete());
                 let [_, read, _, _, _, _] = observations.filesystem_operation_attempts() else {
                     panic!("generated-table retains its six filesystem attempts")
                 };

@@ -69,7 +69,7 @@ invokes FilesystemHost;
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build publishes observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     let limits = ReviewOnlyBaselineLimits::default();
     let replay =
         capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
@@ -139,7 +139,7 @@ invokes FilesystemHost;
     let summary = compilation
         .build_observation_summary()
         .expect("unknown sync_data publishes build observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
 
     let limits = ReviewOnlyBaselineLimits::default();

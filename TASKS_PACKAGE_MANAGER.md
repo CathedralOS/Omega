@@ -109,9 +109,6 @@ closed. Compiler-issued package review remains non-admitting.
   - retain exact failed and denied outcomes, including their rooted/refused
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
-  - replace the current pair of partial replay booleans with one complete,
-    versioned verdict over the exact attempted operation sequence, staged-output
-    commitment, generated-source handoffs, teardown, and replay result;
   - enforce process CPU/memory and every remaining whole-session quota needed
     before that verdict can be authority-bearing.
 

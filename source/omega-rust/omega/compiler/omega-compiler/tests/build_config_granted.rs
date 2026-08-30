@@ -7,10 +7,11 @@
 //! undeclared services and package-authored boundary lookalikes.
 
 use omega_build_evaluation::{
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
-    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
-    BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION, BuildFilesystemGrantAccess,
+    BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleInputResolution,
+    BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutputSource,
+    BuildFilesystemMetadataObservationKind, BuildFilesystemObservedByteRegionKind,
+    BuildFilesystemOperationResult, BuildFilesystemProvider, BuildFilesystemReplayDisposition,
     BuildFilesystemReplayRecordLimits, BuildFilesystemReturnedPathCompleteness,
     BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
     BuildObservationClass, capture_verified_build_filesystem_replay_record,
@@ -341,7 +342,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 51);
+    assert_eq!(checked_observations.schema_version(), 52);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1463,7 +1464,7 @@ fn source_path_metadata_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("source metadata build retains observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     let [followed, unfollowed] = summary.filesystem_operation_attempts() else {
         panic!("source metadata fixture has two events")
     };
@@ -1645,7 +1646,11 @@ fn source_path_metadata_is_replayed_without_a_filesystem_provider() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened metadata replay retains observations");
-    assert!(replayed_summary.source_inputs_replay_verified());
+    assert!(
+        replayed_summary
+            .filesystem_replay_verdict()
+            .replays_source_inputs()
+    );
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
@@ -1694,7 +1699,7 @@ fn source_metadata_and_read_chains_replay_in_exact_order() {
     let summary = compilation
         .build_observation_summary()
         .expect("ordered source input build retains observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1739,7 +1744,11 @@ fn failed_source_metadata_does_not_claim_source_input_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("metadata build retains observations");
-    assert!(!summary.source_inputs_replay_verified());
+    assert_eq!(
+        summary.filesystem_replay_verdict().disposition(),
+        BuildFilesystemReplayDisposition::NotReplayed
+    );
+    assert!(!summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,
@@ -1766,7 +1775,7 @@ fn source_open_descriptor_metadata_close_replays_without_a_filesystem_provider()
     let summary = compilation
         .build_observation_summary()
         .expect("descriptor metadata retains observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     let [open, metadata_attempt, close] = summary.filesystem_operation_attempts() else {
         panic!("descriptor metadata replay fixture has three attempts")
     };
@@ -1805,7 +1814,11 @@ fn source_open_descriptor_metadata_close_replays_without_a_filesystem_provider()
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed descriptor metadata retains observations");
-    assert!(replayed_summary.source_inputs_replay_verified());
+    assert!(
+        replayed_summary
+            .filesystem_replay_verdict()
+            .replays_source_inputs()
+    );
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
@@ -1828,8 +1841,16 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(!summary.operation_replay_verified());
+    assert_eq!(
+        summary.filesystem_replay_verdict().schema_version(),
+        BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION
+    );
+    assert_eq!(
+        summary.filesystem_replay_verdict().disposition(),
+        BuildFilesystemReplayDisposition::SourceInputsOnly
+    );
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(!summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Volatile);
     assert!(summary.staged_output_tree().is_none());
     assert_eq!(
@@ -1917,8 +1938,12 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened replay retains observations");
-    assert!(replayed_summary.source_inputs_replay_verified());
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(
+        replayed_summary
+            .filesystem_replay_verdict()
+            .replays_source_inputs()
+    );
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(replayed_summary.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(
         replayed_summary.realized(),
@@ -2000,8 +2025,8 @@ fn assert_operand_free_unknown_descriptor_failure_replay(
     let summary = compilation
         .build_observation_summary()
         .expect("unknown-descriptor failure retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -2048,7 +2073,7 @@ fn assert_operand_free_unknown_descriptor_failure_replay(
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed unknown-descriptor failure retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
@@ -2072,8 +2097,8 @@ fn source_only_replay_requires_exact_empty_sponsored_output_custody() {
     let summary = checked
         .build_observation_summary()
         .expect("source-only receipt retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -2108,7 +2133,7 @@ fn source_only_replay_requires_exact_empty_sponsored_output_custody() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened source-only receipt retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -2159,8 +2184,8 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
     let summary = checked
         .build_observation_summary()
         .expect("ordinary output receipt retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert!(summary.included_source_handoffs().is_empty());
     let staged = summary
@@ -2219,7 +2244,7 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened ordinary output retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -2286,8 +2311,8 @@ fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
     let summary = checked
         .build_observation_summary()
         .expect("multiple-output receipt retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert!(summary.included_source_handoffs().is_empty());
     let staged = summary
@@ -2333,7 +2358,7 @@ fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened multiple-output build retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -2384,7 +2409,7 @@ fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -2518,7 +2543,7 @@ fn source_open_mixed_read_sequence_close_replays_exact_cursor_semantics() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -2573,7 +2598,11 @@ fn source_open_mixed_read_sequence_close_replays_exact_cursor_semantics() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened mixed replay retains observations");
-    assert!(replayed_summary.source_inputs_replay_verified());
+    assert!(
+        replayed_summary
+            .filesystem_replay_verdict()
+            .replays_source_inputs()
+    );
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts(),
@@ -2625,7 +2654,7 @@ fn multiple_source_read_chains_replay_distinct_files_and_cursors() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -2682,7 +2711,11 @@ fn multiple_source_read_chains_replay_distinct_files_and_cursors() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened source-read chains retain observations");
-    assert!(replayed_summary.source_inputs_replay_verified());
+    assert!(
+        replayed_summary
+            .filesystem_replay_verdict()
+            .replays_source_inputs()
+    );
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
@@ -2728,7 +2761,7 @@ fn failed_source_read_at_does_not_claim_bounded_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(!summary.source_inputs_replay_verified());
+    assert!(!summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,
@@ -2783,7 +2816,10 @@ fn empty_or_non_read_middle_source_sequences_do_not_claim_bounded_replay() {
         let summary = compilation
             .build_observation_summary()
             .expect("filesystem build retains observations");
-        assert!(!summary.source_inputs_replay_verified(), "{label}");
+        assert!(
+            !summary.filesystem_replay_verdict().replays_source_inputs(),
+            "{label}"
+        );
         assert!(
             capture_verified_build_filesystem_replay_record(
                 summary,
@@ -2811,7 +2847,7 @@ fn write_like_source_open_does_not_claim_bounded_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(!summary.source_inputs_replay_verified());
+    assert!(!summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,
@@ -3146,9 +3182,9 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 51);
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.schema_version(), 52);
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     let [complete, truncated] = summary.filesystem_operation_attempts() else {
         panic!("fixture performs two read_link operations")
@@ -3234,7 +3270,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed source read_link retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -3440,8 +3476,8 @@ fn receipted_generated_source_reopens_with_source_custody_and_rejects_source_dri
     let summary = checked
         .build_observation_summary()
         .expect("bounded source/output build retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -3500,7 +3536,7 @@ fn receipted_generated_source_reopens_with_source_custody_and_rejects_source_dri
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened receipt retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -3566,7 +3602,7 @@ fn multiple_generated_source_handoffs_retain_exact_order_and_ordinals() {
     let summary = checked
         .build_observation_summary()
         .expect("multiple generated-source receipt retains observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -3719,7 +3755,7 @@ fn sequential_full_writes_replay_as_concatenated_output_files() {
     let summary = checked
         .build_observation_summary()
         .expect("multiwrite receipt retains observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -3836,7 +3872,7 @@ fn full_positioned_writes_replay_exact_cursor_and_extent() {
     let summary = checked
         .build_observation_summary()
         .expect("positioned-write receipt retains observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -3947,7 +3983,7 @@ fn empty_output_file_replays_without_synthetic_write() {
     let summary = checked
         .build_observation_summary()
         .expect("empty-output receipt retains observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -4047,8 +4083,8 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 51);
-    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.schema_version(), 52);
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -4120,8 +4156,8 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 51);
-    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.schema_version(), 52);
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -4203,7 +4239,7 @@ fn output_set_len_replays_exact_truncation() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "resized-output-review")
             .expect("successful Output set_len should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -4288,7 +4324,7 @@ fn output_set_file_permissions_replays_exact_executable_class() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "permissioned-output-review")
             .expect("successful Output descriptor permission change should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -4378,7 +4414,7 @@ fn output_set_file_times_replays_exact_timespec_carrier() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "dated-output-review")
             .expect("successful Output descriptor time change should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -4455,7 +4491,7 @@ fn output_seek_replays_exact_cursor_transition() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "seeked-output-review")
             .expect("successful canonical Output seek should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary

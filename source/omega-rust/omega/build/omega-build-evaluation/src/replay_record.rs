@@ -7,6 +7,8 @@ use crate::{
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemScalarOperandValue, BuildObservationSummary,
 };
+#[cfg(test)]
+use crate::{BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict};
 use sha2::{Digest, Sha256};
 use std::fmt;
 
@@ -48,7 +50,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 32;
+const VERSION: u16 = 33;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -135,7 +137,8 @@ pub fn capture_verified_build_filesystem_replay_record(
     summary: &BuildObservationSummary,
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<Option<ReviewOnlyBuildFilesystemReplayRecord>, BuildFilesystemReplayRecordError> {
-    if !summary.source_inputs_replay_verified() {
+    let replay_verdict = summary.filesystem_replay_verdict();
+    if !replay_verdict.replays_source_inputs() {
         return Ok(None);
     }
     let includes_output = summary
@@ -151,7 +154,7 @@ pub fn capture_verified_build_filesystem_replay_record(
                     .iter()
                     .any(|path| path.root() == BuildFilesystemRoot::Output)
         });
-    if includes_output && !summary.operation_replay_verified() {
+    if includes_output && !replay_verdict.is_complete() {
         return Ok(None);
     }
     let mut encoder = Encoder::new(limits.maximum_bytes);
