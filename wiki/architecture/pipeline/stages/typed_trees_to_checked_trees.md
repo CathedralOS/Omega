@@ -220,13 +220,25 @@ Must own:
   The implemented first cohort is narrower than the completed D29 contract:
   monomorphic selected boundary uses retain the canonical empty application,
   and spelled operators retain complete closed inferred type bindings keyed by
-  requirement owner, `Type` category, and declaration ordinal. Open caller
-  binders, nested open arguments, unresolved nominal identity, and constraints
-  without a closed structural replay remain unavailable rather than being
-  mislabeled concrete. Named generic calls remain unavailable because their
-  retained static arguments are not yet bound to the operator telescope by
-  call validation. Const applications also remain unavailable until one
-  checked row pairs the evaluated value with its exact declared carrier.
+  requirement owner, `Type` category, and declaration ordinal. Closed,
+  unbounded, type-only named calls use one pure structural judgment during
+  ordinary validation: operand inference must close the complete telescope,
+  and explicitly authored type arguments must exactly corroborate that
+  application. Validation retains the exact expression or statement use,
+  selected requirement, binder coordinates, and structural type handles;
+  checked lowering rejects any row that fails to rejoin the same selected use
+  and declaration telescope. Unit-returning named statement syntax is
+  normalized to a generated expression while preserving its authored call
+  occurrence and source span. No display identity, digest, or marker that an
+  audit happened participates.
+
+  Open caller binders, nested open arguments, unresolved nominal identity,
+  property-bounded applications, and constraints without a closed structural
+  replay remain unavailable rather than being mislabeled concrete. Const
+  applications also remain unavailable until one checked row pairs the
+  evaluated value with its exact declared carrier. D29's mention of `where`
+  requirements means requirements expressible by the operator model; this
+  work does not incidentally invent a general operator `where` surface.
   Missing rows are not coverage and cannot be filled from the pre-D29 indexed-
   provider scaffold.
 

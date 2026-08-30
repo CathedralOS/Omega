@@ -1,4 +1,13 @@
+mod applications;
 mod signatures;
+
+pub(crate) use applications::retain_validated_boundary_operator_application;
+pub(crate) use applications::validate_named_statement_operator_application;
+pub use applications::{
+    ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
+    ValidatedBoundaryOperatorApplicationUseSite, validate_named_operator_type_application,
+    validated_boundary_operator_application,
+};
 
 use crate::symbols::TopLevelSymbols;
 use crate::type_references::{

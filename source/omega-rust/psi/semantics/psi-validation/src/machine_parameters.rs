@@ -98,6 +98,15 @@ fn validate_static_machine_arguments_with_facts(
     let invocations = psi_effects::infer_synchronous_invocations(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
+            // Named operators own their complete static telescope in the
+            // ordinary value-call validator. MP2b governs executable machine
+            // selections and must not reinterpret operator type arguments as
+            // machine authority.
+            if !psi_typed_trees::operator::named_expression_call_candidates(program, call)
+                .is_empty()
+            {
+                continue;
+            }
             validate_call_selection(
                 program,
                 &suspensions,
@@ -121,6 +130,11 @@ fn validate_static_machine_arguments_with_facts(
                 .iter_statements(state.statement_nodes)
             {
                 if let StatementNode::Call(call) = statement {
+                    if !psi_typed_trees::operator::named_statement_call_candidates(program, call)
+                        .is_empty()
+                    {
+                        continue;
+                    }
                     validate_call_selection(
                         program,
                         &suspensions,

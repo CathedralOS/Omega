@@ -108,7 +108,9 @@ fn validate_expression_call_bounds(
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_env: &ValueEnv,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
+    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if (call.target.as_str() == "asm#pushfq"
@@ -160,15 +162,51 @@ fn validate_expression_call_bounds(
     {
         let explicit_arguments = program.expression_table.expression_handles(call.arguments);
         let parameters = program.operator_parameters(operator);
-        let has_self_parameter = parameters.iter().any(|parameter| parameter.is_self);
         let mut arguments = Vec::with_capacity(explicit_arguments.len() + 1);
-        if call.receiver.is_valid()
-            && !has_self_parameter
-            && parameters.len() == explicit_arguments.len() + 1
-        {
-            arguments.push(call.receiver);
+        if call.receiver.is_valid() && parameters.len() == explicit_arguments.len() + 1 {
+            let receiver_type = crate::places::declared_place_type(
+                program,
+                current_machine,
+                Some(current_state),
+                call.receiver,
+            );
+            if receiver_type.is_some() {
+                arguments.push(call.receiver);
+            }
         }
         arguments.extend_from_slice(explicit_arguments);
+        let operand_types = arguments
+            .iter()
+            .map(|argument| {
+                crate::places::declared_place_type(
+                    program,
+                    current_machine,
+                    Some(current_state),
+                    *argument,
+                )
+            })
+            .collect::<Vec<_>>();
+        match crate::operators::validate_named_operator_type_application(
+            program,
+            operator,
+            &call.machine_arguments,
+            &operand_types,
+        ) {
+            Ok(Some(bindings)) if operator.is_boundary => {
+                let application = crate::operators::validated_boundary_operator_application(
+                    crate::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression),
+                    operator,
+                    bindings,
+                );
+                crate::operators::retain_validated_boundary_operator_application(
+                    boundary_operator_applications,
+                    application,
+                    diagnostics,
+                );
+            }
+            Ok(_) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
         let retains_arithmetic_policy = matches!(
             (
                 program

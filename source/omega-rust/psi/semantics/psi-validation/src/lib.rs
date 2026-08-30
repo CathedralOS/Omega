@@ -93,6 +93,10 @@ pub use machine_parameters::{
     validate_static_machine_selections_with_facts,
 };
 pub use machine_specialization_identity::recompute_checked_machine_specialization_commitment;
+pub use operators::{
+    ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
+    ValidatedBoundaryOperatorApplicationUseSite, validate_named_operator_type_application,
+};
 pub use placed_views::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
     bind_checked_atomic_resident_access,
@@ -137,6 +141,7 @@ pub use float_projection_invocations::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
+    pub boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
@@ -286,6 +291,7 @@ fn validate_program_internal(
     generic_contract_entailment_prevalidated: bool,
 ) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut boundary_operator_applications = Vec::new();
     let mut exact_integer_casts = Vec::new();
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
     float_projection_bindings::validate_float_projection_operator_bindings(
@@ -518,7 +524,10 @@ fn validate_program_internal(
                 // fences.
                 arithmetic_domains::incoming_guard_env(program, machine, state)
             };
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_handle, statement) in program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+            {
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
                 // checking any of its value uses. This intentionally gives up
@@ -555,6 +564,7 @@ fn validate_program_internal(
                         &symbols,
                         &writable_roots,
                         &value_env,
+                        &mut boundary_operator_applications,
                         &mut diagnostics,
                     );
                 }
@@ -589,9 +599,11 @@ fn validate_program_internal(
                     &machine_symbols,
                     &symbols,
                     &writable_roots,
+                    statement_handle,
                     statement,
                     &mut value_env,
                     &mut exact_integer_casts,
+                    &mut boundary_operator_applications,
                     &mut diagnostics,
                 );
             }
@@ -612,6 +624,7 @@ fn validate_program_internal(
     let (float_meaning_projection_invocations, float_meaning_equality_propositions) =
         float_projection_invocations::collect_float_meaning_projection_invocations(program)?;
     Ok(ProgramValidationFacts {
+        boundary_operator_applications,
         exact_integer_casts,
         float_meaning_projection_invocations,
         float_meaning_equality_propositions,
@@ -730,9 +743,11 @@ fn validate_state_statement_node(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
+    statement_handle: psi_typed_trees::statement::StatementHandle,
     statement: &StatementNode,
     value_env: &mut arithmetic_domains::ValueEnv,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
+    boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(state) = machine_symbols.state(state_name) {
@@ -955,6 +970,17 @@ fn validate_state_statement_node(
             );
         }
         StatementNode::Call(call) => {
+            if let Some(state) = machine_symbols.state(state_name) {
+                crate::operators::validate_named_statement_operator_application(
+                    program,
+                    machine,
+                    state,
+                    statement_handle,
+                    call,
+                    boundary_operator_applications,
+                    diagnostics,
+                );
+            }
             validate_call_node(
                 program,
                 call,

@@ -48,10 +48,15 @@ stop the item on one precise owner question before adding machinery.
   - finish D29's exact boundary-application evidence. Checked lowering now
     retains the canonical empty application for monomorphic selected boundary
     operators and exact owner/category/ordinal/structural-type custody for the
-    closed inferred spelled-operator cohort. Open or unresolved types remain
-    demand work rather than being mislabeled concrete. Remaining work is
-    checked named-operator telescope binding, evaluated const value plus
-    declared-carrier binding,
+    closed inferred spelled-operator cohort. Ordinary call validation now also
+    retains and checked lowering structurally rejoins the closed, unbounded,
+    type-only named-operator cohort, whether inferred or explicitly
+    corroborated by the operands. Unit-returning statement syntax survives its
+    existing expression normalization with exact authored-selection custody;
+    retained statement calls have a distinct exact use coordinate. Open,
+    bounded, or unresolved types remain demand work rather than being
+    mislabeled concrete. Remaining work is property-bound named applications,
+    evaluated const value plus declared-carrier binding,
     artifact-qualified symbolic demand and final substitution, role-specific
     realization replay, D32's optimized-projection-to-physical-child join, and
     replacement of the provisional arity/string coverage identity. The

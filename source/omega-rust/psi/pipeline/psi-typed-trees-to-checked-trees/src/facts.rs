@@ -93,7 +93,11 @@ pub(crate) fn build_check_facts(
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
-    bind_boundary_operator_application_demands(program, &mut operators);
+    bind_boundary_operator_application_demands(
+        program,
+        &validation_facts.boundary_operator_applications,
+        &mut operators,
+    )?;
     values.scalar_expressions = crate::values::build_checked_scalar_expression_plans(
         program,
         &operators,
