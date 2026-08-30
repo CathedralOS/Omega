@@ -16,7 +16,6 @@ use crate::observations::{
     execution::*,
     resolution::*,
     resolved::*,
-    storage::*,
 };
 use crate::snapshot::permissions::*;
 use crate::test_support::*;
