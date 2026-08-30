@@ -116,7 +116,11 @@ call arguments, and transition subjects share one bounded precedence reducer
 over `||`, `&&`, equality, comparison, `+`, `-`, and `*`. Every operator
 materializes a source-ordered binary node without evaluation or type guessing.
 Parentheses delimit reduction frames and preserve their exact transient source
-extent without manufacturing a group syntax node. Shallow struct literals
+extent without manufacturing a group syntax node. Recursive logical `!`
+prefixes wrap a completed operand from the admitted primary, group, and cast
+slice before that value enters the binary frame; unary call operands, bitwise
+`~`, borrows, negative values, and contextual unary forms remain incomplete.
+Shallow struct literals
 accept an exact one-member record or two-member case type path and a comma-
 separated named field list with an optional trailing comma. Canonical adjacent
 fields without commas, nested struct literals, and richer field expressions
@@ -157,7 +161,7 @@ locals, ordinary call arguments, and transition-target arguments. They retain
 the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix. Ordinary assignment, local, and call-argument casts may
 also wrap a completed grouped primary and then continue through the shared
-binary tail. Richer postfix values, recasts, domain arguments, unary,
+binary tail. Richer postfix values, recasts, domain arguments,
 nested/chained indexing, and other richer initializers remain
 implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
@@ -182,7 +186,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 56 headers reach body parsing. Fifty-five are complete: four
+representable, and all 56 bodies that reach parsing are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -212,8 +216,9 @@ same form advance to qualified token-pattern guards. Retaining qualified case
 paths, shorthand bindings, and fixed path matches then completes `Main::main`,
 `Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse_roots}`. The
 shared grouping and multiplicative reducer then completes
-`Lexer::{decode_at,lex_cooked_string}`. The only other reached body stops at a
-unary expression.
+`Lexer::{decode_at,lex_cooked_string}`. Recursive logical-not retention completes
+`Lexer::lex_number`; the remaining seventeen roots stop in their headers rather
+than being counted as body-parser coverage.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -246,11 +251,12 @@ The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
 machine-clause/type-node/constraint/statement/call-statement/call-expression/
 cast-expression/assignment/local-data/transition/expression/binary-expression/
+unary-expression/
 indexed-expression/
 argument/transition-pattern-field/static-machine-
 argument/struct-literal/struct-field rows,
-plus 128 scratch type-array frames and 128 expression values, operators, and
-group boundaries.
+plus 128 scratch type-array frames and 128 expression values, binary operators,
+unary prefixes, and group boundaries.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting
@@ -283,6 +289,8 @@ field, so `PathMembers` also dominates the equal pattern-field ledger even when
 a fixed match adds its own expression path.
 Every binary row owns its expression node, so `Expressions` dominates that
 equal table as well.
+Every unary row likewise owns its expression node, so `Expressions` dominates
+that equal table as well.
 Every indexed row likewise owns its expression node, so it introduces no new
 resource distinction.
 Every call-expression row likewise owns its expression node, and every retained
