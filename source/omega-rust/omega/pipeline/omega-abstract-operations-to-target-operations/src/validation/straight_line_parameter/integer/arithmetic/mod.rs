@@ -2,6 +2,7 @@
 
 mod replay;
 pub(crate) mod wrapping_add;
+pub(crate) mod wrapping_multiply;
 pub(crate) mod wrapping_subtract;
 
 use omega_abstract_operations::AbstractFunction;
@@ -11,6 +12,7 @@ use omega_target_operations::TargetFunction;
 use super::super::model::ReconstructedIntegerArithmeticParameters;
 use crate::validation::model::{
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 
@@ -45,5 +47,22 @@ pub(super) fn reconstruct_wrapping_subtract(
         target,
         super::super::source::integer::arithmetic::reconstruct_wrapping_subtract,
         StraightLineWrappingIntegerSubtractParametersTranslationError::TargetProvenance,
+    )
+}
+
+pub(super) fn reconstruct_wrapping_multiply(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedIntegerArithmeticParameters,
+    StraightLineWrappingIntegerMultiplyParametersTranslationError,
+> {
+    replay::reconstruct(
+        function,
+        expected_target,
+        target,
+        super::super::source::integer::arithmetic::reconstruct_wrapping_multiply,
+        StraightLineWrappingIntegerMultiplyParametersTranslationError::TargetProvenance,
     )
 }

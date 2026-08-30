@@ -202,6 +202,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         coordination_marker: "fn reconstruct_wrapping_subtract",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_wrapping_multiply",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/comparison/mod.rs",
         coordination_marker: "fn reconstruct_equal",
     },
@@ -228,6 +232,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
         coordination_marker: "fn reconstruct_wrapping_subtract",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_wrapping_multiply",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/bitwise/replay.rs",
@@ -871,15 +879,20 @@ pub(super) const REQUIRED_TRANSLATION_ARITHMETIC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/replay.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/wrapping_add.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/wrapping_subtract.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/wrapping_multiply.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/wrapping_add.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/wrapping_subtract.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/wrapping_multiply.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/model/arithmetic.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/parameter/arithmetic/wrapping_add.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/parameter/arithmetic/wrapping_subtract.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/parameter/arithmetic/wrapping_multiply.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/parameter/arithmetic/wrapping_add.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/parameter/arithmetic/wrapping_subtract.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/parameter/arithmetic/wrapping_multiply.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/arithmetic/wrapping_integer_add.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/arithmetic/wrapping_integer_subtract.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/arithmetic/wrapping_integer_multiply.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_add_parameters/mod.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_add_parameters/positive.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_add_parameters/source_corruption.rs",
@@ -888,8 +901,23 @@ pub(super) const REQUIRED_TRANSLATION_ARITHMETIC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_parameters/positive.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_parameters/source_corruption.rs",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_parameters/target_corruption.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_multiply_parameters/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_multiply_parameters/positive.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_multiply_parameters/source_corruption.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_multiply_parameters/target_corruption.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/arithmetic/wrapping_add.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/arithmetic/wrapping_subtract.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/arithmetic/wrapping_multiply.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/arithmetic/wrapping_add.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/arithmetic/wrapping_subtract.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/arithmetic/wrapping_multiply.rs",
+];
+
+/// The translation-error entrance owns the exact family sum while broader
+/// validation failures remain a separate semantic rung.
+pub(super) const REQUIRED_TRANSLATION_ERROR_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/immediate.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/parameter/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/terminal.rs",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/validation.rs",
 ];

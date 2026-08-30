@@ -54,6 +54,7 @@ mod translation_validation_integer_less_than_parameters;
 mod translation_validation_integer_parameter;
 mod translation_validation_integer_widen_parameter;
 mod translation_validation_wrapping_integer_add_parameters;
+mod translation_validation_wrapping_integer_multiply_parameters;
 mod translation_validation_wrapping_integer_subtract_parameters;
 mod unit_and_settlements;
 

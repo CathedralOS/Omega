@@ -139,6 +139,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "exact arithmetic translation",
             REQUIRED_TRANSLATION_ARITHMETIC_LEAVES,
         ),
+        (
+            "translation error taxonomy",
+            REQUIRED_TRANSLATION_ERROR_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

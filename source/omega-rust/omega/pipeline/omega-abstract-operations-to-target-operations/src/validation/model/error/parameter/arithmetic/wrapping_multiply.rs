@@ -1,0 +1,23 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineWrappingIntegerMultiplyParametersTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceMultiplyResultRoster,
+    SourceLeftOperandLink,
+    SourceRightOperandLink,
+    SourceOperandTypeMismatch,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
+    TargetProvenance,
+    TargetOperation,
+}

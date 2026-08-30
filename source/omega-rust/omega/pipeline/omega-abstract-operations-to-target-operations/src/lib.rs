@@ -49,6 +49,8 @@ pub use validation::{
     StraightLineScalarCrashTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
+    StraightLineWrappingIntegerMultiplyParametersTranslationError,
+    StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
     validate_abstract_to_target_translation,
