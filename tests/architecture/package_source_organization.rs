@@ -16,14 +16,7 @@ const PACKAGE_CRATES: &[&str] = &[
     "source",
     "source/resolver-execution",
 ];
-const MANAGER_OWNERS: &[&str] = &[
-    "graph",
-    "package",
-    "project",
-    "review",
-    "sources",
-    "workflows",
-];
+const MANAGER_OWNERS: &[&str] = &["manifest", "resolution", "review", "workflows"];
 const EVIDENCE_OWNERS: &[&str] = &["encoding", "evidence", "obligations", "projection"];
 const MAX_PRODUCTION_LEAF_LINES: usize = 600;
 const MAX_TEST_LEAF_LINES: usize = 800;

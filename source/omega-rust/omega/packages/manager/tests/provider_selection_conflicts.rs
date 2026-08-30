@@ -1,4 +1,4 @@
-use omega_package_manager::graph::{
+use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::review::{

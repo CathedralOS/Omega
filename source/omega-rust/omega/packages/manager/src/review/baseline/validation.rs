@@ -5,8 +5,8 @@ use super::{
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineError, ReviewOnlyBaselineLimits,
     ReviewOnlyBaselinePackage,
 };
-use crate::graph::ResolvedPackageClosure;
-use crate::package::{AliasName, PackageKey};
+use crate::resolution::graph::ResolvedPackageClosure;
+use crate::manifest::{AliasName, PackageKey};
 use crate::review::candidate::ReviewOnlyCanonicalRow;
 use crate::review::candidate::validation::validate_review_only_records;
 use omega_build_evaluation::{
