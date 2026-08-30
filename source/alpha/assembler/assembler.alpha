@@ -1,11 +1,11 @@
-; assembler.alpha — the Alpha assembler, written in Alpha assembly. Reads assembly text
+; assembler.alpha - the Alpha assembler, written in Alpha assembly. Reads assembly text
 ; on stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
 ; addresses, pass 2 emits, resolving label references. This is the self-hosting
 ; target: assembled to a tape, which the alpha seed then runs to reproduce that tape.
 ;
 ; The source language is human mnemonics: opcode names (imm/mov/add/.../ret), registers
 ; written `rN`, decimal immediates, and label names. Commas are treated as whitespace.
-; `;` starts a comment. No Rust/--num step — beta reads .alpha directly.
+; `;` starts a comment. No Rust/--num step - beta reads .alpha directly.
 ;
 ; Cross-call state lives in fixed memory (calls clobber registers). Globals (i64):
 ;   524288 SRCLEN   524296 CUR     524304 TSTART  524312 TLEN    524320 TDONE
@@ -95,6 +95,36 @@ read_done:
         sub   r0, r2           ; r0 = source length
         imm   r3, 524288
         store r3, r0           ; SRCLEN = length
+
+        ; Validate the complete source byte envelope before pass 1 tokenizes it.
+        ; Only HT, LF, CR, and printable ASCII are source bytes.
+        mov   r7, r0           ; r7 = source length
+        imm   r6, 0            ; r6 = byte offset
+source_envelope_loop:
+        jlt   r6, r7, source_envelope_byte
+        jmp   source_envelope_done
+source_envelope_byte:
+        imm   r8, 1048576
+        add   r8, r6
+        loadb r9, r8
+        imm   r10, 9
+        jeq   r9, r10, source_envelope_next
+        imm   r10, 10
+        jeq   r9, r10, source_envelope_next
+        imm   r10, 13
+        jeq   r9, r10, source_envelope_next
+        imm   r10, 32
+        jlt   r9, r10, source_envelope_reject
+        imm   r10, 127
+        jlt   r9, r10, source_envelope_next
+source_envelope_reject:
+        imm   r0, 9
+        halt  r0
+source_envelope_next:
+        imm   r10, 1
+        add   r6, r10
+        jmp   source_envelope_loop
+source_envelope_done:
         imm   r3, 524336       ; NLBL = 0
         imm   r4, 0
         store r3, r4
@@ -245,7 +275,7 @@ p2_done:
         halt  r0
 
 ; ---------------- next_token ----------------
-; skip whitespace (<=32), commas, and `;` comments, then read a token;
+; skip exact whitespace (space/HT/LF/CR), commas, and `;` comments, then read a token;
 ; set TSTART/TLEN/TDONE.
 next_token:
         imm   r0, 524296
@@ -259,8 +289,14 @@ nt_have:
         imm   r5, 1048576
         add   r5, r1
         loadb r2, r5           ; c
-        imm   r6, 33
-        jlt   r2, r6, nt_adv   ; c < 33  =>  whitespace
+        imm   r6, 32
+        jeq   r2, r6, nt_adv   ; space
+        imm   r6, 9
+        jeq   r2, r6, nt_adv   ; HT
+        imm   r6, 10
+        jeq   r2, r6, nt_adv   ; LF
+        imm   r6, 13
+        jeq   r2, r6, nt_adv   ; CR
         imm   r6, 44
         jeq   r2, r6, nt_adv   ; ','     =>  separator
         imm   r6, 59
@@ -280,7 +316,9 @@ nt_comment_in:
         imm   r6, 1
         add   r1, r6
         imm   r6, 10
-        jeq   r2, r6, nt_skip  ; newline ends the comment
+        jeq   r2, r6, nt_skip  ; LF ends the comment
+        imm   r6, 13
+        jeq   r2, r6, nt_skip  ; CR ends the comment
         jmp   nt_comment
 nt_token:
         imm   r7, 524304
@@ -292,8 +330,14 @@ nt_tin:
         imm   r5, 1048576
         add   r5, r1
         loadb r2, r5
-        imm   r6, 33
-        jlt   r2, r6, nt_tend  ; whitespace ends token
+        imm   r6, 32
+        jeq   r2, r6, nt_tend  ; space ends token
+        imm   r6, 9
+        jeq   r2, r6, nt_tend  ; HT ends token
+        imm   r6, 10
+        jeq   r2, r6, nt_tend  ; LF ends token
+        imm   r6, 13
+        jeq   r2, r6, nt_tend  ; CR ends token
         imm   r6, 44
         jeq   r2, r6, nt_tend  ; ',' ends token
         imm   r6, 59
@@ -924,8 +968,14 @@ ds_fq_in:
         loadb r2, r5
         imm   r6, 34           ; '"'
         jeq   r2, r6, ds_open
-        imm   r6, 33
-        jlt   r2, r6, ds_fq_adv
+        imm   r6, 32
+        jeq   r2, r6, ds_fq_adv
+        imm   r6, 9
+        jeq   r2, r6, ds_fq_adv
+        imm   r6, 10
+        jeq   r2, r6, ds_fq_adv
+        imm   r6, 13
+        jeq   r2, r6, ds_fq_adv
         imm   r6, 44           ; ','
         jeq   r2, r6, ds_fq_adv
         imm   r6, 59           ; ';'
@@ -948,6 +998,8 @@ ds_comment_byte:
         imm   r6, 1
         add   r1, r6
         imm   r6, 10
+        jeq   r2, r6, ds_findq
+        imm   r6, 13
         jeq   r2, r6, ds_findq
         jmp   ds_comment_loop
 ds_open:

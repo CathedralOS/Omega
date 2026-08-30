@@ -71,7 +71,7 @@ accelerate tapes; special higher-level substitutions are not part of Alpha.
 realizations (different ISA, OS, and format), so the *same source* through both
 must yield *byte-identical tapes*—verified: the arm64 macOS VM reproduces the
 x64 VM's assembler bytecode from `assembler/assembler.alpha` byte-for-byte
-(sha256 `945c8061…`), the assembler self-hosts on macOS, and the example corpus
+(sha256 `15e75e68…`), the assembler self-hosts on macOS, and the example corpus
 (`.alpha` and `.beta`) runs to identical answers on both. This is the
 executable companion to the written Alpha semantics. Agreement is useful
 evidence, but the semantics and audited implementation correspondence—not

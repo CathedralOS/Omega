@@ -1,4 +1,4 @@
-; echo — copy stdin to stdout until EOF. The simplest end-to-end test of the VM's
+; echo - copy stdin to stdout until EOF. The simplest end-to-end test of the VM's
 ; byte I/O and control flow. read returns -1 at EOF.
         imm   r1, 0
 loop:

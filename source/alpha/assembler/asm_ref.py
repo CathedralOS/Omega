@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# asm_ref.py — an INDEPENDENT reference assembler: Alpha assembly text (stdin) -> raw bytecode tape (stdout),
+# asm_ref.py - an INDEPENDENT reference assembler: Alpha assembly text (stdin) -> raw bytecode tape (stdout),
 # written from ../ASSEMBLY.md + the 21-opcode encoding, NOT ported from assembler.alpha.
 #
-# WHY THIS EXISTS — executable reference and regression coverage for the Alpha
+# WHY THIS EXISTS - executable reference and regression coverage for the Alpha
 # assembly encoding. asm-diamond.sh assembles real programs with the lattice
 # assembler and this implementation and compares their tapes. This tool is
 # UNTRUSTED; agreement is diagnostic and does not replace source-to-artifact
@@ -34,11 +34,11 @@ def tokenize(text):
     toks = []; i = 0; n = len(text)
     while i < n:
         c = text[i]
-        if ord(c) <= 32 or c == ',':
+        if c in ' \t\r\n' or c == ',':
             i += 1; continue
         if c == ';':
             i += 1
-            while i < n and text[i] != '\n':
+            while i < n and text[i] not in '\r\n':
                 i += 1
             continue
         if c == '"':                                   # a quoted string stays one token
@@ -50,7 +50,7 @@ def tokenize(text):
             toks.append(text[i:j + 1]); i = j + 1
         else:
             j = i
-            while (j < n and ord(text[j]) > 32 and
+            while (j < n and text[j] not in ' \t\r\n' and
                    text[j] not in ',;'):
                 j += 1
             toks.append(text[i:j]); i = j
@@ -107,6 +107,12 @@ def size(item):
     return 1 + sum(1 if kd == 'r' else 8 for kd in kinds)
 
 def assemble(text):
+    for offset, c in enumerate(text):
+        value = ord(c)
+        if value not in (9, 10, 13) and not 32 <= value <= 126:
+            raise SyntaxError(
+                f'asm_ref: invalid source byte at offset {offset}'
+            )
     items = parse(text)
     # pass 1: label -> byte offset
     labels = {}; off = 0
@@ -126,7 +132,7 @@ def assemble(text):
         for kd, tok in zip(kinds, it[2]):
             if kd == 'r':
                 if (len(tok) < 2 or tok[0] != 'r' or
-                        not tok[1:].isascii() or not tok[1:].isdigit()):
+                        not DECIMAL.fullmatch(tok[1:])):
                     raise SyntaxError(f'asm_ref: malformed register {tok!r}')
                 value = int(tok[1:])
                 if value > 255:
@@ -145,8 +151,8 @@ def assemble(text):
     return out
 
 def main():
-    # Latin-1 is a byte-preserving view. Significant non-ASCII bytes are later
-    # rejected; arbitrary comment payload bytes remain ignorable as specified.
+    # Latin-1 is a byte-preserving view; assemble validates every source byte
+    # before tokenization, including bytes inside comments.
     sys.stdout.buffer.write(assemble(sys.stdin.buffer.read().decode('latin1')))
 
 main()
