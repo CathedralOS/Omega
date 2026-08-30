@@ -1457,6 +1457,137 @@ stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/
 {
   runtime_emitter_source
   printf '%s\n' \
+    'proc emit_d21_eq(left, right, success_label, unexpected_label) {' \
+    '    emit_rrx(16, left, right, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(success_label)' \
+    '    return 0' \
+    '}' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let heap_label = new_label()' \
+    '    let add_label = new_label()' \
+    '    let single_label = new_label()' \
+    '    let length_label = new_label()' \
+    '    let concat_label = new_label()' \
+    '    let resource_label = new_label()' \
+    '    let trap_label = new_label()' \
+    '    let internal_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let overflow_case = new_label()' \
+    '    let internal_case = new_label()' \
+    '    let resource_case = new_label()' \
+    '    let double_loop = new_label()' \
+    '    let double_body = new_label()' \
+    '    let double_done = new_label()' \
+    '    let length_ok = new_label()' \
+    '    let trap_heap_ok = new_label()' \
+    '    let internal_heap_ok = new_label()' \
+    '    let resource_heap_ok = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_r(17, 11)' \
+    '    emit_imm(2, 7)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_rr(2, 20, 0)' \
+    '    emit_imm(12, 111)' \
+    '    emit_rrx(16, 11, 12, overflow_case)' \
+    '    emit_imm(12, 105)' \
+    '    emit_rrx(16, 11, 12, internal_case)' \
+    '    emit_imm(12, 114)' \
+    '    emit_rrx(16, 11, 12, resource_case)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(overflow_case)' \
+    '    emit_imm(27, 0)' \
+    '    emit_imm(28, 62)' \
+    '    define_label(double_loop)' \
+    '    emit_rrx(15, 27, 28, double_body)' \
+    '    emit_jump(12, double_done)' \
+    '    define_label(double_body)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_rr(2, 3, 20)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_rr(2, 20, 0)' \
+    '    emit_imm(29, 1)' \
+    '    emit_rr(3, 27, 29)' \
+    '    emit_jump(12, double_loop)' \
+    '    define_label(double_done)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_imm(29, 4611686018427387904)' \
+    '    emit_d21_eq(0, 29, length_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_rr(2, 3, 20)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(internal_case)' \
+    '    emit_imm(2, 16777217)' \
+    '    emit_rr(2, 3, 20)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(resource_case)' \
+    '    emit_imm(254, 50331648)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_rr(2, 3, 20)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(trap_label)' \
+    '    emit_imm(22, 16779264)' \
+    '    emit_d21_eq(254, 22, trap_heap_ok, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(internal_label)' \
+    '    emit_imm(22, 16777280)' \
+    '    emit_d21_eq(254, 22, internal_heap_ok, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(resource_label)' \
+    '    emit_imm(22, 50331648)' \
+    '    emit_d21_eq(254, 22, resource_heap_ok, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_heap_allocator(heap_label, resource_label)' \
+    '    emit_checked_add(add_label, trap_label)' \
+    '    emit_bytes_single(single_label, heap_label, trap_label)' \
+    '    emit_bytes_length(length_label, internal_label)' \
+    '    emit_bytes_concat(concat_label, heap_label, add_label, internal_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/bytes-d21-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + D21 Bytes-length gate) failed"
+  exit 1
+}
+stamp_seed "$T/bytes-d21-emitter.tape" "$SEED" "$T/bytes-d21-emitter.exe" >/dev/null 2>&1
+"$T/bytes-d21-emitter.exe" > "$T/bytes-d21-probe.tape"
+bytes_d21_emitter_status=$?
+if [ "$bytes_d21_emitter_status" != 1 ] || [ ! -s "$T/bytes-d21-probe.tape" ]; then
+  echo "Gamma D21 Bytes-length probe emission failed: status $bytes_d21_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/bytes-d21-probe.tape" "$SEED" "$T/bytes-d21-probe.exe" >/dev/null 2>&1
+
+{
+  runtime_emitter_source
+  printf '%s\n' \
     'proc main() {' \
     '    emit_reset()' \
     '    let entry_label = new_label()' \
@@ -2365,6 +2496,17 @@ for bytes_invalid_mode in a b c d e f g h i j k l m; do
     echo "  FAIL Bytes failure class $bytes_invalid_mode: status $bytes_invalid_status, output $(wc -c < "$T/bytes-invalid-$bytes_invalid_mode.out" | tr -d ' ') bytes"
   fi
 done
+for bytes_d21_mode in o i r; do
+  printf '%s' "$bytes_d21_mode" | "$T/bytes-d21-probe.exe" > "$T/bytes-d21-$bytes_d21_mode.out"
+  bytes_d21_status=$?
+  if [ "$bytes_d21_status" = 7 ] && [ ! -s "$T/bytes-d21-$bytes_d21_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL D21 Bytes logical-length $bytes_d21_mode: status $bytes_d21_status, output $(wc -c < "$T/bytes-d21-$bytes_d21_mode.out" | tr -d ' ') bytes"
+  fi
+done
+unset bytes_d21_mode bytes_d21_status
 for sealed_input_mode in e b x z o h H i; do
   case "$sealed_input_mode" in
     e) printf 'e' ;;

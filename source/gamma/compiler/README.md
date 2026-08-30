@@ -17,7 +17,7 @@ runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases,
 executes separate ordinary/tail resolved-call, resolved-constructor, and
 resolved-local/let bridge payloads, compares six repeated payloads
-byte-identically, and executes 14
+byte-identically, and executes 17
 compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
@@ -219,7 +219,10 @@ kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
 `SLICE(base,start,length)`. Concatenation is constant-time after checked length
 addition. Under D21 that addition operates on stored logical lengths and traps
 before allocation when the exact sum exceeds `INT64_MAX`; successful descriptors
-store the exact sum. Slicing validates the complete signed range; indexed access
+store the exact sum. The focused runtime probe doubles a valid singleton rope
+to logical length `2^62`, then distinguishes the adjacent overflow trap from a
+malformed-descriptor internal failure and actual heap exhaustion; every failure
+retains the pre-operation heap cursor. Slicing validates the complete signed range; indexed access
 descends iteratively. An application adapter preflights an entire returned rope and
 output extent before replaying it to stdout, preventing partial artifacts.
 
