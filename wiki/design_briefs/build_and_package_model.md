@@ -1466,6 +1466,16 @@ authority, or exhaustive-listing claim is inferred. Failed calls, leaked
 descriptors, malformed tails, changed counts, and reordered chains remain
 non-receipted.
 
+Summary v49 and replay-record v30 add the first exact failed-operation receipt:
+a nonempty failure-only sequence of authorized tag-9 removes against canonical
+Output-rooted paths. Each attempt binds the rooted path and matching write
+authorization and must return `-1` with post-error state `2`. Provider-free
+replay executes the sequence against a fresh virtual Output namespace and
+requires the same failures, an empty final namespace, and no generated-source
+handoffs. The lane is bounded to 4,096 attempts and 16 MiB of aggregate path
+spelling. Refused or unrooted paths, other error classes, successful removes,
+and mixed mutation/failure lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1509,8 +1519,10 @@ successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
-and v45/v26 hard-link-output and v46/v27 Source-read-link grammars above may join them to
-verified operation replay and reproduced tree equality.
+v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
+v48/v29 Source-directory-enumeration, and v49/v30 absent-Output-remove grammars
+above may join them to verified operation replay and reproduced staged-output
+equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1537,8 +1549,9 @@ successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
-and v45/v26 hard-link-output and v46/v27 Source-read-link grammars above supply canonical
-operation replay and retained observed inputs.
+v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
+v48/v29 Source-directory-enumeration, and v49/v30 absent-Output-remove grammars
+above supply canonical operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

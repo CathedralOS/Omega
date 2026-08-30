@@ -1635,8 +1635,9 @@ pub struct EvaluationObservations {
 /// Opaque, compiler-produced operation record for bounded filesystem replay.
 /// Source events may be followed by an ordered parent-before-child Output tree
 /// of directories, complete regular-file chains, symbolic links, and hard-link
-/// names. File chains admit only their explicitly validated descriptor
-/// operations, and generated-source handoffs retain exact authored order.
+/// names, or by a closed failure-only Output-operation sequence. File chains
+/// admit only their explicitly validated descriptor operations, and
+/// generated-source handoffs retain exact authored order.
 /// The record is replay evidence; the compiler separately establishes receipt
 /// strength by reproducing the build and matching sponsored staged-tree custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
