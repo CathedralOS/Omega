@@ -194,7 +194,8 @@ evaluation surface passes 48 focused cases, the compiler frontend passes 78
 plus one exact emitter-substrate probe, six executed runtime-containment
 probes, 16 checked-`Int` paths, 31 source-to-code lowering cases, two
 byte-determinism comparisons, 14 compact-`Bytes` runtime paths, two executed
-arbitrary-arity/frame-ABI paths, and three algebraic-value ABI paths; the
+arbitrary-arity/frame-ABI paths, three algebraic-value ABI paths, eight
+sealed-input runtime paths, and one sealed-input reconstruction comparison; the
 temporary independent evaluator agrees on 106 fixed or generated cases.
 These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
 DEL, and high-byte controls. They cover bounded parts of this contract but do

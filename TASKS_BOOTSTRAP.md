@@ -533,9 +533,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 98 procedures; with the frontend
-    gate entry, the gate uses 99 of Beta's 128 procedure slots and compiles to
-    225,027 bytes, leaving 37,113 bytes below Alpha's runnable payload ceiling
+    tape budget. The retained source declares 99 procedures; with the frontend
+    gate entry, the gate uses 100 of Beta's 128 procedure slots and compiles to
+    233,800 bytes, leaving 28,340 bytes below Alpha's runnable payload ceiling
     for lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
     application adapter. Reserve `r252`/`r253` for the downward stack and frame
@@ -605,8 +605,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     label, and actual allocation exhaustion to the supplied resource label.
     Execute all six operations, cross-boundary and nested slices, a 1,024-node
     rope, 12 invalid/malformed cases, and exact-last-row versus adjacent
-    allocation exhaustion. The generated adapter still owns sealed flat input
-    and result publication after Q2.
+    allocation exhaustion.
     **OWNER-BLOCKED — Q6:** classify `bytes_concat` when its compact logical
     length exceeds signed `Int`; the helper accepts a separately selected
     checked-add terminal and otherwise remains complete.
@@ -623,6 +622,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     so unrelated frontend growth cannot force those diagnostics past Beta's
     fixed payload ceiling; the actual lowering probe still compiles the whole
     canonical source.
+  - [x] Establish the dormant profile-parameterized sealed-input reader without
+    selecting Q2's application profile. The emitted helper consumes stdin once,
+    accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
+    without heap movement, and otherwise commits one flat `LEAF` descriptor and
+    `r254` only after EOF and complete 32-byte-aligned extent validation. Exact
+    maximum EOF succeeds; the adjacent byte and adjacent heap extent transfer
+    to the supplied resource label with the descriptor row and heap cursor
+    unchanged. Execute empty, binary `00 ff 41`, exact/adjacent maximum,
+    maximum-zero, exact/adjacent heap, and malformed private-heap paths; require
+    repeated emission to be byte-identical and reject a negative emitter
+    profile before emitting bytes.
+    Q2 still owns which profile supplies the maximum, which entry receives the
+    value, and all result/wire publication.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
@@ -690,7 +702,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   one exact emitter probe, six executed runtime-containment probes, 16 checked
   `Int` paths, 31 source-to-code lowering cases, two byte-determinism
   comparisons, 14 compact-`Bytes` runtime paths, two arbitrary-arity/frame-ABI
-  paths, three algebraic-value ABI paths, and 106 independent differential
+  paths, three algebraic-value ABI paths, eight sealed-input runtime paths, one
+  sealed-input reconstruction comparison, and 106 independent differential
   cases.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
