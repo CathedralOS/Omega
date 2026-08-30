@@ -390,6 +390,7 @@ data OmegaExpressionKind {
     case Path;
     case Boolean;
     case Integer;
+    case String;
 }
 
 data OmegaPathExpressionKind {
@@ -408,8 +409,9 @@ data OmegaExpressionConsumer {
 // any runtime member chain; path_kind distinguishes Name, bare SelfValue, and
 // Member. Boolean payload0 is its value and payload1/payload2 retain the
 // authored span. Integer payload0/payload1 retain its authored span; this first
-// literal slice admits only unsuffixed nonnegative decimal spelling. Remaining
-// words are reserved for richer nodes.
+// numeric slice admits only unsuffixed nonnegative decimal spelling. String
+// payload0/payload1 retain the authored token span and payload2 its decoded
+// byte length. Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
     kind: OmegaExpressionKind;
     path_kind: OmegaPathExpressionKind;
@@ -637,6 +639,7 @@ data OmegaParser {
     argument_name_member_count: i32;
     argument_path_kind: OmegaPathExpressionKind;
     expression_consumer: OmegaExpressionConsumer;
+    expression_result: i32;
     assignment_target_expression: i32;
     assignment_target_name_member_count: i32;
     assignment_target_path_kind: OmegaPathExpressionKind;
@@ -2802,6 +2805,7 @@ machine OmegaParser::parse_view(
     self.argument_name_member_count = 0;
     self.argument_path_kind = OmegaPathExpressionKind::Name;
     self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+    self.expression_result = 0;
     self.assignment_target_expression = 0;
     self.assignment_target_name_member_count = 0;
     self.assignment_target_path_kind = OmegaPathExpressionKind::Name;
@@ -2966,11 +2970,11 @@ machine OmegaParser::parse_view(
             46 -> path_expression_member_token()
             47 -> call_semicolon_token()
             48 -> assignment_value_token()
-            49 -> assignment_semicolon_token()
             50 -> call_static_argument_token()
             51 -> call_static_argument_tail_token()
             52 -> call_static_argument_member_token()
             53 -> static_call_open_token()
+            54 -> primary_expression_end_token()
             _ -> internal_failure()
         }
     }
@@ -3178,11 +3182,6 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
-            49 -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
-                source.len,
-                source.len
-            )
             50 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedStaticArgument,
                 source.len,
@@ -3203,6 +3202,7 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            54 -> primary_expression_end_at_view_end()
             _ -> internal_failure()
         }
     }
@@ -3246,6 +3246,21 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::AssignmentValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedAssignmentValue,
+                source.len,
+                source.len
+            )
+        }
+    }
+
+    state primary_expression_end_at_view_end() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCallArgumentEnd,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::AssignmentValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
                 source.len,
                 source.len
             )
@@ -4209,6 +4224,8 @@ machine OmegaParser::parse_view(
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> call_argument_or_end_punctuation()
             OmegaTokenKind::Identifier -> begin_named_call_argument()
+            OmegaTokenKind::Integer -> begin_call_integer_argument()
+            OmegaTokenKind::StringLiteral -> begin_call_string_argument()
             OmegaTokenKind::Keyword -> call_argument_or_end_keyword()
             _ -> incomplete_root()
         }
@@ -4225,10 +4242,30 @@ machine OmegaParser::parse_view(
         transition self.scan.keyword {
             OmegaKeywordKind::SelfType -> incomplete_root()
             OmegaKeywordKind::SelfValue -> begin_self_call_argument()
-            OmegaKeywordKind::True -> incomplete_root()
-            OmegaKeywordKind::False -> incomplete_root()
+            OmegaKeywordKind::True -> begin_call_true_argument()
+            OmegaKeywordKind::False -> begin_call_false_argument()
             _ -> begin_named_call_argument()
         }
+    }
+
+    state begin_call_true_argument() {
+        self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        transition true { true -> retain_boolean_expression(1) }
+    }
+
+    state begin_call_false_argument() {
+        self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        transition true { true -> retain_boolean_expression(0) }
+    }
+
+    state begin_call_integer_argument() {
+        self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        transition true { true -> check_integer_expression() }
+    }
+
+    state begin_call_string_argument() {
+        self.expression_consumer = OmegaExpressionConsumer::CallArgument;
+        transition true { true -> retain_string_expression() }
     }
 
     state begin_named_call_argument() {
@@ -4567,6 +4604,7 @@ machine OmegaParser::parse_view(
         self.expressions[self.expression_count].payload4 = 0;
         self.expressions[self.expression_count].payload5 = 0;
         self.expression_count = self.expression_count + 1;
+        self.expression_consumer = OmegaExpressionConsumer::AssignmentValue;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(48) }
     }
@@ -4574,7 +4612,8 @@ machine OmegaParser::parse_view(
     state assignment_value_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Identifier -> begin_named_assignment_value()
-            OmegaTokenKind::Integer -> assignment_integer_value()
+            OmegaTokenKind::Integer -> check_integer_expression()
+            OmegaTokenKind::StringLiteral -> retain_string_expression()
             OmegaTokenKind::Keyword -> assignment_keyword_value()
             _ -> incomplete_root()
         }
@@ -4582,35 +4621,27 @@ machine OmegaParser::parse_view(
 
     state assignment_keyword_value() {
         transition self.scan.keyword {
-            OmegaKeywordKind::True -> retain_assignment_true()
-            OmegaKeywordKind::False -> retain_assignment_false()
+            OmegaKeywordKind::True -> retain_boolean_expression(1)
+            OmegaKeywordKind::False -> retain_boolean_expression(0)
             OmegaKeywordKind::SelfValue -> begin_self_assignment_value()
             OmegaKeywordKind::SelfType -> incomplete_root()
             _ -> begin_named_assignment_value()
         }
     }
 
-    state assignment_integer_value() {
+    state check_integer_expression() {
         transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
             (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) &&
             (self.scan.numeric_has_exponent == 0) {
-            true -> retain_assignment_integer()
+            true -> retain_integer_expression()
             _ -> incomplete_root()
         }
     }
 
-    state retain_assignment_true() {
-        transition true { true -> retain_assignment_boolean(1) }
-    }
-
-    state retain_assignment_false() {
-        transition true { true -> retain_assignment_boolean(0) }
-    }
-
-    state retain_assignment_boolean(value: i32) {
+    state retain_boolean_expression(value: i32) {
         transition self.expression_count < 16384 {
-            true -> retain_assignment_boolean_bounded(value)
+            true -> retain_boolean_expression_bounded(value)
             _ -> resource_failure(
                 OmegaParserResource::Expressions,
                 16384,
@@ -4619,8 +4650,8 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state retain_assignment_boolean_bounded(value: i32) {
-        self.assignment_value_expression = self.expression_count;
+    state retain_boolean_expression_bounded(value: i32) {
+        self.expression_result = self.expression_count;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Boolean;
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
@@ -4632,12 +4663,12 @@ machine OmegaParser::parse_view(
         self.expressions[self.expression_count].payload5 = 0;
         self.expression_count = self.expression_count + 1;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(49) }
+        transition true { true -> scan_semantic(54) }
     }
 
-    state retain_assignment_integer() {
+    state retain_integer_expression() {
         transition self.expression_count < 16384 {
-            true -> retain_assignment_integer_bounded()
+            true -> retain_integer_expression_bounded()
             _ -> resource_failure(
                 OmegaParserResource::Expressions,
                 16384,
@@ -4646,8 +4677,8 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state retain_assignment_integer_bounded() {
-        self.assignment_value_expression = self.expression_count;
+    state retain_integer_expression_bounded() {
+        self.expression_result = self.expression_count;
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Integer;
         self.expressions[self.expression_count].path_kind =
             OmegaPathExpressionKind::Name;
@@ -4659,7 +4690,34 @@ machine OmegaParser::parse_view(
         self.expressions[self.expression_count].payload5 = 0;
         self.expression_count = self.expression_count + 1;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(49) }
+        transition true { true -> scan_semantic(54) }
+    }
+
+    state retain_string_expression() {
+        transition self.expression_count < 16384 {
+            true -> retain_string_expression_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+        }
+    }
+
+    state retain_string_expression_bounded() {
+        self.expression_result = self.expression_count;
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::String;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 = self.scan.token_start;
+        self.expressions[self.expression_count].payload1 = self.scan.token_end;
+        self.expressions[self.expression_count].payload2 = self.scan.decoded_length;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.expression_count = self.expression_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(54) }
     }
 
     state begin_named_assignment_value() {
@@ -4678,10 +4736,21 @@ machine OmegaParser::parse_view(
         transition true { true -> begin_path_expression() }
     }
 
-    state assignment_semicolon_token() {
+    state primary_expression_end_token() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Punctuation -> assignment_semicolon_punctuation()
-            _ -> syntax_failure(
+            OmegaTokenKind::Punctuation -> primary_expression_end_punctuation()
+            _ -> primary_expression_end_failure()
+        }
+    }
+
+    state primary_expression_end_failure() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCallArgumentEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaExpressionConsumer::AssignmentValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
                 self.scan.token_start,
                 self.scan.token_end
@@ -4689,15 +4758,53 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state assignment_semicolon_punctuation() {
+    state primary_expression_end_punctuation() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::CallArgument -> call_literal_end_punctuation()
+            OmegaExpressionConsumer::AssignmentValue ->
+                assignment_literal_end_punctuation()
+        }
+    }
+
+    state call_literal_end_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Semicolon -> retain_assignment_statement()
-            _ -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
-                self.scan.token_start,
-                self.scan.token_end
+            OmegaPunctuationKind::Comma -> retain_call_literal_argument()
+            OmegaPunctuationKind::RightParen -> retain_call_literal_argument()
+            _ -> primary_expression_end_failure()
+        }
+    }
+
+    state assignment_literal_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> retain_assignment_literal_value()
+            _ -> primary_expression_end_failure()
+        }
+    }
+
+    state retain_call_literal_argument() {
+        transition self.call_argument_count < 16384 {
+            true -> retain_call_literal_argument_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.call_argument_count + 1
             )
         }
+    }
+
+    state retain_call_literal_argument_bounded() {
+        self.call_arguments[self.call_argument_count] = self.expression_result;
+        self.call_argument_count = self.call_argument_count + 1;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> next_call_argument()
+            OmegaPunctuationKind::RightParen -> finish_call_arguments()
+            _ -> internal_failure()
+        }
+    }
+
+    state retain_assignment_literal_value() {
+        self.assignment_value_expression = self.expression_result;
+        transition true { true -> retain_assignment_statement() }
     }
 
     state retain_assignment_statement() {
