@@ -950,6 +950,11 @@ independently rejoins exact satisfies symbols, binding, provider type, selected
 plan when present, and realization declaration. Unselected disclosure still
 implies neither selection nor audit. Compiler-intrinsic execution remains
 fenced pending closed catalog settlement; recovery remains v14.
+Selected payload-bearing leaves also cross the provider-plan ABI extractor by
+the same exact top-level requirement and normalized overload. Its semantic
+`self` is the satisfier's explicit carrier argument, not an erasable trait
+receiver. This publishes a calling row only; installed invocation and era
+replay remain separate unfinished custody.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings

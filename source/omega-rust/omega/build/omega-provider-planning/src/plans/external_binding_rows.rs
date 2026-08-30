@@ -296,6 +296,63 @@ fn selected_source_boundary_entry_plan(
         };
     }
 
+    let top_level_requirements = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode
+                == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                && omega_effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
+                    typed,
+                    requirement,
+                )
+                .as_ref()
+                    == Some(&plan.schema)
+        })
+        .collect::<Vec<_>>();
+    if !top_level_requirements.is_empty() {
+        let [requirement] = top_level_requirements.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry schema `{}` resolves to {} exact typed top-level boundary requirements",
+                plan.schema.trait_name,
+                top_level_requirements.len(),
+            )));
+        };
+        let exact_requirement_identity = typed
+            .normalized_machine_overload_identity(requirement)
+            .map(|identity| identity.identity())
+            .unwrap_or_default();
+        let Some((requirement_owner, requirement_method)) =
+            requirement.name.as_str().rsplit_once("::")
+        else {
+            return Err(Diagnostic::error(format!(
+                "selected source top-level boundary requirement `{}` has no exact owner and method path",
+                requirement.name,
+            )));
+        };
+        if requirement.name.as_str() != plan.schema.trait_name
+            || requirement_method != method_name
+            || method.requirement_owner != requirement_owner
+            || method.requirement_identity != exact_requirement_identity
+            || requirement_identity != exact_requirement_identity
+        {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact top-level boundary requirement `{}`",
+                requirement.name,
+            )));
+        }
+        return match (
+            method.calling_plan_report_fingerprint,
+            method.calling_plan_commitment,
+        ) {
+            (None, None) => Ok(None),
+            _ => Err(Diagnostic::error(format!(
+                "selected source top-level boundary requirement `{}` retains a trait calling-plan fingerprint",
+                requirement.name,
+            ))),
+        };
+    }
+
     let schema_owners = typed
         .traits()
         .iter()

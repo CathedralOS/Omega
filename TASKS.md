@@ -820,11 +820,15 @@ Remaining:
   supply row keyed by the exact normalized top-level requirement overload and
   independently replays selected requirement, realization, provider-type, and
   binding identity; canonical review v95/row v53 and recovery canaries retain
-  that association. Remaining work is executable extraction of those external
-  rows, selected invocation replay of the installed execution
-  and era, exact generic-provider coverage, compiler-intrinsic catalog
-  settlement, and final removal of the transitional undifferentiated
-  bodyless-machine cases.
+  that association. Selected payload-bearing external plans now also extract
+  the exact calling-convention row from that same retained plan. Compatibility
+  ABI planning resolves the top-level declaration by normalized overload
+  identity and preserves its semantic `self` carrier as the satisfier's first
+  explicit foreign parameter; trait-receiver erasure cannot drop it.
+  Remaining work is selected invocation replay of the installed execution and
+  era, exact generic-provider coverage, compiler-intrinsic catalog settlement,
+  and final removal of the transitional undifferentiated bodyless-machine
+  cases.
 
   Migrate `InterruptMaskGuard::restore`,
   `InterruptAcknowledgement::complete`, `Task::request_cancel`, and

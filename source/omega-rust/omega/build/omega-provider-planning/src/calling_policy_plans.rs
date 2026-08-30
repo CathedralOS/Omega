@@ -144,7 +144,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
     dispatch_only_parameter_count: usize,
 ) -> Result<Option<BoundaryEntryPlan>, String> {
     let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
-    let candidates = typed
+    let trait_candidates = typed
         .traits()
         .iter()
         .filter(|definition| definition.name.as_str().rsplit("::").next() == Some(trait_leaf))
@@ -163,29 +163,225 @@ pub fn evaluate_compatibility_boundary_entry_plan(
                 })
         })
         .collect::<Vec<_>>();
+    let top_level_candidates = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode
+                == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                && requirement.name.as_str() == trait_name
+        })
+        .filter_map(|requirement| {
+            let [entry] = typed.machine_states(requirement) else {
+                return None;
+            };
+            (entry.name.as_str() == method_name).then(|| {
+                (
+                    requirement,
+                    entry,
+                    typed
+                        .normalized_machine_overload_identity(requirement)
+                        .map(|identity| identity.identity())
+                        .unwrap_or_default(),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    let candidate_identities = trait_candidates
+        .iter()
+        .map(|(_, identity)| identity.as_str())
+        .chain(
+            top_level_candidates
+                .iter()
+                .map(|(_, _, identity)| identity.as_str()),
+        )
+        .collect::<Vec<_>>();
     let Some(candidate_index) = exact_compatibility_overload_index(
         trait_name,
         method_name,
         requirement_identity,
-        candidates.iter().map(|(_, identity)| identity.as_str()),
+        candidate_identities,
     )?
     else {
         return Ok(None);
     };
-    let signature = candidates[candidate_index].0;
-    let materialized = call_signature_from_typed(
-        typed,
-        signature,
-        &[],
-        requirement_identity,
-        native_target,
-        &[],
-    )?;
+    let materialized = if let Some((signature, _)) = trait_candidates.get(candidate_index) {
+        call_signature_from_typed(
+            typed,
+            signature,
+            &[],
+            requirement_identity,
+            native_target,
+            &[],
+        )?
+    } else {
+        let top_level_index = candidate_index - trait_candidates.len();
+        let (requirement, entry, _) =
+            top_level_candidates.get(top_level_index).ok_or_else(|| {
+                "compatibility boundary selection index is outside its exact candidate catalog"
+                    .to_owned()
+            })?;
+        call_signature_from_top_level_requirement(
+            typed,
+            requirement,
+            entry,
+            requirement_identity,
+            native_target,
+            &[],
+        )?
+    };
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
     evaluate_ordinary_boundary_entry_plan(policy, &classified)
         .map(|validated| Some(validated.plan().clone()))
         .map_err(|diagnostic| diagnostic.to_string())
+}
+
+/// Materialize the ABI of one explicit top-level boundary requirement.
+///
+/// Unlike a trait requirement, this declaration's `self` is the semantic
+/// carrier operated on by the selected satisfier. Conformance checking maps it
+/// to the satisfier's first explicit parameter, so it remains in the foreign
+/// signature rather than being erased as a provider receiver.
+fn call_signature_from_top_level_requirement(
+    typed: &TypedTrees,
+    requirement: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    owner_requirement_identity: &str,
+    native_target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
+) -> Result<MaterializedBoundarySignature, String> {
+    if requirement.supply_mode != psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+        || requirement.body_is_present
+        || !requirement.lifetime_parameters.is_empty()
+        || !typed.machine_type_parameters(requirement).is_empty()
+    {
+        return Err(
+            "compatibility calling plans require one nongeneric bodyless top-level boundary requirement"
+                .to_owned(),
+        );
+    }
+
+    let runtime_parameters = typed.state_parameters(entry);
+    if runtime_parameters.len() > PARAMETER_CAPACITY {
+        return Err(format!(
+            "top-level boundary requirement has {} native parameters; calling policies currently support at most {PARAMETER_CAPACITY}",
+            runtime_parameters.len(),
+        ));
+    }
+
+    let mut shapes = Vec::new();
+    let mut fields = Vec::new();
+    let mut opaque_representations = Vec::new();
+    let mut parameters = Vec::with_capacity(runtime_parameters.len());
+    let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
+    for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
+        let (_, root) = if parameter.is_self {
+            let attachment = typed
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == requirement.attached_data_symbol)
+                .ok_or_else(|| {
+                    "top-level boundary requirement `self` lost its exact attached data declaration"
+                        .to_owned()
+                })?;
+            if attachment.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
+                opaque_representation_value_shape(
+                    typed,
+                    attachment.symbol,
+                    attachment.name.as_str(),
+                    &[],
+                    &mut Vec::new(),
+                    &mut shapes,
+                    &mut fields,
+                    native_target,
+                    opaque_representation_selections,
+                    &mut opaque_representations,
+                )
+            } else {
+                plain_data_value_shape(
+                    typed,
+                    attachment.symbol,
+                    attachment.name.as_str(),
+                    &[],
+                    &mut Vec::new(),
+                    &mut shapes,
+                    &mut fields,
+                    native_target,
+                    opaque_representation_selections,
+                    &mut opaque_representations,
+                )
+            }
+        } else {
+            value_shape_from_type(
+                typed,
+                parameter.type_reference,
+                &[],
+                &mut Vec::new(),
+                &mut shapes,
+                &mut fields,
+                native_target,
+                opaque_representation_selections,
+                &mut opaque_representations,
+            )
+        }?;
+        parameters.push(root);
+        let native_ordinal = u32::try_from(formal_ordinal)
+            .map_err(|_| "top-level boundary requirement has too many runtime parameters")?;
+        let identity = nominal_callback_native_parameter_id(
+            owner_requirement_identity,
+            parameter.name.as_str(),
+        );
+        validate_fresh_native_parameter_report_identity(
+            &native_parameters,
+            identity,
+            native_ordinal,
+        )?;
+        native_parameters.push(BoundaryNativeParameter {
+            identity,
+            native_ordinal,
+            shape: BoundaryNativeParameterShape::Semantic(root),
+            origin: BoundaryNativeParameterOrigin::SemanticFormal {
+                formal_ordinal: native_ordinal,
+            },
+            layout_data_symbol: if parameter.is_self {
+                requirement.attached_data_symbol
+            } else {
+                exact_boundary_layout_root_symbol(typed, parameter.type_reference)
+            },
+        });
+    }
+
+    let result = if entry.return_type.is_valid() {
+        let (_, root) = value_shape_from_type(
+            typed,
+            entry.return_type,
+            &[],
+            &mut Vec::new(),
+            &mut shapes,
+            &mut fields,
+            native_target,
+            opaque_representation_selections,
+            &mut opaque_representations,
+        )?;
+        Some(root)
+    } else {
+        None
+    };
+
+    Ok(MaterializedBoundarySignature {
+        owner_requirement_identity: owner_requirement_identity.to_owned(),
+        native_target,
+        opaque_representations,
+        shapes,
+        fields,
+        parameters,
+        callback_binders: Vec::new(),
+        callback_demands: Vec::new(),
+        native_parameters,
+        direct_callback_parameters: Vec::new(),
+        result,
+    })
 }
 
 fn exact_compatibility_overload_index<'identity>(
