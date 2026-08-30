@@ -159,6 +159,39 @@ proc skip_ident() {
     state body { adv()  to loop }
 }
 
+proc mark_invalid() {
+    word[2097088] = 1
+    return 0
+}
+
+proc take_ident() {
+    skip_ws()
+    let off = word[2097144]
+    state valid {
+        to consume when (is_ident_start(cbyte()) == 1)
+        to invalid
+    }
+    state consume { skip_ident()  return off }
+    state invalid {
+        mark_invalid()
+        to advance_bad when (cbyte() != 0)
+        return off
+    }
+    state advance_bad { adv()  return off }
+}
+
+proc consume_expected(c) {
+    skip_ws()
+    state valid { to consume when (cbyte() == c)  to invalid }
+    state consume { adv()  return 1 }
+    state invalid {
+        mark_invalid()
+        to advance_bad when (cbyte() != 0)
+        return 0
+    }
+    state advance_bad { adv()  return 0 }
+}
+
 proc parse_integer() {
     let negative = 0
     state sign {
@@ -318,6 +351,14 @@ proc is_upper(c) {
     state no { return 0 }
 }
 
+proc is_value_name_start(c) {
+    state underscore { to yes when (c == '_')  to lower_low }
+    state lower_low { to no when (c < 'a')  to lower_high }
+    state lower_high { to no when (c > 'z')  return 1 }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 proc is_match_kw(off) {
     state c1 { to c2 when (byte[2097152 + off] == 'm')  return 0 }
     state c2 { to c3 when (byte[2097152 + off + 1] == 'a')  return 0 }
@@ -325,6 +366,50 @@ proc is_match_kw(off) {
     state c4 { to c5 when (byte[2097152 + off + 3] == 'c')  return 0 }
     state c5 { to c6 when (byte[2097152 + off + 4] == 'h')  return 0 }
     state c6 { to yes when (is_ident_continue(byte[2097152 + off + 5]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_data_kw(off) {
+    state c1 { to c2 when (byte[2097152 + off] == 'd')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 't')  return 0 }
+    state c4 { to exact when (byte[2097152 + off + 3] == 'a')  return 0 }
+    state exact { to yes when (is_ident_continue(byte[2097152 + off + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_reserved_value_name(off) {
+    state builtin { to yes when (bytes_builtin_kind(off) != 0)  to k_if }
+    state k_if { to yes when (name_is2(off, 'i', 'f') == 1)  to k_eq }
+    state k_eq { to yes when (name_is2(off, 'e', 'q') == 1)  to k_lt }
+    state k_lt { to yes when (name_is2(off, 'l', 't') == 1)  to k_let }
+    state k_let { to yes when (name_is3(off, 'l', 'e', 't') == 1)  to k_def }
+    state k_def { to yes when (name_is3(off, 'd', 'e', 'f') == 1)  to k_data }
+    state k_data { to yes when (is_data_kw(off) == 1)  to k_match }
+    state k_match { to yes when (is_match_kw(off) == 1)  return 0 }
+    state yes { return 1 }
+}
+
+proc valid_value_name(off) {
+    state first {
+        to reserved when (is_value_name_start(byte[2097152 + off]) == 1)
+        return 0
+    }
+    state reserved { to yes when (is_reserved_value_name(off) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc valid_declared_type_name(off) {
+    state first { to int_check when (is_upper(byte[2097152 + off]) == 1)  return 0 }
+    state int_check { to bytes_check when (name_is3(off, 'I', 'n', 't') == 0)  return 0 }
+    state bytes_check { to yes when (is_bytes_type(off) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc valid_constructor_name(off) {
+    state first { to int_check when (is_upper(byte[2097152 + off]) == 1)  return 0 }
+    state int_check { to bytes_check when (name_is3(off, 'I', 'n', 't') == 0)  return 0 }
+    state bytes_check { to yes when (is_bytes_type(off) == 0)  return 0 }
     state yes { return 1 }
 }
 
@@ -372,17 +457,28 @@ proc con_lookup(coff) {              ; constructor index by name, or -1
 
 proc parse_args() {
     skip_ws()
-    state chk { to more when (cbyte() != ')')  return 0 }
+    state chk {
+        to done when (cbyte() == ')')
+        to eof when (cbyte() == 0)
+        to more
+    }
     state more {
         let h = parse_expr()
         let t = parse_args()
         return alloc(6, h, t, 0)
     }
+    state eof { mark_invalid()  return 0 }
+    state done { return 0 }
 }
 
 proc parse_expr() {
     skip_ws()
     let c = cbyte()
+    state start {
+        to invalid when (c == 0)
+        to invalid when (c == ')')
+        to num
+    }
     state num { to do_num when (is_digit(c) == 1)  to negnum }
     state negnum {
         to lparen when (c != '-')
@@ -402,13 +498,12 @@ proc parse_expr() {
         adv()
         let a = parse_expr()
         let b = parse_expr()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(2, h, a, b)
     }
     state head {
-        let hoff = word[2097144]
-        skip_ident()
+        to invalid_compound when (is_ident_start(cbyte()) == 0)
+        let hoff = take_ident()
         to do_if when (name_is2(hoff, 'i', 'f') == 1)
         to k_let
     }
@@ -416,152 +511,215 @@ proc parse_expr() {
         let c1 = parse_expr()
         let t1 = parse_expr()
         let e1 = parse_expr()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(3, c1, t1, e1)
     }
     state k_let { to do_let when (name_is3(hoff, 'l', 'e', 't') == 1)  to k_eq }
     state do_let {
-        skip_ws()
-        let noff = word[2097144]
-        skip_ident()
+        let noff = take_ident()
+        to let_name_ok when (valid_value_name(noff) == 1)
+        mark_invalid()
+        to let_name_ok
+    }
+    state let_name_ok {
         let e2 = parse_expr()
         let body = parse_expr()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(4, noff, e2, body)
     }
     state k_eq { to do_eq when (name_is2(hoff, 'e', 'q') == 1)  to k_lt }
     state do_eq {
         let a2 = parse_expr()
         let b2 = parse_expr()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(2, 'e', a2, b2)
     }
     state k_lt { to do_lt when (name_is2(hoff, 'l', 't') == 1)  to k_match }
     state do_lt {
         let a3 = parse_expr()
         let b3 = parse_expr()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(2, 'l', a3, b3)
     }
     state k_match { to do_match when (is_match_kw(hoff) == 1)  to k_con }
     state do_match {
         let scrut = parse_expr()
         let arms = parse_arms()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(8, scrut, arms, 0)
     }
     state k_con { to do_con when (is_upper(byte[2097152 + hoff]) == 1)  to do_call }
     state do_con {
         let cargs = parse_args()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(7, hoff, cargs, 0)
     }
     state do_call {
+        to call_name_ok when (valid_value_name(hoff) == 1)
+        ; The six reserved bytes_* forms are parsed through the same argument
+        ; list representation but remain closed builtins in tc_call.
+        to call_name_ok when (bytes_builtin_kind(hoff) != 0)
+        mark_invalid()
+        to call_name_ok
+    }
+    state call_name_ok {
         let args = parse_args()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(5, hoff, args, 0)
     }
     state atom {
-        let voff = word[2097144]
-        skip_ident()
+        to invalid when (is_ident_start(cbyte()) == 0)
+        let voff = take_ident()
         to nullcon when (is_upper(byte[2097152 + voff]) == 1)
+        to atom_name_ok when (valid_value_name(voff) == 1)
+        mark_invalid()
+        to atom_name_ok
+    }
+    state atom_name_ok {
         return alloc(1, voff, 0, 0)
     }
     state nullcon { return alloc(7, voff, 0, 0) }     ; nullary constructor
+    state invalid_compound {
+        mark_invalid()
+        to invalid_advance when (cbyte() != 0)
+        return alloc(0, 0, 0, 0)
+    }
+    state invalid {
+        mark_invalid()
+        to invalid_advance when (cbyte() != 0)
+        return alloc(0, 0, 0, 0)
+    }
+    state invalid_advance { adv()  return alloc(0, 0, 0, 0) }
 }
 
 proc parse_pvars() {
     skip_ws()
-    state chk { to more when (cbyte() != ')')  return 0 }
+    state chk {
+        to done when (cbyte() == ')')
+        to eof when (cbyte() == 0)
+        to more
+    }
     state more {
-        let voff = word[2097144]
-        skip_ident()
+        let voff = take_ident()
+        to name_ok when (valid_value_name(voff) == 1)
+        mark_invalid()
+        to name_ok
+    }
+    state name_ok {
         let t = parse_pvars()
         return alloc(6, voff, t, 0)
     }
+    state eof { mark_invalid()  return 0 }
+    state done { return 0 }
 }
 
 proc parse_pat() {
     skip_ws()
     state chk { to pcon when (cbyte() == '(')  to atom }
     state pcon {
-        adv()
-        skip_ws()
-        let coff = word[2097144]
-        skip_ident()
+        consume_expected('(')
+        let coff = take_ident()
+        to pcon_name_ok when (valid_constructor_name(coff) == 1)
+        mark_invalid()
+        to pcon_name_ok
+    }
+    state pcon_name_ok {
         let vars = parse_pvars()
-        skip_ws()
-        adv()
+        consume_expected(')')
         return alloc(10, coff, vars, 0)               ; PCON
     }
     state atom {
-        let voff = word[2097144]
-        skip_ident()
+        let voff = take_ident()
         to nullcon when (is_upper(byte[2097152 + voff]) == 1)
+        to pvar_name_ok when (valid_value_name(voff) == 1)
+        mark_invalid()
+        to pvar_name_ok
+    }
+    state pvar_name_ok {
         return alloc(9, voff, 0, 0)                   ; PVAR
     }
-    state nullcon { return alloc(10, voff, 0, 0) }    ; nullary constructor pattern
+    state nullcon {
+        to nullcon_ok when (valid_constructor_name(voff) == 1)
+        mark_invalid()
+        to nullcon_ok
+    }
+    state nullcon_ok { return alloc(10, voff, 0, 0) } ; nullary constructor pattern
 }
 
 proc parse_arms() {
     skip_ws()
-    state chk { to more when (cbyte() != ')')  return 0 }
+    state chk {
+        to done when (cbyte() == ')')
+        to eof when (cbyte() == 0)
+        to more
+    }
     state more {
-        adv()
+        consume_expected('(')
         let pat = parse_pat()
         let body = parse_expr()
-        skip_ws()
-        adv()
+        consume_expected(')')
         let t = parse_arms()
         return alloc(6, alloc(11, pat, body, 0), t, 0)
     }
+    state eof { mark_invalid()  return 0 }
+    state done { return 0 }
 }
 
 proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM nodes
     skip_ws()
-    state chk { to more when (cbyte() != ')')  return 0 }
+    state chk {
+        to done when (cbyte() == ')')
+        to eof when (cbyte() == 0)
+        to more
+    }
     state more {
-        adv()                     ; '('
-        skip_ws()
-        let poff = word[2097144]
-        skip_ident()
-        skip_ws()
-        let toff = word[2097144]
-        skip_ident()
-        skip_ws()
-        adv()                     ; ')'
+        consume_expected('(')
+        let poff = take_ident()
+        to param_name_ok when (valid_value_name(poff) == 1)
+        mark_invalid()
+        to param_name_ok
+    }
+    state param_name_ok {
+        let toff = take_ident()
+        to param_type_ok when (is_upper(byte[2097152 + toff]) == 1)
+        mark_invalid()
+        to param_type_ok
+    }
+    state param_type_ok {
+        consume_expected(')')
         let node = alloc(50, poff, tyid(toff), 0)
         let t = parse_typed_params()
         return alloc(6, node, t, 0)
     }
+    state eof { mark_invalid()  return 0 }
+    state done { return 0 }
 }
 
 proc parse_def() {
-    adv()                         ; '('
-    skip_ws()
-    skip_ident()                  ; "def"
-    skip_ws()
-    let noff = word[2097144]
-    skip_ident()
-    skip_ws()
-    adv()                         ; '(' param list
+    consume_expected('(')
+    let keyword = take_ident()
+    to keyword_ok when (name_is3(keyword, 'd', 'e', 'f') == 1)
+    mark_invalid()
+    to keyword_ok
+    state keyword_ok {
+    let noff = take_ident()
+    to name_ok when (valid_value_name(noff) == 1)
+    mark_invalid()
+    to name_ok
+    }
+    state name_ok {
+    consume_expected('(')
     let params = parse_typed_params()
-    skip_ws()
-    adv()                         ; ')' end params
-    skip_ws()
-    let rtoff = word[2097144]
-    skip_ident()
+    consume_expected(')')
+    let rtoff = take_ident()
+    to return_type_ok when (is_upper(byte[2097152 + rtoff]) == 1)
+    mark_invalid()
+    to return_type_ok
+    }
+    state return_type_ok {
     let rtid = tyid(rtoff)
     let body = parse_expr()
-    skip_ws()
-    adv()                         ; ')' end def
+    consume_expected(')')
     let i = word[2097120]
     word[4194304 + i * 32] = noff
     word[4194304 + i * 32 + 8] = params
@@ -569,42 +727,65 @@ proc parse_def() {
     word[4194304 + i * 32 + 24] = body
     word[2097120] = i + 1
     return 0
+    }
 }
 
 proc parse_argtypes() {           ; constructor arg type names until ')', CONS of tyids
     skip_ws()
-    state chk { to more when (cbyte() != ')')  return 0 }
+    state chk {
+        to done when (cbyte() == ')')
+        to eof when (cbyte() == 0)
+        to more
+    }
     state more {
-        let toff = word[2097144]
-        skip_ident()
+        let toff = take_ident()
+        to type_name_ok when (is_upper(byte[2097152 + toff]) == 1)
+        mark_invalid()
+        to type_name_ok
+    }
+    state type_name_ok {
         let t = parse_argtypes()
         return alloc(6, tyid(toff), t, 0)
     }
+    state eof { mark_invalid()  return 0 }
+    state done { return 0 }
 }
 
 proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + cons
-    adv()                         ; '('
-    skip_ws()
-    skip_ident()                  ; "data"
-    skip_ws()
-    let toff = word[2097144]
-    skip_ident()
+    consume_expected('(')
+    let keyword = take_ident()
+    to keyword_ok when (is_data_kw(keyword) == 1)
+    mark_invalid()
+    to keyword_ok
+    state keyword_ok {
+    let toff = take_ident()
+    to type_name_ok when (valid_declared_type_name(toff) == 1)
+    mark_invalid()
+    to type_name_ok
+    }
+    state type_name_ok {
     let tid = word[2097104]        ; register the type first (self-recursion resolves)
     word[4259840 + tid * 8] = toff
     word[2097104] = tid + 1
+    let first_con = word[2097096]
     skip_ws()
+    to loop
+    }
     state loop {
-        to body when (cbyte() != ')')
-        to done
+        to done when (cbyte() == ')')
+        to eof when (cbyte() == 0)
+        to body
     }
     state body {
-        adv()                     ; '(' constructor
-        skip_ws()
-        let coff = word[2097144]
-        skip_ident()
+        consume_expected('(')
+        let coff = take_ident()
+        to con_name_ok when (valid_constructor_name(coff) == 1)
+        mark_invalid()
+        to con_name_ok
+    }
+    state con_name_ok {
         let argtys = parse_argtypes()
-        skip_ws()
-        adv()                     ; ')'
+        consume_expected(')')
         let ci = word[2097096]
         word[4325376 + ci * 24] = coff
         word[4325376 + ci * 24 + 8] = tid
@@ -613,7 +794,16 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
         skip_ws()
         to loop
     }
-    state done { adv()  return 0 }   ; ')' end data
+    state eof { mark_invalid()  return 0 }
+    state done {
+        to have_constructor when (word[2097096] != first_con)
+        mark_invalid()
+        to have_constructor
+    }
+    state have_constructor {
+        consume_expected(')')
+        return 0
+    }
 }
 
 proc is_data() {
@@ -999,9 +1189,15 @@ proc main() {
     state databody { parse_data()  skip_ws()  to dataloop }
     state defloop {
         to defbody when (is_def() == 1)
-        to checkfns
+        to program_shape
     }
     state defbody { parse_def()  skip_ws()  to defloop }
+    state program_shape {
+        to invalid_program when (word[2097120] == 0)
+        to invalid_program when (word[2097144] != word[2097136])
+        to checkfns
+    }
+    state invalid_program { word[2097088] = 1  to checkfns }
     state checkfns {
         let ok = 1
         let i = 0
