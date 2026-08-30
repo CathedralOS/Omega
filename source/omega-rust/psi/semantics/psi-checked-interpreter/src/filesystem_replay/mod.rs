@@ -8,6 +8,9 @@ mod directories;
 #[cfg(test)]
 mod directory_tests;
 mod duplicates;
+#[cfg(test)]
+mod handle_failure_tests;
+mod handle_failures;
 mod hard_links;
 mod locks;
 mod output_failures;
@@ -39,6 +42,10 @@ pub(crate) use duplicates::{
     output_duplicate_attempts, output_duplicate_record_from_attempts,
     output_logical_handle_identities, validate_output_duplicate_replay,
 };
+pub use handle_failures::FilesystemInputUnknownDescriptorCloseReplayRecord;
+#[cfg(test)]
+pub(crate) use handle_failures::unknown_descriptor_close_attempt;
+pub(crate) use handle_failures::unknown_descriptor_close_attempt_is_exact;
 pub use hard_links::{FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord};
 pub(crate) use hard_links::{output_hard_link_attempt, output_hard_link_record_from_attempt};
 pub use locks::{FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS};

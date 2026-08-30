@@ -112,7 +112,7 @@ fn output_only_tree_round_trips_exact_mixed_entries_and_handoff() {
         vec![11, 1, 5, 8, 20, 19]
     );
     assert!(
-        (0..replay.attempts().len()).all(|index| replay.executes_output_attempt(index)),
+        (0..replay.attempts().len()).all(|index| replay.executes_replay_attempt(index)),
         "every Output-only attempt executes against the replay namespace"
     );
     assert_eq!(replay.expected_included_sources(), &[included.clone()]);
