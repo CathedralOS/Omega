@@ -870,7 +870,7 @@ an exact application family covering every verifier-reconstructed concrete or
 symbolic demand. Generic applications are not overload coordinates.
 
 Production does not yet publish exact static-application demand or
-`ExactApplications` coverage. Q8 must first settle one tagged structural
+`ExactApplications` coverage. Q7 must first settle one tagged structural
 application representation and its recheckable join to selected-realization
 evidence; a provisional type-only use carrier would pre-commit that design.
 

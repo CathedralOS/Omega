@@ -237,49 +237,7 @@ outside package-authored semantics.
 - Tempting but wrong: retain zero-valued broker observations or a configured
   transfer ceiling as if either measured ambient host traffic.
 
-## Q4 — Classify Gamma `Bytes` logical-length overflow
-
-### Context
-
-D16 makes `Bytes` an immutable finite byte sequence and fixes
-`bytes_length : Bytes -> Int`, where `Int` is signed 64-bit. The compact runtime
-representation permits constant-space concatenation: repeatedly concatenating
-a rope with itself can exceed `INT64_MAX` logical bytes after roughly 63
-descriptor allocations, long before the implementation exhausts its heap.
-Neither D16 nor the Gamma guide says whether that operation traps, becomes a
-private resource failure, or is excluded by another language invariant.
-
-### Problem statement
-
-Classify `bytes_concat(left, right)` when both operands are valid `Bytes` but
-their mathematical combined length is not representable by `Int`. This is
-observable Gamma meaning rather than merely a representation choice because a
-compact implementation can reach it, `bytes_length` must return an `Int`, and
-the compiler customer may construct output incrementally. Implementations must
-not disagree by wrapping the length, fabricating a value, or conflating the
-same authored operation with ambient heap exhaustion.
-
-### Proposed direction
-
-Trap deterministically before allocation when the exact combined length
-exceeds `INT64_MAX`. Treat this as an authored operation outside the closed
-`Bytes`/`Int` value relation, parallel to checked arithmetic overflow, not as
-profile-dependent `Incomplete`. Do not mutate the heap or publish a partial
-descriptor before the check completes.
-
-### Alternates
-
-- Acceptable: define a smaller fixed maximum `Bytes` length and trap every
-  constructor that would exceed it, provided the limit is Gamma meaning rather
-  than a private runtime capacity and `bytes_length` remains total.
-- Acceptable: change the language to expose an unbounded length carrier, but
-  that is a larger D16 revision and must update the compiler customer and all
-  six built-ins together.
-- Tempting but wrong: wrap signed length, call the deterministic value overflow
-  `Incomplete`, rely on eventual physical allocation to make it unreachable,
-  or silently flatten ropes until a private resource limit decides meaning.
-
-## Q5 — Define the device-operation source contract
+## Q4 — Define the device-operation source contract
 
 ### Context
 
@@ -332,7 +290,7 @@ consumed candidate unchanged for retry.
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
 
-## Q6 — Attribute selected opaque representations across package reviews
+## Q5 — Attribute selected opaque representations across package reviews
 
 ### Context
 
@@ -389,7 +347,7 @@ already occurred.
   or a lockfile string "agreement" without rejoining the exact declarations
   and strong compiler-issued application.
 
-## Q7 — Establish generic boundary-realization coverage
+## Q6 — Establish generic boundary-realization coverage
 
 ### Context
 
@@ -434,7 +392,7 @@ explicitly admitted generic implementation contract.
   from one successful application, or call a compiler/toolchain/version string
   a certificate that universal checking occurred.
 
-## Q8 — Define exact boundary-realization application evidence
+## Q7 — Define exact boundary-realization application evidence
 
 ### Context
 
@@ -468,7 +426,7 @@ checks for that specialization. Retain the exact requirement coordinate,
 selected plan and realization, binder schema, tagged arguments, and rechecked
 specialization identity. Deduplicate and order only after those joins succeed.
 
-Keep this distinct from Q7: checking a finite demanded set does not establish
+Keep this distinct from Q6: checking a finite demanded set does not establish
 universal generic coverage. Initially supporting only ordinary type binders is
 acceptable if every other telescope category remains explicitly fail-closed.
 
@@ -482,7 +440,7 @@ acceptable if every other telescope category remains explicitly fail-closed.
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
 
-## Q9 — Freeze the standalone Omega compiler request and outcome wire
+## Q8 — Freeze the standalone Omega compiler request and outcome wire
 
 ### Context
 

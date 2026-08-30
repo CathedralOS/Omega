@@ -204,8 +204,10 @@ deterministic source identities; no resolved AST is serialized or executed.
 `Bytes` uses a compact immutable rope/view representation with closed descriptor
 kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
 `SLICE(base,start,length)`. Concatenation is constant-time after checked length
-addition; slicing validates the complete signed range; indexed access descends
-iteratively. An application adapter preflights an entire returned rope and
+addition. Under D21 that addition operates on stored logical lengths and traps
+before allocation when the exact sum exceeds `INT64_MAX`; successful descriptors
+store the exact sum. Slicing validates the complete signed range; indexed access
+descends iteratively. An application adapter preflights an entire returned rope and
 output extent before replaying it to stdout, preventing partial artifacts.
 
 The dormant sealed-input reader is reusable emitted runtime machinery, not an

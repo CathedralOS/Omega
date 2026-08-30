@@ -52,6 +52,12 @@ within their own namespace; local bindings cannot shadow an active binding but
 may reuse names in disjoint scopes. Collection precedes mutually visible type
 resolution, and duplicates reject at the exact later declaration or binder.
 
+D21 requires every valid `Bytes` logical length to fit nonnegative `Int`.
+Concatenation checks the operands' stored logical lengths before allocation and
+traps on an exact sum above `INT64_MAX`; physical storage exhaustion remains
+`Incomplete`. D19 profiles validate their sealed-input maxima against the same
+bound before adapter emission.
+
 ## Current migration
 
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
