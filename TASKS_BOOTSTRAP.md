@@ -171,8 +171,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
   surface gate runs 192 cases in about six seconds on the development host.
-  The largest current retained Beta output, the 236,076-byte checker tape,
-  leaves 26,064 bytes in the Alpha payload after replacing repeated inline
+  The largest current retained Beta output, the 237,270-byte checker tape,
+  leaves 24,870 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -335,8 +335,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     certificate extents; checker-built immutable power-of-two-indexed byte trees are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
-    spoof either constant, and the rebuilt 236,076-byte checker tape retains
-    26,064 bytes of Alpha payload headroom. The exact 103,274-byte compiler
+    spoof either constant, and the rebuilt 237,270-byte checker tape retains
+    24,870 bytes of Alpha payload headroom. The exact 103,274-byte compiler
     source plus 26,751-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
@@ -389,12 +389,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
       checked propositions with `use`; it accepts in 1.192 seconds. This proves
       the proposed reclamation boundary is viable but does not yet prove the
       required boundary chain or assembly semantics.
-    - Publish the canonical Beta checker's exact arena, semantic-stack, framed
-      input, certificate, declaration, and lemma-table profile. The fixed proof
-      must fit that profile. The independent Python checker must agree on the
-      logical result but is diagnostic and need not reproduce Beta's resource
-      ceilings. A future authoritative checker cannot replace the service while
-      silently refusing its live certificate/profile.
+    - [x] Publish the canonical Beta checker's exact arena, semantic-stack,
+      framed input, certificate, declaration, function, and lemma-table profile.
+      Arena and proof-context exhaustion are now explicit fail-closed guards,
+      and complete stdin is bounded to the exact largest permitted frame rather
+      than overlapping later checker tables. The fixed proof must fit that
+      profile. The independent Python checker must agree on the logical result
+      but is diagnostic and need not reproduce Beta's resource ceilings. A
+      future authoritative checker cannot replace the service while silently
+      refusing its live certificate/profile.
     - Repeat measurements against the exact current bound subjects rather than
       copying prose byte counts. Across candidate chunk counts record peak
       conversion scratch, permanently retained lemma/boundary-state arena,
