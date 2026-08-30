@@ -1,8 +1,8 @@
-//! Optimization-unit identity entrance and canonical custody walk.
+//! Optimization-unit identity taxonomy (group map, not an executable stage).
 //!
-//! This module owns the unit/fact/function walk. Operation, structural-domain,
-//! and proof-term encodings descend into named leaves so the identity schema is
-//! navigable without weakening its single canonical byte stream.
+//! `unit_encoding` owns the unit/fact/function custody walk. Operation,
+//! structural-domain, proof-term, and shared-carrier encodings descend into
+//! named siblings without weakening their single canonical byte stream.
 
 use omega_abstract_operations::{
     AbstractFunctionResult, AbstractOperation, AbstractSuccessor, CompletionClaimSource,
@@ -38,12 +38,13 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
+mod carrier_encoding;
 mod operation_encoding;
 mod proposition_encoding;
 mod structural_encoding;
 mod unit_encoding;
 
-use operation_encoding::*;
+use carrier_encoding::*;
 use proposition_encoding::*;
 use structural_encoding::*;
 use unit_encoding::CanonicalBytes;

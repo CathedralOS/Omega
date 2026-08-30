@@ -14,6 +14,8 @@ pub(crate) fn check(audit: &mut Audit) {
     for obsolete in [
         "source/omega-rust/omega/representations/omega-optimization-core/src/manifest.rs",
         "source/omega-rust/omega/representations/omega-legalized-operations/src/validation/call_source.rs",
+        "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/candidate_validation.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

@@ -17,6 +17,14 @@ struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/mod.rs",
+        coordination_marker: "match operation",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/mod.rs",
+        coordination_marker: "pub fn validate_scalar_evaluation_candidate",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/mod.rs",
         coordination_marker: "DECISION_WIRE_FORMAT",
     },
@@ -590,6 +598,22 @@ const REQUIRED_MANIFEST_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/work_usage.rs",
 ];
 
+const REQUIRED_OPERATION_ENCODING_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/calls_and_effects.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/control.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/scalar.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/scalar_shapes.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/structural.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/carrier_encoding.rs",
+];
+
+const REQUIRED_SCCP_VALIDATION_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_candidate.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/integer_candidate.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/observation.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
+];
+
 pub(crate) fn check(audit: &mut Audit) {
     let repository = &audit.repository;
     let source_lines = &audit.source_lines;
@@ -675,6 +699,20 @@ pub(crate) fn check(audit: &mut Audit) {
             violations.insert(format!(
                 "optimization manifest lost a named semantic leaf: {path}"
             ));
+        }
+    }
+
+    for (family, paths) in [
+        (
+            "optimization-unit identity encoding",
+            REQUIRED_OPERATION_ENCODING_LEAVES,
+        ),
+        ("SCCP validation", REQUIRED_SCCP_VALIDATION_LEAVES),
+    ] {
+        for path in paths {
+            if !source_lines.contains_key(*path) {
+                violations.insert(format!("{family} lost a named semantic leaf: {path}"));
+            }
         }
     }
 

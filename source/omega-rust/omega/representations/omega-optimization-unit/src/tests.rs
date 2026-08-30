@@ -180,6 +180,36 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
 }
 
 #[test]
+fn canonical_operation_identity_bytes_are_stable() {
+    let scalar = reconstruct_psi_optimization_unit_seed(
+        &plan(),
+        FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+    )
+    .unwrap();
+    let structural = reconstruct_psi_optimization_unit_seed(
+        &write_only_store_plan(),
+        FuelScheduleIdentity::new(70).expect("nonzero schedule"),
+    )
+    .unwrap();
+    assert_eq!(
+        scalar.identity.bytes(),
+        [
+            33, 156, 145, 109, 49, 186, 134, 171, 32, 170, 91, 111, 17, 98, 115, 158, 169, 181,
+            127, 6, 72, 102, 116, 127, 4, 86, 56, 53, 123, 73, 55, 16,
+        ],
+        "integer-constant and scalar-return operation tags and fields are stable",
+    );
+    assert_eq!(
+        structural.identity.bytes(),
+        [
+            21, 18, 180, 194, 107, 58, 104, 244, 144, 117, 174, 58, 193, 255, 166, 129, 202, 76,
+            161, 209, 118, 244, 54, 43, 245, 124, 174, 93, 120, 234, 149, 219,
+        ],
+        "write-only structural storage and unit-return operation tags and fields are stable",
+    );
+}
+
+#[test]
 fn rebuild_is_deterministic_and_keeps_distinct_fuel_sites() {
     let schedule = FuelScheduleIdentity::new(1).expect("nonzero schedule");
     let first = reconstruct_psi_optimization_unit_seed(&plan(), schedule).unwrap();
