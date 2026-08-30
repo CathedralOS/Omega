@@ -1,6 +1,6 @@
 # Omega Package Source
 
-This crate turns hostile local or Git input into an immutable, authenticated
+This crate turns hostile local or Git input into an immutable, content-verified
 source tree. It owns source identity, bounded tree capture, snapshot
 publication, cache custody, and successful source receipts.
 
@@ -18,15 +18,15 @@ src/
 ├── custody/        locks, retained-tree validation, and cache publication
 ├── storage.rs      retained private storage and explicit acquisition lanes
 ├── local/          local-source adapter and issued local observations
-├── git/            Git transport adapter, authentication, and resolution
+├── git/            Git transport adapter, object verification, and resolution
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
 │   ├── executable/     freeze operator-selected Git and check operation drift
 │   ├── commands/       construct and reconcile bounded Git commands
-│   ├── objects/        authenticate commit/tree/blob object graphs
+│   ├── objects/        verify commit/tree/blob object graphs and identities
 │   │   └── batch/         bounded transfer, exact protocol, and request custody
-│   ├── resolution/     acquire, authenticate, materialize, and issue custody
-│   ├── snapshot.rs     Git-specific authenticated tree materialization
+│   ├── resolution/     acquire, verify, materialize, and issue custody
+│   ├── snapshot.rs     Git-specific verified tree materialization
 │   └── workspace/      syntax-neutral workspace declaration exchange
 ├── observations/   execution, accounting, retained-storage, and receipts
 ├── limits.rs       compiler-owned acquisition ceilings
