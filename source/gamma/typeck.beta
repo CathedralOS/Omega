@@ -465,19 +465,22 @@ proc con_lookup(coff) {              ; constructor index by name, or -1
 ; ---- parser (core expressions) ----
 
 proc parse_args() {
-    skip_ws()
-    state chk {
+    let head = 0
+    let tail = 0
+    state loop {
+        skip_ws()
         to done when (cbyte() == ')')
         to eof when (cbyte() == 0)
-        to more
+        let item = parse_expr()
+        let node = alloc(6, item, 0, 0)
+        to first when (head == 0)
+        word[tail + 16] = node
+        tail = node
+        to loop
     }
-    state more {
-        let h = parse_expr()
-        let t = parse_args()
-        return alloc(6, h, t, 0)
-    }
-    state eof { mark_invalid()  return 0 }
-    state done { return 0 }
+    state first { head = node  tail = node  to loop }
+    state eof { mark_invalid()  return head }
+    state done { return head }
 }
 
 proc parse_expr() {
@@ -602,24 +605,27 @@ proc parse_expr() {
 }
 
 proc parse_pvars() {
-    skip_ws()
-    state chk {
+    let head = 0
+    let tail = 0
+    state loop {
+        skip_ws()
         to done when (cbyte() == ')')
         to eof when (cbyte() == 0)
-        to more
-    }
-    state more {
         let voff = take_ident()
         to name_ok when (valid_value_name(voff) == 1)
         mark_invalid()
         to name_ok
     }
     state name_ok {
-        let t = parse_pvars()
-        return alloc(6, voff, t, 0)
+        let node = alloc(6, voff, 0, 0)
+        to first when (head == 0)
+        word[tail + 16] = node
+        tail = node
+        to loop
     }
-    state eof { mark_invalid()  return 0 }
-    state done { return 0 }
+    state first { head = node  tail = node  to loop }
+    state eof { mark_invalid()  return head }
+    state done { return head }
 }
 
 proc parse_pat() {
@@ -656,32 +662,34 @@ proc parse_pat() {
 }
 
 proc parse_arms() {
-    skip_ws()
-    state chk {
+    let head = 0
+    let tail = 0
+    state loop {
+        skip_ws()
         to done when (cbyte() == ')')
         to eof when (cbyte() == 0)
-        to more
-    }
-    state more {
         consume_expected('(')
         let pat = parse_pat()
         let body = parse_expr()
         consume_expected(')')
-        let t = parse_arms()
-        return alloc(6, alloc(11, pat, body, 0), t, 0)
+        let node = alloc(6, alloc(11, pat, body, 0), 0, 0)
+        to first when (head == 0)
+        word[tail + 16] = node
+        tail = node
+        to loop
     }
-    state eof { mark_invalid()  return 0 }
-    state done { return 0 }
+    state first { head = node  tail = node  to loop }
+    state eof { mark_invalid()  return head }
+    state done { return head }
 }
 
 proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM nodes
-    skip_ws()
-    state chk {
+    let head = 0
+    let tail = 0
+    state loop {
+        skip_ws()
         to done when (cbyte() == ')')
         to eof when (cbyte() == 0)
-        to more
-    }
-    state more {
         consume_expected('(')
         let poff = take_ident()
         to param_name_ok when (valid_value_name(poff) == 1)
@@ -697,11 +705,15 @@ proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM no
     state param_type_ok {
         consume_expected(')')
         let node = alloc(50, poff, tyid(toff), 0)
-        let t = parse_typed_params()
-        return alloc(6, node, t, 0)
+        let link = alloc(6, node, 0, 0)
+        to first when (head == 0)
+        word[tail + 16] = link
+        tail = link
+        to loop
     }
-    state eof { mark_invalid()  return 0 }
-    state done { return 0 }
+    state first { head = link  tail = link  to loop }
+    state eof { mark_invalid()  return head }
+    state done { return head }
 }
 
 proc parse_def() {
@@ -740,24 +752,27 @@ proc parse_def() {
 }
 
 proc parse_argtypes() {           ; constructor arg type names until ')', CONS of tyids
-    skip_ws()
-    state chk {
+    let head = 0
+    let tail = 0
+    state loop {
+        skip_ws()
         to done when (cbyte() == ')')
         to eof when (cbyte() == 0)
-        to more
-    }
-    state more {
         let toff = take_ident()
         to type_name_ok when (is_upper(byte[2097152 + toff]) == 1)
         mark_invalid()
         to type_name_ok
     }
     state type_name_ok {
-        let t = parse_argtypes()
-        return alloc(6, tyid(toff), t, 0)
+        let node = alloc(6, tyid(toff), 0, 0)
+        to first when (head == 0)
+        word[tail + 16] = node
+        tail = node
+        to loop
     }
-    state eof { mark_invalid()  return 0 }
-    state done { return 0 }
+    state first { head = node  tail = node  to loop }
+    state eof { mark_invalid()  return head }
+    state done { return head }
 }
 
 proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + cons
