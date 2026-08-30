@@ -286,6 +286,7 @@ fn exact_construction_prefix(
     let expected_root_length = match construction_locals.len() {
         2 => 3,
         3 => 4,
+        4 => 5,
         _ => return false,
     };
     construction_locals.len() == locals.len()

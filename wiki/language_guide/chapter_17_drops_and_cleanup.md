@@ -349,7 +349,15 @@ with no nominal cleanup accepted by the first slice. Establishments must be the
 literal prefix `[0, 1, 2]`; an ordinary Unit return records three distinct
 zero-ABI element occurrences and cleans them in reverse order `[2, 1, 0]`.
 Missing, reordered, duplicate, dynamic, wrong-root, or wider construction
-shapes remain unsupported, and trap or nuclear-abort edges still clean nothing.
+shapes at that slice remain unsupported, and trap or nuclear-abort edges still
+clean nothing.
+
+The third bounded slice admits `[T; 5]` under those same restrictions.
+Establishments must be the literal prefix `[0, 1, 2, 3]`; an ordinary Unit
+return records four distinct zero-ABI element occurrences and cleans them in
+reverse order `[3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
+wrong-root, wrong-length, or wider construction shapes remain unsupported, and
+trap or nuclear-abort edges still clean nothing.
 
 ## Contextual Droppability
 

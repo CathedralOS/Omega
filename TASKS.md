@@ -9360,10 +9360,19 @@ reach or trust, and private proof improvements do not change public identity.
   zero-ABI locals, reverse cleanup `[2, 1, 0]`, common length-four root, and
   exact three-operation/one-edge fuel ordinals. Missing, reordered, duplicate,
   wrong-root, wrong-length, index, cleanup-order, and artifact mutations reject.
-  No wider prefix, runtime liveness state, or cleanup loop is admitted.
+  At that rung, no wider prefix, runtime liveness state, or cleanup loop is
+  admitted.
+
+  The following construction-prefix rung is closed as well. The same exact
+  carrier admits `[T; 5]` with establishments `[0, 1, 2, 3]` and ordinary
+  cleanup `[3, 2, 1, 0]`. Checked production, Terminal verification and
+  interpretation, machine emission, object/image validation, and installation
+  replay retain the common length-five root and exact four-operation/one-edge
+  fuel ordinals. Missing, reordered, redirected-root, wrong-length, index, and
+  cleanup-order mutations reject without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 3]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 4]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 5]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content

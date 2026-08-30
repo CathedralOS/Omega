@@ -309,6 +309,14 @@ three zero-ABI element occurrences in order `[2, 1, 0]`; Terminal and every
 native artifact layer independently retain the common length-four root and
 three operation plus one return-edge fuel units. Missing or reordered
 establishments, root/index/length drift, cleanup-order drift, and wider prefixes
+at that rung remain fail closed without runtime liveness state or a cleanup loop.
+
+The following bounded successor admits `[T; 5]` under the same restrictions and
+establishes literal indices `0`, `1`, `2`, then `3`. Ordinary abandonment cleans
+the four zero-ABI element occurrences in order `[3, 2, 1, 0]`; Terminal and
+every native artifact layer independently retain the common length-five root
+and four operation plus one return-edge fuel units. Missing or reordered
+establishments, root/index/length drift, cleanup-order drift, and wider prefixes
 remain fail closed without runtime liveness state or a cleanup loop.
 
 Named record and case literals generalize the construction half without
