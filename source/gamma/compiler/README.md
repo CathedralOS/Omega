@@ -14,17 +14,18 @@ The adjacent gate compiles this one source with temporary fixed test entries,
 runs all 82 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup/structural-replay failures, executes six generated
 runtime-containment programs,
-exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, compares
-two repeated payloads byte-identically, and executes 14 compact-`Bytes`, two
+exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, executes
+one resolved-call bridge payload, compares three repeated payloads
+byte-identically, and executes 14 compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 97 procedures. With the fixed frontend
-gate entry, the compiled gate uses 98 of Beta's 128 procedure slots and
-compiles to 222,452 bytes. The remaining 39,688 bytes under
+The retained compiler source declares 98 procedures. With the fixed frontend
+gate entry, the compiled gate uses 99 of Beta's 128 procedure slots and
+compiles to 229,538 bytes. The remaining 32,602 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
-Gamma language limit.
+Gamma language limit or evidence that every remaining compiler component fits.
 
 `../interp.beta` remains a bounded execution oracle. It may contribute an
 isolated lowering/runtime algorithm where economical, but no interpreter loop,
@@ -151,12 +152,19 @@ artifact is published.
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them
 overlap-safely into the replacement frame, restores the original caller frame,
-and jumps to the callee. `if` lowering already preserves its tail-position bit;
-future `let`, call, and selected-match lowering must propagate the same transfer
-so terminating tail recursion grows neither Gamma activations nor Alpha's
-hidden return stack. The executed substrate establishes that ABI independently;
-connecting ordinary call ASTs and binder slots to it waits for Q3's
-deterministic source-identity ruling.
+and jumps to the callee. The retained resolved-call seam now consumes the
+canonical source-order argument list, spills complete values, and selects that
+ordinary or tail transfer from an opaque callee label and fixed frame prefix.
+It prevalidates the forward arena list and every fixed extent before emitting
+argument code; malformed private metadata cannot loop, wrap frame arithmetic,
+or leave a partial candidate payload.
+Its compact executed payload carries mixed `Bytes`/`Int` arguments through both
+paths and returns with the root stack and frame restored. `if` lowering already
+preserves its tail-position bit; future `let` and selected-match lowering must
+propagate the same transfer so terminating tail recursion grows neither Gamma
+activations nor Alpha's hidden return stack. Connecting tag-5 source call
+spellings, callee metadata, and binder slots to the seam still waits for Q3's
+deterministic source-identity ruling; no resolved AST is serialized or executed.
 
 `Bytes` uses a compact immutable rope/view representation with closed descriptor
 kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and

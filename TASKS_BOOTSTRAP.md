@@ -536,10 +536,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 97 procedures; with the frontend
-    gate entry, the gate uses 98 of Beta's 128 procedure slots and compiles to
-    222,452 bytes, leaving 39,688 bytes below Alpha's runnable payload ceiling
-    for lowering and the eventual adapter.
+    tape budget. The retained source declares 98 procedures; with the frontend
+    gate entry, the gate uses 99 of Beta's 128 procedure slots and compiles to
+    229,538 bytes, leaving 32,602 bytes below Alpha's runnable payload ceiling.
+    That is measured pressure, not evidence that all remaining lowering and the
+    adapter will fit; profile each retained milestone and escalate before the
+    fixed edge is forced into an alternate architecture.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
     application adapter. Reserve `r252`/`r253` for the downward stack and frame
     base and `r254`/`r255` for the upward heap and its limit. Directly emit heap
@@ -625,6 +627,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     so unrelated frontend growth cannot force those diagnostics past Beta's
     fixed payload ceiling; the actual lowering probe still compiles the whole
     canonical source.
+  - [x] Bridge already-resolved ordinary and tail calls into the eventual
+    expression backend without assigning a Q3-blocked source identity. Consume
+    the canonical source-order argument list, lower every argument non-tail
+    exactly once, preserve complete `(kind,payload)` pairs across guarded
+    16-byte spills, and select the existing ordinary-call or replacement-frame
+    emitter from an opaque callee label and fixed-prefix profile. Before
+    emission, validate the complete forward arena list and bound all fixed
+    frame/field arithmetic by the generated-stack profile so malformed private
+    metadata cannot wrap, loop, or author a partial payload. Execute one
+    compact two-argument mixed-kind payload through both paths, recover the
+    source-order values in the callee, restore the root stack/frame after the
+    tail return, and require byte-identical reconstruction. The tag-5 source
+    connection, callee metadata assignment, and binder slots remain Q3-blocked;
+    this seam introduces no resolved-AST serialization or subset compiler.
   - [x] Establish the dormant profile-parameterized sealed-input reader without
     selecting Q2's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
@@ -720,8 +736,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   compiler source is an accepted compiler artifact. The retained gates pass 48
   interpreter cases, the fail-closed arena case, 82 compiler-frontend cases,
   one exact emitter probe, six executed runtime-containment probes, 16 checked
-  `Int` paths, 31 source-to-code lowering cases, two byte-determinism
-  comparisons, 14 compact-`Bytes` runtime paths, two arbitrary-arity/frame-ABI
+  `Int` paths, 31 source-to-code lowering cases, one resolved-call bridge
+  payload, three byte-determinism comparisons, 14 compact-`Bytes` runtime
+  paths, two arbitrary-arity/frame-ABI
   paths, three algebraic-value ABI paths, eight sealed-input runtime paths, one
   sealed-input reconstruction comparison, and 106 independent differential
   cases.
