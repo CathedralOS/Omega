@@ -545,9 +545,12 @@ literal fixed array ending in either exact shape, provided the ordinary recast
 judgment has proved the whole footprint in bounds. The
 primitive-array extent comes from its normalized exactly tiled representation;
 record arrays repeat the complete normalized padded record extent under exact
-symbol identity. Runtime or merely bounded offsets, slices, records containing
-array fields, generic/invariant-bearing/erased/cased records, and other indexed
-forms remain conservative. Last-use accounting compares the canonical
+symbol identity. Eligible records may themselves contain recursively nonzero
+literal array fields ending in the same exact primitive or record shapes;
+their padding and repeated strides remain inside the range. Runtime or merely
+bounded offsets, slices, zero-length record-contained arrays,
+generic/invariant-bearing/erased/cased records, and other indexed forms remain
+conservative. Last-use accounting compares the canonical
 field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.

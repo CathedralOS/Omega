@@ -10544,10 +10544,12 @@ checked-result arithmetic decision listed below.
   record shape now publish the
   complete validated half-open target footprint as one fixed-range loan.
   Primitive-terminal arrays require an exactly tiled normalized representation;
-  record-terminal arrays repeat the complete normalized padded record extent.
-  Record lookup and recursion use exact symbol identity. First/last/padding-byte
-  mutations reject while immediate siblings remain disjoint. Runtime or merely
-  bounded offsets, slices, records containing array fields,
+  record-terminal arrays and eligible records containing recursively nonzero
+  literal array fields retain the complete normalized padded record extent.
+  Record lookup and recursion use exact symbol identity. Repeated-leaf capacity
+  overflow fails closed before allocation. First/last/padding-byte mutations
+  reject while immediate siblings remain disjoint. Runtime or merely bounded
+  offsets, slices, zero-length record-contained arrays,
   generic/invariant-bearing/erased/cased records, and other indexed recasts
   remain conservative.
   Scalar recast representation-set normalization and
@@ -10555,10 +10557,11 @@ checked-result arithmetic decision listed below.
   complement bit-pattern intervals, same-carrier float intervals, domain-
   conjunction implication, mutable bidirectional equivalence, and five focused
   tests retain behavior and order. Aggregate recast representation
-  normalization now lives in a focused 370-line private owner. Exact record/
+  normalization now lives in a focused 471-line private owner. Exact record/
   array geometry, plan-laid stored-width and repeated-field normalization,
-  stable leaf order, exact tiling, shared implication, and mutable
-  bidirectional equivalence retain behavior and identity. Interior-byte recast
+  stable leaf order, exact tiling, fallible repeated-leaf allocation, shared
+  implication, and mutable bidirectional equivalence retain behavior and
+  identity. Interior-byte recast
   offset proof now lives in a focused 622-line private owner. Per-edge upper/
   lower meets, constant and self-forwarding routes, guard/equality symbolic
   composition, declared ranges, boundary `ensures`, and write-frame
