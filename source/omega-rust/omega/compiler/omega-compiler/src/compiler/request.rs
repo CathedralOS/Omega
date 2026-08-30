@@ -140,6 +140,18 @@ impl CompileRequest {
         }
         Ok(ValidatedCompileRequest(self))
     }
+
+    pub(super) fn validate_for_native_execution(
+        self,
+    ) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
+        if self.requested_product != RequestedCompileProduct::NativeArtifact {
+            return Err(vec![Diagnostic::error(format!(
+                "checked native compilation requires NativeArtifact production; received {:?}",
+                self.requested_product,
+            ))]);
+        }
+        self.validate_for_execution()
+    }
 }
 
 impl ValidatedCompileRequest {

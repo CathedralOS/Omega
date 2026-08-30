@@ -2248,16 +2248,26 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
         "#,
     );
 
+    let erase = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "erase")
+        .expect("authored erase machine");
     let cast_target = typed
-        .machine_states(&typed.machines()[1])
+        .machine_states(erase)
         .iter()
         .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
         .find_map(|statement| {
             let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
                 return None;
             };
-            let psi_typed_trees::expression::ExpressionNode::Cast(cast) =
+            let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
                 typed.expression_table.expression(local.initial_value)
+            else {
+                return None;
+            };
+            let psi_typed_trees::expression::ExpressionNode::Cast(cast) =
+                typed.expression_table.expression(borrow.target)
             else {
                 return None;
             };
