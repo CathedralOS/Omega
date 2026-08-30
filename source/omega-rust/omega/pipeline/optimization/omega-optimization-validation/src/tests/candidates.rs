@@ -3,6 +3,67 @@
 use super::*;
 
 #[test]
+fn write_only_store_cannot_be_dropped_as_a_dead_scalar_node() {
+    let input = write_only_store_unit();
+    let function = &input.functions[0];
+    let block = &function.blocks[0];
+    let location = NodeLocation {
+        machine: function.machine,
+        block: block.id,
+        node: 1,
+    };
+    let next = NodeLocation {
+        machine: function.machine,
+        block: block.id,
+        node: 2,
+    };
+    let node = &block.nodes[1];
+    let AbstractOperation::WriteOnlyPrimitiveStore {
+        psi_operation,
+        value,
+        ..
+    } = node.operation
+    else {
+        panic!("fixture second node is the write-only store")
+    };
+    let contract = OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1",
+        ),
+        OptimizationPassIdentity::from_canonical_bytes(b"dead-scalar-drop-rejection-test"),
+        1,
+        AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+        OptimizationSafetyClass::ExactOperationSemantics,
+    )
+    .unwrap();
+    let candidate = PsiRewriteCandidate::new_dead_scalar_node(
+        input.identity,
+        contract,
+        vec![block.id],
+        vec![ProvenanceRewrite {
+            input: PsiRealizationSite::Node(location),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(next)),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        }],
+        -1,
+        DeadScalarNodeRewrite {
+            location,
+            source_operation: psi_operation,
+            result: value.value,
+            scalar_type: value.scalar_type,
+        },
+    )
+    .expect("candidate envelope is structurally well formed");
+
+    assert_eq!(
+        validate_dead_scalar_node_candidate(&input, &candidate),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+    );
+}
+
+#[test]
 fn redundant_parameter_region_observation_is_canonical_and_axis_complete() {
     let (input, output, patch, affected) = redundant_parameter_region_fixture();
     let normalized = normalize_redundant_parameter_observation_input(&input, patch, &affected)

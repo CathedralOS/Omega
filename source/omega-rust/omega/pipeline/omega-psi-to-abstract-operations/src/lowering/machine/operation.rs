@@ -215,10 +215,38 @@ pub(super) fn lower_operation(
                 value,
             });
         }
-        OperationKind::WriteOnlyPrimitiveStore { .. } => {
-            return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore(
-                operation.id,
-            ));
+        OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+            let Some(destination) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == destination)
+                .cloned()
+            else {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            };
+            let Some(scalar_type) = value_types.get(&value).copied() else {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            };
+            let valid_destination = destination.access
+                == psi_terminal::StructuralAccess::WriteOnlyBorrow
+                && destination.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+                && destination.qualifications.is_empty()
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == destination.structural_type
+                        && matches!(
+                            declaration.shape,
+                            psi_terminal::StructuralTypeShape::PrimitiveScalar(expected)
+                                if expected == scalar_type
+                        )
+                });
+            if !valid_destination {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            }
+            operations.push(AbstractOperation::WriteOnlyPrimitiveStore {
+                psi_operation: operation.id,
+                destination,
+                value: AbstractResult { value, scalar_type },
+            });
         }
         OperationKind::Call {
             callee, arguments, ..

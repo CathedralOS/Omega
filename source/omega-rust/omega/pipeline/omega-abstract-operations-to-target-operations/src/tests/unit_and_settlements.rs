@@ -1,6 +1,77 @@
 use super::*;
 
 #[test]
+fn write_only_primitive_store_stops_at_explicit_physical_lowering_fence() {
+    let machine = MachineId::new(61).unwrap();
+    let block = BlockId::new(62).unwrap();
+    let place = PlaceId::new(63).unwrap();
+    let structural_type = StructuralTypeId::new(64).unwrap();
+    let value = ValueId::new(65).unwrap();
+    let store_operation = OperationId::new(66).unwrap();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let destination = StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+    };
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::i32".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: vec![destination.clone()],
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: OperationId::new(67).unwrap(),
+                    result: value,
+                    scalar_type,
+                    value: IntegerValue::Signed(2),
+                },
+                AbstractOperation::WriteOnlyPrimitiveStore {
+                    psi_operation: store_operation,
+                    destination,
+                    value: AbstractResult { value, scalar_type },
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(68).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+
+    assert_eq!(
+        lower_to_target_operations(&plan, NativeTarget::linux_x64()),
+        Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
+            machine,
+            operation: store_operation,
+        })
+    );
+}
+
+#[test]
 fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
     let root = MachineId::new(1).unwrap();
     let callee = MachineId::new(2).unwrap();

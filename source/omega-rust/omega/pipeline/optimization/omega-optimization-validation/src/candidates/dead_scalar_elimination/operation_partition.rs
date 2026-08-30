@@ -39,7 +39,8 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::WrappingIntegerRemainder { .. }
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. } => Some(DeadScalarFamily::ProofCertified),
-        O::EstablishPayloadlessCase { .. }
+        O::WriteOnlyPrimitiveStore { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }

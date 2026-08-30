@@ -6,11 +6,12 @@ use omega_abstract_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ContentPlaceVersion, DomainSemanticId, IntegerSign, IntegerType,
-    IntegerValue, ServiceId, StructuralDomainId, StructuralTypeId,
+    IntegerValue, PlaceId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ByteSequenceCarrier, ProviderCandidateConformance,
-    ProviderUnitRefinement, ProviderUnitSignature, SemanticFingerprint, StructuralTypeDeclaration,
+    ProviderUnitRefinement, ProviderUnitSignature, SemanticFingerprint, StructuralAccess,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, VocabularyMarker,
 };
 
@@ -70,6 +71,112 @@ fn plan() -> AbstractOperationPlan {
             ],
         }],
     }
+}
+
+fn write_only_store_plan() -> AbstractOperationPlan {
+    let machine = id(70, MachineId::new);
+    let block = id(71, BlockId::new);
+    let value = id(72, ValueId::new);
+    let place = id(73, PlaceId::new);
+    let structural_type = id(74, StructuralTypeId::new);
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let destination = StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+    };
+    AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([70; 32]),
+        },
+        entry: machine,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::i32".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: vec![AbstractParameter { value, scalar_type }],
+            structural_parameters: vec![destination.clone()],
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::WriteOnlyPrimitiveStore {
+                    psi_operation: id(75, OperationId::new),
+                    destination,
+                    value: AbstractResult { value, scalar_type },
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: id(76, EdgeId::new),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    }
+}
+
+#[test]
+fn write_only_store_identity_binds_destination_value_and_scalar_type() {
+    let schedule = FuelScheduleIdentity::new(70).unwrap();
+    let baseline = reconstruct_psi_optimization_unit_seed(&write_only_store_plan(), schedule)
+        .expect("store plan reconstructs");
+
+    let changed_identity = |mut unit: PsiOptimizationUnit| {
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        unit.identity
+    };
+    let mut destination_drift = baseline.clone();
+    let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
+        &mut destination_drift.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("first node is the store")
+    };
+    destination.position = 1;
+    assert_ne!(baseline.identity, changed_identity(destination_drift));
+
+    let mut place_drift = baseline.clone();
+    let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
+        &mut place_drift.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("first node is the store")
+    };
+    destination.place = id(78, PlaceId::new);
+    assert_ne!(baseline.identity, changed_identity(place_drift));
+
+    let mut value_drift = baseline.clone();
+    let AbstractOperation::WriteOnlyPrimitiveStore { value, .. } =
+        &mut value_drift.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("first node is the store")
+    };
+    value.value = id(77, ValueId::new);
+    assert_ne!(baseline.identity, changed_identity(value_drift));
+
+    let mut type_drift = baseline.clone();
+    let AbstractOperation::WriteOnlyPrimitiveStore { value, .. } =
+        &mut type_drift.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("first node is the store")
+    };
+    value.scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap());
+    assert_ne!(baseline.identity, changed_identity(type_drift));
 }
 
 #[test]

@@ -12,6 +12,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         }
     };
     match operation {
+        O::WriteOnlyPrimitiveStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);

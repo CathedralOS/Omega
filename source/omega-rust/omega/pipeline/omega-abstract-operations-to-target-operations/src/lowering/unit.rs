@@ -36,6 +36,16 @@ pub(super) fn lower_unit_function(
     {
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
+    if let Some(AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }) = function
+        .operations
+        .iter()
+        .find(|operation| matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. }))
+    {
+        return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
+    }
 
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -97,6 +107,12 @@ pub(super) fn lower_unit_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
+                return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             AbstractOperation::EstablishPayloadlessCase { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
             }

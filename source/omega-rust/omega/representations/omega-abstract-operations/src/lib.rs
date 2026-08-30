@@ -279,6 +279,17 @@ impl AbstractFunctionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// One verifier-approved non-observing replacement through an exact
+    /// whole-root write-only structural parameter. The complete parameter row
+    /// keeps access, multiplicity, nominal type, and signature position from
+    /// being reconstructed from physical ABI shape; `value` retains the exact
+    /// preceding scalar definition and type. Target lowering must not realize
+    /// this event without a separate physical address/width/store model.
+    WriteOnlyPrimitiveStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        value: AbstractResult,
+    },
     /// Establish one exact payloadless case of a declared structural sum.
     /// Target realization remains deliberately separate from retention in the
     /// optimizer's target-neutral semantic vocabulary.

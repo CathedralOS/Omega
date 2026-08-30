@@ -21,6 +21,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         }
     };
     match operation {
+        O::WriteOnlyPrimitiveStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);

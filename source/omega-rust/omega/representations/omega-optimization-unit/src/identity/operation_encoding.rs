@@ -6,6 +6,16 @@ use super::*;
 pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::WriteOnlyPrimitiveStore {
+            psi_operation,
+            destination,
+            value,
+        } => {
+            bytes.u8(49);
+            bytes.id(*psi_operation);
+            encode_structural_parameter(bytes, destination);
+            encode_abstract_result(bytes, *value);
+        }
         O::EstablishPayloadlessCase {
             psi_operation,
             result,

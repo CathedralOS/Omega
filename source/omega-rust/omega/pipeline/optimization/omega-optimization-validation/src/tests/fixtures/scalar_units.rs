@@ -57,6 +57,91 @@ pub(crate) fn unit() -> PsiOptimizationUnit {
     .expect("valid unit")
 }
 
+fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
+    let machine = id(51, MachineId::new);
+    let block = id(52, BlockId::new);
+    let value = id(53, ValueId::new);
+    let place = id(54, PlaceId::new);
+    let structural_type = id(55, StructuralTypeId::new);
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let destination = psi_terminal::StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+        access: psi_terminal::StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+    };
+    let constant = AbstractOperation::IntegerConstant {
+        psi_operation: id(56, OperationId::new),
+        result: value,
+        scalar_type,
+        value: IntegerValue::Signed(2),
+    };
+    let store = AbstractOperation::WriteOnlyPrimitiveStore {
+        psi_operation: id(57, OperationId::new),
+        destination: destination.clone(),
+        value: AbstractResult { value, scalar_type },
+    };
+    let mut operations = if store_before_value {
+        vec![store, constant]
+    } else {
+        vec![constant, store]
+    };
+    operations.push(AbstractOperation::ReturnUnit {
+        psi_edge: id(58, EdgeId::new),
+        cleanup_actions: Vec::new(),
+    });
+    AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([51; 32]),
+        },
+        entry: machine,
+        structural_types: vec![psi_terminal::StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::i32".into(),
+            shape: psi_terminal::StructuralTypeShape::PrimitiveScalar(scalar_type),
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: vec![destination],
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations,
+        }],
+    }
+}
+
+pub(crate) fn write_only_store_unit() -> PsiOptimizationUnit {
+    reconstruct_psi_optimization_unit_seed(
+        &write_only_store_plan(false),
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("valid write-only store fixture")
+}
+
+pub(crate) fn write_only_store_before_value_unit() -> PsiOptimizationUnit {
+    reconstruct_psi_optimization_unit_seed(
+        &write_only_store_plan(true),
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("structural reconstruction permits independent dominance validation")
+}
+
 pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
     let machine = id(201, MachineId::new);
     let block = id(202, BlockId::new);

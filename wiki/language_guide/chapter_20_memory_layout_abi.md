@@ -366,6 +366,12 @@ removing loads, readable reborrows, read-modify-write, and every other
 content-dependent operation. It is not a placement accessor, does not govern
 device observation, and never denotes vacant or uninitialized storage.
 
+The current bounded whole-root primitive-store carrier intentionally ends
+before this ABI realization. Abstract and optimization forms retain the exact
+write-only parameter and typed incoming value, but target lowering reports a
+dedicated unsupported-store fence until address, width, store operation, and
+provider non-observation authority can be derived independently.
+
 ### Geometry, demand, and supply
 
 Placed storage keeps three questions independent:

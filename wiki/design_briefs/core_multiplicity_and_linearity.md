@@ -107,6 +107,11 @@ also satisfy ordinary displaced-custody and invariant-window rules. An opaque
 provider's compliance is admitted unless target isolation enforces it; that
 does not widen the authority recorded in the source or artifact contract.
 
+The first bounded whole-root primitive store preserves its complete write-only
+parameter row and preceding typed scalar use through target-neutral abstract
+operations and optimization validation. Physical lowering remains fenced until
+separate address, width, store, and provider non-observation authority exists.
+
 ## Consumers and cleanup
 
 A linear value must reach exactly one authorized terminal consumer on every

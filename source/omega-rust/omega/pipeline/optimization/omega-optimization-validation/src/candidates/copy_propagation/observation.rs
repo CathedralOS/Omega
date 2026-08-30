@@ -100,6 +100,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
     };
 
     match &mut normalized {
+        O::WriteOnlyPrimitiveStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);
