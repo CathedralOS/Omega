@@ -1820,6 +1820,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
       census changes. Exact association, precedence, grouping/prefix, malformed
       operand, reset, and no-partial-publication vectors remain assigned to the
       real Delta-compiler gate.
+    - [x] Retain the complete `<<`/`>>` shift tier in that same reducer. Shifts
+      are source-ordered, left-associated, looser than additive forms, and
+      tighter than comparison in transition subjects, assignments, locals, and
+      call arguments; path and cast left operands use the same rejoin seams as
+      the multiplicative tier. The private precedence numbers now reserve the
+      intervening membership/bitwise tiers rather than forcing a later tree-
+      shape migration. Shift-count proof and arithmetic-policy decisions remain
+      semantic work, so `x << 64` is valid syntax rather than a parser refusal.
+      Spaced `< <`/`> >` and unsupported compound assignment do not become
+      shifts. No arena, resource, consumer, or current `C` census changes.
+      Exact association, precedence, operator-span, malformed-operand, reset,
+      and no-partial-publication vectors remain assigned to the real Delta-
+      compiler gate.
     - [x] Retain the first closed external-leaf declaration as one coherent
       source-shaped form: `satisfies Trait::requirement via
       Binding::CompilerIntrinsic;`. The satisfying clause owns explicit
