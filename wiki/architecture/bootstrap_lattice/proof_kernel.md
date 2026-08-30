@@ -250,8 +250,15 @@ simulation lemmas are checked once and referenced through a shared proof DAG.
 The Alpha assembly source used to construct the Beta compiler is not such an
 edge. Its authoritative encoder must produce the exact persisted tape; byte
 equality gives identical Alpha initial programs and therefore lockstep traces.
-Non-lockstep machinery begins with proving that the compiler correctly lowers
-arbitrary Beta source, and with later compiler rungs.
+That one root equality may be derived from bounded checked pass-one and pass-two
+equalities. Pass one partitions the source and constructs one frozen label map
+and payload length; pass two independently partitions source and tape and checks
+encoding against that frozen state. One checked joint and composition proof
+establish per-pass adjacency, unique ownership, canonical endpoints, and total
+exhaustion. The certificate producer may choose cuts but cannot choose the
+relation, subjects, schemas, joint, endpoints, or root proposition. Non-lockstep
+machinery begins with proving that the compiler correctly lowers arbitrary Beta
+source, and with later compiler rungs.
 
 The first implementation must measure certificate size and checking time and
 exercise termination, divergence, zero-instruction source steps, multi-step

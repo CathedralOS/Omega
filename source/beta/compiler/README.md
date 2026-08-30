@@ -38,8 +38,10 @@ second assembler invocation participates.
 The former Alpha-written status reconstructor was deleted after measured proof
 work showed that it could not become the selected checked derivation. It was a
 parallel assembly semantics, not an admission premise. The exact source/tape
-certificate remains open under OWNER Q5 (the exact Alpha-to-Beta edge) in
-`OWNER_QUESTIONS.md`.
+certificate remains open under **ALPHA-BETA-COMPOSED-CERTIFICATE** in
+`TASKS_BOOTSTRAP.md`. Its one root edge proof is settled to compose bounded
+pass-one and pass-two equalities rather than require one compiler-scale
+conversion.
 
 The committed artifact is 26,751 bytes with SHA-256
 `c54307cc855f72d6ab64a320237826fd9eff46307dc817727a3671ded9a747a1`.

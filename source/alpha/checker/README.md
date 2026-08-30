@@ -82,6 +82,23 @@ term can reference those temporary nodes. Together these rules keep a balanced
 artifact certificate with many independent computations from turning dead
 normal forms into permanent memory pressure.
 
+One admitted root proposition does not require one compiler-scale conversion.
+An artifact-owned proof may discharge bounded subject-bound equalities as named
+lemmas, reclaim conversion scratch after each decision, and compose those
+lemmas through the existing checked proof rules into one root judgment. Cut
+locations are untrusted proof witnesses: the artifact owner fixes the relation,
+subjects, boundary-state schemas, composition theorem, canonical endpoints, and
+root proposition, while checked adjacency, ownership, and exhaustion decide
+whether a proposed partition is valid.
+
+The canonical Beta checker must publish an exact resource profile for its
+arena, semantic stack, framed input, certificate, declaration, and lemma tables.
+Artifact producers target that profile rather than the unbounded diagnostic
+reference implementation. A future authoritative replacement must continue to
+accept the live certificate under its recorded profile or perform an explicit
+certificate migration; cross-implementation agreement remains diagnostic and
+does not grant the reference checker authority.
+
 ## Retention inventory
 
 Every retained owned file must strengthen the rooted checker service or one
