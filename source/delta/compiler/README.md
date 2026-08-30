@@ -14,8 +14,11 @@ byte before scanning all tokens and literals, returns the exact lexical reason
 and packed offset, and retains no host-generated token ledger. Syntax nodes are
 recursive Gamma values with exact source spans rather than byte-rope records or
 numeric arena references. The scanner rescans one token at a time only after
-the complete lexical phase succeeds. This foundation type-checks through the
-current Gamma frontend gate.
+the complete lexical phase succeeds. Its token start, code, end, and literal
+value are immediate `Int` results: lookahead may repeat bounded scanning work,
+but it authors no transient token objects into the generated program's fixed
+immutable heap. This foundation type-checks through the current Gamma frontend
+gate.
 
 It deliberately has no `main`, emitted placeholder, or canonical tape. The
 native values can represent every D17 grammar form, but parsing, whole-closure
