@@ -285,6 +285,21 @@ fn validate(
         return Err(invalid());
     }
     let structural = &countdown.structural_parameters[0];
+    let [replay_machine] = countdown.custody.semantic_replay.machines.as_slice() else {
+        return Err(invalid());
+    };
+    let [replay_structural] = replay_machine.structural_parameters.as_slice() else {
+        return Err(invalid());
+    };
+    let affine_owned = !replay_structural.is_self
+        && replay_structural.multiplicity == StructuralMultiplicity::Affine
+        && replay_structural.access == StructuralAccess::Owned;
+    let persistent_receiver =
+        replay_structural.is_self && replay_structural.access == StructuralAccess::MutableBorrow;
+    let pointer_shape = ValueShape::integer(
+        u16::try_from(target.pointer_size).map_err(|_| invalid())?,
+        u16::try_from(target.pointer_alignment).map_err(|_| invalid())?,
+    );
     let expected_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -293,16 +308,22 @@ fn validate(
         },
     )
     .map_err(|_| invalid())?;
-    if structural.multiplicity != StructuralMultiplicity::Affine
-        || structural.access != StructuralAccess::Owned
+    if structural.place != replay_structural.place
+        || structural.structural_type != replay_structural.structural_type
+        || structural.multiplicity != replay_structural.multiplicity
+        || structural.access != replay_structural.access
+        || (!affine_owned && !persistent_receiver)
+        || (persistent_receiver && structural.shape != pointer_shape)
         || countdown.call_plan != expected_call_plan
         || countdown.call_plan.parameters[1] != structural.placement
         || !countdown
             .structural_types
             .iter()
             .any(|declaration| declaration.id == structural.structural_type)
-        || countdown.cleanup_actions.as_slice()
-            != [TerminalAffineCleanupAction::DiscardRoot(structural.place)]
+        || (affine_owned
+            && countdown.cleanup_actions.as_slice()
+                != [TerminalAffineCleanupAction::DiscardRoot(structural.place)])
+        || (persistent_receiver && !countdown.cleanup_actions.is_empty())
     {
         return Err(invalid());
     }
@@ -316,12 +337,13 @@ fn validate(
         .structural_frontiers
         .edge_exit(covered.edge)
         .ok_or_else(invalid)?;
-    let [owned] = header_frontier.owned_places() else {
-        return Err(invalid());
-    };
+    let affine_frontier = matches!(header_frontier.owned_places(), [owned]
+        if owned.place == structural.place
+            && owned.multiplicity == StructuralMultiplicity::Affine);
+    let receiver_frontier = header_frontier.owned_places().is_empty();
     if header_frontier != backedge_frontier
-        || owned.place != structural.place
-        || owned.multiplicity != StructuralMultiplicity::Affine
+        || (affine_owned && !affine_frontier)
+        || (persistent_receiver && !receiver_frontier)
         || !header_frontier.claims().is_empty()
         || !header_frontier.partial_custody().is_empty()
         || graph.entry == component.header

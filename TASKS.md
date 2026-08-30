@@ -609,8 +609,24 @@ Remaining:
   installation, and native-artifact replay retain the ordinary unchanged body.
   The fixed-work theorem remains separate non-authorizing analysis evidence.
   The resulting native artifact validates for both Linux ISAs.
-  Later product-required slices must then add persistent mutable receiver and
-  subplace custody, mixed operations in multi-state blocks, structural-result
+  The first product-following extension is also complete for an operation-free
+  ranked countdown carrying one ordinary affine `&mut self`. The checked plan
+  retains the implicit receiver as `is_self` plus `MutableBorrow`, synthesizes
+  its exact transfer across every edge without inventing an authored argument,
+  and never treats it as an affine discard. Terminal ownership-frontier replay
+  now distinguishes by-value `Owned` roots from borrowed parameters, so the
+  receiver remains present in the semantic signature while the header and
+  backedge agree on the empty by-value frontier. Native lowering classifies
+  that borrow as one pointer-sized ABI value rather than the attached aggregate
+  by value. Target, assignment, machine-code, object, and final-image owners
+  join their physical place/type/multiplicity/access and placement back to the
+  authoritative semantic replay instead of adding a parallel `is_self` bit.
+  Both Linux ISAs accept the exact slice; semantic receiver, physical access,
+  and ABI-placement mutations reject. The prior affine-owned token countdown
+  remains accepted unchanged.
+  This operation-free case does not claim product publication or subplace
+  custody. Later product-required slices must add a real projected receiver
+  subplace transfer, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
   Darwin realizations for `read_byte`, `write_byte`, and `exit_process`. Do not
   bypass Terminal Psi, revive the deleted backend, or route around the failure
@@ -7240,6 +7256,15 @@ Owners:
   or deleting report viewers for speed. Further work should target repeated
   Stage 05 semantic compilation/search and reuse checked-report receipts where
   one owner currently recompiles the same frontend.
+  The 74-parameter
+  `arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs` owner
+  is now a concrete Stage 05 performance target: during the ranked mutable-
+  receiver checkpoint it remained in that single test for more than 100
+  seconds before the bounded suite run was stopped. Profile its repeated
+  checked-tree and exact-proof reconstruction, then reduce that work without
+  weakening the independent-prefix assertions. This is an implementation task,
+  not a language-design block, and the measurement does not authorize deleting
+  the test, broadening Alpha tape, or introducing a speculative arena rewrite.
   Sample refresh no longer multiplies its machine-wide outer fan-out by a full
   backend worker pool per sample: each independent compile now owns one inner
   worker and uses `OutputOnly`, because the command consumes only the runnable

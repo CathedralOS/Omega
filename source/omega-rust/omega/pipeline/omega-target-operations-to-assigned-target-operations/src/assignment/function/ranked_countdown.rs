@@ -32,6 +32,26 @@ pub(super) fn assign(
     } else {
         return Err(AssignmentError::RankedCountdownAbiMismatch(source));
     };
+    let [structural_parameter] = countdown.structural_parameters.as_slice() else {
+        return Err(AssignmentError::RankedCountdownAbiMismatch(source));
+    };
+    let [replay_machine] = countdown.custody.semantic_replay.machines.as_slice() else {
+        return Err(AssignmentError::RankedCountdownAbiMismatch(source));
+    };
+    let [replay_parameter] = replay_machine.structural_parameters.as_slice() else {
+        return Err(AssignmentError::RankedCountdownAbiMismatch(source));
+    };
+    let affine_owned = !replay_parameter.is_self
+        && replay_parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+        && replay_parameter.access == psi_terminal::StructuralAccess::Owned;
+    let persistent_receiver = replay_parameter.is_self
+        && replay_parameter.access == psi_terminal::StructuralAccess::MutableBorrow;
+    let pointer_shape = ValueShape::integer(
+        u16::try_from(target.pointer_size)
+            .map_err(|_| AssignmentError::RankedCountdownAbiMismatch(source))?,
+        u16::try_from(target.pointer_alignment)
+            .map_err(|_| AssignmentError::RankedCountdownAbiMismatch(source))?,
+    );
     if rank_home != expected_rank_home
         || placement.shape != ValueShape::integer(4, 4)
         || countdown.call_plan.parameters.len() != 1 + countdown.structural_parameters.len()
@@ -40,6 +60,18 @@ pub(super) fn assign(
             .iter()
             .zip(&countdown.call_plan.parameters[1..])
             .any(|(parameter, placement)| parameter.placement != *placement)
+        || structural_parameter.place != replay_parameter.place
+        || structural_parameter.structural_type != replay_parameter.structural_type
+        || structural_parameter.multiplicity != replay_parameter.multiplicity
+        || structural_parameter.access != replay_parameter.access
+        || (!affine_owned && !persistent_receiver)
+        || (persistent_receiver && structural_parameter.shape != pointer_shape)
+        || (affine_owned
+            && countdown.cleanup_actions.as_slice()
+                != [psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+                    structural_parameter.place,
+                )])
+        || (persistent_receiver && !countdown.cleanup_actions.is_empty())
     {
         return Err(AssignmentError::RankedCountdownAbiMismatch(source));
     }

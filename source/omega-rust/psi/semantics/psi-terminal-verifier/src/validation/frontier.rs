@@ -211,8 +211,13 @@ pub(super) fn validate_structural_frontier(
             .structural_parameters
             .iter()
             .filter_map(|parameter| {
-                (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
-                    .then_some((parameter.place, parameter.multiplicity))
+                // Access attenuations on ordinary by-value parameters do not
+                // surrender custody. A borrowed receiver is the explicit
+                // exception: `self` remains in the signature but never enters
+                // the machine's by-value ownership frontier.
+                (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    && !(parameter.is_self && parameter.access != StructuralAccess::Owned))
+                .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),
         partial_custody_paths: BTreeMap::new(),

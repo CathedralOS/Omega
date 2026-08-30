@@ -89,13 +89,17 @@ pub(super) fn build_structural_unit_control_machine(
             return None;
         }
         let (attachment, structural_parameters, scalar_parameters) =
-            structural_scalar_signature(program, shapes, machine, state, &binders)?;
+            structural_scalar_signature(program, shapes, machine, state, &binders, true)?;
         let parameters = structural_parameters;
         if parameters.is_empty()
             || parameters.iter().any(|parameter| {
-                parameter.is_self
-                    || parameter.multiplicity != Multiplicity::Affine
-                    || !parameter.qualifications.is_empty()
+                if parameter.is_self {
+                    parameter.access != CheckedStructuralAccess::MutableBorrow
+                        || !parameter.qualifications.is_empty()
+                } else {
+                    parameter.multiplicity != Multiplicity::Affine
+                        || !parameter.qualifications.is_empty()
+                }
             })
             || parameters.len() + scalar_parameters.len() != program.state_parameters(state).len()
         {
@@ -138,15 +142,40 @@ pub(super) fn build_structural_unit_control_machine(
                 )?;
                 let (target_parameters, target_scalar_parameters) = &signatures[target_index];
                 let arguments = program.statement_table.expression_handles(*arguments);
-                if arguments.len() != target_parameters.len() + target_scalar_parameters.len() {
+                if arguments.len()
+                    != target_parameters
+                        .iter()
+                        .filter(|parameter| !parameter.is_self)
+                        .count()
+                        + target_scalar_parameters.len()
+                {
                     return None;
                 }
                 let mut transferred_sources = BTreeSet::new();
                 let transfers = target_parameters
                     .iter()
                     .enumerate()
-                    .map(|(target_index, target)| {
-                        let argument = arguments.get(target.position as usize)?;
+                    .map(|(target_parameter_index, target)| {
+                        if target.is_self {
+                            let source_index =
+                                source_parameters.iter().position(|source| source.is_self)?;
+                            let source = &source_parameters[source_index];
+                            if source != target || !transferred_sources.insert(source_index) {
+                                return None;
+                            }
+                            return Some(CheckedStructuralControlTransferPlan {
+                                source_parameter_index: u32::try_from(source_index).ok()?,
+                                target_parameter_index: u32::try_from(target_parameter_index)
+                                    .ok()?,
+                            });
+                        }
+                        let argument_index = program
+                            .state_parameters(&states[target_index])
+                            .iter()
+                            .take(target.position as usize)
+                            .filter(|parameter| !parameter.is_self)
+                            .count();
+                        let argument = arguments.get(argument_index)?;
                         let place = crate::flow::canonical_place_from_expression_in_state(
                             program,
                             state.symbol,
@@ -174,7 +203,7 @@ pub(super) fn build_structural_unit_control_machine(
                         }
                         Some(CheckedStructuralControlTransferPlan {
                             source_parameter_index: u32::try_from(source_index).ok()?,
-                            target_parameter_index: u32::try_from(target_index).ok()?,
+                            target_parameter_index: u32::try_from(target_parameter_index).ok()?,
                         })
                     })
                     .collect::<Option<Vec<_>>>()?;
@@ -343,7 +372,11 @@ pub(super) fn build_structural_unit_control_machine(
                             &signatures[target_index];
                         let arguments = program.statement_table.expression_handles(*arguments);
                         if arguments.len()
-                            != target_parameters.len() + target_scalar_parameters.len()
+                            != target_parameters
+                                .iter()
+                                .filter(|parameter| !parameter.is_self)
+                                .count()
+                                + target_scalar_parameters.len()
                         {
                             return None;
                         }
@@ -351,8 +384,31 @@ pub(super) fn build_structural_unit_control_machine(
                         let transfers = target_parameters
                             .iter()
                             .enumerate()
-                            .map(|(target_index, target)| {
-                                let argument = arguments.get(target.position as usize)?;
+                            .map(|(target_parameter_index, target)| {
+                                if target.is_self {
+                                    let source_index = source_parameters
+                                        .iter()
+                                        .position(|source| source.is_self)?;
+                                    let source = &source_parameters[source_index];
+                                    if source != target || !transferred_sources.insert(source_index)
+                                    {
+                                        return None;
+                                    }
+                                    return Some(CheckedStructuralControlTransferPlan {
+                                        source_parameter_index: u32::try_from(source_index).ok()?,
+                                        target_parameter_index: u32::try_from(
+                                            target_parameter_index,
+                                        )
+                                        .ok()?,
+                                    });
+                                }
+                                let argument_index = program
+                                    .state_parameters(&states[target_index])
+                                    .iter()
+                                    .take(target.position as usize)
+                                    .filter(|parameter| !parameter.is_self)
+                                    .count();
+                                let argument = arguments.get(argument_index)?;
                                 let place = crate::flow::canonical_place_from_expression_in_state(
                                     program,
                                     state.symbol,
@@ -380,7 +436,8 @@ pub(super) fn build_structural_unit_control_machine(
                                 }
                                 Some(CheckedStructuralControlTransferPlan {
                                     source_parameter_index: u32::try_from(source_index).ok()?,
-                                    target_parameter_index: u32::try_from(target_index).ok()?,
+                                    target_parameter_index: u32::try_from(target_parameter_index)
+                                        .ok()?,
                                 })
                             })
                             .collect::<Option<Vec<_>>>()?;
@@ -644,7 +701,7 @@ pub(super) fn build_boundary_machine(
     }
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        structural_scalar_signature(program, shapes, machine, state, &binders)?;
+        structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
     let domain_requirements = boundary_domain_requirements(
         program,
         facts,

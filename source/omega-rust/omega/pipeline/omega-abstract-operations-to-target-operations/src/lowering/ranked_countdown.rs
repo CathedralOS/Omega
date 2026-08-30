@@ -37,6 +37,17 @@ pub(super) fn lower(
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 is valid");
     let initial = function.parameters[0];
     let structural_parameter = &function.structural_parameters[0];
+    let [replay_machine] = custody.semantic_replay.machines.as_slice() else {
+        return Err(invalid());
+    };
+    let [replay_structural_parameter] = replay_machine.structural_parameters.as_slice() else {
+        return Err(invalid());
+    };
+    let affine_owned = !structural_parameter.is_self
+        && structural_parameter.multiplicity == StructuralMultiplicity::Affine
+        && structural_parameter.access == StructuralAccess::Owned;
+    let persistent_receiver = structural_parameter.is_self
+        && structural_parameter.access == StructuralAccess::MutableBorrow;
     let component = &custody.ranked_scc;
     let [covered] = component.covered_cyclic_edges.as_slice() else {
         return Err(invalid());
@@ -59,9 +70,8 @@ pub(super) fn lower(
         || component.lower_bound != IntegerValue::Unsigned(0)
         || component.upper_bound != IntegerValue::Unsigned(u128::from(u32::MAX))
         || structural_parameter.position != 0
-        || structural_parameter.is_self
-        || structural_parameter.multiplicity != StructuralMultiplicity::Affine
-        || structural_parameter.access != StructuralAccess::Owned
+        || structural_parameter != replay_structural_parameter
+        || (!affine_owned && !persistent_receiver)
         || !structural_parameter.qualifications.is_empty()
         || covered.target != component.header
         || guard_block != component.header
@@ -221,11 +231,13 @@ pub(super) fn lower(
     if *return_edge != custody.graph.return_edge {
         return Err(invalid());
     }
-    let [TerminalAffineCleanupAction::DiscardRoot(cleanup_place)] = cleanup_actions.as_slice()
-    else {
-        return Err(invalid());
-    };
-    if *cleanup_place != structural_parameter.place {
+    if (affine_owned
+        && cleanup_actions.as_slice()
+            != [TerminalAffineCleanupAction::DiscardRoot(
+                structural_parameter.place,
+            )])
+        || (persistent_receiver && !cleanup_actions.is_empty())
+    {
         return Err(invalid());
     }
 
@@ -240,11 +252,11 @@ pub(super) fn lower(
     if header_frontier != backedge_frontier {
         return Err(invalid());
     }
-    let [owned] = header_frontier.owned_places() else {
-        return Err(invalid());
-    };
-    if owned.place != structural_parameter.place
-        || owned.multiplicity != StructuralMultiplicity::Affine
+    let affine_frontier = matches!(header_frontier.owned_places(), [owned]
+        if owned.place == structural_parameter.place
+            && owned.multiplicity == StructuralMultiplicity::Affine);
+    let receiver_frontier = header_frontier.owned_places().is_empty();
+    if ((affine_owned && !affine_frontier) || (persistent_receiver && !receiver_frontier))
         || !header_frontier.claims().is_empty()
         || !header_frontier.partial_custody().is_empty()
     {
@@ -258,15 +270,26 @@ pub(super) fn lower(
         .collect::<BTreeMap<_, _>>();
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
+    let pointer_shape = ValueShape::integer(
+        u16::try_from(target.pointer_size).map_err(|_| invalid())?,
+        u16::try_from(target.pointer_alignment).map_err(|_| invalid())?,
+    );
     let structural_shapes = function
         .structural_parameters
         .iter()
         .map(|parameter| {
-            structural_shape(
+            let referent = structural_shape(
                 parameter.structural_type,
                 &structural_types,
                 &mut shape_cache,
                 &mut active,
+            )?;
+            Ok::<ValueShape, LoweringError>(
+                if parameter.access == StructuralAccess::MutableBorrow {
+                    pointer_shape
+                } else {
+                    referent
+                },
             )
         })
         .collect::<Result<Vec<_>, _>>()?;

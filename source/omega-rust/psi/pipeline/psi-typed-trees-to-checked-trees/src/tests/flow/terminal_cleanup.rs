@@ -410,6 +410,85 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
 }
 
 #[test]
+fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
+    let admitted = checked(
+        r#"
+        data Root { value: i32; }
+
+        machine Root::countdown(&mut self, remaining: u32)
+        terminates by remaining -> Nat::Descending;
+        {
+            transition remaining > 0 {
+                true -> countdown(remaining - 1)
+                _ -> done()
+            }
+            state done(&mut self) {}
+        }
+        "#,
+    );
+    let machine = admitted
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("countdown"))
+        .expect("countdown machine")
+        .symbol;
+    let plan = admitted
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("the ranked mutable-receiver countdown should compose");
+    let [header, done] = plan.states.as_slice() else {
+        panic!("header and exit state")
+    };
+    let [header_receiver] = header.structural_parameters.as_slice() else {
+        panic!("one header receiver")
+    };
+    let [done_receiver] = done.structural_parameters.as_slice() else {
+        panic!("one exit receiver")
+    };
+    assert!(header_receiver.is_self);
+    assert_eq!(header_receiver, done_receiver);
+    assert_eq!(
+        header_receiver.access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        header_receiver.multiplicity,
+        psi_language_semantics::Multiplicity::Affine
+    );
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &header.terminator
+    else {
+        panic!("countdown header is conditional")
+    };
+    for successor in [when_true, when_false] {
+        assert_eq!(
+            successor.transfers,
+            [psi_checked_trees::CheckedStructuralControlTransferPlan {
+                source_parameter_index: 0,
+                target_parameter_index: 0,
+            }]
+        );
+        assert!(
+            successor
+                .trivial_affine_discard_parameter_positions
+                .is_empty()
+        );
+    }
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+        trivial_affine_discard_parameter_positions,
+    } = &done.terminator
+    else {
+        panic!("countdown exit returns Unit")
+    };
+    assert!(trivial_affine_discard_parameter_positions.is_empty());
+}
+
+#[test]
 fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers() {
     let supported = checked(
         r#"

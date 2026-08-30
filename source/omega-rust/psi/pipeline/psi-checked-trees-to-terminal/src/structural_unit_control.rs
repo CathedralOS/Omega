@@ -678,6 +678,7 @@ fn lower_ranked_structural_unit_countdown(
                 .structural_parameters
                 .iter()
                 .rev()
+                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.position)
                 .collect::<Vec<_>>()
     {
@@ -899,6 +900,7 @@ fn lower_ranked_structural_unit_countdown(
                     trivial_affine_discards: structural_parameters
                         .iter()
                         .rev()
+                        .filter(|parameter| !parameter.is_self)
                         .map(|parameter| parameter.place)
                         .collect(),
                 },

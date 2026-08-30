@@ -292,11 +292,23 @@ fn replay_calling_and_structural_contract(
     let [replay_structural] = replay_machine.structural_parameters.as_slice() else {
         return None;
     };
-    let expected_structural_shape =
-        crate::structural_condition_layout::replay_structural_value_shape(
-            replay_structural.structural_type,
-            &replay.structural_types,
-        )?;
+    let referent_shape = crate::structural_condition_layout::replay_structural_value_shape(
+        replay_structural.structural_type,
+        &replay.structural_types,
+    )?;
+    let affine_owned = !replay_structural.is_self
+        && replay_structural.multiplicity == StructuralMultiplicity::Affine
+        && replay_structural.access == StructuralAccess::Owned;
+    let persistent_receiver =
+        replay_structural.is_self && replay_structural.access == StructuralAccess::MutableBorrow;
+    let expected_structural_shape = if persistent_receiver {
+        ValueShape::integer(
+            u16::try_from(target.pointer_size).ok()?,
+            u16::try_from(target.pointer_alignment).ok()?,
+        )
+    } else {
+        referent_shape
+    };
     let expected_rank = ValueShape::integer(4, 4);
     if rank.shape != expected_rank
         || rank.locations.as_slice()
@@ -305,8 +317,11 @@ fn replay_calling_and_structural_contract(
                 value_byte_offset: 0,
                 byte_size: 4,
             }]
-        || structural_parameter.multiplicity != StructuralMultiplicity::Affine
-        || structural_parameter.access != StructuralAccess::Owned
+        || structural_parameter.place != replay_structural.place
+        || structural_parameter.structural_type != replay_structural.structural_type
+        || structural_parameter.multiplicity != replay_structural.multiplicity
+        || structural_parameter.access != replay_structural.access
+        || (!affine_owned && !persistent_receiver)
         || structural_parameter.shape != expected_structural_shape
         || structural != &structural_parameter.placement
         || record
@@ -315,10 +330,12 @@ fn replay_calling_and_structural_contract(
             .filter(|declaration| declaration.id == structural_parameter.structural_type)
             .count()
             != 1
-        || record.cleanup_actions.as_slice()
-            != [TerminalAffineCleanupAction::DiscardRoot(
-                structural_parameter.place,
-            )]
+        || (affine_owned
+            && record.cleanup_actions.as_slice()
+                != [TerminalAffineCleanupAction::DiscardRoot(
+                    structural_parameter.place,
+                )])
+        || (persistent_receiver && !record.cleanup_actions.is_empty())
     {
         return None;
     }
@@ -355,12 +372,17 @@ fn replay_structural_frontier(record: &RankedU32CountdownMachineCodeRecord) -> O
         .custody
         .structural_frontiers
         .edge_exit(covered.edge)?;
-    let [owned] = header.owned_places() else {
-        return None;
-    };
+    let affine_owned = !replay_structural.is_self
+        && replay_structural.multiplicity == StructuralMultiplicity::Affine
+        && replay_structural.access == StructuralAccess::Owned;
+    let persistent_receiver =
+        replay_structural.is_self && replay_structural.access == StructuralAccess::MutableBorrow;
+    let affine_frontier = matches!(header.owned_places(), [owned]
+        if owned.place == structural.place
+            && owned.multiplicity == StructuralMultiplicity::Affine);
+    let receiver_frontier = header.owned_places().is_empty();
     (header == backedge
-        && owned.place == structural.place
-        && owned.multiplicity == StructuralMultiplicity::Affine
+        && ((affine_owned && affine_frontier) || (persistent_receiver && receiver_frontier))
         && header.claims().is_empty()
         && header.partial_custody().is_empty()
         && structural.place == replay_structural.place
@@ -532,8 +554,14 @@ fn replay_ranked_graph_matches(
     let [structural] = machine.structural_parameters.as_slice() else {
         return false;
     };
+    let exact_cleanup =
+        if structural.is_self && structural.access == StructuralAccess::MutableBorrow {
+            trivial_affine_discards.is_empty()
+        } else {
+            trivial_affine_discards.as_slice() == [structural.place]
+        };
     done.operations.is_empty()
-        && trivial_affine_discards.as_slice() == [structural.place]
+        && exact_cleanup
         && graph.entry == machine.entry
         && graph.preheader_edge == *preheader_edge
         && graph.initial_value == initial_value
