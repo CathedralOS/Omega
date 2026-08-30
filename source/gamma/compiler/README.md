@@ -12,12 +12,12 @@ retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
 runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
-capacity/fixup failures, and executes six generated runtime-containment
-programs. It publishes no compiler artifact.
+capacity/fixup failures, executes six generated runtime-containment programs,
+and exercises 16 checked-`Int` paths. It publishes no compiler artifact.
 
-The retained compiler source declares 78 procedures. With the fixed frontend
-gate entry, the compiled gate uses 79 of Beta's 128 procedure slots and compiles
-to 145,719 bytes. The remaining 116,421 bytes under
+The retained compiler source declares 83 procedures. With the fixed frontend
+gate entry, the compiled gate uses 84 of Beta's 128 procedure slots and compiles
+to 159,104 bytes. The remaining 103,036 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -96,6 +96,13 @@ caller-supplied terminal failure label. The adjacent gate executes the emitted
 Alpha payload at both exact boundaries and one byte beyond each, and separately
 checks negative and arithmetic-wrap requests; no helper relies on Alpha's
 undefined out-of-range memory behavior.
+
+Directly emitted signed-add, subtract, multiply, divide, and remainder helpers
+return through `r0` and transfer every arithmetic overflow, zero divisor, and
+`INT64_MIN / -1` case to the supplied terminal failure label before Alpha can
+trap. Their executed probe covers ordinary negative division/remainder, both
+addition and subtraction overflow directions, multiplication overflow and the
+valid `INT64_MIN * 1` edge, and both exceptional division/remainder classes.
 
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them

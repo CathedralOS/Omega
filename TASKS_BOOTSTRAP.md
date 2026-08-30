@@ -529,9 +529,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 78
-    procedures; with the frontend gate entry, the gate uses 79 of Beta's 128
-    procedure slots and compiles to 145,719 bytes, leaving 116,421 bytes below
+    and retains no alternate compiler or tape. The retained source declares 83
+    procedures; with the frontend gate entry, the gate uses 84 of Beta's 128
+    procedure slots and compiles to 159,104 bytes, leaving 103,036 bytes below
     Alpha's runnable payload ceiling for
     lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
@@ -543,6 +543,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and stack boundaries, their adjacent one-byte failures, both negative
     requests, and heap-addition/stack-subtraction wrap; no case enters Alpha's
     undefined out-of-range memory behavior.
+  - [x] Directly emit checked signed-add, subtract, multiply, divide, and
+    remainder helpers. Ordinary results return in `r0`; both overflow
+    directions, zero divisors, and `INT64_MIN / -1` transfer to a supplied
+    terminal label before Alpha can trap. Execute 16 generated paths covering
+    ordinary negative division/remainder, all exceptional classes,
+    multiplication reconstruction, and the valid `INT64_MIN * 1` edge.
   - [x] Close the reusable candidate front end's algebraic-match coverage rule:
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
@@ -607,8 +613,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
   compiler source is an accepted compiler artifact. The retained gates pass 48
   interpreter cases, the fail-closed arena case, 78 compiler-frontend cases,
-  one exact emitter probe, six executed runtime-containment probes, and 106
-  independent differential cases.
+  one exact emitter probe, six executed runtime-containment probes, 16 checked
+  `Int` paths, and 106 independent differential cases.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
