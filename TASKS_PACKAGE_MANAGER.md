@@ -220,8 +220,9 @@ stop the item on one precise owner question before adding machinery.
 
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
   accepted-lock absence and recovery, sealed representation mechanism/ABI,
-  canonical network authority, broader receipted build operations and outputs,
-  final native transaction publication, and authenticated remote mirrors.
+  canonical requested source-endpoint identity without route or peer custody,
+  broader receipted build operations and outputs, final native transaction
+  publication, and authenticated remote mirrors.
   Synthetic end-to-end security artifacts are not permitted.
 
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
