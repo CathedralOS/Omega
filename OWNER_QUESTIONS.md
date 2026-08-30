@@ -267,3 +267,60 @@ coordinate, breaking exact-coordinate ties by codes 19, 20, then 21.
 - Tempting but wrong: expose whichever row the current validator encounters
   first, use coordinate zero for every absence, merge the three settled codes,
   or defer the choice to adapter-emission order.
+
+## Q5 — Give the complete Gamma compiler an explicit Beta call-row profile
+
+### Context
+
+D23 fixes the Alpha-written Beta compiler at 1,024 non-builtin procedure-call
+references. The retained `gamma_compiler.beta` now consumes exactly 994 rows
+before any production entry, total returned-`Bytes` preflight, publication
+replay, or D19 adapter is added. An adjacent probe accepts thirty additional
+calls and canonically refuses the thirty-first as
+`Incomplete(call_rows, 1024, 1025)`.
+
+This is the realistic next-rung compiler closure named by D12, not a synthetic
+stress case. A straightforward allocation-ordered, cycle-rejecting and
+DAG-sharing-aware `Bytes` preflight alone crosses the bound long before both
+PC-zero adapters and their failure framing exist. Encoding that logic as an
+opaque preassembled blob, host-generated table, or private higher-level
+operation would evade rather than satisfy the direct Beta-to-Alpha edge.
+
+### Problem statement
+
+Choose one auditable way for the complete Beta-written Gamma compiler to fit:
+
+1. revise the D23 Beta compiler's non-builtin call-row capacity and rebuild its
+   exact artifact/admission subject;
+2. retain 1,024 rows but require a specific source-level direct-emitter
+   representation that materially reduces call references without introducing
+   a hidden compiler stage or opaque generated program; or
+3. replace another settled private Beta resource arrangement with an explicitly
+   bounded profile that makes the same complete source admissible.
+
+The ruling must keep Beta's language and Alpha's instruction set unchanged,
+preserve canonical `Incomplete` behavior at the new adjacent bound, and leave
+the Gamma compiler as ordinary audited Beta source.
+
+### Proposed direction
+
+Advance the private D23 call table from 1,024 to 2,048 rows, relocate its
+adjacent compiler work tables coherently, and rebuild the Alpha-written Beta
+compiler tape plus exact source/tape admission subject atomically. Keep every
+other Beta language and compiler-boundary rule unchanged. Before ratification,
+stage the complete Gamma adapter implementation against that candidate ceiling
+and confirm an exact call count with useful headroom; if 2,048 is not enough,
+select the smallest measured power-of-two profile that is.
+
+### Alternates
+
+- Acceptable: retain 1,024 after a measured, source-visible refactor of the
+  direct emitter that leaves enough room for the complete adapters and remains
+  simpler to audit than the present repeated calls.
+- Acceptable: add a generic checked instruction-plan emitter owned entirely by
+  `gamma_compiler.beta`, provided the plan is authored in Beta, validated by
+  the existing direct-emitter/fixup substrate, and demonstrably reduces total
+  source and proof complexity rather than hiding a bytecode blob.
+- Tempting but wrong: raise the table silently, weaken total `Bytes` preflight,
+  publish before validation, generate Beta source or Alpha bytes on the host,
+  add an Alpha opcode, or treat the 1,024-row refusal as invalid Gamma source.
