@@ -12,8 +12,8 @@ own the exact D17 rejection/outcome sums, complete lexical phase, native syntax
 representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
-census, complete D31 structural type formation, and pure final symbolic-Alpha
-encoder. It validates every source byte
+census, complete D31 structural type formation, a source-backed resolution
+catalog, and pure final symbolic-Alpha encoder. It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
 Gamma values with exact source spans rather than byte-rope records or numeric
@@ -75,6 +75,16 @@ semantic phase. Entry facts may be retained alongside it, but Q4 must total
 their reasons, anchors, and ties before the shared final-phase candidate is
 promoted.
 
+The resolution catalog retains one row per formed top-level declaration and
+keeps members, cases, bodies, and states inside their original AST owner. It
+classifies qualified machine owners without numeric node IDs, provides exact
+owner/machine/member/state lookups, and compares types structurally using
+nominal name equality and semantic array lengths. Constructor and qualified-
+machine lookup remain deliberately separate, and an unqualified receiver stays
+ownerless: Q6 must settle those ambiguous cases before the checker may select a
+public result. A neutral minimum-coordinate bucket retains all tied final-phase
+reasons rather than choosing by traversal or DCOUT order.
+
 ## Contract-derived conformance plan
 
 This is the compact case matrix for the eventual adjacent executable gate. It
@@ -134,6 +144,13 @@ remain exact; larger demands use D34's `INT64_MAX` witness. Both storage
 refusals require `requested > limit` and publish no tape. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Gamma trap.
+
+Resolution-catalog controls remain planned, not claimed execution: forward data
+owners, unknown qualified owners, same-spelled type and unqualified machine,
+distinct qualified/unqualified machines, constructor/machine collision
+preservation, and state-name reuse across separate machines. Q6 decides only
+the two ambiguous consumers; the catalog must never erase either identity in
+advance.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,

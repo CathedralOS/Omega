@@ -11,7 +11,7 @@ The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test
-entries, retains all 97 frontend discriminators, and executes the emitter,
+entries, retains all 98 frontend discriminators, and executes the emitter,
 runtime containment, frame/value ABI, checked `Int`, compact `Bytes`, sealed
 input, resolved-expression, selected-match, and whole-function paths. One
 full-source test emitter now covers ordinary and proper-tail calls,
@@ -82,7 +82,7 @@ byte is published until every fixup and the complete payload extent validate.
 Those extents describe the `AlphaBootstrapV2` profile selected by D23 and
 migrated with the seeds, Beta compiler, checker, outcome tables, and exact-limit
 gates. The measured 251,142-byte fixed frontend no longer has to fit the retired
-V1 ceiling. The current consolidated 204-case gate remains mandatory, and
+V1 ceiling. The current consolidated 206-case gate remains mandatory, and
 ordinary density improvements remain useful rather than a release gate.
 
 The retained front end's four-word syntax nodes retain the exact
@@ -104,6 +104,14 @@ Top-level `data` lookahead now uses that same bounded matcher rather than a
 second hand-unrolled spelling check. Declared type and constructor names also
 share one predicate because D16 gives them identical capitalization and
 builtin exclusions; D20 keeps their semantic namespaces separate.
+
+Static match coverage now survives recursive body checking over the same
+nominal type. After typing every arm once, the checker replays only the already-
+resolved patterns under one fresh epoch before deciding duplicate and exhaustive
+coverage; nested matches can no longer overwrite an outer match's live rows.
+Equivalent pattern-failure states were merged so this repair does not revise
+Beta's fixed global-edge profile. The adjacent gate pins the same-type nested
+case directly.
 
 D20 global collection now rejects the exact later duplicate independently in
 the type, constructor, and function namespaces before resolving declaration

@@ -53,14 +53,17 @@ exact demand while representable and `INT64_MAX` as the canonical larger-
 demand witness, never a Delta rejection.
 
 The canonical compiler source now implements complete parsing, that identity
-census, D31's profile-independent structural type formation, and pure symbolic
-Alpha encoding. The formed program retains explicit record/sum classification
-and direct value-containment edges; candidate selection covers array length,
-shape, placement, unknown owners, and recursive value cycles by exact source
-coordinate. Remaining body/control checking, lowering, `main`, tape
+census, D31's profile-independent structural type formation, a source-backed
+resolution catalog, and pure symbolic Alpha encoding. The formed program
+retains explicit record/sum classification and direct value-containment edges;
+the catalog keeps one row per top-level declaration and exact owner/member/state
+lookups without flattening the AST again. Candidate selection covers array
+length, shape, placement, unknown owners, and recursive value cycles by exact
+source coordinate. Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
-incomplete entry-diagnostic judgment. D34 has settled physical storage
-refusal; its implementation additionally waits on the final nonaliasing map.
+incomplete entry-diagnostic judgment, and Q6 blocks only unqualified receivers
+and constructor/machine collisions. D34 has settled physical storage refusal;
+its implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns

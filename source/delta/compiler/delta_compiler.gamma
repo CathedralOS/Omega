@@ -3,8 +3,9 @@
 ; These retained components belong to the final compiler. They validate and
 ; parse the complete Delta surface and provide the final pure symbolic-Alpha
 ; encoder. The D22/D24 source-shaped semantic identity census and D31's
-; complete profile-independent structural type formation are implemented;
-; entry, body/control checking and AST-to-Alpha lowering remain incomplete.
+; complete profile-independent structural type formation are implemented. A
+; source-backed resolution catalog now begins the final checking phase; entry,
+; body/control checking and AST-to-Alpha lowering remain incomplete.
 ; This source intentionally exposes no `main` and emits no
 ; placeholder artifact until those intervening phases exist.
 
@@ -418,6 +419,75 @@
   (DeltaTypeFormationAccepted DeltaFormedProgram)
   (DeltaTypeFormationRejected DeltaRejectReason Int)
   (DeltaTypeFormationInternal Int))
+
+; Body resolution consumes one source-shaped catalog rather than repeatedly
+; rediscovering declaration ownership or assigning opaque numeric node ids.
+; Each row retains one original top-level syntax value. Fields, cases, boundary
+; members, and states stay inside that owner instead of becoming a second flat
+; tree. Q6 entry candidates and all body/control candidates remain later facts.
+(data DeltaCatalogMachineOwner
+  (DeltaCatalogUnqualifiedMachine)
+  (DeltaCatalogDataMachineOwner DeltaDeclaration)
+  (DeltaCatalogUnknownMachineOwner DeltaName))
+
+(data DeltaCatalogDeclaration
+  (DeltaCatalogBoundaryDeclaration DeltaDeclaration)
+  (DeltaCatalogDataDeclaration DeltaDeclaration DeltaDataShapeKind)
+  (DeltaCatalogMachineDeclaration DeltaDeclaration DeltaCatalogMachineOwner))
+
+(data DeltaCatalogDeclarationList
+  (NoDeltaCatalogDeclarations)
+  (MoreDeltaCatalogDeclarations DeltaCatalogDeclaration DeltaCatalogDeclarationList))
+
+(data DeltaDataDeclarationLookup
+  (NoDeltaDataDeclaration)
+  (OneDeltaDataDeclaration DeltaDeclaration))
+
+(data DeltaCatalogOwnerLookup
+  (NoDeltaCatalogOwner)
+  (OneDeltaCatalogBoundaryOwner DeltaDeclaration)
+  (OneDeltaCatalogDataOwner DeltaDeclaration DeltaDataShapeKind))
+
+(data DeltaCatalogMachineLookup
+  (NoDeltaCatalogMachine)
+  (OneDeltaCatalogMachine DeltaDeclaration))
+
+(data DeltaCatalogBoundaryMemberLookup
+  (NoDeltaCatalogBoundaryMember)
+  (OneDeltaCatalogBoundaryMember DeltaBoundaryMachine))
+
+(data DeltaCatalogDataMemberLookup
+  (NoDeltaCatalogDataMember)
+  (OneDeltaCatalogField DeltaDataMember)
+  (OneDeltaCatalogCase DeltaDataMember))
+
+(data DeltaCatalogStateLookup
+  (NoDeltaCatalogState)
+  (OneDeltaCatalogState DeltaState))
+
+(data DeltaFinalReasonList
+  (NoDeltaFinalReasons)
+  (MoreDeltaFinalReasons DeltaRejectReason DeltaFinalReasonList))
+
+; Equal-coordinate final-phase reasons are retained as a bucket. Q6 must rule
+; their composition before this can select one public rejection.
+(data DeltaFinalCandidate
+  (NoDeltaFinalCandidate)
+  (DeltaFinalCandidateAt Int DeltaFinalReasonList))
+
+(data DeltaResolutionCatalog
+  (DeltaResolutionCatalogSyntax DeltaCatalogDeclarationList))
+
+(data DeltaCatalogState
+  (DeltaCatalogStateSyntax DeltaResolutionCatalog DeltaFinalCandidate))
+
+(data DeltaCatalogedProgram
+  (DeltaCatalogedProgramSyntax DeltaFormedProgram DeltaCatalogState))
+
+(data DeltaCatalogOutcome
+  (DeltaCatalogAccepted DeltaCatalogedProgram)
+  (DeltaCatalogRejected DeltaRejectReason Int)
+  (DeltaCatalogInternal Int))
 
 (data DeltaOwnerIdentity
   (NoDeltaOwnerIdentity)
@@ -3817,6 +3887,427 @@
       (DeltaTypeFormationRejected reasonValue errorOffset))
     ((DeltaCensusAccepted collected)
       (delta_form_collected_types source collected))))
+
+; ---- body-resolution catalog foundation ----------------------------------
+
+(def delta_integer_literal_value ((literal DeltaIntegerLiteral)) Int
+  (match literal
+    ((DeltaIntegerSpan start end value) value)))
+
+(def delta_types_equal ((source Bytes) (left DeltaType)
+  (right DeltaType)) Int
+  (match left
+    ((DeltaI32Type leftStart leftEnd)
+      (match right
+        ((DeltaI32Type rightStart rightEnd) 1)
+        ((DeltaU8Type rightStart rightEnd) 0)
+        ((DeltaNeverType rightStart rightEnd) 0)
+        ((DeltaNamedType rightStart rightEnd rightName) 0)
+        ((DeltaArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((DeltaViewType rightStart rightEnd rightElement) 0)))
+    ((DeltaU8Type leftStart leftEnd)
+      (match right
+        ((DeltaI32Type rightStart rightEnd) 0)
+        ((DeltaU8Type rightStart rightEnd) 1)
+        ((DeltaNeverType rightStart rightEnd) 0)
+        ((DeltaNamedType rightStart rightEnd rightName) 0)
+        ((DeltaArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((DeltaViewType rightStart rightEnd rightElement) 0)))
+    ((DeltaNeverType leftStart leftEnd)
+      (match right
+        ((DeltaI32Type rightStart rightEnd) 0)
+        ((DeltaU8Type rightStart rightEnd) 0)
+        ((DeltaNeverType rightStart rightEnd) 1)
+        ((DeltaNamedType rightStart rightEnd rightName) 0)
+        ((DeltaArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((DeltaViewType rightStart rightEnd rightElement) 0)))
+    ((DeltaNamedType leftStart leftEnd leftName)
+      (match right
+        ((DeltaI32Type rightStart rightEnd) 0)
+        ((DeltaU8Type rightStart rightEnd) 0)
+        ((DeltaNeverType rightStart rightEnd) 0)
+        ((DeltaNamedType rightStart rightEnd rightName)
+          (delta_names_equal source leftName rightName))
+        ((DeltaArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((DeltaViewType rightStart rightEnd rightElement) 0)))
+    ((DeltaArrayType leftStart leftEnd leftElement leftLength)
+      (match right
+        ((DeltaI32Type rightStart rightEnd) 0)
+        ((DeltaU8Type rightStart rightEnd) 0)
+        ((DeltaNeverType rightStart rightEnd) 0)
+        ((DeltaNamedType rightStart rightEnd rightName) 0)
+        ((DeltaArrayType rightStart rightEnd rightElement rightLength)
+          (if (eq (delta_integer_literal_value leftLength)
+                  (delta_integer_literal_value rightLength))
+            (delta_types_equal source leftElement rightElement)
+            0))
+        ((DeltaViewType rightStart rightEnd rightElement) 0)))
+    ((DeltaViewType leftStart leftEnd leftElement)
+      (match right
+        ((DeltaI32Type rightStart rightEnd) 0)
+        ((DeltaU8Type rightStart rightEnd) 0)
+        ((DeltaNeverType rightStart rightEnd) 0)
+        ((DeltaNamedType rightStart rightEnd rightName) 0)
+        ((DeltaArrayType rightStart rightEnd rightElement rightLength) 0)
+        ((DeltaViewType rightStart rightEnd rightElement)
+          (delta_types_equal source leftElement rightElement))))))
+
+(def delta_optional_types_equal ((source Bytes) (left DeltaOptionalType)
+  (right DeltaOptionalType)) Int
+  (match left
+    (NoDeltaType
+      (match right
+        (NoDeltaType 1)
+        ((SomeDeltaType rightStart rightEnd rightType) 0)))
+    ((SomeDeltaType leftStart leftEnd leftType)
+      (match right
+        (NoDeltaType 0)
+        ((SomeDeltaType rightStart rightEnd rightType)
+          (delta_types_equal source leftType rightType))))))
+
+(def delta_parameter_types_equal ((source Bytes)
+  (left DeltaParameterList) (right DeltaParameterList)) Int
+  (match left
+    (NoDeltaParameters
+      (match right
+        (NoDeltaParameters 1)
+        ((MoreDeltaParameters rightItem rightRest) 0)))
+    ((MoreDeltaParameters leftItem leftRest)
+      (match right
+        (NoDeltaParameters 0)
+        ((MoreDeltaParameters rightItem rightRest)
+          (match leftItem
+            ((DeltaParameterSyntax leftStart leftEnd leftName leftType)
+              (match rightItem
+                ((DeltaParameterSyntax rightStart rightEnd rightName rightType)
+                  (if (delta_types_equal source leftType rightType)
+                    (delta_parameter_types_equal source leftRest rightRest)
+                    0))))))))))
+
+(def delta_final_reason_lists_append ((left DeltaFinalReasonList)
+  (right DeltaFinalReasonList)) DeltaFinalReasonList
+  (match left
+    (NoDeltaFinalReasons right)
+    ((MoreDeltaFinalReasons reasonValue rest)
+      (MoreDeltaFinalReasons reasonValue
+        (delta_final_reason_lists_append rest right)))))
+
+(def delta_final_candidate_add ((reasonValue DeltaRejectReason)
+  (offset Int) (current DeltaFinalCandidate)) DeltaFinalCandidate
+  (match current
+    (NoDeltaFinalCandidate
+      (DeltaFinalCandidateAt offset
+        (MoreDeltaFinalReasons reasonValue NoDeltaFinalReasons)))
+    ((DeltaFinalCandidateAt currentOffset reasons)
+      (if (lt offset currentOffset)
+        (DeltaFinalCandidateAt offset
+          (MoreDeltaFinalReasons reasonValue NoDeltaFinalReasons))
+        (if (lt currentOffset offset)
+          current
+          (DeltaFinalCandidateAt offset
+            (MoreDeltaFinalReasons reasonValue reasons)))))))
+
+(def delta_final_candidate_merge ((left DeltaFinalCandidate)
+  (right DeltaFinalCandidate)) DeltaFinalCandidate
+  (match left
+    (NoDeltaFinalCandidate right)
+    ((DeltaFinalCandidateAt leftOffset leftReasons)
+      (match right
+        (NoDeltaFinalCandidate left)
+        ((DeltaFinalCandidateAt rightOffset rightReasons)
+          (if (lt leftOffset rightOffset)
+            left
+            (if (lt rightOffset leftOffset)
+              right
+              (DeltaFinalCandidateAt leftOffset
+                (delta_final_reason_lists_append leftReasons
+                  rightReasons)))))))))
+
+(def delta_find_data_declaration ((source Bytes) (owner DeltaName)
+  (declarations DeltaDeclarationList)) DeltaDataDeclarationLookup
+  (match declarations
+    (NoDeltaDeclarations NoDeltaDataDeclaration)
+    ((MoreDeltaDeclarations item rest)
+      (match item
+        ((DeltaBoundaryDeclaration start end name machines)
+          (delta_find_data_declaration source owner rest))
+        ((DeltaDataDeclaration start end name members)
+          (if (delta_names_equal source owner name)
+            (OneDeltaDataDeclaration item)
+            (delta_find_data_declaration source owner rest)))
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          (delta_find_data_declaration source owner rest))))))
+
+(def delta_catalog_machine_owner ((source Bytes)
+  (nameValue DeltaQualifiedName) (declarations DeltaDeclarationList))
+  DeltaCatalogMachineOwner
+  (match nameValue
+    ((DeltaUnqualifiedName start end name)
+      DeltaCatalogUnqualifiedMachine)
+    ((DeltaQualifiedNameSyntax start end owner name)
+      (match (delta_find_data_declaration source owner declarations)
+        (NoDeltaDataDeclaration (DeltaCatalogUnknownMachineOwner owner))
+        ((OneDeltaDataDeclaration declarationValue)
+          (DeltaCatalogDataMachineOwner declarationValue))))))
+
+(def delta_reverse_catalog_declarations
+  ((input DeltaCatalogDeclarationList)
+   (output DeltaCatalogDeclarationList)) DeltaCatalogDeclarationList
+  (match input
+    (NoDeltaCatalogDeclarations output)
+    ((MoreDeltaCatalogDeclarations item rest)
+      (delta_reverse_catalog_declarations rest
+        (MoreDeltaCatalogDeclarations item output)))))
+
+(def delta_catalog_declarations_acc ((source Bytes)
+  (declarations DeltaDeclarationList)
+  (allDeclarations DeltaDeclarationList)
+  (accumulator DeltaCatalogDeclarationList)) DeltaCatalogDeclarationList
+  (match declarations
+    (NoDeltaDeclarations
+      (delta_reverse_catalog_declarations accumulator
+        NoDeltaCatalogDeclarations))
+    ((MoreDeltaDeclarations item rest)
+      (let row
+        (match item
+          ((DeltaBoundaryDeclaration start end name machines)
+            (DeltaCatalogBoundaryDeclaration item))
+          ((DeltaDataDeclaration start end name members)
+            (DeltaCatalogDataDeclaration item
+              (delta_data_shape_kind members)))
+          ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+            (DeltaCatalogMachineDeclaration item
+              (delta_catalog_machine_owner source name allDeclarations))))
+        (delta_catalog_declarations_acc source rest allDeclarations
+          (MoreDeltaCatalogDeclarations row accumulator))))))
+
+(def delta_catalog_find_owner ((source Bytes) (target DeltaName)
+  (rows DeltaCatalogDeclarationList)) DeltaCatalogOwnerLookup
+  (match rows
+    (NoDeltaCatalogDeclarations NoDeltaCatalogOwner)
+    ((MoreDeltaCatalogDeclarations row rest)
+      (match row
+        ((DeltaCatalogBoundaryDeclaration declarationValue)
+          (match declarationValue
+            ((DeltaBoundaryDeclaration start end name machines)
+              (if (delta_names_equal source target name)
+                (OneDeltaCatalogBoundaryOwner declarationValue)
+                (delta_catalog_find_owner source target rest)))
+            ((DeltaDataDeclaration start end name members)
+              (delta_catalog_find_owner source target rest))
+            ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+              (delta_catalog_find_owner source target rest))))
+        ((DeltaCatalogDataDeclaration declarationValue shape)
+          (match declarationValue
+            ((DeltaBoundaryDeclaration start end name machines)
+              (delta_catalog_find_owner source target rest))
+            ((DeltaDataDeclaration start end name members)
+              (if (delta_names_equal source target name)
+                (OneDeltaCatalogDataOwner declarationValue shape)
+                (delta_catalog_find_owner source target rest)))
+            ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+              (delta_catalog_find_owner source target rest))))
+        ((DeltaCatalogMachineDeclaration declarationValue owner)
+          (delta_catalog_find_owner source target rest))))))
+
+(def delta_catalog_find_unqualified_machine ((source Bytes)
+  (target DeltaName) (rows DeltaCatalogDeclarationList))
+  DeltaCatalogMachineLookup
+  (match rows
+    (NoDeltaCatalogDeclarations NoDeltaCatalogMachine)
+    ((MoreDeltaCatalogDeclarations row rest)
+      (match row
+        ((DeltaCatalogBoundaryDeclaration declarationValue)
+          (delta_catalog_find_unqualified_machine source target rest))
+        ((DeltaCatalogDataDeclaration declarationValue shape)
+          (delta_catalog_find_unqualified_machine source target rest))
+        ((DeltaCatalogMachineDeclaration declarationValue owner)
+          (match declarationValue
+            ((DeltaBoundaryDeclaration start end name machines)
+              (delta_catalog_find_unqualified_machine source target rest))
+            ((DeltaDataDeclaration start end name members)
+              (delta_catalog_find_unqualified_machine source target rest))
+            ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+              (match name
+                ((DeltaUnqualifiedName nameStart nameEnd machineName)
+                  (if (delta_names_equal source target machineName)
+                    (OneDeltaCatalogMachine declarationValue)
+                    (delta_catalog_find_unqualified_machine source target
+                      rest)))
+                ((DeltaQualifiedNameSyntax nameStart nameEnd machineOwner
+                  machineName)
+                  (delta_catalog_find_unqualified_machine source target
+                    rest))))))))))
+
+(def delta_catalog_find_qualified_machine ((source Bytes)
+  (targetOwner DeltaName) (targetName DeltaName)
+  (rows DeltaCatalogDeclarationList)) DeltaCatalogMachineLookup
+  (match rows
+    (NoDeltaCatalogDeclarations NoDeltaCatalogMachine)
+    ((MoreDeltaCatalogDeclarations row rest)
+      (match row
+        ((DeltaCatalogBoundaryDeclaration declarationValue)
+          (delta_catalog_find_qualified_machine source targetOwner targetName
+            rest))
+        ((DeltaCatalogDataDeclaration declarationValue shape)
+          (delta_catalog_find_qualified_machine source targetOwner targetName
+            rest))
+        ((DeltaCatalogMachineDeclaration declarationValue owner)
+          (match declarationValue
+            ((DeltaBoundaryDeclaration start end name machines)
+              (delta_catalog_find_qualified_machine source targetOwner
+                targetName rest))
+            ((DeltaDataDeclaration start end name members)
+              (delta_catalog_find_qualified_machine source targetOwner
+                targetName rest))
+            ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+              (match name
+                ((DeltaUnqualifiedName nameStart nameEnd machineName)
+                  (delta_catalog_find_qualified_machine source targetOwner
+                    targetName rest))
+                ((DeltaQualifiedNameSyntax nameStart nameEnd machineOwner
+                  machineName)
+                  (if (delta_names_equal source targetOwner machineOwner)
+                    (if (delta_names_equal source targetName machineName)
+                      (OneDeltaCatalogMachine declarationValue)
+                      (delta_catalog_find_qualified_machine source targetOwner
+                        targetName rest))
+                    (delta_catalog_find_qualified_machine source targetOwner
+                      targetName rest)))))))))))
+
+(def delta_catalog_find_boundary_machine ((source Bytes)
+  (target DeltaName) (machines DeltaBoundaryMachineList))
+  DeltaCatalogBoundaryMemberLookup
+  (match machines
+    (NoDeltaBoundaryMachines NoDeltaCatalogBoundaryMember)
+    ((MoreDeltaBoundaryMachines item rest)
+      (match item
+        ((DeltaBoundaryMachineSyntax start end name parameters returnType)
+          (if (delta_names_equal source target name)
+            (OneDeltaCatalogBoundaryMember item)
+            (delta_catalog_find_boundary_machine source target rest)))))))
+
+(def delta_catalog_find_boundary_member ((source Bytes)
+  (owner DeltaName) (member DeltaName)
+  (rows DeltaCatalogDeclarationList)) DeltaCatalogBoundaryMemberLookup
+  (match (delta_catalog_find_owner source owner rows)
+    (NoDeltaCatalogOwner NoDeltaCatalogBoundaryMember)
+    ((OneDeltaCatalogDataOwner declarationValue shape)
+      NoDeltaCatalogBoundaryMember)
+    ((OneDeltaCatalogBoundaryOwner declarationValue)
+      (match declarationValue
+        ((DeltaBoundaryDeclaration start end name machines)
+          (delta_catalog_find_boundary_machine source member machines))
+        ((DeltaDataDeclaration start end name members)
+          NoDeltaCatalogBoundaryMember)
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          NoDeltaCatalogBoundaryMember)))))
+
+(def delta_catalog_find_member_in_data ((source Bytes)
+  (target DeltaName) (members DeltaDataMemberList))
+  DeltaCatalogDataMemberLookup
+  (match members
+    (NoDeltaDataMembers NoDeltaCatalogDataMember)
+    ((MoreDeltaDataMembers item rest)
+      (match item
+        ((DeltaFieldMember start end name typeValue)
+          (if (delta_names_equal source target name)
+            (OneDeltaCatalogField item)
+            (delta_catalog_find_member_in_data source target rest)))
+        ((DeltaCaseMember start end name payload)
+          (if (delta_names_equal source target name)
+            (OneDeltaCatalogCase item)
+            (delta_catalog_find_member_in_data source target rest)))))))
+
+(def delta_catalog_find_data_member ((source Bytes) (owner DeltaName)
+  (member DeltaName) (rows DeltaCatalogDeclarationList))
+  DeltaCatalogDataMemberLookup
+  (match (delta_catalog_find_owner source owner rows)
+    (NoDeltaCatalogOwner NoDeltaCatalogDataMember)
+    ((OneDeltaCatalogBoundaryOwner declarationValue)
+      NoDeltaCatalogDataMember)
+    ((OneDeltaCatalogDataOwner declarationValue shape)
+      (match declarationValue
+        ((DeltaBoundaryDeclaration start end name machines)
+          NoDeltaCatalogDataMember)
+        ((DeltaDataDeclaration start end name members)
+          (delta_catalog_find_member_in_data source member members))
+        ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+          NoDeltaCatalogDataMember)))))
+
+(def delta_catalog_find_state_in_list ((source Bytes) (target DeltaName)
+  (states DeltaStateList)) DeltaCatalogStateLookup
+  (match states
+    (NoDeltaStates NoDeltaCatalogState)
+    ((MoreDeltaStates item rest)
+      (match item
+        ((DeltaStateSyntax start end name parameters bodyValue)
+          (if (delta_names_equal source target name)
+            (OneDeltaCatalogState item)
+            (delta_catalog_find_state_in_list source target rest)))))))
+
+(def delta_catalog_find_state ((source Bytes)
+  (machineValue DeltaDeclaration) (target DeltaName)) DeltaCatalogStateLookup
+  (match machineValue
+    ((DeltaBoundaryDeclaration start end name machines)
+      NoDeltaCatalogState)
+    ((DeltaDataDeclaration start end name members)
+      NoDeltaCatalogState)
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      (match bodyValue
+        ((DeltaMachineBodySyntax bodyStart bodyEnd statements terminalValue
+          states)
+          (delta_catalog_find_state_in_list source target states))))))
+
+(def delta_machine_input_parameters ((inputs DeltaMachineInputs))
+  DeltaParameterList
+  (match inputs
+    ((NoDeltaMachineInputs start end) NoDeltaParameters)
+    ((DeltaPlainMachineInputs start end parameters) parameters)
+    ((DeltaReceiverMachineInputs start end receiverStart receiverEnd parameters)
+      parameters)))
+
+(def delta_machine_inputs_have_receiver ((inputs DeltaMachineInputs)) Int
+  (match inputs
+    ((NoDeltaMachineInputs start end) 0)
+    ((DeltaPlainMachineInputs start end parameters) 0)
+    ((DeltaReceiverMachineInputs start end receiverStart receiverEnd parameters)
+      1)))
+
+(def delta_constructor_parameters ((memberValue DeltaDataMember))
+  DeltaParameterList
+  (match memberValue
+    ((DeltaFieldMember start end name typeValue) NoDeltaParameters)
+    ((DeltaCaseMember start end name payload)
+      (match payload
+        (NoDeltaPayload NoDeltaParameters)
+        ((SomeDeltaPayload payloadStart payloadEnd parameters) parameters)))))
+
+(def delta_catalog_formed_program ((source Bytes)
+  (formed DeltaFormedProgram))
+  DeltaCatalogedProgram
+  (match formed
+    ((DeltaFormedProgramSyntax collected shapes valueEdges)
+      (match collected
+        ((DeltaCollectedProgramSyntax program owners machines)
+          (match program
+            ((DeltaSyntaxProgram start end declarations)
+              (DeltaCatalogedProgramSyntax formed
+                (DeltaCatalogStateSyntax
+                  (DeltaResolutionCatalogSyntax
+                    (delta_catalog_declarations_acc source declarations
+                      declarations NoDeltaCatalogDeclarations))
+                  NoDeltaFinalCandidate)))))))))
+
+(def delta_parse_collect_form_and_catalog ((source Bytes))
+  DeltaCatalogOutcome
+  (match (delta_parse_collect_and_form_types source)
+    ((DeltaTypeFormationRejected reasonValue errorOffset)
+      (DeltaCatalogRejected reasonValue errorOffset))
+    ((DeltaTypeFormationInternal errorOffset)
+      (DeltaCatalogInternal errorOffset))
+    ((DeltaTypeFormationAccepted formed)
+      (DeltaCatalogAccepted (delta_catalog_formed_program source formed)))))
 
 ; ---- direct symbolic Alpha encoding ----------------------------------------
 

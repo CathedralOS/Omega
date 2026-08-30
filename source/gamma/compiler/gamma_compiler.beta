@@ -1404,8 +1404,11 @@ proc tc_match(scrut, arms) {
         let rty = 0 - 2                ; -2 = result type not yet seen
         let fail = 0
         let catchall = 0
+        let covered_by_catchall = 0
         let seen = 0
         let epoch = word[2097080]
+        let phase = 0                  ; 0 types bodies, 1 rebuilds coverage
+        let ci2 = 0
         to loop
     }
     state loop {
@@ -1427,7 +1430,9 @@ proc tc_match(scrut, arms) {
         to pcon
     }
     state pvar {
+        to nextarm when (phase == 1)
         catchall = 1
+        covered_by_catchall = 1
         let slot = word[2096896]
         to pvar_bound when (tenv_push_local(word[pat + 8], st, slot) == 1)
         to binding_resource when (word[2097072] != 0)
@@ -1440,20 +1445,23 @@ proc tc_match(scrut, arms) {
     }
     state pcon {
         let ci = global_lookup(word[pat + 8], 6815744, 24, word[2097096])
-        to badcon when (ci == 0 - 1)
+        to pattern_fail when (ci == 0 - 1)
         to tymatch
     }
-    state badcon { fail = 1  to checkbody }
     state tymatch {
-        to badty when (word[6815744 + ci * 24 + 8] != st)
+        to pattern_fail when (word[6815744 + ci * 24 + 8] != st)
         to duplicate when (word[10485760 + ci * 8] == epoch)
         word[10485760 + ci * 8] = epoch
         word[pat + 24] = ci + 1
         to bindvars
     }
-    state badty { fail = 1  to checkbody }
-    state duplicate { fail = 1  to bindvars }
+    state pattern_fail { fail = 1  to checkbody }
+    state duplicate {
+        fail = 1
+        to bindvars
+    }
     state bindvars {
+        to nextarm when (phase == 1)
         let pv = word[pat + 16]
         let av = word[6815744 + ci * 24 + 16]
         to bindloop
@@ -1463,7 +1471,7 @@ proc tc_match(scrut, arms) {
         to bindrest                   ; pv == 0
     }
     state bindpv {
-        to bindav0 when (av == 0)     ; too many pattern vars
+        to pattern_fail when (av == 0)   ; too many pattern vars
         let slot2 = word[2096896]
         to bind_record when (tenv_push_local(word[pv + 8], word[av + 8], slot2) == 1)
         to binding_resource when (word[2097072] != 0)
@@ -1479,12 +1487,10 @@ proc tc_match(scrut, arms) {
         av = word[av + 16]
         to bindloop
     }
-    state bindav0 { fail = 1  to checkbody }
     state bindrest {
-        to bindavmark when (av != 0)  ; too few pattern vars
+        to pattern_fail when (av != 0)   ; too few pattern vars
         to checkbody
     }
-    state bindavmark { fail = 1  to checkbody }
     state checkbody {
         let bt = tc(word[armnode + 16])
         word[2097112] = base
@@ -1514,9 +1520,17 @@ proc tc_match(scrut, arms) {
     state finish {
         to failret when (fail == 1)
         to failret when (seen == 0)
-        to complete when (catchall == 1)
-        let ci2 = 0
-        to coverloop
+        to complete when (phase * covered_by_catchall == 1)
+        to coverloop when (phase == 1)
+        ; Recursive body checking may have reused the epoch table. Rewalk the
+        ; already-resolved patterns without rechecking bodies, so duplicate and
+        ; exhaustive coverage are owned by one stable fresh epoch.
+        phase = 1
+        word[2097080] = word[2097080] + 1
+        epoch = word[2097080]
+        catchall = 0
+        arm = arms
+        to loop
     }
     state coverloop {
         to coverbody when (ci2 < word[2097096])
