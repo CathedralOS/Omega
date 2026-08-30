@@ -1,10 +1,10 @@
 ; delta_compiler.gamma - Gamma-written direct Delta compiler (in progress).
 ;
-; This retained first phase belongs to the final compiler. It validates the
-; complete D15 source envelope before it validates any Delta token or literal,
-; preserving D17's phase priority. It intentionally exposes no `main` and emits
-; no placeholder artifact until every later checking and direct-lowering phase
-; exists.
+; These retained components belong to the final compiler. They validate and
+; parse the complete Delta surface and provide the final pure symbolic-Alpha
+; encoder. Semantic collection, checking, and AST-to-Alpha lowering remain
+; incomplete. This source intentionally exposes no `main` and emits no
+; placeholder artifact until those intervening phases exist.
 
 (data DeltaRejectReason
   (InvalidSourceByte)
@@ -325,6 +325,85 @@
 (data DeltaProgramParseOutcome
   (DeltaProgramParsed DeltaProgram)
   (DeltaProgramParseRejected DeltaRejectReason Int))
+
+; The direct backend keeps Alpha construction symbolic until every label has an
+; exact payload offset.  Label ids are dense in `0 .. label_count`; the private
+; 18-level trie covers the complete 262,140-byte Alpha payload profile without
+; linear lookup or a mutable patch table.
+(data DeltaAlphaItem
+  (DeltaAlphaLabel Int)
+  (DeltaAlphaHalt Int)
+  (DeltaAlphaImm Int Int)
+  (DeltaAlphaMov Int Int)
+  (DeltaAlphaAdd Int Int)
+  (DeltaAlphaSub Int Int)
+  (DeltaAlphaMul Int Int)
+  (DeltaAlphaDiv Int Int)
+  (DeltaAlphaMod Int Int)
+  (DeltaAlphaLoadByte Int Int)
+  (DeltaAlphaStoreByte Int Int)
+  (DeltaAlphaLoadWord Int Int)
+  (DeltaAlphaStoreWord Int Int)
+  (DeltaAlphaJump Int)
+  (DeltaAlphaJumpZero Int Int)
+  (DeltaAlphaJumpNonzero Int Int)
+  (DeltaAlphaJumpLess Int Int Int)
+  (DeltaAlphaJumpEqual Int Int Int)
+  (DeltaAlphaRead Int)
+  (DeltaAlphaWrite Int)
+  (DeltaAlphaCall Int)
+  (DeltaAlphaReturn))
+
+(data DeltaAlphaItemList
+  (NoDeltaAlphaItems)
+  (MoreDeltaAlphaItems DeltaAlphaItem DeltaAlphaItemList))
+
+(data DeltaAlphaProgram
+  (DeltaAlphaProgramItems Int DeltaAlphaItemList))
+
+(data DeltaAlphaTrieValue
+  (NoDeltaAlphaTrieValue)
+  (SomeDeltaAlphaTrieValue Int))
+
+(data DeltaAlphaTrie
+  (EmptyDeltaAlphaTrie)
+  (DeltaAlphaTrieBranch DeltaAlphaTrieValue DeltaAlphaTrie DeltaAlphaTrie))
+
+(data DeltaAlphaTrieInsertOutcome
+  (DeltaAlphaTrieInserted DeltaAlphaTrie)
+  (DeltaAlphaTrieInsertDuplicate)
+  (DeltaAlphaTrieInsertInvalid))
+
+(data DeltaAlphaLayoutOutcome
+  (DeltaAlphaLayoutReady Int Int DeltaAlphaTrie)
+  (DeltaAlphaLayoutOversized Int)
+  (DeltaAlphaLayoutInternal Int))
+
+(data DeltaAlphaInstructionBytesOutcome
+  (DeltaAlphaInstructionEncoded Bytes)
+  (DeltaAlphaInstructionInternal Int))
+
+(data DeltaAlphaBalancedBytesOutcome
+  (DeltaAlphaBalancedBytes Bytes DeltaAlphaItemList)
+  (DeltaAlphaBalancedInternal Int))
+
+(data DeltaAlphaReplayTargetSetOutcome
+  (DeltaAlphaReplayTargetSet DeltaAlphaTrie Int)
+  (DeltaAlphaReplayTargetSetInternal Int))
+
+(data DeltaAlphaReplayOutcome
+  (DeltaAlphaReplayValid)
+  (DeltaAlphaReplayInternal Int))
+
+; These are private compiler outcomes, not DeltaCompileOutcome cases.  The
+; eventual pure compiler may hand an oversized candidate to Complete; the
+; adapter's mandatory output-length preflight then reports outer Incomplete
+; before validating or publishing it.  A compiler contradiction maps to
+; InternalFailure.  Neither private case becomes a Delta reject.
+(data DeltaAlphaEncodeOutcome
+  (DeltaAlphaEncoded Bytes)
+  (DeltaAlphaOversizedCandidate Bytes Int)
+  (DeltaAlphaEncodingInternal Int))
 
 (def ascii_between ((c Int) (low Int) (high Int)) Int
   (if (lt c low) 0 (if (lt high c) 0 1)))
@@ -2435,3 +2514,766 @@
               programStart NoDeltaDeclarations))))
       ((LexicallyRejected reasonValue errorOffset)
         (DeltaProgramParseRejected reasonValue errorOffset)))))
+
+; ---- direct symbolic Alpha encoding ----------------------------------------
+
+(def delta_alpha_register_valid ((value Int)) Int
+  (if (lt value 0) 0 (if (lt 255 value) 0 1)))
+
+(def delta_alpha_label_valid ((label Int) (labelCount Int)) Int
+  (if (lt label 0) 0 (lt label labelCount)))
+
+(def delta_alpha_trie_lookup_depth ((tree DeltaAlphaTrie) (key Int)
+  (depth Int)) DeltaAlphaTrieValue
+  (if (if (lt depth 0) 1 (lt 18 depth))
+    NoDeltaAlphaTrieValue
+    (match tree
+      (EmptyDeltaAlphaTrie NoDeltaAlphaTrieValue)
+      ((DeltaAlphaTrieBranch value low high)
+        (if (eq depth 0)
+          (if (eq key 0) value NoDeltaAlphaTrieValue)
+          (if (eq (% key 2) 0)
+            (delta_alpha_trie_lookup_depth low (/ key 2) (- depth 1))
+            (delta_alpha_trie_lookup_depth high (/ key 2) (- depth 1))))))))
+
+(def delta_alpha_trie_lookup ((tree DeltaAlphaTrie)
+  (key Int)) DeltaAlphaTrieValue
+  (if (lt key 0)
+    NoDeltaAlphaTrieValue
+    (if (lt 262143 key)
+      NoDeltaAlphaTrieValue
+      (delta_alpha_trie_lookup_depth tree key 18))))
+
+(def delta_alpha_trie_insert_depth ((tree DeltaAlphaTrie) (key Int)
+  (depth Int) (insertedValue Int)) DeltaAlphaTrieInsertOutcome
+  (if (if (lt depth 0) 1 (lt 18 depth))
+    DeltaAlphaTrieInsertInvalid
+    (match tree
+      (EmptyDeltaAlphaTrie
+        (if (eq depth 0)
+          (if (eq key 0)
+            (DeltaAlphaTrieInserted
+              (DeltaAlphaTrieBranch
+                (SomeDeltaAlphaTrieValue insertedValue)
+                EmptyDeltaAlphaTrie EmptyDeltaAlphaTrie))
+            DeltaAlphaTrieInsertInvalid)
+          (if (eq (% key 2) 0)
+            (match (delta_alpha_trie_insert_depth EmptyDeltaAlphaTrie
+              (/ key 2) (- depth 1) insertedValue)
+              ((DeltaAlphaTrieInserted low)
+                (DeltaAlphaTrieInserted
+                  (DeltaAlphaTrieBranch NoDeltaAlphaTrieValue low
+                    EmptyDeltaAlphaTrie)))
+              (DeltaAlphaTrieInsertDuplicate DeltaAlphaTrieInsertDuplicate)
+              (DeltaAlphaTrieInsertInvalid DeltaAlphaTrieInsertInvalid))
+            (match (delta_alpha_trie_insert_depth EmptyDeltaAlphaTrie
+              (/ key 2) (- depth 1) insertedValue)
+              ((DeltaAlphaTrieInserted high)
+                (DeltaAlphaTrieInserted
+                  (DeltaAlphaTrieBranch NoDeltaAlphaTrieValue
+                    EmptyDeltaAlphaTrie high)))
+              (DeltaAlphaTrieInsertDuplicate DeltaAlphaTrieInsertDuplicate)
+              (DeltaAlphaTrieInsertInvalid DeltaAlphaTrieInsertInvalid)))))
+      ((DeltaAlphaTrieBranch value low high)
+        (if (eq depth 0)
+          (if (eq key 0)
+            (match value
+              (NoDeltaAlphaTrieValue
+                (DeltaAlphaTrieInserted
+                  (DeltaAlphaTrieBranch
+                    (SomeDeltaAlphaTrieValue insertedValue) low high)))
+              ((SomeDeltaAlphaTrieValue oldValue)
+                DeltaAlphaTrieInsertDuplicate))
+            DeltaAlphaTrieInsertInvalid)
+          (if (eq (% key 2) 0)
+            (match (delta_alpha_trie_insert_depth low (/ key 2)
+              (- depth 1) insertedValue)
+              ((DeltaAlphaTrieInserted newLow)
+                (DeltaAlphaTrieInserted
+                  (DeltaAlphaTrieBranch value newLow high)))
+              (DeltaAlphaTrieInsertDuplicate DeltaAlphaTrieInsertDuplicate)
+              (DeltaAlphaTrieInsertInvalid DeltaAlphaTrieInsertInvalid))
+            (match (delta_alpha_trie_insert_depth high (/ key 2)
+              (- depth 1) insertedValue)
+              ((DeltaAlphaTrieInserted newHigh)
+                (DeltaAlphaTrieInserted
+                  (DeltaAlphaTrieBranch value low newHigh)))
+              (DeltaAlphaTrieInsertDuplicate DeltaAlphaTrieInsertDuplicate)
+              (DeltaAlphaTrieInsertInvalid DeltaAlphaTrieInsertInvalid))))))))
+
+(def delta_alpha_trie_insert ((tree DeltaAlphaTrie) (key Int)
+  (insertedValue Int)) DeltaAlphaTrieInsertOutcome
+  (if (lt key 0)
+    DeltaAlphaTrieInsertInvalid
+    (if (lt 262143 key)
+      DeltaAlphaTrieInsertInvalid
+      (delta_alpha_trie_insert_depth tree key 18 insertedValue))))
+
+(def delta_alpha_item_width ((item DeltaAlphaItem)
+  (labelCount Int)) Int
+  (match item
+    ((DeltaAlphaLabel label) 0)
+    ((DeltaAlphaHalt register)
+      (if (delta_alpha_register_valid register) 2 0))
+    ((DeltaAlphaImm register value)
+      (if (delta_alpha_register_valid register) 10 0))
+    ((DeltaAlphaMov left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaAdd left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaSub left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaMul left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaDiv left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaMod left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaLoadByte left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaStoreByte left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaLoadWord left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaStoreWord left right)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right) 3 0) 0))
+    ((DeltaAlphaJump label)
+      (if (delta_alpha_label_valid label labelCount) 9 0))
+    ((DeltaAlphaJumpZero register label)
+      (if (delta_alpha_register_valid register)
+        (if (delta_alpha_label_valid label labelCount) 10 0) 0))
+    ((DeltaAlphaJumpNonzero register label)
+      (if (delta_alpha_register_valid register)
+        (if (delta_alpha_label_valid label labelCount) 10 0) 0))
+    ((DeltaAlphaJumpLess left right label)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right)
+          (if (delta_alpha_label_valid label labelCount) 11 0) 0) 0))
+    ((DeltaAlphaJumpEqual left right label)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right)
+          (if (delta_alpha_label_valid label labelCount) 11 0) 0) 0))
+    ((DeltaAlphaRead register)
+      (if (delta_alpha_register_valid register) 2 0))
+    ((DeltaAlphaWrite register)
+      (if (delta_alpha_register_valid register) 2 0))
+    ((DeltaAlphaCall label)
+      (if (delta_alpha_label_valid label labelCount) 9 0))
+    (DeltaAlphaReturn 1)))
+
+(def delta_alpha_layout_items ((items DeltaAlphaItemList) (labelCount Int)
+  (payloadLength Int) (instructionCount Int) (bindingCount Int)
+  (labels DeltaAlphaTrie)) DeltaAlphaLayoutOutcome
+  (if (if (lt labelCount 0) 1 (lt 262140 labelCount))
+    (DeltaAlphaLayoutInternal 11)
+    (if (if (lt payloadLength 0) 1 (lt 262140 payloadLength))
+      (DeltaAlphaLayoutInternal 12)
+      (if (if (lt instructionCount 0) 1
+        (if (lt 262140 instructionCount) 1
+          (lt payloadLength instructionCount)))
+        (DeltaAlphaLayoutInternal 13)
+        (if (if (lt bindingCount 0) 1 (lt labelCount bindingCount))
+          (DeltaAlphaLayoutInternal 14)
+          (match items
+    (NoDeltaAlphaItems
+      (if (eq bindingCount labelCount)
+        (if (eq payloadLength 0)
+          (DeltaAlphaLayoutInternal 1)
+          (DeltaAlphaLayoutReady payloadLength instructionCount labels))
+        (DeltaAlphaLayoutInternal 2)))
+    ((MoreDeltaAlphaItems item rest)
+      (match item
+        ((DeltaAlphaLabel label)
+          (if (delta_alpha_label_valid label labelCount)
+            (match (delta_alpha_trie_insert labels label payloadLength)
+              ((DeltaAlphaTrieInserted newLabels)
+                (delta_alpha_layout_items rest labelCount payloadLength
+                  instructionCount (+ bindingCount 1) newLabels))
+              (DeltaAlphaTrieInsertDuplicate (DeltaAlphaLayoutInternal 3))
+              (DeltaAlphaTrieInsertInvalid (DeltaAlphaLayoutInternal 4)))
+            (DeltaAlphaLayoutInternal 5)))
+        ((DeltaAlphaHalt register)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaImm register value)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaMov left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaAdd left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaSub left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaMul left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaDiv left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaMod left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaLoadByte left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaStoreByte left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaLoadWord left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaStoreWord left right)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaJump label)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaJumpZero register label)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaJumpNonzero register label)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaJumpLess left right label)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaJumpEqual left right label)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaRead register)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaWrite register)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        ((DeltaAlphaCall label)
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))
+        (DeltaAlphaReturn
+          (delta_alpha_layout_instruction item rest labelCount payloadLength
+            instructionCount bindingCount labels))))))))))
+
+(def delta_alpha_layout_instruction ((item DeltaAlphaItem)
+  (rest DeltaAlphaItemList) (labelCount Int) (payloadLength Int)
+  (instructionCount Int) (bindingCount Int)
+  (labels DeltaAlphaTrie)) DeltaAlphaLayoutOutcome
+  (if (if (lt labelCount 0) 1 (lt 262140 labelCount))
+    (DeltaAlphaLayoutInternal 15)
+    (if (if (lt payloadLength 0) 1 (lt 262140 payloadLength))
+      (DeltaAlphaLayoutInternal 16)
+      (if (if (lt instructionCount 0) 1
+        (if (lt 262140 instructionCount) 1
+          (lt payloadLength instructionCount)))
+        (DeltaAlphaLayoutInternal 17)
+        (if (if (lt bindingCount 0) 1 (lt labelCount bindingCount))
+          (DeltaAlphaLayoutInternal 18)
+          (let width (delta_alpha_item_width item labelCount)
+            (if (eq width 0)
+              (DeltaAlphaLayoutInternal 6)
+              (let requested (+ payloadLength width)
+                (if (lt 262140 requested)
+                  (DeltaAlphaLayoutOversized requested)
+                  (delta_alpha_layout_items rest labelCount requested
+                    (+ instructionCount 1) bindingCount labels))))))))))
+
+(def delta_alpha_layout ((program DeltaAlphaProgram)) DeltaAlphaLayoutOutcome
+  (match program
+    ((DeltaAlphaProgramItems labelCount items)
+      (if (lt labelCount 0)
+        (DeltaAlphaLayoutInternal 9)
+        (if (lt 262140 labelCount)
+          (DeltaAlphaLayoutInternal 10)
+          (delta_alpha_layout_items items labelCount 0 0 0
+            EmptyDeltaAlphaTrie))))))
+
+(def delta_alpha_safe_byte ((value Int)) Bytes
+  (if (lt value 0)
+    (bytes_empty)
+    (if (lt 255 value) (bytes_empty) (bytes_single value))))
+
+(def delta_alpha_word_bytes ((value Int) (remaining Int)) Bytes
+  (if (if (lt remaining 0) 1 (lt 8 remaining))
+    (bytes_empty)
+    (if (eq remaining 0)
+      (bytes_empty)
+      (let remainder (% value 256)
+        (let encodedByte
+          (if (lt remainder 0) (+ remainder 256) remainder)
+          (let quotient (/ value 256)
+            (let nextValue
+              (if (lt remainder 0) (- quotient 1) quotient)
+              (bytes_concat (delta_alpha_safe_byte encodedByte)
+                (delta_alpha_word_bytes nextValue (- remaining 1))))))))))
+
+; Exponentiation-by-doubling keeps an over-limit raw-payload sentinel
+; logarithmic in heap rows and rope depth.  The bytes are never eligible for
+; publication: their exact length reaches the adapter's mandatory preflight.
+(def delta_alpha_repeat_byte ((value Int) (count Int)) Bytes
+  (if (if (lt count 0) 1 (lt 262151 count))
+    (bytes_empty)
+    (if (lt count 1)
+      (bytes_empty)
+      (if (eq count 1)
+        (delta_alpha_safe_byte value)
+        (let halfCount (/ count 2)
+          (let half (delta_alpha_repeat_byte value halfCount)
+            (let doubled (bytes_concat half half)
+              (if (eq (% count 2) 0)
+                doubled
+                (bytes_concat doubled
+                  (delta_alpha_safe_byte value))))))))))
+
+(def delta_alpha_make_oversized_candidate ((requested Int)) Bytes
+  (if (lt requested 262141)
+    (bytes_empty)
+    (if (lt 262151 requested)
+      (bytes_empty)
+      (delta_alpha_repeat_byte 0 requested))))
+
+(def delta_alpha_encode_resolved_target ((target Int)
+  (payloadLength Int)) DeltaAlphaInstructionBytesOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaInstructionInternal 63)
+    (if (lt target 0)
+    (DeltaAlphaInstructionInternal 21)
+    (if (lt target payloadLength)
+      (DeltaAlphaInstructionEncoded (delta_alpha_word_bytes target 8))
+      (DeltaAlphaInstructionInternal 21)))))
+
+(def delta_alpha_resolve_target ((label Int) (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaInstructionBytesOutcome
+  (match (delta_alpha_trie_lookup labels label)
+    (NoDeltaAlphaTrieValue (DeltaAlphaInstructionInternal 20))
+    ((SomeDeltaAlphaTrieValue target)
+      (delta_alpha_encode_resolved_target target payloadLength))))
+
+(def delta_alpha_encode_target_1 ((opcode Int) (label Int)
+  (labels DeltaAlphaTrie) (payloadLength Int)) DeltaAlphaInstructionBytesOutcome
+  (if (if (eq opcode 12) 1 (eq opcode 19))
+    (match (delta_alpha_resolve_target label labels payloadLength)
+      ((DeltaAlphaInstructionEncoded targetBytes)
+        (DeltaAlphaInstructionEncoded
+          (bytes_concat (delta_alpha_safe_byte opcode) targetBytes)))
+      ((DeltaAlphaInstructionInternal detail)
+        (DeltaAlphaInstructionInternal detail)))
+    (DeltaAlphaInstructionInternal 58)))
+
+(def delta_alpha_encode_target_2 ((opcode Int) (register Int) (label Int)
+  (labels DeltaAlphaTrie) (payloadLength Int)) DeltaAlphaInstructionBytesOutcome
+  (if (if (eq opcode 13) 1 (eq opcode 14))
+    (if (delta_alpha_register_valid register)
+      (match (delta_alpha_resolve_target label labels payloadLength)
+        ((DeltaAlphaInstructionEncoded targetBytes)
+          (DeltaAlphaInstructionEncoded
+            (bytes_concat
+              (bytes_concat (delta_alpha_safe_byte opcode)
+                (delta_alpha_safe_byte register)) targetBytes)))
+        ((DeltaAlphaInstructionInternal detail)
+          (DeltaAlphaInstructionInternal detail)))
+      (DeltaAlphaInstructionInternal 22))
+    (DeltaAlphaInstructionInternal 59)))
+
+(def delta_alpha_encode_target_3 ((opcode Int) (left Int) (right Int)
+  (label Int) (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaInstructionBytesOutcome
+  (if (if (eq opcode 15) 1 (eq opcode 16))
+    (if (delta_alpha_register_valid left)
+      (if (delta_alpha_register_valid right)
+        (match (delta_alpha_resolve_target label labels payloadLength)
+          ((DeltaAlphaInstructionEncoded targetBytes)
+            (DeltaAlphaInstructionEncoded
+              (bytes_concat
+                (bytes_concat (delta_alpha_safe_byte opcode)
+                  (delta_alpha_safe_byte left))
+                (bytes_concat (delta_alpha_safe_byte right) targetBytes))))
+          ((DeltaAlphaInstructionInternal detail)
+            (DeltaAlphaInstructionInternal detail)))
+        (DeltaAlphaInstructionInternal 23))
+      (DeltaAlphaInstructionInternal 24))
+    (DeltaAlphaInstructionInternal 60)))
+
+(def delta_alpha_encode_rr ((opcode Int) (left Int)
+  (right Int)) DeltaAlphaInstructionBytesOutcome
+  (if (lt opcode 2)
+    (DeltaAlphaInstructionInternal 61)
+    (if (lt 11 opcode)
+      (DeltaAlphaInstructionInternal 61)
+      (if (delta_alpha_register_valid left)
+        (if (delta_alpha_register_valid right)
+          (DeltaAlphaInstructionEncoded
+            (bytes_concat
+              (bytes_concat (delta_alpha_safe_byte opcode)
+                (delta_alpha_safe_byte left))
+              (delta_alpha_safe_byte right)))
+          (DeltaAlphaInstructionInternal 25))
+        (DeltaAlphaInstructionInternal 26)))))
+
+(def delta_alpha_encode_r ((opcode Int)
+  (register Int)) DeltaAlphaInstructionBytesOutcome
+  (if (if (eq opcode 0) 1
+    (if (eq opcode 17) 1 (eq opcode 18)))
+    (if (delta_alpha_register_valid register)
+      (DeltaAlphaInstructionEncoded
+        (bytes_concat (delta_alpha_safe_byte opcode)
+          (delta_alpha_safe_byte register)))
+      (DeltaAlphaInstructionInternal 27))
+    (DeltaAlphaInstructionInternal 62)))
+
+(def delta_alpha_encode_instruction ((item DeltaAlphaItem)
+  (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaInstructionBytesOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaInstructionInternal 64)
+    (match item
+    ((DeltaAlphaLabel label) (DeltaAlphaInstructionInternal 28))
+    ((DeltaAlphaHalt register) (delta_alpha_encode_r 0 register))
+    ((DeltaAlphaImm register value)
+      (if (delta_alpha_register_valid register)
+        (DeltaAlphaInstructionEncoded
+          (bytes_concat
+            (bytes_concat (delta_alpha_safe_byte 1)
+              (delta_alpha_safe_byte register))
+            (delta_alpha_word_bytes value 8)))
+        (DeltaAlphaInstructionInternal 29)))
+    ((DeltaAlphaMov left right) (delta_alpha_encode_rr 2 left right))
+    ((DeltaAlphaAdd left right) (delta_alpha_encode_rr 3 left right))
+    ((DeltaAlphaSub left right) (delta_alpha_encode_rr 4 left right))
+    ((DeltaAlphaMul left right) (delta_alpha_encode_rr 5 left right))
+    ((DeltaAlphaDiv left right) (delta_alpha_encode_rr 6 left right))
+    ((DeltaAlphaMod left right) (delta_alpha_encode_rr 7 left right))
+    ((DeltaAlphaLoadByte left right) (delta_alpha_encode_rr 8 left right))
+    ((DeltaAlphaStoreByte left right) (delta_alpha_encode_rr 9 left right))
+    ((DeltaAlphaLoadWord left right) (delta_alpha_encode_rr 10 left right))
+    ((DeltaAlphaStoreWord left right) (delta_alpha_encode_rr 11 left right))
+    ((DeltaAlphaJump label)
+      (delta_alpha_encode_target_1 12 label labels payloadLength))
+    ((DeltaAlphaJumpZero register label)
+      (delta_alpha_encode_target_2 13 register label labels payloadLength))
+    ((DeltaAlphaJumpNonzero register label)
+      (delta_alpha_encode_target_2 14 register label labels payloadLength))
+    ((DeltaAlphaJumpLess left right label)
+      (delta_alpha_encode_target_3 15 left right label labels payloadLength))
+    ((DeltaAlphaJumpEqual left right label)
+      (delta_alpha_encode_target_3 16 left right label labels payloadLength))
+    ((DeltaAlphaRead register) (delta_alpha_encode_r 17 register))
+    ((DeltaAlphaWrite register) (delta_alpha_encode_r 18 register))
+    ((DeltaAlphaCall label)
+      (delta_alpha_encode_target_1 19 label labels payloadLength))
+    (DeltaAlphaReturn
+      (DeltaAlphaInstructionEncoded (delta_alpha_safe_byte 20))))))
+
+(def delta_alpha_encode_next_instruction ((items DeltaAlphaItemList)
+  (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaBalancedBytesOutcome
+  (match items
+    (NoDeltaAlphaItems (DeltaAlphaBalancedInternal 30))
+    ((MoreDeltaAlphaItems item rest)
+      (match item
+        ((DeltaAlphaLabel label)
+          (delta_alpha_encode_next_instruction rest labels payloadLength))
+        ((DeltaAlphaHalt register)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaImm register value)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaMov left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaAdd left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaSub left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaMul left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaDiv left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaMod left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaLoadByte left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaStoreByte left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaLoadWord left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaStoreWord left right)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaJump label)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaJumpZero register label)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaJumpNonzero register label)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaJumpLess left right label)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaJumpEqual left right label)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaRead register)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaWrite register)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        ((DeltaAlphaCall label)
+          (delta_alpha_encode_one_item item rest labels payloadLength))
+        (DeltaAlphaReturn
+          (delta_alpha_encode_one_item item rest labels payloadLength))))))
+
+(def delta_alpha_encode_one_item ((item DeltaAlphaItem)
+  (rest DeltaAlphaItemList) (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaBalancedBytesOutcome
+  (match (delta_alpha_encode_instruction item labels payloadLength)
+    ((DeltaAlphaInstructionEncoded bytes)
+      (DeltaAlphaBalancedBytes bytes rest))
+    ((DeltaAlphaInstructionInternal detail)
+      (DeltaAlphaBalancedInternal detail))))
+
+(def delta_alpha_encode_balanced_right ((leftBytes Bytes)
+  (remaining DeltaAlphaItemList) (rightCount Int) (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaBalancedBytesOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaBalancedInternal 65)
+    (if (lt payloadLength (bytes_length leftBytes))
+      (DeltaAlphaBalancedInternal 66)
+      (match (delta_alpha_encode_balanced remaining rightCount labels payloadLength)
+        ((DeltaAlphaBalancedInternal detail)
+          (DeltaAlphaBalancedInternal detail))
+        ((DeltaAlphaBalancedBytes rightBytes finalItems)
+          (if (lt (- payloadLength (bytes_length leftBytes))
+            (bytes_length rightBytes))
+            (DeltaAlphaBalancedInternal 67)
+            (DeltaAlphaBalancedBytes
+              (bytes_concat leftBytes rightBytes) finalItems)))))))
+
+(def delta_alpha_encode_balanced ((items DeltaAlphaItemList)
+  (instructionCount Int) (labels DeltaAlphaTrie)
+  (payloadLength Int)) DeltaAlphaBalancedBytesOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaBalancedInternal 68)
+    (if (if (lt instructionCount 0) 1 (lt 262140 instructionCount))
+      (DeltaAlphaBalancedInternal 31)
+      (if (eq instructionCount 0)
+        (DeltaAlphaBalancedBytes (bytes_empty) items)
+        (if (eq instructionCount 1)
+          (delta_alpha_encode_next_instruction items labels payloadLength)
+          (let leftCount (/ instructionCount 2)
+            (let rightCount (- instructionCount leftCount)
+              (match (delta_alpha_encode_balanced items leftCount labels
+                payloadLength)
+                ((DeltaAlphaBalancedInternal detail)
+                  (DeltaAlphaBalancedInternal detail))
+                ((DeltaAlphaBalancedBytes leftBytes remaining)
+                  (delta_alpha_encode_balanced_right leftBytes remaining
+                    rightCount labels payloadLength))))))))))
+
+(def delta_alpha_only_labels ((items DeltaAlphaItemList)) Int
+  (match items
+    (NoDeltaAlphaItems 1)
+    ((MoreDeltaAlphaItems item rest)
+      (match item
+        ((DeltaAlphaLabel label) (delta_alpha_only_labels rest))
+        ((DeltaAlphaHalt register) 0)
+        ((DeltaAlphaImm register value) 0)
+        ((DeltaAlphaMov left right) 0)
+        ((DeltaAlphaAdd left right) 0)
+        ((DeltaAlphaSub left right) 0)
+        ((DeltaAlphaMul left right) 0)
+        ((DeltaAlphaDiv left right) 0)
+        ((DeltaAlphaMod left right) 0)
+        ((DeltaAlphaLoadByte left right) 0)
+        ((DeltaAlphaStoreByte left right) 0)
+        ((DeltaAlphaLoadWord left right) 0)
+        ((DeltaAlphaStoreWord left right) 0)
+        ((DeltaAlphaJump label) 0)
+        ((DeltaAlphaJumpZero register label) 0)
+        ((DeltaAlphaJumpNonzero register label) 0)
+        ((DeltaAlphaJumpLess left right label) 0)
+        ((DeltaAlphaJumpEqual left right label) 0)
+        ((DeltaAlphaRead register) 0)
+        ((DeltaAlphaWrite register) 0)
+        ((DeltaAlphaCall label) 0)
+        (DeltaAlphaReturn 0)))))
+
+(def delta_alpha_replay_opcode_width ((opcode Int)) Int
+  (if (eq opcode 0) 2
+    (if (eq opcode 1) 10
+      (if (lt opcode 2) 0
+        (if (lt opcode 12) 3
+          (if (eq opcode 12) 9
+            (if (eq opcode 13) 10
+              (if (eq opcode 14) 10
+                (if (eq opcode 15) 11
+                  (if (eq opcode 16) 11
+                    (if (eq opcode 17) 2
+                      (if (eq opcode 18) 2
+                        (if (eq opcode 19) 9
+                          (if (eq opcode 20) 1 0))))))))))))))
+
+(def delta_alpha_replay_target_operand ((opcode Int)) Int
+  (if (eq opcode 12) 1
+    (if (eq opcode 13) 2
+      (if (eq opcode 14) 2
+        (if (eq opcode 15) 3
+          (if (eq opcode 16) 3
+            (if (eq opcode 19) 1 (- 0 1))))))))
+
+(def delta_alpha_read_u32 ((bytes Bytes) (index Int)) Int
+  (let length (bytes_length bytes)
+    (if (lt index 0)
+      (- 0 1)
+      (if (lt (- length 4) index)
+        (- 0 1)
+        (+ (bytes_get bytes index)
+          (+ (* (bytes_get bytes (+ index 1)) 256)
+            (+ (* (bytes_get bytes (+ index 2)) 65536)
+              (* (bytes_get bytes (+ index 3)) 16777216))))))))
+
+(def delta_alpha_read_target ((bytes Bytes) (index Int)) Int
+  (let length (bytes_length bytes)
+    (if (lt index 0)
+      (- 0 1)
+      (if (lt (- length 8) index)
+        (- 0 1)
+        (if (eq (bytes_get bytes (+ index 4)) 0)
+          (if (eq (bytes_get bytes (+ index 5)) 0)
+            (if (eq (bytes_get bytes (+ index 6)) 0)
+              (if (eq (bytes_get bytes (+ index 7)) 0)
+                (delta_alpha_read_u32 bytes index)
+                (- 0 1))
+              (- 0 1))
+            (- 0 1))
+          (- 0 1))))))
+
+(def delta_alpha_replay_collect_targets ((payload Bytes) (payloadLength Int)
+  (payloadOffset Int) (targets DeltaAlphaTrie)
+  (targetCount Int)) DeltaAlphaReplayTargetSetOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaReplayTargetSetInternal 69)
+    (if (if (eq payloadLength (bytes_length payload)) 0 1)
+      (DeltaAlphaReplayTargetSetInternal 70)
+      (if (if (lt targetCount 0) 1 (lt 262140 targetCount))
+        (DeltaAlphaReplayTargetSetInternal 71)
+        (if (eq payloadOffset payloadLength)
+          (DeltaAlphaReplayTargetSet targets targetCount)
+          (if (lt payloadOffset 0)
+            (DeltaAlphaReplayTargetSetInternal 40)
+            (if (lt payloadLength payloadOffset)
+              (DeltaAlphaReplayTargetSetInternal 41)
+              (let opcode (bytes_get payload payloadOffset)
+                (let width (delta_alpha_replay_opcode_width opcode)
+                  (if (eq width 0)
+                    (DeltaAlphaReplayTargetSetInternal 42)
+                    (if (lt (- payloadLength payloadOffset) width)
+                      (DeltaAlphaReplayTargetSetInternal 43)
+                      (let nextOffset (+ payloadOffset width)
+                        (let operandOffset
+                          (delta_alpha_replay_target_operand opcode)
+                          (if (lt operandOffset 0)
+                            (delta_alpha_replay_collect_targets payload
+                              payloadLength nextOffset targets targetCount)
+                            (let target (delta_alpha_read_target payload
+                              (+ payloadOffset operandOffset))
+                              (if (lt target 0)
+                                (DeltaAlphaReplayTargetSetInternal 44)
+                                (if (lt target payloadLength)
+                                  (match (delta_alpha_trie_insert targets
+                                    target 1)
+                                    ((DeltaAlphaTrieInserted newTargets)
+                                      (delta_alpha_replay_collect_targets
+                                        payload payloadLength nextOffset
+                                        newTargets (+ targetCount 1)))
+                                    (DeltaAlphaTrieInsertDuplicate
+                                      (delta_alpha_replay_collect_targets
+                                        payload payloadLength nextOffset
+                                        targets targetCount))
+                                    (DeltaAlphaTrieInsertInvalid
+                                      (DeltaAlphaReplayTargetSetInternal 46)))
+                                  (DeltaAlphaReplayTargetSetInternal
+                                    45))))))))))))))))))
+
+(def delta_alpha_replay_match_starts ((payload Bytes) (payloadLength Int)
+  (payloadOffset Int) (targets DeltaAlphaTrie) (targetCount Int)
+  (matchedCount Int)) DeltaAlphaReplayOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaReplayInternal 72)
+    (if (if (eq payloadLength (bytes_length payload)) 0 1)
+      (DeltaAlphaReplayInternal 73)
+      (if (if (lt targetCount 0) 1 (lt 262140 targetCount))
+        (DeltaAlphaReplayInternal 74)
+        (if (if (lt matchedCount 0) 1 (lt targetCount matchedCount))
+          (DeltaAlphaReplayInternal 75)
+          (if (eq payloadOffset payloadLength)
+            (if (eq matchedCount targetCount)
+              DeltaAlphaReplayValid
+              (DeltaAlphaReplayInternal 51))
+            (if (lt payloadOffset 0)
+              (DeltaAlphaReplayInternal 47)
+              (if (lt payloadLength payloadOffset)
+                (DeltaAlphaReplayInternal 48)
+                (let opcode (bytes_get payload payloadOffset)
+                  (let width (delta_alpha_replay_opcode_width opcode)
+                    (if (eq width 0)
+                      (DeltaAlphaReplayInternal 49)
+                      (if (lt (- payloadLength payloadOffset) width)
+                        (DeltaAlphaReplayInternal 50)
+                        (match (delta_alpha_trie_lookup targets payloadOffset)
+                          (NoDeltaAlphaTrieValue
+                            (delta_alpha_replay_match_starts payload
+                              payloadLength (+ payloadOffset width) targets
+                              targetCount matchedCount))
+                          ((SomeDeltaAlphaTrieValue present)
+                            (delta_alpha_replay_match_starts payload
+                              payloadLength (+ payloadOffset width) targets
+                              targetCount (+ matchedCount 1))))))))))))))))
+
+(def delta_alpha_replay ((payload Bytes)) DeltaAlphaReplayOutcome
+  (let payloadLength (bytes_length payload)
+    (if (lt payloadLength 1)
+      (DeltaAlphaReplayInternal 52)
+      (if (lt 262140 payloadLength)
+        (DeltaAlphaReplayInternal 54)
+        (match (delta_alpha_replay_collect_targets payload payloadLength 0
+          EmptyDeltaAlphaTrie 0)
+          ((DeltaAlphaReplayTargetSet targets targetCount)
+            (delta_alpha_replay_match_starts payload payloadLength 0
+              targets targetCount 0))
+          ((DeltaAlphaReplayTargetSetInternal detail)
+            (DeltaAlphaReplayInternal detail)))))))
+
+(def delta_alpha_finish_encoding ((payloadLength Int)
+  (payload Bytes)) DeltaAlphaEncodeOutcome
+  (if (if (lt payloadLength 1) 1 (lt 262140 payloadLength))
+    (DeltaAlphaEncodingInternal 76)
+    (if (eq (bytes_length payload) payloadLength)
+      (match (delta_alpha_replay payload)
+        (DeltaAlphaReplayValid (DeltaAlphaEncoded payload))
+        ((DeltaAlphaReplayInternal detail)
+          (DeltaAlphaEncodingInternal detail)))
+      (DeltaAlphaEncodingInternal 56))))
+
+(def delta_alpha_encode_program ((program DeltaAlphaProgram)) DeltaAlphaEncodeOutcome
+  (match (delta_alpha_layout program)
+    ((DeltaAlphaLayoutOversized requested)
+      (DeltaAlphaOversizedCandidate
+        (delta_alpha_make_oversized_candidate requested) requested))
+    ((DeltaAlphaLayoutInternal detail)
+      (DeltaAlphaEncodingInternal detail))
+    ((DeltaAlphaLayoutReady payloadLength instructionCount labels)
+      (match program
+        ((DeltaAlphaProgramItems labelCount items)
+          (match (delta_alpha_encode_balanced items instructionCount labels
+            payloadLength)
+            ((DeltaAlphaBalancedInternal detail)
+              (DeltaAlphaEncodingInternal detail))
+            ((DeltaAlphaBalancedBytes payload remaining)
+              (if (delta_alpha_only_labels remaining)
+                (delta_alpha_finish_encoding payloadLength payload)
+                (DeltaAlphaEncodingInternal 57)))))))))

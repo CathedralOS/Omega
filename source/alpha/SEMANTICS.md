@@ -60,8 +60,9 @@ consumed `n` bytes total (opcode + operands).
 
 ## 4. Initial configuration (loading the tape)
 
-A program is a **tape**: a `[4-byte LE length L][L bytes of bytecode]` block
-stamped into the seed's fixed hole. The loader:
+A program is a raw **tape** containing `L` bytes of bytecode. Seed stamping
+places it in the fixed hole as `[4-byte LE length L][raw tape]`; the prefix and
+host container are not part of the `.tape` or compiler identity. The loader:
 
 1. zero-fills `M` (memory starts clean),
 2. copies the `L` bytecode bytes into `M[0 .. L-1]`,

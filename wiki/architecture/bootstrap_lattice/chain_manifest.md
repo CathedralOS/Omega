@@ -60,10 +60,11 @@ Current committed native seeds:
 | Darwin arm64 | `source/alpha/alpha_arm64_macos` | `e3bb2be7c9e40b3c7a0e66c98568194a743d6d6e354d467386e222ef35dde927` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
 
-The accepted compiler artifact above this floor is always the length-prefixed
-Alpha tape. A seed plus tape is a disposable host container, not a new compiler
-identity. The Alpha assembler and derivation checker are Alpha-owned services;
-they are not language rungs.
+The accepted compiler artifact above this floor is always the raw Alpha tape.
+Transparent seed stamping prepends the tape length inside the disposable host
+container; that prefix and container are not compiler identity. The Alpha
+assembler and derivation checker are Alpha-owned services; they are not
+language rungs.
 
 ## Migration evidence that may be retained
 
