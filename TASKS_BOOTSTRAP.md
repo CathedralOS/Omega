@@ -502,7 +502,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 77-case oracle gate are implementation material for
+    constructor table and 78-case oracle gate are implementation material for
     `gamma_compiler.beta`; the direct compiler must absorb the rule before this
     temporary checker is deleted.
   - [x] Close the first strict-parser slice in the reusable front end: require a
@@ -553,7 +553,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   or bounded semantic oracles. Their inventories now name present gates and
   explicit D16 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 48 interpreter cases, the
-  fail-closed arena case, 77 type-checker cases, and 106 independent
+  fail-closed arena case, 78 type-checker cases, and 106 independent
   differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
   step.
   - [x] Delete the interpreter's dead environment lookup and the
@@ -580,6 +580,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
   participates.
+  - [x] Author the exact 26-constructor `DeltaRejectReason`, the two-constructor
+    `DeltaCompileOutcome`, and the complete first checking phase in the final
+    source path. `check_lexical` validates the whole D15 envelope before a
+    second whole-source token/literal scan, preserves D17 lexical phase
+    priority, reports exact lexical reason/offset pairs, rescans source spans
+    without retaining a token ledger, and type-checks as Gamma. The source has
+    no `main` or placeholder artifact until all checking and direct lowering
+    phases can return an honest complete outcome.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed

@@ -52,6 +52,7 @@ for bootstrap_ascii_source in \
   source/alpha/checker/implementations/beta/eq.beta \
   source/beta/compiler/beta_compiler.alpha \
   source/beta/compiler/validation/admission/bc-artifact-structure.alpha \
+  source/delta/compiler/delta_compiler.gamma \
   source/gamma/interp.beta \
   source/gamma/typeck.beta
 do
@@ -93,7 +94,8 @@ psi'
 tracked_compiler_sources=$(git -C "$OMEGA_REPO_ROOT" ls-files \
   source/beta source/gamma source/delta source/omega | \
   grep -E '/[^/]*compiler\.(alpha|beta|gamma|delta|omg)$' || true)
-expected_compiler_sources='source/beta/compiler/beta_compiler.alpha'
+expected_compiler_sources='source/beta/compiler/beta_compiler.alpha
+source/delta/compiler/delta_compiler.gamma'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside the canonical implemented location"
 

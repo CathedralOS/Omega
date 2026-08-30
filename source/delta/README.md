@@ -24,8 +24,10 @@ compilers and must not both be called “the Delta compiler.”
 
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) records Delta feature rationale and
   change control.
-- `compiler/` is the owner of the future `delta_compiler.gamma`, its canonical
-  Alpha tape, and refinement evidence.
+- `compiler/` owns the in-progress `delta_compiler.gamma`, its eventual
+  canonical Alpha tape, and refinement evidence. The retained source currently
+  contains only final compiler material through complete lexical validation;
+  it exposes no `main` or compiler artifact yet.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
 tree, including the restricted Delta-written Darwin compiler prototype, are
@@ -55,7 +57,7 @@ Active work is tracked in
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `compiler/` | The sole owner of the future Gamma-written compiler accepting Delta and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
+| `compiler/` | The sole owner of the in-progress Gamma-written compiler accepting Delta and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
 
 The root retains only the normative contract, its feature/change ledger, and
 this owner map. Proposed programs without a compiler or a contract-derived test
