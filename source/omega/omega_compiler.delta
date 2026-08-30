@@ -547,6 +547,8 @@ data OmegaBinaryOperatorKind {
     case Multiply;
     case Divide;
     case Modulo;
+    case ShiftLeft;
+    case ShiftRight;
 }
 
 data OmegaBinaryExpressionSyntax {
@@ -6146,6 +6148,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Asterisk -> select_expression_multiply()
             OmegaPunctuationKind::Slash -> select_expression_divide()
             OmegaPunctuationKind::Percent -> select_expression_modulo()
+            OmegaPunctuationKind::LessLess -> select_expression_shift_left()
+            OmegaPunctuationKind::GreaterGreater -> select_expression_shift_right()
             OmegaPunctuationKind::Semicolon -> finish_semicolon_expression()
             OmegaPunctuationKind::Comma -> finish_comma_expression()
             OmegaPunctuationKind::RightParen -> expression_right_parenthesis()
@@ -6222,9 +6226,11 @@ machine OmegaParser::parse_view(
         }
     }
 
+    // Four canonical tiers remain reserved between comparison and shifts:
+    // membership, bitwise OR, bitwise XOR, and bitwise AND.
     state select_expression_add() {
         transition true {
-            true -> select_expression_operator(OmegaBinaryOperatorKind::Add, 4)
+            true -> select_expression_operator(OmegaBinaryOperatorKind::Add, 9)
         }
     }
 
@@ -6232,7 +6238,7 @@ machine OmegaParser::parse_view(
         transition true {
             true -> select_expression_operator(
                 OmegaBinaryOperatorKind::Subtract,
-                4
+                9
             )
         }
     }
@@ -6241,7 +6247,7 @@ machine OmegaParser::parse_view(
         transition true {
             true -> select_expression_operator(
                 OmegaBinaryOperatorKind::Multiply,
-                5
+                10
             )
         }
     }
@@ -6250,7 +6256,7 @@ machine OmegaParser::parse_view(
         transition true {
             true -> select_expression_operator(
                 OmegaBinaryOperatorKind::Divide,
-                5
+                10
             )
         }
     }
@@ -6259,7 +6265,25 @@ machine OmegaParser::parse_view(
         transition true {
             true -> select_expression_operator(
                 OmegaBinaryOperatorKind::Modulo,
-                5
+                10
+            )
+        }
+    }
+
+    state select_expression_shift_left() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::ShiftLeft,
+                8
+            )
+        }
+    }
+
+    state select_expression_shift_right() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::ShiftRight,
+                8
             )
         }
     }
@@ -8077,6 +8101,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Asterisk -> retain_framed_operator_path()
             OmegaPunctuationKind::Slash -> retain_framed_operator_path()
             OmegaPunctuationKind::Percent -> retain_framed_operator_path()
+            OmegaPunctuationKind::LessLess -> retain_framed_operator_path()
+            OmegaPunctuationKind::GreaterGreater -> retain_framed_operator_path()
             OmegaPunctuationKind::EqualEqual -> retain_framed_operator_path()
             OmegaPunctuationKind::ExclamationEqual ->
                 retain_framed_operator_path()
@@ -10986,6 +11012,9 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Asterisk -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Slash -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Percent -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::LessLess -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::GreaterGreater ->
+                retain_cast_after_end(after_domain)
             OmegaPunctuationKind::RightParen -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
@@ -11000,6 +11029,9 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Asterisk -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Slash -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Percent -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::LessLess -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::GreaterGreater ->
+                retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
     }
