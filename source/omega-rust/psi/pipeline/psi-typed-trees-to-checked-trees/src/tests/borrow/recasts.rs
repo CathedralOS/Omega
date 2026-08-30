@@ -356,32 +356,196 @@ fn literal_indexed_nested_fixed_array_recast_keeps_immediate_siblings_writable()
 }
 
 #[test]
-fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
+fn literal_indexed_nested_record_array_recast_retains_padded_ranges_for_both_polarities() {
     let source = r#"
-        data Word {
-            value: u16;
+        data Header {
+            code: u8;
         }
 
+        data Desc {
+            head: Header;
+            tail: u32;
+        }
+
+        data Cell {
+            bytes: [u8; 80];
+        }
+
+        machine observe(value: &[[Desc; 2]; 2]) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared: &[[Desc; 2]; 2] = &self.bytes[2] as &[[Desc; 2]; 2];
+            observe(shared);
+            let mutable: &mut [[Desc; 2]; 2] =
+                &mut self.bytes[40] as &mut [[Desc; 2]; 2];
+            mutable[1][1].head.code = 1;
+        }
+    "#;
+
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed)
+        .expect("both nested record-array recasts should validate");
+    let facts = build_borrow_facts(&typed);
+    let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
+
+    assert_eq!(loans.len(), 2, "one loan per nested record-array recast");
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 2, end: 34 }]
+    }));
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 40, end: 72 }]
+    }));
+}
+
+#[test]
+fn literal_indexed_nested_record_array_recast_rejects_padding_and_element_boundaries() {
+    for mutation in [
+        "self.bytes[3] = 1;",
+        "self.bytes[4] = 1;",
+        "self.bytes[10] = 1;",
+        "self.bytes[11] = 1;",
+        "self.bytes[18] = 1;",
+        "self.bytes[19] = 1;",
+        "self.bytes[34] = 1;",
+    ] {
+        let diagnostics = check_program(&indexed_mutable_nested_record_array_recast_source(
+            mutation,
+            "view[1][1].tail = 2;",
+        ))
+        .expect_err("padding and both sides of each element boundary remain borrowed");
+
+        assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
+    }
+}
+
+#[test]
+fn literal_indexed_nested_record_array_recast_keeps_immediate_siblings_writable() {
+    check_program(&indexed_mutable_nested_record_array_recast_source(
+        "self.bytes[2] = 1; self.bytes[35] = 1;",
+        "view[1][1].tail = 2;",
+    ))
+    .expect("the bytes immediately before and after [3, 35) are disjoint");
+}
+
+#[test]
+fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
+    let source = r#"
         data Cell {
             bytes: [u8; 16];
         }
 
         machine Cell::exercise(&mut self) {
             let empty: &[u16; 0] = &self.bytes[0] as &[u16; 0];
-            let records: &[[Word; 1]; 2] = &self.bytes[8] as &[[Word; 1]; 2];
             let slice: &[u16] = &self.bytes[0] as &[u16];
+        }
+    "#;
+
+    assert_valid_recast_has_no_loan(source, "zero-length and slice targets stay fenced");
+}
+
+#[test]
+fn record_arrays_with_noneligible_record_shapes_publish_no_precise_loan() {
+    let source = r#"
+        data ArrayRecord {
+            values: [u16; 2];
+        }
+
+        data ErasedRecord {
+            value: u16;
+            proof [erased]: u16;
+        }
+
+        data AtomicRecord {
+            counter: AtomicU32;
+        }
+
+        data Cell {
+            bytes: [u8; 32];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let array_field: &[ArrayRecord; 2] =
+                &self.bytes[0] as &[ArrayRecord; 2];
+            let erased_field: &[ErasedRecord; 2] =
+                &self.bytes[8] as &[ErasedRecord; 2];
+            let atomic_direct: &AtomicRecord = &self.bytes[12] as &AtomicRecord;
+            let atomic_array: &[AtomicRecord; 2] =
+                &self.bytes[16] as &[AtomicRecord; 2];
         }
     "#;
 
     assert_valid_recast_has_no_loan(
         source,
-        "zero-length, record-element, and slice targets stay fenced",
+        "array-bearing, erased-field, and atomic-field records stay outside exact custody",
     );
+}
+
+#[test]
+fn generic_invariant_cased_and_cyclic_record_arrays_publish_no_precise_loan() {
+    for (context, source) in [
+        (
+            "generic record",
+            r#"
+                data Generic<T> { value: T; }
+                data Cell { bytes: [u8; 16]; }
+                machine Cell::exercise(&mut self) {
+                    let view: &[Generic<u16>; 2] =
+                        &self.bytes[0] as &[Generic<u16>; 2];
+                }
+            "#,
+        ),
+        (
+            "invariant-bearing record",
+            r#"
+                data Invariant
+                where value <= limit,
+                { value: u16; limit: u16; }
+                data Cell { bytes: [u8; 16]; }
+                machine Cell::exercise(&mut self) {
+                    let view: &[Invariant; 2] = &self.bytes[0] as &[Invariant; 2];
+                }
+            "#,
+        ),
+        (
+            "cased record",
+            r#"
+                data Choice {
+                    case First(value: u16);
+                    case Second(value: u16);
+                }
+                data Cell { bytes: [u8; 16]; }
+                machine Cell::exercise(&mut self) {
+                    let view: &[Choice; 2] = &self.bytes[0] as &[Choice; 2];
+                }
+            "#,
+        ),
+        (
+            "cyclic record",
+            r#"
+                data Node { next: Node; }
+                data Cell { bytes: [u8; 16]; }
+                machine Cell::exercise(&mut self) {
+                    let view: &[Node; 2] = &self.bytes[0] as &[Node; 2];
+                }
+            "#,
+        ),
+    ] {
+        assert_typed_recast_has_no_loan(source, context);
+    }
 }
 
 #[test]
 fn zero_inner_and_outer_nested_fixed_arrays_publish_no_precise_loan() {
     let source = r#"
+        data Word {
+            value: u16;
+        }
+
         data Cell {
             bytes: [u8; 8];
         }
@@ -389,6 +553,9 @@ fn zero_inner_and_outer_nested_fixed_arrays_publish_no_precise_loan() {
         machine Cell::exercise(&mut self) {
             let empty_outer: &[[u16; 2]; 0] = &self.bytes[0] as &[[u16; 2]; 0];
             let empty_inner: &[[u16; 0]; 2] = &self.bytes[0] as &[[u16; 0]; 2];
+            let empty_record_outer: &[Word; 0] = &self.bytes[0] as &[Word; 0];
+            let empty_record_inner: &[[Word; 0]; 2] =
+                &self.bytes[0] as &[[Word; 0]; 2];
         }
     "#;
 
@@ -458,10 +625,10 @@ fn nested_bool_and_constrained_fixed_array_targets_publish_no_loan_and_keep_diag
 }
 
 #[test]
-fn atomic_fixed_array_targets_remain_valid_but_publish_no_precise_loan() {
+fn atomic_scalar_and_fixed_array_targets_remain_valid_but_publish_no_precise_loan() {
     let source = r#"
         data Cell {
-            bytes: [u8; 48];
+            bytes: [u8; 64];
         }
 
         machine Cell::exercise(&mut self) {
@@ -471,6 +638,8 @@ fn atomic_fixed_array_targets_remain_valid_but_publish_no_precise_loan() {
             let top_u64: &[AtomicU64; 1] = &self.bytes[24] as &[AtomicU64; 1];
             let nested_u64: &[[AtomicU64; 1]; 2] =
                 &self.bytes[32] as &[[AtomicU64; 1]; 2];
+            let direct_u32: &AtomicU32 = &self.bytes[48] as &AtomicU32;
+            let direct_u64: &AtomicU64 = &self.bytes[52] as &AtomicU64;
         }
     "#;
 
@@ -632,6 +801,32 @@ fn indexed_mutable_nested_array_recast_source(mutation: &str, final_use: &str) -
     )
 }
 
+fn indexed_mutable_nested_record_array_recast_source(mutation: &str, final_use: &str) -> String {
+    format!(
+        r#"
+            data Header {{
+                code: u8;
+            }}
+
+            data Desc {{
+                head: Header;
+                tail: u32;
+            }}
+
+            data Cell {{
+                bytes: [u8; 40];
+            }}
+
+            machine Cell::exercise(&mut self) {{
+                let view: &mut [[Desc; 2]; 2] =
+                    &mut self.bytes[3] as &mut [[Desc; 2]; 2];
+                {mutation}
+                {final_use}
+            }}
+        "#
+    )
+}
+
 fn typed_program(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = psi_source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -670,6 +865,16 @@ fn assert_valid_recast_has_no_loan(source: &str, context: &str) {
     let typed = typed_program(source);
     psi_validation::validate_program(&typed)
         .unwrap_or_else(|diagnostics| panic!("{context} should remain valid: {diagnostics:#?}"));
+    let facts = build_borrow_facts(&typed);
+    assert_eq!(facts.loans.iter().count(), 0, "{context}");
+}
+
+fn assert_typed_recast_has_no_loan(source: &str, context: &str) {
+    let typed = typed_program(source);
+    assert!(
+        psi_validation::validate_program(&typed).is_err(),
+        "{context} unexpectedly entered the ordinary raw recast subset"
+    );
     let facts = build_borrow_facts(&typed);
     assert_eq!(facts.loans.iter().count(), 0, "{context}");
 }
