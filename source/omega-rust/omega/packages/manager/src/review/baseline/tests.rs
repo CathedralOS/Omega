@@ -130,29 +130,39 @@ fn baseline_retains_unknown_descriptor_seek_failure_replay_custody() {
 }
 
 #[test]
-fn baseline_retains_unknown_descriptor_open_at_failure_replay_custody() {
-    let replay = unknown_descriptor_failure_baseline(
-        "unknown-open-at",
-        "let descriptor: i32 = builder.filesystem.open_at(-1, \"generated.omg\", 577);",
-    );
-    let [attempt] = replay.attempts() else {
-        panic!("open_at baseline retains one operation")
-    };
-    assert_eq!(attempt.operation_tag(), 14);
-    let [component] = attempt.byte_operands() else {
-        panic!("open_at baseline retains one exact relative component")
-    };
-    assert_eq!(component.operand_ordinal(), 1);
-    assert_eq!(component.bytes(), b"generated.omg");
-    let [flags] = attempt.scalar_operands() else {
-        panic!("open_at baseline retains one exact flags operand")
-    };
-    assert_eq!(flags.operand_ordinal(), 2);
-    assert_eq!(
-        flags.value(),
-        psi_checked_interpreter::FilesystemScalarOperandValue::I32(577)
-    );
-    assert!(!replay.has_output_attempts());
+fn baseline_retains_unknown_descriptor_at_failure_replay_custody() {
+    for (label, statement, operation_tag) in [
+        (
+            "unknown-open-at",
+            "let descriptor: i32 = builder.filesystem.open_at(-1, \"generated.omg\", 577);",
+            14,
+        ),
+        (
+            "unknown-unlink-at",
+            "let status: i32 = builder.filesystem.unlink_at(-1, \"generated.omg\", 577);",
+            15,
+        ),
+    ] {
+        let replay = unknown_descriptor_failure_baseline(label, statement);
+        let [attempt] = replay.attempts() else {
+            panic!("at-operation baseline retains one operation")
+        };
+        assert_eq!(attempt.operation_tag(), operation_tag);
+        let [component] = attempt.byte_operands() else {
+            panic!("at-operation baseline retains one exact relative component")
+        };
+        assert_eq!(component.operand_ordinal(), 1);
+        assert_eq!(component.bytes(), b"generated.omg");
+        let [flags] = attempt.scalar_operands() else {
+            panic!("at-operation baseline retains one exact flags operand")
+        };
+        assert_eq!(flags.operand_ordinal(), 2);
+        assert_eq!(
+            flags.value(),
+            psi_checked_interpreter::FilesystemScalarOperandValue::I32(577)
+        );
+        assert!(!replay.has_output_attempts());
+    }
 }
 
 #[test]

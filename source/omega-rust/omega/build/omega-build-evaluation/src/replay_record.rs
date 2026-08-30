@@ -47,7 +47,8 @@ use handle_failures::{
     unknown_descriptor_read_failure_shape_is_exact,
     unknown_descriptor_read_file_metadata_failure_shape_is_exact,
     unknown_descriptor_read_operation, unknown_descriptor_seek_failure_shape_is_exact,
-    unknown_descriptor_set_file_times_failure_shape_is_exact, unknown_descriptor_write_operation,
+    unknown_descriptor_set_file_times_failure_shape_is_exact,
+    unknown_descriptor_unlink_at_failure_shape_is_exact, unknown_descriptor_write_operation,
     unknown_descriptor_write_operation_failure_shape_is_exact,
     unknown_descriptor_write_payload_failure_shape_is_exact,
     unknown_descriptor_write_payload_operation, unknown_native_handle_close_failure_shape_is_exact,
@@ -59,6 +60,7 @@ use handle_failures::{
     validate_unknown_descriptor_read_file_metadata_failure_shape,
     validate_unknown_descriptor_seek_failure_shape,
     validate_unknown_descriptor_set_file_times_failure_shape,
+    validate_unknown_descriptor_unlink_at_failure_shape,
     validate_unknown_descriptor_write_operation_failure_shape,
     validate_unknown_descriptor_write_payload_failure_shape,
     validate_unknown_native_handle_close_failure_shape,
@@ -77,7 +79,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 45;
+const VERSION: u16 = 46;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -242,6 +244,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                     operand_free_unknown_descriptor_failure_shape_is_exact(shape)
                         || unknown_descriptor_seek_failure_shape_is_exact(shape)
                         || unknown_descriptor_open_at_failure_shape_is_exact(shape)
+                        || unknown_descriptor_unlink_at_failure_shape_is_exact(shape)
                         || unknown_descriptor_write_operation_failure_shape_is_exact(shape)
                         || unknown_descriptor_set_file_times_failure_shape_is_exact(shape)
                         || unknown_descriptor_read_failure_shape_is_exact(shape)
@@ -443,6 +446,35 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay unknown-descriptor open_at failure could not be rehydrated",
+            )
+        });
+    }
+    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 15
+    {
+        let shape = &shapes[operation_suffix_start];
+        let [(1, relative_component)] = shape.byte_operands.as_slice() else {
+            unreachable!("validated unknown-descriptor unlink_at retains one exact component")
+        };
+        let [(2, ShapeScalar::I32(flags))] = shape.scalars.as_slice() else {
+            unreachable!("validated unknown-descriptor unlink_at retains exact flags")
+        };
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorUnlinkAtReplayRecord::new(
+                typed_source_record,
+                clone_bytes(relative_component)?,
+                *flags,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay unknown-descriptor unlink_at record is inconsistent",
+                )
+            })?;
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_unlink_at_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-descriptor unlink_at failure could not be rehydrated",
             )
         });
     }
@@ -1943,6 +1975,7 @@ fn validate_first_rung(
                 | 11
                 | 12
                 | 14
+                | 15
                 | 17
                 | 19
                 | 20
@@ -2044,6 +2077,7 @@ fn validate_first_rung(
                     | 11
                     | 12
                     | 14
+                    | 15
                     | 17
                     | 19
                     | 20
@@ -2082,6 +2116,10 @@ fn validate_first_rung(
         }
         if shapes.len() - cursor == 1 && shapes[cursor].operation == 14 {
             validate_unknown_descriptor_open_at_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 1 && shapes[cursor].operation == 15 {
+            validate_unknown_descriptor_unlink_at_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes.len() - cursor == 1
