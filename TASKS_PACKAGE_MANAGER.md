@@ -73,9 +73,11 @@ stop the item on one precise owner question before adding machinery.
     implementation availability guard, not exact payload or memory evidence;
   - add exact peak-live byte accounts only where the compiler owns a complete
     allocation lifetime. Evaluator `Text` backing payloads are landed. Keep the
-    remaining filesystem domains distinct: read-transfer buffers,
-    directory-enumeration name/packed-record snapshots, and retained
-    find-cursor name snapshots. Do not add a generic filesystem-scratch,
+    remaining filesystem domains distinct: directory-enumeration
+    name/packed-record snapshots and retained find-cursor name snapshots.
+    Synchronous file-read transfer buffers already have one exact
+    pre-provider 16-MiB per-operation bound; do not add a peak receipt that
+    merely restates it. Do not add a generic filesystem-scratch,
     “temporary logical payload,” or memory ceiling: partial participation would
     misstate allocator/RSS containment. BuildLog bytes, canonical filesystem
     operation attempts, concurrently live filesystem handles and interpreter

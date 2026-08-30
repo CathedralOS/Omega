@@ -776,9 +776,11 @@ one honest generic domain: additional hard ceilings are introduced only for a
 named compiler-owned payload whose complete allocation lifetime can be charged
 before it becomes interpreter state and released exactly. Evaluator `Text`
 backing payloads now have that account. Remaining domains stay separate:
-filesystem read-transfer buffers, directory-enumeration name/packed-record
-snapshots, and retained find-cursor name snapshots. Allocator capacity, RSS,
-and process memory remain deployment policy rather than an Omega claim.
+directory-enumeration name/packed-record snapshots and retained find-cursor
+name snapshots. Synchronous file-read transfer buffers already have one exact
+pre-provider 16-MiB per-operation bound; another peak field would add no
+enforceable invariant. Allocator capacity, RSS, and process memory remain
+deployment policy rather than an Omega claim.
 
 The root may raise or remove ceilings. Dependencies may publish expected usage
 but cannot grant themselves more. Evaluation code cannot inspect remaining
