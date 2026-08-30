@@ -31,6 +31,8 @@ pub struct CheckedCompilation {
     selected_program_entry: Option<omega_build_evaluation::SelectedCompilerProgramEntry>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     selected_build_machine_identity: Option<String>,
+    opaque_representation_selections:
+        Vec<omega_representation_planning::OpaqueRepresentationSelection>,
     optimization_selections: omega_optimization_core::OptimizationSelections,
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
@@ -67,6 +69,7 @@ impl PartialEq for CheckedCompilation {
             && self.selected_program_entry == other.selected_program_entry
             && self.selected_build_machine_symbol == other.selected_build_machine_symbol
             && self.selected_build_machine_identity == other.selected_build_machine_identity
+            && self.opaque_representation_selections == other.opaque_representation_selections
             && self.optimization_selections == other.optimization_selections
             && self.optimization_selection_identity == other.optimization_selection_identity
             && self.optimization_report == other.optimization_report
@@ -229,6 +232,16 @@ impl CheckedCompilation {
     /// downstream custody must not rediscover it by short name.
     pub fn selected_build_machine_identity(&self) -> Option<&str> {
         self.selected_build_machine_identity.as_deref()
+    }
+
+    /// Complete compiler-validated opaque-representation selections harvested
+    /// from the authoritative build machine. Unused selections remain here as
+    /// activation policy; this custody does not imply a by-value demand or a
+    /// physical ABI commitment.
+    pub fn opaque_representation_selections(
+        &self,
+    ) -> &[omega_representation_planning::OpaqueRepresentationSelection] {
+        &self.opaque_representation_selections
     }
 
     /// Exact named optimizations selected by the authoritative root build.
@@ -820,6 +833,7 @@ fn compile_to_checked_inner_with_replay(
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
+    let opaque_representation_selections = build_config.opaque_representation_selections.clone();
     let subsystem = build_config.subsystem;
     let optimization_selections = build_config.optimizations.clone();
     let optimization_selection_identity = optimization_selections.identity();
@@ -970,6 +984,7 @@ fn compile_to_checked_inner_with_replay(
         selected_program_entry,
         selected_build_machine_symbol,
         selected_build_machine_identity,
+        opaque_representation_selections,
         optimization_selections,
         optimization_selection_identity,
         optimization_report,

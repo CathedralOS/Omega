@@ -126,6 +126,12 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
+  - [x] Retain the complete validated activation-wide
+    `OpaqueRepresentationSelection` collection in `CheckedCompilation`,
+    including unused selections, exact closed application identity, selecting
+    machine, and source provenance. This is compiler custody only: package
+    review remains `Unbound`, and no demand or physical ABI row is implied.
+
   Validate at most one selected application per opaque declaration at the
   completed compilation-activation build-config join, even though current
   orchestration evaluates only one authoritative build machine. Preserve an
