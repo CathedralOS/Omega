@@ -341,7 +341,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 45);
+    assert_eq!(checked_observations.schema_version(), 46);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3038,25 +3038,31 @@ fn path_like_filesystem_operands_survive_compiler_projection() {
 
 #[cfg(unix)]
 #[test]
-fn returned_read_link_bytes_survive_compiler_projection() {
+fn source_read_link_complete_and_truncated_results_restart_replay() {
     use std::os::unix::fs::symlink;
 
     let (project, profile) = rooted_build_probe_project(
         "returned-read-link",
         r#"    let link: &[u8] in Path = builder.source.resolve("fixture-link");
-    self.result = self.filesystem.read_link(link, &mut self.buffer, 4096);"#,
+    self.result = self.filesystem.read_link(link, &mut self.buffer, 4096);
+    self.result = self.filesystem.read_link(link, &mut self.small_buffer, 1);"#,
     );
     symlink("returned-target", project.join("fixture-link"))
         .expect("create source symlink fixture");
-    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-        .expect("read_link of a granted source symlink succeeds");
-    let observations = checked
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "read-link-receipt")
+            .expect("read_link of a granted source symlink receipts");
+    let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    let [read_link] = observations.filesystem_operation_attempts() else {
-        panic!("fixture performs one read_link operation")
+    assert_eq!(summary.schema_version(), 46);
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    let [complete, truncated] = summary.filesystem_operation_attempts() else {
+        panic!("fixture performs two read_link operations")
     };
-    let [returned] = read_link.returned_paths() else {
+    let [returned] = complete.returned_paths() else {
         panic!("read_link retains one exact meaningful returned path payload")
     };
     assert_eq!(returned.operand_ordinal(), 1);
@@ -3070,10 +3076,84 @@ fn returned_read_link_bytes_survive_compiler_projection() {
     );
     assert_eq!(returned.bytes(), b"returned-target");
     assert_eq!(
-        read_link.result(),
+        complete.result(),
         BuildFilesystemOperationResult::Scalar(15)
     );
+    let [returned_prefix] = truncated.returned_paths() else {
+        panic!("truncated read_link retains one exact meaningful prefix")
+    };
+    assert_eq!(
+        returned_prefix.completeness(),
+        BuildFilesystemReturnedPathCompleteness::LimitReached
+    );
+    assert_eq!(returned_prefix.bytes(), b"r");
+    assert_eq!(
+        truncated.result(),
+        BuildFilesystemOperationResult::Scalar(1)
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("source read_link receipt encodes")
+        .expect("source read_link receipt retains replay custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("source read_link receipt recovers");
+    assert_eq!(recovered, record);
+
+    let package = PackageKeyIdentity::from_digest([105; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "source-read-link", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture source read_link canonical metadata");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package source read_link input");
+    set_canonical_source_tree_permissions(&project, false);
+
+    std::fs::remove_file(project.join("fixture-link")).expect("remove original source symlink");
+    symlink("host-drift-target", project.join("fixture-link"))
+        .expect("replace source symlink after receipt capture");
+    set_canonical_source_tree_permissions(&project, true);
+    let drift = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs.clone(),
+        recovered.clone(),
+    )
+    .expect_err("changed Source symlink must reject before replay");
+    assert!(
+        drift
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("canonical Source metadata"))
+    );
+    set_canonical_source_tree_permissions(&project, false);
+    std::fs::remove_file(project.join("fixture-link")).expect("remove drifted source symlink");
+    symlink("returned-target", project.join("fixture-link"))
+        .expect("restore receipted source symlink");
+    set_canonical_source_tree_permissions(&project, true);
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        recovered,
+    )
+    .expect("source read_link receipt must restart from matching canonical custody");
+    set_canonical_source_tree_permissions(&project, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed source read_link retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert_eq!(
+        replayed_summary.filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "read-link-receipt"));
 }
 
 #[test]
@@ -3876,7 +3956,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 45);
+    assert_eq!(summary.schema_version(), 46);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -3949,7 +4029,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 45);
+    assert_eq!(summary.schema_version(), 46);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

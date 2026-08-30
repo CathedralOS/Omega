@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 45;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 46;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2511,8 +2511,16 @@ fn source_input_replay_prefix_end(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < attempts.len() {
-        if matches!(attempts[cursor].operation_tag(), 1 | 11) {
+        if matches!(attempts[cursor].operation_tag(), 1 | 11 | 19 | 20 | 27) {
             break;
+        }
+        if attempts[cursor].operation_tag() == 21 {
+            if !source_read_link_is_exact(&attempts[cursor]) {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
         }
         if matches!(attempts[cursor].operation_tag(), 38 | 40) {
             if !source_path_metadata_is_exact(&attempts[cursor]) {
@@ -2563,6 +2571,102 @@ fn source_input_replay_prefix_end(
         event_count += 1;
     }
     (event_count != 0).then_some(cursor)
+}
+
+fn source_read_link_is_exact(
+    attempt: &psi_checked_interpreter::FilesystemOperationAttempt,
+) -> bool {
+    use psi_checked_interpreter::{
+        FilesystemGrantAccess as Access, FilesystemObservationProvider as Provider,
+        FilesystemOperationResult as ResultValue,
+        FilesystemReturnedPathCompleteness as Completeness,
+        FilesystemReturnedPathKind as ReturnedKind, FilesystemScalarOperandValue as ScalarValue,
+    };
+    let Some(ResultValue::Scalar(result)) = attempt.result() else {
+        return false;
+    };
+    let Ok(result_length) = usize::try_from(result) else {
+        return false;
+    };
+    let Ok(result_length_u64) = u64::try_from(result) else {
+        return false;
+    };
+    let [count] = attempt.scalar_operands() else {
+        return false;
+    };
+    let ScalarValue::U64(requested_count) = count.value() else {
+        return false;
+    };
+    let Ok(requested_capacity) = usize::try_from(requested_count) else {
+        return false;
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [returned] = attempt.returned_paths() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands() else {
+        return false;
+    };
+    let [authorized] = attempt.authorized_paths() else {
+        return false;
+    };
+    let post_prefix_matches = mutable
+        .post_bytes()
+        .get(..result_length)
+        .is_some_and(|prefix| prefix == returned.bytes());
+    let unchanged_tail = mutable
+        .pre_bytes()
+        .get(result_length..)
+        .zip(mutable.post_bytes().get(result_length..))
+        .is_some_and(|(pre, post)| pre == post);
+    let completeness_is_consistent = match returned.completeness() {
+        Completeness::Complete => result_length_u64 <= requested_count,
+        Completeness::LimitReached => result_length_u64 == requested_count,
+    };
+    attempt.operation_tag() == 21
+        && attempt.provider() == Provider::RealScoped
+        && count.operand_ordinal() == 2
+        && result_length_u64 <= requested_count
+        && requested_capacity <= mutable.pre_bytes().len()
+        && result_length <= mutable.post_bytes().len()
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && psi_checked_interpreter::filesystem_root_relative_path_is_canonical(
+            rooted.relative_path(),
+            false,
+        )
+        && returned.operand_ordinal() == 1
+        && returned.kind() == ReturnedKind::ReadLinkPayload
+        && returned.bytes().len() == result_length
+        && completeness_is_consistent
+        && attempt.observed_byte_regions().is_empty()
+        && attempt.metadata_observations().is_empty()
+        && mutable_resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && mutable_resolution.bytes() == mutable.pre_bytes()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && post_prefix_matches
+        && unchanged_tail
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && authorized.operand_ordinal() == 0
+        && authorized.access() == Access::Read
+        && authorized.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && psi_checked_interpreter::filesystem_root_relative_path_is_canonical(
+            authorized.relative_path(),
+            true,
+        )
+        && attempt.logical_handle_inputs().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+        && attempt.grant_refusals().is_empty()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

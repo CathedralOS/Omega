@@ -1433,6 +1433,18 @@ does not commit inode identity or hard-link topology. Missing, late,
 directory, or symbolic-link sources, cross-root names, insufficient authority,
 collisions, alternate operations, and failures remain non-receipted.
 
+Summary v46 and replay-record v27 add exact successful Source-rooted
+`read_link` events to the ordered Source-input grammar. Each event binds tag
+21, the authored rooted symlink name and separately authorized no-follow
+target, requested count, scalar result, post-error state, complete mutable
+resolution/pre/post carrier, and the exact meaningful returned bytes. Complete
+targets and capacity-limited prefixes are distinct closed outcomes; a limited
+prefix does not imply or retain an unseen suffix. Provider-free replay restores
+the exact carrier and event order before requiring build-result and Output-tree
+equality. Returned bytes remain inert and cannot acquire path authority without
+a new checked root resolution. Failed, Output-rooted, malformed, or internally
+inconsistent read-link attempts remain non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1469,7 +1481,7 @@ successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
-and v45/v26 hard-link-output grammars above may join them to
+and v45/v26 hard-link-output and v46/v27 Source-read-link grammars above may join them to
 verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1497,7 +1509,7 @@ successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
-and v45/v26 hard-link-output grammars above supply canonical
+and v45/v26 hard-link-output and v46/v27 Source-read-link grammars above supply canonical
 operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

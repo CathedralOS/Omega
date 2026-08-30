@@ -1628,17 +1628,13 @@ pub struct EvaluationObservations {
     build_included_sources: Vec<BuildIncludedSource>,
 }
 
-/// Opaque, compiler-produced operation record for the bounded filesystem replay
-/// rung. Source-only records retain their existing event grammar. The extended
-/// grammar permits one or more Source input events followed by repeated exact
-/// Output files, each with create, exact rooted-descriptor operations, bounded
-/// immediately retired duplicates, bounded exact lock/unlock pairs on the
-/// original descriptor, and close; or a bounded parent-before-child sequence
-/// of exact fresh empty Output directories. Files and directories do not mix
-/// in this increment.
-/// File records may carry an ordered generated-source subset.
-/// This remains replay evidence, not a receipt and not a reconstructed
-/// filesystem tree.
+/// Opaque, compiler-produced operation record for bounded filesystem replay.
+/// Source events may be followed by an ordered parent-before-child Output tree
+/// of directories, complete regular-file chains, symbolic links, and hard-link
+/// names. File chains admit only their explicitly validated descriptor
+/// operations, and generated-source handoffs retain exact authored order.
+/// The record is replay evidence; the compiler separately establishes receipt
+/// strength by reproducing the build and matching sponsored staged-tree custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemReplay {
     attempts: std::sync::Arc<[FilesystemOperationAttempt]>,

@@ -143,3 +143,22 @@ hard-linked and duplicated-file trees have the same staged representation.
 Missing, late, directory, or symbolic-link sources, cross-root names,
 insufficient authorization, collisions, failures, and alternate operations
 remain non-receipted.
+
+## Source read-link event (summary v46, replay record v27)
+
+The ordered Source-input grammar now accepts exact successful Source-rooted
+`read_link` events at tag 21, interspersed with the existing Source read and
+metadata events. Each event retains the authored rooted symlink name, its
+separately authorized no-follow target, requested count, scalar result,
+post-error state, complete mutable resolution/pre/post carrier, and the exact
+meaningful returned bytes. The returned row distinguishes a complete target
+from a capacity-limited prefix; a limited prefix is retained as itself and no
+unobserved suffix is inferred.
+
+Provider-free replay writes back the exact retained carrier and requires the
+same result, evidence, event order, build result, and empty or reconstructed
+Output tree. Returned target bytes remain inert data: using them as a path
+still requires a new checked resolution through a compiler-issued root.
+Failures, Output-rooted reads, malformed carriers, changed tails, inconsistent
+counts or completeness, alternate path-result kinds, and hidden authority
+remain non-receipted.
