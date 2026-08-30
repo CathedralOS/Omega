@@ -562,10 +562,9 @@ data OmegaIndexedExpressionSyntax {
     end: i32;
 }
 
-// Range bounds are ordinary expression handles. This first retained slice is
-// an exclusive open-ended range with an explicit start (`start..`); the shape
-// keeps absent bounds explicit so later range forms do not need a replacement
-// representation.
+// Range bounds are ordinary expression handles. Bound presence and end
+// inclusivity are retained independently so all six canonical index-range
+// shapes share one representation.
 data OmegaRangeExpressionSyntax {
     has_start: i32;
     start: i32;
@@ -737,6 +736,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedTerminationView;
     case ExpectedTerminationEnd;
     case ExpectedIndexedIndex;
+    case ExpectedIndexedRangeEnd;
     case ExpectedIndexedTail;
     case ExpectedLocalDataName;
     case ExpectedLocalDataColon;
@@ -958,7 +958,12 @@ data OmegaParser {
     indexed_start: i32;
     indexed_is_value: i32;
     indexed_index_is_range_start: i32;
+    indexed_range_has_start: i32;
     indexed_range_start_expression: i32;
+    indexed_range_has_end: i32;
+    indexed_range_end_expression: i32;
+    indexed_range_end_inclusive: i32;
+    indexed_range_parsing_end: i32;
     indexed_range_operator_start: i32;
     indexed_range_operator_end: i32;
     local_data_start: i32;
@@ -3222,7 +3227,12 @@ machine OmegaParser::parse_view(
     self.indexed_start = 0;
     self.indexed_is_value = 0;
     self.indexed_index_is_range_start = 0;
+    self.indexed_range_has_start = 0;
     self.indexed_range_start_expression = 0;
+    self.indexed_range_has_end = 0;
+    self.indexed_range_end_expression = 0;
+    self.indexed_range_end_inclusive = 0;
+    self.indexed_range_parsing_end = 0;
     self.indexed_range_operator_start = 0;
     self.indexed_range_operator_end = 0;
     self.local_data_start = 0;
@@ -3943,7 +3953,7 @@ machine OmegaParser::parse_view(
                 source.len
             )
             100 -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedIndexedTail,
+                OmegaParseDiagnosticCode::ExpectedIndexedRangeEnd,
                 source.len,
                 source.len
             )
@@ -5842,7 +5852,10 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBrace -> begin_subjectless_transition()
             OmegaPunctuationKind::LeftParen -> begin_expression_group()
-            OmegaPunctuationKind::Exclamation -> begin_logical_not_expression()
+            OmegaPunctuationKind::Exclamation ->
+                begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
+            OmegaPunctuationKind::Tilde ->
+                begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
             _ -> incomplete_root()
         }
     }
@@ -5900,9 +5913,9 @@ machine OmegaParser::parse_view(
         transition true { true -> finish_framed_primary() }
     }
 
-    state begin_logical_not_expression() {
+    state begin_unary_expression(operator: OmegaUnaryOperatorKind) {
         transition self.expression_prefix_count < 128 {
-            true -> begin_logical_not_expression_bounded()
+            true -> begin_unary_expression_bounded(operator)
             _ -> resource_failure(
                 OmegaParserResource::ExpressionDepth,
                 128,
@@ -5911,9 +5924,9 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state begin_logical_not_expression_bounded() {
+    state begin_unary_expression_bounded(operator: OmegaUnaryOperatorKind) {
         self.expression_prefix_operators[self.expression_prefix_count] =
-            OmegaUnaryOperatorKind::LogicalNot;
+            operator;
         self.expression_prefix_operator_starts[self.expression_prefix_count] =
             self.scan.token_start;
         self.expression_prefix_operator_ends[self.expression_prefix_count] =
@@ -7201,6 +7214,10 @@ machine OmegaParser::parse_view(
             self.members[self.statement_first_path_member].start;
         self.indexed_is_value = 0;
         self.indexed_index_is_range_start = 0;
+        self.indexed_range_has_start = 0;
+        self.indexed_range_has_end = 0;
+        self.indexed_range_end_inclusive = 0;
+        self.indexed_range_parsing_end = 0;
         self.expression_consumer = OmegaExpressionConsumer::IndexedIndex;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(74) }
@@ -7211,8 +7228,23 @@ machine OmegaParser::parse_view(
             OmegaTokenKind::Identifier -> begin_named_index()
             OmegaTokenKind::Integer -> begin_integer_index()
             OmegaTokenKind::Keyword -> indexed_index_keyword()
+            OmegaTokenKind::Punctuation -> indexed_index_punctuation()
             _ -> incomplete_root()
         }
+    }
+
+    state indexed_index_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::DotDot -> begin_index_range_without_start()
+            OmegaPunctuationKind::DotDotEqual -> begin_index_range_without_start()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_index_range_without_start() {
+        self.indexed_range_has_start = 0;
+        self.indexed_range_start_expression = 0;
+        transition true { true -> begin_index_range_after_separator() }
     }
 
     state begin_integer_index() {
@@ -7256,6 +7288,19 @@ machine OmegaParser::parse_view(
     state retain_index_handle() {
         self.indexed_index_expression = self.expression_count;
         self.expression_count = self.expression_count + 1;
+        transition self.indexed_range_parsing_end {
+            1 -> retain_path_index_range_end()
+            _ -> retain_index_path_or_range_start()
+        }
+    }
+
+    state retain_path_index_range_end() {
+        self.indexed_range_has_end = 1;
+        self.indexed_range_end_expression = self.indexed_index_expression;
+        transition true { true -> retain_index_range() }
+    }
+
+    state retain_index_path_or_range_start() {
         transition self.indexed_index_is_range_start {
             1 -> begin_index_range_after_path_start()
             _ -> retain_indexed_expression_capacity()
@@ -7264,7 +7309,16 @@ machine OmegaParser::parse_view(
 
     state retain_completed_index_handle() {
         self.indexed_index_expression = self.expression_result;
-        transition true { true -> retain_indexed_expression_capacity() }
+        transition self.indexed_range_parsing_end {
+            1 -> retain_completed_index_range_end()
+            _ -> retain_indexed_expression_capacity()
+        }
+    }
+
+    state retain_completed_index_range_end() {
+        self.indexed_range_has_end = 1;
+        self.indexed_range_end_expression = self.expression_result;
+        transition true { true -> retain_index_range() }
     }
 
     state retain_indexed_expression_capacity() {
@@ -7279,18 +7333,38 @@ machine OmegaParser::parse_view(
     }
 
     state begin_index_range_after_path_start() {
+        self.indexed_range_has_start = 1;
         self.indexed_range_start_expression = self.indexed_index_expression;
-        transition true { true -> begin_index_range_after_start() }
+        transition true { true -> begin_index_range_after_separator() }
     }
 
     state begin_index_range_after_completed_start() {
+        self.indexed_range_has_start = 1;
         self.indexed_range_start_expression = self.expression_result;
-        transition true { true -> begin_index_range_after_start() }
+        transition true { true -> begin_index_range_after_separator() }
     }
 
-    state begin_index_range_after_start() {
+    state begin_index_range_after_separator() {
+        self.indexed_range_has_end = 0;
+        self.indexed_range_end_expression = 0;
+        self.indexed_range_parsing_end = 0;
         self.indexed_range_operator_start = self.scan.token_start;
         self.indexed_range_operator_end = self.scan.token_end;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::DotDot -> begin_exclusive_index_range()
+            OmegaPunctuationKind::DotDotEqual -> begin_inclusive_index_range()
+            _ -> internal_failure()
+        }
+    }
+
+    state begin_exclusive_index_range() {
+        self.indexed_range_end_inclusive = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(100) }
+    }
+
+    state begin_inclusive_index_range() {
+        self.indexed_range_end_inclusive = 1;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(100) }
     }
@@ -7298,21 +7372,57 @@ machine OmegaParser::parse_view(
     state indexed_range_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> indexed_range_end_punctuation()
+            OmegaTokenKind::Identifier -> begin_index_range_named_end()
+            OmegaTokenKind::Integer -> begin_index_range_integer_end()
+            OmegaTokenKind::Keyword -> indexed_range_end_keyword()
             _ -> incomplete_root()
         }
     }
 
     state indexed_range_end_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::RightBracket -> retain_open_index_range()
+            OmegaPunctuationKind::RightBracket -> retain_absent_index_range_end()
             _ -> incomplete_root()
         }
     }
 
-    state retain_open_index_range() {
+    state indexed_range_end_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfValue -> begin_index_range_self_end()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_index_range_named_end() {
+        self.indexed_range_parsing_end = 1;
+        transition true { true -> begin_named_index() }
+    }
+
+    state begin_index_range_integer_end() {
+        self.indexed_range_parsing_end = 1;
+        transition true { true -> begin_integer_index() }
+    }
+
+    state begin_index_range_self_end() {
+        self.indexed_range_parsing_end = 1;
+        transition true { true -> begin_self_index() }
+    }
+
+    state retain_absent_index_range_end() {
+        transition self.indexed_range_end_inclusive {
+            1 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedIndexedRangeEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_index_range()
+        }
+    }
+
+    state retain_index_range() {
         transition (self.expression_count < 16384) &&
             (self.range_expression_count < 16384) {
-            true -> retain_open_index_range_bounded()
+            true -> retain_index_range_bounded()
             _ -> resource_failure(
                 OmegaParserResource::Expressions,
                 16384,
@@ -7321,13 +7431,17 @@ machine OmegaParser::parse_view(
         }
     }
 
-    state retain_open_index_range_bounded() {
-        self.range_expressions[self.range_expression_count].has_start = 1;
+    state retain_index_range_bounded() {
+        self.range_expressions[self.range_expression_count].has_start =
+            self.indexed_range_has_start;
         self.range_expressions[self.range_expression_count].start =
             self.indexed_range_start_expression;
-        self.range_expressions[self.range_expression_count].has_end = 0;
-        self.range_expressions[self.range_expression_count].end = 0;
-        self.range_expressions[self.range_expression_count].end_inclusive = 0;
+        self.range_expressions[self.range_expression_count].has_end =
+            self.indexed_range_has_end;
+        self.range_expressions[self.range_expression_count].end =
+            self.indexed_range_end_expression;
+        self.range_expressions[self.range_expression_count].end_inclusive =
+            self.indexed_range_end_inclusive;
         self.range_expressions[self.range_expression_count].operator_start =
             self.indexed_range_operator_start;
         self.range_expressions[self.range_expression_count].operator_end =
@@ -7653,7 +7767,9 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::RightParen -> finish_call_arguments()
             OmegaPunctuationKind::LeftParen -> begin_first_grouped_call_argument()
             OmegaPunctuationKind::Exclamation ->
-                begin_first_logical_not_call_argument()
+                begin_first_unary_call_argument(OmegaUnaryOperatorKind::LogicalNot)
+            OmegaPunctuationKind::Tilde ->
+                begin_first_unary_call_argument(OmegaUnaryOperatorKind::BitwiseNot)
             _ -> incomplete_root()
         }
     }
@@ -7667,13 +7783,13 @@ machine OmegaParser::parse_view(
         transition true { true -> begin_expression_group() }
     }
 
-    state begin_first_logical_not_call_argument() {
+    state begin_first_unary_call_argument(operator: OmegaUnaryOperatorKind) {
         self.expression_consumer = OmegaExpressionConsumer::CallArgument;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
         self.expression_group_count = 0;
         self.expression_prefix_count = 0;
-        transition true { true -> begin_logical_not_expression() }
+        transition true { true -> begin_unary_expression(operator) }
     }
 
     state call_argument_or_end_keyword() {
@@ -7823,6 +7939,7 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::LeftParen -> begin_call_expression_from_path()
             OmegaPunctuationKind::LeftBracket -> begin_path_indexed_expression()
             OmegaPunctuationKind::DotDot -> retain_index_range_start_path()
+            OmegaPunctuationKind::DotDotEqual -> retain_index_range_start_path()
             OmegaPunctuationKind::Semicolon -> retain_additive_value_path()
             OmegaPunctuationKind::Plus -> retain_framed_operator_path()
             OmegaPunctuationKind::Minus -> retain_framed_operator_path()
@@ -7856,11 +7973,22 @@ machine OmegaParser::parse_view(
             self.members[self.argument_first_path_member].start;
         self.indexed_is_value = 1;
         self.indexed_index_is_range_start = 0;
+        self.indexed_range_has_start = 0;
+        self.indexed_range_has_end = 0;
+        self.indexed_range_end_inclusive = 0;
+        self.indexed_range_parsing_end = 0;
         self.expression_consumer = OmegaExpressionConsumer::IndexedBase;
         transition true { true -> retain_path_expression() }
     }
 
     state retain_index_range_start_path() {
+        transition self.indexed_range_parsing_end {
+            1 -> incomplete_root()
+            _ -> retain_index_range_start_path_for_index()
+        }
+    }
+
+    state retain_index_range_start_path_for_index() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_index_range_start_path_bounded()
@@ -8859,7 +8987,10 @@ machine OmegaParser::parse_view(
     state assignment_value_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftParen -> begin_expression_group()
-            OmegaPunctuationKind::Exclamation -> begin_logical_not_expression()
+            OmegaPunctuationKind::Exclamation ->
+                begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
+            OmegaPunctuationKind::Tilde ->
+                begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
             _ -> incomplete_root()
         }
     }
@@ -9070,9 +9201,16 @@ machine OmegaParser::parse_view(
     state indexed_index_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::RightBracket -> retain_completed_index_handle()
-            OmegaPunctuationKind::DotDot ->
-                begin_index_range_after_completed_start()
+            OmegaPunctuationKind::DotDot -> begin_completed_index_range()
+            OmegaPunctuationKind::DotDotEqual -> begin_completed_index_range()
             _ -> incomplete_root()
+        }
+    }
+
+    state begin_completed_index_range() {
+        transition self.indexed_range_parsing_end {
+            1 -> incomplete_root()
+            _ -> begin_index_range_after_completed_start()
         }
     }
 

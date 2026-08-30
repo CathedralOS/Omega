@@ -41,7 +41,7 @@ Whole-closure collection, type/control checking, AST-to-symbolic-Alpha lowering,
 `main`, and final publication remain implementation gaps. The existing source
 is therefore not yet a compiler edge and no validation may describe it as one.
 
-D22 fixes the collection phase's namespace and ordinary local rules. Q9 still
+D22 fixes the collection phase's namespace and ordinary local rules. Q7 still
 blocks the complete collector on transition-arm binder scope and the exact
 ordering/coordinate of `InvalidBoundary` against duplicate-name issues. No
 partial collector is retained while those accepted-language rules are open.
@@ -79,7 +79,7 @@ D22 rows already settled by the third line include these discriminator pairs:
   parameters and lets conflict only in their active body; and
 - entry and sibling state bodies may reuse local spellings.
 
-Q9 owns the remaining census rows: mutual and outer-environment conflicts for
+Q7 owns the remaining census rows: mutual and outer-environment conflicts for
 transition payload binders, sibling-arm reuse, and competition between
 `InvalidBoundary` and `DuplicateName`, including a boundary/data-ambiguous owner.
 

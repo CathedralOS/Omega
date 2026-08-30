@@ -117,8 +117,8 @@ paths are retained exactly; const arguments, evidence projections, nested
 static applications, lifetime arguments, and empty or trailing-comma static
 lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
-place path or one path-indexed place with a path, decimal, or explicit-start
-open-range index; current values are
+place path or one path-indexed place with a path, decimal, or canonical range
+over the retained path/decimal bound slice; current values are
 self-member paths, qualified-name paths, booleans, unsuffixed nonnegative
 decimal integer literals, or strings. Integer
 spelling is retained by source span and is not evaluated during parsing;
@@ -128,10 +128,11 @@ call arguments, and transition subjects share one bounded precedence reducer
 over `||`, `&&`, equality, comparison, `+`, `-`, and `*`. Every operator
 materializes a source-ordered binary node without evaluation or type guessing.
 Parentheses delimit reduction frames and preserve their exact transient source
-extent without manufacturing a group syntax node. Recursive logical `!`
-prefixes wrap a completed operand from the admitted primary, group, and cast
-slice before that value enters the binary frame; unary call operands, bitwise
-`~`, borrows, negative values, and contextual unary forms remain incomplete.
+extent without manufacturing a group syntax node. Recursive logical `!` and
+fixed-width integer complement `~` prefixes wrap a completed operand from the
+admitted primary, group, and cast slice before that value enters the binary
+frame; unary call operands, borrows, negative values, and contextual unary
+forms remain incomplete.
 Shallow struct literals
 accept an exact one-member record or two-member case type path and a comma-
 separated named field list with an optional trailing comma. Canonical adjacent
@@ -151,9 +152,11 @@ field spelling for later resolution. Current named targets own a contiguous
 argument-expression span
 over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
 strings, shallow struct literals, and path bases indexed by a path or decimal
-integer. An index may instead be an explicit-start open range (`start..`),
-represented by a separate range expression rather than folded into the indexed
-node. Target argument lists retain an optional trailing comma. A
+integer. An index may instead use any canonical bound-presence/inclusivity
+shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
+over those retained bounds. It is represented by a separate range expression
+rather than folded into the indexed node. Target argument lists retain an
+optional trailing comma. A
 subjectless block retains absence explicitly and does not manufacture a unit
 expression. Computed or multiple subjects, record/tuple patterns, renamed or
 waived fields, non-path fixed values, proof selectors, richer guards, richer
@@ -165,7 +168,7 @@ Local-data statements retain canonical `let [mut] name: Type [= expression];`
 syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
 immutable local named `mut`. Locals share the borrow-capable type engine and the
 same bounded expression reducer as assignments, including one path-indexed
-expression with a path or decimal index and the same explicit-start open range;
+expression with a path or decimal index and the same canonical range shapes;
 absent initializers are represented by an explicit presence bit rather than a
 valid-looking handle. Ordinary call
 initializers share the statement-call target, static-argument, runtime-argument,
@@ -177,14 +180,13 @@ locals, ordinary call arguments, and transition-target arguments. They retain
 the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix. Ordinary assignment, local, and call-argument casts may
 also wrap a completed grouped primary and then continue through the shared
-binary tail. Richer postfix values, recasts, domain arguments, open-start,
-bounded, or inclusive ranges, nested/chained indexing, and other richer
-initializers remain
+binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
+expressions, nested/chained indexing, and other richer initializers remain
 implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or one path-indexed expression with a path, decimal, or
-explicit-start open-range index. The statement points directly to the shared
+canonical range index. The statement points directly to the shared
 expression node; indexing has no assignment-only syntax representation.
 
 Each completed machine owns zero or one implicit entry followed by its explicit
