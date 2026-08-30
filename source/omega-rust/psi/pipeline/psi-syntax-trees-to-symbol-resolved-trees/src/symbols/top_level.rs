@@ -18,7 +18,10 @@ use super::top_level::operators::assign_root_operator_symbols;
 use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
 
-pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+pub(super) fn assign_top_level_symbols(
+    program: &mut SymbolResolvedTrees,
+    symbols: &SymbolTable,
+) -> Vec<psi_diagnostics::Diagnostic> {
     let mut root_children = symbols.child_handles(symbols.root()).into_iter().flatten();
 
     for _ in 0..builtin_type_symbols().len() {
@@ -46,7 +49,7 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
     });
     assign_conformance_parameter_symbols(program, symbols);
     attach_conformance_parameter_scopes(program);
-    assign_machine_symbols(program, symbols, &mut root_children);
+    let diagnostics = assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);
     assign_trait_symbols(program, symbols, &mut root_children);
@@ -55,6 +58,8 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
         wire_schema.symbol =
             next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
     });
+
+    diagnostics
 }
 
 fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {

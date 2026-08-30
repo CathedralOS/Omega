@@ -159,6 +159,7 @@ pub enum SatisfiedDeclaration<'program> {
         definition: &'program crate::trait_definition::TraitDefinition,
         requirement: &'program crate::signature::StateSignature,
     },
+    TopLevelRequirement(&'program Machine),
     Operator(&'program crate::operator::OperatorDefinition),
 }
 
@@ -166,6 +167,7 @@ impl SatisfiedDeclaration<'_> {
     pub fn symbol(self) -> SymbolHandle {
         match self {
             Self::Trait { requirement, .. } => requirement.symbol,
+            Self::TopLevelRequirement(requirement) => requirement.symbol,
             Self::Operator(operator) => operator.symbol,
         }
     }
@@ -210,6 +212,19 @@ pub fn resolve_satisfied_declaration<'program>(
             definition,
             requirement,
         });
+    }
+
+    // An explicit top-level requirement is already one exact root-machine
+    // declaration. Symbol resolution selects that declaration; typed
+    // settlement only rejoins the retained symbol to the complete machine and
+    // verifies its supply kind. Authored owner/member spellings remain
+    // diagnostic material and cannot repair a missing or wrong-kind symbol.
+    if let Some(requirement) = program.machines().iter().find(|requirement| {
+        requirement.symbol == conformance.symbol
+            && requirement.supply_mode
+                == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+    }) {
+        return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
     }
 
     if !program
