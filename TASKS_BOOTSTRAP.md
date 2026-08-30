@@ -304,6 +304,25 @@ code, discover a closure, manufacture proof premises, or decide admission.
     temporary compiler mutations that lower otherwise dominated invariants;
     production has no test hook. The rebuilt 27,087-byte compiler artifact
     passes exact reconstruction and structural validation.
+  - [x] Close the non-proof implementation/resource audit over the selected
+    compiler profile. The 197-case surface gate now requires a numeric
+    coordinate for every retained Reject, Incomplete, and InternalFailure
+    producer rather than accepting coordinate-space-only evidence. Its
+    consumed-prefix convention is fixed beside the boundary, and the existing
+    grammar, resolution, CFG, initialization, private-ceiling, phase-priority,
+    and six single-site internal cases pin the exact values. The independent
+    semantic differential still agrees on 60 generated programs and the
+    bounded I/O comparison on all 10,240 selected inputs.
+  - [ ] **BETA-COMPILER-OPERATIONAL-REFINEMENT:** close actual compiler
+    correctness for arbitrary accepted Beta under the selected resource
+    profile. Reconstruct the complete written Beta small-step judgment and the
+    emitted Alpha observation, including traps, output prefixes, fail-closed
+    runtime containment, and every finite input, then check the refinement in
+    the rooted calculus. The focused suite and temporary Python differential
+    are regression evidence only; they do not turn the parent admission into a
+    theorem. This semantic obligation is distinct from
+    `ALPHA-BETA-EXACT-CONSTRUCTION`, which proves that the persisted compiler
+    tape is exactly the assembly of `beta_compiler.alpha`.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds a Beta self-host, then that self-host becomes canonical” logic. The
