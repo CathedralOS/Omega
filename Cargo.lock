@@ -619,6 +619,7 @@ dependencies = [
  "omega-effects",
  "omega-executable-installation",
  "omega-installation-evidence",
+ "omega-isa-x86_64",
  "omega-program-entry-plan",
  "omega-target",
  "psi-core",

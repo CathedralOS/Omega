@@ -1,12 +1,135 @@
 //! Existing ordered-bound certificate selection across exact-shift words.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
+use psi_core::{IntegerSign, IntegerValue, Proposition, PropositionContext, ScalarTerm};
 use psi_proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     integer_affine_truth_bounds, map_integer_affine_bound,
 };
 
+use super::super::affine_custody::DefinitionIndex;
 use super::super::integer_evidence::{cited_facts, closed_integer_relation};
+use super::bound;
+
+pub(super) fn prove_recursive(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    let target = goal_target(goal)?;
+    let witness = shift_witness(target, semantic_axioms)?;
+    let checked = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    let (goal_bound, lower) = if goal_left == target {
+        (goal_right, false)
+    } else if goal_right == target {
+        (goal_left, true)
+    } else {
+        return None;
+    };
+    let (integer_type, goal_value) = goal_bound.integer_value()?;
+    if integer_type != checked.integer_type() {
+        return None;
+    }
+    let goal_value = integer_as_i128(goal_value)?;
+    let minimum = integer_as_i128(integer_type.minimum_value())?;
+    let maximum = integer_as_i128(integer_type.maximum_value())?;
+    let valid = |candidate: i128| {
+        let candidate = scalar_from_i128(integer_type, candidate)?;
+        let root_goal = if lower {
+            Proposition::LessOrEqual(candidate, checked.root().clone())
+        } else {
+            Proposition::LessOrEqual(checked.root().clone(), candidate)
+        };
+        let mapped = map_integer_affine_bound(&checked, &root_goal).ok()?;
+        let Proposition::LessOrEqual(left, right) = &mapped else {
+            return None;
+        };
+        let mapped_bound = if left == target {
+            right
+        } else if right == target {
+            left
+        } else {
+            return None;
+        };
+        let (_, mapped_value) = mapped_bound.integer_value()?;
+        let mapped_value = integer_as_i128(mapped_value)?;
+        Some(if lower {
+            mapped_value >= goal_value
+        } else {
+            mapped_value <= goal_value
+        })
+    };
+    let mut low = minimum;
+    let mut high = maximum;
+    if lower {
+        while low < high {
+            let middle = (low & high) + ((low ^ high) >> 1);
+            if valid(middle)? {
+                high = middle;
+            } else {
+                low = middle.checked_add(1)?;
+            }
+        }
+    } else {
+        while low < high {
+            let difference = low ^ high;
+            let middle = (low & high) + (difference >> 1) + (difference & 1);
+            if valid(middle)? {
+                low = middle;
+            } else {
+                high = middle.checked_sub(1)?;
+            }
+        }
+    }
+    if !valid(low)? {
+        return None;
+    }
+    let candidate = scalar_from_i128(integer_type, low)?;
+    let root_goal = if lower {
+        Proposition::LessOrEqual(candidate, checked.root().clone())
+    } else {
+        Proposition::LessOrEqual(checked.root().clone(), candidate)
+    };
+    let root_proof = bound::prove(
+        context,
+        &root_goal,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    )?;
+    let mapped = map_integer_affine_bound(&checked, &root_goal).ok()?;
+    let mapped_proof = ProofNode {
+        conclusion: mapped.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(root_proof),
+            witness,
+        },
+    };
+    if &mapped == goal {
+        Some(mapped_proof)
+    } else {
+        relax(goal, mapped_proof)
+    }
+}
+
+fn integer_as_i128(value: IntegerValue) -> Option<i128> {
+    match value {
+        IntegerValue::Signed(value) => Some(value),
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
+    }
+}
+
+fn scalar_from_i128(integer_type: psi_core::IntegerType, value: i128) -> Option<ScalarTerm> {
+    let value = match integer_type.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(value),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(u128::try_from(value).ok()?),
+    };
+    ScalarTerm::integer(integer_type, value).ok()
+}
 
 pub(super) fn prove(
     context: &PropositionContext,

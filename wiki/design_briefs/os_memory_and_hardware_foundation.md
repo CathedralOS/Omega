@@ -1418,6 +1418,20 @@ context, epoch, and domain identity. Unknown contexts, unresolved
 reject. No architecture-specific interrupt-frame vocabulary enters Omega
 source.
 
+The first generated-adapter derivation is deliberately narrower than a general
+stub theorem. For the existing receiver-free x86 semantic ProgramStorage
+wrapper, replay validates the canonical template and the resolved private
+continuation call, then binds the exact installed artifact/entry, boundary ABI,
+Terminal body evidence, and context closure. Its balanced 72-byte outgoing
+frame yields canonical `Enter`, `Body`, and `Exit` occupancy; body WCSU joins
+only the middle epoch. Exact emitted bytes and call coordinates remain retained
+behind the generated origin. Existing installed-code evidence seals the exact
+artifact occurrence and entry offset but does not expose equality for the
+wrapper-sized interval of the installed image; that binder remains before this
+rung satisfies the installed-stub-byte rule above. This does not attest
+firmware invocation, perform the stack operations, or admit any other adapter
+or target.
+
 Emitter-derived terminal stack closures now follow the fixed-fuel trust shape:
 a decoded canonical installation record is revalidated against its exact image,
 then the demand binds exact installed bytes and entry before artifact-wide

@@ -251,6 +251,12 @@ pub enum OperationSemanticError {
         declared: IntegerType,
         actual: ScalarType,
     },
+    ExactShiftLeftValueTypeMismatch {
+        declared: IntegerType,
+        actual: ScalarType,
+    },
+    ExactShiftLeftRequiresValueOrLiteralOperand,
+    ExactShiftLeftRequiresValueOrLiteralCount,
     ExactCastRequiresFixedSourceInteger(IntegerType),
     ExactCastRequiresFixedTargetInteger(IntegerType),
     ExactCastOperandTypeMismatch {

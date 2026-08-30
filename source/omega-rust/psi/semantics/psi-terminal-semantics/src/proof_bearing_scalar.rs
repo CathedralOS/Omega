@@ -474,8 +474,8 @@ impl CanonicalScalarGoal {
     }
 
     /// Project canonical goals whose proposition vocabulary is fully settled.
-    /// Other goal shapes remain explicit typed carriers until their own exact
-    /// proposition mappings land.
+    /// Exact arithmetic remains an explicit typed carrier until its exact
+    /// proposition mapping lands.
     pub fn kernel_proposition(&self) -> Result<Option<Proposition>, OperationSemanticError> {
         let proposition = match self {
             Self::ExactCastRepresentable {
@@ -497,13 +497,129 @@ impl CanonicalScalarGoal {
                 count_type,
                 count,
             } => exact_shift_count_proposition(*value_type, *count_type, count)?,
-            _ => return Ok(None),
+            Self::ExactShiftLeftRepresentable {
+                value_type,
+                count_type,
+                value,
+                count,
+            } => exact_shift_left_representability_proposition(
+                *value_type,
+                *count_type,
+                value,
+                count,
+            )?,
+            Self::ExactArithmeticRepresentable { .. } => return Ok(None),
         };
         proposition
             .validate()
             .map_err(OperationSemanticError::InvalidProposition)?;
         Ok(Some(proposition))
     }
+}
+
+fn fixed_integer_math_term(
+    declared: IntegerType,
+    term: &ScalarTerm,
+    mismatch: impl FnOnce(ScalarType) -> OperationSemanticError,
+    unsupported: OperationSemanticError,
+) -> Result<IntegerMathTerm, OperationSemanticError> {
+    if term.scalar_type() != ScalarType::Integer(declared) {
+        return Err(mismatch(term.scalar_type()));
+    }
+    match term {
+        ScalarTerm::Value { id, .. } => Ok(IntegerMathTerm::MathValue {
+            source_type: declared,
+            value: *id,
+        }),
+        ScalarTerm::Integer { value, .. } => Ok(IntegerMathTerm::literal(*value)),
+        _ => Err(unsupported),
+    }
+}
+
+fn append_conjunct(proposition: Proposition, conjuncts: &mut Vec<Proposition>) {
+    match proposition {
+        Proposition::Truth => {}
+        Proposition::Conjunction(parts) => conjuncts.extend(parts),
+        proposition => conjuncts.push(proposition),
+    }
+}
+
+fn canonical_conjunction(mut conjuncts: Vec<Proposition>) -> Proposition {
+    match conjuncts.len() {
+        0 => Proposition::Truth,
+        1 => conjuncts.pop().expect("one canonical conjunct"),
+        _ => Proposition::Conjunction(conjuncts),
+    }
+}
+
+fn exact_shift_left_representability_proposition(
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: &ScalarTerm,
+    count: &ScalarTerm,
+) -> Result<Proposition, OperationSemanticError> {
+    let count_proposition = exact_shift_count_proposition(value_type, count_type, count)?;
+    let mathematical_value = fixed_integer_math_term(
+        value_type,
+        value,
+        |actual| OperationSemanticError::ExactShiftLeftValueTypeMismatch {
+            declared: value_type,
+            actual,
+        },
+        OperationSemanticError::ExactShiftLeftRequiresValueOrLiteralOperand,
+    )?;
+    let mathematical_count = fixed_integer_math_term(
+        count_type,
+        count,
+        |actual| OperationSemanticError::ExactShiftCountTypeMismatch {
+            declared: count_type,
+            actual,
+        },
+        OperationSemanticError::ExactShiftLeftRequiresValueOrLiteralCount,
+    )?;
+    if count_proposition == Proposition::Falsehood {
+        return Ok(Proposition::Falsehood);
+    }
+    if let (ScalarTerm::Integer { value, .. }, ScalarTerm::Integer { value: count, .. }) =
+        (value, count)
+    {
+        return Ok(
+            if value_type
+                .exact_shift_left(*value, count_type, *count)
+                .is_some()
+            {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            },
+        );
+    }
+
+    let mut conjuncts = Vec::with_capacity(4);
+    append_conjunct(count_proposition, &mut conjuncts);
+    if matches!(mathematical_count, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+    {
+        return Ok(canonical_conjunction(conjuncts));
+    }
+    if matches!(mathematical_value, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+    {
+        return Ok(canonical_conjunction(conjuncts));
+    }
+    let shifted = IntegerMathTerm::ShiftLeft {
+        value: Box::new(mathematical_value),
+        count: Box::new(mathematical_count),
+    };
+    if value_type.sign() == IntegerSign::Signed {
+        conjuncts.push(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(value_type.minimum_value()),
+            shifted.clone(),
+        ));
+    }
+    conjuncts.push(Proposition::IntegerMathLessOrEqual(
+        shifted,
+        IntegerMathTerm::literal(value_type.maximum_value()),
+    ));
+    Ok(canonical_conjunction(conjuncts))
 }
 
 fn exact_cast_representability_proposition(
@@ -1717,28 +1833,101 @@ mod tests {
     }
 
     #[test]
-    fn unsettled_canonical_goal_shapes_do_not_project_to_kernel_propositions() {
+    fn exact_arithmetic_remains_the_only_unsettled_canonical_goal_shape() {
         let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let value = ScalarTerm::value(
             ValueId::new(24).expect("value"),
             ScalarType::Integer(integer),
         );
-        let goals = [
-            CanonicalScalarGoal::ExactShiftLeftRepresentable {
-                value_type: integer,
-                count_type: integer,
-                value: value.clone(),
-                count: value.clone(),
-            },
+        assert_eq!(
             CanonicalScalarGoal::ExactArithmeticRepresentable {
                 integer_type: integer,
-                expression: value.clone(),
-            },
-        ];
-        assert!(
-            goals
-                .iter()
-                .all(|goal| goal.kernel_proposition() == Ok(None))
+                expression: value,
+            }
+            .kernel_proposition(),
+            Ok(None),
+        );
+    }
+
+    #[test]
+    fn exact_shift_left_projects_count_then_mathematical_carrier_bounds() {
+        let value_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let value_id = ValueId::new(94).expect("value");
+        let count_id = ValueId::new(95).expect("count");
+        let value = ScalarTerm::value(value_id, ScalarType::Integer(value_type));
+        let count = ScalarTerm::value(count_id, ScalarType::Integer(count_type));
+        let shifted = IntegerMathTerm::ShiftLeft {
+            value: Box::new(IntegerMathTerm::MathValue {
+                source_type: value_type,
+                value: value_id,
+            }),
+            count: Box::new(IntegerMathTerm::MathValue {
+                source_type: count_type,
+                value: count_id,
+            }),
+        };
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftLeftRepresentable {
+                value_type,
+                count_type,
+                value,
+                count,
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(count_type, IntegerValue::Signed(0)).unwrap(),
+                    ScalarTerm::value(count_id, ScalarType::Integer(count_type)),
+                ),
+                Proposition::LessOrEqual(
+                    ScalarTerm::value(count_id, ScalarType::Integer(count_type)),
+                    ScalarTerm::integer(count_type, IntegerValue::Signed(7)).unwrap(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                    shifted.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    shifted,
+                    IntegerMathTerm::literal(IntegerValue::Signed(127)),
+                ),
+            ]))),
+        );
+    }
+
+    #[test]
+    fn exact_shift_left_folds_closed_safety_and_rejects_malformed_value() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 count");
+        for (value, count, expected) in [
+            (31, 3, Proposition::Truth),
+            (32, 3, Proposition::Falsehood),
+            (1, 8, Proposition::Falsehood),
+        ] {
+            assert_eq!(
+                CanonicalScalarGoal::ExactShiftLeftRepresentable {
+                    value_type,
+                    count_type,
+                    value: ScalarTerm::integer(value_type, IntegerValue::Unsigned(value)).unwrap(),
+                    count: ScalarTerm::integer(count_type, IntegerValue::Unsigned(count)).unwrap(),
+                }
+                .kernel_proposition(),
+                Ok(Some(expected)),
+            );
+        }
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftLeftRepresentable {
+                value_type,
+                count_type,
+                value: ScalarTerm::boolean(true),
+                count: ScalarTerm::integer(count_type, IntegerValue::Unsigned(8)).unwrap(),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactShiftLeftValueTypeMismatch {
+                declared: value_type,
+                actual: ScalarType::Boolean,
+            }),
         );
     }
 

@@ -485,28 +485,25 @@ reactivation, cascading restoration through retired parents, suspension
 containment, or Terminal evidence.
 
 Checked resource replay now also merges activation and weakening facts into
-semantic phase batches. Its current ephemeral state is polarity-blind and
-single-child: available, suspended-by-child, or retired-while-suspended. A
-suspended carrier that weakens emits no premature disposition. When the
-available descendant finally ends, one checked-only row retains its exact
-child and parent resources, flow handles, ordered retired-parent path, final
-retained-parent or direct-root-lifetime target, and one of reactivate,
-cascade-through-retired-parent, or combined retire/discard. Arena order is
-irrelevant. This carrier remains non-authorizing.
+semantic phase batches under the exact nine-cell parent/child access relation.
+A shared child of `Read` merely releases; shared descendants of `Mutable` form
+a cohort that freezes mutation and restores `Mutable` once after its final
+descendant ends; a permitted exclusive child suspends one exact branch and
+restores the parent's original access. `WriteOnly` can produce only
+`WriteOnly`, while `Mutable` may attenuate to either `Read` or `WriteOnly`.
+Exclusive lineages close deepest-first, shared cohorts release as a set, and
+retired carriers retain their exact ordered weakening path.
 
-The settled Terminal model replaces that provisional classifier with the exact
-nine-cell parent/child access relation. A shared child of `Read` merely
-releases; shared descendants of `Mutable` form a cohort that freezes mutation
-and restores `Mutable` once after the last descendant ends; a permitted
-exclusive child suspends one branch and restores the parent's original access.
-`WriteOnly` can produce only `WriteOnly`, while `Mutable` may attenuate to
-either `Read` or `WriteOnly`. Exclusive lineages close deepest-first; shared
-cohorts release as a set before their parent restores. Same-boundary lineage
-closure and state-exit direct-root handoff are distinct outcomes, replacing the
-combined retire/discard value. Terminal publishes restored use or root custody
-only after independently replaying exact lineage, polarity, semantic boundary,
-projection, and suspension/freeze-containment evidence. Reaching a root grants
-no cleanup, transfer, or linear-discharge authority to the borrow layer.
+Same-boundary lineage closure and state-exit direct-root handoff are now
+distinct checked-only outcomes. The former requires the final retained carrier
+to end at the child's exact semantic boundary; the latter requires `StateExit`
+and an exact direct-root-lifetime target. Independent replay reconstructs that
+phase/path/target conjunction and rejects swapped labels transactionally. No
+checked disposition is yet Terminal authority. Terminal may publish restored
+use or root custody only after independently replaying exact lineage, polarity,
+semantic boundary, projection, and suspension/freeze-containment evidence.
+Reaching a root grants no cleanup, transfer, or linear-discharge authority to
+the borrow layer.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
@@ -2768,14 +2765,15 @@ binds eleven rows—exact arithmetic, divide/remainder and shifts plus
 wrapping/saturating divide/remainder—to the shared integer-policy catalog by
 primitive and domain identity; exact cast is the sole table row outside that
 catalog. A separate migration dispatcher still chooses the legacy sufficient
-proposition for exact shift-left and exact add/subtract/multiply and is
-explicitly hashed into each affected reduction dependency. The four
+proposition for exact add/subtract/multiply and is explicitly hashed into each
+affected reduction dependency. Exact shift-left and the four
 wrapping/saturating divide/remainder rows instead select their canonical
 proposition directly from their exact operation tags. This does not certify the
 remaining reducers, and the current closure remains `fully-derived false`.
 
-`NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`, and
-`ExactCastRepresentable` currently have exact kernel-proposition projections.
+`NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`,
+`ExactShiftLeftRepresentable`, and `ExactCastRepresentable` currently have
+exact kernel-proposition projections.
 Unsigned fixed integers use `1 <= d` for both.
 Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
 exact division/remainder uses the ordered disjunction `(d <= -2) OR (1 <= d)
@@ -2788,9 +2786,9 @@ symbolic unsigned counts omit the carrier-implied lower bound, and a narrow
 count carrier may imply the whole goal. Address carriers and mismatched operand
 types reject. Exact cast folds closed operands and complete source-carrier
 inclusion, otherwise retaining the stricter target lower bound before the
-stricter target upper bound in the mathematical relation vocabulary. The other
-two canonical goal shapes remain unprojected in the current implementation,
-but their exact projection is settled below.
+stricter target upper bound in the mathematical relation vocabulary. Exact
+arithmetic representability remains unprojected in the current implementation,
+but its exact projection is settled below.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -3536,14 +3534,20 @@ capability; no reducer or operation row is promoted by doing so.
 
 The production verifier now reconstructs the implemented scalar kernel
 questions directly from `CanonicalScalarGoal`. `NonzeroDivisor`,
-`ExactDivisionDefined`, `ExactShiftCount`, and `ExactCastRepresentable` never invoke the mirrored
+`ExactDivisionDefined`, `ExactShiftCount`, `ExactShiftLeftRepresentable`, and
+`ExactCastRepresentable` never invoke the mirrored
 candidate selector: alternate available facts cannot change their question,
 and the proof kernel checks only the producer-serialized derivation. Exact cast
 uses the settled total-mathematical-term projection and canonical fixed-carrier
 normalization in the existing proof rules; its cast-specific production reducer
-and mirrored search leaves are gone. Exact shift-left and exact
-add/subtract/multiply retain the legacy reducer until their corresponding
-mathematical projections and producer certificates land. At that point
+and mirrored search leaves are gone. Exact shift-left likewise uses the settled
+mathematical shifted-value projection. Its untrusted producer may search prior
+facts and recursively compose checked endpoint certificates, but the verifier
+replays only the supplied `IntegerAffineBound` route, including explicit count
+endpoints and sign-sensitive minimum/maximum selection; the operation's own
+result equation is unavailable. Exact add/subtract/multiply retain the legacy
+reducer until their corresponding mathematical projections and producer
+certificates land. At that point
 `kernel_proposition` becomes total, with no wildcard or optional unsettled
 result, and the remaining production reducer and mirrored verifier search are
 deleted. Until then this is an explicit implementation dependency, not

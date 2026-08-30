@@ -266,6 +266,9 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output.push_str("\", \"adapter_origin\": \"");
         output.push_str(match entry_evidence.adapter_origin() {
             omega_external_roots::AdapterStackRealizationOrigin::None => "none",
+            omega_external_roots::AdapterStackRealizationOrigin::GeneratedProgramStorageSemanticWrapper => {
+                "generated_program_storage_semantic_wrapper"
+            }
             omega_external_roots::AdapterStackRealizationOrigin::OpaqueProvider => {
                 "opaque_provider"
             }
@@ -306,6 +309,12 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output.push_str(", \"target_arrival_rule_fingerprint\": ");
         if let Some(fingerprint) = entry_evidence.target_rule_report_fingerprint() {
             push_hex_identity(output, fingerprint);
+        } else {
+            output.push_str("null");
+        }
+        output.push_str(", \"generated_adapter_fingerprint\": ");
+        if let Some(adapter) = entry_evidence.generated_adapter() {
+            push_hex_identity(output, adapter.report_fingerprint());
         } else {
             output.push_str("null");
         }

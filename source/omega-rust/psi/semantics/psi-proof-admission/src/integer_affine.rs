@@ -6,8 +6,8 @@
 //! analyzer's coefficients or endpoint arithmetic.
 
 use psi_core::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-    ScalarTerm, ScalarType,
+    IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
+    PropositionContext, ScalarTerm, ScalarType,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +76,27 @@ pub fn check_integer_affine_witness(
     semantic_axioms: &[Proposition],
     witness: &IntegerAffineWitness,
 ) -> Result<CheckedIntegerAffineForm, IntegerAffineWitnessError> {
+    if witness.definition_axioms.is_empty()
+        && witness.literal_axioms.is_empty()
+        && let ScalarTerm::ExactIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count: _,
+        } = &witness.target
+        && value.as_ref() == &witness.root
+        && value_type.carrier() == IntegerCarrier::Fixed
+        && count_type.carrier() == IntegerCarrier::Fixed
+    {
+        return Ok(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: *value_type,
+            coefficient: 1,
+            offset: 0,
+            endpoint_steps: Vec::new(),
+        });
+    }
     if !matches!(witness.root, ScalarTerm::Value { .. }) {
         return Err(IntegerAffineWitnessError::RootNotValue);
     }
@@ -511,6 +532,13 @@ pub fn map_integer_affine_bound(
     form: &CheckedIntegerAffineForm,
     root_bound: &Proposition,
 ) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    if form.endpoint_steps.is_empty()
+        && let ScalarTerm::ExactIntegerShiftLeft {
+            count_type, count, ..
+        } = form.target()
+    {
+        return map_direct_shift_left_bound(form, *count_type, count, root_bound);
+    }
     let Proposition::LessOrEqual(bound_left, bound_right) = root_bound else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
     };
@@ -592,6 +620,189 @@ pub fn map_integer_affine_bound(
         Proposition::LessOrEqual(form.target().clone(), mapped)
     } else {
         Proposition::LessOrEqual(mapped, form.target().clone())
+    })
+}
+
+fn map_direct_shift_left_bound(
+    form: &CheckedIntegerAffineForm,
+    count_type: IntegerType,
+    count: &ScalarTerm,
+    evidence: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    let parts = match evidence {
+        Proposition::Conjunction(parts) => parts.as_slice(),
+        proposition => std::slice::from_ref(proposition),
+    };
+    let mut root_bound = None;
+    let mut exact_count = None;
+    let mut count_lower = count_type.sign() == IntegerSign::Unsigned;
+    let mut count_upper = None;
+    for part in parts {
+        match part {
+            Proposition::LessOrEqual(left, right)
+                if left == form.root() || right == form.root() =>
+            {
+                if root_bound.replace(part).is_some() {
+                    return Err(IntegerAffineBoundConversionError::AmbiguousDirectShiftEvidence);
+                }
+            }
+            Proposition::Equal(left, right) if left == count || right == count => {
+                let literal = if left == count { right } else { left };
+                let (actual, value) = literal
+                    .integer_value()
+                    .ok_or(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch)?;
+                if actual != count_type || exact_count.replace(value).is_some() {
+                    return Err(IntegerAffineBoundConversionError::AmbiguousDirectShiftEvidence);
+                }
+            }
+            Proposition::LessOrEqual(left, right) if right == count => {
+                let (actual, value) = left
+                    .integer_value()
+                    .ok_or(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch)?;
+                if actual == count_type && integer_value_to_u128(value) == Some(0) {
+                    count_lower = true;
+                }
+            }
+            Proposition::LessOrEqual(left, right) if left == count => {
+                let (actual, value) = right
+                    .integer_value()
+                    .ok_or(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch)?;
+                if actual != count_type || count_upper.replace(value).is_some() {
+                    return Err(IntegerAffineBoundConversionError::AmbiguousDirectShiftEvidence);
+                }
+            }
+            _ => {
+                return Err(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch);
+            }
+        }
+    }
+    let root_bound =
+        root_bound.ok_or(IntegerAffineBoundConversionError::DirectShiftRootBoundMissing)?;
+    let (minimum_count, maximum_count) = if let Some((actual, embedded)) = count.integer_value() {
+        if actual != count_type || exact_count.is_some() || count_upper.is_some() {
+            return Err(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch);
+        }
+        (embedded, embedded)
+    } else if let Some(exact) = exact_count {
+        if count_upper.is_some() {
+            return Err(IntegerAffineBoundConversionError::AmbiguousDirectShiftEvidence);
+        }
+        (exact, exact)
+    } else if let Some(upper) = count_upper {
+        if !count_lower {
+            return Err(IntegerAffineBoundConversionError::DirectShiftCountLowerMissing);
+        }
+        let zero = match count_type.sign() {
+            IntegerSign::Signed => IntegerValue::Signed(0),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+        };
+        (zero, upper)
+    } else {
+        if !count_lower {
+            return Err(IntegerAffineBoundConversionError::DirectShiftCountLowerMissing);
+        }
+        let zero = match count_type.sign() {
+            IntegerSign::Signed => IntegerValue::Signed(0),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+        };
+        (zero, count_type.maximum_value())
+    };
+    let minimum_count = integer_value_to_u128(minimum_count)
+        .and_then(|count| u32::try_from(count).ok())
+        .filter(|count| *count < u32::from(form.integer_type().bits()))
+        .ok_or(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth)?;
+    let maximum_count = integer_value_to_u128(maximum_count)
+        .and_then(|count| u32::try_from(count).ok())
+        .filter(|count| *count < u32::from(form.integer_type().bits()))
+        .ok_or(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth)?;
+    if minimum_count > maximum_count {
+        return Err(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch);
+    }
+
+    let Proposition::LessOrEqual(bound_left, bound_right) = root_bound else {
+        return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
+    };
+    let (bound, root_is_lower_endpoint) = if bound_left == form.root() {
+        (bound_right, false)
+    } else if bound_right == form.root() {
+        (bound_left, true)
+    } else {
+        return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
+    };
+    let (actual_type, bound) = bound
+        .integer_value()
+        .ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)?;
+    if actual_type != form.integer_type() {
+        return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
+    }
+    let negative = matches!(bound, IntegerValue::Signed(value) if value < 0);
+    let count = match (root_is_lower_endpoint, negative) {
+        (true, true) | (false, false) => maximum_count,
+        (true, false) | (false, true) => minimum_count,
+    };
+    let shifted_bound = shift_math_literal(bound, count)?;
+    let shifted = direct_shift_math_term(form)?;
+    Ok(if root_is_lower_endpoint {
+        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(shifted_bound), shifted)
+    } else {
+        Proposition::IntegerMathLessOrEqual(shifted, IntegerMathTerm::IntegerLiteral(shifted_bound))
+    })
+}
+
+fn integer_value_to_u128(value: IntegerValue) -> Option<u128> {
+    match value {
+        IntegerValue::Signed(value) => u128::try_from(value).ok(),
+        IntegerValue::Unsigned(value) => Some(value),
+    }
+}
+
+fn shift_math_literal(
+    value: IntegerValue,
+    count: u32,
+) -> Result<psi_core::IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    let literal = psi_core::IntegerMathLiteral::from_integer_value(value);
+    let magnitude = literal
+        .magnitude()
+        .checked_shl(count)
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+    psi_core::IntegerMathLiteral::new(literal.negative(), magnitude)
+        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOverflow)
+}
+
+fn direct_shift_math_term(
+    form: &CheckedIntegerAffineForm,
+) -> Result<IntegerMathTerm, IntegerAffineBoundConversionError> {
+    let ScalarTerm::ExactIntegerShiftLeft {
+        value_type,
+        count_type,
+        value,
+        count,
+    } = form.target()
+    else {
+        return Err(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch);
+    };
+    let lift = |term: &ScalarTerm, expected: IntegerType| match term {
+        ScalarTerm::Value {
+            id,
+            scalar_type: ScalarType::Integer(actual),
+        } if *actual == expected => Some(IntegerMathTerm::MathValue {
+            source_type: expected,
+            value: *id,
+        }),
+        ScalarTerm::Integer { scalar_type, value } if *scalar_type == expected => {
+            Some(IntegerMathTerm::literal(*value))
+        }
+        _ => None,
+    };
+    Ok(IntegerMathTerm::ShiftLeft {
+        value: Box::new(
+            lift(value, *value_type)
+                .ok_or(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch)?,
+        ),
+        count: Box::new(
+            lift(count, *count_type)
+                .ok_or(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch)?,
+        ),
     })
 }
 
@@ -746,6 +957,12 @@ pub enum IntegerAffineBoundConversionError {
     MappedBoundOutsideCarrier,
     TruthRootWithoutTotalImage,
     NonTotalDivisionImage,
+    DirectShiftEvidenceMismatch,
+    DirectShiftRootBoundMissing,
+    DirectShiftCountEvidenceMismatch,
+    DirectShiftCountLowerMissing,
+    DirectShiftCountOutsideValueWidth,
+    AmbiguousDirectShiftEvidence,
     ConclusionMismatch,
 }
 
@@ -1284,6 +1501,120 @@ mod tests {
                 },
             ),
             Err(IntegerAffineWitnessError::ShiftCountNotLanded(1)),
+        );
+    }
+
+    #[test]
+    fn direct_shift_bound_replays_count_range_and_sign_oriented_endpoint() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+        let root = value(1, integer_type);
+        let count = value(2, count_type);
+        let target = ScalarTerm::exact_integer_shift_left(
+            integer_type,
+            count_type,
+            root.clone(),
+            count.clone(),
+        )
+        .unwrap();
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(count_type)),
+        ])
+        .unwrap();
+        let checked = check_integer_affine_witness(
+            &context,
+            &[],
+            &IntegerAffineWitness {
+                root: root.clone(),
+                target,
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        )
+        .expect("direct mathematical shift endpoint");
+        let lower_count = Proposition::LessOrEqual(literal(count_type, 0), count.clone());
+        let upper_count = Proposition::LessOrEqual(count.clone(), literal(count_type, 3));
+        let shifted = IntegerMathTerm::ShiftLeft {
+            value: Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(1).unwrap(),
+            }),
+            count: Box::new(IntegerMathTerm::MathValue {
+                source_type: count_type,
+                value: ValueId::new(2).unwrap(),
+            }),
+        };
+        let mapped = |root_bound| {
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    root_bound,
+                    lower_count.clone(),
+                    upper_count.clone(),
+                ]),
+            )
+        };
+        assert_eq!(
+            mapped(Proposition::LessOrEqual(
+                literal(integer_type, -16),
+                root.clone(),
+            )),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                shifted.clone(),
+            )),
+        );
+        assert_eq!(
+            mapped(Proposition::LessOrEqual(
+                root.clone(),
+                literal(integer_type, 15),
+            )),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                shifted.clone(),
+                IntegerMathTerm::literal(IntegerValue::Signed(120)),
+            )),
+        );
+        assert_eq!(
+            mapped(Proposition::LessOrEqual(
+                literal(integer_type, 2),
+                root.clone(),
+            )),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Signed(2)),
+                shifted.clone(),
+            )),
+        );
+        assert_eq!(
+            mapped(Proposition::LessOrEqual(
+                root.clone(),
+                literal(integer_type, -2),
+            )),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                shifted,
+                IntegerMathTerm::literal(IntegerValue::Signed(-2)),
+            )),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    Proposition::LessOrEqual(root.clone(), literal(integer_type, 15)),
+                    upper_count,
+                ]),
+            ),
+            Err(IntegerAffineBoundConversionError::DirectShiftCountLowerMissing),
+        );
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    Proposition::LessOrEqual(root, literal(integer_type, 15)),
+                    lower_count,
+                    Proposition::LessOrEqual(count, literal(count_type, 8)),
+                ]),
+            ),
+            Err(IntegerAffineBoundConversionError::DirectShiftCountOutsideValueWidth),
         );
     }
 }

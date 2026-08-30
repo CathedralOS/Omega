@@ -14,6 +14,7 @@ omega-effects = { path = "../../../representations/omega-effects" }
 omega-executable-installation = { path = "../omega-executable-installation" }
 omega-target = { path = "../../../representations/omega-target" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
+omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 omega-program-entry-plan = { path = "../../plans/omega-program-entry-plan" }
 psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
