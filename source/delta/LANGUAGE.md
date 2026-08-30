@@ -1,455 +1,487 @@
-# Delta v1 language-contract draft — DESIGN-BLOCKED OWNER Q2
+# Delta v1 language contract
 
-Delta is the last implementation language in the audited bootstrap spine. It
-is a small, deterministic, C-like language for writing the compiler that
-directly builds the first Omega compiler. Delta is not Alpha with nicer
-spelling, an Omega subset, or an alternate definition of Omega.
+Delta is the closed compiler-host language used to author the first full Omega
+compiler, `D`. Its spelling is deliberately familiar to Omega authors, but its
+meaning is independent and completely specified here. An Omega document, a
+compiler implementation, a historical source file, or an accepted program
+cannot add to or amend this contract.
 
-This document is non-authoritative decision material until OWNER Q2 is resolved. It
-records a candidate source and execution contract, including alternatives that
-are still internally inconsistent; no compiler or conformance suite may treat
-those choices as Delta v1. OWNER Q2 must select and reconcile the result taxonomy,
-keywords, optional domains/contracts, builtin resolution, Console/string ABI,
-scalar-transition miss behavior, and source-closure presentation. After that
-ruling, this file must be rewritten as one self-consistent normative contract.
+Delta v1 is intentionally small. It has finite nominal data, fixed storage,
+checked scalar operations, deterministic state-machine control, and one sealed
+byte-I/O capability. It has no packages, heap, proof language, dependent types,
+or implicit host services.
 
-The eventual canonical Delta compiler is written in Gamma and emits Alpha
-tape. Neither that compiler, the superseded Beta translator, a sample corpus,
-nor Omega documentation defines or amends the language contract.
+## 1. Source and judgments
 
-## 1. Subjects and results
+A Delta source closure is presented to the compiler as one finite byte string.
+Package resolution and closure membership happen before Delta checking. The
+closure owner records every member by stable source identity, byte length, and
+SHA-256 digest, then packs the members in stable source-identity order. Member
+paths are diagnostic locations only; they are not Delta names or namespaces.
 
-A Delta judgment has four explicit inputs:
+Delta has two judgments:
 
 ```text
-DeltaV1(source_bytes, stdin_bytes, language_profile, execution_profile)
+CheckDelta(source)
+  -> Accepted(program)
+   | Reject(reason, packed_offset)
+
+RunDelta(program, stdin)
+  -> Exit(code, stdout)
+   | Trap(kind, stdout_prefix)
+   | Diverges(stdout_prefixes)
 ```
 
-`source_bytes` is one complete Delta translation unit. `stdin_bytes` is a
-finite sealed byte sequence. The language profile is exactly `delta-v1`; it has
-no target-dependent switches. The execution profile supplies finite evaluator
-resources but cannot change parsing, values, control flow, I/O, or any other
-Delta rule.
+`Reject` is a checking result and occurs before execution. `Exit`, `Trap`, and
+`Diverges` are execution results. `stdout` and `stdout_prefix` are exact byte
+sequences; `stdout_prefixes` is the ordered finite-prefix trace of a divergent
+execution. Divergence means an actual infinite execution, not that a bounded
+evaluator ran out of steps.
 
-The judgment has exactly one of these results:
+`Incomplete` and `InternalFailure` are outcomes of a compiler, checker, or
+bounded evaluator, not Delta program results. They grant no Delta judgment and
+publish no partial artifact. Delta v1 has no implicit allocating operation and
+therefore no language-level `Exhausted` result.
+
+## 2. Source bytes and tokens
+
+Delta source obeys the lattice-wide closed textual-ASCII envelope:
 
 ```text
-Exit(code, stdout)
-Reject(diagnostics)
-Trap(kind, stdout_prefix)
-Exhausted(kind, stdout_prefix)
-Incomplete(owner, reason)
-Diverges(stdout_prefixes)
+HT (0x09), LF (0x0A), CR (0x0D), and printable ASCII (0x20..0x7E)
 ```
 
-- `Exit` is normal Delta termination. `code` is an `i32`; `stdout` is the exact
-  byte sequence written before termination.
-- `Reject` is a source result. It is produced only before execution and has no
-  artifact bytes.
-- `Trap` is a language-level dynamic fault. Output already written remains the
-  observable prefix.
-- `Exhausted` is reserved for a source-visible resource whose operation is part
-  of Delta. Delta v1 has fixed source-declared storage and no implicit heap, so
-  the core language has no built-in allocation-exhaustion operation.
-- `Incomplete` is not a Delta result. A compiler, checker, evaluator, or proof
-  producer returns it when one of its private budgets is
-  insufficient. It grants no semantic verdict and publishes no artifact.
-- `Diverges` denotes an infinite Delta execution. A bounded evaluator that
-  cannot decide whether more steps terminate reports `Incomplete`, not
-  `Diverges`.
+Every other byte rejects before tokenization at its exact packed byte offset.
+There is no source decoding, Unicode normalization, locale-sensitive
+classification, or newline rewriting.
 
-`Reject` diagnostics are exactly one ASCII line:
+Space, tab, CR, and LF are whitespace. A `//` comment continues through the
+next CR, LF, or source end. Identifiers match
+`[A-Za-z_][A-Za-z0-9_]*`. Decimal digits are exactly `0` through `9`.
+
+Character literals denote one byte. Their direct content is one printable
+ASCII byte other than quote or backslash. String literals denote immutable byte
+sequences and admit printable ASCII other than quote and backslash. Both forms
+use this closed escape set:
 
 ```text
-delta-v1 reject CODE OFFSET\n
+\n  \r  \t  \"  \\  \xHH
 ```
 
-`OFFSET` is the unsigned decimal byte offset of the first token that makes the
-program invalid, or the source extent when the missing token is at end of
-input. `CODE` is the first applicable member of this ordered list:
+`HH` is exactly two hexadecimal ASCII digits. Unknown escapes reject.
+Unterminated character or string literals report their opening quote.
+
+The universally reserved words are:
 
 ```text
-Lexical Parse Duplicate Entry Name Type Arity Control Exhaustiveness Unsupported
+boundary trait data case machine state transition
+let return assert true false self mut i32 u8 never
 ```
 
-The checker processes declarations and each body in source order and applies
-the static rules in their numbered order, making the one line deterministic.
-There is no partial artifact or additional diagnostic text. Trap, exhaustion,
-normal exit, and divergence have empty diagnostics. An implementation-specific
-`E2G-...` marker is never a Delta diagnostic.
+There are no contextual keywords. In particular, `use`, `in`, `requires`,
+`ensures`, `terminates`, `by`, `min`, and `max` are ordinary identifiers.
 
-## 2. Source text and lexical rules
+## 3. Grammar
 
-Delta source is a finite sequence of bytes from:
+The notation below uses `?`, `*`, and `+` conventionally. Punctuation is
+literal. A machine with no return annotation is resultless.
 
 ```text
-HT LF CR SP ! through ~
-```
+program        := declaration+
+declaration    := boundary_decl | data_decl | machine_decl
 
-No decoding or newline normalization occurs. NUL, DEL, bytes above `0x7F`,
-every other control byte, and unterminated strings or comments reject.
-Horizontal tab, space, CR, LF, and `//` through the next CR, LF, or end of input
-are trivia. A rejection coordinate is always an offset in the original source
-byte sequence.
-
-Identifiers match `[A-Za-z_][A-Za-z0-9_]*` and are case-sensitive. Decimal
-integer literals contain one or more ASCII digits. A negative value is written
-with unary `-`; the literal magnitude needed to spell `-2147483648` is admitted
-only in that expression. Character literals denote one ASCII byte. String
-literals contain raw printable ASCII plus `\n`, `\r`, `\t`, `\"`, `\\`, and
-`\xHH`; their value is the decoded byte sequence. Unknown escapes reject.
-
-Reserved words are:
-
-```text
-boundary trait data case machine state transition let return
-true false self mut in terminates by
-```
-
-## 3. Surface grammar
-
-The grammar below uses `?`, `*`, and `+` conventionally. Punctuation is
-literal. Newlines are trivia and semicolons terminate declarations and
-nonterminal statements.
-
-```text
-program       := declaration+
-declaration   := boundary_decl | data_decl | machine_decl | use_decl
-
-use_decl      := "use" path ";"
-path          := IDENT ("::" IDENT)*
-
-boundary_decl := "boundary" "trait" IDENT "{" boundary_machine* "}"
+boundary_decl  := "boundary" "trait" IDENT "{" boundary_machine* "}"
 boundary_machine
-              := "machine" IDENT "(" parameters? ")" return_type? ";"
+               := "machine" IDENT "(" parameters? ")" return_type? ";"
 
-data_decl     := attributes? "data" IDENT "{" data_member* "}"
-attributes    := ("#[" attribute_text "]")+
-data_member   := IDENT ":" type ";"
-              | "case" IDENT payload? ";"
-payload       := "(" parameters? ")"
+data_decl      := "data" IDENT "{" data_member* "}"
+data_member    := IDENT ":" type ";"
+                | "case" IDENT payload? ";"
+payload        := "(" parameters? ")"
 
-machine_decl  := "machine" qualified_name "(" receiver_and_params? ")"
-                 return_type? contract_clause* block
-qualified_name:= IDENT | IDENT "::" IDENT
+machine_decl   := "machine" qualified_name "(" receiver_and_params? ")"
+                  return_type? machine_body
+qualified_name := IDENT | IDENT "::" IDENT
 receiver_and_params
-              := receiver ("," parameters)? | parameters
-receiver      := "&" "mut" "self"
-parameters    := parameter ("," parameter)*
-parameter     := IDENT ":" type
-return_type   := "->" type
-contract_clause
-              := ("requires" | "ensures") expression
-              | "terminates" "by" expression ("->" IDENT)? ";"
+               := receiver ("," parameters)? | parameters
+receiver       := "&" "mut" "self"
+parameters     := parameter ("," parameter)*
+parameter      := IDENT ":" type
+return_type    := "->" type
 
-type          := "i32" | "u8" | IDENT
-              | "[" type ";" NAT "]"
-              | "&" "[" type "]" domain_note?
-domain_note   := "in" IDENT
+type           := "i32" | "u8" | "never" | IDENT
+                | "[" type ";" NAT "]"
+                | "&" "[" type "]"
 
-block         := "{" statement* terminal? state_decl* "}"
-state_decl    := "state" IDENT "(" parameters? ")" block
+machine_body   := "{" statement* terminal? state_decl* "}"
+state_decl     := "state" IDENT "(" parameters? ")" state_body
+state_body     := "{" statement* terminal? "}"
 
-statement     := "let" IDENT ":" type domain_note? "=" expression ";"
-              | place "=" expression ";"
-              | call ";"
-              | "assert" expression ";"
+statement      := "let" IDENT ":" type "=" expression ";"
+                | place "=" expression ";"
+                | call ";"
+                | "assert" expression ";"
 
-terminal      := transition
-              | "return" expression ";"
-              | expression
+terminal       := transition
+                | "return" expression? ";"
+                | never_call ";"
 
-transition    := "transition" expression? "{" arm+ "}"
-arm           := pattern "->" continuation
-pattern       := INT | "true" | "false" | "_"
-              | IDENT "::" IDENT binder?
-binder        := "{" (IDENT ("," IDENT)*)? "}"
-continuation  := IDENT "(" arguments? ")" | expression
+transition     := "transition" expression "{" arm+ "}"
+arm            := pattern "->" continuation
+pattern        := INT | "true" | "false" | "_"
+                | IDENT "::" IDENT binder?
+binder         := "{" (IDENT ("," IDENT)*)? "}"
+continuation   := postfix_expression
+                | "return" expression?
 
-place         := IDENT | self_path | index
-self_path     := "self" ("." IDENT)+
-index         := (IDENT | self_path) "[" expression "]" ("." IDENT)?
-call          := IDENT "(" arguments? ")"
-              | self_path "(" arguments? ")"
-arguments     := expression ("," expression)*
+place          := postfix_expression
+call           := postfix_expression
+never_call     := call
+arguments      := expression ("," expression)*
 
-expression    := precedence-ordered composition of:
-                 INT | CHAR | STRING | "true" | "false"
-               | IDENT | self_path | index
-               | IDENT "::" IDENT ("(" arguments? ")")?
-               | call | "(" expression ")"
-               | expression (".len" | ".as_slice")
-               | expression "[" expression? ".." expression? "]"
-               | "-" expression
-               | expression binary_operator expression
-
-binary_operator
-              := "*" | "/" | "%" | "+" | "-"
-               | "<<" | ">>" | "&" | "^" | "|"
-               | "<" | "<=" | ">" | ">=" | "==" | "!="
-               | "&&" | "||"
+expression     := logical_or
+logical_or     := logical_and ("||" logical_and)*
+logical_and    := bit_or ("&&" bit_or)*
+bit_or         := bit_xor ("|" bit_xor)*
+bit_xor        := bit_and ("^" bit_and)*
+bit_and        := equality ("&" equality)*
+equality       := comparison (("==" | "!=") comparison)*
+comparison     := shift (("<" | "<=" | ">" | ">=") shift)*
+shift          := additive (("<<" | ">>") additive)*
+additive       := multiplicative (("+" | "-") multiplicative)*
+multiplicative := unary (("*" | "/" | "%") unary)*
+unary          := "-" unary | postfix_expression
+postfix_expression
+               := primary postfix_suffix*
+postfix_suffix := "." IDENT
+                | "(" arguments? ")"
+                | "[" expression "]"
+                | "[" expression? ".." expression? "]"
+primary        := INT | CHAR | STRING | "true" | "false" | "self" | IDENT
+                | IDENT "::" IDENT ("(" arguments? ")")?
+                | "(" expression ")"
 ```
 
-`attribute_text`, `use` declarations, `in IDENT`, `requires`, `ensures`, and
-`terminates by` are admitted only when a selected Delta v1 profile assigns
-them a rule below. Unknown attributes or clauses reject; they are never
-silently skipped. Delta v1 assigns no runtime effect to `use`, attributes, or
-domain notes. `requires` and `ensures` are checked assertions at machine entry
-and normal return respectively. A `terminates by m -> P;` clause requires `m`
-to be a nonnegative `i32` at entry and to decrease strictly on every recursive
-or cyclic transfer governed by the clause; failure traps as `Contract`.
+`NAT` is a nonempty decimal integer with no sign. `INT` is a nonempty decimal
+integer token; unary `-` is separate. The one magnitude `2147483648` is admitted
+only as the operand spelling of `-2147483648`; every other integer token must be
+within nonnegative `i32` range. Binary levels associate left. Postfix and unary
+bind more tightly than every binary level.
 
-The authoritative v1 compiler closure uses only one translation unit,
-`boundary trait Console`, data records, fixed arrays, `i32`/`u8`, receiver
-machines, states, and the operations described below. The wider grammatical
-forms remain part of Delta only where this document gives them semantics; a
-historical sample does not add a form.
+The checker classifies a postfix expression by its resolved declaration. A
+`place` may contain only field and single-index suffixes rooted at `self`, a
+parameter, or a local. A `call` must end in a resolved machine application. A
+slice, `.len`, `.as_slice`, constructor, or call is not an assignable place.
+Within a transition, a continuation must resolve uniquely to a state transfer,
+a machine call, or a return. State names and callable names that would make
+that resolution ambiguous reject.
 
-## 4. Static semantics
+The grammar admits no `use` declaration, attribute, domain annotation, range
+type, contract clause, `terminates by` clause, special result binding,
+wrapping or saturating placement, generic parameter, or package/module form.
 
-A program is accepted only when all of the following hold:
+## 4. Names, types, and closure checking
 
-1. Declaration names are unique within their namespace. Field, case, machine,
-   parameter, local, and state names are unique in their declaring scope.
-2. Exactly one `data Main` and one `machine Main::main(&mut self)` exist.
-   `Main::main` has no value parameters. Its optional return type is `i32`.
-3. Every qualified owner names a data declaration. Receiver machines use that
-   owner's single instance reachable from `Main`; ambiguous or missing
-   instances reject.
-4. Every type is defined, finite, and nonrecursive by value. Boundary fields
-   are zero-size capabilities and may be used only for the declared boundary
-   calls. Arrays have a positive decimal length representable as `i32`.
-5. A data declaration is either a record or a sum. Mixing ordinary fields and
-   `case` members in one declaration rejects in v1. Sum cases have at most three
-   payload fields. Case tags are zero-based declaration indexes.
-6. Every name, field path, state, case, and call resolves uniquely. Argument
-   counts and types agree exactly. A value-returning call appears only in an
-   expression; a void call appears only as a statement or continuation.
-7. `i32` and `u8` are distinct. Reading a `u8` yields its zero-extended `i32`
-   value. Storing to `u8` requires a value in `0..255`; otherwise execution
-   traps. No implicit narrowing or truth conversion exists.
-8. Array indexes and slice endpoints have type `i32`. Record fields and sum
-   payloads retain their declared types. A sum transition is exhaustive: it
-   names every case exactly once or ends in `_`.
-9. State parameters are immutable bindings initialized by the selected arm.
-   Locals and receiver fields are mutable. Reading a local before its
-   initializer rejects.
-10. Each reachable block ends in a transition, return, process exit, value
-    expression, or—only for a void receiver machine—falloff. A transition has
-    at most one `_` arm and `_` is last. Non-sum literal patterns are unique.
-11. `Main::main` may call the four `Console` operations. Other machines may use
-    only the operations declared for their owner and threaded through `Main`.
-    Unknown methods reject.
+Checking is whole-closure and two-pass. The first pass collects all top-level
+declarations and rejects duplicate names. The second resolves types, owners,
+machines, calls, states, and bodies. Top-level declarations and states within a
+machine may be referenced before their textual declaration. States are direct
+children of one machine body; state bodies cannot declare nested states.
+Therefore packing
+order affects coordinates but not valid program meaning.
 
-## 5. Values, storage, and evaluation
+Locals remain ordered: a local enters scope at its declaration and cannot be
+read until its initializer has completed. Declaration names, fields, cases,
+machines on one owner, parameters, locals, and states are unique in their
+respective scopes.
 
-All storage is declared in source. A `Main` value and every nested record are
-created before entry with every scalar, array element, record field, and sum
-tag/payload byte initialized to zero. Arrays never move. Delta has no ambient
-heap, pointer arithmetic, host pointer, filesystem, environment, clock,
-network, thread, process-spawn, or foreign-memory operation.
+A `data` declaration is exactly one of:
 
-An `i32` is a signed two's-complement integer in
-`[-2147483648, 2147483647]`. Arithmetic is deterministic:
+- a record containing only named fields; or
+- a sum containing only named cases with finite payload fields.
 
-- ordinary `+`, `-`, and `*` are checked and trap as `Overflow` when the exact
-  mathematical result is outside `i32`;
-- a binding annotated `in Wrapping` performs those three operations modulo
-  `2^32`, then reinterprets the result as signed `i32`;
-- a binding annotated `in Saturating` clamps those three operations to the
-  nearest `i32` endpoint;
-- `/` truncates toward zero and `%` has the dividend's sign; zero divisors and
-  `INT_MIN / -1` trap;
-- shifts use the low five bits of a nonnegative right operand; a negative shift
-  count traps. `>>` is arithmetic. `&`, `^`, and `|` operate on the 32-bit
-  two's-complement representation;
-- comparisons return exactly `0` or `1`.
+Mixing fields and cases rejects. Cases may have any finite payload arity. A sum
+value's home tag is its case's zero-based declaration position; the first case
+is the zero-initialized home case. Foreign integer correspondences are ordinary
+mapping machines, not inline case numbers or layout facts.
 
-Operands, call arguments, assignments, and statements evaluate left to right.
-`&&` and `||` short-circuit and require operands equal to `0` or `1`; any other
-operand traps as `NonBoolean`. `true` is `1` and `false` is `0`. `min(a,b)` and
-`max(a,b)` evaluate `a` then `b` and return one operand.
+Sum constructors are ordinary values. Delta v1 has no record-literal form:
+records are established as declared `Main` storage, nested fields, array
+elements, parameters, or returned copies, then updated through checked places.
+All non-capability parameters and returns have value semantics.
 
-An array access first evaluates its base and then its index. An index outside
-`0..length-1` traps as `Bounds` before a read or write occurs. A slice
-`a[lo..hi]` is a bounded view of the same array with `0 <= lo <= hi <= length`;
-invalid endpoints trap. `.len` returns the view length. `.as_slice` creates the
-full view. Views cannot outlive a call and do not allocate.
+Every value type is finite and nonrecursive by value. Direct or indirect
+recursive records, sums, arrays, or payloads reject. Delta has no heap or
+recursive reference type. Consequently, `D` represents dynamic compiler
+structures in source-declared fixed arrays with `i32` indexes. For example, an
+AST node may store a tag and child indexes into `[Node; N]`; `N`, the cursor,
+and capacity-failure behavior are authored program state.
 
-Record values are ordered products in declaration order. Sum values contain a
-tag and exactly the selected case payload, also in declaration order. A sum
-constructor evaluates payload expressions left to right. Pattern binders are
-introduced simultaneously after the tag matches.
+`i32` is the ordinary scalar and arithmetic type. `u8` is storage-only: it may
+occur in stored data, arrays, and byte views, but arithmetic and comparisons
+operate on the zero-extended `i32` read. A store to `u8` requires `0..255` and
+otherwise traps as `ByteRange`.
 
-Calls are deterministic and have value semantics for parameters plus one
-mutable receiver reference where declared. A receiver call observes all prior
-writes and commits all its writes before returning. Recursion is permitted.
+`never` is a bottom/control type permitted only as a machine return type. It has
+no values and is forbidden in fields, payloads, parameters, locals, arrays, and
+views. A call returning `never` is a terminal and cannot be bound or assigned.
+An authored `-> never` machine must have no reachable normal return or falloff;
+it may diverge or terminate through another `never` call. A statement after a
+`never` call in the same block rejects as `InvalidTerminal`.
 
-`assert e` evaluates `e`; `1` continues, `0` traps as `Assertion`, and every
-other value traps as `NonBoolean`. `requires` and `ensures` use the same rule.
+A `&[T]` is an immutable bounded view. Views may be parameters and locals and
+may be passed onward. They cannot occur in stored data, sums, arrays, or return
+types. There is no lifetime syntax. Static checking rejects every escaping
+view.
 
-## 6. Machines and transitions
+## 5. Entry and boundary
 
-Calling a machine creates zero-initialized storage for its locals, binds its
-parameters, checks its precondition, and enters the machine body. State
-declarations are control labels owned by that invocation; they are not
-separately callable machines.
-
-A straight-line statement completes before the next begins. Assignment
-evaluates the right side before changing its destination. A state transition:
-
-1. evaluates the subject once (`transition { ... }` uses subject `0`);
-2. examines arms in source order;
-3. selects the first equal literal/case arm, or the final `_` arm;
-4. evaluates only the selected continuation arguments, left to right; and
-5. transfers to the selected state or tail-calls the selected machine.
-
-No arm match is a `NonExhaustive` trap; static checking prevents it for sums,
-and the dynamic result remains defined for non-sum input that lacks `_`.
-
-`return e` evaluates `e`, checks the postcondition, and returns it. A void
-receiver machine may fall off its body or a state and returns only its updated
-receiver. A value expression in terminal position returns that value. Returning
-from `Main::main` is equivalent to `exit_process(value)`; void falloff exits
-zero.
-
-## 7. Sealed byte I/O and observations
-
-The only v1 boundary operations are:
+Every accepted program declares exactly this boundary trait:
 
 ```text
-read_byte()                 -> i32
-write_byte(value: i32)      -> void
-write_line(bytes: &[u8])    -> void
-exit_process(code: i32)     -> never
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
 ```
 
-`read_byte` returns the next sealed input byte as `0..255`, or `-1` after the
-last byte. EOF is stable. `write_byte` appends one byte and traps as `ByteRange`
-if its argument is outside `0..255`. `write_line` appends the view bytes and
-then byte `10`. `exit_process` terminates immediately after all earlier output;
-it performs no truncation or host-status remapping.
+No other boundary declaration is admitted in v1. `Main` is a record with
+exactly one `console: Console` field and any finite program-owned fields. The
+entry is exactly:
 
-The observation profile contains exact `stdin_bytes` and observes only the
-terminal result plus exact stdout or stdout prefix. For a compiler invocation,
-successful stdout is the exact artifact byte stream; Delta adds no container,
-encoding, or newline. Diagnostics are a separate channel and are empty for
-`Exit`, `Trap`, `Exhausted`, and divergence.
-Filesystem state, paths, environment, elapsed time, process identifiers,
-heartbeats, producer identity, replay count, and native debug information are
-not Delta observations.
+```text
+machine Main::main(&mut self)
+```
 
-## 8. Resource classification
+It has no value parameters and no return value. Normal falloff exits with code
+zero. Every nonzero normal status is expressed by
+`self.console.exit_process(code)`. There are no bare read, write, line, or exit
+operations and no implicit sugar for the receiver-qualified calls.
 
-Delta separates language storage from the machinery used to decide its
+The execution adapter supplies the one `Console` capability and sealed input.
+`read_byte` returns the next byte as `0..255`, then returns stable `-1` at EOF.
+`write_byte` appends exactly one byte and traps as `ByteRange` outside
+`0..255`. `write_line` appends its exact view bytes followed by byte 10.
+`exit_process` terminates after all earlier writes with the exact semantic
+`i32` code.
+
+String literals have type `&[u8]` and immutable program-lifetime backing. Their
+decoded bytes may be passed directly to `write_line` or any matching parameter.
+Character literals have type `i32` and denote their decoded byte.
+
+## 6. Storage and values
+
+Delta has no ambient heap, pointer arithmetic, filesystem, environment, clock,
+network, threads, process spawning, or foreign memory. All program storage is
+visible in source.
+
+Before entry, the adapter installs `Main.console`; every program-owned `Main`
+field is logically zero-initialized. Scalars and array elements are zero;
+records recursively use those homes; sums select their first case with zeroed
+payload storage. Each machine invocation logically creates unestablished local
+slots. Physical implementations may clear those slots, but their values do not
+exist until their initializers complete.
+
+Records and sum payloads establish fields in declaration order. Constructor
+arguments, call arguments, assignments, and ordinary operands evaluate exactly
+once from left to right. Arrays are fixed in length and never allocate.
+
+An array or view access evaluates its base and then its index. An index outside
+`0..length-1` traps as `Bounds` before any access. A slice `a[lo..hi]` requires
+`0 <= lo <= hi <= length`; otherwise it traps as `Bounds`. `.len` returns an
+`i32`; `.as_slice` returns the full view.
+
+## 7. Scalar operations
+
+`i32` is signed two's-complement with range
+`-2147483648..2147483647`. Delta defines:
+
+- checked `+`, `-`, and `*`, trapping as `Overflow` when the mathematical
+  result is outside that range;
+- `/` truncating toward zero and `%` with the dividend's sign;
+- `DivisionByZero` for a zero divisor;
+- `SignedDivisionOverflow` for `-2147483648 / -1` (and its remainder form);
+- shifts whose count must be in `0..31`, otherwise `ShiftCount`; `>>` is
+  arithmetic;
+- bitwise `&`, `^`, and `|` on the 32-bit representation; and
+- comparisons returning exactly `0` or `1`.
+
+There is no implicit truth conversion. `true` is `1` and `false` is `0`.
+`&&` and `||` evaluate the left operand first, require each evaluated operand
+to be exactly zero or one, and short-circuit. Any other Boolean-context value
+traps as `NonBoolean`. `assert` uses the same Boolean check; false traps as
+`Assertion`.
+
+`min` and `max` have no privileged meaning. Authors may declare ordinary
+machines with those names.
+
+## 8. Machines, states, and transitions
+
+Calls bind value parameters and, where declared, one mutable receiver. All
+effects are committed before return. Recursion and state cycles are permitted;
+Delta v1 does not require a termination annotation.
+
+A resultless machine may `return;` or fall off a reachable block. A
+value-returning machine must `return expression;` on every reachable normal
+path. A `never` machine has no normal return path.
+
+State declarations are control labels inside one machine invocation. State
+arguments initialize their parameters simultaneously. A transition evaluates
+its subject exactly once, then inspects arms in source order. It evaluates only
+the selected continuation and its arguments.
+
+A sum transition must name every case exactly once or end with `_`; this is a
+static rule. A scalar transition may use integer or Boolean patterns and at
+most one final `_`. If no scalar arm matches, execution traps as
+`NonExhaustiveTransition`.
+
+The subject of a scalar transition is not a Boolean context. For example, `7`
+against only `true` and `false` arms produces `NonExhaustiveTransition`, not
+`NonBoolean`. `NonBoolean` applies only to `&&`, `||`, and `assert`.
+
+## 9. Closed rejection and trap identities
+
+`DeltaRejectReason` is this closed nominal set:
+
+```text
+InvalidSourceByte       InvalidToken          InvalidCharacterLiteral
+UnterminatedString      InvalidEscape         IntegerLiteralOutOfRange
+UnexpectedToken         UnexpectedEnd         DuplicateName
+MissingEntry            InvalidEntry          InvalidBoundary
+UnknownType             RecursiveValueType    InvalidDataShape
+InvalidArrayLength      UnknownName           TypeMismatch
+ArityMismatch           InvalidPlace          UseBeforeInitialization
+EscapingView            InvalidControlTarget  InvalidTerminal
+DuplicatePattern        NonexhaustiveSum
+```
+
+Checking phases are lexical, parse, declaration collection, type formation,
+then body/control checking. The earliest packed offset within the earliest
+failing phase is reported. Coordinates are exact:
+
+- an invalid source byte, token, escape, name, type, place, pattern, or control
+  target reports its first byte;
+- an unterminated literal reports its opening quote;
+- an unexpected end, missing entry, or whole-program omission reports the
+  source extent;
+- a duplicate reports the later declaration; and
+- a body error reports the first token of the offending expression or
+  statement.
+
+The Delta compiler application's `DCOUT` v1 reject table is explicit and is
+not derived from Gamma constructor order:
+
+```text
+ 1 InvalidSourceByte        2 InvalidToken
+ 3 InvalidCharacterLiteral  4 UnterminatedString
+ 5 InvalidEscape            6 IntegerLiteralOutOfRange
+ 7 UnexpectedToken          8 UnexpectedEnd
+ 9 DuplicateName           10 MissingEntry
+11 InvalidEntry            12 InvalidBoundary
+13 UnknownType             14 RecursiveValueType
+15 InvalidDataShape        16 InvalidArrayLength
+17 UnknownName             18 TypeMismatch
+19 ArityMismatch           20 InvalidPlace
+21 UseBeforeInitialization 22 EscapingView
+23 InvalidControlTarget    24 InvalidTerminal
+25 DuplicatePattern        26 NonexhaustiveSum
+```
+
+Zero and unknown codes are noncanonical. Reordering the authored Gamma sum does
+not change this table. Changing the closed reason set requires an explicit
+`DCOUT` version decision.
+
+`TrapKind` is exactly:
+
+```text
+Overflow
+DivisionByZero
+SignedDivisionOverflow
+ShiftCount
+ByteRange
+Bounds
+NonBoolean
+Assertion
+NonExhaustiveTransition
+```
+
+The Delta v1 runtime trap codes are 1 through 9 in that displayed order. This
+is an explicit execution-profile table rather than declaration-order identity;
+it is not the Delta compiler application's `DCOUT` reject table. A trap
+preserves the exact stdout prefix written before the fault.
+
+## 10. Resource classification
+
+Delta distinguishes three kinds of bounds.
+
+Source-visible semantic bounds include every array length, the fixed storage
+chosen by `D`, `i32` and `u8` widths, first-case sum homes, and all authored
+capacity/failure logic. Enlarging `[Node; N]` produces a different `D` source
+subject, not a different Delta language.
+
+Execution-profile bounds include sealed stdin, Alpha memory and return-stack
+capacities, maximum emitted tape bytes, and a finite observation-step budget.
+They are recorded with the checked compiler run but cannot change Delta
 meaning.
 
-### Source-visible semantic bounds
+Private implementation budgets include parser tables, syntax arenas, symbol
+tables, output buffers, recursion stacks, and temporary proof or lowering
+storage. Exhausting any execution-profile or private budget yields outer
+`Incomplete(resource, limit, requested, coordinate?)` before publication. A
+detected compiler contradiction yields outer `InternalFailure`. Neither is a
+Delta rejection, trap, divergence verdict, or partial successful tape.
 
-- Every `[T; N]` has exactly the source-declared `N`; bounds checks and
-  zero-initialization are language rules.
-- Record and sum sizes, machine/state parameter counts, and source string
-  lengths follow the finite declarations. V1 imposes no small semantic count
-  such as 128 machines, 128 locals, 1,024 states, or four parameters.
-- A fixed-backing allocator written in Delta has precisely the capacity and
-  failure protocol its source implements. It does not acquire hidden host
-  allocation.
+Delta v1 imposes no small semantic maximum such as 128 declarations, 64
+locals, four parameters, three case fields, or 1,024 states. A compiler may
+have such a finite private ceiling only if it reports it fail-closed as
+`Incomplete`.
 
-### Explicit execution-profile parameters
+## 11. Compiler application and artifact boundary
 
-The verifier selects and binds:
-
-```text
-stdin_bytes
-alpha_tape_bytes_max
-alpha_memory_bytes
-alpha_return_stack_bytes
-execution_step_bound
-```
-
-These parameters bound one checked compiler execution or finite observation.
-They do not change Delta meaning. Exhausting a private execution capacity
-returns `Incomplete(owner, parameter)`. Reaching a finite observation step
-bound without a terminal result is `Incomplete`, not evidence of divergence.
-Every selected numeric value is recorded with the exact source/tape claim.
-
-The source/image transport ceiling of 524,288 bytes is a compiler
-resource-profile parameter, not the largest legal Delta program or stdin in the
-language. A different checked profile may select a larger finite carrier
-without changing the judgment.
-
-### Private implementation budgets
-
-Every absolute address, arena, source buffer, parser table, symbol table,
-temporary SSA table, certificate arena, and output buffer in a Delta compiler or
-checker is private unless the selected resource profile names it explicitly.
-The 128-machine, 128-local, 1,024-state, four-parameter, string-scratch,
-`Chunks`/tree, template, raw-output, assembly, line, and native-artifact limits
-in the removed Beta translator/native-publication route were private
-budgets, not Delta language limits.
-
-Crossing a private budget must return `Incomplete` before emitting a semantic
-result or Alpha tape. Emitting malformed or partial tape, accepting a
-truncated table, aliasing adjacent regions, silently dropping a declaration, or
-converting private exhaustion to `Reject` is nonconforming.
-
-The source-declared arrays `[i32; 21528]`, `[u8; 524288]`, and `[i32; 16]` in
-the current candidate `D` implementation are different: their capacities are
-visible Delta storage chosen by that program. Its `reserve_typed` and
-`reserve_byte` methods
-define explicit success/failure behavior inside Delta and therefore do not
-produce the language-level `Exhausted` result.
-
-## 9. Delta-to-Alpha compiler relation
-
-The Gamma-written compiler accepts exact Delta source bytes, applies the static
-rules above, and emits one Alpha tape. Its required correctness proposition is:
+The Gamma-written Delta compiler exposes pure:
 
 ```text
-DeltaV1(source, input, profiles)
-  observationally refines
-AlphaV1(tape, input, corresponding_profiles)
+main : Bytes -> DeltaCompileOutcome
+
+DeltaCompileOutcome =
+    Complete(Bytes)
+  | Reject(DeltaRejectReason, Int)
 ```
 
-The artifact-aware owner reconstructs both systems independently. Checked
-simulation relates Delta machine/state transfers, stores, calls, I/O, traps,
-and terminal outcomes to Alpha steps. High-level blocks may lower to many Alpha
-instructions; erased source structure may lower to none. Every unmatched step
-is silent and decreases a well-founded rank.
+`main` can return only a complete Alpha tape or one typed Delta rejection. The
+generated adapter owns sealed input and the `DCOUT` boundary. Halt tags are 0
+Complete, 1 Reject, 2 Incomplete, and 3 InternalFailure. Complete stdout is the
+unwrapped Alpha tape. Every failure uses the versioned `DCOUT` diagnostic frame
+and publishes no tape bytes. Adapter resource exhaustion and traps produce tags
+2 and 3 because pure `main` cannot return those outcomes.
 
-The compiler may use internal CFG, layout, and tape-construction
-representations, but they do not become source semantics or external compiler
-stages. Checked intermediate lemmas may structure the certificate. The compiler
-emits tape directly and may not invoke the Beta compiler, Gamma evaluator,
-Alpha assembler, or a host lowerer to finish its semantic work.
+The required compiler-correctness relation is:
 
-Agreement with the historical Beta translator, another compiler, or another
-execution is diagnostic and does not replace source-to-Alpha refinement.
+```text
+accepted Delta source + emitted Alpha tape
+  -> the Alpha tape refines RunDelta for the selected input/resource profile
+```
 
-## 10. Excluded and compatibility surfaces
+The checker reconstructs Delta and Alpha meaning independently. The compiler
+may use private CFG, layout, or encoding representations, but may not invoke a
+Beta translator, Gamma evaluator, Alpha assembler, host compiler, or other
+semantic stage to finish the artifact. Agreement with another implementation
+is diagnostic and never replaces checked source-to-tape refinement.
 
-Delta v1 has no proof terms, dependent or linear types, domains with runtime
-authority, generics, packages, traits other than sealed boundaries, optimizer,
-concurrency, atomics, volatile access, exceptions, implicit allocation,
-garbage collection, arbitrary pointers, or ambient host services.
+## 12. Conformance and change control
 
-Forms outside this document are rejection tests, not a compatibility surface.
-In particular, an Omega-looking file accepted by Delta has only this contract's
-Delta meaning. No alternate translator or compatibility harness is retained.
+A conforming implementation provides:
 
-## 11. Conformance obligations
+1. positive and negative coverage of this grammar and every closed reason;
+2. exact byte-coordinate, trap, evaluation-order, and I/O tests;
+3. whole-closure forward-reference and fixed-storage controls;
+4. private-budget controls proving `Incomplete` publishes no tape; and
+5. direct checked Delta-source-to-Alpha-tape refinement with mutations of the
+   source, input/profile, artifact, and observation.
 
-Conformance requires all of the following:
-
-1. complete positive and negative grammar coverage against this document;
-2. independent reconstruction of static judgments and Delta small-step
-   execution;
-3. exact observation tests for exit, stdout, rejection, every trap, private
-   `Incomplete`, and source-visible fixed-storage behavior;
-4. mutation controls over source identity, rule identity, input/resource
-   profile, Alpha tape, and terminal observation; and
-5. direct checked source-to-artifact refinement under the lattice decisions.
-
-The Gamma-written compiler tape may receive authority only after these join.
-Byte-identical replay, native producer pedigree, and successful execution are
-useful diagnostics, not substitutes.
+No existing Delta corpus is authoritative. The former translator and samples
+were deleted, and no compatibility behavior survives through Git history.
+Future syntax or semantics enter Delta only through an explicit contract
+revision justified by the concrete needs and total assurance cost of `D`.

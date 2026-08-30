@@ -3,11 +3,9 @@
 This directory owns the Delta language, its Gamma-written compiler, and
 adjacent source-to-Alpha-tape validation.
 
-[`LANGUAGE.md`](LANGUAGE.md) is OWNER Q2 decision material, not yet a normative Delta
-v1 contract. It deliberately cannot authorize implementation while its open
-choices remain contradictory. After OWNER Q2 selects one coherent contract, a
-compiler, sample corpus, or Omega document still cannot amend Delta by
-acceptance.
+[`LANGUAGE.md`](LANGUAGE.md) is the normative Delta v1 contract fixed by D17.
+It is self-contained: a compiler, sample corpus, historical implementation, or
+Omega document cannot amend Delta by acceptance.
 
 ## Canonical edges
 
@@ -34,9 +32,8 @@ tree, including the restricted Delta-written Darwin compiler prototype, are
 deleted. Git history is sufficient; no compatibility owner replaces them.
 The associated 43-file corpus was also deleted: it had no runner and mixed
 native-backend slices, retired proof scripts, demonstrations, and unresolved
-language proposals. A compact positive/negative suite will be derived from the
-Q3-frozen contract and owned by the real compiler edge instead of restoring
-that corpus.
+language proposals. A compact positive/negative suite will be derived from D17
+and owned by the real compiler edge instead of restoring that corpus.
 
 ## Boundaries
 
@@ -60,6 +57,6 @@ Active work is tracked in
 | --- | --- | --- |
 | `compiler/` | The sole owner of the future Gamma-written compiler accepting Delta and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
 
-The root retains only the OWNER Q2 contract draft, its feature/change ledger, and
-this owner map. Proposed programs without a runner are not retained as tests;
-the draft is replaced atomically by the normative contract after OWNER Q2.
+The root retains only the normative contract, its feature/change ledger, and
+this owner map. Proposed programs without a compiler or a contract-derived test
+role are not retained as tests.
