@@ -92,14 +92,15 @@ pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
     FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
-    FilesystemInputUnknownDescriptorCloseReplayRecord, FilesystemOutputAbsentRemoveReplayRecord,
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
-    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
-    FilesystemOutputLockReplayRecord, FilesystemOutputSymlinkReplayRecord,
-    FilesystemOutputTreeEntryReplayRecord, FilesystemSourceDirectoryReadChainReplayRecord,
-    FilesystemSourceDirectoryReadReplayRecord, FilesystemSourceReadLinkReplayRecord,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemInputUnknownDescriptorOperationReplayKind,
+    FilesystemInputUnknownDescriptorOperationReplayRecord,
+    FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDirectoryReplayRecord,
+    FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
+    FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
+    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+    FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
+    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
@@ -112,7 +113,7 @@ use filesystem_replay::{
     output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
     source_attempts_use_root, source_directory_chain_attempts, source_directory_chain_is_exact,
     source_read_link_attempt, source_read_link_attempt_is_exact,
-    unknown_descriptor_close_attempt_is_exact, validate_observed_output_tree_records,
+    unknown_descriptor_operation_from_exact_attempt, validate_observed_output_tree_records,
     validate_output_duplicate_replay, validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
@@ -2500,7 +2501,8 @@ impl FilesystemReplay {
         if self
             .attempts
             .get(attempt_index)
-            .is_some_and(unknown_descriptor_close_attempt_is_exact)
+            .and_then(unknown_descriptor_operation_from_exact_attempt)
+            .is_some()
         {
             return true;
         }

@@ -1,5 +1,6 @@
 use psi_checked_interpreter::{
-    FilesystemAccess, FilesystemInputUnknownDescriptorCloseReplayRecord, FilesystemReplay,
+    FilesystemAccess, FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
+    FilesystemInputUnknownDescriptorOperationReplayRecord as Record, FilesystemReplay,
     InterpretOptions, interpret_entry_with_options,
 };
 use psi_source::{SourceMap, SourceOrigin};
@@ -16,14 +17,32 @@ const FILESYSTEM_HOST: &str = include_str!(concat!(
     "/../../../../../source/library/std/filesystem_host.omg"
 ));
 
-fn checked_unknown_descriptor_close() -> psi_checked_trees::CheckedTrees {
+fn checked_unknown_descriptor_operations() -> psi_checked_trees::CheckedTrees {
     const SOURCE: &str = r#"
 data Main { filesystem: FilesystemHost; result: i32; }
 
-machine Main::main(&mut self)
+machine Main::close_unknown(&mut self)
 reaches FilesystemHost
 {
     self.result = self.filesystem.close(-1);
+}
+
+machine Main::sync_unknown(&mut self)
+reaches FilesystemHost
+{
+    self.result = self.filesystem.sync(-1);
+}
+
+machine Main::sync_data_unknown(&mut self)
+reaches FilesystemHost
+{
+    self.result = self.filesystem.sync_data(-1);
+}
+
+machine Main::duplicate_unknown(&mut self)
+reaches FilesystemHost
+{
+    self.result = self.filesystem.duplicate(-1);
 }
 "#;
     let mut sources = SourceMap::default();
@@ -38,7 +57,7 @@ reaches FilesystemHost
         .source_id;
     let source_id = sources
         .add_with_metadata(
-            PathBuf::from("tests/unknown_descriptor_close.omg"),
+            PathBuf::from("tests/unknown_descriptor_operations.omg"),
             SOURCE.to_owned(),
             PathBuf::from("tests"),
             None,
@@ -61,24 +80,35 @@ reaches FilesystemHost
 }
 
 #[test]
-fn failed_unknown_descriptor_close_executes_virtually_and_tears_down_empty() {
-    let replay = FilesystemReplay::from_input_unknown_descriptor_close_record(
-        FilesystemInputUnknownDescriptorCloseReplayRecord::new(None),
-    )
-    .unwrap();
+fn unknown_descriptor_operation_family_executes_virtually_and_tears_down_empty() {
+    let checked = checked_unknown_descriptor_operations();
+    let cases = [
+        (Kind::Close, "Main::close_unknown", 8),
+        (Kind::Sync, "Main::sync_unknown", 43),
+        (Kind::SyncData, "Main::sync_data_unknown", 44),
+        (Kind::Duplicate, "Main::duplicate_unknown", 45),
+    ];
 
-    let outcome = interpret_entry_with_options(
-        &checked_unknown_descriptor_close(),
-        "Main::main",
-        &[],
-        InterpretOptions {
-            filesystem: FilesystemAccess::ReplayFilesystem(replay),
-            ..InterpretOptions::default()
-        },
-    );
+    for (kind, entry, operation_tag) in cases {
+        let replay = FilesystemReplay::from_input_unknown_descriptor_operation_record(Record::new(
+            None, kind,
+        ))
+        .unwrap();
+        assert_eq!(replay.attempts()[0].operation_tag(), operation_tag);
 
-    assert_eq!(outcome.error, None);
-    assert_eq!(outcome.exit_code, 0);
-    assert!(outcome.stdout.is_empty());
-    assert!(outcome.stderr.is_empty());
+        let outcome = interpret_entry_with_options(
+            &checked,
+            entry,
+            &[],
+            InterpretOptions {
+                filesystem: FilesystemAccess::ReplayFilesystem(replay),
+                ..InterpretOptions::default()
+            },
+        );
+
+        assert_eq!(outcome.error, None, "{entry}");
+        assert_eq!(outcome.exit_code, 0, "{entry}");
+        assert!(outcome.stdout.is_empty(), "{entry}");
+        assert!(outcome.stderr.is_empty(), "{entry}");
+    }
 }

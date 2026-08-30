@@ -7,50 +7,92 @@ use crate::{
     validate_filesystem_replay_size, validate_source_input_attempts,
 };
 
-const CLOSE_OPERATION_TAG: u16 = 8;
 const UNKNOWN_DESCRIPTOR_RESULT: i64 = -1;
 const BAD_DESCRIPTOR_ERROR: i32 = 9;
 
-/// Optional Source-input prefix followed by exactly one failed close of an
-/// unknown descriptor.
-///
-/// The close contributes no authored coordinates to this record: its provider,
-/// result, error, logical input, and empty side lanes are fixed by the record
-/// type. In particular, the raw provider descriptor is not retained.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FilesystemInputUnknownDescriptorCloseReplayRecord {
-    source_input: Option<FilesystemSourceInputReplayRecord>,
+/// One operand-free descriptor operation whose unknown input deterministically
+/// fails with `EBADF`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemInputUnknownDescriptorOperationReplayKind {
+    Close,
+    Sync,
+    SyncData,
+    Duplicate,
 }
 
-impl FilesystemInputUnknownDescriptorCloseReplayRecord {
-    pub fn new(source_input: Option<FilesystemSourceInputReplayRecord>) -> Self {
-        Self { source_input }
+impl FilesystemInputUnknownDescriptorOperationReplayKind {
+    const fn operation_tag(self) -> u16 {
+        match self {
+            Self::Close => 8,
+            Self::Sync => 43,
+            Self::SyncData => 44,
+            Self::Duplicate => 45,
+        }
+    }
+
+    const fn from_operation_tag(operation_tag: u16) -> Option<Self> {
+        match operation_tag {
+            8 => Some(Self::Close),
+            43 => Some(Self::Sync),
+            44 => Some(Self::SyncData),
+            45 => Some(Self::Duplicate),
+            _ => None,
+        }
+    }
+}
+
+/// Optional Source-input prefix followed by exactly one operand-free operation
+/// on an unknown descriptor.
+///
+/// The selected operation contributes no authored coordinates to this record:
+/// its provider, result, error, logical input, and empty side lanes are fixed by
+/// the record type. In particular, the raw provider descriptor is not retained.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownDescriptorOperationReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+    kind: FilesystemInputUnknownDescriptorOperationReplayKind,
+}
+
+impl FilesystemInputUnknownDescriptorOperationReplayRecord {
+    pub fn new(
+        source_input: Option<FilesystemSourceInputReplayRecord>,
+        kind: FilesystemInputUnknownDescriptorOperationReplayKind,
+    ) -> Self {
+        Self { source_input, kind }
     }
 
     pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
         self.source_input.as_ref()
     }
 
-    pub(crate) fn into_source_input(self) -> Option<FilesystemSourceInputReplayRecord> {
-        self.source_input
+    pub const fn kind(&self) -> FilesystemInputUnknownDescriptorOperationReplayKind {
+        self.kind
+    }
+
+    fn into_parts(
+        self,
+    ) -> (
+        Option<FilesystemSourceInputReplayRecord>,
+        FilesystemInputUnknownDescriptorOperationReplayKind,
+    ) {
+        (self.source_input, self.kind)
     }
 }
 
 impl FilesystemReplay {
-    /// Construct the closed optional-Source plus one failed unknown-descriptor
-    /// close rung from typed compiler-owned evidence.
-    pub fn from_input_unknown_descriptor_close_record(
-        record: FilesystemInputUnknownDescriptorCloseReplayRecord,
+    /// Construct the closed optional-Source plus one unknown-descriptor
+    /// operation rung from typed compiler-owned evidence.
+    pub fn from_input_unknown_descriptor_operation_record(
+        record: FilesystemInputUnknownDescriptorOperationReplayRecord,
     ) -> Result<Self, String> {
-        let mut attempts = record
-            .into_source_input()
-            .map_or_else(Vec::new, source_input_record_attempts);
-        attempts.push(unknown_descriptor_close_attempt());
+        let (source_input, kind) = record.into_parts();
+        let mut attempts = source_input.map_or_else(Vec::new, source_input_record_attempts);
+        attempts.push(unknown_descriptor_operation_attempt(kind));
         validate_filesystem_replay_size(&attempts)?;
-        let (close, source_attempts) = attempts
+        let (operation, source_attempts) = attempts
             .split_last()
-            .expect("typed unknown-descriptor close record is nonempty");
-        validate_input_unknown_descriptor_close_attempts(source_attempts, close, &[])?;
+            .expect("typed unknown-descriptor operation record is nonempty");
+        validate_input_unknown_descriptor_operation_attempts(source_attempts, operation, &[])?;
         Ok(Self {
             attempts: attempts.into(),
             expected_included_sources: std::sync::Arc::from([]),
@@ -58,8 +100,8 @@ impl FilesystemReplay {
     }
 
     /// Validate observed evidence for an optional Source-input prefix followed
-    /// by exactly one failed close of an unknown descriptor.
-    pub fn from_input_unknown_descriptor_close_observations(
+    /// by exactly one operand-free unknown-descriptor operation.
+    pub fn from_input_unknown_descriptor_operation_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
         if observations.filesystem_operation_schema_version()
@@ -69,12 +111,12 @@ impl FilesystemReplay {
         }
         let attempts = observations.filesystem_operation_attempts();
         validate_filesystem_replay_size(attempts)?;
-        let (close, source_attempts) = attempts.split_last().ok_or_else(|| {
-            "filesystem replay requires one failed unknown-descriptor close".to_owned()
+        let (operation, source_attempts) = attempts.split_last().ok_or_else(|| {
+            "filesystem replay requires one failed unknown-descriptor operation".to_owned()
         })?;
-        validate_input_unknown_descriptor_close_attempts(
+        validate_input_unknown_descriptor_operation_attempts(
             source_attempts,
-            close,
+            operation,
             observations.build_included_sources(),
         )?;
         Ok(Self {
@@ -84,35 +126,39 @@ impl FilesystemReplay {
     }
 }
 
-fn validate_input_unknown_descriptor_close_attempts(
+fn validate_input_unknown_descriptor_operation_attempts(
     source_attempts: &[FilesystemOperationAttempt],
-    close: &FilesystemOperationAttempt,
+    operation: &FilesystemOperationAttempt,
     included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
     if !included_sources.is_empty() {
         return Err(
-            "filesystem replay failed unknown-descriptor close cannot hand off generated sources"
+            "filesystem replay failed unknown-descriptor operation cannot hand off generated sources"
                 .to_owned(),
         );
     }
     if !source_attempts.is_empty() {
         validate_source_input_attempts(source_attempts)?;
     }
-    if !unknown_descriptor_close_attempt_is_exact(close) {
+    if unknown_descriptor_operation_from_exact_attempt(operation).is_none() {
         return Err(
-            "filesystem replay failed unknown-descriptor close lanes are inconsistent".to_owned(),
+            "filesystem replay failed unknown-descriptor operation lanes are inconsistent"
+                .to_owned(),
         );
     }
     Ok(())
 }
 
-pub(crate) fn unknown_descriptor_close_attempt_is_exact(
+pub(crate) fn unknown_descriptor_operation_from_exact_attempt(
     attempt: &FilesystemOperationAttempt,
-) -> bool {
+) -> Option<FilesystemInputUnknownDescriptorOperationReplayKind> {
+    let kind = FilesystemInputUnknownDescriptorOperationReplayKind::from_operation_tag(
+        attempt.operation_tag,
+    )?;
     matches!(
         attempt,
         FilesystemOperationAttempt {
-            operation_tag: CLOSE_OPERATION_TAG,
+            operation_tag: _,
             provider: FilesystemObservationProvider::RealScoped,
             outcome: Some(FilesystemOperationAttemptOutcome::Returned {
                 result: FilesystemOperationResult::Scalar(UNKNOWN_DESCRIPTOR_RESULT),
@@ -157,11 +203,14 @@ pub(crate) fn unknown_descriptor_close_attempt_is_exact(
             && retired_logical_handles.is_empty()
             && grant_refusals.is_empty()
     )
+    .then_some(kind)
 }
 
-pub(crate) fn unknown_descriptor_close_attempt() -> FilesystemOperationAttempt {
+pub(crate) fn unknown_descriptor_operation_attempt(
+    kind: FilesystemInputUnknownDescriptorOperationReplayKind,
+) -> FilesystemOperationAttempt {
     FilesystemOperationAttempt {
-        operation_tag: CLOSE_OPERATION_TAG,
+        operation_tag: kind.operation_tag(),
         provider: FilesystemObservationProvider::RealScoped,
         outcome: Some(FilesystemOperationAttemptOutcome::Returned {
             result: FilesystemOperationResult::Scalar(UNKNOWN_DESCRIPTOR_RESULT),

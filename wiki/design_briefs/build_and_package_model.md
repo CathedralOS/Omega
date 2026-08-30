@@ -1488,6 +1488,17 @@ staged-output commitment even on its initial run; this does not promote an
 otherwise Source-only partial replay. Null/resolved inputs, alternate failures,
 repetition, and mixed lifecycles remain non-receipted.
 
+Summary v51 and replay-record v32 generalize that row to the complete
+operand-free unknown-descriptor family: tag-8 `close`, tag-43 `sync`, tag-44
+`sync_data`, or tag-45 `duplicate`. The optional exact Source prefix and
+single-operation bound remain fixed. Every family member binds scoped-real
+provider, scalar `-1`, post-error state `9`, and exactly one operand-zero
+`Descriptor/Unknown` logical input while all other lanes are empty. Replay
+executes the exact selected tag against a fresh virtual descriptor table and
+issues empty staged-output custody only after attempt and teardown equality.
+Operations with additional authored operands, alternate handles, repeated
+failures, and mixed lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1532,8 +1543,9 @@ successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
-v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, and v50/v31
-unknown-descriptor-close grammars above may join them to verified operation
+v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
+unknown-descriptor-close, and v51/v32 operand-free-unknown-descriptor grammars
+above may join them to verified operation
 replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1562,8 +1574,9 @@ successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
-v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, and v50/v31
-unknown-descriptor-close grammars above supply canonical operation replay and
+v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
+unknown-descriptor-close, and v51/v32 operand-free-unknown-descriptor grammars
+above supply canonical operation replay and
 retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

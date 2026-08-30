@@ -243,3 +243,25 @@ Null or resolved inputs, alternate handle kinds or providers, successful
 closes, other errors, retired identities, side lanes, repeated closes, and any
 mixture with Output mutation or another failed-operation lane remain
 non-receipted.
+
+## Operand-free unknown-descriptor failures (summary v51, replay record v32)
+
+The failed-handle grammar generalizes the tag-8 close rung to the complete
+operand-free descriptor family: `close` at tag 8, `sync` at tag 43,
+`sync_data` at tag 44, and `duplicate` at tag 45. The optional exact Source
+prefix and single-operation limit remain unchanged. Each selected operation
+must use the scoped real provider, return scalar `-1` with post-error state `9`
+(`bad descriptor`), and retain exactly one operand-zero
+`Descriptor/Unknown` logical input. All other evidence lanes remain empty.
+
+Provider-free replay executes the selected operation against a fresh virtual
+descriptor table and requires exact attempt, result, empty namespace, and
+teardown equality. The complete no-effect sequence receives an explicit empty
+staged-output commitment on the initial run and after record recovery. The
+operation tag is part of the record: one family member cannot replay as
+another.
+
+Descriptor operations carrying scalars, immutable bytes, or mutable carriers;
+native and find handles; repeated failures; alternate errors; and mixtures
+with successful Output mutation or another failure lane remain
+non-receipted.

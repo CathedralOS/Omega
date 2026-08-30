@@ -1411,7 +1411,12 @@ impl<'program> Evaluator<'program> {
                 // are already "durable", so this is a no-op that only validates the
                 // descriptor: 0 for a live fd, -1 (EBADF) otherwise -- matching the
                 // native seam's contract.
-                i64::from(self.virtual_fds.contains_key(&fd)) - 1
+                if self.virtual_fds.contains_key(&fd) {
+                    0
+                } else {
+                    self.virtual_errno = 9; // EBADF
+                    -1
+                }
             }
             PreparedFilesystemCall::Errno => {
                 // `read_errno()` (darwin `___error()` deref): the thread-local

@@ -1642,6 +1642,17 @@ receive an empty staged-output commitment on its initial run; Source-only replay
 remains partial. Null/resolved inputs, alternate failures, repetitions, and
 mixed lifecycles remain non-receipted.
 
+Observation summary v51 and replay-record v32 generalize that exact row to the
+complete operand-free unknown-descriptor family: tag-8 `close`, tag-43 `sync`,
+tag-44 `sync_data`, or tag-45 `duplicate`. The optional exact Source prefix and
+single-operation bound remain fixed. Every member retains scoped-real provider,
+scalar `-1`, post-error state `9`, and exactly one operand-zero
+`Descriptor/Unknown` logical input while every other lane is empty. The exact
+tag is replayed against a fresh virtual descriptor table and receives empty
+staged-output custody only after exact attempt and teardown equality. Operations
+with additional authored operands, alternate handle kinds, repeated failures,
+and mixed lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
