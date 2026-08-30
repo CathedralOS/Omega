@@ -1704,6 +1704,17 @@ post-error `6`, and `Native/Unknown`. Both evaluators reject before sponsor
 accounting or host mutation. The receipt claims only synthetic invalid-handle
 behavior, not native handle, lock, timestamp, or Windows security custody.
 
+Summary v71 and replay-record v51 complete the ordered invalid-handle
+error-state family. Any already-receipted exact unknown-native-handle failure—
+tag-29 `close_handle`, tag-31 `final_path_name_by_handle`, or tag 32 through 34
+mutation—may be followed immediately by operand-free tag-35
+`get_last_error`, returning modeled error `6` with unchanged post-error `6`.
+Provider-free replay reconstructs the selected typed failure before the read.
+Standalone, delayed, reordered, repeated, or altered reads remain
+non-receipted. This is compiler-evaluator sequencing evidence, not native
+handle custody, Windows error-state custody, or an operating-system security
+claim.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during

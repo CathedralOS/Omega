@@ -514,6 +514,21 @@ pair, or any changed lane remains outside the replay grammar. This receipts
 only Omega evaluator sequencing. It claims no custody of Windows error state,
 an operating-system handle, credentials, or host security policy.
 
+## Complete invalid-handle last-error family (summary v71, replay record v51)
+
+The ordered error-state grammar now accepts every already-receipted exact
+unknown-native-handle failure that establishes modeled error `6`: tag-29
+`close_handle`, tag-31 `final_path_name_by_handle`, and the tag-32 through
+tag-34 mutation family. Each failure retains its existing exact operands and
+unchanged carriers, followed immediately by the same operand-free tag-35
+`get_last_error` row returning `6` with post-error `6`.
+
+Provider-free replay first reconstructs the selected exact failure through its
+existing typed record, then requires the error-state read in the same order.
+Standalone, delayed, reordered, repeated, or altered reads remain
+non-receipted. This binds Omega evaluator sequencing only; it claims no custody
+of Windows error state, native handles, credentials, or host security policy.
+
 ## Compiler-owned build log (summary v63, replay record v43)
 
 `BuildLog::write_line` is an exact compiler-owned build operation. The checked

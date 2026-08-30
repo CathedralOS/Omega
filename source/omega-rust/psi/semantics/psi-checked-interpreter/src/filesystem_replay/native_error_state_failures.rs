@@ -1,5 +1,9 @@
 //! Ordered replay for a modeled native-handle failure and its error-state read.
 
+use super::handle_failures::{
+    unknown_native_handle_close_handle_attempt_is_exact,
+    unknown_native_handle_final_path_name_by_handle_attempt_is_exact,
+};
 use super::native_mutation_failures::{
     FilesystemInputUnknownNativeHandleMutationReplayRecord, unknown_native_handle_mutation_attempt,
     unknown_native_handle_mutation_attempt_is_exact,
@@ -76,33 +80,77 @@ impl FilesystemReplay {
             expected_included_sources: std::sync::Arc::from([]),
         })
     }
+
+    /// Append immediate `get_last_error` to any already exact unknown-native-
+    /// handle replay whose modeled failure establishes invalid-handle error 6.
+    pub fn with_immediate_last_error_after_unknown_native_handle_failure(
+        self,
+    ) -> Result<Self, String> {
+        if !self.expected_included_sources.is_empty() {
+            return Err(
+                "filesystem replay failed native-handle operation and last-error read cannot hand off generated sources"
+                    .to_owned(),
+            );
+        }
+        let mut attempts = self.attempts.to_vec();
+        let (failure, source_attempts) = attempts.split_last().ok_or_else(|| {
+            "filesystem replay requires one invalid-handle failure before get_last_error".to_owned()
+        })?;
+        if !source_attempts.is_empty() {
+            validate_source_input_attempts(source_attempts)?;
+        }
+        if !unknown_native_handle_invalid_handle_failure_attempt_is_exact(failure) {
+            return Err(
+                "filesystem replay get_last_error requires an exact unknown-native-handle failure"
+                    .to_owned(),
+            );
+        }
+        attempts.push(get_last_error_after_invalid_handle_attempt());
+        validate_filesystem_replay_size(&attempts)?;
+        validate_native_failure_with_last_error_attempts(
+            &attempts,
+            &[],
+            unknown_native_handle_invalid_handle_failure_attempt_is_exact,
+        )?;
+        Ok(Self {
+            attempts: attempts.into(),
+            expected_included_sources: std::sync::Arc::from([]),
+        })
+    }
+
+    /// Validate any exact unknown-native-handle failure followed immediately
+    /// by `get_last_error`, after an optional exact Source prefix.
+    pub fn from_input_unknown_native_handle_failure_with_last_error_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        if observations.filesystem_operation_schema_version()
+            != FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION
+        {
+            return Err("filesystem replay observation schema is not current".to_owned());
+        }
+        let attempts = observations.filesystem_operation_attempts();
+        validate_filesystem_replay_size(attempts)?;
+        validate_native_failure_with_last_error_attempts(
+            attempts,
+            observations.build_included_sources(),
+            unknown_native_handle_invalid_handle_failure_attempt_is_exact,
+        )?;
+        Ok(Self {
+            attempts: attempts.to_vec().into(),
+            expected_included_sources: std::sync::Arc::from([]),
+        })
+    }
 }
 
 fn validate_native_mutation_with_last_error_attempts(
     attempts: &[FilesystemOperationAttempt],
     included_sources: &[BuildIncludedSource],
 ) -> Result<(), String> {
-    if !included_sources.is_empty() {
-        return Err(
-            "filesystem replay failed native mutation and last-error read cannot hand off generated sources"
-                .to_owned(),
-        );
-    }
-    let suffix_start = attempts.len().checked_sub(2).ok_or_else(|| {
-        "filesystem replay requires one native mutation followed by get_last_error".to_owned()
-    })?;
-    let source_attempts = &attempts[..suffix_start];
-    if !source_attempts.is_empty() {
-        validate_source_input_attempts(source_attempts)?;
-    }
-    if !unknown_native_handle_mutation_attempt_is_exact(&attempts[suffix_start])
-        || !get_last_error_after_invalid_handle_attempt_is_exact(&attempts[suffix_start + 1])
-    {
-        return Err(
-            "filesystem replay native mutation and last-error lanes are inconsistent".to_owned(),
-        );
-    }
-    Ok(())
+    validate_native_failure_with_last_error_attempts(
+        attempts,
+        included_sources,
+        unknown_native_handle_mutation_attempt_is_exact,
+    )
 }
 
 pub(super) fn get_last_error_after_invalid_handle_attempt_is_exact(
@@ -159,11 +207,48 @@ pub(crate) fn ordered_native_error_state_attempt_is_replayed(
     attempt_index.checked_sub(1).is_some_and(|mutation_index| {
         attempts
             .get(mutation_index)
-            .is_some_and(unknown_native_handle_mutation_attempt_is_exact)
+            .is_some_and(unknown_native_handle_invalid_handle_failure_attempt_is_exact)
             && attempts
                 .get(attempt_index)
                 .is_some_and(get_last_error_after_invalid_handle_attempt_is_exact)
     })
+}
+
+fn unknown_native_handle_invalid_handle_failure_attempt_is_exact(
+    attempt: &FilesystemOperationAttempt,
+) -> bool {
+    unknown_native_handle_close_handle_attempt_is_exact(attempt)
+        || unknown_native_handle_final_path_name_by_handle_attempt_is_exact(attempt)
+        || unknown_native_handle_mutation_attempt_is_exact(attempt)
+}
+
+fn validate_native_failure_with_last_error_attempts(
+    attempts: &[FilesystemOperationAttempt],
+    included_sources: &[BuildIncludedSource],
+    failure_is_exact: fn(&FilesystemOperationAttempt) -> bool,
+) -> Result<(), String> {
+    if !included_sources.is_empty() {
+        return Err(
+            "filesystem replay failed native-handle operation and last-error read cannot hand off generated sources"
+                .to_owned(),
+        );
+    }
+    let suffix_start = attempts.len().checked_sub(2).ok_or_else(|| {
+        "filesystem replay requires one native-handle failure followed by get_last_error".to_owned()
+    })?;
+    let source_attempts = &attempts[..suffix_start];
+    if !source_attempts.is_empty() {
+        validate_source_input_attempts(source_attempts)?;
+    }
+    if !failure_is_exact(&attempts[suffix_start])
+        || !get_last_error_after_invalid_handle_attempt_is_exact(&attempts[suffix_start + 1])
+    {
+        return Err(
+            "filesystem replay native-handle failure and last-error lanes are inconsistent"
+                .to_owned(),
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn get_last_error_after_invalid_handle_attempt() -> FilesystemOperationAttempt {

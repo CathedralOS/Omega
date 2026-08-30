@@ -1766,6 +1766,17 @@ before sponsor accounting or host mutation. This is only modeled
 invalid-handle replay, not native handle, lock, timestamp, or Windows security
 custody. Provider-state reads such as tag 35 remain outside the family.
 
+Observation summary v71 and replay-record v51 complete the separate ordered
+error-state grammar. Any already-receipted exact unknown-native-handle failure—
+tag-29 `close_handle`, tag-31 `final_path_name_by_handle`, or tag 32 through 34
+mutation—may be followed immediately by operand-free tag-35
+`get_last_error`, returning modeled error `6` with unchanged post-error `6`.
+Provider-free replay reconstructs the selected typed failure before the read.
+Standalone, delayed, reordered, repeated, or altered reads remain
+non-receipted. This is compiler-evaluator sequencing evidence, not native
+handle custody, Windows error-state custody, or an operating-system security
+claim.
+
 Observation summary v64 and replay-record v44 generalize the failure-only
 Output sequence to exact absent tag-9 `remove` and tag-12 `remove_dir`
 attempts. Each row binds the selected operation, canonical compiler-rooted

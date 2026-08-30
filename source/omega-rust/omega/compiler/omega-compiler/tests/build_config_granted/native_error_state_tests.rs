@@ -1,8 +1,22 @@
 use super::*;
 
 #[test]
-fn unknown_native_handle_mutation_then_get_last_error_replays_as_one_ordered_receipt() {
+fn unknown_native_handle_failure_then_get_last_error_replays_as_one_ordered_receipt() {
     let fixtures = [
+        (
+            "close-handle-invalid-handle-last-error",
+            r#"    self.code = self.filesystem.close_handle(-1);
+    self.code = self.filesystem.get_last_error();"#,
+            vec![29, 35],
+        ),
+        (
+            "final-path-invalid-handle-last-error",
+            r#"    self.buffer[0] = 11;
+    self.buffer[46] = 173;
+    self.result = self.filesystem.final_path_name_by_handle(-1, &mut self.buffer, 47, 0);
+    self.code = self.filesystem.get_last_error();"#,
+            vec![31, 35],
+        ),
         (
             "set-file-time-invalid-handle-last-error",
             r#"    self.buffer[0] = 11;
@@ -37,7 +51,7 @@ fn unknown_native_handle_mutation_then_get_last_error_replays_as_one_ordered_rec
         let (project, profile) = rooted_build_probe_project(label, body);
         let compilation =
             compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-                .expect("unknown-native-handle mutation and last-error read should compile");
+                .expect("unknown-native-handle failure and last-error read should compile");
         let summary = compilation
             .build_observation_summary()
             .expect("ordered native failure and last-error read retain observations");
@@ -60,14 +74,14 @@ fn unknown_native_handle_mutation_then_get_last_error_replays_as_one_ordered_rec
         );
 
         let attempts = summary.filesystem_operation_attempts();
-        let mutation = &attempts[attempts.len() - 2];
+        let failure = &attempts[attempts.len() - 2];
         let last_error = &attempts[attempts.len() - 1];
-        assert!(matches!(mutation.operation_tag(), 32 | 33 | 34));
-        assert_eq!(mutation.provider(), BuildFilesystemProvider::RealScoped);
-        assert_eq!(mutation.result(), BuildFilesystemOperationResult::Scalar(0));
-        assert_eq!(mutation.post_error(), 6);
-        let [handle] = mutation.logical_handle_inputs() else {
-            panic!("failed native mutation retains one native-handle input")
+        assert!(matches!(failure.operation_tag(), 29 | 31 | 32 | 33 | 34));
+        assert_eq!(failure.provider(), BuildFilesystemProvider::RealScoped);
+        assert_eq!(failure.result(), BuildFilesystemOperationResult::Scalar(0));
+        assert_eq!(failure.post_error(), 6);
+        let [handle] = failure.logical_handle_inputs() else {
+            panic!("failed native-handle operation retains one native-handle input")
         };
         assert_eq!(handle.operand_ordinal(), 0);
         assert_eq!(handle.kind(), BuildFilesystemLogicalHandleKind::Native);

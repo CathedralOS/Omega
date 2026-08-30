@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 70;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 71;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2709,7 +2709,9 @@ fn complete_no_output_failure_suffix_is_recognized(
                 || unknown_native_handle_mutation_tag(failure.operation_tag())
         }
         [failure, error_read] => {
-            (unknown_native_handle_mutation_tag(failure.operation_tag())
+            ((unknown_native_handle_close_tag(failure.operation_tag())
+                || unknown_native_handle_final_path_tag(failure.operation_tag())
+                || unknown_native_handle_mutation_tag(failure.operation_tag()))
                 && get_last_error_tag(error_read.operation_tag()))
                 || (unknown_descriptor_bad_descriptor_failure_tag(failure.operation_tag())
                     && errno_tag(error_read.operation_tag()))
@@ -3783,12 +3785,16 @@ pub fn compute_build_config(
                 )
                 .ok()
             } else if attempts.len() - operation_suffix_start == 2
-                && unknown_native_handle_mutation_tag(
+                && (unknown_native_handle_close_tag(
                     attempts[operation_suffix_start].operation_tag(),
-                )
+                ) || unknown_native_handle_final_path_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                ) || unknown_native_handle_mutation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                ))
                 && get_last_error_tag(attempts[operation_suffix_start + 1].operation_tag())
             {
-                psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_mutation_with_last_error_observations(
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_failure_with_last_error_observations(
                     measured.observations(),
                 )
                 .ok()

@@ -1,5 +1,8 @@
 use super::{
     BuildFilesystemReplayRecordLimits, capture_verified_build_filesystem_replay_record,
+    handle_failure_tests::{
+        unknown_native_handle_close_summary, unknown_native_handle_final_path_summary,
+    },
     native_mutation_failure_tests::{
         lock_file_ex_summary, set_file_time_summary, unlock_file_summary,
     },
@@ -69,6 +72,34 @@ fn ordered_native_mutation_and_last_error_round_trip_all_variants() {
             ))
         );
         assert_eq!(error_read.post_error(), Some(6));
+        assert!(!replay.has_output_attempts());
+    }
+}
+
+#[test]
+fn ordered_native_close_and_final_path_last_error_round_trip() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    for summary in [
+        with_error_read(unknown_native_handle_close_summary()),
+        with_error_read(unknown_native_handle_final_path_summary()),
+    ] {
+        let expected_failure = summary.filesystem_operation_attempts[0].operation_tag();
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .expect("exact native-handle error-state pair encodes")
+            .expect("verified native-handle pair retains replay custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("native-handle pair recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("native-handle pair rehydrates through the exact failure constructor");
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(psi_checked_interpreter::FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![expected_failure, 35]
+        );
         assert!(!replay.has_output_attempts());
     }
 }

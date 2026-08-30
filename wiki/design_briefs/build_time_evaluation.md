@@ -963,6 +963,19 @@ non-receipted. This binds compiler-evaluator sequencing only; it claims no
 custody of host thread-local state, descriptors, credentials, or
 operating-system policy.
 
+Summary v71 and replay-record v51 extend the ordered tag-35
+`get_last_error` receipt to every already-admitted exact unknown-native-handle
+failure whose modeled post-error is `6`: tag-29 `close_handle`, tag-31
+`final_path_name_by_handle`, and the tag-32 through tag-34 mutation family.
+The failure retains its existing exact authored operands and unchanged
+carriers; the immediate error-state row remains operand-free, scoped-real,
+scalar `6`, post-error `6`, and empty in every evidence and handoff lane.
+Provider-free replay reconstructs the selected typed failure before the read.
+Standalone, delayed, reordered, repeated, or altered reads remain
+non-receipted. This binds compiler-evaluator sequencing only; it claims no
+custody of Windows error state, native handles, credentials, or host security
+policy.
+
 Summary v64 and replay-record v44 generalize the failure-only Output sequence
 to exact absent tag-9 `remove` and tag-12 `remove_dir` attempts. Every row binds
 the selected operation, canonical compiler-rooted Output path, matching write
