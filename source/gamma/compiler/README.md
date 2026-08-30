@@ -17,9 +17,9 @@ exercises 16 checked-`Int` paths, runs 20 source-to-code lowering cases, and
 reconstructs one nested payload twice byte-identically. It publishes no compiler
 artifact.
 
-The retained compiler source declares 84 procedures. With the fixed frontend
-gate entry, the compiled gate uses 85 of Beta's 128 procedure slots and compiles
-to 167,458 bytes. The remaining 94,682 bytes under
+The retained compiler source declares 94 procedures. With the fixed frontend
+gate entry, the compiled gate uses 95 of Beta's 128 procedure slots and compiles
+to 229,258 bytes. The remaining 32,882 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -91,7 +91,11 @@ stack rather than Beta's four argument registers.
 
 Generated code reserves `r252` for the downward stack pointer, `r253` for the
 current frame base, `r254` for the upward heap pointer, and `r255` for the heap
-limit. The runtime initializer fixes their canonical endpoints. Directly
+limit. Each frame retains the previous base, caller's pre-argument cursor,
+fixed local slots, and two-word parameters at its high end. A mandatory 16-byte
+header bounds live Alpha return addresses before hidden-stack/heap overlap;
+tail relocation preflights its complete target and copies pairs high-to-low
+before mutation. The runtime initializer fixes the canonical endpoints. Directly
 emitted heap and stack reservation helpers reject negative, overflowed, and
 adjacent-out-of-range requests before mutation and transfer to one
 caller-supplied terminal failure label. The adjacent gate executes the emitted
@@ -109,25 +113,29 @@ addition and subtraction overflow directions, multiplication overflow and the
 valid `INT64_MIN * 1` edge, and both exceptional division/remainder classes.
 
 The retained `lower_expr(expr, tail_position)` dispatcher currently consumes
-already checked closed `Int` trees with literals, all seven primitive operators,
-and `if`. It emits nested evaluation left-to-right, spills intermediates through
-the guarded explicit stack, calls the checked helpers, and reconstructs
-`(kind,payload)` results. Conditions lower non-tail; both arms inherit the
+already checked trees with literals, all seven primitive operators, `if`, and
+the six closed `Bytes` forms. It emits nested evaluation left-to-right, spills
+intermediates through the guarded explicit stack, calls the checked helpers,
+and reconstructs `(kind,payload)` results. Conditions lower non-tail; both arms inherit the
 caller's tail position before call lowering gives that bit executable behavior.
 Condition lowering evaluates once and branches before either arm, so an
 unselected trap-bearing arm remains unexecuted. Its adjacent gate feeds real
-Gamma declarations through the canonical parser and type checker, executes 20
+Gamma declarations through the canonical parser and type checker, executes 31
 emitted Alpha tapes for arithmetic, comparisons, nested and spill-surrounded
-conditionals, balanced stack restoration, and contained failures, then checks
-one repeated raw payload byte-for-byte. This is general expression-dispatch
-material; no partial Gamma compiler or subset artifact is published.
+conditionals, every `Bytes` operation, balanced stack restoration, and
+contained failures, then checks two repeated raw payloads byte-for-byte. This
+is general expression-dispatch material; no partial Gamma compiler or subset
+artifact is published.
 
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them
 overlap-safely into the replacement frame, restores the original caller frame,
-and jumps to the callee. Tail-position `let`, `if`, and every selected match arm
-propagate this transfer, so terminating tail recursion grows neither Gamma
-activations nor Alpha's hidden return stack.
+and jumps to the callee. `if` lowering already preserves its tail-position bit;
+future `let`, call, and selected-match lowering must propagate the same transfer
+so terminating tail recursion grows neither Gamma activations nor Alpha's
+hidden return stack. The executed substrate establishes that ABI independently;
+connecting ordinary call ASTs and binder slots to it waits for Q3's
+deterministic source-identity ruling.
 
 `Bytes` uses a compact immutable rope/view representation with closed descriptor
 kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and

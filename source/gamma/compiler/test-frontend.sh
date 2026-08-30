@@ -127,6 +127,18 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '    state fixup_capacity_check {' \
     '        to failed when (fixup_result != 0)' \
     '        to failed when (word[2097016] != 6)' \
+    '        to frame_profile_setup' \
+    '    }' \
+    '    state frame_profile_setup {' \
+    '        emit_reset()' \
+    '        let frame_label = new_label()' \
+    '        let invalid_frame_result = emit_gamma_call_frame(frame_label, frame_label, 8, 0)' \
+    '        to frame_profile_check' \
+    '    }' \
+    '    state frame_profile_check {' \
+    '        to failed when (invalid_frame_result != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097040] != 0)' \
     '        to empty_setup' \
     '    }' \
     '    state empty_setup {' \
@@ -286,6 +298,339 @@ if [ "$runtime_emitter_status" != 1 ] || [ ! -s "$T/runtime-probe.tape" ]; then
   exit 1
 fi
 stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&1
+
+{
+  runtime_emitter_source
+  printf '%s\n' \
+    'proc emit_frame_eq(left, right, success_label, unexpected_label) {' \
+    '    emit_rrx(16, left, right, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(success_label)' \
+    '    return 0' \
+    '}' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let stack_label = new_label()' \
+    '    let loop_label = new_label()' \
+    '    let loop_body = new_label()' \
+    '    let loop_return = new_label()' \
+    '    let loop_frame_ok = new_label()' \
+    '    let large_label = new_label()' \
+    '    let large_body = new_label()' \
+    '    let large_return = new_label()' \
+    '    let large_frame_ok = new_label()' \
+    '    let large_marker_ok = new_label()' \
+    '    let after_loop = new_label()' \
+    '    let loop_result_ok = new_label()' \
+    '    let loop_kind_ok = new_label()' \
+    '    let spill_stack_ok = new_label()' \
+    '    let spill_value_ok = new_label()' \
+    '    let loop_stack_ok = new_label()' \
+    '    let loop_base_ok = new_label()' \
+    '    let wide_push_loop = new_label()' \
+    '    let wide_push_body = new_label()' \
+    '    let wide_push_done = new_label()' \
+    '    let wide_label = new_label()' \
+    '    let wide_frame_ok = new_label()' \
+    '    let wide_first_kind_ok = new_label()' \
+    '    let wide_first_ok = new_label()' \
+    '    let wide_last_kind_ok = new_label()' \
+    '    let wide_last_ok = new_label()' \
+    '    let after_wide = new_label()' \
+    '    let wide_kind_ok = new_label()' \
+    '    let wide_result_ok = new_label()' \
+    '    let final_stack_ok = new_label()' \
+    '    let final_base_ok = new_label()' \
+    '    let boundary_exact = new_label()' \
+    '    let boundary_adjacent = new_label()' \
+    '    let boundary_target = new_label()' \
+    '    let boundary_stack_ok = new_label()' \
+    '    let boundary_base_ok = new_label()' \
+    '    let boundary_kind_ok = new_label()' \
+    '    let boundary_payload_ok = new_label()' \
+    '    let boundary_resource_expected = new_label()' \
+    '    let boundary_header_base_ok = new_label()' \
+    '    let boundary_header_cursor_ok = new_label()' \
+    '    let resource_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_imm(20, 55)' \
+    '    emit_imm(2, 8)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 20)' \
+    '    emit_imm(20, 4096)' \
+    '    emit_imm(23, 0)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 22, 0)' \
+    '    emit_imm(24, 8)' \
+    '    emit_rr(3, 22, 24)' \
+    '    emit_rr(11, 22, 20)' \
+    '    emit_imm(20, 0)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 22, 0)' \
+    '    emit_imm(24, 8)' \
+    '    emit_rr(3, 22, 24)' \
+    '    emit_rr(11, 22, 20)' \
+    '    emit_gamma_call_frame(stack_label, loop_label, 16, 2)' \
+    '    emit_jump(12, after_loop)' \
+    '    define_label(loop_label)' \
+    '    emit_frame_eq(252, 253, loop_frame_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 253)' \
+    '    emit_imm(22, 40)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_rr(2, 21, 253)' \
+    '    emit_imm(22, 24)' \
+    '    emit_rr(3, 21, 22)' \
+    '    emit_rr(10, 21, 21)' \
+    '    emit_rx(13, 20, loop_return)' \
+    '    define_label(loop_body)' \
+    '    emit_imm(22, 1)' \
+    '    emit_rr(4, 20, 22)' \
+    '    emit_rr(3, 21, 22)' \
+    '    emit_imm(23, 0)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 20)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 21)' \
+    '    emit_imm(20, 99)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 20)' \
+    '    emit_gamma_tail_frame(32, 3, large_label, resource_label)' \
+    '    define_label(loop_return)' \
+    '    emit_imm(0, 0)' \
+    '    emit_rr(2, 1, 21)' \
+    '    emit_gamma_return_frame()' \
+    '    define_label(large_label)' \
+    '    emit_frame_eq(252, 253, large_frame_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 253)' \
+    '    emit_imm(22, 72)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_rr(2, 21, 253)' \
+    '    emit_imm(22, 56)' \
+    '    emit_rr(3, 21, 22)' \
+    '    emit_rr(10, 21, 21)' \
+    '    emit_rr(2, 24, 253)' \
+    '    emit_imm(22, 40)' \
+    '    emit_rr(3, 24, 22)' \
+    '    emit_rr(10, 24, 24)' \
+    '    emit_imm(22, 99)' \
+    '    emit_frame_eq(24, 22, large_marker_ok, unexpected_label)' \
+    '    emit_rx(13, 20, large_return)' \
+    '    define_label(large_body)' \
+    '    emit_imm(22, 1)' \
+    '    emit_rr(4, 20, 22)' \
+    '    emit_rr(3, 21, 22)' \
+    '    emit_imm(23, 0)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 20)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 21)' \
+    '    emit_gamma_tail_frame(16, 2, loop_label, resource_label)' \
+    '    define_label(large_return)' \
+    '    emit_imm(0, 0)' \
+    '    emit_rr(2, 1, 21)' \
+    '    emit_gamma_return_frame()' \
+    '    define_label(after_loop)' \
+    '    emit_imm(22, 4096)' \
+    '    emit_frame_eq(1, 22, loop_result_ok, unexpected_label)' \
+    '    emit_imm(22, 0)' \
+    '    emit_frame_eq(0, 22, loop_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 16777208)' \
+    '    emit_frame_eq(252, 22, spill_stack_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 252)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_imm(22, 55)' \
+    '    emit_frame_eq(20, 22, spill_value_ok, unexpected_label)' \
+    '    emit_imm(22, 8)' \
+    '    emit_rr(3, 252, 22)' \
+    '    emit_imm(22, 16777216)' \
+    '    emit_frame_eq(252, 22, loop_stack_ok, unexpected_label)' \
+    '    emit_frame_eq(253, 22, loop_base_ok, unexpected_label)' \
+    '    emit_imm(20, 0)' \
+    '    emit_imm(21, 600)' \
+    '    emit_imm(23, 37)' \
+    '    define_label(wide_push_loop)' \
+    '    emit_rrx(15, 20, 21, wide_push_body)' \
+    '    emit_jump(12, wide_push_done)' \
+    '    define_label(wide_push_body)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 20)' \
+    '    emit_imm(22, 1)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_jump(12, wide_push_loop)' \
+    '    define_label(wide_push_done)' \
+    '    emit_gamma_call_frame(stack_label, wide_label, 48, 600)' \
+    '    emit_jump(12, after_wide)' \
+    '    define_label(wide_label)' \
+    '    emit_frame_eq(252, 253, wide_frame_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 253)' \
+    '    emit_imm(22, 9632)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_imm(22, 37)' \
+    '    emit_frame_eq(20, 22, wide_first_kind_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 253)' \
+    '    emit_imm(22, 9640)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_imm(22, 0)' \
+    '    emit_frame_eq(20, 22, wide_first_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 253)' \
+    '    emit_imm(22, 48)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_imm(22, 37)' \
+    '    emit_frame_eq(20, 22, wide_last_kind_ok, unexpected_label)' \
+    '    emit_rr(2, 20, 253)' \
+    '    emit_imm(22, 56)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_rr(10, 20, 20)' \
+    '    emit_imm(22, 599)' \
+    '    emit_frame_eq(20, 22, wide_last_ok, unexpected_label)' \
+    '    emit_imm(0, 1)' \
+    '    emit_imm(1, 77)' \
+    '    emit_gamma_return_frame()' \
+    '    define_label(after_wide)' \
+    '    emit_imm(22, 1)' \
+    '    emit_frame_eq(0, 22, wide_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 77)' \
+    '    emit_frame_eq(1, 22, wide_result_ok, unexpected_label)' \
+    '    emit_imm(22, 16777216)' \
+    '    emit_frame_eq(252, 22, final_stack_ok, unexpected_label)' \
+    '    emit_frame_eq(253, 22, final_base_ok, unexpected_label)' \
+    '    emit_imm(6, 16777216)' \
+    '    emit_imm(7, 16777216)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 6)' \
+    '    emit_rr(2, 9, 0)' \
+    '    emit_imm(10, 8)' \
+    '    emit_rr(3, 9, 10)' \
+    '    emit_rr(11, 9, 7)' \
+    '    emit_rr(2, 253, 0)' \
+    '    emit_imm(23, 37)' \
+    '    emit_imm(20, 88)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, 23)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(11, 24, 20)' \
+    '    emit_imm(30, 0)' \
+    '    emit_r(17, 11)' \
+    '    emit_imm(12, 101)' \
+    '    emit_rrx(16, 11, 12, boundary_exact)' \
+    '    emit_imm(12, 102)' \
+    '    emit_rrx(16, 11, 12, boundary_adjacent)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(boundary_exact)' \
+    '    emit_gamma_tail_frame(16515056, 1, boundary_target, resource_label)' \
+    '    define_label(boundary_adjacent)' \
+    '    emit_imm(30, 1)' \
+    '    emit_gamma_tail_frame(16515072, 1, boundary_target, resource_label)' \
+    '    define_label(boundary_target)' \
+    '    emit_rx(14, 30, unexpected_label)' \
+    '    emit_imm(22, 262144)' \
+    '    emit_frame_eq(252, 22, boundary_stack_ok, unexpected_label)' \
+    '    emit_frame_eq(253, 22, boundary_base_ok, unexpected_label)' \
+    '    emit_imm(24, 16777200)' \
+    '    emit_rr(10, 20, 24)' \
+    '    emit_imm(22, 37)' \
+    '    emit_frame_eq(20, 22, boundary_kind_ok, unexpected_label)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(10, 20, 24)' \
+    '    emit_imm(22, 88)' \
+    '    emit_frame_eq(20, 22, boundary_payload_ok, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(resource_label)' \
+    '    emit_rx(14, 30, boundary_resource_expected)' \
+    '    emit_imm(0, 6)' \
+    '    emit_r(0, 0)' \
+    '    define_label(boundary_resource_expected)' \
+    '    emit_imm(24, 16777200)' \
+    '    emit_rr(10, 20, 24)' \
+    '    emit_imm(22, 16777216)' \
+    '    emit_frame_eq(20, 22, boundary_header_base_ok, unexpected_label)' \
+    '    emit_imm(25, 8)' \
+    '    emit_rr(3, 24, 25)' \
+    '    emit_rr(10, 20, 24)' \
+    '    emit_frame_eq(20, 22, boundary_header_cursor_ok, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_stack_reserver(stack_label, resource_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/frame-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + Gamma frame ABI probe) failed"
+  exit 1
+}
+stamp_seed "$T/frame-emitter.tape" "$SEED" "$T/frame-emitter.exe" >/dev/null 2>&1
+"$T/frame-emitter.exe" > "$T/frame-probe.tape"
+frame_emitter_status=$?
+if [ "$frame_emitter_status" != 1 ] || [ ! -s "$T/frame-probe.tape" ]; then
+  echo "Gamma frame ABI probe emission failed: status $frame_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/frame-probe.tape" "$SEED" "$T/frame-probe.exe" >/dev/null 2>&1
 
 {
   runtime_emitter_source
@@ -1058,6 +1403,16 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
 stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
+for frame_mode in e f; do
+  printf '%s' "$frame_mode" | "$T/frame-probe.exe" > "$T/frame-$frame_mode.out"
+  frame_status=$?
+  if [ "$frame_status" = 7 ] && [ ! -s "$T/frame-$frame_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL Gamma frame ABI $frame_mode: status $frame_status, output $(wc -c < "$T/frame-$frame_mode.out" | tr -d ' ') bytes"
+  fi
+done
 "$T/bytes-valid-probe.exe" > "$T/bytes-valid.out"
 bytes_valid_status=$?
 if [ "$bytes_valid_status" = 7 ] && [ ! -s "$T/bytes-valid.out" ]; then

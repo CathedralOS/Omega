@@ -1636,6 +1636,115 @@ proc emit_stack_reserver(entry_label, failure_label) {
     return 0
 }
 
+; Frames retain complete two-word `(kind,payload)` values. A frame
+; occupies `[r253, caller_cursor)`: previous r253 at +0, the caller's pre-arg
+; r252 at +8, fixed local slots next, and parameters at the high end in source
+; order (parameter zero is `caller_cursor - 16`). Expression temporaries and
+; evaluated arguments grow below r253 through r252. Every non-tail call reserves
+; at least the 16-byte header before using Alpha call/ret. The explicit stack
+; therefore reaches its 256 KiB guard while Alpha's hidden return stack remains
+; above the 48 MiB heap ceiling, making hidden-stack overlap unreachable. Tail
+; calls copy their already-evaluated arguments upward, inherit the caller
+; cursor, replace the frame in place, and jump directly to the resolved callee.
+
+proc emit_gamma_call_frame(stack_label, callee_label, prefix_bytes, parameter_count) {
+    state prefix_low { to invalid when (prefix_bytes < 16)  to prefix_aligned }
+    state prefix_aligned { to invalid when (prefix_bytes % 16 != 0)  to count_low }
+    state count_low { to invalid_count when (parameter_count < 0)  to valid }
+    state valid {
+        emit_rr(2, 6, 253)
+        emit_rr(2, 7, 252)
+        emit_imm(8, parameter_count * 16)
+        emit_rr(3, 7, 8)
+        emit_imm(2, prefix_bytes)
+        emit_jump(19, stack_label)
+        emit_rr(2, 9, 0)
+        emit_rr(11, 9, 6)
+        emit_rr(2, 10, 9)
+        emit_imm(11, 8)
+        emit_rr(3, 10, 11)
+        emit_rr(11, 10, 7)
+        emit_rr(2, 253, 9)
+        emit_jump(19, callee_label)
+        return 1
+    }
+    state invalid { emit_fail_once(13, prefix_bytes)  return 0 }
+    state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
+}
+
+proc emit_gamma_return_frame() {
+    emit_rr(2, 6, 253)
+    emit_rr(2, 7, 6)
+    emit_imm(8, 8)
+    emit_rr(3, 7, 8)
+    emit_rr(10, 7, 7)
+    emit_rr(2, 8, 6)
+    emit_rr(10, 8, 8)
+    emit_rr(2, 252, 7)
+    emit_rr(2, 253, 8)
+    emit_ret()
+    return 1
+}
+
+proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
+                           failure_label) {
+    state target_low { to invalid_target when (target_prefix_bytes < 16)  to target_aligned }
+    state target_aligned { to invalid_target when (target_prefix_bytes % 16 != 0)  to count_low }
+    state count_low { to invalid_count when (parameter_count < 0)  to setup }
+    state setup {
+        emit_rr(2, 6, 253)
+        emit_rr(2, 7, 6)
+        emit_rr(10, 7, 7)
+        emit_rr(2, 8, 6)
+        emit_imm(9, 8)
+        emit_rr(3, 8, 9)
+        emit_rr(10, 8, 8)
+        emit_imm(10, target_prefix_bytes + parameter_count * 16)
+        emit_rrx(15, 8, 10, failure_label)
+        emit_rr(2, 9, 8)
+        emit_rr(4, 9, 10)
+        emit_imm(10, 262144)
+        emit_rrx(15, 9, 10, failure_label)
+        let parameter_index = 0
+        to copy_loop
+    }
+    state copy_loop { to copy_body when (parameter_index < parameter_count)  to install }
+    state copy_body {
+        let parameter_offset = (parameter_index + 1) * 16
+        emit_rr(2, 10, 253)
+        emit_imm(11, parameter_offset)
+        emit_rr(4, 10, 11)
+        emit_rr(2, 11, 10)
+        emit_imm(14, 8)
+        emit_rr(3, 11, 14)
+        emit_rr(10, 12, 11)
+        emit_rr(2, 13, 8)
+        emit_imm(14, parameter_offset)
+        emit_rr(4, 13, 14)
+        emit_rr(2, 14, 13)
+        emit_imm(15, 8)
+        emit_rr(3, 14, 15)
+        emit_rr(11, 14, 12)
+        emit_rr(10, 12, 10)
+        emit_rr(11, 13, 12)
+        parameter_index = parameter_index + 1
+        to copy_loop
+    }
+    state install {
+        emit_rr(11, 9, 7)
+        emit_rr(2, 10, 9)
+        emit_imm(11, 8)
+        emit_rr(3, 10, 11)
+        emit_rr(11, 10, 8)
+        emit_rr(2, 253, 9)
+        emit_rr(2, 252, 9)
+        emit_jump(12, callee_label)
+        return 1
+    }
+    state invalid_target { emit_fail_once(13, target_prefix_bytes)  return 0 }
+    state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
+}
+
 proc emit_checked_add(entry_label, failure_label) {
     let left_negative = new_label()
     let both_negative = new_label()
