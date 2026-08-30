@@ -340,8 +340,8 @@ fn constant_output_tree_replays_without_an_artificial_source_event() {
     let summary = checked
         .build_observation_summary()
         .expect("constant Output tree retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -378,7 +378,7 @@ fn constant_output_tree_replays_without_an_artificial_source_event() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed constant Output retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -411,10 +411,10 @@ fn absent_output_remove_replays_its_exact_failure_without_a_tree_entry() {
     let summary = checked
         .build_observation_summary()
         .expect("absent remove retains observations");
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert_eq!(summary.schema_version(), 51);
+    assert_eq!(summary.schema_version(), 52);
     let [remove] = summary.filesystem_operation_attempts() else {
         panic!("absent remove retains one exact attempt")
     };
@@ -447,7 +447,7 @@ fn absent_output_remove_replays_its_exact_failure_without_a_tree_entry() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed absent remove retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
@@ -474,8 +474,8 @@ fn source_directory_records_restart_with_exact_byte_and_cursor_evidence() {
         .build_observation_summary()
         .expect("directory enumeration retains observations");
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert!(summary.source_inputs_replay_verified());
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().replays_source_inputs());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -536,8 +536,8 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 51);
-    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.schema_version(), 52);
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -603,7 +603,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed directory retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -637,7 +637,7 @@ fn mixed_output_tree_with_nested_source_and_symlink_replays_without_host_output(
     let summary = checked
         .build_observation_summary()
         .expect("mixed Output tree retains observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -689,7 +689,7 @@ fn mixed_output_tree_with_nested_source_and_symlink_replays_without_host_output(
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed mixed Output tree retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
@@ -723,7 +723,7 @@ fn portable_hard_link_output_replays_and_stages_as_equal_regular_files() {
     let summary = checked
         .build_observation_summary()
         .expect("hard-link Output tree retains observations");
-    assert!(summary.operation_replay_verified());
+    assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
         summary
@@ -799,7 +799,7 @@ fn portable_hard_link_output_replays_and_stages_as_equal_regular_files() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("replayed hard-link Output tree retains observations");
-    assert!(replayed_summary.operation_replay_verified());
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted

@@ -719,6 +719,19 @@ usage, and largest active call path. Wall-clock elapsed time may be displayed
 but never affects admission or accounting. Parallel scheduling changes neither
 the canonical counts nor aggregate verdict.
 
+Observation summary v52 and filesystem replay-record v33 use one version-1
+closed replay disposition: `NotReplayed`, `SourceInputsOnly`, or `Complete`.
+The partial disposition means that provider-free execution consumed the exact
+retained Source-input record and reproduced the build result and observations.
+`Complete` additionally requires exact attempted-operation and
+generated-source-handoff equality, reconstructed virtual Output state, clean
+replay teardown, and a matching staged-output commitment or sponsored custody.
+The compiler fails closed rather than issuing `Complete` without source replay
+or staged-output custody. Observation identity binds the verdict schema and
+disposition with the attempts, handoffs, and tree. The verdict is execution
+evidence, not package admission or an audit attestation; CPU, memory, and
+remaining whole-session quotas remain independent policy gates.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR certificate may remove runtime fuel metering, but its scalar does
 not predict the target's worst-cycle path.

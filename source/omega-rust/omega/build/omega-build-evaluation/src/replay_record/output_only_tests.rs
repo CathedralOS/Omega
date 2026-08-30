@@ -92,8 +92,9 @@ fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSummary {
             psi_checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: output_file_attempts(),
         canonical_source_metadata_identity: None,
-        source_inputs_replay_verified: true,
-        operation_replay_verified: true,
+        filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
+            BuildFilesystemReplayDisposition::Complete,
+        ),
         included_source_handoffs: vec![BuildIncludedSourceHandoff {
             relative_path: OUTPUT_PATH.to_vec(),
             filesystem_attempt_ordinal: handoff_ordinal,

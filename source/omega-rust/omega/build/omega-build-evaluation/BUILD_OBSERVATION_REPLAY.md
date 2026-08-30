@@ -265,3 +265,26 @@ Descriptor operations carrying scalars, immutable bytes, or mutable carriers;
 native and find handles; repeated failures; alternate errors; and mixtures
 with successful Output mutation or another failure lane remain
 non-receipted.
+
+## Closed replay verdict (summary v52, replay record v33)
+
+The observation summary replaces two independently representable replay flags
+with one version-1 closed verdict: `NotReplayed`, `SourceInputsOnly`, or
+`Complete`. There is no state that claims complete operation replay without
+source-input replay. `SourceInputsOnly` claims only provider-free execution
+against the retained Source-input record with exact build-result and
+observation equality; it claims no Output reconstruction, generated-source
+handoff, teardown, or staged-output custody.
+
+`Complete` is issued only when the same replay also matches the complete
+attempted operation sequence and generated-source handoffs, reconstructs the
+virtual Output namespace, closes all replay lifecycle state, and owns the
+matching staged-output commitment or sponsored custody. The compiler fails
+closed instead of issuing `Complete` without source replay or staged-output
+custody. Package observation identity binds the verdict schema and disposition
+alongside the exact attempts, handoffs, and tree commitment.
+
+This is compiler-issued observation evidence, not package admission authority
+and not proof that a human or LLM performed an audit. Process CPU, memory, and
+remaining whole-session quotas stay separate gates before package policy may
+treat the evidence as authority-bearing.

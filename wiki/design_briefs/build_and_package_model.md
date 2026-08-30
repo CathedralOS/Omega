@@ -1499,6 +1499,19 @@ issues empty staged-output custody only after attempt and teardown equality.
 Operations with additional authored operands, alternate handles, repeated
 failures, and mixed lifecycles remain non-receipted.
 
+Summary v52 and replay-record v33 replace the independently representable
+replay flags with one version-1 closed disposition: `NotReplayed`,
+`SourceInputsOnly`, or `Complete`. `SourceInputsOnly` claims provider-free
+execution against the retained Source-input record with exact result and
+observation equality. `Complete` additionally binds the exact attempted
+operation sequence, generated-source handoffs, virtual Output namespace and
+teardown, and matching staged-output commitment or sponsored custody. The
+compiler fails closed if complete replay lacks source replay or staged-output
+custody. Observation identity binds the verdict schema and disposition with
+the retained attempts, handoffs, and tree. This evidence is neither an audit
+attestation nor package admission; process CPU, memory, and remaining
+whole-session quotas remain separate.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1534,7 +1547,7 @@ entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
 These summary fields are compiler-issued execution evidence kept outside
 canonical capability/API comparison bytes. In isolation they are not a receipt
-and do not claim either replay verdict; only the exact v24/v6 generated-source,
+and do not receive the `Complete` replay disposition; only the exact v24/v6 generated-source,
 v27/v8 empty-Output, v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff,
 v31/v12 sequential-full-write, v32/v13 positioned-full-write, v33/v14
 empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17

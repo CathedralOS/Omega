@@ -303,7 +303,8 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 51;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 52;
+pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -1041,6 +1042,54 @@ impl BuildFilesystemOperationAttempt {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemReplayDisposition {
+    NotReplayed,
+    SourceInputsOnly,
+    Complete,
+}
+
+/// Closed compiler verdict for one build's filesystem replay.
+///
+/// `Complete` is meaningful only as part of its owning
+/// [`BuildObservationSummary`]: the summary retains the exact operation
+/// sequence, staged Output commitment, and generated-source handoffs that the
+/// compiler compared while issuing the verdict.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemReplayVerdict {
+    schema_version: u32,
+    disposition: BuildFilesystemReplayDisposition,
+}
+
+impl BuildFilesystemReplayVerdict {
+    const fn new(disposition: BuildFilesystemReplayDisposition) -> Self {
+        Self {
+            schema_version: BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION,
+            disposition,
+        }
+    }
+
+    pub const fn schema_version(self) -> u32 {
+        self.schema_version
+    }
+
+    pub const fn disposition(self) -> BuildFilesystemReplayDisposition {
+        self.disposition
+    }
+
+    pub const fn replays_source_inputs(self) -> bool {
+        matches!(
+            self.disposition,
+            BuildFilesystemReplayDisposition::SourceInputsOnly
+                | BuildFilesystemReplayDisposition::Complete
+        )
+    }
+
+    pub const fn is_complete(self) -> bool {
+        matches!(self.disposition, BuildFilesystemReplayDisposition::Complete)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
     schema_version: u32,
@@ -1049,8 +1098,7 @@ pub struct BuildObservationSummary {
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
-    source_inputs_replay_verified: bool,
-    operation_replay_verified: bool,
+    filesystem_replay_verdict: BuildFilesystemReplayVerdict,
     included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
     staged_output_tree: Option<BuildStagedOutputTree>,
 }
@@ -1107,23 +1155,13 @@ impl BuildObservationSummary {
         &self.included_source_handoffs
     }
 
-    /// Whether the compiler reran this build with no host filesystem provider
-    /// and consumed the complete Source-input prefix. This is independently
-    /// useful partial replay evidence; only `operation_replay_verified` can
-    /// support a `Receipted` verdict.
-    pub const fn source_inputs_replay_verified(&self) -> bool {
-        self.source_inputs_replay_verified
-    }
-
-    /// Whether the compiler replayed the complete successful operation record,
-    /// reconstructed its complete Output tree from the admitted operation
-    /// grammar rather than a supplied digest, matched the exact absent or
-    /// present generated-source handoff, and, for direct physical issuance,
-    /// matched sponsored custody.
-    /// Only this complete fact can support a `Receipted` realized observation
-    /// class.
-    pub const fn operation_replay_verified(&self) -> bool {
-        self.operation_replay_verified
+    /// One versioned disposition over the compiler's replay of this summary.
+    /// `SourceInputsOnly` proves only provider-free consumption of the exact
+    /// Source prefix. `Complete` additionally proves exact build-result and
+    /// attempted-operation equality, generated-source handoffs, replay
+    /// teardown, reconstructed Output namespace, and staged-output custody.
+    pub const fn filesystem_replay_verdict(&self) -> BuildFilesystemReplayVerdict {
+        self.filesystem_replay_verdict
     }
 
     /// Ordered operation/result/error evidence from the successful evaluator
@@ -3411,7 +3449,7 @@ pub fn compute_build_config(
                             == Some(source_attempts.len()))
             });
     let receipted_output_entries = replay.as_ref().and_then(receipted_output_entries);
-    let source_inputs_replay_verified = if let Some(replay) = replay {
+    let source_inputs_replayed = if let Some(replay) = replay {
         let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
             &prepared,
             machine_name,
@@ -3853,7 +3891,7 @@ pub fn compute_build_config(
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
     let captured_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
-    let (staged_output_tree, operation_replay_verified) = match (
+    let (staged_output_tree, complete_replay_verified) = match (
         replayed_output_tree,
         captured_output_tree,
         filesystem_scope.is_replay(),
@@ -3878,7 +3916,25 @@ pub fn compute_build_config(
         }
         (None, captured, _) => (captured, false),
     };
-    let realized_observation = if operation_replay_verified {
+    if complete_replay_verified && !source_inputs_replayed {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time replay of `{machine_name}` completed without exact source-input replay"
+        ))]);
+    }
+    if complete_replay_verified && staged_output_tree.is_none() {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time replay of `{machine_name}` completed without staged-output custody"
+        ))]);
+    }
+    let filesystem_replay_verdict =
+        BuildFilesystemReplayVerdict::new(if complete_replay_verified {
+            BuildFilesystemReplayDisposition::Complete
+        } else if source_inputs_replayed {
+            BuildFilesystemReplayDisposition::SourceInputsOnly
+        } else {
+            BuildFilesystemReplayDisposition::NotReplayed
+        });
+    let realized_observation = if filesystem_replay_verdict.is_complete() {
         BuildObservationClass::Receipted
     } else if filesystem_host_observed {
         BuildObservationClass::Volatile
@@ -3922,8 +3978,7 @@ pub fn compute_build_config(
             filesystem_operation_attempts,
             canonical_source_metadata_identity: filesystem_scope
                 .canonical_source_metadata_identity(),
-            source_inputs_replay_verified,
-            operation_replay_verified,
+            filesystem_replay_verdict,
             included_source_handoffs,
             staged_output_tree,
         }),

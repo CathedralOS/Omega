@@ -1,11 +1,13 @@
 //! Canonical identity of one retained build observation.
 
+#[cfg(test)]
+use crate::{BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemReplayVerdict};
 use crate::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, BuildObservationSummary,
+    BuildFilesystemProvider, BuildFilesystemReplayDisposition, BuildFilesystemRoot,
+    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
 };
 use sha2::{Digest, Sha256};
 
@@ -44,8 +46,11 @@ impl BuildObservationSummary {
                 digest.update(identity.source_content_commitment());
             }
         }
-        digest.update([u8::from(self.source_inputs_replay_verified())]);
-        digest.update([u8::from(self.operation_replay_verified())]);
+        let replay_verdict = self.filesystem_replay_verdict();
+        digest.update(replay_verdict.schema_version().to_le_bytes());
+        digest.update([filesystem_replay_disposition_tag(
+            replay_verdict.disposition(),
+        )]);
         digest.update(
             u64::try_from(self.included_source_handoffs().len())
                 .expect("included-source handoff count fits u64")
@@ -365,20 +370,30 @@ const fn grant_refusal_reason_tag(reason: BuildFilesystemGrantRefusalReason) -> 
     }
 }
 
+const fn filesystem_replay_disposition_tag(disposition: BuildFilesystemReplayDisposition) -> u8 {
+    match disposition {
+        BuildFilesystemReplayDisposition::NotReplayed => 0,
+        BuildFilesystemReplayDisposition::SourceInputsOnly => 1,
+        BuildFilesystemReplayDisposition::Complete => 2,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn empty_summary() -> BuildObservationSummary {
         BuildObservationSummary {
-            schema_version: 36,
+            schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
             ceiling: BuildObservationClass::Hermetic,
             realized: BuildObservationClass::Hermetic,
-            filesystem_operation_schema_version: 19,
+            filesystem_operation_schema_version:
+                psi_checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
             canonical_source_metadata_identity: None,
-            source_inputs_replay_verified: false,
-            operation_replay_verified: false,
+            filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
+                BuildFilesystemReplayDisposition::NotReplayed,
+            ),
             included_source_handoffs: Vec::new(),
             staged_output_tree: None,
         }
@@ -394,11 +409,11 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0x6a, 0x41, 0x85, 0x15, 0x59, 0xe9, 0x55, 0xd1, 0xad, 0xd3, 0x42, 0x10, 0xe1, 0x08,
-                0x23, 0x07, 0x20, 0x7b, 0x3c, 0xc2, 0xa6, 0x01, 0xd9, 0xb0, 0x7b, 0x08, 0x48, 0x9b,
-                0xcf, 0x7f, 0x6f, 0x0e,
+                0x44, 0x0c, 0x26, 0x95, 0x46, 0xc6, 0x43, 0x3f, 0x4c, 0x03, 0x4a, 0x01, 0x5e, 0x95,
+                0x54, 0x84, 0x08, 0x9e, 0x56, 0x05, 0xef, 0x1d, 0x0a, 0xd9, 0x33, 0x9a, 0x6d, 0xcc,
+                0x47, 0x41, 0x43, 0xf8,
             ],
-            "the established package build-observation byte contract remains stable"
+            "the current package build-observation byte contract remains stable"
         );
     }
 
@@ -423,11 +438,35 @@ mod tests {
         assert_ne!(baseline, changed.identity());
 
         let mut changed = empty_summary();
-        changed.source_inputs_replay_verified = true;
+        changed.filesystem_replay_verdict =
+            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::SourceInputsOnly);
         assert_ne!(baseline, changed.identity());
 
         let mut changed = empty_summary();
-        changed.operation_replay_verified = true;
+        changed.filesystem_replay_verdict =
+            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::Complete);
         assert_ne!(baseline, changed.identity());
+    }
+
+    #[test]
+    fn replay_verdict_has_exactly_three_closed_dispositions() {
+        let not_replayed =
+            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::NotReplayed);
+        assert_eq!(
+            not_replayed.schema_version(),
+            crate::BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION
+        );
+        assert!(!not_replayed.replays_source_inputs());
+        assert!(!not_replayed.is_complete());
+
+        let source_inputs_only =
+            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::SourceInputsOnly);
+        assert!(source_inputs_only.replays_source_inputs());
+        assert!(!source_inputs_only.is_complete());
+
+        let complete =
+            BuildFilesystemReplayVerdict::new(BuildFilesystemReplayDisposition::Complete);
+        assert!(complete.replays_source_inputs());
+        assert!(complete.is_complete());
     }
 }

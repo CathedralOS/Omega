@@ -43,8 +43,9 @@ fn summary(operation_tag: u16) -> BuildObservationSummary {
             psi_checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: vec![operand_free_unknown_descriptor_failure(operation_tag)],
         canonical_source_metadata_identity: None,
-        source_inputs_replay_verified: true,
-        operation_replay_verified: false,
+        filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
+            BuildFilesystemReplayDisposition::SourceInputsOnly,
+        ),
         included_source_handoffs: Vec::new(),
         staged_output_tree: None,
     }

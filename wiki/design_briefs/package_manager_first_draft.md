@@ -1653,6 +1653,19 @@ staged-output custody only after exact attempt and teardown equality. Operations
 with additional authored operands, alternate handle kinds, repeated failures,
 and mixed lifecycles remain non-receipted.
 
+Observation summary v52 and replay-record v33 replace the two replay booleans
+with one version-1 closed disposition: `NotReplayed`, `SourceInputsOnly`, or
+`Complete`. The partial disposition claims only provider-free Source-input
+execution with exact result and observation equality. `Complete` additionally
+requires the exact attempted operation sequence, generated-source handoffs,
+virtual namespace and teardown, and matching staged-output commitment or
+sponsored custody. The compiler fails closed if complete replay lacks source
+replay or staged-output custody. Package observation identity binds the verdict
+schema and disposition with the attempts, handoffs, and tree. This remains
+compiler observation evidence, not an audit attestation or package-admission
+decision; process CPU, memory, and remaining whole-session quotas stay
+separate.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

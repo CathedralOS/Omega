@@ -50,8 +50,9 @@ fn summary() -> BuildObservationSummary {
             absent_remove(b"nested/missing-second.bin"),
         ],
         canonical_source_metadata_identity: None,
-        source_inputs_replay_verified: true,
-        operation_replay_verified: true,
+        filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
+            BuildFilesystemReplayDisposition::Complete,
+        ),
         included_source_handoffs: Vec::new(),
         staged_output_tree: None,
     }
