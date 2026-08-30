@@ -44,8 +44,8 @@ stop the item on one precise owner question before adding machinery.
     compiler-intrinsic ownership, and
     installation joins beyond the landed selected-provider upper-bound and
     realized-reach evidence;
-  - **OWNER-BLOCKED — Q6:** generic boundary-realization coverage;
-  - **OWNER-BLOCKED — Q7:** exact boundary-realization specialization and
+  - **OWNER-BLOCKED — Q5:** generic boundary-realization coverage;
+  - **OWNER-BLOCKED — Q6:** exact boundary-realization specialization and
     tagged static-application demand and coverage evidence; production remains
     fail-closed rather than publishing a provisional use-side carrier;
   - complete exact semantic-subject commitments, certificate closure, and
@@ -218,7 +218,7 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Integration fixtures
 
-- [ ] **DESIGN-BLOCKED — OWNER Q3: HOST-ROUTED-SOURCE-TRANSPORT.** Remove the
+- [ ] **DESIGN-BLOCKED — OWNER Q2: HOST-ROUTED-SOURCE-TRANSPORT.** Remove the
   universal CONNECT broker and false direct-route/transfer claims, then apply
   the owner-selected child-policy boundary for host-configured Git/SSH helpers.
   Forced proxy overrides and native policy that silently blocks the ambient

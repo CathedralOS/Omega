@@ -7,6 +7,11 @@ adjacent source-to-Alpha-tape validation.
 It is self-contained: a compiler, sample corpus, historical implementation, or
 Omega document cannot amend Delta by acceptance.
 
+D22 fixes deterministic declaration identity beneath that contract: grammar-
+selected owner, machine, member, state, and local scopes; one pre-type scoped
+duplicate census; no active local shadowing; legal disjoint-state and member/
+local spelling reuse; and no authored machine bodies on boundary owners.
+
 ## Canonical edges
 
 ```text
@@ -26,8 +31,9 @@ compilers and must not both be called “the Delta compiler.”
   change control.
 - `compiler/` owns the in-progress `delta_compiler.gamma`, its eventual
   canonical Alpha tape, and refinement evidence. The retained source currently
-  contains only final compiler material through complete lexical validation;
-  it exposes no `main` or compiler artifact yet.
+  contains final compiler material through complete parsing and symbolic Alpha
+  encoding; D22 collection/checking, lowering, `main`, and publication remain
+  incomplete, so it exposes no compiler artifact yet.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
 tree, including the restricted Delta-written Darwin compiler prototype, are

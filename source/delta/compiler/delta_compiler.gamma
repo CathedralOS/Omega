@@ -2,8 +2,9 @@
 ;
 ; These retained components belong to the final compiler. They validate and
 ; parse the complete Delta surface and provide the final pure symbolic-Alpha
-; encoder. Semantic collection, checking, and AST-to-Alpha lowering remain
-; incomplete. This source intentionally exposes no `main` and emits no
+; encoder. D22 fixes the still-unimplemented semantic identity census;
+; checking and AST-to-Alpha lowering also remain incomplete. This source
+; intentionally exposes no `main` and emits no
 ; placeholder artifact until those intervening phases exist.
 
 (data DeltaRejectReason

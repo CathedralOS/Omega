@@ -91,76 +91,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q2 — Freeze Delta declaration namespaces and duplicate phase
-
-### Context
-
-D17 requires whole-closure two-pass checking, forward visibility for top-level
-declarations and states, unique names in each declaration scope, and the
-earliest packed offset in the earliest failing phase. It does not fully define
-which top-level forms share a namespace or which unique-name checks belong to
-declaration collection rather than type or ordered body checking.
-
-The Gamma-written Delta compiler now parses every D17 grammar form. Its next
-phase must collect exact identities before type formation. A concrete collector
-can compare source spans without copied strings and can find the globally
-earliest later declaration, but it cannot choose the missing namespace and
-phase rules without changing accepted Delta meaning. This directly affects the
-Delta implementation language used to author the full Omega compiler `D`.
-
-### Problem statement
-
-Choose together:
-
-1. whether boundary/data owner names and unqualified machine names inhabit one
-   namespace or separate type-owner and machine namespaces;
-2. whether a boundary member `Owner::name` and a top-level qualified machine
-   body with the same owner/name are duplicate declarations;
-3. whether parameters and ordered locals are precollected for `DuplicateName`
-   before type formation, or checked in signature/body phases; and
-4. whether locals and state parameters may shadow an active machine parameter
-   or another binding from the enclosing machine invocation.
-
-Without these rules, two conforming Delta compilers can choose different
-declarations or report different rejection reasons when one source contains
-both a duplicate and a later-phase type/body error.
-
-### Proposed direction
-
-Keep one type-owner namespace for boundary and data declarations, and one
-machine namespace keyed by `(optional owner, machine name)`. A type owner may
-therefore share its spelling with an unqualified machine without ambiguity.
-Boundary members occupy their owner's machine slots; a program-authored
-qualified machine may not redefine one, and a boundary owner admits no extra
-program-authored machine bodies.
-
-Make all unique-name failures part of declaration collection, including
-boundary signatures, data fields/cases and payload parameters, machine/state
-parameters, states, and `let` declarations. Preserve ordered local visibility
-for use-before-initialization, but prewalking names makes `DuplicateName` phase
-priority independent of later type resolution. Delta v1 has no lexical
-shadowing: an active machine/state binding or earlier local cannot be
-redeclared in the same effective body environment. Report the first byte of
-the globally earliest later declaration in the collection phase.
-
-### Alternates
-
-- Acceptable: check parameter duplicates during type formation and local
-  duplicates during body checking, provided D17 explicitly fixes that phase
-  ownership and how their offsets compete with other failures in that phase.
-- Acceptable: allow precisely defined local or state-parameter shadowing,
-  provided lookup, initializer scope, state entry, and forward-reference rules
-  are explicit and deterministic.
-- Acceptable: merge type-owner and machine namespaces, provided owner-qualified
-  lookup and every existing Delta example are updated consistently.
-- Tempting but wrong: let the collector silently choose separate namespaces,
-  first-wins lookup, or a partial set of duplicate scopes because that is easy
-  to implement.
-- Tempting but wrong: report whichever duplicate or type error an implementation
-  happens to encounter first without preserving the frozen phase priority and
-  minimum packed coordinate.
-
-## Q3 — Delegate package transport helper authority to the host
+## Q2 — Delegate package transport helper authority to the host
 
 ### Context
 
@@ -237,7 +168,7 @@ outside package-authored semantics.
 - Tempting but wrong: retain zero-valued broker observations or a configured
   transfer ceiling as if either measured ambient host traffic.
 
-## Q4 — Define the device-operation source contract
+## Q3 — Define the device-operation source contract
 
 ### Context
 
@@ -290,7 +221,7 @@ consumed candidate unchanged for retry.
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
 
-## Q5 — Attribute selected opaque representations across package reviews
+## Q4 — Attribute selected opaque representations across package reviews
 
 ### Context
 
@@ -347,7 +278,7 @@ already occurred.
   or a lockfile string "agreement" without rejoining the exact declarations
   and strong compiler-issued application.
 
-## Q6 — Establish generic boundary-realization coverage
+## Q5 — Establish generic boundary-realization coverage
 
 ### Context
 
@@ -392,7 +323,7 @@ explicitly admitted generic implementation contract.
   from one successful application, or call a compiler/toolchain/version string
   a certificate that universal checking occurred.
 
-## Q7 — Define exact boundary-realization application evidence
+## Q6 — Define exact boundary-realization application evidence
 
 ### Context
 
@@ -426,7 +357,7 @@ checks for that specialization. Retain the exact requirement coordinate,
 selected plan and realization, binder schema, tagged arguments, and rechecked
 specialization identity. Deduplicate and order only after those joins succeed.
 
-Keep this distinct from Q6: checking a finite demanded set does not establish
+Keep this distinct from Q5: checking a finite demanded set does not establish
 universal generic coverage. Initially supporting only ordinary type binders is
 acceptable if every other telescope category remains explicitly fail-closed.
 
@@ -440,7 +371,7 @@ acceptable if every other telescope category remains explicitly fail-closed.
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
 
-## Q8 — Freeze the standalone Omega compiler request and outcome wire
+## Q7 — Freeze the standalone Omega compiler request and outcome wire
 
 ### Context
 
