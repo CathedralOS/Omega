@@ -86,8 +86,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical frontend/emitter source, `interp.beta` oracle, Gamma semantics/tests | complete lowering, adapter, standalone tape, and refinement |
-| Gamma-written Delta compiler | Delta contract and feature ledger | compiler source, spec-derived tests, tape, and refinement |
+| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | resolve Q4's physical profiles, emit adapters, publish the standalone tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, named-type candidate scan, and symbolic Alpha encoding | resolve Q5, complete type/body checking and lowering, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -104,9 +104,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   source/omega/{build,main}.omg            # C roots
   ```
 
-  Each implemented owner contains its descriptive `.tape` artifact and
-  adjacent validation. Missing Gamma, Delta, and `D` files are work gaps, not
-  permission for substitute owners.
+  Each completed compiler owner contains its descriptive `.tape` artifact and
+  adjacent validation. Incomplete canonical sources and missing Gamma, Delta,
+  or `D` artifacts are work gaps, not permission for substitute owners.
   Do not create generic `bootstrap/`, `on-ramp/`, `assurance/`, `canaries/`, or
   generation directories. `omega₀` and `omega` are artifacts, not languages or
   source owners.
@@ -117,8 +117,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `source/gamma/compiler/` under D16. The canonical source and its bounded
     frontend/emitter gate now exist; section 3 owns lowering, adapter selection,
     tape publication, and refinement.
-  - [ ] Materialize the Delta compiler source, tape, and adjacent validation in
-    `source/delta/compiler/` under D17; section 4 owns the implementation.
+  - [ ] Complete the existing Delta compiler source, tape, and adjacent
+    validation in `source/delta/compiler/` under D17; section 4 owns the
+    implementation.
   - [ ] Complete `source/omega/omega_compiler.delta` under D17; section 5 owns
     the existing incomplete implementation. This source work does not wait for
     the physical Gamma/Delta compiler artifacts.
@@ -1060,7 +1061,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     placement, and same-coordinate failure priority before implementing the
     remaining type-formation judgment. Do not derive these language results
     from host layout or traversal order.
-- [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
+- [x] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
   disjoint-state vectors. Do not recreate cases that
