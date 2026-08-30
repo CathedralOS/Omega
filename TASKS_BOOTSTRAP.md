@@ -1172,6 +1172,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
       zero roots complete because every reached body is nonempty. Keep exact
       modifier/access/flag/postorder/resource/reset vectors at the real Delta-
       compiler gate.
+    - [x] Retain bracket slice syntax `[T]` through the existing shared type
+      engine and bounded bracket stack. Classify each completed bracket frame
+      as FixedArray or Slice, then emit its node while walking the authored
+      nesting inside-out; both kinds point backward to their element and only a
+      FixedArray owns a length span. This permits arrays of slices, slices of
+      arrays, and nested slices without recursion, a consumer-specific parser,
+      or a second resource budget. A Slice frame still consumes exactly one
+      type node, preserving the existing atomic TypeNodes demand and TypeDepth
+      ceiling. Constrained slice elements, comma constraints, the `Slice<T>`
+      spelling, and richer element types remain implementation-incomplete
+      pending their general grammar rather than receiving closure-specific
+      shortcuts.
+      The eight previously missing current `C` parameter occurrences are plain
+      bracket slices, so all 112 occurrences and all 72 parameter lists are now
+      representable; 40 headers reach body parsing, but zero roots complete
+      because every reached body remains nonempty. Keep exact bracket-kind,
+      nesting, delimiter, postorder, resource, and reset vectors at the real
+      Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

@@ -225,6 +225,7 @@ data OmegaTypeReferenceKind {
     case SelfType;
     case Constrained;
     case FixedArray;
+    case Slice;
     case Reference;
 }
 
@@ -239,10 +240,16 @@ data OmegaReferenceAccess {
     case WriteOnly;
 }
 
+data OmegaTypeArrayKind {
+    case FixedArray;
+    case Slice;
+}
+
 // Compact tagged type node. Payload interpretation is owned by kind:
 // Named uses payload0/payload1 as its name span; Constrained uses payload0 as
 // its base node and payload1/payload2 as its constraint span; FixedArray uses
-// payload0 for its element and payload1/payload2 for the exact length span.
+// payload0 for its element and payload1/payload2 for the exact length span;
+// Slice uses payload0 for its element.
 // Reference uses payload0 for its referee, payload1 for access (0 shared,
 // 1 mutable, 2 write-only), payload2 as has-lifetime, and payload3/payload4 for
 // a future exact lifetime span. SelfType has no payload.
@@ -280,6 +287,7 @@ data OmegaTypeConstraintSyntax {
 }
 
 data OmegaTypeArrayFrame {
+    kind: OmegaTypeArrayKind;
     length_start: i32;
     length_end: i32;
 }
@@ -381,7 +389,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedTypeRangeBound;
     case ExpectedTypeRangeEnd;
     case ExpectedArrayElementType;
-    case ExpectedArraySemicolon;
+    case ExpectedArraySeparatorOrEnd;
     case ExpectedArrayLength;
     case ExpectedArrayEnd;
     case ExpectedMachineParameterOrEnd;
@@ -2545,8 +2553,9 @@ machine OmegaLexScan::validate_lexical(
 // The retained syntax currently owns ordinary `use path::member;`, basic
 // `[pub] data` roots, and empty-body machine roots with state parameters. Data
 // fields and parameters share named, outer-reference, domain-qualified,
-// range-refined, and nested fixed-array type syntax; parameters additionally
-// retain their canonical simple modifiers, binding references, and receivers.
+// range-refined, and nested fixed-array/slice type syntax; parameters
+// additionally retain their canonical simple modifiers, binding references,
+// and receivers.
 // Rich valid syntax stops as Incomplete rather than becoming a false Omega
 // rejection. Later grammar slices extend this machine.
 machine OmegaParser::parse_view(
@@ -2869,7 +2878,7 @@ machine OmegaParser::parse_view(
                 source.len
             )
             25 -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedArraySemicolon,
+                OmegaParseDiagnosticCode::ExpectedArraySeparatorOrEnd,
                 source.len,
                 source.len
             )
@@ -4280,6 +4289,8 @@ machine OmegaParser::parse_view(
     }
 
     state retain_type_array_frame() {
+        self.type_array_frames[self.type_array_depth].kind =
+            OmegaTypeArrayKind::FixedArray;
         self.type_array_frame_count = self.type_array_frame_count + 1;
         self.type_array_depth = self.type_array_depth + 1;
         self.cursor = self.scan.next_cursor;
@@ -4346,7 +4357,7 @@ machine OmegaParser::parse_view(
             OmegaTokenKind::Identifier -> incomplete_root()
             OmegaTokenKind::Keyword -> incomplete_root()
             _ -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedArraySemicolon,
+                OmegaParseDiagnosticCode::ExpectedArraySeparatorOrEnd,
                 self.scan.token_start,
                 self.scan.token_end
             )
@@ -4360,14 +4371,20 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Less -> incomplete_root()
             OmegaPunctuationKind::LeftBracket -> incomplete_root()
             OmegaPunctuationKind::Ampersand -> incomplete_root()
-            OmegaPunctuationKind::RightBracket -> incomplete_root()
+            OmegaPunctuationKind::RightBracket -> retain_type_slice_layer()
             OmegaPunctuationKind::Comma -> incomplete_root()
             _ -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedArraySemicolon,
+                OmegaParseDiagnosticCode::ExpectedArraySeparatorOrEnd,
                 self.scan.token_start,
                 self.scan.token_end
             )
         }
+    }
+
+    state retain_type_slice_layer() {
+        self.type_array_frames[self.type_array_depth - 1].kind =
+            OmegaTypeArrayKind::Slice;
+        transition true { true -> finish_type_array_layer() }
     }
 
     state after_array_semicolon() {
@@ -4961,6 +4978,19 @@ machine OmegaParser::parse_view(
     }
 
     state retain_type_array_node(member_end: i32, next_cursor: i32) {
+        transition self.type_array_frames[self.type_array_emit_index].kind {
+            OmegaTypeArrayKind::FixedArray -> retain_fixed_array_type_node(
+                member_end,
+                next_cursor
+            )
+            OmegaTypeArrayKind::Slice -> retain_slice_type_node(
+                member_end,
+                next_cursor
+            )
+        }
+    }
+
+    state retain_fixed_array_type_node(member_end: i32, next_cursor: i32) {
         self.type_references[self.type_reference_count].kind =
             OmegaTypeReferenceKind::FixedArray;
         self.type_references[self.type_reference_count].payload0 =
@@ -4969,6 +4999,21 @@ machine OmegaParser::parse_view(
             self.type_array_frames[self.type_array_emit_index].length_start;
         self.type_references[self.type_reference_count].payload2 =
             self.type_array_frames[self.type_array_emit_index].length_end;
+        transition true {
+            true -> finish_retain_type_array_node(member_end, next_cursor)
+        }
+    }
+
+    state retain_slice_type_node(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].kind =
+            OmegaTypeReferenceKind::Slice;
+        self.type_references[self.type_reference_count].payload0 = self.type_root;
+        transition true {
+            true -> finish_retain_type_array_node(member_end, next_cursor)
+        }
+    }
+
+    state finish_retain_type_array_node(member_end: i32, next_cursor: i32) {
         self.type_root = self.type_reference_count;
         self.type_reference_count = self.type_reference_count + 1;
         self.type_array_emit_index = self.type_array_emit_index - 1;
