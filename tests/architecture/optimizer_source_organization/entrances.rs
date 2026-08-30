@@ -17,6 +17,10 @@ struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/mod.rs",
+        coordination_marker: "pub(super) fn replay_live_ranges",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/mod.rs",
         coordination_marker: "match operation",
     },
@@ -614,6 +618,34 @@ const REQUIRED_SCCP_VALIDATION_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
 ];
 
+const REQUIRED_LIVE_RANGE_REPLAY_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/architectural_units.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/canonical.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/comparison.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/constraints.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/fragments.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/function.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/tests.rs",
+];
+
+const REQUIRED_GVN_EXPRESSION_KEY_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/model.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/total.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/proof_certified.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/compatible_policy.rs",
+];
+
+const REQUIRED_STRUCTURAL_CATALOG_TEST_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/type_declarations.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/content_projection.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/function_catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/structural_roots.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/provider_specialization.rs",
+];
+
 pub(crate) fn check(audit: &mut Audit) {
     let repository = &audit.repository;
     let source_lines = &audit.source_lines;
@@ -708,6 +740,18 @@ pub(crate) fn check(audit: &mut Audit) {
             REQUIRED_OPERATION_ENCODING_LEAVES,
         ),
         ("SCCP validation", REQUIRED_SCCP_VALIDATION_LEAVES),
+        (
+            "independent live-range replay",
+            REQUIRED_LIVE_RANGE_REPLAY_LEAVES,
+        ),
+        (
+            "independent GVN expression keys",
+            REQUIRED_GVN_EXPRESSION_KEY_LEAVES,
+        ),
+        (
+            "structural-catalog tests",
+            REQUIRED_STRUCTURAL_CATALOG_TEST_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

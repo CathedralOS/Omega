@@ -16,6 +16,10 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/representations/omega-legalized-operations/src/validation/call_source.rs",
         "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/candidate_validation.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

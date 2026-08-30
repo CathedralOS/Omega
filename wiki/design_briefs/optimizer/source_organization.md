@@ -162,9 +162,13 @@ does not yet fully satisfy this contract.
   control exits, and scalar-operation shapes, with identity-wide carriers at
   the nearest shared ancestor. SCCP candidate validation now has a 98-line
   rule-first, exhaustive-patch join over focused validation leaves.
-- Twelve production-classified leaves remain at 750-1,000 lines in validation,
-  register allocation, machine planning, codecs, and lowering.
-- Fourteen broad test and fixture leaves remain above 1,000 lines even though
+- Independent live-range replay now has a 78-line reconstruct/canonicalize/
+  compare/receipt join; independent GVN keys descend by total,
+  proof-certified, and compatible-policy vocabulary. The former 1,457-line
+  structural-catalog test matrix now mirrors six production validation families.
+- Ten production-classified leaves remain at 750-1,000 lines in register
+  allocation, machine planning, codecs, and lowering.
+- Thirteen broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of
   remaining entrances. Git history is the milestone archive.
