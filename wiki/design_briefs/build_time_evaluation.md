@@ -770,6 +770,15 @@ failed transfer region, other lane, or handoff is present. Compiler-owned
 descriptor lookup rejects before a host read, and virtual replay must reproduce
 the exact attempt and teardown before empty staged-output custody issues.
 
+Summary v57 and filesystem replay-record v38 add exact failed tag-5 `write` and
+tag-7 `write_at` rows on an unknown descriptor. The compiler binds operand
+one's complete authored immutable payload and the positioned write's
+operand-two `i64` offset. Scoped-real provider, scalar `-1`, post-error `9`, and
+`Descriptor/Unknown` are fixed; every other lane and handoff is empty.
+Compiler-owned write-grant lookup rejects before sponsor accounting or host
+mutation, and provider-free replay must reproduce the exact attempt and
+teardown before empty staged-output custody issues.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

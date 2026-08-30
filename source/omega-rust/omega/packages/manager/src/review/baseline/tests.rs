@@ -215,6 +215,43 @@ fn baseline_retains_unknown_descriptor_read_replay_custody() {
     assert!(!replay.has_output_attempts());
 }
 
+#[test]
+fn baseline_retains_unknown_descriptor_write_payload_replay_custody() {
+    let replay = unknown_descriptor_failure_baseline(
+        "unknown-write-at",
+        r#"let mut payload: [u8; 47];
+    payload[0] = 11;
+    payload[23] = 29;
+    payload[46] = 173;
+    let count: i64 = builder.filesystem.write_at(-1, &payload, -17);"#,
+    );
+    let [attempt] = replay.attempts() else {
+        panic!("write baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 7);
+    assert_eq!(
+        attempt
+            .scalar_operands()
+            .iter()
+            .map(|operand| operand.value())
+            .collect::<Vec<_>>(),
+        vec![psi_checked_interpreter::FilesystemScalarOperandValue::I64(
+            -17,
+        )]
+    );
+    let [payload] = attempt.byte_operands() else {
+        panic!("write baseline retains one immutable payload")
+    };
+    assert_eq!(payload.operand_ordinal(), 1);
+    assert_eq!(payload.bytes().len(), 47);
+    assert_eq!(payload.bytes()[0], 11);
+    assert_eq!(payload.bytes()[23], 29);
+    assert_eq!(payload.bytes()[46], 173);
+    assert!(attempt.mutable_byte_operand_resolutions().is_empty());
+    assert!(attempt.mutable_byte_operands().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
 fn assert_baseline_retains_unknown_descriptor_failure(
     label: &str,
     statement: &str,

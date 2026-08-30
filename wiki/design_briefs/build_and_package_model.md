@@ -1553,6 +1553,15 @@ handoff is present. Compiler-owned descriptor lookup rejects before a host
 read. Provider-free replay must reproduce the attempt, namespace, and teardown
 before empty staged-output custody issues.
 
+Summary v57 and replay-record v38 additionally admit one failed tag-5 `write`
+or tag-7 `write_at` on an unknown descriptor after the optional Source prefix.
+The row binds operand one's complete authored immutable payload and the
+positioned write's operand-two `i64` offset. It fixes scoped-real provider,
+scalar `-1`, post-error `9`, and operand-zero `Descriptor/Unknown`; every other
+lane and handoff is empty. Compiler-owned write-grant lookup rejects before
+sponsor accounting or host mutation. Provider-free replay must reproduce the
+attempt, namespace, and teardown before empty staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1600,8 +1609,9 @@ v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
 unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, v53/v34
 unknown-descriptor-seek, v54/v35 unknown-descriptor-write, and v55/v36
-unknown-descriptor-set-file-times, and v56/v37 unknown-descriptor-read grammars
-above may join them to verified operation replay and reproduced staged-output
+unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, and v57/v38
+unknown-descriptor-write-payload grammars above may join them to verified
+operation replay and reproduced staged-output
 equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1633,8 +1643,9 @@ v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
 unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, v53/v34
 unknown-descriptor-seek, v54/v35 unknown-descriptor-write, and v55/v36
-unknown-descriptor-set-file-times, and v56/v37 unknown-descriptor-read grammars
-above supply canonical operation replay and retained observed inputs.
+unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, and v57/v38
+unknown-descriptor-write-payload grammars above supply canonical operation
+replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

@@ -1,10 +1,10 @@
 use super::*;
 use crate::{
-    BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemLogicalHandleIdentity,
-    BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleInputResolution,
-    BuildFilesystemLogicalHandleKind, BuildFilesystemMutableByteOperand,
-    BuildFilesystemMutableByteOperandResolution, BuildFilesystemScalarOperand,
-    BuildObservationClass,
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemByteOperand,
+    BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
+    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
+    BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
+    BuildFilesystemScalarOperand, BuildObservationClass,
 };
 
 fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesystemOperationAttempt {
@@ -126,6 +126,26 @@ fn unknown_descriptor_read_summary(
             pre_bytes: buffer.clone(),
             post_bytes: buffer,
         }];
+    summary
+}
+
+fn unknown_descriptor_write_payload_summary(
+    operation_tag: u16,
+    payload: Vec<u8>,
+    offset: Option<i64>,
+) -> BuildObservationSummary {
+    let mut summary = summary(operation_tag);
+    summary.filesystem_operation_attempts[0].byte_operands = vec![BuildFilesystemByteOperand {
+        operand_ordinal: 1,
+        bytes: payload,
+    }];
+    if let Some(offset) = offset {
+        summary.filesystem_operation_attempts[0].scalar_operands =
+            vec![BuildFilesystemScalarOperand {
+                operand_ordinal: 2,
+                value: BuildFilesystemScalarOperandValue::I64(offset),
+            }];
+    }
     summary
 }
 
@@ -532,4 +552,97 @@ fn unknown_descriptor_read_failures_reject_scalar_and_carrier_drift() {
     );
     changed_post.filesystem_operation_attempts[0].mutable_byte_operands[0].post_bytes[31] = 1;
     assert!(capture_verified_build_filesystem_replay_record(&changed_post, limits).is_err());
+}
+
+#[test]
+fn unknown_descriptor_write_payload_failures_round_trip_exact_inputs() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let fixtures = [(5, None), (7, Some(-47))];
+    for (operation_tag, offset) in fixtures {
+        let payload = vec![0, 11, 29, 47, 83, 173, 255];
+        let summary =
+            unknown_descriptor_write_payload_summary(operation_tag, payload.clone(), offset);
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .expect("exact unknown-descriptor write payload encodes")
+            .expect("verified write payload retains replay custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("exact unknown-descriptor write payload recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("exact write payload rehydrates through its typed constructor");
+
+        let [attempt] = replay.attempts() else {
+            panic!("unknown-descriptor write payload replay retains one attempt")
+        };
+        assert_eq!(attempt.operation_tag(), operation_tag);
+        assert_eq!(
+            attempt.result(),
+            Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+                -1
+            ))
+        );
+        assert_eq!(attempt.post_error(), Some(9));
+        let [bytes] = attempt.byte_operands() else {
+            panic!("unknown-descriptor write retains one immutable payload")
+        };
+        assert_eq!(bytes.operand_ordinal(), 1);
+        assert_eq!(bytes.bytes(), payload);
+        assert_eq!(
+            attempt
+                .scalar_operands()
+                .iter()
+                .map(|operand| (operand.operand_ordinal(), operand.value()))
+                .collect::<Vec<_>>(),
+            offset
+                .map(|offset| vec![(
+                    2,
+                    psi_checked_interpreter::FilesystemScalarOperandValue::I64(offset),
+                )])
+                .unwrap_or_default()
+        );
+        assert!(!replay.has_output_attempts());
+    }
+}
+
+#[test]
+fn unknown_descriptor_write_payload_failures_reject_lane_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+
+    let mut wrong_payload_ordinal =
+        unknown_descriptor_write_payload_summary(5, vec![1, 2, 3], None);
+    wrong_payload_ordinal.filesystem_operation_attempts[0].byte_operands[0].operand_ordinal = 2;
+    assert!(
+        capture_verified_build_filesystem_replay_record(&wrong_payload_ordinal, limits).is_err()
+    );
+
+    let mut missing_payload = unknown_descriptor_write_payload_summary(5, Vec::new(), None);
+    missing_payload.filesystem_operation_attempts[0]
+        .byte_operands
+        .clear();
+    assert!(capture_verified_build_filesystem_replay_record(&missing_payload, limits).is_err());
+
+    let mut wrong_scalar_type =
+        unknown_descriptor_write_payload_summary(7, vec![1, 2, 3], Some(-47));
+    wrong_scalar_type.filesystem_operation_attempts[0].scalar_operands[0].value =
+        BuildFilesystemScalarOperandValue::U64(47);
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_scalar_type, limits).is_err());
+
+    let mut unexpected_scalar = unknown_descriptor_write_payload_summary(5, vec![1, 2, 3], None);
+    unexpected_scalar.filesystem_operation_attempts[0]
+        .scalar_operands
+        .push(BuildFilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: BuildFilesystemScalarOperandValue::I64(0),
+        });
+    assert!(capture_verified_build_filesystem_replay_record(&unexpected_scalar, limits).is_err());
+
+    let first = unknown_descriptor_write_payload_summary(5, vec![1, 2, 3], None);
+    let second = unknown_descriptor_write_payload_summary(5, vec![1, 2, 4], None);
+    let first = capture_verified_build_filesystem_replay_record(&first, limits)
+        .unwrap()
+        .unwrap();
+    let second = capture_verified_build_filesystem_replay_record(&second, limits)
+        .unwrap()
+        .unwrap();
+    assert_ne!(first.commitment(), second.commitment());
 }

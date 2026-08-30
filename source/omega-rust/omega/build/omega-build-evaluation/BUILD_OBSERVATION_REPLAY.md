@@ -361,3 +361,19 @@ requiring exact attempt, empty namespace, and teardown equality before issuing
 empty staged-output custody. Changed counts, offsets, carrier bytes or ordinals,
 over-capacity transfers, alternate handles or errors, repetitions, and mixed
 lifecycles remain non-receipted.
+
+## Unknown-descriptor writes (summary v57, replay record v38)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one immutable-payload write to an unknown descriptor:
+tag-5 `write`, or tag-7 `write_at` with operand-two `i64` offset. The row fixes
+the scoped-real provider, scalar `-1`, post-error `9`, and operand-zero
+`Descriptor/Unknown`, and retains operand one's complete authored payload.
+Every other evidence lane and generated-source handoff is empty.
+
+The real evaluator rejects at compiler-owned descriptor write-grant lookup
+before sponsor accounting or host mutation. Provider-free replay restores the
+exact payload and executes the selected write against a fresh virtual table,
+requiring exact attempt, empty namespace, and teardown equality before issuing
+empty staged-output custody. Changed payloads, offsets or ordinals, alternate
+handles or errors, repetitions, and mixed lifecycles remain non-receipted.

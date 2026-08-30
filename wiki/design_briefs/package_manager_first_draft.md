@@ -1707,6 +1707,16 @@ region, other lane, or handoff is present. Compiler-owned descriptor lookup
 rejects before a host read. Provider-free replay must reproduce the attempt,
 namespace, and teardown before empty staged-output custody issues.
 
+Observation summary v57 and replay-record v38 additionally admit one failed
+tag-5 `write` or tag-7 `write_at` on an unknown descriptor after the optional
+Source prefix. The row binds operand one's complete authored immutable payload
+and the positioned write's operand-two `i64` offset. It fixes scoped-real
+provider, scalar `-1`, post-error `9`, and operand-zero
+`Descriptor/Unknown`; every other lane and handoff is empty. Compiler-owned
+write-grant lookup rejects before sponsor accounting or host mutation.
+Provider-free replay must reproduce the attempt, namespace, and teardown before
+empty staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

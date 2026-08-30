@@ -105,6 +105,25 @@ pub(super) fn unknown_descriptor_read_failure_shape_is_exact(shape: &AttemptShap
         && unknown_descriptor_failure_core_is_exact(shape)
 }
 
+pub(super) fn unknown_descriptor_write_payload_operation(operation: u16) -> bool {
+    matches!(operation, 5 | 7)
+}
+
+pub(super) fn unknown_descriptor_write_payload_failure_shape_is_exact(
+    shape: &AttemptShape<'_>,
+) -> bool {
+    let scalars_are_exact = match (shape.operation, shape.scalars.as_slice()) {
+        (5, []) | (7, [(2, ShapeScalar::I64(_))]) => true,
+        _ => false,
+    };
+    let [(payload_ordinal, _payload)] = shape.byte_operands.as_slice() else {
+        return false;
+    };
+    scalars_are_exact
+        && *payload_ordinal == 1
+        && unknown_descriptor_failure_core_except_bytes_is_exact(shape)
+}
+
 fn unknown_descriptor_failure_base_is_exact(shape: &AttemptShape<'_>) -> bool {
     shape.mutable_byte_resolutions.is_empty()
         && shape.mutable_bytes.is_empty()
@@ -112,6 +131,10 @@ fn unknown_descriptor_failure_base_is_exact(shape: &AttemptShape<'_>) -> bool {
 }
 
 fn unknown_descriptor_failure_core_is_exact(shape: &AttemptShape<'_>) -> bool {
+    shape.byte_operands.is_empty() && unknown_descriptor_failure_core_except_bytes_is_exact(shape)
+}
+
+fn unknown_descriptor_failure_core_except_bytes_is_exact(shape: &AttemptShape<'_>) -> bool {
     shape.provider == REAL_SCOPED_PROVIDER_TAG
         && shape.result == ShapeResult::Scalar(BAD_DESCRIPTOR_RESULT)
         && shape.post_error == BAD_DESCRIPTOR_ERROR
@@ -121,7 +144,6 @@ fn unknown_descriptor_failure_core_is_exact(shape: &AttemptShape<'_>) -> bool {
                 kind: DESCRIPTOR_HANDLE_KIND_TAG,
                 resolution: ShapeLogicalInputResolution::Unknown,
             }]
-        && shape.byte_operands.is_empty()
         && shape.path_like_operands.is_empty()
         && shape.rooted_paths.is_empty()
         && shape.returned_paths.is_empty()
@@ -134,6 +156,18 @@ fn unknown_descriptor_failure_core_is_exact(shape: &AttemptShape<'_>) -> bool {
         && shape.output.is_none()
         && shape.retired.is_empty()
         && shape.refusal_count == 0
+}
+
+pub(super) fn validate_unknown_descriptor_write_payload_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_descriptor_write_payload_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-descriptor write payload failure is internally inconsistent",
+        ))
+    }
 }
 
 pub(super) fn validate_unknown_descriptor_write_operation_failure_shape(
