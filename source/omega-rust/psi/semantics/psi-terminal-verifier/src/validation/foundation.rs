@@ -556,7 +556,12 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             })
             .collect::<Vec<_>>();
         if !construction_elements.is_empty() {
-            let exact_prefix = construction_elements.len() == 2
+            let expected_root_length = match construction_elements.len() {
+                2 => 3,
+                3 => 4,
+                _ => 0,
+            };
+            let exact_prefix = expected_root_length != 0
                 && construction_elements.len() == trivial_affine_locals.len()
                 && construction_elements.iter().enumerate().all(
                     |(index, (ordinal, _, construction))| {
@@ -577,8 +582,9 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                             && types.get(&first.root_structural_type).is_some_and(|root| {
                                 matches!(
                                     root.shape,
-                                    StructuralTypeShape::FixedArray { element, length: 3 }
+                                    StructuralTypeShape::FixedArray { element, length }
                                         if element == *element_type
+                                            && length == expected_root_length
                                 )
                             })
                     });

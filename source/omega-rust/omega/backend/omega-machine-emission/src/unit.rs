@@ -283,8 +283,12 @@ fn exact_construction_prefix(
     if construction_locals.is_empty() {
         return true;
     }
-    construction_locals.len() == 2
-        && construction_locals.len() == locals.len()
+    let expected_root_length = match construction_locals.len() {
+        2 => 3,
+        3 => 4,
+        _ => return false,
+    };
+    construction_locals.len() == locals.len()
         && construction_locals.iter().enumerate().all(
             |(index, (ordinal, structural_type, construction, declared_type))| {
                 usize::try_from(*ordinal) == Ok(index)
@@ -305,8 +309,9 @@ fn exact_construction_prefix(
                         root.id == first.root_structural_type
                             && matches!(
                                 root.shape,
-                                psi_terminal::StructuralTypeShape::FixedArray { element, length: 3 }
+                                psi_terminal::StructuralTypeShape::FixedArray { element, length }
                                     if element == *element_type
+                                        && length == expected_root_length
                             )
                     })
             })

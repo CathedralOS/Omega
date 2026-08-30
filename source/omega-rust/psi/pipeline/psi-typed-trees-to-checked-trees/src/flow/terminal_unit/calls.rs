@@ -110,8 +110,13 @@ pub(super) fn build_affine_array_construction_prefix(
     Vec<(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)>,
     usize,
 )> {
-    let [StatementNode::LocalData(local), first, second] = statements else {
+    let [StatementNode::LocalData(local), assignments @ ..] = statements else {
         return None;
+    };
+    let root_length = match assignments.len() {
+        2 => 3,
+        3 => 4,
+        _ => return None,
     };
     if !local.is_mutable
         || local.initial_value.is_valid()
@@ -123,13 +128,16 @@ pub(super) fn build_affine_array_construction_prefix(
     }
     let TypeReferenceNode::FixedArray {
         element_type,
-        length: psi_typed_trees::types::FixedArrayLength::Literal(3),
+        length: psi_typed_trees::types::FixedArrayLength::Literal(actual_length),
     } = program
         .type_reference_table
         .type_reference(local.type_reference)
     else {
         return None;
     };
+    if *actual_length != root_length {
+        return None;
+    }
     if crate::checks::type_multiplicity(program, *element_type) != Multiplicity::Affine
         || type_graph_requires_nominal_drop(program, *element_type)
     {
@@ -149,8 +157,9 @@ pub(super) fn build_affine_array_construction_prefix(
         &root_shape.shape,
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity: element,
-            length: 3,
+            length,
         } if element == &element_type_identity
+            && usize::try_from(*length) == Ok(root_length)
     ) || !matches!(
         shapes.types.get(&element_type_identity).map(|shape| &shape.shape),
         Some(CheckedUnitStructuralTypeShape::Record { fields }) if fields.is_empty()
@@ -158,9 +167,8 @@ pub(super) fn build_affine_array_construction_prefix(
         return None;
     }
 
-    let assignments = [first, second];
-    let mut rows = Vec::with_capacity(2);
-    for (expected_index, statement) in assignments.into_iter().enumerate() {
+    let mut rows = Vec::with_capacity(assignments.len());
+    for (expected_index, statement) in assignments.iter().enumerate() {
         let StatementNode::Assignment(assignment) = statement else {
             return None;
         };

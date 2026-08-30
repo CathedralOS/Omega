@@ -343,6 +343,14 @@ Dynamic-index owned extraction remains subject to the general requirement that
 the checker can name one unique place. No cleanup-specific runtime bitmap is
 introduced to compensate for an unnameable frontier.
 
+The second bounded construction-prefix slice admits an uninitialized mutable
+`[T; 4]` only when `T` is the same empty, unqualified, claim-free affine record
+with no nominal cleanup accepted by the first slice. Establishments must be the
+literal prefix `[0, 1, 2]`; an ordinary Unit return records three distinct
+zero-ABI element occurrences and cleans them in reverse order `[2, 1, 0]`.
+Missing, reordered, duplicate, dynamic, wrong-root, or wider construction
+shapes remain unsupported, and trap or nuclear-abort edges still clean nothing.
+
 ## Contextual Droppability
 
 Multiplicity is a type property; automatic droppability is checked at the
