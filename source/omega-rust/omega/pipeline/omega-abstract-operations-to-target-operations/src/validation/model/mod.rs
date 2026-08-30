@@ -10,6 +10,7 @@ pub use error::{
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerBitwiseOrParametersTranslationError,
+    StraightLineIntegerBitwiseXorParametersTranslationError,
     StraightLineIntegerEqualParametersTranslationError,
     StraightLineIntegerExactCastParameterTranslationError,
     StraightLineIntegerImmediateTranslationError,
@@ -28,6 +29,7 @@ pub use receipt::{
     StraightLineIntegerBitwiseAndParametersTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,
     StraightLineIntegerBitwiseOrParametersTranslationReceipt,
+    StraightLineIntegerBitwiseXorParametersTranslationReceipt,
     StraightLineIntegerEqualParametersTranslationReceipt,
     StraightLineIntegerExactCastParameterTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
@@ -55,4 +57,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerExactCastParameter,
     StraightLineIntegerBitwiseAndParameters,
     StraightLineIntegerBitwiseOrParameters,
+    StraightLineIntegerBitwiseXorParameters,
 }
