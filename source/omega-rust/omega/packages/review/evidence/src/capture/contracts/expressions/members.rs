@@ -163,6 +163,27 @@ pub(crate) fn project_contract_member_expression(
     })
 }
 
+pub(crate) fn project_computed_contract_member_expression(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+    receiver: PackageReviewContractExpression,
+) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    let selected = exact_checked_contract_nominal_member(compilation, context, expression)?;
+    if member.member_symbol.is_valid() && member.member_symbol != selected {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` computed member disagrees with its exact checked declaration selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    let selected_parent = compilation.symbols.get(selected).parent;
+    let case_variant = (compilation.symbols.get(selected_parent).kind
+        == psi_symbols::SymbolKind::Variant)
+        .then_some(selected_parent);
+    project_contract_member_expression(compilation, context, receiver, selected, case_variant)
+}
+
 pub(crate) fn contract_member_path_source(
     compilation: &CheckedCompilation,
     expression: psi_typed_trees::expression::ExpressionHandle,

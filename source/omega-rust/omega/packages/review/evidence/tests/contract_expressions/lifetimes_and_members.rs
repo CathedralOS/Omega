@@ -376,3 +376,182 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert_eq!(member.path(), "Outcome::Right::value");
     assert_eq!(case_variant.path(), "Outcome::Right");
 }
+
+#[test]
+fn review_projects_computed_nominal_member_receivers_in_checked_contracts() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let compile = |selected: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub data Pair [copy] {{
+    left: i32;
+    right: i32;
+}}
+pub machine accepts_computed_member(value: i32)
+requires (Pair {{ left: value, right: value }}).{selected} == value
+{{}}
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("computed nominal-member machine contract should check")
+    };
+
+    let left_checked = compile("left");
+    let left_review = project_checked_package_review(&left_checked)
+        .expect("computed nominal-member machine contract should project");
+    let right_review = project_checked_package_review(&compile("right"))
+        .expect("changed computed nominal-member machine contract should project");
+    let callable = left_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "accepts_computed_member")
+        .expect("computed-member callable");
+    let [contract] = callable.contracts() else {
+        panic!("one computed-member contract")
+    };
+    assert_eq!(contract.kind(), PackageReviewContractKind::Requires);
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = contract.fact()
+    else {
+        panic!("computed-member equality contract")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver, member, ..
+    } = left.as_ref()
+    else {
+        panic!("computed member contract expression")
+    };
+    assert!(matches!(
+        receiver.as_ref(),
+        PackageReviewContractExpression::Constructor { .. }
+    ));
+    assert_eq!(member.path(), "Pair::left");
+    assert_ne!(
+        left_review.canonical_review_bytes().unwrap(),
+        right_review.canonical_review_bytes().unwrap(),
+        "changing the exact member selected by a checked contract must change review identity",
+    );
+
+    let case_package = TempPackage::new();
+    case_package.write(
+        "main.omg",
+        r#"pub data Outcome [copy] {
+    case Left(value: i32);
+    case Right(value: i32);
+}
+pub machine accepts_case_member(value: i32)
+requires (Outcome::Right { value: value }).value == value
+{}
+"#,
+    );
+    case_package.write("build.omg", build);
+    let case_checked = compile_to_checked_with_packages(
+        &case_package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&case_package.0),
+    )
+    .expect("computed case-member machine contract should check");
+    let case_review = project_checked_package_review(&case_checked)
+        .expect("computed case-member machine contract should project");
+    let callable = case_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "accepts_case_member")
+        .expect("computed case-member callable");
+    let [contract] = callable.contracts() else {
+        panic!("one computed case-member contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = contract.fact()
+    else {
+        panic!("computed case-member equality contract")
+    };
+    let PackageReviewContractExpression::Member {
+        member,
+        case_variant: Some(case_variant),
+        ..
+    } = left.as_ref()
+    else {
+        panic!("computed case-member contract expression")
+    };
+    assert_eq!(member.path(), "Outcome::Right::value");
+    assert_eq!(case_variant.path(), "Outcome::Right");
+
+    let custody_package = TempPackage::new();
+    custody_package.write(
+        "main.omg",
+        r#"pub data Pair [copy] {
+    left: i32;
+    right: i32;
+}
+pub machine compares_computed_members(value: i32)
+requires (Pair { left: value, right: value }).left ==
+         (Pair { left: value, right: value }).right
+{}
+"#,
+    );
+    custody_package.write("build.omg", build);
+    let mut custody_checked = compile_to_checked_with_packages(
+        &custody_package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&custody_package.0),
+    )
+    .expect("computed-member custody fixture should check");
+    let members = custody_checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(expression, node)| {
+            let psi_typed_trees::expression::ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            matches!(member.member.as_str(), "left" | "right").then_some((
+                member.member.as_str().to_owned(),
+                expression,
+                custody_checked
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                    .collect::<Vec<_>>(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let left = members
+        .iter()
+        .find(|(name, _, _)| name == "left")
+        .expect("computed left member");
+    let right = members
+        .iter()
+        .find(|(name, _, _)| name == "right")
+        .expect("computed right member");
+    let [right_occurrence] = right.2.as_slice() else {
+        panic!("computed right member must retain one exact selection")
+    };
+    custody_checked
+        .typed
+        .expression_table
+        .attach_authored_selection_occurrences(left.1, [*right_occurrence]);
+    let diagnostics = project_checked_package_review(&custody_checked)
+        .expect_err("computed-member selection custody drift must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("nominal member has 2 exact checked member-selection rows")
+    }));
+}

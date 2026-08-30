@@ -77,8 +77,9 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining projection work includes:
 
-  - advanced call-bearing domain predicates, remaining computed/aggregate
-    contract expressions beyond exact nominal-member projection, and
+  - advanced call-bearing domain predicates, computed member receivers outside
+    the closed structural expression vocabulary, aggregate contract
+    expressions beyond exact nominal constructors, and
     structural witness arguments not retained by their owning typed or checked
     representation;
   - remaining semantic-role, operator, permission-frontier,
