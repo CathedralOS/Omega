@@ -69,23 +69,28 @@ One mixed root table preserves authored use/data order. Data syntax retains an
 optional `[copy]` property, bare named fields, payload-free cases, contextual
 `case: Type` fields, structured case payloads over the same bare named type
 leaf, one unqualified `Base in Domain` constraint, one inclusive unsuffixed
-decimal-literal range `Base [minimum..=maximum]`, optional final member/case
+decimal-literal range `Base [minimum..=maximum]`, recursively nested fixed
+arrays `[Type; length]` over bare named leaves with the same unsuffixed decimal
+length spelling and an optional outer domain, optional final member/case
 semicolons, mixed field/case order, and relative spans in separate live-prefix
 tables. A case reaches its contiguous payload-field span in a separate arena;
 direct and payload fields share one binding control path. Type references are
 postorder tagged nodes: a constrained root points to its named base and to one
 source-shaped constraint. Domain constraints point into the general path arena;
-literal ranges retain exact bound spans without interpreting their values.
+literal ranges and array lengths retain exact spans without interpreting their
+values. Array syntax uses a bounded invocation-local frame stack and emits
+named/array nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data or field/case child spans instead
 of duplicating coordinates. Qualified, indexed, intersected, combined,
-exclusive, expression-bound, or multiple constraints; recursive and generic
-types; governed built-ins such as `Slice`; numbered identities; field
-relevance; other public roots; and every other unimplemented valid form stop
-as implementation-incomplete rather than becoming false Omega rejections.
+exclusive, expression-bound, or multiple constraints; slices, references,
+generic types, rich array elements or lengths; governed built-ins such as
+`Slice`; numbered identities; field relevance; other public roots; and every
+other unimplemented valid form stop as implementation-incomplete rather than
+becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data rows and 16,384
 path-member/data-member/direct-field/payload-field/case/type-node/constraint
-rows. Only rows below their
+rows, plus 128 scratch array frames. Only rows below their
 corresponding count may be inspected after `Complete`; every other status may
 leave unowned partial prefixes and authorizes no syntax-tree consumer. A
 repeated invocation invalidates old rows by resetting every count. Root
@@ -95,9 +100,9 @@ table, making `TypeNodes` independently exhaustible; its equal ceiling
 dominates payload-field and constraint capacity in the current slice. Import
 and domain paths share the independently exhaustible path-member arena. The
 meaningful resource distinctions are therefore `Roots`, `PathMembers`,
-`DataMembers`, and `TypeNodes`. These are private compiler budgets to profile
-against the real compiler closure, not Omega source limits; exhaustion is
-retained for the future outer `Incomplete` mapping.
+`DataMembers`, `TypeNodes`, and `TypeDepth`. These are private compiler budgets
+to profile against the real compiler closure, not Omega source limits;
+exhaustion is retained for the future outer `Incomplete` mapping.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
 preflight fact is retained. Q7 still owns binding each relative tree to a
