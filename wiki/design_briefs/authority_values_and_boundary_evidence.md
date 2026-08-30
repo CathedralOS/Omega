@@ -870,18 +870,32 @@ the compiler derives the closed value-shape graph and physical move/finalization
 plan from the concrete carrier; source never authors byte size, alignment, ABI
 class, or a numeric representation identifier.
 
-Representation supply and accepted facts remain separate evidence lanes. A
-runtime by-value opaque demand produces an exact representation-TCB row binding
-the opaque declaration, authorized representation source, target-semantics
-identity, closed shape or sealed ABI leaf, physical move/finalization plan, and
-evidence origin. `Unbound` is a valid complete state only when no runtime
-by-value crossing demands the value. A foreign carrier recommends code/ABI
-audit and may require admission; a compiler-derived target carrier remains
-checked evidence. Opacity alone does not admit a proposition or authority.
-Accepted guarantees, qualification establishment, dangerous mechanisms,
-executable supply, and compatibility changes retain their own independent
-admission policy. An absent service-reach row never suppresses representation
-evidence.
+Representation supply, consumer demand, and accepted facts remain separate
+evidence lanes. Producer availability binds the exact opaque declaration and
+public conformance/carrier surface without accepting a later consumer's
+selection. An actual runtime by-value use produces a consumer-owned demand row
+binding the boundary requirement application, opaque declaration, authorized
+representation source, carrier, target-semantics identity, closed shape or
+sealed ABI leaf, physical move/finalization plan, evidence origin, and strong
+conformance and boundary-plan commitments. Foreign demand rejoins the
+producer's canonical rows and selected immutable source instance.
+
+One compilation activation selects at most one application per opaque
+declaration. The selection excludes a second one even when unused, while only
+an actual by-value use emits demand evidence. Dependency build selections are
+not imported into a consumer compilation; package-as-root demands remain
+historical review facts. Every producer and consumer of one runtime value uses
+the active application, and future independent artifacts compare its strong
+commitment only where they actually compose by value. The selecting build
+occurrence is audit provenance, not ABI identity.
+
+`Unbound` is a valid complete state only when no active runtime by-value
+crossing demands the value. A foreign carrier recommends code/ABI audit and may
+require admission; a compiler-derived target carrier remains checked evidence.
+Opacity alone does not admit a proposition or authority. Accepted guarantees,
+qualification establishment, dangerous mechanisms, executable supply, and
+compatibility changes retain their own independent admission policy. An absent
+service-reach row never suppresses representation evidence.
 
 ## Identity and reporting
 

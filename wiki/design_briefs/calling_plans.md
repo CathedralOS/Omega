@@ -262,7 +262,11 @@ no by-value representation, and a proof-erased denotation contributes no
 runtime shape. Compiler-owned target families such as `Ptr<T>` close from
 `TargetSemantics`; provider-owned carriers close through the exact named
 representation conformance selected by build composition. Every producer and
-consumer of the opaque value must resolve the same application.
+consumer of the opaque value must resolve the same application. This is one
+selection per opaque declaration in the active compilation, not a unification
+of selections made when dependency packages were independently reviewed as
+roots. Future independently compiled artifacts compare the strong application
+commitment at each actual by-value composition edge.
 
 The exact opaque declaration, representation source, target-semantics version,
 closed shape, movement/finalization plan, and evidence origin enter the

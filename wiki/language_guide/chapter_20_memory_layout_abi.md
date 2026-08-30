@@ -236,8 +236,11 @@ carrier fields or invent the ABI.
 This demand is lazy: reference-only opaque pointees and proof-erased values need
 no by-value representation. The exact application is part of the boundary
 signature and `CallPlan` identity, and every producer and consumer must agree on
-it. Representation does not mint a valid value, establish a domain fact, or
-change the opaque declaration's multiplicity or discharge rules.
+it. Agreement is scoped to the active compilation and to each actual future
+independently compiled by-value composition edge; it does not unify historical
+selections from unrelated package-as-root reviews. Representation does not mint
+a valid value, establish a domain fact, or change the opaque declaration's
+multiplicity or discharge rules.
 
 The plan's `EntryStack` member selects the execution-stack disposition. It is
 not a scalar claim that hardware arrival, adapter execution, and the machine

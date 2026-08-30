@@ -266,6 +266,13 @@ target-closed shape, movement, and physical finalization match exactly. A stable
 indirect handle keeps that descriptor fixed while allowing provider-owned
 backing to vary; outstanding non-copy handles pin the era that interprets them.
 
+That row is consumer demand, not retroactive producer acceptance. Producer
+review separately publishes availability of the opaque declaration and public
+conformance/carrier surface. Source compilation uses its one active build
+selection; independently compiled producer and consumer artifacts compare the
+strong application and boundary-plan commitments when their actual by-value
+edge is composed.
+
 A provider cannot migrate or reinterpret a live inline carrier under a changed
 descriptor merely by proving a state-migration theorem: callers have already
 compiled the old ABI. A descriptor change therefore expands the replacement

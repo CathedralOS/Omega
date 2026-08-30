@@ -130,18 +130,41 @@ its named protocol. Its selected carrier may define byte movement and storage
 finalization performed inside that valid consumption, but cannot make the value
 copyable, droppable, or otherwise create another terminal path.
 
-Package evidence therefore always reports it as an exact representation-TCB
-row. The row is keyed by the package-qualified declaration, target,
-representation/ABI commitment, selected mechanism or explicit unbound status,
-and source/toolchain/compiler evidence. Package-controlled names never classify
-its risk.
+Package evidence reports availability and demand separately. Producer-owned
+availability binds the package-qualified opaque declaration and its ordinary
+public conformance/carrier surface. It says that the candidate exists; it does
+not claim that the producer accepted any consumer's build selection.
 
-For a demanded by-value application, that exact row additionally retains the
-named conformance or compiler-owned target-semantics source, closed shape graph,
-physical movement/finalization plan, representation version, and evidence
-origin. `Unbound` remains a complete report state for a declaration with no
-runtime by-value demand; it is an error only when closure requires a shape.
+A selecting consumer owns the demand row for each actual runtime by-value use.
+That row binds the exact boundary requirement application, opaque declaration,
+named conformance or compiler-owned target-semantics source, concrete carrier,
+target, closed shape graph, physical movement/finalization plan,
+representation version and evidence origin, closed-conformance commitment, and
+complete boundary-calling-plan commitment. A foreign row rejoins the
+producer's exact reviewed declarations and selected immutable source instance.
 Checked carrier derivation is recheckable evidence rather than an admission.
+
+Selection is compilation-activation policy. At most one application may be
+selected for an opaque declaration in one activation, even when the selection
+is never used. An unused selection emits no demand row because it creates no
+ABI dependency; its authored occurrence remains in build-source custody and it
+still excludes a second selection. `Unbound` remains a complete producer
+report state where no runtime by-value use demands a shape, and becomes an
+error only when an active use requires closure.
+
+Dependency build selections are not inherited by a consumer. Dependency
+compilation supplies its compiler-issued generated-source bundle, while the
+consumer's one authoritative build selects the representation for the active
+combined compilation. Earlier package-as-root demand rows remain historical
+review evidence and are not unified across a source closure.
+
+The selecting build machine and source occurrence are audit provenance rather
+than ABI identity. Agreement uses the exact application and calling-plan
+commitments; names, compact report fingerprints, source locations, lockfile
+strings, and prose do not establish it. Every producer and consumer of one
+runtime value uses the active compilation's same application. Future
+independently compiled artifacts must compare the same strong commitments at
+each actual by-value composition edge; disjoint artifacts need not agree.
 
 The same exact descriptor is a replacement-facing contract row. An inline
 provider may replace independently only when the descriptor matches exactly. A

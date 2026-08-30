@@ -779,6 +779,61 @@ its closed `OCOUT` frame; the profile-owned reason and resource tables, fixed
 phase order, canonical coordinate ordering, unknown-code rejection, and
 Complete-only publication are common to both compiler implementations.
 
+## D26 — Consumer-owned opaque-representation demand completes build welding
+
+Opaque by-value representation uses the existing `build.omg` trust weld; D26
+adds no representation authority or second selection mechanism. Core's
+`InterruptMaskGuard` and `InterruptAcknowledgement` are the live customer:
+their semantic multiplicity and discharge belong to core, while one selected
+provider owns their target-dependent runtime carrier. A producer-fixed source
+ABI would contradict that contract and is not an alternate realization of it.
+
+One compilation activation admits at most one selected
+`OpaqueRepresentation<Opaque>` application for each opaque declaration. The
+selection remains active policy and excludes a second selection even when no
+by-value use ultimately demands a shape. Current orchestration admits one
+authoritative build machine, so the existing per-machine harvest realizes this
+rule; the completed build-configuration join must also validate the
+activation-wide invariant and fail closed if a later orchestration ever admits
+multiple build machines.
+
+Dependency compilation publishes a compiler-issued generated-source bundle.
+The consumer neither reruns that dependency's build machine nor imports its
+selection as policy. A representation selected when package A was reviewed as
+its own root is therefore historical evidence about A's compilation, not a
+constraint on a later consumer C. C selects one application for C's complete
+active compilation. Unrelated historical demand rows are never unified merely
+because their packages occur in one source closure.
+
+Canonical review keeps two roles distinct. Producer-owned availability binds
+the exact opaque declaration and ordinary public conformance/carrier surface;
+publication says only that the candidate exists. Consumer-owned demand is
+emitted only for an actual runtime by-value use and binds the exact boundary
+requirement application, opaque declaration, named conformance or
+compiler-owned target-semantics source, concrete carrier, selected target,
+closed shape and movement/finalization plan, representation version and
+origin, closed-conformance commitment, and complete boundary-calling-plan
+commitment. A foreign demand must rejoin the producer's exact canonical rows
+and selected immutable source instance. Names, compact report fingerprints,
+lockfile strings, and review prose are never agreement.
+
+The selecting build-machine identity, source occurrence, and authored spelling
+are retained as audit provenance and source custody, not ABI identity. Moving
+or renaming an unchanged selection cannot make equal applications
+incompatible. An unused selection consequently produces no demand/ABI row,
+although it remains visible through build-source custody and still consumes
+the activation's unique-selection slot. Adding the first by-value use may add a
+demand row without any `build.omg` change; that diff means a use appeared.
+
+Core's existing equality rule remains normative: every producer and consumer
+of one opaque runtime value retains the same application. A fused compilation
+uses its one active selection on both sides of every crossing. When future
+independently compiled `PackageInstance`s exchange the value, composition must
+compare the strong application commitments at that actual by-value edge before
+placement or execution. Disjoint artifacts need not share a representation,
+and source review must not claim that an artifact composition has already
+occurred.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

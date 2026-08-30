@@ -144,64 +144,7 @@ consumed candidate unchanged for retry.
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
 
-## Q3 — Attribute selected opaque representations across package reviews
-
-### Context
-
-Package review compiles dependencies first and compiles each package under that
-package's own authoritative `build.omg`. A later consumer may select a concrete
-`OpaqueRepresentation<Opaque>` conformance for dependency-owned opaque data.
-The dependency's earlier review may therefore be unbound or may select a
-different application for its own uses. The compiler now retains the exact
-selected conformance and closes each actual by-value boundary use into a
-target-, shape-, and calling-plan-bound application identity.
-
-### Problem statement
-
-Choose who owns canonical review evidence for that selection and what
-"producer/consumer agreement" means before independently compiled artifacts
-exist. Requiring the producer's source review to accept the consumer's choice
-would invent producer authority that was never exercised. Requiring every
-library build to preselect one representation would remove the target and
-integration flexibility the build-owned selection was introduced to provide.
-Conversely, recording only the consumer's compact application fingerprint
-would not let closure review rejoin the selected conformance and carrier to the
-producer's exact reviewed declarations.
-
-### Proposed direction
-
-Make the selecting consumer build own each demanded representation row. Retain
-the exact selecting build machine, boundary requirement application, opaque
-declaration, named conformance, concrete carrier, selected target, and strong
-target-closed application commitment. Emit no demand row for an unused
-selection.
-
-Keep producer review factual: it publishes the opaque declaration and the
-ordinary public conformance/carrier surface, but does not claim to accept a
-consumer selection. Closure validation requires every foreign consumer demand
-to rejoin those exact producer rows and the same locally checked source. The
-single consumer compilation already uses one application on both sides of the
-boundary. Independently compiled artifacts, replacement, and stable-handle eras
-must later require equality of the same strong application commitment at their
-actual composition boundary; source review must not pretend that composition
-already occurred.
-
-### Alternates
-
-- Acceptable: let an opaque declaration publish one producer-fixed stable ABI,
-  provided this becomes an explicit language contract and consumers cannot
-  silently replace it through `build.omg`.
-- Acceptable: retain consumer demand and producer availability as two distinct
-  canonical row kinds rather than one role-tagged representation row, provided
-  closure validation and diff rendering preserve the same exact joins.
-- Tempting but wrong: treat publication of a conformance as producer acceptance
-  of every consumer use, require a dependency's independent build selection to
-  equal all future consumers, or copy a consumer decision into producer review.
-- Tempting but wrong: call matching names, compact fingerprints, audit prose,
-  or a lockfile string "agreement" without rejoining the exact declarations
-  and strong compiler-issued application.
-
-## Q4 — Establish generic boundary-realization coverage
+## Q3 — Establish generic boundary-realization coverage
 
 ### Context
 
@@ -246,7 +189,7 @@ explicitly admitted generic implementation contract.
   from one successful application, or call a compiler/toolchain/version string
   a certificate that universal checking occurred.
 
-## Q5 — Define exact boundary-realization application evidence
+## Q4 — Define exact boundary-realization application evidence
 
 ### Context
 
@@ -280,7 +223,7 @@ checks for that specialization. Retain the exact requirement coordinate,
 selected plan and realization, binder schema, tagged arguments, and rechecked
 specialization identity. Deduplicate and order only after those joins succeed.
 
-Keep this distinct from Q4: checking a finite demanded set does not establish
+Keep this distinct from Q3: checking a finite demanded set does not establish
 universal generic coverage. Initially supporting only ordinary type binders is
 acceptable if every other telescope category remains explicitly fail-closed.
 
@@ -293,7 +236,8 @@ acceptable if every other telescope category remains explicitly fail-closed.
 - Tempting but wrong: call a canonical list of use-site strings coverage,
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
-## Q6 — Settle primary Git selection and consistency custody
+
+## Q5 — Settle primary Git selection and consistency custody
 
 ### Context
 

@@ -1932,13 +1932,26 @@ boundary/capability identities. It must never be inferred from
 package-controlled strings such as `Filesystem` or `Network`.
 
 Claim-free opaque boundary data occupies a distinct representation-TCB lane.
-For every demanded runtime by-value occurrence, the compiler reports the exact
-package-qualified declaration, named representation conformance or compiler-
-owned target-semantics source, target/version, closed shape graph or sealed ABI
-leaf, physical movement/finalization, and evidence origin. Explicit `Unbound`
-is complete only when no runtime by-value crossing demands a shape. Initial
-introduction or material change strongly recommends code/ABI audit but does
-not, by opacity alone, create a blocking trust-claim conflict.
+Producer availability reports the exact package-qualified declaration and
+ordinary public conformance/carrier surface without claiming acceptance of a
+consumer selection. For every demanded runtime by-value occurrence, the
+selecting consumer reports its exact boundary requirement application, named
+representation conformance or compiler-owned target-semantics source, carrier,
+target/version, closed shape graph or sealed ABI leaf, physical
+movement/finalization, evidence origin, and strong conformance and boundary-
+plan commitments. Foreign demand rejoins the producer's exact rows and selected
+immutable source instance. Explicit `Unbound` is complete only when no active
+runtime by-value crossing demands a shape. Initial introduction or material
+change strongly recommends code/ABI audit but does not, by opacity alone,
+create a blocking trust-claim conflict.
+
+One compilation activation permits at most one selection per opaque
+declaration, including unused selections. Only use creates demand evidence.
+Selections made during an earlier package-as-root review are not inherited as
+consumer policy, because dependency build machines are not rerun and their
+generated-source bundles carry no active selection. Equality is required
+within the active compilation and at each future independently compiled
+by-value composition edge, not among unrelated historical review rows.
 Unchanged rows remain visible without requiring repeated blanket approval.
 Deployment policy may elevate an exact compiler-owned mechanism to blocking
 when that mechanism is intrinsically dangerous.

@@ -99,6 +99,14 @@ exact target-closed `OpaqueRepresentation<Declaration>` application before
 calling-policy evaluation. Reference-only opaque pointees demand no by-value
 shape; proof-only denotations such as `Real` have no runtime representation.
 
+The active consumer build owns that demand. Producer review reports only the
+opaque declaration and available public conformance/carrier surface; it does
+not accept a later consumer choice. One compilation activation selects at most
+one application per opaque declaration, while unused selection creates no
+demand row. Dependency review selections are historical rather than inherited
+policy. Strong application equality is checked inside the active compilation
+and later at each real independently compiled by-value composition edge.
+
 The selected carrier supplies only closed shape, movement, and physical
 finalization. It does not mint occurrences, establish domains, grant rights,
 make a linear declaration copyable, or add a semantic terminal path. Those

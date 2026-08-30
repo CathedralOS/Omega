@@ -103,15 +103,33 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-- [ ] **REPRESENTATION-TCB-EVIDENCE.** Replace `Unbound` representation rows
-  with exact selected or compiler-derived ABI and mechanism evidence whenever a
-  runtime by-value use demands representation closure. Retain the exact opaque
-  declaration, named representation conformance or compiler-owned target-
-  semantics application, closed shape graph, physical movement/finalization
-  plan, target/representation version, and evidence origin. Checked carrier
-  derivation is recheckable evidence; foreign representation supply remains a
-  disclosed admission. Claim-free opaque data stays review-visible without
-  fabricating a proposition, minting authority, or service reach claim.
+- [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
+  representation projection according to D26. Add separate producer-
+  availability and consumer-demand row kinds. Availability rejoins the opaque
+  declaration and ordinary public
+  conformance/carrier rows without accepting a consumer choice. Emit demand
+  only for an actual runtime by-value use, promoting the currently private
+  `BoundaryOpaqueRepresentationUse` structure instead of reconstructing it
+  from the aggregate calling-plan digest. Retain the exact boundary requirement
+  application, opaque declaration, named conformance or compiler-owned target-
+  semantics application, carrier, selected immutable producer source, closed
+  shape graph, physical movement/finalization plan, target/representation
+  version, evidence origin, closed-conformance commitment, and complete
+  boundary-plan commitment. Keep selecting-build occurrence/source custody as
+  provenance outside ABI comparison. Checked carrier derivation is recheckable
+  evidence; foreign representation supply remains a disclosed admission.
+  Claim-free opaque data stays review-visible without fabricating a
+  proposition, minting authority, or service reach claim.
+
+  Validate at most one selected application per opaque declaration at the
+  completed compilation-activation build-config join, even though current
+  orchestration evaluates only one authoritative build machine. Preserve an
+  unused selection as policy that excludes a second selection while emitting
+  no demand row. Add canaries proving that independently reviewed dependencies
+  may retain different historical selections while one later source consumer
+  selects its own application, and reserve the future `PackageInstance`
+  composition canary that rejects unequal commitments on an actual by-value
+  exchange.
 
 ## P3 — Recheckable evidence and accepted lock
 
@@ -230,9 +248,11 @@ explicitly.
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
   - carry the same application into general type layout and physical
     move/finalization planning, including cleanup and multiplicity checks;
-  - **OWNER-BLOCKED — selected opaque representation attribution:** publish
-    demanded/bound representation rows and enforce producer/consumer agreement
-    only after the owner settles the model in `OWNER_QUESTIONS.md`;
+  - **IMPLEMENTATION — D26 representation application attribution:** publish
+    distinct producer-availability and consumer-demand rows, validate the
+    activation-wide unique selection, rejoin foreign demand to exact producer
+    rows and immutable source, and preserve strong application equality at
+    actual independently compiled by-value composition edges;
   - bind the application into artifacts, replacement compatibility, stable-
     handle era rules, and independently replaceable provider contracts;
   - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,
