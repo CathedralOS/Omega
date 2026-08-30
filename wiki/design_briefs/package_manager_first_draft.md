@@ -1596,6 +1596,12 @@ make no claim about entries the build did not observe. Failed calls, incomplete
 chains, malformed tails, changed counts, and reordered calls remain
 non-receipted.
 
+The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
+Its current plain-byte `directory/*` operand embeds the physical Source root;
+exact retention is location-dependent, while ignoring it would weaken replay
+input equality. The root-aware compiler-owned Build path facet must first
+replace it with a Source-root-relative pattern coordinate.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

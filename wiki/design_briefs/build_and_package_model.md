@@ -1466,6 +1466,13 @@ authority, or exhaustive-listing claim is inferred. Failed calls, leaked
 descriptors, malformed tails, changed counts, and reordered chains remain
 non-receipted.
 
+The Windows `find_first`/`find_next`/`find_close` family remains outside this
+receipt. Its existing plain-byte `directory/*` input embeds a physical Source
+root, which is neither relocation-stable identity nor safe to ignore during
+prepared-input matching. Its receipted form is ordered after the compiler-owned
+root-aware Build path facet and must bind a Source root plus relative pattern
+coordinate.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
