@@ -10,7 +10,7 @@ from beta_interp import interpret
 
 def main():
     prog, exe = sys.argv[1], sys.argv[2]
-    with open(prog) as f:
+    with open(prog, 'rb') as f:
         procs = Parser(lex(f.read())).parse()
     for b in range(256):
         stdin = bytes([b])

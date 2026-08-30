@@ -1,4 +1,4 @@
-; beta_compiler.alpha — canonical Alpha-written compiler for Beta.
+; beta_compiler.alpha - canonical Alpha-written compiler for Beta.
 ;
 ; Normative source (BETA-FLATTENED-CFG-INITIALIZATION):
 ;   proc IDENT(PARAMS) BLOCK
@@ -113,6 +113,9 @@ source_done:
         store r0, r1
         imm   r0, 524576
         store r0, r1
+        call  validate_source_envelope
+        call  error_value
+        jnz   r0, invalid_source
         call  parse_program
         imm   r0, 524304
         load  r0, r0
@@ -3621,6 +3624,42 @@ ec_ok:
         ret
 
 ; ---------------- source cursor helpers ----------------
+; Validate the complete source byte stream before tokenization. On failure,
+; CUR is the exact first invalid byte offset recorded by the canonical Reject.
+validate_source_envelope:
+        imm   r6, 0
+vse_loop:
+        imm   r0, 524288
+        load  r7, r0
+        jlt   r6, r7, vse_byte
+        imm   r0, 524296
+        imm   r1, 0
+        store r0, r1
+        ret
+vse_byte:
+        imm   r0, 1048576
+        add   r0, r6
+        loadb r0, r0
+        imm   r1, 9
+        jeq   r0, r1, vse_next
+        imm   r1, 10
+        jeq   r0, r1, vse_next
+        imm   r1, 13
+        jeq   r0, r1, vse_next
+        imm   r1, 32
+        jlt   r0, r1, vse_invalid
+        imm   r1, 127
+        jlt   r0, r1, vse_next
+vse_invalid:
+        imm   r0, 524296
+        store r0, r6
+        call  set_error
+        ret
+vse_next:
+        imm   r0, 1
+        add   r6, r0
+        jmp   vse_loop
+
 skip_trivia:
         imm   r0, 524296
         load  r6, r0
@@ -3630,8 +3669,14 @@ st_loop:
         imm   r1, 0
         jlt   r0, r1, st_done
         mov   r7, r0
-        imm   r1, 33
-        jlt   r7, r1, st_advance
+        imm   r1, 32
+        jeq   r7, r1, st_advance
+        imm   r1, 9
+        jeq   r7, r1, st_advance
+        imm   r1, 10
+        jeq   r7, r1, st_advance
+        imm   r1, 13
+        jeq   r7, r1, st_advance
         imm   r1, 59
         jeq   r7, r1, st_comment
         jmp   st_done
@@ -3650,6 +3695,8 @@ st_comment_loop:
         imm   r1, 1
         add   r6, r1
         imm   r1, 10
+        jeq   r0, r1, st_loop
+        imm   r1, 13
         jeq   r0, r1, st_loop
         jmp   st_comment_loop
 st_done:

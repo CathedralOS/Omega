@@ -1,13 +1,13 @@
-; interp.beta — a bounded pre-contract Gamma semantic oracle, written in Beta.
+; interp.beta - a bounded pre-contract Gamma semantic oracle, written in Beta.
 ;
 ; The canonical next edge is a Beta-written Gamma compiler that emits Alpha tape.
 ; This interpreter exercises candidate evaluation rules; it is neither the Gamma
 ; compiler nor permission to keep an evaluator in the compiler chain. The selected
 ; Gamma contract decides which rules are absorbed and whether the remainder is deleted.
 ;
-; Stage 1: the pure functional, FUEL-bounded core — integer values, top-level
+; Stage 1: the pure functional, FUEL-bounded core - integer values, top-level
 ; recursive functions, `if`, `let`, arithmetic and comparisons. Stage 2: the
-; gamma-DEFINING features — algebraic data types (constructors) and pattern matching.
+; gamma-DEFINING features - algebraic data types (constructors) and pattern matching.
 ;
 ; Surface (prefix s-expressions; `;` comments; Uppercase head = constructor):
 ;   program := (def NAME (PARAM...) EXPR)*  EXPR        ; defs, then the goal expr
@@ -18,7 +18,7 @@
 ; The final EXPR is evaluated; the integer value is the process exit code.
 ;
 ; CONTROL FLOW is CFG/Omega-shaped: each proc is a set of `state` basic blocks linked
-; by guarded `to … when …` transitions — no if/while. A proc falls into its first
+; by guarded `to ... when ...` transitions - no if/while. A proc falls into its first
 ; state and into the next unless it transitions or returns; a loop is a state that
 ; transitions back to itself.
 ;
@@ -38,8 +38,8 @@
 ;             8 MATCH(scrut,arms) 9 PVAR(off) 10 PCON(con_off,varlist) 11 ARM(pat,body)
 ; pattern tags: 12 PNIL 14 PCONS
 ; value tags: 100 VINT(n)  101 VCON(con_off, value-arglist)
-;             102 VCONS(head, tail) — headerless tagged handle for `(Cons h t)`
-;             103 VTAIL(function_index, evaluated-value-list) — evaluator-private trampoline request
+;             102 VCONS(head, tail) - headerless tagged handle for `(Cons h t)`
+;             103 VTAIL(function_index, evaluated-value-list) - evaluator-private trampoline request
 ; A nullary constructor value reuses its immutable tag-7 AST node.
 
 proc slurp() {
@@ -59,11 +59,11 @@ proc slurp() {
     state done {
         word[2097136] = n        ; LEN
         word[2097144] = 0        ; CUR
-        word[2097128] = 16777216 ; APTR — checked fixed arena [16 MiB,32 MiB).
+        word[2097128] = 16777216 ; APTR - checked fixed arena [16 MiB,32 MiB).
         word[2097120] = 0        ; NFUNC
         word[2097112] = 0        ; ENVN
         word[2097104] = 0        ; FRAMEBASE
-        word[2097096] = 14680096 ; ARGSP — checked evaluator-private argument scratch
+        word[2097096] = 14680096 ; ARGSP - checked evaluator-private argument scratch
         word[2097088] = 0        ; ARG_EXHAUSTED
         word[2097080] = 0        ; ARENA_EXHAUSTED
         word[14684192] = 103     ; stable evaluator-private VTAIL sentinel
@@ -812,7 +812,7 @@ proc try_match(pat, val) {
     let ptag = word[pat]
     let vtag = 0
     state isvar { to pvar when (ptag == 9)  to iscon }
-    state pvar {                     ; PVAR — binds anything to the whole value
+    state pvar {                     ; PVAR - binds anything to the whole value
         env_push(word[pat + 8], val)
         return 1
     }

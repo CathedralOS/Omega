@@ -1,4 +1,4 @@
-; typeck.beta — a pre-contract Gamma static-semantics oracle, written in Beta.
+; typeck.beta - a pre-contract Gamma static-semantics oracle, written in Beta.
 ;
 ; This program exercises candidate monomorphic type rules. It is not a proof
 ; kernel, a selected executable Gamma contract, or a compiler stage. The selected
@@ -15,7 +15,7 @@
 ; Output: every function well-typed -> exit 1 ; a type error -> exit 0.
 ;
 ; CONTROL FLOW is CFG/Omega-shaped: each proc is a set of `state` basic blocks linked
-; by guarded `to … when …` transitions — no if/while.
+; by guarded `to ... when ...` transitions - no if/while.
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUN
 ;          2097112 TENVN 2097104 NTY 2097096 NCON 2097088 INVALID_TYPE

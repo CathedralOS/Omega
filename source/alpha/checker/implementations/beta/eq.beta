@@ -1,14 +1,14 @@
-; eq.beta — a definitional-equality checker, written in Beta.  (proof-kernel companion)
+; eq.beta - a definitional-equality checker, written in Beta.  (proof-kernel companion)
 ;
 ; check.beta validates *logical* proofs (natural deduction). This validates
 ; *computational* claims: "do these two terms denote the same value?", decided by
 ; reducing both to normal form with the definitional rules and comparing. It is
-; the other half of what a real proof kernel needs — the bridge from a proposition to
+; the other half of what a real proof kernel needs - the bridge from a proposition to
 ; "what a program actually computes" runs through definitional equality.
 ;
 ; Crucially the reducer is FUEL-BOUNDED: normalize(term, fuel) either returns a
 ; normal form or stops at OutOfFuel. That is exactly the totality discipline
-; gamma.md / proof_kernel.md require — a total checker cannot contain an unbounded
+; gamma.md / proof_kernel.md require - a total checker cannot contain an unbounded
 ; evaluator, so the slow reference route is bounded and explicit.
 ;
 ; Signature: z, (s t), (p a b) plus, (m a b) mul; nil, (cons h t), (app l1 l2)
@@ -16,7 +16,7 @@
 ; they share a normal form, else "differ\n" (exit 0).
 ;
 ; CONTROL FLOW is CFG/Omega-shaped: each proc is a set of `state` basic blocks linked
-; by guarded `to … when …` transitions — no if/while. A proc falls into its first
+; by guarded `to ... when ...` transitions - no if/while. A proc falls into its first
 ; state and falls through to the next unless it transitions or returns; a loop is a
 ; state that transitions back to itself.
 ;
@@ -116,7 +116,7 @@ proc parse_number() {
 }
 
 ; tags: Peano 0 z 1 s 2 p 3 m ; Lists 4 nil 5 cons 6 app 7 len ; user 34 IVAR 50 CON
-; 51 APPLY 52 FAPP 54 RECCALL.  (k cid args…) (f fid arg) (rec i) (v k) parse here too.
+; 51 APPLY 52 FAPP 54 RECCALL.  (k cid args...) (f fid arg) (rec i) (v k) parse here too.
 proc parse_term() {
     skip_ws()
     let a = 0
@@ -144,7 +144,7 @@ proc parse_term() {
     state do_l { a = parse_term()  skip_ws()  adv()  return alloc(7, a, 0) }
     state op_v { to do_v when (op == 'v')  to op_k }      ; (v k) pattern/indiv var
     state do_v { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(34, a, 0) }
-    state op_k { to do_k when (op == 'k')  to op_f }      ; (k cid args…) user constructor
+    state op_k { to do_k when (op == 'k')  to op_f }      ; (k cid args...) user constructor
     state do_k {
         skip_ws()
         a = parse_number()
@@ -169,7 +169,7 @@ proc parse_term() {
         return alloc(52, a, b)
     }
     state f_bin { b = alloc(53, b, parse_term())  skip_ws()  adv()  return alloc(52, a, b) }   ; FBUNDLE
-    state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) — k-th extra arg (binary fn body)
+    state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) - k-th extra arg (binary fn body)
     state do_y { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(56, a, 0) }
     state op_r { to do_r when (op == 'r')  to do_plus }   ; (rec i) recursive call
     state do_r { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(54, a, 0) }
@@ -182,7 +182,7 @@ proc parse_term() {
     }
 }
 
-; one rewrite step of (f fid arg) — mirrors check.beta. FRULE table at 5898240.
+; one rewrite step of (f fid arg) - mirrors check.beta. FRULE table at 5898240.
 proc reduce_fun(fid, arg, fuel) {
     let scrut = arg
     let extra = 0
@@ -233,7 +233,7 @@ proc instantiate(t, fid, flds, extra) {
     }
     state ret_a0 { return word[flds + 8] }
     state ret_a1 { return word[flds + 16] }
-    state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) — the extra argument
+    state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) - the extra argument
     state do_par { return extra }
     state rc { to do_rc when (word[t] == 54)  to fapp }
     state do_rc {
@@ -266,7 +266,7 @@ proc instantiate(t, fid, flds, extra) {
 ; reduce to normal form using the definitional rules; fuel-bounded (total).
 proc normalize(t, fuel) {
     state fuelchk { to oof when (fuel < 1)  to live }
-    state oof { return t }                       ; OutOfFuel — return as-is
+    state oof { return t }                       ; OutOfFuel - return as-is
     state live {
         let tag = word[t]
         let a = 0
@@ -348,23 +348,23 @@ proc normalize(t, fuel) {
         b = alloc(3, word[a + 8], word[t + 16])              ; m x y
         return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
     }
-    state t_user { to ret_t when (tag == 50)  to t_iv }   ; CON(cid) — normal
-    state t_iv { to ret_t when (tag == 34)  to t_rec }    ; IVAR — normal
-    state t_rec { to ret_t when (tag == 54)  to t_apply } ; RECCALL — normal
+    state t_user { to ret_t when (tag == 50)  to t_iv }   ; CON(cid) - normal
+    state t_iv { to ret_t when (tag == 34)  to t_rec }    ; IVAR - normal
+    state t_rec { to ret_t when (tag == 54)  to t_apply } ; RECCALL - normal
     state t_apply { to do_apply when (tag == 51)  to t_fapp }
-    state do_apply {                                      ; APPLY(f,a) — inert: reduce both
+    state do_apply {                                      ; APPLY(f,a) - inert: reduce both
         a = normalize(word[t + 8], fuel - 1)
         b = normalize(word[t + 16], fuel - 1)
         return alloc(51, a, b)
     }
-    state t_fapp { to do_fapp when (tag == 52)  to t_53 }    ; (f fid arg) — reduce or STUCK
+    state t_fapp { to do_fapp when (tag == 52)  to t_53 }    ; (f fid arg) - reduce or STUCK
     state do_fapp {
         a = reduce_fun(word[t + 8], word[t + 16], fuel - 1)
         to fapp_stuck when (a == 0)
         return normalize(a, fuel - 1)
     }
     state fapp_stuck { return alloc(52, word[t + 8], normalize(word[t + 16], fuel - 1)) }
-    state t_53 { to do_53 when (tag == 53)  return t }       ; FBUNDLE(scrut,extra) — normalize both
+    state t_53 { to do_53 when (tag == 53)  return t }       ; FBUNDLE(scrut,extra) - normalize both
     state do_53 {
         a = normalize(word[t + 8], fuel - 1)
         b = normalize(word[t + 16], fuel - 1)
@@ -378,9 +378,9 @@ proc term_eq(a, b) {
     state e1 { to ret1 when (word[a] == 0)  to e4 }       ; z
     state ret1 { return 1 }
     state e4 { to ret1 when (word[a] == 4)  to e_s }      ; nil
-    state e_s { to do_child when (word[a] == 1)  to e_len }   ; s — compare the child
+    state e_s { to do_child when (word[a] == 1)  to e_len }   ; s - compare the child
     state do_child { return term_eq(word[a + 8], word[b + 8]) }
-    state e_len { to do_child when (word[a] == 7)  to e_con }  ; len — unary
+    state e_len { to do_child when (word[a] == 7)  to e_con }  ; len - unary
     state e_con { to id_eq when (word[a] == 50)  to e_iv }     ; CON: same cid?
     state id_eq { to ret1 when (word[a + 8] == word[b + 8])  return 0 }
     state e_iv { to id_eq when (word[a] == 34)  to e_fapp }    ; IVAR: same index
@@ -396,7 +396,7 @@ proc term_eq(a, b) {
     state both_neq { return 0 }
 }
 
-proc at_fun() {                  ; peek for a (fun …) DECL — must be "(fu", not a (f …) app
+proc at_fun() {                  ; peek for a (fun ...) DECL - must be "(fu", not a (f ...) app
     let save = word[2097144]
     skip_ws()
     let r = 0
@@ -408,7 +408,7 @@ proc at_fun() {                  ; peek for a (fun …) DECL — must be "(fu", 
     }
     state p3 {
         adv()
-        to setr when (cbyte() == 'u')    ; "(fu…" = fun ; "(f …" / "(f0…" = application
+        to setr when (cbyte() == 'u')    ; "(fu..." = fun ; "(f ..." / "(f0..." = application
         to done
     }
     state setr { r = 1  to done }
@@ -433,7 +433,7 @@ proc parse_fun() {               ; (fun FID CID body) -> FRULE[fid][cid] = body
 
 proc main() {
     slurp()
-    state funloop { to funbody when (at_fun() == 1)  to terms }   ; (fun …) prefix, like check.beta
+    state funloop { to funbody when (at_fun() == 1)  to terms }   ; (fun ...) prefix, like check.beta
     state funbody { parse_fun()  to funloop }
     state terms {
         let t1 = parse_term()

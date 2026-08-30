@@ -78,6 +78,22 @@ class BetaParserTests(unittest.TestCase):
                 with self.assertRaises(SyntaxError):
                     self.parse(source)
 
+    def test_source_envelope_is_byte_exact_before_tokenization(self):
+        valid = b'; comment\rproc main() {\treturn \'A\'\r}\n'
+        self.assertEqual(self.parse(valid)[0][1], 'main')
+        invalid = [
+            (b'; hidden\x00\nproc main() { return 0 }', 8),
+            (b'proc\vmain() { return 0 }', 4),
+            (b'; hidden\x7f\nproc main() { return 0 }', 8),
+            (b'; hidden\xc3\xa9\nproc main() { return 0 }', 8),
+        ]
+        for source, offset in invalid:
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(
+                    SyntaxError, f'invalid source byte at offset {offset}'
+                ):
+                    self.parse(source)
+
     def test_recursive_states_preserve_dfs_tuple_shape_and_fallthrough(self):
         source = '''
             proc main() {

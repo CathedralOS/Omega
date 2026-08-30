@@ -185,7 +185,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 192 cases in about six seconds on the development host.
+  surface gate runs 197 cases in about six seconds on the development host.
   The largest current retained Beta output, the 237,270-byte checker tape,
   leaves 24,870 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
@@ -200,8 +200,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
     reserved intrinsic names, and disjoint callable procedure regions. The
-    focused suite now passes 192 cases, including signed division/remainder,
-    trap-prefix, sealed EOF/write, and left-to-right side-effect discriminators;
+    focused suite now passes 197 cases, including the closed source-byte
+    envelope, signed division/remainder, trap-prefix, sealed EOF/write, and
+    left-to-right side-effect discriminators;
     the canonical tape passes the generic structural checker.
   - [x] Replace emitted Alpha text plus an external assembler invocation with
     direct Alpha tape emission inside the compiler. The Alpha assembler may
@@ -233,7 +234,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     nested states. The Alpha compiler and independent reference now share the
     recursive block formation, depth-first flattening, exact transition-prefix
     facts, reachability, and fixed-point must-initialization judgment. The
-    focused compiler surface passes 192 cases, including subtree fallthrough,
+    focused compiler surface passes 197 cases, including subtree fallthrough,
     alternate-path establishment, unreachable-block handling, loop-carried
     joins, invalid block shapes, skipped initialization, and traversal-order
     controls; the reference differential and exhaustive-I/O gates agree over
@@ -285,11 +286,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     The Alpha compiler now records the first decisive typed outcome, emits the
     exact 40-byte `BCOUT` frame only after all fields are fixed, and leaves
     successful tape bytes unwrapped. `outcomes-v1.tsv` owns the closed tables;
-    the focused gate consumes them and passes 192 language, ceiling, framing,
+    the focused gate consumes them and passes 197 language, ceiling, framing,
     partial-output/trap, runtime-separation, and internal-producer cases. All
     six closed internal reasons are positively exercised through single-site
     temporary compiler mutations that lower otherwise dominated invariants;
-    production has no test hook. The rebuilt 26,751-byte compiler artifact
+    production has no test hook. The rebuilt 27,087-byte compiler artifact
     passes exact reconstruction and structural validation.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
@@ -345,8 +346,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
     spoof either constant, and the rebuilt 237,270-byte checker tape retains
-    24,870 bytes of Alpha payload headroom. The exact 103,274-byte compiler
-    source plus 26,751-byte tape carrier remains within the same bounded
+    24,870 bytes of Alpha payload headroom. The exact 104,459-byte compiler
+    source plus 27,087-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
     path and make subject structure available to ordinary bounded certificate
@@ -392,7 +393,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and a folded 3,240-leaf carrier in 0.465 seconds, but adding local parsing
       exhausts the same arena. Even a content-free structural visit of all
       78,109 bytes in the then-current subject failed inside one equality; the
-      present 103,274-byte source is no smaller. Sequential remainder folds
+      present 104,459-byte source is no smaller. Sequential remainder folds
       instead hit contained semantic-stack status 250. The checker reclaims
       conversion scratch only after a complete equality decision, so one
       compiler-scale reflexive equality retains every branch temporary.

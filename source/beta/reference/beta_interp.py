@@ -145,7 +145,7 @@ def decode_str(inner):
     return out
 
 def main():
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], 'rb') as f:
         procs = Parser(lex(f.read())).parse()
     it = Interp(procs, sys.stdin.buffer.read())
     try:

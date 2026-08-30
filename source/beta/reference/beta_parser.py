@@ -22,12 +22,20 @@ CHAR_ESCAPES = {
 
 
 def lex(src):
+    if isinstance(src, bytes):
+        src = src.decode('latin1')
+    for offset, c in enumerate(src):
+        value = ord(c)
+        if value not in (9, 10, 13) and not 32 <= value <= 126:
+            raise SyntaxError(
+                f'beta parser: invalid source byte at offset {offset}'
+            )
     toks = []
     i, n = 0, len(src)
     while i < n:
         c = src[i]
         if c == ';':
-            while i < n and src[i] != '\n':
+            while i < n and src[i] not in '\r\n':
                 i += 1
             continue
         if c == '"':
@@ -69,9 +77,9 @@ def lex(src):
         if c in ' \t\r\n':
             i += 1
             continue
-        if c.isdigit():
+        if '0' <= c <= '9':
             j = i
-            while j < n and src[j].isdigit():
+            while j < n and '0' <= src[j] <= '9':
                 j += 1
             value = int(src[i:j])
             if value > MAX_WORD:
@@ -79,9 +87,12 @@ def lex(src):
             toks.append(('num', value))
             i = j
             continue
-        if c.isalpha() or c == '_':
+        if 'A' <= c <= 'Z' or 'a' <= c <= 'z' or c == '_':
             j = i
-            while j < n and (src[j].isalnum() or src[j] == '_'):
+            while j < n and (
+                'A' <= src[j] <= 'Z' or 'a' <= src[j] <= 'z' or
+                '0' <= src[j] <= '9' or src[j] == '_'
+            ):
                 j += 1
             toks.append(('word', src[i:j]))
             i = j

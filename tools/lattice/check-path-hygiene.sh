@@ -37,6 +37,40 @@ done
 [ -f "$OMEGA_PATH_OMEGA/build.omg" ] || fail "canonical Omega C build root is absent"
 [ -f "$OMEGA_PATH_OMEGA/main.omg" ] || fail "canonical Omega C main root is absent"
 
+# D15 applies to the exact currently retained Alpha-through-Delta
+# implementation-source membership, not to every file sharing a suffix. Keep
+# this list explicit as compiler closures are added or retired. Each byte must
+# be HT, LF, CR, or printable ASCII before any language tokenizer sees it.
+for bootstrap_ascii_source in \
+  source/alpha/assembler/assembler.alpha \
+  source/alpha/assembler/examples/echo.alpha \
+  source/alpha/assembler/examples/factorial.alpha \
+  source/alpha/assembler/examples/fib.alpha \
+  source/alpha/assembler/examples/gcd.alpha \
+  source/alpha/assembler/examples/multiply.alpha \
+  source/alpha/checker/implementations/beta/check.beta \
+  source/alpha/checker/implementations/beta/eq.beta \
+  source/beta/compiler/beta_compiler.alpha \
+  source/beta/compiler/validation/admission/bc-artifact-structure.alpha \
+  source/gamma/interp.beta \
+  source/gamma/typeck.beta
+do
+  bootstrap_ascii_path="$OMEGA_REPO_ROOT/$bootstrap_ascii_source"
+  [ -f "$bootstrap_ascii_path" ] ||
+    fail "D15 source member is absent: $bootstrap_ascii_source"
+  if ! od -An -tu1 -v "$bootstrap_ascii_path" | awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        b = $i + 0
+        if (b != 9 && b != 10 && b != 13 && (b < 32 || b > 126)) exit 1
+      }
+    }
+  '; then
+    fail "D15 source member contains a forbidden byte: $bootstrap_ascii_source"
+  fi
+done
+unset bootstrap_ascii_source bootstrap_ascii_path
+
 # The source root may host product/reference owners beside the lattice, but no
 # unclassified top-level owner may silently become another bootstrap route.
 tracked_source_roots=$(git -C "$OMEGA_REPO_ROOT" ls-files source | \
