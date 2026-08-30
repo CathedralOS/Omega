@@ -269,6 +269,7 @@ select the smallest measured power-of-two profile that is.
 - Tempting but wrong: raise the table silently, weaken total `Bytes` preflight,
   publish before validation, generate Beta source or Alpha bytes on the host,
   add an Alpha opcode, or treat the 1,024-row refusal as invalid Gamma source.
+
 ## Q5 — Represent Delta storage demand beyond Gamma Int
 
 ### Context
@@ -327,4 +328,70 @@ wording explicitly rather than silently saturating an implementation result.
 - Tempting but wrong: trap on demand multiplication, return
   `InternalFailure`, report the traversal prefix that first crossed the limit,
   clamp privately while documentation still claims exactness, or classify the
-   valid Delta type as `InvalidArrayLength`.
+  valid Delta type as `InvalidArrayLength`.
+
+## Q6 — Total Delta entry-shape diagnostics
+
+### Context
+
+Delta v1 fixes the accepted headline shape: one `Console` boundary with four
+specified callable signatures, a record `Main` with exactly one sealed
+`console: Console` field plus ordinary program fields, and exactly
+`machine Main::main(&mut self)` with no value parameters or return. D31 also
+assigns every other authored `Console` type occurrence to `InvalidEntry` at the
+type token.
+
+The remaining entry judgment is not total. `LANGUAGE.md` anchors
+`MissingEntry` at source extent, but does not say whether it means only absence
+of the exact `Main::main` identity or also absence of `Main`, `Console`, or
+`Main.console`. It assigns malformed, missing, duplicate, and “competing” entry
+shapes to `InvalidEntry` without defining their complete candidate set or
+coordinates. It also displays one exact boundary declaration without saying
+whether member order and parameter binder spellings are semantic.
+
+This matters because entry and ordinary body/control failures share the final
+checking phase. The compiler must derive all candidates and choose the smallest
+packed coordinate; it cannot promote whichever entry defect its traversal sees
+first or use the DCOUT reason-code order to break a tie.
+
+### Problem statement
+
+Fix one complete entry-shape judgment covering:
+
+1. the exact partition between `MissingEntry` and `InvalidEntry` for every
+   absent, malformed, extra, or competing `Console`, `Main`, `Main.console`, and
+   `Main::main` component;
+2. the source coordinate for each authored defect and for each required but
+   absent component;
+3. deterministic priority when entry candidates coincide with one another or
+   with ordinary body/control candidates; and
+4. whether boundary-member order and parameter binder spellings participate in
+   validity, or only member identity, positional parameter types, and return
+   type do.
+
+### Proposed direction
+
+Treat boundary members as an unordered identity/signature set and parameter
+binder spellings as nonsemantic. `MissingEntry` means only that no exact
+`Main::main` machine identity was authored and is anchored at source extent. A
+present `Main::main` with the wrong receiver, parameters, or return is an
+`InvalidEntry` candidate at that machine declaration. Extra or malformed
+authored boundary/Main components are `InvalidEntry` at the first byte of the
+offending declaration, member, field, or type token. When the exact entry
+machine exists but a required component is absent, use source extent for that
+`InvalidEntry` candidate. Merge these with every body/control candidate solely
+by packed coordinate; distinct reasons at one exact coordinate are an internal
+contradiction unless this ruling assigns a specific structural suppression.
+
+### Alternates
+
+- Acceptable: require the displayed boundary member order or binder spellings,
+  provided each mismatch and its exact coordinate are explicit and declaration
+  packing order is not accidentally promoted into callable identity.
+- Acceptable: reserve distinct synthetic coordinates for absent entry
+  components, provided they are part of the Delta judgment and DCOUT coordinate
+  contract rather than compiler-private sentinels.
+- Tempting but wrong: let declaration traversal choose the first defect, use
+  reason-code order to break ties, classify a malformed present entry as
+  `MissingEntry`, or publish executable golden coordinates before the judgment
+  is total.
