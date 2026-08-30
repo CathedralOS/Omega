@@ -44,7 +44,7 @@ const STRUCTURAL_PROVIDER_SOURCE: &str = r#"
     established by
         ProgramEntry::enter;
 
-    boundary trait ProgramEntry {
+    pub boundary trait ProgramEntry {
         machine enter(extent: Extent in Granted);
     }
 
@@ -82,7 +82,7 @@ const PROGRAM_STORAGE_PROVIDER_SOURCE: &str = r#"
     established by
         ProgramStorageEntry::enter;
 
-    boundary trait ProgramStorageEntry {
+    pub boundary trait ProgramStorageEntry {
         machine enter(
             image: Extent in Granted,
             initial_storage: Extent in Granted
