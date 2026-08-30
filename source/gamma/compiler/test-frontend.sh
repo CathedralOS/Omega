@@ -139,6 +139,17 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        to failed when (invalid_frame_result != 0)' \
     '        to failed when (word[2097016] != 13)' \
     '        to failed when (word[2097040] != 0)' \
+    '        to constructor_profile_setup' \
+    '    }' \
+    '    state constructor_profile_setup {' \
+    '        emit_reset()' \
+    '        let invalid_constructor_result = emit_gamma_constructor_value(frame_label, 1, 0)' \
+    '        to constructor_profile_check' \
+    '    }' \
+    '    state constructor_profile_check {' \
+    '        to failed when (invalid_constructor_result != 0)' \
+    '        to failed when (word[2097016] != 14)' \
+    '        to failed when (word[2097040] != 0)' \
     '        to empty_setup' \
     '    }' \
     '    state empty_setup {' \
@@ -631,6 +642,199 @@ if [ "$frame_emitter_status" != 1 ] || [ ! -s "$T/frame-probe.tape" ]; then
   exit 1
 fi
 stamp_seed "$T/frame-probe.tape" "$SEED" "$T/frame-probe.exe" >/dev/null 2>&1
+
+{
+  runtime_emitter_source
+  printf '%s\n' \
+    'proc emit_constructor_eq(left, right, success_label, unexpected_label) {' \
+    '    emit_rrx(16, left, right, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(success_label)' \
+    '    return 0' \
+    '}' \
+    'proc emit_constructor_push(stack_label, kind_register, payload_register) {' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_rr(11, 0, kind_register)' \
+    '    emit_rr(2, 8, 0)' \
+    '    emit_imm(9, 8)' \
+    '    emit_rr(3, 8, 9)' \
+    '    emit_rr(11, 8, payload_register)' \
+    '    return 0' \
+    '}' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let stack_label = new_label()' \
+    '    let heap_label = new_label()' \
+    '    let resource_label = new_label()' \
+    '    let internal_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let success_label = new_label()' \
+    '    let resource_mode = new_label()' \
+    '    let push_loop = new_label()' \
+    '    let push_body = new_label()' \
+    '    let push_done = new_label()' \
+    '    let vector_kind_ok = new_label()' \
+    '    let vector_stack_ok = new_label()' \
+    '    let vector_heap_ok = new_label()' \
+    '    let first_kind_ok = new_label()' \
+    '    let first_payload_ok = new_label()' \
+    '    let last_kind_ok = new_label()' \
+    '    let last_payload_ok = new_label()' \
+    '    let nested_kind_ok = new_label()' \
+    '    let nested_first_kind_ok = new_label()' \
+    '    let nested_first_payload_ok = new_label()' \
+    '    let nested_second_kind_ok = new_label()' \
+    '    let nested_second_payload_ok = new_label()' \
+    '    let nullary_kind_ok = new_label()' \
+    '    let nullary_payload_ok = new_label()' \
+    '    let nullary_heap_ok = new_label()' \
+    '    let valid_mode = new_label()' \
+    '    let malformed_mode = new_label()' \
+    '    let exact_resource_base_ok = new_label()' \
+    '    let exact_resource_cap_ok = new_label()' \
+    '    let expected_resource = new_label()' \
+    '    let expected_internal = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_r(17, 31)' \
+    '    emit_imm(12, 114)' \
+    '    emit_rrx(16, 31, 12, resource_mode)' \
+    '    emit_imm(20, 0)' \
+    '    emit_imm(21, 600)' \
+    '    emit_imm(23, 37)' \
+    '    define_label(push_loop)' \
+    '    emit_rrx(15, 20, 21, push_body)' \
+    '    emit_jump(12, push_done)' \
+    '    define_label(push_body)' \
+    '    emit_constructor_push(stack_label, 23, 20)' \
+    '    emit_imm(22, 1)' \
+    '    emit_rr(3, 20, 22)' \
+    '    emit_jump(12, push_loop)' \
+    '    define_label(push_done)' \
+    '    emit_gamma_constructor_value(heap_label, 42, 600)' \
+    '    emit_rr(2, 20, 1)' \
+    '    emit_imm(22, 42)' \
+    '    emit_constructor_eq(0, 22, vector_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 16777216)' \
+    '    emit_constructor_eq(252, 22, vector_stack_ok, unexpected_label)' \
+    '    emit_imm(22, 16786848)' \
+    '    emit_constructor_eq(254, 22, vector_heap_ok, unexpected_label)' \
+    '    emit_rr(2, 1, 20)' \
+    '    emit_gamma_field_load(600, 0, internal_label)' \
+    '    emit_imm(22, 37)' \
+    '    emit_constructor_eq(0, 22, first_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 0)' \
+    '    emit_constructor_eq(1, 22, first_payload_ok, unexpected_label)' \
+    '    emit_rr(2, 1, 20)' \
+    '    emit_gamma_field_load(600, 599, internal_label)' \
+    '    emit_imm(22, 37)' \
+    '    emit_constructor_eq(0, 22, last_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 599)' \
+    '    emit_constructor_eq(1, 22, last_payload_ok, unexpected_label)' \
+    '    emit_imm(23, 42)' \
+    '    emit_rr(2, 24, 20)' \
+    '    emit_constructor_push(stack_label, 23, 24)' \
+    '    emit_imm(23, 1)' \
+    '    emit_imm(24, 16777216)' \
+    '    emit_constructor_push(stack_label, 23, 24)' \
+    '    emit_gamma_constructor_value(heap_label, 43, 2)' \
+    '    emit_rr(2, 21, 1)' \
+    '    emit_imm(22, 43)' \
+    '    emit_constructor_eq(0, 22, nested_kind_ok, unexpected_label)' \
+    '    emit_rr(2, 1, 21)' \
+    '    emit_gamma_field_load(2, 0, internal_label)' \
+    '    emit_imm(22, 42)' \
+    '    emit_constructor_eq(0, 22, nested_first_kind_ok, unexpected_label)' \
+    '    emit_constructor_eq(1, 20, nested_first_payload_ok, unexpected_label)' \
+    '    emit_rr(2, 1, 21)' \
+    '    emit_gamma_field_load(2, 1, internal_label)' \
+    '    emit_imm(22, 1)' \
+    '    emit_constructor_eq(0, 22, nested_second_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 16777216)' \
+    '    emit_constructor_eq(1, 22, nested_second_payload_ok, unexpected_label)' \
+    '    emit_gamma_constructor_value(heap_label, 44, 0)' \
+    '    emit_imm(22, 44)' \
+    '    emit_constructor_eq(0, 22, nullary_kind_ok, unexpected_label)' \
+    '    emit_imm(22, 0)' \
+    '    emit_constructor_eq(1, 22, nullary_payload_ok, unexpected_label)' \
+    '    emit_imm(22, 16786880)' \
+    '    emit_constructor_eq(254, 22, nullary_heap_ok, unexpected_label)' \
+    '    emit_imm(12, 118)' \
+    '    emit_rrx(16, 31, 12, valid_mode)' \
+    '    emit_imm(12, 109)' \
+    '    emit_rrx(16, 31, 12, malformed_mode)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(valid_mode)' \
+    '    emit_jump(12, success_label)' \
+    '    define_label(malformed_mode)' \
+    '    emit_imm(30, 2)' \
+    '    emit_imm(1, 16777249)' \
+    '    emit_gamma_field_load(1, 0, internal_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(resource_mode)' \
+    '    emit_imm(254, 50331616)' \
+    '    emit_imm(23, 1)' \
+    '    emit_imm(24, 7)' \
+    '    emit_constructor_push(stack_label, 23, 24)' \
+    '    emit_gamma_constructor_value(heap_label, 42, 1)' \
+    '    emit_imm(22, 50331616)' \
+    '    emit_constructor_eq(1, 22, exact_resource_base_ok, unexpected_label)' \
+    '    emit_constructor_eq(254, 255, exact_resource_cap_ok, unexpected_label)' \
+    '    emit_imm(30, 3)' \
+    '    emit_constructor_push(stack_label, 23, 24)' \
+    '    emit_gamma_constructor_value(heap_label, 42, 1)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(resource_label)' \
+    '    emit_imm(22, 3)' \
+    '    emit_rrx(16, 30, 22, expected_resource)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(expected_resource)' \
+    '    emit_jump(12, success_label)' \
+    '    define_label(internal_label)' \
+    '    emit_imm(22, 2)' \
+    '    emit_rrx(16, 30, 22, expected_internal)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(expected_internal)' \
+    '    emit_jump(12, success_label)' \
+    '    define_label(success_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_stack_reserver(stack_label, resource_label)' \
+    '    emit_heap_allocator(heap_label, resource_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/constructor-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + Gamma constructor ABI probe) failed"
+  exit 1
+}
+stamp_seed "$T/constructor-emitter.tape" "$SEED" "$T/constructor-emitter.exe" >/dev/null 2>&1
+"$T/constructor-emitter.exe" > "$T/constructor-probe.tape"
+constructor_emitter_status=$?
+if [ "$constructor_emitter_status" != 1 ] || [ ! -s "$T/constructor-probe.tape" ]; then
+  echo "Gamma constructor ABI probe emission failed: status $constructor_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/constructor-probe.tape" "$SEED" "$T/constructor-probe.exe" >/dev/null 2>&1
 
 {
   runtime_emitter_source
@@ -1411,6 +1615,16 @@ for frame_mode in e f; do
   else
     FAIL=$((FAIL+1))
     echo "  FAIL Gamma frame ABI $frame_mode: status $frame_status, output $(wc -c < "$T/frame-$frame_mode.out" | tr -d ' ') bytes"
+  fi
+done
+for constructor_mode in v m r; do
+  printf '%s' "$constructor_mode" | "$T/constructor-probe.exe" > "$T/constructor-$constructor_mode.out"
+  constructor_status=$?
+  if [ "$constructor_status" = 7 ] && [ ! -s "$T/constructor-$constructor_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL Gamma constructor ABI $constructor_mode: status $constructor_status, output $(wc -c < "$T/constructor-$constructor_mode.out" | tr -d ' ') bytes"
   fi
 done
 "$T/bytes-valid-probe.exe" > "$T/bytes-valid.out"

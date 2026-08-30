@@ -17,9 +17,9 @@ exercises 16 checked-`Int` paths, runs 20 source-to-code lowering cases, and
 reconstructs one nested payload twice byte-identically. It publishes no compiler
 artifact.
 
-The retained compiler source declares 94 procedures. With the fixed frontend
-gate entry, the compiled gate uses 95 of Beta's 128 procedure slots and compiles
-to 229,258 bytes. The remaining 32,882 bytes under
+The retained compiler source declares 96 procedures. With the fixed frontend
+gate entry, the compiled gate uses 97 of Beta's 128 procedure slots and compiles
+to 239,696 bytes. The remaining 22,444 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -88,6 +88,14 @@ value uses its resolved constructor tag plus a pointer to two-word fields.
 Nullary constructors allocate no field vector. Functions return through
 `r0/r1`. Arbitrary-arity arguments occupy two-word slots in the explicit Gamma
 stack rather than Beta's four argument registers.
+
+The executed algebraic substrate copies already-resolved constructor arguments
+from that stack into source-order immutable field vectors and checks private
+field-pointer extent/alignment before loads. Odd field counts round to a
+32-byte heap row, preserving the compact `Bytes` descriptor alignment across
+mixed allocations. The adjacent probe covers 600 fields, nested and nullary
+values, malformed private pointers, and the exact heap edge. Source
+constructor-tag and pattern-slot assignment remains Q3-blocked.
 
 Generated code reserves `r252` for the downward stack pointer, `r253` for the
 current frame base, `r254` for the upward heap pointer, and `r255` for the heap

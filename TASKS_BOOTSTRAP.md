@@ -529,9 +529,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
     rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
-    and retains no alternate compiler or tape. The retained source declares 94
-    procedures; with the frontend gate entry, the gate uses 95 of Beta's 128
-    procedure slots and compiles to 229,258 bytes, leaving 32,882 bytes below
+    and retains no alternate compiler or tape. The retained source declares 96
+    procedures; with the frontend gate entry, the gate uses 97 of Beta's 128
+    procedure slots and compiles to 239,696 bytes, leaving 22,444 bytes below
     Alpha's runnable payload ceiling for
     lowering and the eventual adapter.
   - [x] Establish the emitted runtime containment floor without selecting Q2's
@@ -559,6 +559,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     the adjacent aligned resource failure before relocation. Reject malformed
     compiler-owned frame profiles before emitting bytes. Q3 still blocks
     assigning calls and binder slots from ambiguous source, not this ABI.
+  - [x] Establish the private arbitrary-arity algebraic-value ABI without
+    assigning Q3-blocked source constructor identities. Consume an opaque
+    resolved kind `>= 2`, copy complete argument pairs from the guarded stack
+    into a source-order immutable field vector, return `(kind,pointer)`, and
+    represent nullary constructors without allocation. Round odd field counts
+    to 32-byte heap rows so algebraic allocation preserves the `Bytes`
+    descriptor-alignment invariant. Field loads validate the compiler-owned
+    pointer, complete rounded extent, alignment, and static index before memory
+    access. Execute a 600-field nonzero-kind vector, nested and nullary values,
+    first/last field order, malformed private pointer containment, and exact
+    final-row versus adjacent heap exhaustion. Reject malformed compiler-owned
+    constructor profiles before emitting bytes. Q3 still blocks connecting
+    constructor spellings and pattern binders to these resolved tags/slots.
   - [x] Directly emit checked signed-add, subtract, multiply, divide, and
     remainder helpers. Ordinary results return in `r0`; both overflow
     directions, zero divisors, and `INT64_MIN / -1` transfer to a supplied

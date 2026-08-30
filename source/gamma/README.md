@@ -24,8 +24,8 @@ The Beta-written compiler source now lives at
 emitter/runtime-containment substrate, including executed checked-`Int` and
 compact immutable-`Bytes` helpers and direct `Int`, conditional, and `Bytes`
 slices of the general expression dispatcher, now also includes the executed
-arbitrary-arity/proper-tail-call frame ABI. It remains incomplete compiler
-material, not an accepted compiler artifact.
+arbitrary-arity/proper-tail-call frame and algebraic-value ABIs. It remains
+incomplete compiler material, not an accepted compiler artifact.
 `interp.beta` remains an untyped, bounded evaluation oracle; it is not an
 alternate Gamma language or a runtime to be serialized into emitted tapes.
 
