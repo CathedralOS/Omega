@@ -541,6 +541,15 @@ it. A root-aware Build-facet protocol must be admitted before that decision is
 revisited. Partial instrumentation is not described as generic filesystem
 scratch or memory containment.
 
+Cloning admitted filesystem operation attempts into interpreter custody has
+one deterministic retention-weight ceiling. Fixed typed rows use explicit,
+host-independent weights equal to their current canonical fixed-width upper
+bounds, while retained variable payload bytes contribute one unit each. The
+guard does not duplicate the higher-layer replay encoder or cover separately
+bounded generated-source handoffs. Its numeric result is an implementation
+availability weight, not canonical record length, Rust heap size, resident
+memory, replay evidence, or package admission.
+
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete
 observation, including BuildLog bytes, while the package-level observation
