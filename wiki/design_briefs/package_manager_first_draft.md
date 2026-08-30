@@ -441,10 +441,11 @@ All source-backed static argument paths are declaration selections too,
 including recursively nested applications. Explicit conformance evidence keeps
 its dedicated kind; type, static-machine, and forwarded-binder paths share a
 static-argument kind while retaining the exact selected symbol. Integer
-literals select nothing. A named const that is reduced before ordinary
-resolution retains its const-declaration provenance through the existing
-substitution row. Unresolved static paths remain explicit obligations and fail
-closed at package admission.
+literals select nothing. A named const in a static-argument lane selects its
+declaration directly and rejoins its canonical value; a named const reduced in
+ordinary expression position retains declaration provenance through the
+existing substitution row. Unresolved static paths remain explicit obligations
+and fail closed at package admission.
 
 ## Authored requests versus accepted lock state
 
@@ -929,6 +930,14 @@ checked intrinsic fact, then freshly rederives the operation from the final
 typed receiver and checked owner environments. Same-spelled package callables
 remain nominal. This does not widen the compiler's denotational-call surface;
 unsupported call compositions still reject before package review. Recovery
+remains v14.
+Review v93 and canonical row v51 admit a named public const in a checked
+contract-call const slot. The authored path retains one exact static-argument
+selection to the const declaration; projection rejoins that declaration's
+closed canonical integer encoding and emits the existing const-value row.
+Changing the declaration value changes review identity. Private declarations,
+missing or malformed canonical values, non-integer consts, and selection drift
+reject. Source names and diagnostic displays are not value identity; recovery
 remains v14.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets

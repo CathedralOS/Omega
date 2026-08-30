@@ -120,6 +120,79 @@ pub(crate) fn project_contract_static_argument(
     )
 }
 
+pub(crate) fn require_exact_named_const_static_argument_selections(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    arguments: &[psi_typed_trees::expression::StaticMachineArgument],
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    fn collect_argument_consts(
+        compilation: &CheckedCompilation,
+        arguments: &[psi_typed_trees::expression::StaticMachineArgument],
+        selected: &mut Vec<SymbolHandle>,
+    ) {
+        for argument in arguments {
+            if argument.symbol.is_valid()
+                && compilation.typed.symbols.get(argument.symbol).kind
+                    == psi_symbols::SymbolKind::Const
+            {
+                selected.push(argument.symbol);
+            }
+            if let Some(application) = &argument.application {
+                collect_argument_consts(compilation, &application.arguments, selected);
+            }
+        }
+    }
+
+    let mut argument_consts = Vec::new();
+    collect_argument_consts(compilation, arguments, &mut argument_consts);
+    let mut selected_consts = Vec::new();
+    for occurrence in compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let Some(selection) = compilation
+            .authored_declaration_selections()
+            .get(occurrence)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` retains an unknown static-argument selection occurrence",
+                context.subject_kind, context.subject_name
+            ))]);
+        };
+        if selection.kind() != AuthoredDeclarationSelectionKind::StaticArgument {
+            continue;
+        }
+        let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+            continue;
+        };
+        if compilation.typed.symbols.get(target.selected_symbol()).kind
+            != psi_symbols::SymbolKind::Const
+        {
+            continue;
+        }
+        if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` named const is not retained as a public-interface static-argument selection",
+                context.subject_kind, context.subject_name
+            ))]);
+        }
+        selected_consts.push(target.selected_symbol());
+    }
+    if selected_consts != argument_consts {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` named const arguments do not match their exact authored static-argument selections",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
+}
+
 pub(crate) fn project_static_argument(
     compilation: &CheckedCompilation,
     subject_kind: &str,
@@ -301,6 +374,31 @@ pub(crate) fn project_static_argument(
         ));
     }
     if parameter_kind == ContractCallStaticParameterKind::Const {
+        if argument.symbol.is_valid()
+            && compilation.typed.symbols.get(argument.symbol).kind == psi_symbols::SymbolKind::Const
+        {
+            let declarations = compilation
+                .const_declarations()
+                .iter()
+                .filter(|declaration| declaration.symbol == argument.symbol)
+                .collect::<Vec<_>>();
+            let [declaration] = declarations.as_slice() else {
+                return Err(rejected(
+                    "whose selected const does not rejoin exactly one checked declaration",
+                ));
+            };
+            let Some(encoding) = declaration.canonical_value_encoding.as_deref() else {
+                return Err(rejected(
+                    "whose selected const has no admitted canonical public value",
+                ));
+            };
+            let Some(value) = canonical_integer_value(encoding) else {
+                return Err(rejected(
+                    "whose selected const is not a canonical integer value",
+                ));
+            };
+            return Ok(PackageReviewContractStaticArgument::ConstInteger(value));
+        }
         return Err(rejected(
             "from a forwarded or symbolic const not yet represented by package review",
         ));
@@ -326,4 +424,55 @@ pub(crate) fn project_static_argument(
     Ok(PackageReviewContractStaticArgument::ConcreteMachine(
         nominal_identity(compilation, argument.symbol)?,
     ))
+}
+
+/// Recover the canonical decimal payload from the closed public-const
+/// encoding. The encoder is length-delimited, so this never interprets source
+/// text or a diagnostic display as semantic identity.
+fn canonical_integer_value(encoding: &str) -> Option<String> {
+    let mut rest = encoding.strip_prefix("integer")?;
+    let type_name = take_framed_piece(&mut rest)?;
+    if !matches!(
+        type_name,
+        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
+    ) {
+        return None;
+    }
+    let value = take_framed_piece(&mut rest)?;
+    if !rest.is_empty() || value.parse::<i128>().ok()?.to_string() != value {
+        return None;
+    }
+    Some(value.to_owned())
+}
+
+fn take_framed_piece<'a>(rest: &mut &'a str) -> Option<&'a str> {
+    let separator = rest.find(':')?;
+    let length = rest[..separator].parse::<usize>().ok()?;
+    let payload = &rest[separator + 1..];
+    if payload.len() < length || !payload.is_char_boundary(length) {
+        return None;
+    }
+    let (piece, tail) = payload.split_at(length);
+    *rest = tail;
+    Some(piece)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::canonical_integer_value;
+
+    #[test]
+    fn canonical_integer_value_decodes_only_closed_integer_encodings() {
+        assert_eq!(
+            canonical_integer_value("integer3:u642:42"),
+            Some("42".to_owned())
+        );
+        assert_eq!(
+            canonical_integer_value("integer3:i642:-1"),
+            Some("-1".to_owned())
+        );
+        assert_eq!(canonical_integer_value("integer3:u642:07"), None);
+        assert_eq!(canonical_integer_value("boolean4:true"), None);
+        assert_eq!(canonical_integer_value("integer3:u641:7tail"), None);
+    }
 }

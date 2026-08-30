@@ -149,6 +149,183 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_named_const_static_arguments_by_value_with_exact_source_custody() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let compile = |value: u64| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub const LIMIT: u64 = {value};
+pub const OTHER: u64 = 9;
+pub machine constant<const First: u64, const Second: u64>() -> u64 {{ 0 }}
+boundary machine trusted_constant() -> u64
+ensures result == constant<LIMIT, OTHER>();
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("named const static contract argument should check")
+    };
+
+    let checked = compile(7);
+    let const_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            matches!(
+                selection.target(),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if checked.symbols.get(target.selected_symbol()).kind
+                        == psi_symbols::SymbolKind::Const
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        const_selections.len(),
+        2,
+        "each named const static argument must retain one declaration selection"
+    );
+    assert!(const_selections.iter().all(|selection| {
+        selection.kind()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+            && selection.exposure()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    }));
+    assert!(checked.authored_declaration_selections().all_finalized());
+
+    let review = project_checked_package_review(&checked)
+        .expect("named const static argument should use the existing canonical value row");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted_constant")
+        .expect("trusted const callable");
+    let [contract] = callable.contracts() else {
+        panic!("one trusted-constant contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted-constant equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("named const call")
+    };
+    assert_eq!(
+        static_arguments,
+        &[
+            PackageReviewContractStaticArgument::ConstInteger("7".to_owned()),
+            PackageReviewContractStaticArgument::ConstInteger("9".to_owned()),
+        ]
+    );
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        project_checked_package_review(&compile(8))
+            .unwrap()
+            .canonical_review_bytes()
+            .unwrap(),
+        "changing the selected const declaration value must change review identity",
+    );
+
+    let mut tampered = compile(7);
+    let other = tampered
+        .const_declarations()
+        .iter()
+        .map(|declaration| declaration.symbol)
+        .find(|symbol| tampered.symbols.name(*symbol) == "OTHER")
+        .expect("OTHER const symbol");
+    let call_expression = tampered
+        .typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| match node {
+            psi_typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "constant"
+                    && call.machine_arguments.len() == 2
+                    && call.machine_arguments[0].symbol.is_valid()
+                    && tampered.symbols.get(call.machine_arguments[0].symbol).kind
+                        == psi_symbols::SymbolKind::Const =>
+            {
+                Some(expression)
+            }
+            _ => None,
+        })
+        .expect("named const contract call expression");
+    let psi_typed_trees::expression::ExpressionNode::Call(call) = tampered
+        .typed
+        .expression_table
+        .expression_mut(call_expression)
+    else {
+        unreachable!("selected call expression changed variant")
+    };
+    call.machine_arguments[0].symbol = other;
+    let diagnostics = project_checked_package_review(&tampered)
+        .expect_err("post-check named const selection drift must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("do not match their exact authored static-argument selections")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn public_contract_rejects_private_named_const_static_argument() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"const LIMIT: u64 = 7;
+pub machine constant<const Value: u64>() -> u64 { 0 }
+boundary machine trusted_constant() -> u64
+ensures result == constant<LIMIT>();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect_err("a public contract must not expose a private named const");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("public interface selects private const")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn review_alpha_normalizes_forwarded_type_and_const_binders() {
     let Some(target) = host_target_name() else {
         return;

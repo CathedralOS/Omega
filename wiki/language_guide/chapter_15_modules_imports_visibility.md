@@ -435,8 +435,11 @@ Every explicit static argument path also selects its declaration, recursively
 through nested static applications. Conformance paths remain evidence
 selections; type, static-machine, and forwarded-binder paths use the common
 static-argument category while retaining their exact symbol. Integer literals
-select no declaration. Named const reduction retains the selected const's
-provenance separately, so erasing its value does not erase dependency custody.
+select no declaration. A named const in a static-argument lane selects its
+exact const declaration directly; package review rejoins that symbol to the
+declaration's canonical value. Named const reduction in ordinary expression
+position retains the selected const's provenance separately, so erasing its
+value does not erase dependency custody.
 
 Only authored selection rows are checked against the direct dependency set.
 Carried nominal identity, compiler-planned layout and move/copy behavior, and

@@ -2293,6 +2293,42 @@ fn captures_expression_static_type_and_machine_arguments() {
 }
 
 #[test]
+fn resolves_named_const_static_arguments_with_exact_authored_custody() {
+    let source = r#"
+        pub const Limits::LIMIT: u64 = 7;
+        pub machine constant<const Value: u64>() -> u64 { 0 }
+        boundary machine trusted_constant() -> u64
+        ensures result == constant<Limits::LIMIT>();
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize named const static argument");
+    let syntax = parse_syntax_trees(&tokens).expect("parse named const static argument");
+    let program = lower_syntax_trees(&syntax).expect("resolve named const static argument");
+    let selections = program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
+                && matches!(
+                    selection.target(),
+                    psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if program.symbols.get(target.selected_symbol()).kind
+                            == psi_symbols::SymbolKind::Const
+                )
+        })
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        panic!("one exact named const static-argument selection: {selections:#?}")
+    };
+    assert_eq!(
+        selection.exposure(),
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+}
+
+#[test]
 fn captures_statement_calls_and_their_explicit_conformance_arguments() {
     let source = r#"
         trait Marker { }

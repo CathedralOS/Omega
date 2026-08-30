@@ -2156,6 +2156,15 @@ redirected, or stale call custody rejects; recovery remains v14. This does not
 widen the call compositions accepted by checking; it retains views only in
 public facts that already pass the compiler's denotational-call rules.
 
+Package review v93/canonical row v51 admits a named public const in a checked
+contract-call const slot. Resolution retains the authored path once as an
+exact static-argument selection to the const declaration. Projection rejoins
+that symbol to exactly one checked public const and decodes its closed
+canonical integer value into the existing const-argument row. A changed value
+changes review identity; private declarations, missing or malformed canonical
+values, non-integer consts, and selection drift reject. Source names and
+diagnostic displays are not value identity, and recovery remains v14.
+
 The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a
 trusted component rewriting typed state and checked facts; it is not a reason
@@ -2398,10 +2407,12 @@ source-backed declaration path is retained recursively at its own span.
 Conformance paths keep their evidence-specific kind; type, static-machine, and
 forwarded-binder paths use one static-argument kind because their exact symbol
 and the selected callable telescope carry the category. Integer literals name
-no declaration. Named const reduction preserves the exact const declaration in
-the existing substitution-provenance row. An unresolved static path remains a
-late obligation and package admission fails closed if no exact declaration is
-available.
+no declaration. A named const static argument retains the exact const
+declaration in that static-argument row and rejoins its compiler-canonical
+value. Ordinary expression-level named const reduction preserves the exact
+declaration in its substitution-provenance row. An unresolved static path
+remains a late obligation and package admission fails closed if no exact
+declaration is available.
 
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
@@ -2906,7 +2917,7 @@ total, pure calls retain their optional receiver, exact
 checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
-signature identity. Symbolic const declarations or expressions,
+signature identity. Unreduced symbolic const expressions,
 proposition/evidence static arguments, quotient calls, true nested
 machine/conformance applications, unrepresented compiler-intrinsic calls,
 computed members whose receivers are not in the closed expression vocabulary,
