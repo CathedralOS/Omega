@@ -74,6 +74,53 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 	    '        to failed when (byte[33292331] != 0)' \
 	    '        to failed when (byte[33292332] != 0)' \
 	    '        to failed when (byte[33292333] != 20)' \
+    '        to unknown_structure_setup' \
+    '    }' \
+    '    state unknown_structure_setup {' \
+    '        emit_reset()' \
+    '        put_byte(21)' \
+    '        let unknown_valid = validate_payload()' \
+    '        to unknown_structure_check' \
+    '    }' \
+    '    state unknown_structure_check {' \
+    '        to failed when (unknown_valid != 0)' \
+    '        to failed when (word[2097016] != 16)' \
+    '        to failed when (word[2097008] != 0)' \
+    '        to truncated_structure_setup' \
+    '    }' \
+    '    state truncated_structure_setup {' \
+    '        emit_reset()' \
+    '        put_byte(1)' \
+    '        let truncated_valid = validate_payload()' \
+    '        to truncated_structure_check' \
+    '    }' \
+    '    state truncated_structure_check {' \
+    '        to failed when (truncated_valid != 0)' \
+    '        to failed when (word[2097016] != 16)' \
+    '        to failed when (word[2097008] != 0)' \
+    '        to interior_target_setup' \
+    '    }' \
+    '    state interior_target_setup {' \
+    '        emit_reset()' \
+    '        put_byte(12)' \
+    '        put_u64(1)' \
+    '        let interior_valid = validate_payload()' \
+    '        to interior_target_check' \
+    '    }' \
+    '    state interior_target_check {' \
+    '        to failed when (interior_valid != 0)' \
+    '        to failed when (word[2097016] != 16)' \
+    '        to failed when (word[2097008] != 0)' \
+    '        to replay_reuse_setup' \
+    '    }' \
+    '    state replay_reuse_setup {' \
+    '        emit_reset()' \
+    '        emit_ret()' \
+    '        let replay_reuse_valid = validate_payload()' \
+    '        to replay_reuse_check' \
+    '    }' \
+    '    state replay_reuse_check {' \
+    '        to failed when (replay_reuse_valid != 1)' \
     '        to duplicate_setup' \
     '    }' \
     '    state duplicate_setup {' \

@@ -26,8 +26,10 @@ compact immutable-`Bytes` helpers and direct `Int`, conditional, and `Bytes`
 slices of the general expression dispatcher, now also includes the executed
 arbitrary-arity/proper-tail-call frame and algebraic-value ABIs plus a dormant,
 profile-parameterized sealed-input reader. That reader chooses no application
-profile or publication boundary. The source remains incomplete compiler
-material, not an accepted compiler artifact.
+profile or publication boundary. Complete fixed-up payloads are structurally
+replayed against Alpha's closed instruction shapes and direct-target starts
+before publication. The source remains incomplete compiler material, not an
+accepted compiler artifact.
 `interp.beta` remains an untyped, bounded evaluation oracle; it is not an
 alternate Gamma language or a runtime to be serialized into emitted tapes.
 

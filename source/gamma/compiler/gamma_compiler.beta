@@ -36,6 +36,7 @@
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
 ;          11010048 LABELS [10.5 MiB,11 MiB)
 ;          11534336 FIXUPS [11 MiB,11.5 MiB)
+;          12058624 PAYLOAD_STARTS [11.5 MiB,11.75 MiB)
 ;          16777216 ERROR_NODE + ARENA [16 MiB,31.75 MiB)
 ;          33292288 PAYLOAD [31.75 MiB,32 MiB)
 ; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
@@ -2243,11 +2244,85 @@ proc emit_bytes_get(entry_label, trap_label, internal_label) {
     return 0
 }
 
+; Return `instruction_width + 16 * direct_target_operand_offset`, where a zero
+; target offset means ordinary fallthrough/no encoded target. Zero is invalid.
+proc alpha_instruction_shape(op) {
+    state halt { to width2 when (op == 0)  to immediate }
+    state immediate { to width10 when (op == 1)  to rr_low }
+    state rr_low { to invalid when (op < 2)  to rr_high }
+    state rr_high { to width3 when (op < 12)  to jump }
+    state jump { to target1_width9 when (op == 12)  to rx }
+    state rx { to target2_width10 when (op < 15)  to rrx }
+    state rrx { to target3_width11 when (op < 17)  to io }
+    state io { to width2 when (op < 19)  to call }
+    state call { to target1_width9 when (op == 19)  to ret }
+    state ret { to width1 when (op == 20)  to invalid }
+    state width1 { return 1 }
+    state width2 { return 2 }
+    state width3 { return 3 }
+    state width10 { return 10 }
+    state target1_width9 { return 25 }
+    state target2_width10 { return 42 }
+    state target3_width11 { return 59 }
+    state invalid { return 0 }
+}
+
+; Replay the completed payload independently of the emitter call sequence.
+; Every byte belongs to one closed Alpha instruction, and every encoded direct
+; target lands on an instruction start. The scratch map is private compiler
+; memory and is cleared for repeated validation in one compiler execution.
+proc validate_payload_structure() {
+    let pc = 0
+    state clear_loop { to clear_byte when (pc < word[2097040])  to first_setup }
+    state clear_byte {
+        byte[12058624 + pc] = 0
+        pc = pc + 1
+        to clear_loop
+    }
+    state first_setup { pc = 0  to first_loop }
+    state first_loop { to first_body when (pc < word[2097040])  to second_setup }
+    state first_body {
+        let shape = alpha_instruction_shape(byte[33292288 + pc])
+        let width = shape % 16
+        to invalid when (shape == 0)
+        to first_extent
+    }
+    state first_extent {
+        let instruction_end = pc + width
+        to invalid when (instruction_end > word[2097040])
+        byte[12058624 + pc] = 1
+        pc = instruction_end
+        to first_loop
+    }
+    state second_setup { pc = 0  to second_loop }
+    state second_loop { to second_body when (pc < word[2097040])  return 1 }
+    state second_body {
+        let shape2 = alpha_instruction_shape(byte[33292288 + pc])
+        let width2 = shape2 % 16
+        let target_delta = shape2 / 16
+        to invalid when (shape2 == 0)
+        to target when (target_delta != 0)
+        to advance
+    }
+    state target {
+        let target = word[33292288 + pc + target_delta]
+        to invalid when (target < 0)
+        to invalid when (target >= word[2097040])
+        to invalid when (byte[12058624 + target] != 1)
+        to advance
+    }
+    state advance { pc = pc + width2  to second_loop }
+    state invalid { emit_fail_once(16, pc)  return 0 }
+}
+
 proc validate_payload() {
     state sticky { to invalid when (word[2097016] != 0)  to nonempty }
     state nonempty { to empty when (word[2097040] == 0)  to resolve }
     state resolve { to resolved when (resolve_fixups() == 1)  return 0 }
-    state resolved { to invalid when (word[2097016] != 0)  return 1 }
+    state resolved {
+        to invalid when (word[2097016] != 0)
+        return validate_payload_structure()
+    }
     state empty { emit_fail_once(12, 0)  return 0 }
     state invalid { return 0 }
 }
