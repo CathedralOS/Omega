@@ -481,3 +481,65 @@ acceptable if every other telescope category remains explicitly fail-closed.
 - Tempting but wrong: call a canonical list of use-site strings coverage,
   infer specialization from one successful generic declaration check, or erase
   binder categories behind an arity-only schema.
+
+## Q9 — Freeze the standalone Omega compiler request and outcome wire
+
+### Context
+
+D18 fixes the logical contents and custody of one sealed
+`OmegaCompilationSubject` plus bound `OmegaInvocation`, and fixes the four
+`OCOUT` outcome classes. It does not fix their authoritative byte encoding.
+The maintained Rust compiler explicitly states that its host object layout is
+not the standalone frame and that a future adapter must independently
+reconstruct the canonical bytes. The Delta-written compiler `D` intentionally
+has no `Main`: its parser retains relative source spans, but no source identity
+or package custody can be attached until the sealed request is decoded.
+
+### Problem statement
+
+Freeze one byte-exact request and outcome contract shared by the Delta-written
+and self-hosted Omega compilers. Choose together:
+
+1. magic/version, integer width and endianness, count/length framing, exact-end
+   rules, and canonical resource ceilings;
+2. the ordered encoding of graph rows, package keys, requester-local aliases
+   and edges, resolved source coordinates, optional accepted dependency
+   instances, and every build-visible snapshot fact (files, directories,
+   absences, links, metadata, raw-byte paths, and canonical directory order);
+3. the invocation encoding for product, target profile, external admissions,
+   and its non-substitutable binding to the exact subject;
+4. validation order and the exact distinction between request `Reject`, private
+   resource `Incomplete`, and compiler-contradiction `InternalFailure`; and
+5. the complete versioned `OCOUT` failure schemas, including stable reason
+   identities and request/source coordinates. Success remains the unwrapped
+   requested artifact.
+
+Without those choices, two conforming standalone compilers can accept different
+bytes, derive different package/source identities, or publish incompatible
+diagnostics while both claiming D18.
+
+### Proposed direction
+
+Use one domain-separated, versioned, little-endian table format with explicit
+counts and byte lengths. Encode identities and snapshot facts structurally;
+refer between validated tables by bounded indices, never host pointers or
+compact fingerprints. Preserve canonical package, source-unit, raw-path, and
+directory-entry order in the wire, and bind the invocation to a strong
+commitment over the exact canonical subject bytes. Put every fixed ceiling in
+the versioned request profile so exhaustion maps deterministically to
+`Incomplete`. Require complete graph/custody/length validation and exact end
+before source processing. Give `OCOUT` one closed versioned schema per failure
+class, ordered first by phase and then by D18's request or source coordinate.
+
+### Alternates
+
+- Acceptable: use another closed deterministic table encoding, provided both
+  compilers can decode it directly in their implementation languages and
+  canonicality, ordering, exact-end validation, and all limits are explicit.
+- Acceptable: split subject and invocation into separately committed canonical
+  sections inside one sealed outer frame, provided substitution across those
+  sections is impossible and the validation order is fixed.
+- Tempting but wrong: serialize the Rust request object, use a host serde format,
+  pass filesystem paths or a replay transcript instead of complete snapshots,
+  infer product/target/source identity from filenames, or let `D` and `C`
+  choose separate convenient encodings.
