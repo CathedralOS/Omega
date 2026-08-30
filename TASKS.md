@@ -9930,7 +9930,7 @@ Remaining N6/N8 work:
   evidence. Runtime Booleans, machine operations/contracts, native lowering,
   and proof-kernel discharge remain open under
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
-  Proof-kernel discharge is now **OWNER-BLOCKED — Q2 (proof-only FloatMeaning
+  Proof-kernel discharge is now **OWNER-BLOCKED — Q1 (proof-only FloatMeaning
   equality ownership)** rather than an implementation task: the kernel accepts only scalar-term equality, with
   no proof-only `FloatMeaning`/`ProofValueId` term; independently authored
   projection invocations do not retain a shared landed-source identity; and
