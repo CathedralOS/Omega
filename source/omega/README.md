@@ -45,12 +45,17 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
+| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns the final exact Alpha tape encoder and no invented invocation boundary. | Extend in place as `D`; replace an encoder component only atomically with an equally complete final Delta implementation. |
 
 The four empty target declarations in `build.omg` are temporary compatibility
 scaffolding, not product architecture. Delete them as soon as immutable target
 activation/reach closure lands, and normalize `windows_x64` to
 `windows_x86_64` in that same migration.
 
-`omega_compiler.delta` (`D`) and both descriptive compiler tapes are absent and
-remain required tasks. No placeholder, generated source closure, viewer, or
-standalone bootstrap owner is retained while those artifacts are absent.
+`omega_compiler.delta` (`D`) now exists but is intentionally incomplete, and
+both descriptive compiler tapes remain absent. The canonical sealed
+package-closure request for the standalone Omega compiler is owner-blocked; no
+raw-single-file stdin convention may stand in for it. Boundary-independent
+final internals may be authored in `D` before that ruling, but no placeholder,
+generated source closure, viewer, or standalone bootstrap owner is retained
+while the artifacts are absent.
