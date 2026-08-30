@@ -305,3 +305,22 @@ and teardown equality. The complete no-effect sequence receives explicit empty
 staged-output custody on initial evaluation and record recovery. Wrong scalar
 types or ordinals, alternate handles or errors, repeated seeks, and mixtures
 with Output mutation or another failure remain non-receipted.
+
+## Unknown-descriptor write operations (summary v54, replay record v35)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one write-gated scalar operation on an unknown descriptor:
+tag-17 `set_file_permissions` with operand-one `u32` mode, tag-41 `set_len`
+with operand-one `i64` length, tag-46 `lock_file` with operand-one `i32`
+operation, or tag-49 `change_file_owner` with operand-one `i32` user and
+operand-two `i32` group. Each row fixes scoped-real provider, scalar `-1`,
+post-error `9`, and operand-zero `Descriptor/Unknown`; every other evidence
+lane and generated-source handoff is empty.
+
+The real evaluator rejects the missing descriptor at the compiler write-grant
+lookup before host mutation, so this row carries neither authorization nor a
+grant refusal. Provider-free replay executes the exact selected tag and scalar
+values in a fresh virtual descriptor table and requires exact result, attempt,
+empty namespace, and teardown equality before issuing empty staged-output
+custody. Known or null handles, changed scalar types or ordinals, alternate
+errors, repetitions, and mixed lifecycles remain non-receipted.

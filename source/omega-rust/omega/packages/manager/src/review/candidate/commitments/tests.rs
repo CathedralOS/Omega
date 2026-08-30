@@ -303,7 +303,7 @@ fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
         build_observation_commitment(&bytes_changed),
         "one changed immutable byte operand changes observation identity"
     );
-    assert_eq!(first.schema_version(), 53);
+    assert_eq!(first.schema_version(), 54);
     assert_eq!(first.filesystem_operation_schema_version(), 19);
     assert!(first.staged_output_tree().is_none());
     assert!(relocated.staged_output_tree().is_none());

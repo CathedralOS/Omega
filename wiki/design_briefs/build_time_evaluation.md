@@ -741,6 +741,16 @@ handoff is empty. Provider-free execution against a fresh virtual descriptor
 table must reproduce the complete attempt and teardown before the compiler
 issues empty staged-output custody.
 
+Summary v54 and filesystem replay-record v35 add the exact write-gated scalar
+unknown-descriptor family: tag-17 `set_file_permissions(u32)`, tag-41
+`set_len(i64)`, tag-46 `lock_file(i32)`, and tag-49
+`change_file_owner(i32, i32)`. The compiler binds each authored scalar by type,
+ordinal, and value with fixed scoped-real provider, scalar `-1`, post-error `9`,
+and `Descriptor/Unknown`; all other lanes and handoffs are empty. The real
+evaluator rejects at descriptor grant lookup before host mutation, and virtual
+replay must reproduce the complete attempt and teardown before empty
+staged-output custody issues.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR certificate may remove runtime fuel metering, but its scalar does
 not predict the target's worst-cycle path.

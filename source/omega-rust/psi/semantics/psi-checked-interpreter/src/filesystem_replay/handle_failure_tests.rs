@@ -2,8 +2,12 @@ use super::{
     FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
     FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
     FilesystemInputUnknownDescriptorSeekReplayRecord as SeekRecord,
+    FilesystemInputUnknownDescriptorWriteOperationReplayKind as WriteKind,
+    FilesystemInputUnknownDescriptorWriteOperationReplayRecord as WriteRecord,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
     unknown_descriptor_seek_attempt, unknown_descriptor_seek_from_exact_attempt,
+    unknown_descriptor_write_operation_attempt,
+    unknown_descriptor_write_operation_from_exact_attempt,
 };
 use crate::{
     BuildIncludedSource, EvaluationObservations, FilesystemAuthorizedPath, FilesystemByteOperand,
@@ -29,6 +33,13 @@ const KINDS_AND_TAGS: [(Kind, u16); 4] = [
     (Kind::Sync, 43),
     (Kind::SyncData, 44),
     (Kind::Duplicate, 45),
+];
+
+const WRITE_KINDS_AND_TAGS: [(WriteKind, u16); 4] = [
+    (WriteKind::SetFilePermissions { mode: 0o640 }, 17),
+    (WriteKind::SetLength { length: -47 }, 41),
+    (WriteKind::LockFile { operation: 3 }, 46),
+    (WriteKind::ChangeFileOwner { uid: -1, gid: 501 }, 49),
 ];
 
 fn source_input() -> FilesystemSourceInputReplayRecord {
@@ -350,7 +361,14 @@ fn unknown_descriptor_seek_observations_reject_logical_handle_drift() {
 
 #[test]
 fn unknown_descriptor_seek_observations_reject_every_nonempty_side_lane() {
-    let exact = unknown_descriptor_seek_attempt(-47, 2);
+    for changed in nonempty_side_lane_attempts(unknown_descriptor_seek_attempt(-47, 2)) {
+        assert_tampered_seek_rejected(changed);
+    }
+}
+
+fn nonempty_side_lane_attempts(
+    exact: FilesystemOperationAttempt,
+) -> Vec<FilesystemOperationAttempt> {
     let root = FilesystemGrantRootIdentity::new(1).unwrap();
     let identity = FilesystemLogicalHandleIdentity::new(9).unwrap();
     let mut changed_attempts = Vec::new();
@@ -478,9 +496,7 @@ fn unknown_descriptor_seek_observations_reject_every_nonempty_side_lane() {
     });
     changed_attempts.push(changed);
 
-    for changed in changed_attempts {
-        assert_tampered_seek_rejected(changed);
-    }
+    changed_attempts
 }
 
 #[test]
@@ -506,5 +522,153 @@ fn assert_tampered_seek_rejected(attempt: FilesystemOperationAttempt) {
         EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
     assert!(
         FilesystemReplay::from_input_unknown_descriptor_seek_observations(&observations).is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_write_operations_round_trip_with_optional_source_prefix() {
+    for (kind, tag) in WRITE_KINDS_AND_TAGS {
+        let record = WriteRecord::new(None, kind);
+        assert!(record.source_input().is_none());
+        assert_eq!(record.kind(), kind);
+        let without_source =
+            FilesystemReplay::from_input_unknown_descriptor_write_operation_record(record).unwrap();
+        assert_eq!(without_source.attempts().len(), 1);
+        assert_eq!(without_source.attempts()[0].operation_tag(), tag);
+        assert_eq!(
+            unknown_descriptor_write_operation_from_exact_attempt(&without_source.attempts()[0]),
+            Some(kind)
+        );
+        assert!(without_source.executes_replay_attempt(0));
+        assert!(!without_source.has_output_attempts());
+
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            without_source.attempts().to_vec(),
+            Vec::new(),
+        );
+        assert_eq!(
+            FilesystemReplay::from_input_unknown_descriptor_write_operation_observations(
+                &observations
+            )
+            .unwrap()
+            .attempts(),
+            without_source.attempts()
+        );
+
+        let with_source = FilesystemReplay::from_input_unknown_descriptor_write_operation_record(
+            WriteRecord::new(Some(source_input()), kind),
+        )
+        .unwrap();
+        assert_eq!(
+            with_source
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, tag]
+        );
+        assert!((0..3).all(|index| !with_source.executes_replay_attempt(index)));
+        assert!(with_source.executes_replay_attempt(3));
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            with_source.attempts().to_vec(),
+            Vec::new(),
+        );
+        assert!(
+            FilesystemReplay::from_input_unknown_descriptor_write_operation_observations(
+                &observations
+            )
+            .is_ok()
+        );
+    }
+}
+
+#[test]
+fn unknown_descriptor_write_operations_reject_kind_and_scalar_drift() {
+    for (kind, tag) in WRITE_KINDS_AND_TAGS {
+        let exact = unknown_descriptor_write_operation_attempt(kind);
+
+        let mut changed = exact.clone();
+        changed.operation_tag = tag + 1;
+        assert_tampered_write_operation_rejected(changed);
+
+        let mut changed = exact.clone();
+        changed.scalar_operands.clear();
+        assert_tampered_write_operation_rejected(changed);
+
+        let mut changed = exact.clone();
+        changed.scalar_operands.push(FilesystemScalarOperand {
+            operand_ordinal: 3,
+            value: FilesystemScalarOperandValue::I32(0),
+        });
+        assert_tampered_write_operation_rejected(changed);
+
+        let mut changed = exact.clone();
+        changed.scalar_operands[0].operand_ordinal = 0;
+        assert_tampered_write_operation_rejected(changed);
+
+        let mut changed = exact.clone();
+        changed.scalar_operands[0].value = FilesystemScalarOperandValue::U64(0);
+        assert_tampered_write_operation_rejected(changed);
+
+        if exact.scalar_operands.len() == 2 {
+            let mut changed = exact.clone();
+            changed.scalar_operands[1].operand_ordinal = 1;
+            assert_tampered_write_operation_rejected(changed);
+
+            let mut changed = exact.clone();
+            changed.scalar_operands[1].value = FilesystemScalarOperandValue::U32(501);
+            assert_tampered_write_operation_rejected(changed);
+        }
+
+        let mut changed = exact.clone();
+        changed.provider = FilesystemObservationProvider::Virtual;
+        assert_tampered_write_operation_rejected(changed);
+
+        let mut changed = exact.clone();
+        changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: 9,
+        });
+        assert_tampered_write_operation_rejected(changed);
+
+        let mut changed = exact;
+        changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(-1),
+            post_error: 13,
+        });
+        assert_tampered_write_operation_rejected(changed);
+    }
+}
+
+#[test]
+fn unknown_descriptor_write_operations_reject_side_lanes_and_handoffs() {
+    let exact = unknown_descriptor_write_operation_attempt(WriteKind::SetLength { length: 47 });
+    for changed in nonempty_side_lane_attempts(exact.clone()) {
+        assert_tampered_write_operation_rejected(changed);
+    }
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![exact],
+        vec![
+            BuildIncludedSource::from_coordinate(
+                FilesystemGrantRootIdentity::new(2).unwrap(),
+                b"generated.omg".to_vec(),
+                1,
+            )
+            .unwrap(),
+        ],
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_write_operation_observations(&observations)
+            .is_err()
+    );
+}
+
+fn assert_tampered_write_operation_rejected(attempt: FilesystemOperationAttempt) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_write_operation_observations(&observations)
+            .is_err()
     );
 }

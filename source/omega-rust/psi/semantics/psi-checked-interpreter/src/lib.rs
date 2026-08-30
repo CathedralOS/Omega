@@ -94,14 +94,16 @@ pub use filesystem_replay::{
     FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
-    FilesystemInputUnknownDescriptorSeekReplayRecord, FilesystemOutputAbsentRemoveReplayRecord,
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
-    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
-    FilesystemOutputLockReplayRecord, FilesystemOutputSymlinkReplayRecord,
-    FilesystemOutputTreeEntryReplayRecord, FilesystemSourceDirectoryReadChainReplayRecord,
-    FilesystemSourceDirectoryReadReplayRecord, FilesystemSourceReadLinkReplayRecord,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemInputUnknownDescriptorSeekReplayRecord,
+    FilesystemInputUnknownDescriptorWriteOperationReplayKind,
+    FilesystemInputUnknownDescriptorWriteOperationReplayRecord,
+    FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDirectoryReplayRecord,
+    FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
+    FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
+    FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
+    FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
+    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
@@ -114,9 +116,8 @@ use filesystem_replay::{
     output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
     source_attempts_use_root, source_directory_chain_attempts, source_directory_chain_is_exact,
     source_read_link_attempt, source_read_link_attempt_is_exact,
-    unknown_descriptor_operation_from_exact_attempt, unknown_descriptor_seek_from_exact_attempt,
-    validate_observed_output_tree_records, validate_output_duplicate_replay,
-    validate_output_lock_replay,
+    unknown_descriptor_failure_attempt_is_exact, validate_observed_output_tree_records,
+    validate_output_duplicate_replay, validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -2500,10 +2501,11 @@ impl FilesystemInputOutputReplayRecord {
 
 impl FilesystemReplay {
     pub(crate) fn executes_replay_attempt(&self, attempt_index: usize) -> bool {
-        if self.attempts.get(attempt_index).is_some_and(|attempt| {
-            unknown_descriptor_operation_from_exact_attempt(attempt).is_some()
-                || unknown_descriptor_seek_from_exact_attempt(attempt).is_some()
-        }) {
+        if self
+            .attempts
+            .get(attempt_index)
+            .is_some_and(unknown_descriptor_failure_attempt_is_exact)
+        {
             return true;
         }
         self.attempts
