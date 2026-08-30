@@ -350,13 +350,24 @@ data OmegaMachineClauseKind {
     case Reaches;
 }
 
-// Satisfies owns exactly Trait::requirement in the first slice. Reaches owns
-// one or more source-ordered service identifiers. Both reuse the path-member
-// arena and preserve one source-ordered machine-clause ledger.
+data OmegaExternalBindingKind {
+    case CompilerIntrinsic;
+}
+
+// Satisfies owns exactly Trait::requirement and may own one closed external
+// binding. This slice admits the payload-free Binding::CompilerIntrinsic case
+// and retains each authored component separately. Reaches owns one or more
+// source-ordered service identifiers. Both reuse the path-member arena and
+// preserve one source-ordered machine-clause ledger.
 data OmegaMachineClauseSyntax {
     kind: OmegaMachineClauseKind;
     first_member: i32;
     member_count: i32;
+    has_external_binding: i32;
+    external_binding_kind: OmegaExternalBindingKind;
+    via_keyword: OmegaRelativeSpan;
+    binding_root: OmegaRelativeSpan;
+    binding_case: OmegaRelativeSpan;
     start: i32;
     end: i32;
 }
@@ -618,6 +629,7 @@ data OmegaMachineSyntax {
     first_clause: i32;
     clause_count: i32;
     is_public: i32;
+    is_bodyless: i32;
     has_target: i32;
     target: OmegaRelativeSpan;
     start: i32;
@@ -693,6 +705,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedTransitionTargetClose;
     case ExpectedSatisfiesTrait;
     case ExpectedSatisfiesRequirement;
+    case ExpectedExternalBinding;
+    case ExpectedExternalLeafEnd;
     case ExpectedReachService;
     case ExpectedIndexedIndex;
     case ExpectedIndexedTail;
@@ -859,6 +873,7 @@ data OmegaParser {
     state_name_end: i32;
     machine_clause_first_member: i32;
     machine_clause_start: i32;
+    machine_is_bodyless: i32;
     machine_parameter_is_const: i32;
     machine_parameter_is_leading_mutable: i32;
     machine_parameter_is_mutable: i32;
@@ -3115,6 +3130,7 @@ machine OmegaParser::parse_view(
     self.state_name_end = 0;
     self.machine_clause_first_member = 0;
     self.machine_clause_start = 0;
+    self.machine_is_bodyless = 0;
     self.machine_parameter_is_const = 0;
     self.machine_parameter_is_leading_mutable = 0;
     self.machine_parameter_is_mutable = 0;
@@ -3416,6 +3432,10 @@ machine OmegaParser::parse_view(
             86 -> transition_destructure_field_end_token()
             87 -> transition_destructure_rest_end_token()
             88 -> transition_pattern_field_value_token()
+            89 -> external_binding_root_token()
+            90 -> external_binding_separator_token()
+            91 -> external_binding_case_token()
+            92 -> external_leaf_end_token()
             _ -> internal_failure()
         }
     }
@@ -3814,6 +3834,26 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            89 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                source.len,
+                source.len
+            )
+            90 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                source.len,
+                source.len
+            )
+            91 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                source.len,
+                source.len
+            )
+            92 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalLeafEnd,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -4179,6 +4219,7 @@ machine OmegaParser::parse_view(
         self.state_name_start = 0;
         self.state_name_end = 0;
         self.machine_is_public = is_public;
+        self.machine_is_bodyless = 0;
         self.state_has_return_type = 0;
         self.state_return_type = 0;
         self.path_destination = OmegaPathDestination::Machine;
@@ -4796,6 +4837,18 @@ machine OmegaParser::parse_view(
         self.machine_clauses[self.machine_clause_count].first_member =
             self.machine_clause_first_member;
         self.machine_clauses[self.machine_clause_count].member_count = 2;
+        self.machine_clauses[
+            self.machine_clause_count
+        ].has_external_binding = 0;
+        self.machine_clauses[
+            self.machine_clause_count
+        ].external_binding_kind = OmegaExternalBindingKind::CompilerIntrinsic;
+        self.machine_clauses[self.machine_clause_count].via_keyword.start = 0;
+        self.machine_clauses[self.machine_clause_count].via_keyword.end = 0;
+        self.machine_clauses[self.machine_clause_count].binding_root.start = 0;
+        self.machine_clauses[self.machine_clause_count].binding_root.end = 0;
+        self.machine_clauses[self.machine_clause_count].binding_case.start = 0;
+        self.machine_clauses[self.machine_clause_count].binding_case.end = 0;
         self.machine_clauses[self.machine_clause_count].start =
             self.machine_clause_start;
         self.machine_clauses[self.machine_clause_count].end =
@@ -4832,11 +4885,179 @@ machine OmegaParser::parse_view(
             source,
             self.scan.token_start,
             self.scan.token_end,
+            "via"
+        ) {
+            1 -> begin_external_binding()
+            _ -> machine_clause_continuation_reaches_identifier()
+        }
+    }
+
+    state machine_clause_continuation_reaches_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
             "reaches"
         ) {
             1 -> begin_reaches_clause()
             _ -> incomplete_root()
         }
+    }
+
+    state begin_external_binding() {
+        transition (self.machine_clause_count > self.machine_first_clause) &&
+            (self.machine_clauses[
+                self.machine_clause_count - 1
+            ].kind == OmegaMachineClauseKind::Satisfies) &&
+            (self.machine_clauses[
+                self.machine_clause_count - 1
+            ].has_external_binding == 0) {
+            true -> begin_external_binding_bounded()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_external_binding_bounded() {
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].via_keyword.start = self.scan.token_start;
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].via_keyword.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(89) }
+    }
+
+    state external_binding_root_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> external_binding_root_identifier()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state external_binding_root_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "Binding"
+        ) {
+            1 -> retain_external_binding_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_external_binding_root() {
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].binding_root.start = self.scan.token_start;
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].binding_root.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(90) }
+    }
+
+    state external_binding_separator_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> external_binding_separator_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state external_binding_separator_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::ColonColon -> after_external_binding_separator()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state after_external_binding_separator() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(91) }
+    }
+
+    state external_binding_case_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> external_binding_case_identifier()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalBinding,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state external_binding_case_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "CompilerIntrinsic"
+        ) {
+            1 -> retain_compiler_intrinsic_binding()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_compiler_intrinsic_binding() {
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].has_external_binding = 1;
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].external_binding_kind = OmegaExternalBindingKind::CompilerIntrinsic;
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].binding_case.start = self.scan.token_start;
+        self.machine_clauses[
+            self.machine_clause_count - 1
+        ].binding_case.end = self.scan.token_end;
+        self.machine_clauses[self.machine_clause_count - 1].end =
+            self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(92) }
+    }
+
+    state external_leaf_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> external_leaf_end_punctuation()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedExternalLeafEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state external_leaf_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> retain_bodyless_external_machine()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_bodyless_external_machine() {
+        self.machine_is_bodyless = 1;
+        transition true { true -> begin_retain_implicit_state(0) }
     }
 
     state begin_reaches_clause() {
@@ -4926,6 +5147,18 @@ machine OmegaParser::parse_view(
             self.machine_clause_first_member;
         self.machine_clauses[self.machine_clause_count].member_count =
             self.member_count - self.machine_clause_first_member;
+        self.machine_clauses[
+            self.machine_clause_count
+        ].has_external_binding = 0;
+        self.machine_clauses[
+            self.machine_clause_count
+        ].external_binding_kind = OmegaExternalBindingKind::CompilerIntrinsic;
+        self.machine_clauses[self.machine_clause_count].via_keyword.start = 0;
+        self.machine_clauses[self.machine_clause_count].via_keyword.end = 0;
+        self.machine_clauses[self.machine_clause_count].binding_root.start = 0;
+        self.machine_clauses[self.machine_clause_count].binding_root.end = 0;
+        self.machine_clauses[self.machine_clause_count].binding_case.start = 0;
+        self.machine_clauses[self.machine_clause_count].binding_case.end = 0;
         self.machine_clauses[self.machine_clause_count].start =
             self.machine_clause_start;
         self.machine_clauses[self.machine_clause_count].end =
@@ -8666,6 +8899,8 @@ machine OmegaParser::parse_view(
         self.machine_items[self.machine_count].clause_count =
             self.machine_clause_count - self.machine_first_clause;
         self.machine_items[self.machine_count].is_public = self.machine_is_public;
+        self.machine_items[self.machine_count].is_bodyless =
+            self.machine_is_bodyless;
         self.machine_items[self.machine_count].has_target = self.machine_has_target;
         self.machine_items[self.machine_count].target.start =
             self.machine_target_start;

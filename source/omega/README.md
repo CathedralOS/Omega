@@ -77,10 +77,13 @@ the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases. A source-ordered machine-clause ledger retains exact
 non-generic `satisfies Trait::requirement` bindings and nonempty `reaches`
-ceilings over comma- or plus-separated service identifiers. Generic satisfies
-arguments, aliases, external `via` bindings, empty or installation-bound reach
-rows, and other machine clauses remain incomplete. The parameter list retains
-canonical optional `const` and leading
+ceilings over comma- or plus-separated service identifiers. A satisfying clause
+may additionally own the exact `via`, `Binding`, and `CompilerIntrinsic` spans
+for the payload-free closed external binding. That form terminates one bodyless
+external-leaf machine with its canonical empty implicit entry. Generic satisfies
+arguments, aliases, other external binding cases, empty or installation-bound
+reach rows, and other machine clauses remain incomplete. The parameter list
+retains canonical optional `const` and leading
 `mut`, consuming or borrowed `self`, and shared/mutable/write-only
 binding-reference forms.
 Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
@@ -182,13 +185,14 @@ parameter comma rejects as malformed. Constrained slice elements and the
 `Slice<T>` spelling, return types placed after clauses, generics, remaining
 machine-clause forms, state arrival contracts, and `boundary` forms; target
 declarations and public target-scoped combinations, other public roots,
-bodyless declarations, and other body forms
+other bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and all 56 bodies that reach parsing are complete: four
-initial call-only roots, seven roots using the retained assignment slice, four
-target-provider roots using path-only static call arguments, the string-argument
+representable. Seventy-two roots are complete: all 56 bodies that reach parsing,
+plus sixteen target-scoped bodyless external leaves. The bodyful set includes
+four initial call-only roots, seven roots using the retained assignment slice,
+four target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
 root, `Lexer::{is_whitespace,push_decoded}` through explicit states and
 transitions, and `ConsoleNativeProvider::{write,write_line}` through exact
@@ -217,8 +221,11 @@ paths, shorthand bindings, and fixed path matches then completes `Main::main`,
 `Lexer::digit_in_base`, and `Parser::{parse_data,skip_trivia,parse_roots}`. The
 shared grouping and multiplicative reducer then completes
 `Lexer::{decode_at,lex_cooked_string}`. Recursive logical-not retention completes
-`Lexer::lex_number`; the remaining seventeen roots stop in their headers rather
-than being counted as body-parser coverage.
+`Lexer::lex_number`. The sixteen external leaves are the four
+`ConsoleNativeProvider::{read_line,read_byte,write_byte,exit_process}`
+realizations for each selected target. The sole remaining root,
+`console_write_bytes`, stops in its termination-witness header rather than being
+counted as body-parser coverage.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
