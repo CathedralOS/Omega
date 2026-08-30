@@ -63,7 +63,10 @@ bound before adapter emission.
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
 direct Alpha payload/fixup substrate, executed heap/stack and checked-`Int`
 helpers, resolved expression lowering, and profile-neutral whole-function
-label/body emission. It is incomplete and has no published tape. Its
+label/body emission. It also validates both exact D19 source schemas and the
+26-code Delta rejection bijection without declaration-order authority. Q4's
+physical profile realization remains open; the source is incomplete and has no
+published tape. Its
 251,142-byte historical fixed gate exhausted the former V1 Alpha ceiling before
 those later slices and the D19 adapters. D23 therefore selects the coherent
 `AlphaBootstrapV2` profile—a one-MiB stamped hole and 1,048,572-byte raw-tape
@@ -86,8 +89,9 @@ the universal checker remains Alpha-owned and outside the language rung.
 
 - retain D23's coherent `AlphaBootstrapV2` profile and the consolidated adjacent
   conformance gate through publication;
-- complete the two D19-selected adapters and remaining lowering in the exact
-  Gamma compiler source, then publish its artifact closure;
+- resolve Q4's exact physical profiles, complete the two D19-selected adapters
+  and remaining lowering in the exact Gamma compiler source, then publish its
+  artifact closure;
 - reuse the interpreter only as a specification or isolated algorithm source
   without turning runtime interpretation into a permanent dependency;
 - emit exact Alpha tapes and checked source-to-tape certificates; and

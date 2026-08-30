@@ -59,9 +59,9 @@ The committed tree still has two important gaps:
 
 - `source/gamma/compiler/gamma_compiler.beta` now owns a real strict frontend,
   direct Alpha emitter substrate, resolved expression lowering, and
-  profile-neutral whole-function emission, but the selected application
-  adapters, remaining lowering, canonical tape, and refinement are still
-  missing.
+  profile-neutral whole-function emission. Both D19 source schemas are
+  validated, but Q4's physical application profiles, the generated adapters,
+  remaining lowering, canonical tape, and refinement are still missing.
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   required replacement is a Gamma-written Delta compiler producing Alpha tape.

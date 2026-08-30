@@ -10,19 +10,21 @@ gamma_compiler.beta → gamma_compiler_bytecode.tape
 The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
-The adjacent 198-case gate compiles this one source with temporary fixed test
+The adjacent 204-case gate compiles this one source with temporary fixed test
 entries, retains all 97 frontend discriminators, and executes the emitter,
 runtime containment, frame/value ABI, checked `Int`, compact `Bytes`, sealed
 input, resolved-expression, selected-match, and whole-function paths. One
 full-source test emitter now covers ordinary and proper-tail calls,
 constructors, locals, matches, and general expressions instead of rebuilding
 five redundant compiler variants. It also pins malformed whole-function
-metadata and exact/adjacent label capacity before payload mutation. The gate
-publishes no compiler artifact.
+metadata and exact/adjacent label capacity before payload mutation. Six D19
+schema cases cover both profiles, reversed reason declaration order, and
+missing/malformed outcome rows without emitting an adapter. The gate publishes
+no compiler artifact.
 
-The retained compiler source declares 109 procedures. With the fixed frontend
-gate entry, the compiled gate uses 110 of Beta's 256 procedure slots and
-compiles to 293,875 bytes. The remaining 754,697 bytes under
+The retained compiler source declares 115 procedures. With the fixed frontend
+gate entry, the compiled gate uses 116 of Beta's 256 procedure slots and
+compiles to 329,015 bytes. The remaining 719,557 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -80,7 +82,7 @@ byte is published until every fixup and the complete payload extent validate.
 Those extents describe the `AlphaBootstrapV2` profile selected by D23 and
 migrated with the seeds, Beta compiler, checker, outcome tables, and exact-limit
 gates. The measured 251,142-byte fixed frontend no longer has to fit the retired
-V1 ceiling. The current consolidated 198-case gate remains mandatory, and
+V1 ceiling. The current consolidated 204-case gate remains mandatory, and
 ordinary density improvements remain useful rather than a release gate.
 
 The retained front end's four-word syntax nodes retain the exact
@@ -133,6 +135,15 @@ installs each packed frame profile, lowers the body in tail position, and emits
 the common return-frame epilogue. D19 remains the separate owner of profile
 selection, the generated PC-zero application adapter, result framing, and final
 publication.
+
+D19 schema admission now resolves the exact `main` signature for both profiles.
+For `DeltaCompilerV1` it additionally validates the two source-owned nominal
+types, the exact `Complete`/`Reject` field lists, all 26 nullary rejection
+constructors, and the fixed code bijection without using declaration order or
+runtime constructor kinds. The physical sealed request, exact profile maxima,
+Conformance observations, and complete `GCOUT`/`DCOUT` tables remain
+owner-blocked by Q4; no canonical adapter bytes are emitted until those facts
+are fixed.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
@@ -286,9 +297,9 @@ and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
 
 D20's declaration/binder resolver, source joins, and profile-neutral
-whole-function label/body emission are implemented. D19 fixes
-application-profile selection; implementing both adapters and final publication
-still gates the tape. No incomplete slice
+whole-function label/body emission are implemented. D19's exact source-owned
+schemas and reason-code bijection are implemented; Q4's physical profile facts,
+both adapters, and final publication still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.
