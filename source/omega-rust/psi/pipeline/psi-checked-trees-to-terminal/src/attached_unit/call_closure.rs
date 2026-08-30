@@ -132,6 +132,7 @@ pub(super) fn validate_unit_operation_sequence(
         return unsupported("Unit machine does not end in exactly one checked Unit return");
     };
     let mut previous = None;
+    let mut next_scalar_binding = 0_u32;
     for operation in &machine.operations[..machine.operations.len() - 1] {
         let coordinate = match operation {
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -145,6 +146,25 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
+            CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                coordinate, result, ..
+            } => {
+                if result.statement_index != coordinate.statement_index
+                    || coordinate.call_ordinal != 0
+                    || result.binding_ordinal != next_scalar_binding
+                {
+                    return unsupported(
+                        "Unit scalar result local or call coordinate is not canonical",
+                    );
+                }
+                next_scalar_binding =
+                    next_scalar_binding
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit scalar result binding ordinal space is exhausted",
+                        ))?;
+                *coordinate
+            }
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index, ..
             } => psi_checked_trees::CheckedUnitCallCoordinate {

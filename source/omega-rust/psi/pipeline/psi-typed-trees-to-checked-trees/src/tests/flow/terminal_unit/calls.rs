@@ -521,6 +521,77 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
 }
 
 #[test]
+fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
+    let checked = checked(
+        r#"
+        boundary trait Host {
+            machine measure(value: i32) -> i32
+            reaches Host;
+            machine finish(value: i32)
+            reaches Host;
+        }
+
+        data Main {}
+
+        machine Main::main(&mut self)
+        reaches Host
+        {
+            let result: i32 = Host::measure(70);
+            Host::finish(result);
+        }
+        "#,
+    );
+
+    let main = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Main::main"))
+        .expect("scalar boundary result flow should retain a complete Unit plan");
+    let [
+        CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate: result_call,
+            result,
+            scalar_arguments: result_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate: consumer_call,
+            scalar_arguments: consumer_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 2, ..
+        },
+    ] = main.operations.as_slice()
+    else {
+        panic!("scalar boundary result flow retained the wrong operation sequence")
+    };
+    assert_eq!(
+        (result_call.statement_index, result_call.call_ordinal),
+        (0, 0)
+    );
+    assert_eq!(result.statement_index, 0);
+    assert_eq!(result.binding_ordinal, 0);
+    assert_eq!(result.primitive_type, PrimitiveType::I32);
+    assert!(matches!(
+        result_arguments.as_slice(),
+        [CheckedScalarExpression::IntegerLiteral { .. }]
+    ));
+    assert_eq!(
+        (consumer_call.statement_index, consumer_call.call_ordinal),
+        (1, 0)
+    );
+    assert!(matches!(
+        consumer_arguments.as_slice(),
+        [CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type: PrimitiveType::I32,
+        }]
+    ));
+}
+
+#[test]
 fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     let checked = checked(
         r#"
