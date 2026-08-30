@@ -29,8 +29,8 @@ src/
 └── error.rs        fail-closed acquisition errors
 ```
 
-Native child-process confinement lives one level down in
-[`resolver-execution/`](resolver-execution/README.md).
+Native child-process confinement lives in the peer
+[`source-execution/`](../source-execution/README.md) crate.
 Package declarations, graph reconciliation, review, and admission remain
 manager responsibilities. `SourceRelativePath` is lexical source navigation,
 not an authored workspace-member declaration.

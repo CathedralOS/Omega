@@ -1,0 +1,51 @@
+//! Compile checked review candidates, compare them, and apply root decisions.
+
+mod audit;
+pub(crate) mod baseline;
+mod candidate;
+mod compare;
+mod decision;
+pub(crate) mod reconstruction;
+
+pub use audit::{
+    CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
+    PackageSourcePatchSide, PackageSourceReviewCustodyRole, PackageSourceReviewError,
+    PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
+    PackageTriageDecision, PackageTriageDisposition, PackageTriageReason, TriageRenderError,
+    assemble_initial_source_review, assemble_update_source_review, render_package_source_patch,
+    triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
+};
+pub use baseline::{
+    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineError,
+    ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
+    ReviewOnlyBaselineNameError, ReviewOnlyBaselinePackage,
+    assemble_update_source_review_from_baseline, compare_review_only_capabilities_from_baseline,
+    compare_review_only_root_role_from_baseline, triage_review_update_from_baseline,
+};
+pub use candidate::{
+    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
+    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase, ReviewOnlyCanonicalRow,
+    ReviewOnlySourceConsumptionCommitment, compile_resolved_package_reviews,
+};
+pub use compare::{
+    ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
+    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
+    ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
+    compare_review_only_capabilities,
+};
+pub use decision::{
+    ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,
+    ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError,
+    ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
+    ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionCommitment,
+    ReviewOnlyRootPolicyResolutionError, recover_review_only_root_policy_resolution,
+    resolve_review_only_root_policy_decisions,
+};
+pub use reconstruction::{
+    CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
+    CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
+    CanonicalPackageReconstructionQuestionLimits, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
+};
