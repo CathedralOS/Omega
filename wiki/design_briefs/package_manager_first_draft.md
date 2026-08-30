@@ -1784,17 +1784,19 @@ and open-but-unlinked objects under a 4,096-entry, 256-MiB-total, and
 256-MiB-per-object ceiling. Provider mutations reserve before touching the OS
 and commit after success; ceiling refusal is resource exhaustion. Neither
 per-package limits nor path-summing bound the actual resource.
-A distinct version-4 evaluation sponsor now accounts deterministic evaluator
+A distinct version-5 evaluation sponsor now accounts deterministic evaluator
 work, compiler-owned BuildLog bytes, filesystem operation attempts, and
 concurrently live compiler-owned filesystem resources across that same
 closure. The compiler policy grants 100,000,000 total fuel units, 16 MiB of
-BuildLog output, 65,536 canonical filesystem operation attempts, and 4,096
-live filesystem handles,
+BuildLog output, 65,536 canonical filesystem operation attempts, 4,096 live
+filesystem handles, 1,048,576 successful result cells, and 64 MiB of successful
+result Text bytes,
 preserves the 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings for initial evaluation and automatic replay, and
 prevents dependencies or the ambient interpreter development override from
-raising package-policy limits. Usage receipt v4 binds those limits and
-separates initial from replay fuel, BuildLog, and filesystem-attempt charges,
+raising package-policy limits. Usage receipt v5 binds those limits and
+separates initial from replay fuel, BuildLog, filesystem-attempt, result-cell,
+and result-Text charges,
 and retains the shared session's peak live-handle count. Owned handle outputs
 reserve before provider entry; provider failure, successful close, and
 evaluator teardown release through compiler ownership. Borrowed native views

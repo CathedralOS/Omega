@@ -37,6 +37,12 @@ pub enum CompileResolvedPackageReviewsError {
         sponsored_peak: u64,
         sponsored_live: u64,
     },
+    BuildResultCustodyAccountingMismatch {
+        reported_cells: Option<u64>,
+        sponsored_cells: u64,
+        reported_text_bytes: Option<u64>,
+        sponsored_text_bytes: u64,
+    },
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
@@ -127,6 +133,15 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             } => write!(
                 formatter,
                 "package-review live-filesystem-handle usage did not reconcile with its shared evaluator sponsor (reported peak {reported_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
+            ),
+            Self::BuildResultCustodyAccountingMismatch {
+                reported_cells,
+                sponsored_cells,
+                reported_text_bytes,
+                sponsored_text_bytes,
+            } => write!(
+                formatter,
+                "package-review result custody did not reconcile with its shared evaluator sponsor (reported cells {reported_cells:?}, sponsored cells {sponsored_cells}, reported Text bytes {reported_text_bytes:?}, sponsored Text bytes {sponsored_text_bytes})"
             ),
             Self::BuildStagingCleanup { path, error, prior } => {
                 write!(

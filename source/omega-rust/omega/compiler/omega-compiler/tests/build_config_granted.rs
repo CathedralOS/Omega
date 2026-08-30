@@ -333,7 +333,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_usage = checked
         .build_evaluation_usage()
         .expect("build machine evaluation must publish precursor usage");
-    assert_eq!(checked_usage.usage_schema_version, 4);
+    assert_eq!(checked_usage.usage_schema_version, 5);
     assert_eq!(checked_usage.step_schedule_marker, 1);
     assert_eq!(checked_usage.invocation_fuel_ceiling, 10_000_000);
     assert_eq!(checked_usage.sponsor_schema_version, None);
@@ -341,6 +341,8 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(checked_usage.session_build_log_byte_ceiling, None);
     assert_eq!(checked_usage.session_filesystem_attempt_ceiling, None);
     assert_eq!(checked_usage.session_live_filesystem_handle_ceiling, None);
+    assert_eq!(checked_usage.session_result_cell_ceiling, None);
+    assert_eq!(checked_usage.session_result_text_byte_ceiling, None);
     assert_eq!(checked_usage.session_peak_live_filesystem_handles, 0);
     assert_eq!(
         checked_usage.filesystem_operation_attempts,
@@ -357,6 +359,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert!(checked_usage.fuel_units <= checked_usage.invocation_fuel_ceiling);
     assert!(checked_usage.replay_fuel_units <= checked_usage.invocation_fuel_ceiling);
     assert!(checked_usage.result_cells > 0);
+    assert!(checked_usage.replay_result_cells <= checked_usage.result_cells);
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");

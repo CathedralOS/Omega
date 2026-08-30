@@ -2551,7 +2551,7 @@ mod tests {
         let program = TypedTrees::default();
         let mut evaluator = evaluator_with_pending_attempt(&program);
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(100, 100, 100, 1).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(100, 100, 100, 1, 100, 100).expect("nonzero limits"),
         );
         evaluator.build_evaluation_sponsor = Some(sponsor.clone());
         let plan = PreparedFilesystemLogicalHandlePlan {
@@ -2583,7 +2583,7 @@ mod tests {
         let program = TypedTrees::default();
         let mut evaluator = evaluator_with_pending_attempt(&program);
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(100, 100, 100, 1).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(100, 100, 100, 1, 100, 100).expect("nonzero limits"),
         );
         evaluator.build_evaluation_sponsor = Some(sponsor.clone());
         let created = || PreparedFilesystemLogicalHandlePlan {
@@ -2665,7 +2665,7 @@ mod tests {
         let program = TypedTrees::default();
         let mut evaluator = evaluator_with_pending_attempt(&program);
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(100, 100, 100, 1).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(100, 100, 100, 1, 100, 100).expect("nonzero limits"),
         );
         evaluator.build_evaluation_sponsor = Some(sponsor.clone());
         let created = PreparedFilesystemLogicalHandlePlan {

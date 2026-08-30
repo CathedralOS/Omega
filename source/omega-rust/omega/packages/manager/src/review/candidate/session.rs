@@ -22,6 +22,11 @@ const PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
 /// Compiler-owned filesystem resources live concurrently across the package
 /// closure. This does not count unrelated host-process descriptors.
 const PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING: u64 = 4_096;
+/// Aggregate recursive value cells returned by successful initial and replay
+/// evaluations across the closure.
+const PACKAGE_REVIEW_RESULT_CELL_CEILING: u64 = 1_048_576;
+/// Aggregate Text payload bytes retained by successful build results.
+const PACKAGE_REVIEW_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug)]
 pub(super) struct ReviewBuildSession {
@@ -91,6 +96,8 @@ impl ReviewBuildSession {
                         PACKAGE_REVIEW_BUILD_LOG_CEILING,
                         PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING,
                         PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING,
+                        PACKAGE_REVIEW_RESULT_CELL_CEILING,
+                        PACKAGE_REVIEW_RESULT_TEXT_BYTE_CEILING,
                     )
                     .expect("package-review build ceilings are nonzero");
                     return Ok(Self {

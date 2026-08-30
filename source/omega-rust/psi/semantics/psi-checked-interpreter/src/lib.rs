@@ -180,7 +180,7 @@ impl EvaluationUsageSchemaIdentity {
 }
 
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
-    EvaluationUsageSchemaIdentity(4);
+    EvaluationUsageSchemaIdentity(5);
 
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
@@ -196,6 +196,7 @@ pub struct EvaluationUsage {
     build_log_bytes: u64,
     filesystem_operation_attempts: u64,
     result_cells: u64,
+    result_text_bytes: u64,
 }
 
 /// Schema for the current incomplete filesystem operation-attempt evidence.
@@ -5821,6 +5822,7 @@ impl EvaluationUsage {
             build_log_bytes: 0,
             filesystem_operation_attempts: 0,
             result_cells: 0,
+            result_text_bytes: 0,
         }
     }
 
@@ -5858,6 +5860,11 @@ impl EvaluationUsage {
         self.result_cells
     }
 
+    /// Exact Text payload bytes retained by the successful result.
+    pub const fn result_text_bytes(self) -> u64 {
+        self.result_text_bytes
+    }
+
     fn charge_step(&mut self) -> Option<()> {
         self.fuel_units = self.fuel_units.checked_add(1)?;
         Some(())
@@ -5877,8 +5884,9 @@ impl EvaluationUsage {
         Some(())
     }
 
-    fn record_result_cells(&mut self, result_cells: u64) {
+    fn record_result_custody(&mut self, result_cells: u64, result_text_bytes: u64) {
         self.result_cells = result_cells;
+        self.result_text_bytes = result_text_bytes;
     }
 }
 

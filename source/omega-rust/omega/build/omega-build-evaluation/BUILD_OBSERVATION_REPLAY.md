@@ -479,7 +479,7 @@ limits retained BuildLog custody only; it is not resident-memory containment.
 The same sponsor permits at most 65,536 canonical filesystem operation attempts
 across initial evaluation, automatic replay, and the complete package closure.
 The evaluator charges before appending a pending attempt row, retains exact
-initial and replay counts in usage schema v4, and successful closure review
+initial and replay counts in usage schema v5, and successful closure review
 reconciles both counts with the shared account. This bounds observation-vector
 cardinality; it does not claim a bound on resident memory.
 
@@ -493,6 +493,16 @@ the monotonically observed session peak, successful closure review reconciles
 that peak with the shared sponsor, and completion requires zero live leases.
 This bounds compiler-admitted build resources only; it makes no claim about
 unrelated descriptors in the host process or operating-system confinement.
+
+Sponsor schema v5 additionally admits at most 1,048,576 recursive result cells
+and 64 MiB of exact retained Text payload across successful initial and replay
+evaluations in the closure. Fixed arrays and aggregate shape consume cells;
+Text consumes one cell plus its exact payload-byte count. Structural names and
+allocator overhead are deliberately excluded rather than mislabeled as a
+portable byte size. Ceiling refusal prevents the result from crossing the
+compiler boundary, and successful closure review exactly reconciles both
+cumulative charges. This bounds successful result custody, not temporary
+evaluator allocation or resident memory.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete

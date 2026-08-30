@@ -490,20 +490,21 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
-Package review additionally owns one unobservable version-4 evaluation sponsor
+Package review additionally owns one unobservable version-5 evaluation sponsor
 across the complete resolved closure. The current compiler policy grants
 100,000,000 deterministic evaluator fuel units, 16 MiB of compiler-owned
-BuildLog output, 65,536 canonical filesystem operation attempts, and 4,096
-concurrently live compiler-owned filesystem resources while
+BuildLog output, 65,536 canonical filesystem operation attempts, 4,096
+concurrently live compiler-owned filesystem resources, 1,048,576 successful
+result cells, and 64 MiB of successful result Text payload while
 retaining the ordinary 100,000-unit ceiling for an effect-free invocation and
 10,000,000-unit ceiling for a granted invocation. Initial evaluation and
 automatic provider-free replay debit the same shared sponsor;
-dependencies cannot raise it. The version-4 usage receipt binds the step
+dependencies cannot raise it. The version-5 usage receipt binds the step
 schedule, per-invocation ceiling, optional sponsor schema and session ceilings,
-and distinct initial/replay fuel, BuildLog, and filesystem-attempt charges. It
-also retains the shared session's peak live-handle count. Successful closure
-review rejects unless all retained charge totals and the peak exactly equal the
-sponsor's counters and no live reservation remains. The ambient
+and distinct initial/replay fuel, BuildLog, filesystem-attempt, result-cell,
+and result-Text charges. It also retains the shared session's peak live-handle
+count. Successful closure review rejects unless all retained charge totals and
+the peak exactly equal the sponsor's counters and no live reservation remains. The ambient
 interpreter development override does not alter package-policy evaluation.
 These are deterministic compiler-resource limits, not claims about CPU time,
 resident memory, the process-wide descriptor table, or hostile-process
@@ -730,14 +731,16 @@ from a hostile same-user process racing the private session.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records
-`result_cells` for successful semantic evaluation.
+`result_cells` and `result_text_bytes` for successful semantic evaluation.
 Each returned scalar, unit, text, or aggregate root contributes one cell, and
 aggregate fields, case payload values, and array elements contribute their
-recursive cell counts. Text byte volume belongs to logical-work telemetry, so
-it does not inflate the retained-cell count. Augmenting-machine results sum the
-cells in every returned argument. The evaluator computes this count with
-checked arithmetic and rejects accounting overflow rather than publishing a
-partial record. `logical_words_processed`,
+recursive cell counts. Text does not inflate the cell count; its exact retained
+payload bytes are counted separately. Structural type/member/case names and
+Rust allocator overhead are compiler metadata and implementation details, not
+invented semantic byte size. Augmenting-machine results sum both measures over
+every returned argument. The evaluator computes them with checked arithmetic
+and rejects accounting overflow rather than publishing a partial record.
+`logical_words_processed`,
 `aggregate_elements_constructed`, and `peak_live_cells` still require execution
 and allocator instrumentation.
 
@@ -758,7 +761,7 @@ The evaluated machine cannot observe its budget, catch exhaustion, or change
 behavior when the grant changes. Raising a budget can change whether the build
 obtains a result, never which result it obtains. Published reproducible builds
 either carry the certified ceiling or record the admitted work budget and usage
-receipt. Temporary memory, peak live cells, and result-byte size receive the
+receipt. Temporary memory and peak live cells receive the
 same treatment: termination and a work ceiling alone do not license an
 unbounded allocation or a terabyte constant.
 

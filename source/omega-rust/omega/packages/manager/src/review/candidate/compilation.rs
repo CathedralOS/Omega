@@ -312,5 +312,35 @@ fn compile_resolved_package_reviews_in_session(
             },
         );
     }
+    let reported_result_cells = reviews.iter().try_fold(0u64, |total, review| {
+        let Some(usage) = review.build_evaluation_usage() else {
+            return Some(total);
+        };
+        total
+            .checked_add(usage.result_cells)
+            .and_then(|total| total.checked_add(usage.replay_result_cells))
+    });
+    let reported_result_text_bytes = reviews.iter().try_fold(0u64, |total, review| {
+        let Some(usage) = review.build_evaluation_usage() else {
+            return Some(total);
+        };
+        total
+            .checked_add(usage.result_text_bytes)
+            .and_then(|total| total.checked_add(usage.replay_result_text_bytes))
+    });
+    let sponsored_cells = evaluation_sponsor.consumed_result_cells();
+    let sponsored_text_bytes = evaluation_sponsor.consumed_result_text_bytes();
+    if reported_result_cells != Some(sponsored_cells)
+        || reported_result_text_bytes != Some(sponsored_text_bytes)
+    {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildResultCustodyAccountingMismatch {
+                reported_cells: reported_result_cells,
+                sponsored_cells,
+                reported_text_bytes: reported_result_text_bytes,
+                sponsored_text_bytes,
+            },
+        );
+    }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }
