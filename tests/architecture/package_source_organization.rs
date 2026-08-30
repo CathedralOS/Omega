@@ -17,11 +17,11 @@ const PACKAGE_CRATES: &[&str] = &[
 ];
 const MANAGER_OWNERS: &[&str] = &[
     "graph",
-    "operations",
     "package",
     "project",
     "review",
     "sources",
+    "workflows",
 ];
 const EVIDENCE_OWNERS: &[&str] = &["encoding", "evidence", "obligations", "projection"];
 const MAX_PRODUCTION_LEAF_LINES: usize = 600;

@@ -7,8 +7,9 @@ follow the owner that matches the work.
 ```text
 src/
 ├── lib.rs          public owner map
-├── operations/     complete user-facing workflows
-│   └── audit_source/ acquire and inspect one source without admission
+├── workflows/      real user-facing entrances
+│   ├── audit_source/ acquire and inspect one source without admission
+│   └── local_project.rs prepare ordinary package-aware compilation
 ├── project/        package roles and dependencies declared by build.omg
 │   ├── roles.rs    package, application, and workspace roles
 │   └── dependencies/
@@ -30,18 +31,20 @@ src/
     └── reconstruction/ exact local reconstruction questions
 ```
 
-`operations/audit_source/` is the first complete operation. Install and update
+`workflows/local_project.rs` is the ordinary compiler entrance;
+`workflows/audit_source/` is the first explicit package command. Install and update
 orchestration remain intentionally absent until accepted-lock and atomic
 transaction prerequisites are implemented. Current work is tracked in
 [`TASKS_PACKAGE_MANAGER.md`](../../../../../TASKS_PACKAGE_MANAGER.md).
 
 ## Ownership
 
-`project` reads checked `build.omg` package declarations. `sources` joins those
+`workflows` owns complete command/compiler flows. `project` reads checked
+`build.omg` package declarations. `sources` joins those
 declarations to immutable source custody. `graph` follows and
 reconciles dependency edges. `review` compiles the resulting closure, compares
 compiler-issued facts, prepares source audit material, and records the root
-owner's decision. `operations` composes those owners into commands.
+owner's decision.
 
 The crate root deliberately does not flatten these APIs. Callers name the owner
 they consume, so source paths continue to explain authority and data flow.
