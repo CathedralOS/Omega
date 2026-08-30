@@ -321,6 +321,10 @@ pub struct BuildEvaluationUsage {
     /// Compiler-owned filesystem resources that may be reserved concurrently
     /// across the sponsored review session.
     pub session_live_filesystem_handle_ceiling: Option<u64>,
+    /// Aggregate recursive result cells admitted across the sponsored session.
+    pub session_result_cell_ceiling: Option<u64>,
+    /// Aggregate Text payload bytes admitted across the sponsored session.
+    pub session_result_text_byte_ceiling: Option<u64>,
     /// Highest concurrent reservation count observed in the shared session at
     /// the point this build result was issued.
     pub session_peak_live_filesystem_handles: u64,
@@ -337,6 +341,9 @@ pub struct BuildEvaluationUsage {
     /// Filesystem operation attempts retained by replay, or zero when absent.
     pub replay_filesystem_operation_attempts: u64,
     pub result_cells: u64,
+    pub replay_result_cells: u64,
+    pub result_text_bytes: u64,
+    pub replay_result_text_bytes: u64,
 }
 
 pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 63;
@@ -4234,6 +4241,10 @@ pub fn compute_build_config(
                 .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
             session_live_filesystem_handle_ceiling: evaluation_sponsor
                 .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
+            session_result_cell_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_result_cells()),
+            session_result_text_byte_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_result_text_bytes()),
             session_peak_live_filesystem_handles: evaluation_sponsor
                 .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
             fuel_units: usage.fuel_units(),
@@ -4244,6 +4255,9 @@ pub fn compute_build_config(
             replay_filesystem_operation_attempts: replay_usage
                 .map_or(0, |usage| usage.filesystem_operation_attempts()),
             result_cells: usage.result_cells(),
+            replay_result_cells: replay_usage.map_or(0, |usage| usage.result_cells()),
+            result_text_bytes: usage.result_text_bytes(),
+            replay_result_text_bytes: replay_usage.map_or(0, |usage| usage.result_text_bytes()),
         }),
         observation_summary: Some(BuildObservationSummary {
             schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,

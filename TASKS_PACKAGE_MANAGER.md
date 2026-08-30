@@ -62,9 +62,10 @@ package review remains non-admitting.
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
   - extend the landed compiler-owned, closure-wide deterministic fuel sponsor
-    with peak-live-cell and temporary/result-byte ceilings. BuildLog bytes,
-    canonical filesystem operation attempts, and concurrently live filesystem
-    handles now have closure-wide compiler-owned accounts.
+    with peak-live-cell and temporary logical-payload ceilings. BuildLog bytes,
+    canonical filesystem operation attempts, concurrently live filesystem
+    handles, and successful result cells/Text bytes now have closure-wide
+    compiler-owned accounts.
 
   Host CPU/RSS limits are deployment availability policy, not package evidence
   and not a precondition that turns review into authority. Projects that need

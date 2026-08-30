@@ -130,6 +130,17 @@ fn project_landed_float(format: SemanticFloatFormat, value: f64) -> FloatMeaning
             .expect("binary64 projection row accepts f64")
     }
 }
+
+fn build_time_result_custody(values: &[crate::build_time::BuildTimeValue]) -> Option<(u64, u64)> {
+    values
+        .iter()
+        .try_fold((0u64, 0u64), |(cells, text_bytes), value| {
+            Some((
+                cells.checked_add(value.retained_cell_count()?)?,
+                text_bytes.checked_add(value.retained_text_byte_count()?)?,
+            ))
+        })
+}
 /// Fuel cap for CONST EVALUATION (comptime stage 1). The language's
 /// termination discipline (no general recursion, loops carry decreases) is the
 /// real guarantee; this cap is defense-in-depth against checker gaps. Exceeding
@@ -233,7 +244,7 @@ fn run_const_machine_on_current_thread(
     let mut usage = evaluator.usage;
     match result {
         Ok(value) => {
-            usage.record_result_cells(1);
+            usage.record_result_custody(1, 0);
             Ok(MeasuredEvaluation::new(value, usage))
         }
         Err(Halt::Exit(code)) => Err(format!(
@@ -279,10 +290,11 @@ pub(crate) fn run_build_time_machine_with_operation_receipts(
                 let mut usage = evaluator.usage;
                 match result {
                     Ok(value) => {
-                        let result_cells = value.retained_cell_count().ok_or_else(|| {
+                        let (result_cells, result_text_bytes) =
+                            build_time_result_custody(std::slice::from_ref(&value)).ok_or_else(|| {
                             "build-time evaluator result-cell count overflowed".to_owned()
                         })?;
-                        usage.record_result_cells(result_cells);
+                        usage.record_result_custody(result_cells, result_text_bytes);
                         Ok(BuildTimeOperationEvaluation::new(
                             value,
                             usage,
@@ -396,12 +408,14 @@ fn run_observed_build_time_machine_arguments_with_optional_sponsor(
                 );
                 match result {
                     Ok(values) => {
-                        let result_cells = values.iter().try_fold(0u64, |count, value| {
-                            count.checked_add(value.retained_cell_count()?)
-                        }).ok_or_else(|| {
+                        let (result_cells, result_text_bytes) =
+                            build_time_result_custody(&values).ok_or_else(|| {
                             "build-time evaluator result-cell count overflowed".to_owned()
                         })?;
-                        usage.record_result_cells(result_cells);
+                        if let Some(sponsor) = &evaluator.build_evaluation_sponsor {
+                            sponsor.charge_result_custody(result_cells, result_text_bytes)?;
+                        }
+                        usage.record_result_custody(result_cells, result_text_bytes);
                         Ok(MeasuredBuildMachineEvaluation::new(
                             values,
                             usage,
@@ -553,9 +567,9 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                 );
                 match result {
                     Ok(values) => {
-                        let Some(result_cells) = values.iter().try_fold(0u64, |count, value| {
-                            count.checked_add(value.retained_cell_count()?)
-                        }) else {
+                        let Some((result_cells, result_text_bytes)) =
+                            build_time_result_custody(&values)
+                        else {
                             return Err(BuildMachineEvaluationFailure::with_evidence(
                                 BuildMachineEvaluationFailureKind::ResultAccountingOverflow,
                                 "build-time evaluator result-cell count overflowed".to_owned(),
@@ -563,7 +577,18 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                                 observations,
                             ));
                         };
-                        usage.record_result_cells(result_cells);
+                        if let Some(sponsor) = &evaluator.build_evaluation_sponsor
+                            && let Err(message) = sponsor
+                                .charge_result_custody(result_cells, result_text_bytes)
+                        {
+                            return Err(BuildMachineEvaluationFailure::with_evidence(
+                                BuildMachineEvaluationFailureKind::ResourceExhausted,
+                                message,
+                                usage,
+                                observations,
+                            ));
+                        }
+                        usage.record_result_custody(result_cells, result_text_bytes);
                         Ok(MeasuredBuildMachineEvaluation::new(
                             values,
                             usage,

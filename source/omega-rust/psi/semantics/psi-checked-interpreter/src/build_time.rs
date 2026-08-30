@@ -43,8 +43,8 @@ impl BuildTimeValue {
     /// Canonical result-cell count for evaluator usage schema v1. Every value
     /// contributes one root cell; aggregate fields, case payloads, and array
     /// elements contribute their recursively retained cells as well. Text is
-    /// one value cell regardless of byte length; byte processing belongs to
-    /// the separate logical-work counters.
+    /// one value cell regardless of byte length; its exact retained payload is
+    /// measured separately.
     pub(crate) fn retained_cell_count(&self) -> Option<u64> {
         let children = match self {
             Self::Struct { fields, .. }
@@ -59,6 +59,25 @@ impl BuildTimeValue {
             Self::Unit | Self::Int(_) | Self::Bool(_) | Self::Float(_) | Self::Text(_) => 0,
         };
         children.checked_add(1)
+    }
+
+    /// Exact Text payload bytes retained by this result. Structural names and
+    /// Rust allocation overhead are compiler metadata/implementation details,
+    /// not fabricated semantic byte size.
+    pub(crate) fn retained_text_byte_count(&self) -> Option<u64> {
+        match self {
+            Self::Text(bytes) => u64::try_from(bytes.len()).ok(),
+            Self::Struct { fields, .. }
+            | Self::Case {
+                payload: fields, ..
+            } => fields.iter().try_fold(0u64, |count, (_, value)| {
+                count.checked_add(value.retained_text_byte_count()?)
+            }),
+            Self::Array(elements) => elements.iter().try_fold(0u64, |count, value| {
+                count.checked_add(value.retained_text_byte_count()?)
+            }),
+            Self::Unit | Self::Int(_) | Self::Bool(_) | Self::Float(_) => Some(0),
+        }
     }
 
     /// Materialize into an interpreter value tree (fresh cells throughout --
@@ -169,5 +188,6 @@ mod tests {
 
         // Struct + case + array + two elements + bool.
         assert_eq!(value.retained_cell_count(), Some(6));
+        assert_eq!(value.retained_text_byte_count(), Some(4096));
     }
 }

@@ -1639,14 +1639,15 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
-The same disposable review session now owns a separate version-4 deterministic
+The same disposable review session now owns a separate version-5 deterministic
 evaluation sponsor across the closure: 100,000,000 total evaluator fuel units,
 16 MiB of compiler-owned BuildLog bytes, 65,536 canonical filesystem operation
-attempts, and 4,096 concurrently live compiler-owned filesystem resources,
+attempts, 4,096 concurrently live compiler-owned filesystem resources,
+1,048,576 successful result cells, and 64 MiB of successful result Text bytes,
 with the ordinary 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings retained for initial evaluation and replay. Usage
-receipt v4 binds the fuel, BuildLog, filesystem-attempt, and live-handle
-ceilings, records initial and replay cumulative charges separately, and retains
+receipt v5 binds the fuel, BuildLog, filesystem-attempt, live-handle, and result
+custody ceilings, records initial and replay cumulative charges separately, and retains
 the shared session's peak live-handle count. Owned outputs reserve before a
 provider is entered; provider failure, successful close, and evaluator teardown
 release through compiler ownership, while a borrowed native view does not mint

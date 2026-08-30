@@ -3,14 +3,15 @@
 //! Compiler-owned aggregate accounting for one build-evaluation session.
 //!
 //! This account measures deterministic evaluator fuel, retained BuildLog
-//! bytes, canonical filesystem operation attempts, and concurrently reserved
-//! filesystem handles. It does not claim to bound host CPU time, memory, the
-//! process-wide descriptor table, or another process resource.
+//! bytes, canonical filesystem operation attempts, concurrently reserved
+//! filesystem handles, and successful result custody. It does not claim to
+//! bound host CPU time, memory, the process-wide descriptor table, temporary
+//! evaluator allocation, or another process resource.
 
 use std::sync::Arc;
 use std::sync::Mutex;
 
-pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 4;
+pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 5;
 
 /// Immutable limits for one shared build-evaluation resource account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,20 +20,26 @@ pub struct BuildEvaluationSponsorLimits {
     maximum_build_log_bytes: u64,
     maximum_filesystem_operation_attempts: u64,
     maximum_live_filesystem_handles: u64,
+    maximum_result_cells: u64,
+    maximum_result_text_bytes: u64,
 }
 
 impl BuildEvaluationSponsorLimits {
-    /// Construct the version-4 limit schema.
+    /// Construct the version-5 limit schema.
     pub const fn new(
         maximum_fuel_units: u64,
         maximum_build_log_bytes: u64,
         maximum_filesystem_operation_attempts: u64,
         maximum_live_filesystem_handles: u64,
+        maximum_result_cells: u64,
+        maximum_result_text_bytes: u64,
     ) -> Option<Self> {
         if maximum_fuel_units == 0
             || maximum_build_log_bytes == 0
             || maximum_filesystem_operation_attempts == 0
             || maximum_live_filesystem_handles == 0
+            || maximum_result_cells == 0
+            || maximum_result_text_bytes == 0
         {
             return None;
         }
@@ -41,6 +48,8 @@ impl BuildEvaluationSponsorLimits {
             maximum_build_log_bytes,
             maximum_filesystem_operation_attempts,
             maximum_live_filesystem_handles,
+            maximum_result_cells,
+            maximum_result_text_bytes,
         })
     }
 
@@ -69,6 +78,14 @@ impl BuildEvaluationSponsorLimits {
     pub const fn maximum_live_filesystem_handles(self) -> u64 {
         self.maximum_live_filesystem_handles
     }
+
+    pub const fn maximum_result_cells(self) -> u64 {
+        self.maximum_result_cells
+    }
+
+    pub const fn maximum_result_text_bytes(self) -> u64 {
+        self.maximum_result_text_bytes
+    }
 }
 
 #[derive(Debug)]
@@ -84,6 +101,8 @@ struct BuildEvaluationSponsorConsumption {
     filesystem_operation_attempts: u64,
     live_filesystem_handles: u64,
     peak_live_filesystem_handles: u64,
+    result_cells: u64,
+    result_text_bytes: u64,
 }
 
 /// Cloneable compiler-side authority for one aggregate resource account.
@@ -141,6 +160,20 @@ impl BuildEvaluationSponsor {
         match self.account.consumed.lock() {
             Ok(consumed) => consumed.peak_live_filesystem_handles,
             Err(poisoned) => poisoned.into_inner().peak_live_filesystem_handles,
+        }
+    }
+
+    pub fn consumed_result_cells(&self) -> u64 {
+        match self.account.consumed.lock() {
+            Ok(consumed) => consumed.result_cells,
+            Err(poisoned) => poisoned.into_inner().result_cells,
+        }
+    }
+
+    pub fn consumed_result_text_bytes(&self) -> u64 {
+        match self.account.consumed.lock() {
+            Ok(consumed) => consumed.result_text_bytes,
+            Err(poisoned) => poisoned.into_inner().result_text_bytes,
         }
     }
 
@@ -214,6 +247,36 @@ impl BuildEvaluationSponsor {
         })
     }
 
+    pub(crate) fn charge_result_custody(&self, cells: u64, text_bytes: u64) -> Result<(), String> {
+        let limits = self.account.limits;
+        let mut consumed = self.account.consumed.lock().map_err(|_| {
+            "build-evaluation result-custody sponsor account is unavailable".to_owned()
+        })?;
+        let candidate_cells = consumed
+            .result_cells
+            .checked_add(cells)
+            .ok_or_else(|| "build-evaluation result-cell accounting overflowed".to_owned())?;
+        let candidate_text_bytes = consumed
+            .result_text_bytes
+            .checked_add(text_bytes)
+            .ok_or_else(|| "build-evaluation result-text accounting overflowed".to_owned())?;
+        if candidate_cells > limits.maximum_result_cells() {
+            return Err(format!(
+                "build-evaluation result-cell sponsor exhausted at {} cells",
+                limits.maximum_result_cells()
+            ));
+        }
+        if candidate_text_bytes > limits.maximum_result_text_bytes() {
+            return Err(format!(
+                "build-evaluation result-text sponsor exhausted at {} bytes",
+                limits.maximum_result_text_bytes()
+            ));
+        }
+        consumed.result_cells = candidate_cells;
+        consumed.result_text_bytes = candidate_text_bytes;
+        Ok(())
+    }
+
     fn release_live_filesystem_handle(&self) {
         let mut consumed = match self.account.consumed.lock() {
             Ok(consumed) => consumed,
@@ -242,23 +305,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn limits_reject_zero_and_expose_version_four_schema() {
-        assert_eq!(BuildEvaluationSponsorLimits::new(0, 9, 11, 13), None);
-        assert_eq!(BuildEvaluationSponsorLimits::new(7, 0, 11, 13), None);
-        assert_eq!(BuildEvaluationSponsorLimits::new(7, 9, 0, 13), None);
-        assert_eq!(BuildEvaluationSponsorLimits::new(7, 9, 11, 0), None);
-        let limits = BuildEvaluationSponsorLimits::new(7, 9, 11, 13).expect("nonzero limits");
-        assert_eq!(limits.schema_version(), 4);
+    fn limits_reject_zero_and_expose_version_five_schema() {
+        assert_eq!(
+            BuildEvaluationSponsorLimits::new(0, 9, 11, 13, 15, 17),
+            None
+        );
+        assert_eq!(
+            BuildEvaluationSponsorLimits::new(7, 0, 11, 13, 15, 17),
+            None
+        );
+        assert_eq!(BuildEvaluationSponsorLimits::new(7, 9, 0, 13, 15, 17), None);
+        assert_eq!(BuildEvaluationSponsorLimits::new(7, 9, 11, 0, 15, 17), None);
+        assert_eq!(BuildEvaluationSponsorLimits::new(7, 9, 11, 13, 0, 17), None);
+        assert_eq!(BuildEvaluationSponsorLimits::new(7, 9, 11, 13, 15, 0), None);
+        let limits =
+            BuildEvaluationSponsorLimits::new(7, 9, 11, 13, 15, 17).expect("nonzero limits");
+        assert_eq!(limits.schema_version(), 5);
         assert_eq!(limits.maximum_fuel_units(), 7);
         assert_eq!(limits.maximum_build_log_bytes(), 9);
         assert_eq!(limits.maximum_filesystem_operation_attempts(), 11);
         assert_eq!(limits.maximum_live_filesystem_handles(), 13);
+        assert_eq!(limits.maximum_result_cells(), 15);
+        assert_eq!(limits.maximum_result_text_bytes(), 17);
     }
 
     #[test]
     fn clones_share_exact_aggregate_exhaustion() {
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(2, 3, 4, 5).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(2, 3, 4, 5, 6, 7).expect("nonzero limits"),
         );
         let clone = sponsor.clone();
 
@@ -275,7 +349,7 @@ mod tests {
     #[test]
     fn clones_share_exact_aggregate_build_log_exhaustion() {
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(2, 3, 4, 5).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(2, 3, 4, 5, 6, 7).expect("nonzero limits"),
         );
         let clone = sponsor.clone();
 
@@ -294,7 +368,7 @@ mod tests {
     #[test]
     fn clones_share_exact_aggregate_filesystem_attempt_exhaustion() {
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(2, 3, 2, 5).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(2, 3, 2, 5, 6, 7).expect("nonzero limits"),
         );
         let clone = sponsor.clone();
 
@@ -317,7 +391,7 @@ mod tests {
     #[test]
     fn live_filesystem_handle_leases_bound_concurrency_and_release_on_drop() {
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(2, 3, 4, 2).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(2, 3, 4, 2, 6, 7).expect("nonzero limits"),
         );
         let first = sponsor
             .reserve_live_filesystem_handle()
@@ -344,9 +418,26 @@ mod tests {
     }
 
     #[test]
+    fn result_custody_charges_cells_and_text_atomically() {
+        let sponsor = BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(2, 3, 4, 5, 2, 3).expect("nonzero limits"),
+        );
+        sponsor.charge_result_custody(1, 2).expect("first result");
+        assert!(sponsor.charge_result_custody(2, 0).is_err());
+        assert!(sponsor.charge_result_custody(1, 2).is_err());
+        assert_eq!(sponsor.consumed_result_cells(), 1);
+        assert_eq!(sponsor.consumed_result_text_bytes(), 2);
+        sponsor
+            .charge_result_custody(1, 1)
+            .expect("both exact remainders");
+        assert_eq!(sponsor.consumed_result_cells(), 2);
+        assert_eq!(sponsor.consumed_result_text_bytes(), 3);
+    }
+
+    #[test]
     fn observation_recovers_a_poisoned_account_while_charging_fails_closed() {
         let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(2, 3, 4, 5).expect("nonzero limits"),
+            BuildEvaluationSponsorLimits::new(2, 3, 4, 5, 6, 7).expect("nonzero limits"),
         );
         let poisoning_clone = sponsor.clone();
         let _ = std::thread::spawn(move || {

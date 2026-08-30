@@ -339,17 +339,17 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     .expect("baseline pure build");
     let fuel_per_evaluation = baseline.usage().fuel_units();
     assert!(fuel_per_evaluation > 0);
-    assert_eq!(baseline.usage().schema().schema_version(), 4);
+    assert_eq!(baseline.usage().schema().schema_version(), 5);
     assert_eq!(baseline.usage().fuel_ceiling(), 100_000);
 
     let aggregate_ceiling = fuel_per_evaluation
         .checked_mul(2)
         .expect("small test evaluation");
     let sponsor = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(aggregate_ceiling, 1024, 1024, 64)
+        BuildEvaluationSponsorLimits::new(aggregate_ceiling, 1024, 1024, 64, 1024, 1024)
             .expect("nonzero limits"),
     );
-    assert_eq!(sponsor.limits().schema_version(), 4);
+    assert_eq!(sponsor.limits().schema_version(), 5);
     assert_eq!(sponsor.limits().maximum_fuel_units(), aggregate_ceiling);
     let sponsor_clone = sponsor.clone();
 
@@ -374,6 +374,14 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     assert_eq!(second.usage().fuel_units(), fuel_per_evaluation);
     assert_eq!(sponsor.consumed_fuel_units(), aggregate_ceiling);
     assert_eq!(sponsor_clone.consumed_fuel_units(), aggregate_ceiling);
+    assert_eq!(
+        sponsor.consumed_result_cells(),
+        first.usage().result_cells() + second.usage().result_cells()
+    );
+    assert_eq!(
+        sponsor.consumed_result_text_bytes(),
+        first.usage().result_text_bytes() + second.usage().result_text_bytes()
+    );
 
     let error = evaluate_build_machine_arguments_measured_with_sponsor(
         &prepared,
@@ -405,7 +413,8 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
         filesystem_metadata_layout: Default::default(),
     };
     let sponsor = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64).expect("nonzero limits"),
+        BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1024, 1024)
+            .expect("nonzero limits"),
     );
 
     let evaluated = evaluate_build_machine_arguments_measured_with_sponsor(
@@ -423,7 +432,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
     );
 
     let exhausted = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(1, 1024, 1024, 64).expect("nonzero limits"),
+        BuildEvaluationSponsorLimits::new(1, 1024, 1024, 64, 1024, 1024).expect("nonzero limits"),
     );
     let error = evaluate_build_machine_arguments_measured_with_sponsor(
         &prepared,
@@ -446,6 +455,32 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
     );
     assert_eq!(failure.usage().expect("partial usage").fuel_units(), 2);
     assert_eq!(exhausted.consumed_fuel_units(), 1);
+}
+
+#[test]
+fn sponsored_build_rejects_result_custody_above_the_shared_ceiling() {
+    let typed = typed(SOURCE);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
+    let sponsor = BuildEvaluationSponsor::new(
+        BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1, 1024)
+            .expect("nonzero limits"),
+    );
+    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+        &prepared,
+        "pure_build",
+        vec![BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+        }],
+        BuildMachineExecutionMode::Pure,
+        &sponsor,
+    )
+    .expect_err("the returned record exceeds one result cell");
+    assert_eq!(
+        error.to_string(),
+        "build-evaluation result-cell sponsor exhausted at 1 cells"
+    );
+    assert_eq!(sponsor.consumed_result_cells(), 0);
 }
 
 #[test]
