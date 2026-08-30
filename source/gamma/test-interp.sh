@@ -41,6 +41,19 @@ cv() { # constructor-valued program: canonical output and zero status
   status=$?
   if [ "$status" = 0 ] && [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL status $status out '$got' want '$2' : $1"; fi
 }
+reject_source() { # name source-file
+  name=$1
+  source_file=$2
+  set +e
+  "$T/g.exe" < "$source_file" > "$T/$name.out"
+  got=$?
+  if [ "$got" = 255 ] && [ ! -s "$T/$name.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL $name: source envelope returned $got with $(wc -c < "$T/$name.out" | tr -d ' ') output bytes"
+  fi
+}
 ev '(+ 2 3)' 5
 ev '(- 50 8)' 42
 ev '(let x 10 (* x x))' 100
@@ -48,6 +61,17 @@ ev '(if (lt 3 5) 42 0)' 42
 ev '(if (eq 3 5) 1 0)' 0
 ev '(def sq (x) (* x x)) (sq 9)' 81
 ev '(def add (a b) (+ a b)) (add 10 20)' 30
+cr_comment_program=$(printf '; before\r(+ 40 2)')
+ev "$cr_comment_program" 42
+unset cr_comment_program
+printf '; hidden\000\n(+ 40 2)' > "$T/comment-nul.gamma"
+reject_source comment-nul "$T/comment-nul.gamma"
+printf '(+ 40\0132)' > "$T/vertical-tab.gamma"
+reject_source vertical-tab "$T/vertical-tab.gamma"
+printf '; hidden\177\n(+ 40 2)' > "$T/comment-del.gamma"
+reject_source comment-del "$T/comment-del.gamma"
+printf '; hidden\303\251\n(+ 40 2)' > "$T/comment-high.gamma"
+reject_source comment-high "$T/comment-high.gamma"
 # Variable ASTs are resolved once to frame-local slots. Reusing the same body
 # across calls, recursive re-entry, lets, shadowing, and match bindings must
 # still observe the current invocation's values rather than cached values.

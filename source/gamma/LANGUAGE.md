@@ -93,6 +93,12 @@ sh source/gamma/test-interp.sh
 sh source/gamma/test-typeck.sh
 ```
 
+The current oracle gates check the outer source contract before parsing: the
+evaluation surface passes 46 focused cases, the typed surface passes 28, and
+the temporary independent evaluator agrees on 106 fixed/generated cases.
+These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
+DEL, and high-byte controls. They do not select the unresolved Q3 grammar.
+
 The former Gamma proof-kernel copies and the old generic canonical-byte and
 terminal-codec prototype were not consumed by a live artifact admission and are
 retired to Git history. Future artifact-specific decoding belongs beside the
