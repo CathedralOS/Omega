@@ -110,7 +110,7 @@ The selected path and content identity remain operational provenance in the
 receipt for that particular run. They do not enter immutable source identity,
 `PackageKey`, or the semantic identity of a lock source. Different selected Git
 installations may therefore yield different resolution receipts while
-producing the same authenticated source identity. A dependency declaration,
+producing the same content-verified source identity. A dependency declaration,
 fetched repository, package source, and `build.omg` can neither select nor
 alter the primary executable.
 
@@ -132,11 +132,11 @@ host-selected programs; partially reproducing or brokering that ecosystem
 would override host behavior without establishing a stronger operating-system
 trust boundary.
 
-This delegation is limited to the transport and authentication chain. It does
+This delegation is limited to the transport and credential chain. It does
 not reopen package-controlled execution: the closed protocol surface,
 noninteractive invocation, disabled redirects, hooks, replacements, filters,
 and submodules, command construction, captured-output and lifetime bounds,
-whole-process-tree cleanup, authenticated object graph, quarantine publication,
+whole-process-tree cleanup, verified object graph, quarantine publication,
 and immutable snapshot remain compiler owned. Uniform native limits may apply
 to the complete child tree without knowing descendant identities. A control
 that requires an allowlist of host transport/helper identities or writable
@@ -177,12 +177,17 @@ revalidation.
 
 ## Git acquisition
 
-The resolver uses a fresh quarantine repository, authenticates the selected
-commit and tree through Git's object graph, and materializes source without
-checkout filters, hooks, submodules, or package execution. Repository
+The resolver uses a fresh quarantine repository, verifies the selected commit
+and tree through Git's content-addressed object graph, and materializes source
+without checkout filters, hooks, submodules, or package execution. Repository
 inspection reconstructs modes, names, object IDs, and payloads from the
 selected tree. Workspace selection reads only compiler-authorized declaration
-paths and publishes only the authenticated selected member.
+paths and publishes only the verified selected member.
+
+“Verified” here means that the materialized bytes and graph rejoin the resolved
+Git object identities. It does not authenticate a repository owner or package
+publisher, and it adds no endpoint claim beyond the invoking host's ordinary
+Git/HTTPS/SSH policy.
 
 The trusted parent independently revalidates executable observations, command
 outcomes, object identities, the materialized tree, cache custody, and source
