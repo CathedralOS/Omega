@@ -486,6 +486,13 @@ two's-complement bit sets; float ranges use same-carrier interval inclusion for
 shared views and equality for mutable views. Typed record aliases require equal
 layout geometry and equivalent leaf representations.
 
+One direct erased-lifetime application around an otherwise eligible synthesized
+record may use that exact instance layout when its lifetime arity is exact, it
+has no residual runtime arguments, and no stored field recursively carries a
+lifetime application. This exception applies only at the recast target root;
+arrays and nested record fields do not erase additional lifetime shells into
+layout authority.
+
 Raw storage never establishes typed facts. Mutable raw-byte views require
 existing total-write or Psi-proved fit evidence, while established typed views
 may retain or weaken facts according to the recast judgment. `Placed<P, T>` is

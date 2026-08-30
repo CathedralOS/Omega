@@ -202,12 +202,18 @@ fn literal_indexed_recast_target_size(
         );
     }
 
+    if direct_phantom_lifetime_record_symbol(program, target_type).is_some() {
+        return shared_projection_type_representation(program, target_type)
+            .map(|representation| representation.size)
+            .filter(|size| *size > 0);
+    }
+
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(target_type)
     else {
         return None;
     };
-    if !closed_fact_free_record_symbol_is_eligible(program, *symbol, &mut Vec::new()) {
+    if !closed_fact_free_record_symbol_is_eligible(program, *symbol) {
         return None;
     }
 
@@ -244,7 +250,7 @@ fn literal_fixed_array_target_terminal(
             }) {
                 return Some(LiteralFixedArrayTerminal::ExactPrimitive);
             }
-            closed_fact_free_record_symbol_is_eligible(program, *symbol, &mut Vec::new())
+            closed_fact_free_record_symbol_is_eligible(program, *symbol)
                 .then_some(LiteralFixedArrayTerminal::ClosedRecord)
         }
         TypeReferenceNode::FixedArray { .. } => {
@@ -254,56 +260,306 @@ fn literal_fixed_array_target_terminal(
     }
 }
 
-fn exact_primitive_type(
+pub(super) fn exact_primitive_type(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let TypeReferenceNode::Named { name, .. } =
+    let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(type_reference)
     else {
         return None;
     };
-    PrimitiveType::from_name(name.as_str()).filter(|primitive| name.as_str() == primitive.name())
+    let atom = program.symbols.builtin_type_atom(*symbol)?;
+    let primitive = match atom {
+        psi_symbols::BuiltinTypeAtom::Bool => PrimitiveType::Bool,
+        psi_symbols::BuiltinTypeAtom::I8 => PrimitiveType::I8,
+        psi_symbols::BuiltinTypeAtom::I16 => PrimitiveType::I16,
+        psi_symbols::BuiltinTypeAtom::I32 => PrimitiveType::I32,
+        psi_symbols::BuiltinTypeAtom::I64 => PrimitiveType::I64,
+        psi_symbols::BuiltinTypeAtom::U8 => PrimitiveType::U8,
+        psi_symbols::BuiltinTypeAtom::U16 => PrimitiveType::U16,
+        psi_symbols::BuiltinTypeAtom::U32 => PrimitiveType::U32,
+        psi_symbols::BuiltinTypeAtom::U64 => PrimitiveType::U64,
+        psi_symbols::BuiltinTypeAtom::Address => PrimitiveType::Addr,
+        psi_symbols::BuiltinTypeAtom::F32 => PrimitiveType::F32,
+        psi_symbols::BuiltinTypeAtom::F64 => PrimitiveType::F64,
+        _ => return None,
+    };
+    (name.as_str() == atom.symbol_name()).then_some(primitive)
+}
+
+pub(super) fn exact_scalar_representation_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            return exact_scalar_representation_type(program, *base_type);
+        }
+        TypeReferenceNode::Named { symbol, name } => (symbol, name),
+        _ => return None,
+    };
+    let atom = program.symbols.builtin_type_atom(*symbol)?;
+    let primitive = match atom {
+        psi_symbols::BuiltinTypeAtom::Bool | psi_symbols::BuiltinTypeAtom::AtomicBool => {
+            PrimitiveType::Bool
+        }
+        psi_symbols::BuiltinTypeAtom::I8 => PrimitiveType::I8,
+        psi_symbols::BuiltinTypeAtom::I16 => PrimitiveType::I16,
+        psi_symbols::BuiltinTypeAtom::I32 => PrimitiveType::I32,
+        psi_symbols::BuiltinTypeAtom::I64 => PrimitiveType::I64,
+        psi_symbols::BuiltinTypeAtom::U8 => PrimitiveType::U8,
+        psi_symbols::BuiltinTypeAtom::U16 => PrimitiveType::U16,
+        psi_symbols::BuiltinTypeAtom::U32 | psi_symbols::BuiltinTypeAtom::AtomicU32 => {
+            PrimitiveType::U32
+        }
+        psi_symbols::BuiltinTypeAtom::U64 | psi_symbols::BuiltinTypeAtom::AtomicU64 => {
+            PrimitiveType::U64
+        }
+        psi_symbols::BuiltinTypeAtom::Address => PrimitiveType::Addr,
+        psi_symbols::BuiltinTypeAtom::F32 => PrimitiveType::F32,
+        psi_symbols::BuiltinTypeAtom::F64 => PrimitiveType::F64,
+        _ => return None,
+    };
+    (name.as_str() == atom.symbol_name()).then_some(primitive)
 }
 
 fn closed_fact_free_record_symbol_is_eligible(
     program: &TypedTrees,
     symbol: psi_symbols::SymbolHandle,
-    visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> bool {
-    if !symbol.is_valid() || visiting.contains(&symbol) {
+    fact_free_record_graph_is_eligible(program, symbol, false)
+}
+
+const MAX_RECAST_RECORD_GRAPH_NODES: usize = 4096;
+const MAX_RECAST_RECORD_GRAPH_EDGES: usize = 16384;
+
+#[derive(Clone, Copy)]
+enum RecordEligibilityWork {
+    Enter {
+        symbol: psi_symbols::SymbolHandle,
+        lifetime_root: bool,
+    },
+    Type(TypeReferenceHandle),
+    Exit(psi_symbols::SymbolHandle),
+}
+
+/// Bounded, memoized exact-symbol walk for recursively fact-free records.
+/// Explicit exit markers detect cycles without host recursion, while completed
+/// symbols make shared diamonds linear in the distinct schema graph.
+fn fact_free_record_graph_is_eligible(
+    program: &TypedTrees,
+    root: psi_symbols::SymbolHandle,
+    permit_root_lifetime_parameters: bool,
+) -> bool {
+    if !root.is_valid() {
         return false;
     }
-    visiting.push(symbol);
-    let eligible = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)
-        .is_some_and(|data| {
-            let members = program.data_members(data);
-            data.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
-                && data.lifetime_parameters.is_empty()
-                && program.data_type_parameters(data).is_empty()
-                && closed_record_generic_origin_is_eligible(program, data)
-                && data.quotient.is_none()
-                && data.where_facts.is_empty()
-                && !data.zero_gated
-                && psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                    == psi_typed_trees::data::DataShapeKind::Record
-                && members.iter().all(|member| {
+
+    let Some(work_capacity) =
+        MAX_RECAST_RECORD_GRAPH_EDGES.checked_add(MAX_RECAST_RECORD_GRAPH_NODES)
+    else {
+        return false;
+    };
+    let mut work = Vec::new();
+    if work.try_reserve_exact(work_capacity).is_err() {
+        return false;
+    }
+    let mut visiting = HashSet::new();
+    if visiting.try_reserve(MAX_RECAST_RECORD_GRAPH_NODES).is_err() {
+        return false;
+    }
+    let mut complete = HashSet::new();
+    if complete.try_reserve(MAX_RECAST_RECORD_GRAPH_NODES).is_err() {
+        return false;
+    }
+    work.push(RecordEligibilityWork::Enter {
+        symbol: root,
+        lifetime_root: permit_root_lifetime_parameters,
+    });
+    let mut node_count = 0usize;
+    let mut edge_count = 0usize;
+
+    while let Some(next) = work.pop() {
+        match next {
+            RecordEligibilityWork::Enter {
+                symbol,
+                lifetime_root,
+            } => {
+                if !symbol.is_valid() {
+                    return false;
+                }
+                let identity = (symbol.arena_index(), symbol.generation());
+                if complete.contains(&identity) {
+                    continue;
+                }
+                if !visiting.insert(identity) {
+                    return false;
+                }
+                node_count = match node_count.checked_add(1) {
+                    Some(count) if count <= MAX_RECAST_RECORD_GRAPH_NODES => count,
+                    _ => return false,
+                };
+                let Some(data) = unique_data_definition_by_symbol(program, symbol) else {
+                    return false;
+                };
+                let members = program.data_members(data);
+                if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+                    || (!lifetime_root && !data.lifetime_parameters.is_empty())
+                    || !program.data_type_parameters(data).is_empty()
+                    || !closed_record_generic_origin_is_eligible(program, data)
+                    || data.quotient.is_some()
+                    || !data.where_facts.is_empty()
+                    || data.zero_gated
+                    || psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                        != psi_typed_trees::data::DataShapeKind::Record
+                {
+                    return false;
+                }
+                work.push(RecordEligibilityWork::Exit(symbol));
+                for member in members.iter().rev() {
                     let psi_typed_trees::data::DataMember::Field(field) = member else {
                         return false;
                     };
-                    !field.relevance.is_erased()
-                        && closed_fact_free_record_field_is_eligible(
-                            program,
-                            field.type_reference,
-                            visiting,
-                        )
-                })
-        });
-    visiting.pop();
-    eligible
+                    if field.relevance.is_erased() {
+                        return false;
+                    }
+                    edge_count = match edge_count.checked_add(1) {
+                        Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
+                        _ => return false,
+                    };
+                    work.push(RecordEligibilityWork::Type(field.type_reference));
+                }
+            }
+            RecordEligibilityWork::Type(type_reference) => {
+                if let Some(primitive) = exact_primitive_type(program, type_reference) {
+                    if primitive == PrimitiveType::Bool || primitive.scalar_byte_size().is_none() {
+                        return false;
+                    }
+                    continue;
+                }
+                match program.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Named { symbol, .. } => {
+                        edge_count = match edge_count.checked_add(1) {
+                            Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
+                            _ => return false,
+                        };
+                        work.push(RecordEligibilityWork::Enter {
+                            symbol: *symbol,
+                            lifetime_root: false,
+                        });
+                    }
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(_),
+                    } => {
+                        edge_count = match edge_count.checked_add(1) {
+                            Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
+                            _ => return false,
+                        };
+                        work.push(RecordEligibilityWork::Type(*element_type));
+                    }
+                    _ => return false,
+                }
+            }
+            RecordEligibilityWork::Exit(symbol) => {
+                let identity = (symbol.arena_index(), symbol.generation());
+                if !visiting.remove(&identity) || !complete.insert(identity) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
+/// Resolve the one direct erased-lifetime shell admitted by the indexed-loan
+/// rung to its exact synthesized runtime record symbol.
+///
+/// Generic-instance synthesis has already absorbed every Type/Const argument
+/// into `base_symbol`; the remaining `Generic` node carries only checked
+/// lifetime identity. This resolver is deliberately usable only at the root of
+/// a representation query. Recursive field/array normalization still rejects
+/// `Generic`, so a lifetime-bearing nested shape cannot enter through this
+/// exception.
+fn direct_phantom_lifetime_record_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    if !base_symbol.is_valid()
+        || lifetime_arguments.is_empty()
+        || !program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty()
+    {
+        return None;
+    }
+
+    let instance = unique_data_definition_by_symbol(program, *base_symbol)?;
+    let origin = instance.generic_instance?;
+    let TypeReferenceNode::Generic {
+        base_symbol: origin_base_symbol,
+        lifetime_arguments: origin_lifetime_arguments,
+        ..
+    } = program.type_reference_table.type_reference(origin)
+    else {
+        return None;
+    };
+    let base = unique_data_definition_by_symbol(program, *origin_base_symbol)?;
+    if !origin_lifetime_arguments.is_empty()
+        || instance.lifetime_parameters.is_empty()
+        || instance.lifetime_parameters.len() != lifetime_arguments.len()
+        || instance.lifetime_parameters != base.lifetime_parameters
+        || !program.data_type_parameters(instance).is_empty()
+        || !closed_record_generic_origin_is_eligible(program, instance)
+        || instance.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+        || instance.quotient.is_some()
+        || !instance.where_facts.is_empty()
+        || instance.zero_gated
+    {
+        return None;
+    }
+
+    let members = program.data_members(instance);
+    if psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+        != psi_typed_trees::data::DataShapeKind::Record
+    {
+        return None;
+    }
+    fact_free_record_graph_is_eligible(program, instance.symbol, true).then_some(instance.symbol)
+}
+
+fn direct_record_view_type_is_fact_free(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    direct_phantom_lifetime_record_symbol(program, type_reference).is_some()
+        || record_view_type_is_fact_free(program, type_reference, &mut HashSet::new())
+}
+
+fn unique_data_definition_by_symbol(
+    program: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Option<&psi_typed_trees::data::DataDefinition> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let mut matches = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == symbol);
+    let definition = matches.next()?;
+    matches.next().is_none().then_some(definition)
 }
 
 fn closed_record_generic_origin_is_eligible(
@@ -326,11 +582,7 @@ fn closed_record_generic_origin_is_eligible(
     {
         return false;
     }
-    let Some(base) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *base_symbol)
-    else {
+    let Some(base) = unique_data_definition_by_symbol(program, *base_symbol) else {
         return false;
     };
     let parameters = program.data_type_parameters(base);
@@ -417,26 +669,6 @@ fn closed_raw_generic_type_argument_is_eligible(
             element_type,
             length: psi_typed_trees::types::FixedArrayLength::Literal(length),
         } => *length > 0 && closed_raw_generic_type_argument_is_eligible(program, *element_type),
-        _ => false,
-    }
-}
-
-fn closed_fact_free_record_field_is_eligible(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    visiting: &mut Vec<psi_symbols::SymbolHandle>,
-) -> bool {
-    if let Some(primitive) = exact_primitive_type(program, type_reference) {
-        return primitive != PrimitiveType::Bool && primitive.scalar_byte_size().is_some();
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. } => {
-            closed_fact_free_record_symbol_is_eligible(program, *symbol, visiting)
-        }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(_),
-        } => closed_fact_free_record_field_is_eligible(program, *element_type, visiting),
         _ => false,
     }
 }
@@ -638,7 +870,7 @@ fn judge_scalar_recast(
         );
         return;
     }
-    if program.primitive_type_reference(cast.target_type).is_none() {
+    if exact_scalar_representation_type(program, cast.target_type).is_none() {
         // RUNG C2/C3: a recursively fixed RECORD or literal-length ARRAY
         // target. The same normalized representation supplies size/alignment
         // and scalar-leaf facts; this is the top-level-array continuation of
@@ -675,7 +907,7 @@ fn judge_scalar_recast(
                 region_length,
             } = interior
             {
-                if !record_view_type_is_fact_free(program, cast.target_type, &mut HashSet::new()) {
+                if !direct_record_view_type_is_fact_free(program, cast.target_type) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{context}: byte-region recast target `{target_name}` must be recursively \
                          fact-free; unchecked bytes cannot establish constrained fields, bool, \
@@ -753,11 +985,11 @@ fn judge_scalar_recast(
         )));
         return;
     }
-    let Some(target) = program.primitive_type_reference(cast.target_type) else {
+    let Some(target) = exact_scalar_representation_type(program, cast.target_type) else {
         return;
     };
     let let_primitive = crate::places::unwrapped_type_reference(program, let_referee)
-        .and_then(|unwrapped| program.primitive_type_reference(unwrapped));
+        .and_then(|unwrapped| exact_scalar_representation_type(program, unwrapped));
     if let_primitive != Some(target) {
         diagnostics.push(Diagnostic::error(format!(
             "{context}: the let's declared type must restate the recast target `&{target_name}` \
@@ -829,8 +1061,8 @@ fn judge_scalar_recast(
         return;
     }
     let source_type = crate::places::declared_place_type_raw(program, machine, Some(state), source);
-    let source_primitive =
-        source_type.and_then(|type_reference| program.primitive_type_reference(type_reference));
+    let source_primitive = source_type
+        .and_then(|type_reference| exact_scalar_representation_type(program, type_reference));
     let Some(source_primitive) = source_primitive else {
         diagnostics.push(Diagnostic::error(format!(
             "{context}: a recast re-views a PLACE's bytes -- the source must be a borrowed \
@@ -1072,12 +1304,12 @@ fn report_unspelled_reference_pun(
     let source = strip_mutable(program, initializer);
     let Some(source_primitive) =
         crate::places::declared_place_type(program, machine, Some(state), source)
-            .and_then(|type_reference| program.primitive_type_reference(type_reference))
+            .and_then(|type_reference| exact_scalar_representation_type(program, type_reference))
     else {
         return;
     };
     let Some(referee_primitive) = crate::places::unwrapped_type_reference(program, let_referee)
-        .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+        .and_then(|unwrapped| exact_scalar_representation_type(program, unwrapped))
     else {
         return;
     };

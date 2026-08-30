@@ -10564,14 +10564,21 @@ checked-result arithmetic decision listed below.
   the exact resolved monomorphic record or pure-sum carrier, including selected
   cases, ordered payloads, nested literal arrays/records/sums, and exact
   integer/Boolean leaves. Layout still comes only from substituted instance
-  fields. Generic normalization rewrites
+  fields. One direct erased-lifetime application around an otherwise eligible
+  synthesized record instance now participates when it carries the exact
+  nonempty declared lifetime arity, no residual runtime arguments, and no
+  recursively lifetime-bearing field. Raw checked lifetime spellings remain
+  distinct while the sealed exact synthesized symbol supplies physical layout;
+  ordinary recast validation and precise loan sizing share that resolver.
+  Generic normalization rewrites
   concrete-machine cast targets and synthesizes recursively nonzero literal-
   array type arguments. Record lookup
   and recursion use exact symbol identity. Repeated-leaf capacity
   overflow fails closed before allocation. First/last/padding-byte mutations
   reject while immediate siblings remain disjoint. Runtime or merely bounded
   offsets, slices, total zero-size targets, open/unresolved, mixed, recursive,
-  or custom-canonical structured-const origins, lifetime/machine/proposition
+  or custom-canonical structured-const origins, nested/array lifetime-generic
+  shapes, malformed or nonphantom lifetime applications, machine/proposition
   generic instances, invariant-bearing/erased/cased records, and other indexed
   recasts remain conservative.
   Scalar recast representation-set normalization and

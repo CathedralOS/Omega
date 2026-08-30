@@ -425,13 +425,19 @@ Current ownership is:
   exact resolved monomorphic record or pure-sum carrier, including selected
   cases, ordered payloads, nested literal arrays/records/sums, and exact
   integer/Boolean leaves. Substituted instance fields remain the only layout
-  authority. Generic normalization rewrites
+  authority. One direct lifetime-only shell around an otherwise eligible
+  synthesized record also uses its exact instance symbol when lifetime arity is
+  exact, runtime arguments are empty, and recursive fields contain no lifetime
+  application. Raw checked lifetime spellings stay distinct; the erased
+  physical representation and loan size share the same sealed resolver.
+  Generic normalization rewrites
   concrete-machine cast targets and supports recursively nonzero literal-array
   type arguments. Record eligibility and representation recursion use exact
   symbol identity and require a nonzero, quotient-free, acyclic, all-relevant,
   recursively fact-free shape. Runtime or merely bounded offsets, slices, total
   zero-size targets, open/unresolved or mixed/recursive/custom-canonical
-  structured-const, lifetime/machine/proposition generic instances,
+  structured-const, nested/array or malformed/nonphantom lifetime applications,
+  machine/proposition generic instances,
   invariant-bearing/erased/cased records, and other indexed recasts stay fenced
   because an element path cannot represent their complete target footprint.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
