@@ -147,14 +147,17 @@ grows again.
 The principal rule-stage entrances are small and catalog-backed, but the tree
 does not yet fully satisfy this contract.
 
-- The source-organization architecture test is itself a 1,254-line catch-all
-  of inventory, bounds, required joins, catalog checks, and retired paths.
+- The former 1,254-line source-organization architecture test now has one tiny
+  coordination entrance over inventory, bounds, executable entrances,
+  catalogs, and retired paths. Its six rule stages share one typed descriptor
+  for entrance, catalog, markers, and next rungs.
 - Psi pass entrances now own their visible local rule order rather than
   re-exporting a registration function from a hidden sibling catalog.
-- Production leaves between roughly 600 and 1,000 lines remain in validation,
-  register allocation, machine planning, codecs, and lowering.
-- Several broad test and fixture leaves exceed 1,000 lines, even though their
-  production stages already have named taxonomies.
+- Fifteen production-classified leaves remain at 750-1,000 lines in manifests,
+  identity encoding, validation, register allocation, machine planning,
+  codecs, and lowering.
+- Fourteen broad test and fixture leaves remain above 1,000 lines even though
+  their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of
   remaining entrances. Git history is the milestone archive.
 
@@ -176,9 +179,10 @@ tests/architecture/optimizer_source_organization/
   retired_paths.rs   # prohibited legacy shapes
 ```
 
-Stage descriptors should carry the entrance, catalog, coordination marker, and
-next rung together. Parallel path arrays inevitably drift and make the guard
-harder to navigate than the code.
+Stage descriptors carry the entrance, catalog, coordination marker, catalog
+marker, and next rungs together. The current six-row inventory uses generic
+entrance/catalog checks; bespoke checks are reserved for invariants such as the
+sole legalization catalog and fixed-view-copy protocol ownership.
 
 ## Review test
 

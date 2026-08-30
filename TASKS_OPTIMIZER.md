@@ -36,10 +36,10 @@ decision. Only true language-semantic questions belong in
   concise current contract, honest debt audit, stage inventory, and refactor
   triggers.
 - [x] Compact this file from a milestone ledger into an executable checklist.
-- [ ] Split `tests/architecture/optimizer_source_organization.rs` into a tiny
-  audit entrance over `inventory`, `bounds`, `entrances`, `catalogs`, and
-  `retired_paths`. One stage descriptor must carry entrance, catalog,
-  coordination marker, and next rung together.
+- [x] Split the 1,254-line source-organization guard into a tiny audit entrance
+  over `inventory`, `bounds`, `entrances`, `catalogs`, and `retired_paths`.
+  One six-row stage descriptor now carries entrance, catalog, coordination
+  marker, and next rungs together while preserving the single aggregated test.
 - [x] Make every executable Psi pass `mod.rs` a meaningful pass entrance. The
   stage-wide `rules/catalog.rs` remains the sole exact-selection enable/disable
   table; each pass entrance now owns its visible local rule order instead of
@@ -47,16 +47,19 @@ decision. Only true language-semantic questions belong in
 - [ ] Audit all other `lib.rs`/`mod.rs` files and explicitly classify each as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall.
-- [ ] Ratchet production leaves toward 600 lines. First split the remaining
-  750+ line production leaves by semantic ownership: optimization-core
-  manifests, optimization-unit identity/ledger, live-range replay, SCCP/GVN
-  validation, machine effect codecs, MOVN computation, spill choice, selected
-  validation, and lowering control/settlement leaves.
-- [ ] Ratchet focused tests and fixtures toward 800 lines. Split the current
-  1,000+ line stage matrices by exact artifact/rule family and behavior.
-- [ ] Replace parallel path arrays in the organization guard with typed stage
-  descriptors and generic checks. Bespoke checks remain only for genuinely
-  stage-specific invariants.
+- [ ] Ratchet production leaves toward 600 lines. The current governed audit
+  has 15 production-classified leaves at 750+ lines. Start with
+  optimization-core manifests (967), optimization-unit operation identity
+  encoding (943), and independent live-range replay (881), then continue
+  through SCCP/GVN validation, machine effects, MOVN, spill choice, selected
+  validation, ledger, and lowering control/settlement leaves.
+- [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
+  audit has 14 test/fixture leaves at 1,000+ lines; first split structural
+  catalog, register-allocation, and selected-lowering matrices by exact
+  artifact/rule family and behavior.
+- [x] Replace parallel rule-stage path arrays in the organization guard with
+  typed stage descriptors and generic entrance/catalog/next-rung checks.
+  Bespoke checks remain only for genuinely stage-specific invariants.
 - [ ] Keep the hard migration ceilings at 1,000 production and 1,500 tests
   until the ratchet is complete. Crossing the 600/800 refactor target creates
   explicit non-growing debt; it is not considered healthy organization.

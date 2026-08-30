@@ -1,0 +1,123 @@
+//! Retired flat paths and prohibited proxy schedules.
+
+use std::fs;
+
+use crate::Audit;
+
+use super::bounds::is_test_source;
+
+pub(crate) fn check(audit: &mut Audit) {
+    let repository = &audit.repository;
+    let source_lines = &audit.source_lines;
+    let violations = &mut audit.violations;
+
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/rule.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/shapes.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "global-value-numbering identities retain a mixed catch-all: {obsolete}"
+            ));
+        }
+    }
+
+    let obsolete_post_allocation_manifest = "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/post_allocation_manifest.rs";
+    if repository.join(obsolete_post_allocation_manifest).exists() {
+        violations.insert(format!(
+            "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
+        ));
+    }
+
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/validate.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute_tests.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "register-home assignment retains a retired flat compute/replay/fixture leaf: {obsolete}"
+            ));
+        }
+    }
+
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec_tests.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "fixed-view-copy retains a retired flat codec surface: {obsolete}"
+            ));
+        }
+    }
+
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_crash.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_not_parameter.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_less_or_equal_parameters.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/comparison.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/unary.rs",
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/parameter_translation_fixture/bitwise.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/bitwise.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/bitwise.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "translation validation retains a retired mixed test leaf: {obsolete}"
+            ));
+        }
+    }
+
+    let obsolete_selected_lowering_schedule = "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/schedule.rs";
+    if repository
+        .join(obsolete_selected_lowering_schedule)
+        .exists()
+    {
+        violations.insert(format!(
+            "selected lowering retains a proxy schedule beside its owning rule catalog: {obsolete_selected_lowering_schedule}"
+        ));
+    }
+
+    let obsolete_external_policy_schema = "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema.rs";
+    if repository.join(obsolete_external_policy_schema).exists() {
+        violations.insert(format!(
+            "external policy retains the mixed flat schema beside its governed entrance: {obsolete_external_policy_schema}"
+        ));
+    }
+    for obsolete in [
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/plan.rs",
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "selected construction retains an opaque flat coordinator: {obsolete}"
+            ));
+        }
+    }
+    for path in source_lines.keys().filter(|path| {
+        !is_test_source(path)
+            && (path.starts_with(
+                "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/",
+            ) || path.starts_with(
+                "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/",
+            ))
+    }) {
+        match fs::read_to_string(repository.join(path)) {
+            Ok(contents)
+                if contents.contains("SelectedIncomingU12ExactAddAndSubtractImmediateV1")
+                    || contents.contains("SelectedLoweringOptimizationSchedule") =>
+            {
+                violations.insert(format!(
+                    "selected lowering retains a hidden combined policy or proxy schedule in {path}"
+                ));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                violations.insert(format!("cannot read {path}: {error}"));
+            }
+        }
+    }
+}
