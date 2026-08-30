@@ -18,7 +18,9 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
-use super::permissions::make_open_tree_owner_writable;
+use super::permissions::{make_open_snapshot_root_publishable, make_open_tree_owner_writable};
+#[cfg(not(windows))]
+use super::permissions::{make_open_snapshot_root_read_only, verify_open_snapshot_tree_modes};
 
 pub(crate) struct PendingMaterializedSnapshot {
     pub(crate) root: PathBuf,
@@ -121,15 +123,42 @@ impl PendingMaterializedSnapshot {
             ));
         }
         let publication_name = direct_cache_child_name(self.kind, snapshots, publication)?;
+        make_open_snapshot_root_publishable(directory, &self.root)?;
+        #[cfg(windows)]
         drop(self.directory.take());
-        publish_cache_directory_from_open_parent(
+        let renamed = std::cell::Cell::new(false);
+        let publication_result = publish_cache_directory_from_open_parent(
             self.kind,
             snapshots,
             &self.parent,
             &self.stage_name,
             publication_name,
             Some(&retained),
-        )?;
+            || renamed.set(true),
+        );
+        if renamed.get() {
+            self.stage_name = publication_name.to_os_string();
+            self.root = publication.to_path_buf();
+        }
+        publication_result?;
+
+        #[cfg(not(windows))]
+        {
+            let directory = self.directory()?;
+            make_open_snapshot_root_read_only(directory, publication)?;
+            verify_open_snapshot_tree_modes(self.kind, directory, publication)?;
+            let published = self
+                .parent
+                .symlink_metadata(publication_name)
+                .map_err(|error| io_error(publication, error))?;
+            if !published.is_dir() || !same_capability_file_identity(&retained, &published) {
+                return Err(cache_custody_invalid(
+                    self.kind,
+                    publication,
+                    "published snapshot does not identify the retained stage",
+                ));
+            }
+        }
         self.published = true;
         Ok(())
     }

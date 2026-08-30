@@ -216,6 +216,7 @@ fn open_cache_parent_publication_is_not_redirected_by_path_replacement() {
         OsStr::new("staged"),
         OsStr::new("published"),
         None,
+        || {},
     )
     .expect("publish through retained parent handle");
 
