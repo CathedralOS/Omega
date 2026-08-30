@@ -190,7 +190,7 @@ nonexhaustive source statically.
 ## Current oracle coverage
 
 The current oracle gates check the outer source contract before parsing: the
-evaluation surface passes 48 focused cases, the compiler frontend passes 78
+evaluation surface passes 48 focused cases, the compiler frontend passes 82
 plus one exact emitter-substrate probe, six executed runtime-containment
 probes, 16 checked-`Int` paths, 31 source-to-code lowering cases, two
 byte-determinism comparisons, 14 compact-`Bytes` runtime paths, two executed
