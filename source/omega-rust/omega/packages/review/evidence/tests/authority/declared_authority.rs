@@ -27,8 +27,8 @@ machine private_api() { }
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build)
@@ -394,8 +394,8 @@ machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
     package.write(
         "build.omg",
         &format!(
-            r#"target windows_x64 {{ }}
-target linux_x64 {{ }}
+            r#"target windows_x86_64 {{ }}
+target linux_x86_64 {{ }}
 target linux_arm64 {{ }}
 target macos_arm64 {{ }}
 machine build(builder: &mut Build) {{
@@ -436,8 +436,8 @@ machine build(builder: &mut Build) {{
 
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -475,8 +475,8 @@ fn review_projects_exact_accepted_boundary_contracts() {
         );
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
-target linux_x64 { }
+            r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

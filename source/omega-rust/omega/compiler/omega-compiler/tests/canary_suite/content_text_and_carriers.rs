@@ -880,7 +880,7 @@ fn runtime_number_to_decimal_exit_canary_runs() {
     // operation through the x86-64 encoder and relocation path so the indexed
     // destination and converted source stay portable.
     let x64_scratch = scratch.join("linux-x64");
-    compile_rooted_canary_for_target(&canary, x64_scratch.clone(), "linux_x64")
+    compile_rooted_canary_for_target(&canary, x64_scratch.clone(), "linux_x86_64")
         .expect("number-to-decimal canary should cross-compile for linux_x64");
     let elf = fs::read(x64_scratch.join("omega-program"))
         .expect("number-to-decimal linux_x64 ELF emitted");

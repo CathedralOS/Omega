@@ -24,11 +24,11 @@ pub trait Bounds {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("proof-fact source fixture should check");
@@ -126,11 +126,11 @@ requires
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("callable domain predicate fixture should check");
@@ -171,11 +171,11 @@ pub domain Reading::Zero requires is_zero(self);
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("callable predicate spoof fixture should check");

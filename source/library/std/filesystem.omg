@@ -30,9 +30,9 @@ use omega::language::core::numeric_conversion;
 // importing them from the target defs dragged wrapper machines into raw-seam
 // programs that have no `Filesystem` at all (file_journal broke). The
 // pre-resolution target filter keeps exactly one target's copies live.
-use omega::language::std::targets::windows_x64::filesystem_impl;
+use omega::language::std::targets::windows_x86_64::filesystem_impl;
 use omega::language::std::targets::macos_arm64::filesystem_impl;
-use omega::language::std::targets::linux_x64::filesystem_impl;
+use omega::language::std::targets::linux_x86_64::filesystem_impl;
 use omega::language::std::targets::linux_arm64::filesystem_impl;
 
 // An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
@@ -1251,7 +1251,7 @@ machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
 // Set an open file's access + modification times (Rust `File::set_times`) from
 // Unix whole seconds. Target implementations live in each target's
 // filesystem_impl.omg: POSIX composes timespec records for futimens;
-// windows_x64 composes FILETIME records for SetFileTime.
+// windows_x86_64 composes FILETIME records for SetFileTime.
 
 // Flush all buffered data + metadata to durable storage (Rust `File::sync_all`).
 machine Filesystem::sync(&mut self, file: File) -> UnitResult {
@@ -1285,7 +1285,7 @@ machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
 }
 
 // Advisory whole-file locking is target-specific. POSIX targets use flock;
-// windows_x64 bridges the CRT fd to a HANDLE and uses LockFileEx/UnlockFile.
+// windows_x86_64 bridges the CRT fd to a HANDLE and uses LockFileEx/UnlockFile.
 // All five machines preserve this portable contract: blocking exclusive/shared
 // acquire, non-blocking acquire with a distinct WouldBlock result, and unlock.
 

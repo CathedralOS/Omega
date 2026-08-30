@@ -34,7 +34,7 @@ ensures result == 0;
     .expect("resolve accepted-claim baseline");
     let accepted_claim_baseline_reviews = compile_resolved_package_reviews(
         &accepted_claim_baseline_sources,
-        "windows_x64",
+        "windows_x86_64",
         &scenario.build_root,
     )
     .expect("compile accepted-claim baseline");
@@ -55,7 +55,7 @@ ensures result == 1;
     .expect("resolve changed accepted claim");
     let accepted_claim_candidate_reviews = compile_resolved_package_reviews(
         &accepted_claim_candidate_sources,
-        "windows_x64",
+        "windows_x86_64",
         &scenario.build_root,
     )
     .expect("compile changed accepted claim");

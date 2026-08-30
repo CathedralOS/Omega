@@ -128,6 +128,11 @@ impl CompileRequest {
             self.options.target_name =
                 Some(omega_target::TargetProfile::host().target_name().to_owned());
         }
+        if let Some(requested) = self.options.target_name.as_deref() {
+            let profile = omega_target::TargetProfile::from_omega_target_name(Some(requested))
+                .map_err(|diagnostic| vec![diagnostic])?;
+            self.options.target_name = Some(profile.target_name().to_owned());
+        }
         Ok(ValidatedCompileRequest(self))
     }
 }
@@ -241,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_target_is_never_rewritten_by_request_admission() {
+    fn explicit_canonical_target_is_preserved_by_request_admission() {
         let mut request = request(
             RequestedCompileProduct::NativeArtifact,
             OptimizationRollback::default(),
@@ -253,6 +258,22 @@ mod tests {
         assert_eq!(
             admitted.options().target_name.as_deref(),
             Some("linux_arm64")
+        );
+    }
+
+    #[test]
+    fn legacy_cli_target_alias_normalizes_during_request_admission() {
+        let mut request = request(
+            RequestedCompileProduct::NativeArtifact,
+            OptimizationRollback::default(),
+        );
+        request.options.target_name = Some("windows_x64".to_owned());
+        let admitted = request
+            .validate_for_execution()
+            .expect("legacy CLI alias should remain an accepted input");
+        assert_eq!(
+            admitted.options().target_name.as_deref(),
+            Some("windows_x86_64")
         );
     }
 }

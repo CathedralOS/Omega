@@ -11,11 +11,11 @@ fn reference_review(access: &str) -> CheckedPackageReviewProjection {
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("reference-bearing proposition should check");
@@ -82,11 +82,11 @@ fn reference_review_rejects_access_tamper_after_checking() {
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("reference-tamper fixture should check");
@@ -134,11 +134,11 @@ fn contract_call_reference_review_rejects_access_tamper_after_checking() {
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("contract-call reference-tamper fixture should check");

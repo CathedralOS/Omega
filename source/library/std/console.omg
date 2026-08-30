@@ -5,9 +5,9 @@
 //
 // Each selected target contributes the irreducible native byte leaves and its
 // provider default. Target filtering keeps exactly one implementation closure.
-use omega::language::std::targets::windows_x64::console_impl;
+use omega::language::std::targets::windows_x86_64::console_impl;
 use omega::language::std::targets::macos_arm64::console_impl;
-use omega::language::std::targets::linux_x64::console_impl;
+use omega::language::std::targets::linux_x86_64::console_impl;
 use omega::language::std::targets::linux_arm64::console_impl;
 
 // The result of a byte-level stdin read. `Eof` is ORDINAL 0: a

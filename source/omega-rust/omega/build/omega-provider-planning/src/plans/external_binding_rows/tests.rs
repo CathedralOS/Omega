@@ -332,7 +332,7 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
 #[test]
 fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically() {
     let mut fixture = fixture(false);
-    fixture.plans[0].target = "windows_x64".to_owned();
+    fixture.plans[0].target = "windows_x86_64".to_owned();
     let locator = omega_effects::normalize_foreign_locator(
         omega_effects::ForeignLocatorCandidate::PeByOrdinal {
             library: b"opaque\xff.dll".to_vec(),
@@ -350,7 +350,7 @@ fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically
     });
 
     let rows = extract_external_binding_rows(
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         omega_target::NativeTarget::windows_x64(),
         &fixture.plans,
         &fixture.realizations,

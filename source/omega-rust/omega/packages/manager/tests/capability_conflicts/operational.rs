@@ -31,7 +31,7 @@ invokes {service};
     )
     .expect("resolve invocation baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile invocation baseline");
 
     write_package(&live, &source("Second"));
@@ -44,7 +44,7 @@ invokes {service};
     )
     .expect("resolve invocation candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile invocation candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -105,7 +105,7 @@ reaches {service}
     )
     .expect("resolve service-reach baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile service-reach baseline");
 
     write_package(&live, &source("Second"));
@@ -118,7 +118,7 @@ reaches {service}
     )
     .expect("resolve service-reach candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile service-reach candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -170,7 +170,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     )
     .expect("resolve operational baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile operational baseline");
 
     write_package(&live, &source("blocks"));
@@ -183,7 +183,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     )
     .expect("resolve operational candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile operational candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -245,7 +245,7 @@ pub machine invoke_leaf()
     )
     .expect("resolve external-supply baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile external-supply baseline");
 
     write_package(&live, &source("invoke_v2"));
@@ -258,7 +258,7 @@ pub machine invoke_leaf()
     )
     .expect("resolve external-supply candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile external-supply candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -325,7 +325,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     )
     .expect("resolve transparent proposition baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile transparent proposition baseline");
 
     write_package(&live, "pub proposition ready() = false;\n");
@@ -338,7 +338,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     )
     .expect("resolve transparent proposition candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile transparent proposition candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -404,7 +404,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     )
     .expect("resolve public domain baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public domain baseline");
 
     write_package(
@@ -420,7 +420,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     )
     .expect("resolve public domain candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public domain candidate");
 
     let conflicts = compare_review_only_capabilities(

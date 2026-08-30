@@ -706,7 +706,7 @@ mod tests {
             name: name.to_owned(),
             provider_type: format!("{name}Provider"),
             provider_type_package_identity: Some(package_identity),
-            target: "linux_x64".to_owned(),
+            target: "linux_x86_64".to_owned(),
             schema: ServiceSchema {
                 trait_name: "ResidentContentTransfer".to_owned(),
                 trait_package_identity: Some(package_identity),

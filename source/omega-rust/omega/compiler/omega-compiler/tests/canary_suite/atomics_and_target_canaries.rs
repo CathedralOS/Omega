@@ -349,7 +349,7 @@ fn efi_vtable_field_call_emits_indirect_dispatch() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".to_owned()),
+        target_name: Some("uefi_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("vtable field-model canary should cross-compile for uefi_x64");
@@ -376,7 +376,7 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".to_owned()),
+        target_name: Some("linux_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("vtable field-model canary should cross-compile for linux_x64");
@@ -463,7 +463,7 @@ fn efi_two_table_function_leaves_cross_compile() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".to_owned()),
+        target_name: Some("uefi_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("two attached table-function leaves should cross-compile for uefi_x64");
@@ -492,7 +492,7 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".to_owned()),
+        target_name: Some("uefi_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("out-param canary should cross-compile for uefi_x64");
@@ -546,7 +546,7 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("byte-op canary should cross-compile for windows_x64");
@@ -593,7 +593,7 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
     compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".to_owned()),
+        target_name: Some("linux_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("byte-op canary should cross-compile for linux_x64");

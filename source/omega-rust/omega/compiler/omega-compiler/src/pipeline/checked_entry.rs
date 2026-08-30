@@ -589,6 +589,9 @@ fn compile_to_checked_inner_with_replay(
         .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
+    // CLI aliases end at request admission. Every source, build, provider, and
+    // artifact consumer below observes only the catalog's canonical spelling.
+    let target_name = selected_target_profile.map(omega_target::TargetProfile::target_name);
 
     let (mut source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
         root_path,

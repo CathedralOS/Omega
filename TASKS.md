@@ -706,6 +706,17 @@ Remaining:
   deletion of the corpus's legacy target blocks/assignments; this task is not
   complete until those displaced surfaces are deleted.
 
+  Canonical x86-64 target spelling is now closed for the target catalog,
+  semantic identities, locks and package-review recovery, compiler admission,
+  provider/artifact consumers, and the real `source/` target packages.
+  `linux_x64`, `windows_x64`, and `uefi_x64` remain input-only CLI aliases and
+  normalize immediately to `linux_x86_64`, `windows_x86_64`, and
+  `uefi_x86_64`; source declarations and recovered canonical evidence reject
+  the aliases. The remaining mechanical test-corpus migration must replace its
+  authored legacy target blocks before the native CLI canary is green. The
+  broader role-specific closure, runtime-reach ceiling, provider migration,
+  and eventual deletion of transitional target blocks remain open.
+
   **BOUNDARY-OPERATOR-FAMILY-SELECTION** must extend the typed build selection
   subject from one boundary-trait type to either an exact boundary trait or an
   exact package-qualified boundary-operator family. Select every overload

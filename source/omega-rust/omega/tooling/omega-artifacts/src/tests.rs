@@ -344,7 +344,7 @@ fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identit
             provider_plan_digest: test_provider_plan_digest(),
             provider_type: "RootProvider".to_owned(),
             provider_type_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5b; 32]),
-            target: "windows_x64".to_owned(),
+            target: "windows_x86_64".to_owned(),
             provider_origin_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5a; 32]),
             provider_origin_package: "omega::providers::root".to_owned(),
             service_schema: "Root".to_owned(),
@@ -386,7 +386,7 @@ fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identit
     assert!(output.contains("plan report fingerprint: 0000000000001234"));
     assert!(output.contains("plan digest: 0x"));
     assert!(output.contains("provider type: RootProvider"));
-    assert!(output.contains("target: windows_x64"));
+    assert!(output.contains("target: windows_x86_64"));
     assert!(output.contains("provider origin package: omega::providers::root"));
     assert!(output.contains(&format!("provider package key: {}", "5a".repeat(32))));
     assert!(output.contains(&format!("provider type package: {}", "5b".repeat(32))));
@@ -540,7 +540,7 @@ fn normalized_foreign_locator_mutations_change_trust_identity_and_exact_output()
         .foreign_locator_compatibility_report_identity()
         .expect("normalized import identity");
     assert!(text.contains(&format!("PeByName [{identity:016x}]")));
-    assert!(text.contains("target `windows_x64`"));
+    assert!(text.contains("target `windows_x86_64`"));
     assert!(text.contains("library bytes 0x6f7061717565ff2e646c6c"));
     assert!(text.contains("export bytes 0x696e766f6b655f726177"));
     assert!(!text.contains("opaque.dll"));
@@ -574,7 +574,7 @@ fn trust_report_rejects_normalized_locator_under_a_different_target() {
     let writer = ArtifactWriter::new(&root).expect("artifact writer");
     let report = TrustReport {
         provider_requirements: vec![trust_provider_requirement(
-            "linux_x64",
+            "linux_x86_64",
             normalized_windows_import(b"opaque.dll", b"invoke_raw"),
         )],
         ..Default::default()
@@ -583,8 +583,8 @@ fn trust_report_rejects_normalized_locator_under_a_different_target() {
     let diagnostic = writer
         .write_trust_report(&report)
         .expect_err("mismatched target must fail before artifact installation");
-    assert!(diagnostic.message.contains("targets `windows_x64`"));
-    assert!(diagnostic.message.contains("reports target `linux_x64`"));
+    assert!(diagnostic.message.contains("targets `windows_x86_64`"));
+    assert!(diagnostic.message.contains("reports target `linux_x86_64`"));
     assert!(!root.join("trust_report.md").exists());
     std::fs::remove_dir_all(root).expect("remove test artifact directory");
 }

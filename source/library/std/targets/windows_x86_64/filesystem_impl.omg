@@ -1,8 +1,8 @@
-// windows_x64 `Filesystem` DIRECTORY-WALK implementations (fs
+// windows_x86_64 `Filesystem` DIRECTORY-WALK implementations (fs
 // portable-contract settle 2026-07-18; REAL bodies rung 3b, same day). The
 // paradigm-split ops live PER TARGET behind the portable contract declared in
 // filesystem.omg's directory-walk contract block; every machine here is
-// target-scoped (`windows_x64 machine ...`), selected only for this target.
+// target-scoped (`windows_x86_64 machine ...`), selected only for this target.
 //
 // MSVCRT open flags are a foreign bitfield format, encoded by checked target
 // package code rather than smuggled through provider-plan VALUE rows. The
@@ -12,7 +12,7 @@
 // MSVCRT `_stat64` layout. Real fields occupy bytes 0..55; fields absent from
 // that carrier retain the interpreter's synthetic tail positions so native
 // Windows honestly observes zero while the hermetic model can expose them.
-windows_x64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
+windows_x86_64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
     self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::IntegerAt { offset: 6, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
     self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::IntegerAt { offset: 8, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
@@ -30,7 +30,7 @@ windows_x64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
     Plan { entries: self.entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 
-windows_x64 machine Filesystem::encode_open_options(&mut self) {
+windows_x86_64 machine Filesystem::encode_open_options(&mut self) {
     self.open_writable = (self.open_options.write as i32) | (self.open_options.append as i32);
     self.open_readable = self.open_options.read as i32;
     self.open_creating = (self.open_options.create as i32) | (self.open_options.create_new as i32);
@@ -45,21 +45,21 @@ windows_x64 machine Filesystem::encode_open_options(&mut self) {
 
 // MSVCRT operations report -1 and retain detail in thread-local errno. Map its
 // EWOULDBLOCK value (140) onto the common portable classifier's canonical 35.
-windows_x64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
+windows_x86_64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
     self.err_code = self.host.errno();
     transition self.err_code == 140 { true -> would_block() _ -> other() }
     state would_block(&mut self) -> i32 { 35 }
     state other(&mut self) -> i32 { self.err_code }
 }
 
-windows_x64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
+windows_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
     self.err_code = self.host.errno();
     transition self.err_code == 140 { true -> would_block() _ -> other() }
     state would_block(&mut self) -> i32 { 35 }
     state other(&mut self) -> i32 { self.err_code }
 }
 
-windows_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+windows_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
     self.open_options = options;
     self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
@@ -95,7 +95,7 @@ windows_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, option
 // w_scan_step), which tallies every non-dot record. Unlike the posix walk's
 // single 512-byte fill (which undercounts a large directory), the fueled
 // enumeration counts up to 4096 records -- the fuel budget is the only cap.
-windows_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
+windows_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
     self.w_scan_count = 0;
     self.w_scan_dirs = 0;
     self.w_scan_files = 0;
@@ -142,7 +142,7 @@ windows_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -
 // subdirs, files }`). The same scan core tallies dirs (attribute bit 0x10)
 // vs files (everything else) while it counts; dots are skipped by NAME, so
 // no posix-style "subtract the two dot records" correction exists here.
-windows_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
+windows_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
     self.w_scan_count = 0;
     self.w_scan_dirs = 0;
     self.w_scan_files = 0;
@@ -188,7 +188,7 @@ windows_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -
 // indexed; dots skipped by NAME so n counts real children). The scan core
 // captures the n-th non-dot record's name (NUL-truncated copy into
 // entry_name) and kind while the drain runs; no capture => End.
-windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
+windows_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
     self.w_scan_count = 0;
     self.w_scan_dirs = 0;
     self.w_scan_files = 0;
@@ -260,7 +260,7 @@ windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
 // nothing in the windows walk calls this -- it exists because the posix
 // targets share the name (the contract's shared-name rule) and a portable
 // caller reaching it on windows deserves a result, not a resolution hole.
-windows_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
+windows_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
     transition { _ -> rdef_no() }
     state rdef_no(&mut self) -> DirEntryResult {
         let kind: ErrorKind = ErrorKind::Other;
@@ -276,7 +276,7 @@ windows_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -
 // ascend = pop + truncate). Same drain discipline as posix (D-rda): a single
 // fuel budget (4096) bounds TOTAL operations; each step re-enumerates the
 // current directory fresh, so removal never races an open enumeration.
-windows_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+windows_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
     self.w_path_copy(path, 0);
     transition path.len < 509 { true -> rda_init(path) _ -> rda_err(path) }
     state rda_init(&mut self, path: &[u8] in Path) -> UnitResult {
@@ -311,7 +311,7 @@ windows_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -
 // prover accepts; the loop runs its full fuel and no-ops once drained, the
 // documented provable trade). Returns 0 on success, -1 on
 // error/fuel-exhaustion/depth overflow (> 16).
-windows_x64 machine Filesystem::rda_drain(&mut self, fuel: u64)
+windows_x86_64 machine Filesystem::rda_drain(&mut self, fuel: u64)
 terminates by fuel;
 -> i32
 {
@@ -334,7 +334,7 @@ terminates by fuel;
 // dominating conjunct in its own incoming transition whose shape MATCHES the
 // index expression (the posix impl's prover note). The `step` param is the
 // uniform call shape; unused.
-windows_x64 machine Filesystem::rda_step(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::rda_step(&mut self, step: u64) {
     transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_seal() }
 
     state rds_alldone(&mut self) { self.rda_verdict = 0; }
@@ -534,7 +534,7 @@ windows_x64 machine Filesystem::rda_step(&mut self, step: u64) {
 // paths before any use). STATEMENT-CALLED, like every helper below: their
 // effects live in guarded arm states, which the value-call fence rejects --
 // the fence's own prescription is statement call + field result.
-windows_x64 machine Filesystem::w_path_copy(&mut self, path: &[u8] in Path, i: u64)
+windows_x86_64 machine Filesystem::w_path_copy(&mut self, path: &[u8] in Path, i: u64)
 terminates by (i, path.len) -> Nat::BoundedDistance;
 {
     self.w_path_put(path, i);
@@ -554,7 +554,7 @@ terminates by (i, path.len) -> Nat::BoundedDistance;
 // One byte of the path copy. Both facts (in the slice, in the buffer) ride
 // ONE incoming conjunct so the reads/writes are dominated in their own
 // transition (facts do not travel across hops).
-windows_x64 machine Filesystem::w_path_put(&mut self, path: &[u8] in Path, i: u64) {
+windows_x86_64 machine Filesystem::w_path_put(&mut self, path: &[u8] in Path, i: u64) {
     transition i < path.len && i < 509 {
         true -> wpp_go(path, i)
         _ -> wpp_skip()
@@ -569,7 +569,7 @@ windows_x64 machine Filesystem::w_path_put(&mut self, path: &[u8] in Path, i: u6
 // Overwrite w_path's terminator with the find pattern tail: '/' at
 // w_path_len, '*' after it, NUL after that; w_pat_len = w_path_len + 2.
 // w_help_rc = 0, or -1 when the path leaves no room (>= 509).
-windows_x64 machine Filesystem::w_seal_pattern(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::w_seal_pattern(&mut self, step: u64) {
     transition self.w_path_len < 509 { true -> wsp_slash() _ -> wsp_bad() }
     state wsp_slash(&mut self) {
         transition self.w_path_len < 512 { true -> wsp_slash_go() _ -> wsp_bad() }
@@ -594,7 +594,7 @@ windows_x64 machine Filesystem::w_seal_pattern(&mut self, step: u64) {
 
 // Restore the NUL terminator at w_path_len (after a pattern seal or a
 // child-path truncation). w_help_rc = 0, or -1 out of bounds.
-windows_x64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
     transition self.w_path_len < 512 { true -> wrn_go() _ -> wrn_bad() }
     state wrn_go(&mut self) {
         self.w_path[self.w_path_len] = 0;
@@ -608,7 +608,7 @@ windows_x64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
 // base pointer is a valid C string because the seal NUL-terminated the
 // pattern. Result rides `w_find` (-1 on out-of-bounds, matching
 // INVALID_HANDLE_VALUE).
-windows_x64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping) {
+windows_x86_64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping) {
     transition k < 512 { true -> wfo_go(k) _ -> wfo_bad() }
     state wfo_go(&mut self, k: u64 in Wrapping) {
         self.w_find = self.host.find_first(self.w_path[0..k], &mut self.find_buf);
@@ -618,7 +618,7 @@ windows_x64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping) {
 
 // Guarded remove of the FILE at w_path[0..k] (the joined child path;
 // NUL-terminated at k). Result rides `rda_rc`.
-windows_x64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping) {
+windows_x86_64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping) {
     transition k < 512 { true -> wrf_go(k) _ -> wrf_bad() }
     state wrf_go(&mut self, k: u64 in Wrapping) {
         self.rda_rc = self.host.remove_name(self.w_path[0..k]);
@@ -628,7 +628,7 @@ windows_x64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping) 
 
 // Guarded remove of the empty DIRECTORY at w_path[0..k]. Result rides
 // `rda_rc`.
-windows_x64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping) {
+windows_x86_64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping) {
     transition k < 512 { true -> wrd_go(k) _ -> wrd_bad() }
     state wrd_go(&mut self, k: u64 in Wrapping) {
         self.rda_rc = self.host.remove_dir_name(self.w_path[0..k]);
@@ -639,7 +639,7 @@ windows_x64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping) {
 // Copy the current find record's name (NUL-terminated at find_buf[44..])
 // into entry_name, NUL-truncating at 255 bytes; seals entry_name with its
 // own NUL and records w_entry_len. The rdef_copy/rdef_nul state-cycle shape.
-windows_x64 machine Filesystem::w_capture_name(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::w_capture_name(&mut self, step: u64) {
     self.rd_j = 0;
     transition { _ -> wcn_loop() }
     state wcn_loop(&mut self) {
@@ -671,7 +671,7 @@ windows_x64 machine Filesystem::w_capture_name(&mut self, step: u64) {
 
 // The fueled scan loop -- rda_drain's exact shape over w_scan_step (full
 // fuel, no-op once done; verdict protocol). Returns 0 clean / -1 error.
-windows_x64 machine Filesystem::w_scan_drain(&mut self, fuel: u64)
+windows_x86_64 machine Filesystem::w_scan_drain(&mut self, fuel: u64)
 terminates by fuel;
 -> i32
 {
@@ -688,7 +688,7 @@ terminates by fuel;
 // skip dots by NAME; tally non-dot records (dirs by the attribute bit 0x10);
 // capture the target-indexed record's name + kind. Sets `w_scan_verdict`
 // (1 continue / 0 done). The `step` param is the uniform call shape; unused.
-windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
+windows_x86_64 machine Filesystem::w_scan_step(&mut self, step: u64) {
     transition self.w_scan_done == 1 { true -> ws_idle() _ -> ws_fetch() }
     state ws_idle(&mut self) { self.w_scan_verdict = 0; }
 
@@ -767,7 +767,7 @@ windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
 // composition is not atomic against concurrent access to the same fd --
 // single-threaded programs (all of Omega today) never observe the
 // difference.
-windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+windows_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
     self.file_fd = file.fd;
     // SEEK_CUR (1) at 0 = report the cursor; SEEK_SET (0) = position.
     let saved: i64 = self.host.seek(self.file_fd, 0, 1);
@@ -807,7 +807,7 @@ windows_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8]
 // A too-small buffer returns the REQUIRED size (>= 1024 fails the fit
 // check). Both failure legs capture and classify GetLastError before close.
 // FILE_FLAG_BACKUP_SEMANTICS makes files and directories equally valid inputs.
-windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+windows_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
     let handle: i64 = self.host.open_path_handle(path, 0, 7, 0, 3, 33554432, 0);
     // Capture the OPEN leg's GetLastError IMMEDIATELY: any trailing Win32
     // call may overwrite the thread-local value.
@@ -863,7 +863,7 @@ windows_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buf
 // (original, link), with the security-attributes arg the API requires as
 // NULL (0). BOOL result: non-zero success. GetLastError is captured before
 // branching, so common failure kinds remain portable.
-windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+windows_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.create_hard_link(link, original, 0);
     let code: i32 = self.host.get_last_error();
     self.win32_error_kind = match code {
@@ -889,7 +889,7 @@ windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, li
 // Arithmetic is explicitly wrapping because the public carrier is the full
 // i64 Unix-seconds domain;
 // SetFileTime remains the authority on whether a resulting timestamp is valid.
-windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+windows_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
     let accessed_epoch: u64 in Wrapping =
         (narrow_i64_to_u64_wrapping(accessed) as u64 in Wrapping) + 11644473600;
     let accessed_ticks: u64 in Wrapping = accessed_epoch * 10000000;
@@ -936,7 +936,7 @@ windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, 
     }
 }
 
-windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+windows_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
     self.file_fd = file.fd;
     let saved: i64 = self.host.seek(self.file_fd, 0, 1);
     let moved: i64 = self.host.seek(self.file_fd, offset, 0);
@@ -963,7 +963,7 @@ windows_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], of
 // offset 0 in the zeroed OVERLAPPED and length 2^64-1. `_open` creates
 // synchronous handles, so blocking acquisitions complete before the call
 // returns; providers with overlapped handles owe their own wait composition.
-windows_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+windows_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 2, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -984,7 +984,7 @@ windows_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+windows_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -1005,7 +1005,7 @@ windows_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
     state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+windows_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -1028,7 +1028,7 @@ windows_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
     state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+windows_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -1051,7 +1051,7 @@ windows_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLoc
     state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+windows_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let first: i32 = self.host.unlock_file(handle, 0, 0, 4294967295, 4294967295);

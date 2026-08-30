@@ -148,7 +148,7 @@ fn empty_rollback_request_leaves_no_release_receipt() {
         CompileRequest::new(CompileOptions {
             root_path: super::support::native_canary().join("main.omg"),
             build_dir: Some(output_dir.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),

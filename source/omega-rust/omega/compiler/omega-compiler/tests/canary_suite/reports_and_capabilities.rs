@@ -144,7 +144,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
         CompileRequest::new(CompilerOptions {
             root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(build_dir.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -179,7 +179,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         CompileRequest::new(CompilerOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(check_dir.clone()),
-            target_name: Some("windows_x64".into()),
+            target_name: Some("windows_x86_64".into()),
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::Check)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -197,7 +197,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         CompileRequest::new(CompilerOptions {
             root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(native_dir.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -234,7 +234,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         CompileRequest::new(CompilerOptions {
             root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(terminal_dir.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -298,7 +298,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         CompileRequest::new(CompilerOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: None,
-            target_name: Some("windows_x64".into()),
+            target_name: Some("windows_x86_64".into()),
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact),
     )
@@ -314,7 +314,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         CompileRequest::new(CompilerOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(unsupported_native_dir.clone()),
-            target_name: Some("windows_x64".into()),
+            target_name: Some("windows_x86_64".into()),
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),

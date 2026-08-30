@@ -63,7 +63,7 @@ fn static_guard_footprints_reach_x86_and_aarch64_artifacts() {
 fn runtime_text_guard_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
     for (target, expected_registers) in [
-        ("linux_x64", "[\"X86Rax\", \"X86R15\"]"),
+        ("linux_x86_64", "[\"X86Rax\", \"X86R15\"]"),
         ("linux_arm64", "[\"Aarch64X(16)\", \"Aarch64X(17)\"]"),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -114,7 +114,7 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("control_flow/termination_index_distance_compile");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86R10\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -169,7 +169,7 @@ fn place_guard_footprints_reach_x86_and_aarch64_artifacts() {
 fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("calls/runtime_value_call_through_alias_in_dispatch_exit");
     for (target, expected_registers) in [
-        ("linux_x64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
+        ("linux_x86_64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
             "linux_arm64",
             "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\", \"Aarch64X(26)\"]",
@@ -207,7 +207,7 @@ fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
 fn compiler_body_from_pointee_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("calls/runtime_shared_ref_param_copy_exit");
     for (target, expected_registers) in [
-        ("linux_x64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
+        ("linux_x86_64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
             "linux_arm64",
             "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\", \"Aarch64X(26)\"]",
@@ -281,7 +281,7 @@ fn runtime_shared_ref_param_copy_exit_canary_runs() {
 fn compiler_body_pointee_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("calls/runtime_pointee_pair_copy_exit");
     for (target, expected_registers) in [
-        ("linux_x64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
+        ("linux_x86_64", "[\"X86Rax\", \"X86R14\", \"X86R15\"]"),
         (
             "linux_arm64",
             "[\"Aarch64X(16)\", \"Aarch64X(17)\", \"Aarch64X(20)\", \"Aarch64X(26)\"]",
@@ -356,7 +356,7 @@ fn compiler_body_from_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() 
     let canary = pass_canary("slices/runtime_slice_element_runtime_index_read_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -412,7 +412,7 @@ fn compiler_body_to_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_fixed_vec_round_trip_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -475,7 +475,7 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
     let canary = pass_canary("calls/runtime_alias_indexed_read_through_transition_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -521,7 +521,7 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
 fn compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifacts() {
     let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R10\""),
+        ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -589,7 +589,7 @@ fn compiler_body_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifacts
     let canary = pass_canary("calls/runtime_machine_indexed_struct_field_arg_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -647,7 +647,7 @@ fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifa
     let canary = pass_canary("collections/runtime_machine_frame_index_write_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -705,7 +705,7 @@ fn compiler_body_to_machine_indexed_copy_footprints_reach_x86_and_aarch64_artifa
 fn compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts() {
     let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -761,7 +761,7 @@ fn compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts() {
 fn compiler_body_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_double_indexed_read_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R10\""),
+        ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -805,7 +805,7 @@ fn compiler_body_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_ar
 fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_double_indexed_write_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R10\""),
+        ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -853,7 +853,7 @@ fn compiler_body_to_machine_double_indexed_copy_footprints_reach_x86_and_aarch64
 fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -897,7 +897,7 @@ fn compiler_body_machine_indexed_pair_copy_footprints_reach_x86_and_aarch64_arti
 fn compiler_body_mixed_index_frame_pair_copy_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_frame_mixed_index_pair_copy_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -943,7 +943,7 @@ fn compiler_body_mixed_index_frame_pair_copy_footprints_reach_x86_and_aarch64_ar
 fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_cross_region_indexed_pair_copy_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -989,7 +989,7 @@ fn compiler_body_cross_region_indexed_pair_footprints_reach_x86_and_aarch64_arti
 fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_cross_region_double_indexed_pair_copy_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R10\""),
+        ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(20)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1036,7 +1036,7 @@ fn compiler_body_cross_region_double_indexed_pair_footprints_reach_x86_and_aarch
 fn compiler_body_direct_integer_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R15\""),
+        ("linux_x86_64", "\"X86R15\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1085,7 +1085,7 @@ fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts(
     // relocation/footprint replay on each architecture.
     let canary = pass_canary("expressions/f32_deep_chain_binary");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1131,7 +1131,7 @@ fn compiler_body_direct_binary_write_footprints_reach_x86_and_aarch64_artifacts(
 fn compiler_body_pointee_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("control_flow/runtime_statement_call_single_execution_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1162,7 +1162,7 @@ fn compiler_body_pointee_binary_write_footprints_reach_x86_and_aarch64_artifacts
 fn compiler_body_frame_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("storage/runtime_slice_indexed_binary_rmw_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1209,7 +1209,7 @@ fn compiler_body_frame_indexed_binary_write_footprints_reach_x86_and_aarch64_art
 fn compiler_body_frame_base_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1245,7 +1245,7 @@ fn compiler_body_frame_base_indexed_binary_write_footprints_reach_x86_and_aarch6
 fn compiler_body_machine_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_indexed_rmw_loop_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1281,7 +1281,7 @@ fn compiler_body_machine_indexed_binary_write_footprints_reach_x86_and_aarch64_a
 fn compiler_body_machine_double_indexed_binary_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("collections/runtime_double_indexed_rmw_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1357,13 +1357,13 @@ machine Main::main(&mut self) {
             .expect("write compiler-body general x86 binary-write source");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build("linux_x64"),
+            hosted_main_program_entry_build("linux_x86_64"),
         )
         .expect("write exact compiler-body general x86 binary-write target entry");
         production_compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
             product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
@@ -1387,7 +1387,7 @@ machine Main::main(&mut self) {
 fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
     let canary = pass_canary("text/runtime_bounded_carrier_local_source_concat_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86Rsi\""),
+        ("linux_x86_64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(12)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1433,7 +1433,7 @@ fn compiler_body_bounded_buffer_source_append_footprints_reach_artifacts() {
 fn compiler_body_text_buffer_materialize_footprints_reach_artifacts() {
     let canary = pass_canary("text/runtime_string_append_in_place_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86Rsi\""),
+        ("linux_x86_64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(21)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1510,7 +1510,7 @@ fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artif
 fn compiler_body_text_literal_append_footprints_reach_artifacts() {
     let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86Rcx\""),
+        ("linux_x86_64", "\"X86Rcx\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1556,7 +1556,7 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
 fn compiler_body_text_stored_append_footprints_reach_artifacts() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86Rsi\""),
+        ("linux_x86_64", "\"X86Rsi\""),
         ("linux_arm64", "\"Aarch64X(24)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1587,7 +1587,7 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
 fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
     let canary = pass_canary("text/runtime_string_stored_suffix_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(23)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1637,7 +1637,7 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
 fn compiler_body_place_address_footprints_reach_artifacts() {
     let canary = pass_canary("recast/runtime_record_view_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(21)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1706,7 +1706,7 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
     let canary =
         pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86Rdi\""),
+        ("linux_x86_64", "\"X86Rdi\""),
         ("linux_arm64", "\"Aarch64X(14)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1743,7 +1743,7 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
 fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("text/runtime_machine_owned_double_indexed_string_field_concat_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1780,7 +1780,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(output.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("general double-indexed x86 text assembly should compile");
@@ -1809,7 +1809,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
 fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
     for (target, expected_scalar_register) in [
-        ("linux_x64", "\"X86Rax\""),
+        ("linux_x86_64", "\"X86Rax\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -1874,7 +1874,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_encode_string_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86Rcx\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -1946,7 +1946,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_encode_borrowed_scalar_slice_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86Rcx\", \"X86Rdx\", \"X86Rsi\", \"X86Rdi\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -2020,7 +2020,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
     let canary = pass_canary("wire/runtime_wire_encode_repeated_then_string_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -2098,7 +2098,7 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_decode_byte_slice_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86Rcx\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -2171,7 +2171,7 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
     for (target, expected_open_registers, expected_close_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
             "[\"X86Rax\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
         ),
@@ -2252,7 +2252,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86Rcx\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -2330,7 +2330,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
 fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_decode_let_compare_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R13\""),
+        ("linux_x86_64", "\"X86R13\""),
         ("linux_arm64", "\"Aarch64X(21)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2395,7 +2395,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("wire/runtime_wire_decode_ranged_field_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86Rcx\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R13\", \"X86R14\", \"X86R15\"]",
         ),
         (
@@ -2507,7 +2507,7 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
     let canary =
         pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86Rax\""),
+        ("linux_x86_64", "\"X86Rax\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2544,7 +2544,7 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
 fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("layouts/runtime_plan_laid_compact_bits_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(20)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2590,7 +2590,7 @@ fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifa
 fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("control_flow/runtime_entry_cast_result_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2636,7 +2636,7 @@ fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifact
 fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("text/runtime_number_to_decimal_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R14\""),
+        ("linux_x86_64", "\"X86R14\""),
         ("linux_arm64", "\"Aarch64X(16)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2683,7 +2683,7 @@ fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_
 fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("borrow/runtime_view_of_view_chain_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R15\""),
+        ("linux_x86_64", "\"X86R15\""),
         ("linux_arm64", "\"Aarch64X(17)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2728,7 +2728,7 @@ fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifact
 #[test]
 fn compiler_body_cross_region_frame_indexed_integer_write_footprints_reach_artifacts() {
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2797,7 +2797,7 @@ machine Main::main(&mut self) {
 #[test]
 fn compiler_body_frame_base_indexed_integer_write_footprints_reach_artifacts() {
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2872,7 +2872,7 @@ machine Main::main(&mut self) {
 fn compiler_body_machine_indexed_integer_write_footprints_reach_artifacts() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_integer_write_exit");
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R11\""),
+        ("linux_x86_64", "\"X86R11\""),
         ("linux_arm64", "\"Aarch64X(26)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2907,7 +2907,7 @@ fn compiler_body_machine_indexed_integer_write_footprints_reach_artifacts() {
 #[test]
 fn compiler_body_double_indexed_integer_write_footprints_reach_artifacts() {
     for (target, expected_register) in [
-        ("linux_x64", "\"X86R10\""),
+        ("linux_x86_64", "\"X86R10\""),
         ("linux_arm64", "\"Aarch64X(15)\""),
     ] {
         let scratch = std::env::temp_dir().join(format!(
@@ -2976,7 +2976,7 @@ fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
     let canary = pass_canary("text/runtime_string_field_literal_guard_exit");
     for (target, expected_registers) in [
         (
-            "linux_x64",
+            "linux_x86_64",
             "[\"X86Rax\", \"X86Rcx\", \"X86Rdx\", \"X86R8\", \"X86R9\", \"X86R10\", \"X86R11\", \"X86R15\", \"X86Xmm(0)\", \"X86Xmm(1)\"]",
         ),
         (

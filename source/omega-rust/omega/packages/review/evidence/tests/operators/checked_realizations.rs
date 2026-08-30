@@ -5,8 +5,8 @@ fn review_projects_exact_public_callable_conformances_and_static_machine_contrac
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -124,8 +124,8 @@ satisfies CheckedMath::identity
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -163,8 +163,8 @@ fn review_projects_and_encodes_aliased_checked_operator_realization() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -269,8 +269,8 @@ satisfies CheckedMath::subtract
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

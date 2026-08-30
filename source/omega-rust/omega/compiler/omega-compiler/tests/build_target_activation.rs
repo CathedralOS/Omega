@@ -34,12 +34,12 @@ impl Drop for TempProject {
 
 fn exact_target_build(body: &str) -> String {
     format!(
-        "target windows_x64 {{ }}\nmachine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
+        "target windows_x86_64 {{ }}\nmachine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
     )
 }
 
 fn diagnostic_text(project: &TempProject) -> String {
-    compile_to_checked(&project.main(), Some("windows_x64"))
+    compile_to_checked(&project.main(), Some("windows_x86_64"))
         .expect_err("immutable target violation must reject")
         .into_iter()
         .map(|diagnostic| diagnostic.message)
@@ -62,13 +62,38 @@ fn exact_target_is_source_visible_and_drives_build_evaluation() {
     }"#,
     ));
 
-    let checked = compile_to_checked(&project.main(), Some("windows_x64"))
+    let checked = compile_to_checked(&project.main(), Some("windows_x86_64"))
         .expect("the selected target must be an ordinary readable Omega value");
     assert_eq!(
         checked.selected_target_profile(),
         Some(omega_target::TargetProfile::WindowsX64)
     );
     assert_eq!(checked.subsystem(), 2, "Windows branch must select Gui");
+}
+
+#[test]
+fn legacy_and_canonical_cli_spellings_select_the_same_canonical_profile() {
+    let project = TempProject::new(&exact_target_build(""));
+    let legacy = compile_to_checked(&project.main(), Some("windows_x64"))
+        .expect("legacy CLI alias should normalize before source selection");
+    let canonical = compile_to_checked(&project.main(), Some("windows_x86_64"))
+        .expect("canonical CLI spelling should compile");
+
+    assert_eq!(
+        legacy.selected_target_profile(),
+        canonical.selected_target_profile()
+    );
+    assert_eq!(
+        legacy.selected_native_target(),
+        canonical.selected_native_target()
+    );
+    assert_eq!(
+        legacy
+            .selected_target_profile()
+            .expect("selected profile")
+            .target_name(),
+        "windows_x86_64"
+    );
 }
 
 #[test]
@@ -123,7 +148,7 @@ fn exclusive_target_borrow_is_rejected() {
 #[test]
 fn authored_legacy_build_is_rejected_instead_of_receiving_a_hidden_target() {
     let project = TempProject::new(
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 data Build {
     subsystem: Subsystem;
     freestanding: bool;

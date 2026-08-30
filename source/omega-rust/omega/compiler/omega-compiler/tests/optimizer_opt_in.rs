@@ -273,7 +273,7 @@ fn selected_native_build_fails_closed_without_installing_output() {
     let root = project(
         "fail-closed",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-fail-closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -286,7 +286,7 @@ machine build(builder: &mut Build) {
     let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
     assert_eq!(diagnostics.len(), 1);
@@ -311,7 +311,7 @@ fn partial_rollback_routes_only_the_nonempty_effective_selection_and_fails_close
     let root = project(
         "partial-rollback-fail-closed",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-partial-rollback-fail-closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -326,7 +326,7 @@ machine build(builder: &mut Build) {
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
             build_dir: Some(build_dir.clone()),
-            target_name: Some("windows_x64".into()),
+            target_name: Some("windows_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_optimization_rollback(
@@ -362,7 +362,7 @@ fn exact_subtract_immediate_native_build_fails_closed_without_installing_output(
     let root = project(
         "subtract-fail-closed",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-subtract-fail-closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -375,7 +375,7 @@ machine build(builder: &mut Build) {
     let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
     assert_eq!(diagnostics.len(), 1);
@@ -409,7 +409,7 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     let selected = project(
         "x86-rel8-selected",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-x86-rel8-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -418,7 +418,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
         .expect("the named function-relative-layout selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -433,7 +433,7 @@ machine build(builder: &mut Build) {
     let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .expect_err("the build-visible layout selection must remain execution-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -461,7 +461,7 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
     let selected = project(
         "aarch64-cbnz-selected",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-aarch64-cbnz-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -470,7 +470,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
         .expect("the named post-allocation machine selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -485,7 +485,7 @@ machine build(builder: &mut Build) {
     let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .expect_err("the build-visible machine selection must remain publication-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -612,7 +612,7 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
     let selected = project(
         "shared-entry-copy-selected",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-shared-entry-copy-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -621,7 +621,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
         .expect("the named allocation-recovery selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -636,7 +636,7 @@ machine build(builder: &mut Build) {
     let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .expect_err("the build-visible allocation recovery must remain publication-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -664,7 +664,7 @@ fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains
     let selected = project(
         "active-resident-rematerialization-selected",
         Some(
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) {
     builder.application("optimizer-active-resident-rematerialization-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
@@ -673,7 +673,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x86_64"))
         .expect("the named allocation-recovery selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -688,7 +688,7 @@ machine build(builder: &mut Build) {
     let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
     })
     .expect_err("the build-visible rematerialization must remain publication-gated");
     assert_eq!(diagnostics.len(), 1);

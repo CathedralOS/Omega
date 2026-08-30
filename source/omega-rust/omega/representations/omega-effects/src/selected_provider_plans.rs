@@ -261,7 +261,8 @@ impl SelectedProviderPlanFacts {
         coverage.sort();
         let mut occupied_slots = BTreeSet::new();
         for row in &coverage {
-            let Some(plan) = self.plan_by_report_fingerprint(row.provider_plan_report_identity()) else {
+            let Some(plan) = self.plan_by_report_fingerprint(row.provider_plan_report_identity())
+            else {
                 return Err(format!(
                     "indexed-application coverage names unselected provider plan {:#018x}",
                     row.provider_plan_report_identity()
@@ -433,7 +434,9 @@ impl SelectedProviderPlanFacts {
                     resolution.requirement_identity
                 ));
             }
-            let Some(plan) = self.plan_by_report_fingerprint(resolution.provider_plan_report_identity) else {
+            let Some(plan) =
+                self.plan_by_report_fingerprint(resolution.provider_plan_report_identity)
+            else {
                 return Err(format!(
                     "installation reach resolution for `{}` names unselected provider plan {:#018x}",
                     resolution.requirement_identity, resolution.provider_plan_report_identity
@@ -1054,7 +1057,7 @@ mod tests {
         let checked_wrapper = candidate("CheckedWrapper", "read");
         let mut opaque_leaf = candidate("OpaqueLeaf", "read_raw");
         opaque_leaf.schema.trait_name = "RawStorage".into();
-        opaque_leaf.target = "windows_x64".into();
+        opaque_leaf.target = "windows_x86_64".into();
         let locator = crate::normalize_foreign_locator(
             crate::ForeignLocatorCandidate::PeByName {
                 library: b"vendor-storage.dll".to_vec(),
@@ -1095,7 +1098,7 @@ mod tests {
     fn selected_plan_identity_changes_with_normalized_import_coordinates() {
         fn selected(export: &[u8]) -> SelectedProviderPlanFacts {
             let mut plan = candidate("OpaqueLeaf", "read_raw");
-            plan.target = "windows_x64".into();
+            plan.target = "windows_x86_64".into();
             plan.rows[0].binding = ProviderBinding::Import {
                 locator: crate::normalize_foreign_locator(
                     crate::ForeignLocatorCandidate::PeByName {

@@ -33,7 +33,7 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("explicit entry canary should emit audit artifacts");
@@ -51,7 +51,7 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
 #[test]
 fn checked_compilation_retains_the_exact_selected_program_entry() {
     let canary = pass_canary("build/explicit_program_entry_binding");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x64"))
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x86_64"))
         .expect("explicit entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
@@ -76,7 +76,7 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
 #[test]
 fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
     let canary = pass_canary("build/uefi_program_entry_storage_roots");
-    let checked = compile_to_checked(&canary.join("main.omg"), Some("uefi_x64"))
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("uefi_x86_64"))
         .expect("UEFI entry canary should retain its complete typed settlement");
     let selected = checked
         .selected_program_entry()
@@ -213,40 +213,40 @@ fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() 
     for (canary_name, target) in [
         (
             "capabilities/win64_scalar_float_import_compile",
-            "windows_x64",
+            "windows_x86_64",
         ),
         (
             "capabilities/win64_large_aggregate_import_compile",
-            "windows_x64",
+            "windows_x86_64",
         ),
         (
             "capabilities/win64_direct_aggregate_import_compile",
-            "windows_x64",
+            "windows_x86_64",
         ),
         (
             "capabilities/win64_direct_aggregate_result_import_compile",
-            "windows_x64",
+            "windows_x86_64",
         ),
         (
             "capabilities/win64_large_aggregate_result_import_compile",
-            "windows_x64",
+            "windows_x86_64",
         ),
         (
             "capabilities/sysv_small_aggregate_import_compile",
-            "linux_x64",
+            "linux_x86_64",
         ),
         (
             "build/static_machine_parameter_config_compile",
-            "windows_x64",
+            "windows_x86_64",
         ),
-        ("inline_asm/asm_port_out_final_validation", "linux_x64"),
+        ("inline_asm/asm_port_out_final_validation", "linux_x86_64"),
         (
             "inline_asm/asm_runtime_port_msr_final_validation",
-            "linux_x64",
+            "linux_x86_64",
         ),
         (
             "text/runtime_x86_general_double_indexed_string_concat_compile",
-            "linux_x64",
+            "linux_x86_64",
         ),
         (
             "slices/runtime_aarch64_cross_region_frame_indexed_rmw_compile",
@@ -279,7 +279,7 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("fixed checked assembly should cross-compile with final-byte evidence");
@@ -311,7 +311,7 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("immediate-port checked assembly should emit final-byte evidence");
@@ -349,7 +349,7 @@ fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
-            target_name: Some("linux_x64".into()),
+            target_name: Some("linux_x86_64".into()),
             product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("structured machine-control assembly should emit final-byte evidence");
@@ -632,7 +632,7 @@ fn aarch64_small_result_entry_loads_x0_and_x1() {
 #[test]
 fn aggregate_literal_entry_result_uses_native_fragments() {
     let canary = pass_canary("targets/aggregate_literal_result_entry");
-    for target in ["linux_x64", "linux_arm64", "uefi_x64"] {
+    for target in ["linux_x86_64", "linux_arm64", "uefi_x86_64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-aggregate-literal-result-{}",
             std::process::id()
@@ -656,13 +656,13 @@ fn aggregate_literal_entry_result_uses_native_fragments() {
         })
         .expect("aggregate-literal entry result should cross-compile");
 
-        let output_name = if target == "uefi_x64" {
+        let output_name = if target == "uefi_x86_64" {
             "omega-program.exe"
         } else {
             "omega-program"
         };
         let image = fs::read(out_dir.join(output_name)).expect("read emitted image");
-        if target == "linux_x64" {
+        if target == "linux_x86_64" {
             assert!(
                 image.windows(34).any(|window| {
                     window[10..13] == [0x49, 0x8b, 0x87] && window[27..30] == [0x49, 0x8b, 0x97]
@@ -703,7 +703,7 @@ fn aggregate_literal_entry_result_uses_native_fragments() {
 #[test]
 fn indexed_scalar_entry_result_uses_native_registers() {
     let canary = pass_canary("targets/indexed_scalar_result_entry");
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-indexed-scalar-result-{}",
             std::process::id()
@@ -728,7 +728,7 @@ fn indexed_scalar_entry_result_uses_native_registers() {
         .expect("indexed scalar entry result should cross-compile");
 
         let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
-        if target == "linux_x64" {
+        if target == "linux_x86_64" {
             assert!(
                 image.windows(3).any(|window| window == [0x41, 0x8b, 0x87]),
                 "SysV indexed scalar terminal missing eax scratch load"
@@ -858,7 +858,7 @@ fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV two-eightbyte record should cross-compile through rsi/rdx");
@@ -885,7 +885,7 @@ fn sysv_erased_small_aggregate_entry_spreads_only_relevant_fields() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("erased-stripped SysV record should cross-compile through rsi/rdx");
@@ -910,7 +910,7 @@ fn sysv_hfa_entry_argument_packs_eightbytes_into_xmm_registers() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV f64 pair entry should cross-compile through xmm0/xmm1");
@@ -938,7 +938,7 @@ fn sysv_mixed_aggregate_entry_uses_independent_register_banks() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV INTEGER/SSE entry record should cross-compile through rsi/xmm0");
@@ -967,7 +967,7 @@ fn sysv_mixed_aggregate_entry_rolls_wholly_to_stack() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted SysV mixed record should cross-compile wholly from the stack");
@@ -1002,7 +1002,7 @@ fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted SysV record should cross-compile wholly from the stack");
@@ -1035,7 +1035,7 @@ fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV MEMORY-class entry record should copy from the incoming stack");
@@ -1063,7 +1063,7 @@ fn sysv_wide_aggregate_entry_uses_general_memory_classification() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV record beyond 32 bytes should use general MEMORY stack passing");
@@ -1091,7 +1091,7 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV MEMORY-result entry should preserve and populate its hidden pointer");
@@ -1136,7 +1136,7 @@ fn sysv_large_hfa_result_entry_remains_memory_class() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV HFA above 16 bytes should remain a MEMORY-class entry result");
@@ -1169,7 +1169,7 @@ fn sysv_small_result_entry_loads_rax_and_rdx() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV INTEGER/INTEGER entry result should load rax/rdx");
@@ -1196,7 +1196,7 @@ fn sysv_hfa_result_entry_loads_xmm0_and_xmm1() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV SSE/SSE entry result should load xmm0/xmm1");
@@ -1224,7 +1224,7 @@ fn sysv_mixed_result_entry_loads_rax_and_xmm0() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV INTEGER/SSE entry result should load rax/xmm0");
@@ -1251,7 +1251,7 @@ fn sysv_wrapped_float_entry_uses_xmm0_in_both_directions() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("one-eightbyte nested SSE record should use xmm0 for entry and result");
@@ -1660,7 +1660,7 @@ fn discovered_exact_native_coverage_is_consistent() {
         0
     );
     let cross_target_positive = coverage
-        .unique_cross_target_owner("targets/sysv_small_result_entry", "linux_x64")
+        .unique_cross_target_owner("targets/sysv_small_result_entry", "linux_x86_64")
         .expect("known exact cross-target owner should be discovered");
     assert_eq!(
         cross_target_positive.test_name,
@@ -1672,7 +1672,7 @@ fn discovered_exact_native_coverage_is_consistent() {
             .ends_with("canary_suite/entry_and_abi.rs")
     );
     assert_eq!(
-        coverage.cross_target_owner_count("build/receiver_bound_program_entry", "windows_x64"),
+        coverage.cross_target_owner_count("build/receiver_bound_program_entry", "windows_x86_64"),
         0,
         "known cross-target control without a dedicated exact owner must remain in the umbrella"
     );
@@ -1684,7 +1684,7 @@ fn discovered_exact_native_coverage_is_consistent() {
         "external_leaf_syscall_reaches_linux_x64_backend"
     );
     assert_eq!(
-        coverage.rooted_target_owner_count("time/runtime_time_host_native_exit", "windows_x64"),
+        coverage.rooted_target_owner_count("time/runtime_time_host_native_exit", "windows_x86_64"),
         0,
         "known rooted-target control without a dedicated exact owner must remain in the umbrella"
     );
@@ -1720,7 +1720,7 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI freestanding skeleton should compile");
@@ -1770,7 +1770,7 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI entry-arguments canary should compile");
@@ -1837,7 +1837,7 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI float entry-argument canary should compile");
@@ -1883,7 +1883,7 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI float arithmetic entry-result canary should compile");
@@ -1908,7 +1908,7 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
 #[test]
 fn float_literal_entry_result_uses_native_vector_registers() {
     let canary = pass_canary("targets/efi_float_literal_result_entry");
-    for target in ["uefi_x64", "linux_arm64"] {
+    for target in ["uefi_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-float-literal-result-{}",
             std::process::id()
@@ -1932,13 +1932,13 @@ fn float_literal_entry_result_uses_native_vector_registers() {
         })
         .expect("float-literal entry result should cross-compile");
 
-        let output_name = if target == "uefi_x64" {
+        let output_name = if target == "uefi_x86_64" {
             "omega-program.exe"
         } else {
             "omega-program"
         };
         let image = fs::read(out_dir.join(output_name)).expect("read emitted image");
-        if target == "uefi_x64" {
+        if target == "uefi_x86_64" {
             assert!(
                 image
                     .windows(5)
@@ -1967,7 +1967,7 @@ fn float_literal_entry_result_uses_native_vector_registers() {
 #[test]
 fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
     let canary = pass_canary("targets/efi_float_result_entry");
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-{target}-float-entry-result-{}",
             std::process::id()
@@ -1992,7 +1992,7 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
         .expect("scalar-float arithmetic entry result should cross-compile");
 
         let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
-        if target == "linux_x64" {
+        if target == "linux_x86_64" {
             for (name, opcode) in [
                 ("incoming XMM0 store", [0xf2, 0x41, 0x0f, 0x11, 0x87]),
                 ("terminal XMM0 load", [0xf2, 0x41, 0x0f, 0x10, 0x87]),
@@ -2031,7 +2031,7 @@ fn constant_u64_entry_result_uses_the_declared_native_width() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI u64 constant result should compile");
@@ -2083,7 +2083,7 @@ fn efi_small_aggregate_entry_uses_rcx_and_rax() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 direct record entry should compile");
@@ -2114,7 +2114,7 @@ fn efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 indirect-result entry should compile");
@@ -2147,7 +2147,7 @@ fn efi_large_aggregate_entry_copies_from_rdx_pointer() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 register-indirect entry record should compile");
@@ -2184,7 +2184,7 @@ fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 stack-indirect entry record should compile");
@@ -2209,7 +2209,7 @@ fn efi_fifth_entry_argument_unmarshals_from_the_ms_x64_stack_area() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI stack entry-argument canary should compile");
@@ -2378,7 +2378,7 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["windows_x64", "linux_arm64"] {
+    for target in ["windows_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-wire-policy-nested-{target}-{}",
             std::process::id()
@@ -2552,7 +2552,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
+        target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("ref-param call-arg canary should compile");

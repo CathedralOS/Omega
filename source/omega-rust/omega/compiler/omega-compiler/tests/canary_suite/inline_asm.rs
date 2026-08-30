@@ -8,7 +8,7 @@ fn compile_x86_image(canary_name: &str, build_name: &str, success: &str) -> (Pat
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .unwrap_or_else(|diagnostics| panic!("{success}:\n{diagnostics:#?}"));

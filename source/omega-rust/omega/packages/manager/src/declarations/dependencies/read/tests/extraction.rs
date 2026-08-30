@@ -46,7 +46,7 @@ fn projects_path_and_git_requests_in_authored_order() {
 
 #[test]
 fn absent_build_machine_is_not_an_implicit_project_role() {
-    let fixture = PackageFixture::with_source("target windows_x64 { }");
+    let fixture = PackageFixture::with_source("target windows_x86_64 { }");
     assert!(matches!(
         fixture.extract(),
         Err(DependencyProjectionError::BuildDeclaration(error))

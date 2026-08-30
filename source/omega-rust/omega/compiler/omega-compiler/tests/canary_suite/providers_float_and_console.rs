@@ -520,7 +520,12 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
     // settled target adapter: Linux syscall, Darwin direct import, and the
     // complete Win64 GetStdHandle + file-I/O import pair.
     let canary = pass_canary("host/runtime_console_byte_echo_exit");
-    for target in ["linux_x64", "linux_arm64", "macos_arm64", "windows_x64"] {
+    for target in [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-console-byte-replay-{target}-{}",
             std::process::id()
@@ -543,7 +548,12 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
         "host/runtime_console_line_descriptor_exit",
     ] {
         let canary = pass_canary(canary_name);
-        for target in ["linux_x64", "linux_arm64", "macos_arm64", "windows_x64"] {
+        for target in [
+            "linux_x86_64",
+            "linux_arm64",
+            "macos_arm64",
+            "windows_x86_64",
+        ] {
             let scratch = std::env::temp_dir().join(format!(
                 "omega-console-line-replay-{}-{target}-{}",
                 canary_name.replace('/', "-"),

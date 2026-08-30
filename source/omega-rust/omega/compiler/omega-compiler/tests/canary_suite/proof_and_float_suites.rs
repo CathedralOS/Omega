@@ -1357,7 +1357,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
 
     // Keep both native instruction-selection families on the same static
     // satisfier path even when the host can execute only one of them.
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let cross_dir = std::env::temp_dir().join(format!(
             "omega-total-float-order-{target}-{}",
             std::process::id()
@@ -1765,7 +1765,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_x64"))
+    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_x86_64"))
         .expect("baseline x86 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -1814,7 +1814,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     let first_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("first-build")),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline x86 float twin should produce an exact linux_x64 image");
@@ -1833,7 +1833,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     let second_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("second-build")),
-        target_name: Some("linux_x64".into()),
+        target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline x86 float twin should reproduce its exact linux_x64 image");
@@ -1866,7 +1866,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     );
     retain(&mut build_artifact_identity, &interpreted.stdout);
     retain(&mut build_artifact_identity, &interpreted.stderr);
-    retain(&mut build_artifact_identity, b"target-profile:linux_x64");
+    retain(&mut build_artifact_identity, b"target-profile:linux_x86_64");
     retain(&mut build_artifact_identity, b"architecture:x86_64");
     retain(&mut build_artifact_identity, b"object-format:elf");
     retain(
@@ -1949,7 +1949,7 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let checked = omega_compiler::compile_to_checked(&main_path, Some("windows_x64"))
+    let checked = omega_compiler::compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect("baseline Windows x64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -1998,7 +1998,7 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     let first_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("first-build")),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline Windows x64 float twin should produce an exact windows_x64 image");
@@ -2028,7 +2028,7 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     let second_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("second-build")),
-        target_name: Some("windows_x64".into()),
+        target_name: Some("windows_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline Windows x64 float twin should reproduce its exact windows_x64 image");
@@ -2061,7 +2061,10 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     );
     retain(&mut build_artifact_identity, &interpreted.stdout);
     retain(&mut build_artifact_identity, &interpreted.stderr);
-    retain(&mut build_artifact_identity, b"target-profile:windows_x64");
+    retain(
+        &mut build_artifact_identity,
+        b"target-profile:windows_x86_64",
+    );
     retain(&mut build_artifact_identity, b"architecture:x86_64");
     retain(&mut build_artifact_identity, b"object-format:coff");
     retain(

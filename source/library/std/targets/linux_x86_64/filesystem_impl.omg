@@ -1,8 +1,8 @@
-// linux_x64 `Filesystem` DIRECTORY-WALK implementations (fs portable-contract
+// linux_x86_64 `Filesystem` DIRECTORY-WALK implementations (fs portable-contract
 // settle 2026-07-18; bodies moved from filesystem.omg the same day). The
 // paradigm-split ops live PER TARGET behind the portable contract declared in
 // filesystem.omg's directory-walk contract block; every machine here is
-// target-scoped (`linux_x64 machine ...`), selected only for this target.
+// target-scoped (`linux_x86_64 machine ...`), selected only for this target.
 //
 // Linux open flags are a foreign bitfield format, encoded by checked target
 // package code rather than smuggled through provider-plan VALUE rows. The
@@ -11,7 +11,7 @@
 // Linux x86-64 kernel `struct stat` as written by syscall 5 (`fstat`). The
 // portable record keeps semantic carriers; this policy owns the kernel offsets
 // and uses IntegerAt only for genuinely narrower physical integers.
-linux_x64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
+linux_x86_64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
     self.entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
@@ -29,7 +29,7 @@ linux_x64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
     Plan { entries: self.entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 
-linux_x64 machine Filesystem::encode_open_options(&mut self) {
+linux_x86_64 machine Filesystem::encode_open_options(&mut self) {
     self.open_writable = (self.open_options.write as i32) | (self.open_options.append as i32);
     self.open_readable = self.open_options.read as i32;
     self.open_creating = (self.open_options.create as i32) | (self.open_options.create_new as i32);
@@ -45,7 +45,7 @@ linux_x64 machine Filesystem::encode_open_options(&mut self) {
 // in checked target-package code; no compiler/libc-style ambient error slot is
 // introduced. Canonicalize Linux EAGAIN/EWOULDBLOCK (11) to the shared map's
 // WouldBlock code (35).
-linux_x64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
+linux_x86_64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
     let code: i32 in Wrapping = (0 as i32 in Wrapping) - (result as i32 in Wrapping);
     self.err_code = code as i32;
     transition self.err_code == 11 { true -> would_block() _ -> other() }
@@ -53,7 +53,7 @@ linux_x64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i
     state other(&mut self) -> i32 { self.err_code }
 }
 
-linux_x64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
+linux_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
     let code: i64 in Wrapping = (0 as i64 in Wrapping) - (result as i64 in Wrapping);
     self.err_code = narrow_i64_to_i32_wrapping(code as i64);
     transition self.err_code == 11 { true -> would_block() _ -> other() }
@@ -61,7 +61,7 @@ linux_x64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i
     state other(&mut self) -> i32 { self.err_code }
 }
 
-linux_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+linux_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
     self.open_options = options;
     self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
@@ -85,7 +85,7 @@ linux_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options:
 // terminal or error path. A malformed record fails as `Other` instead of making
 // the state loop stall. "." and ".." are the first two records of every real
 // directory, so the child count is `records - 2` after the complete drain.
-linux_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
+linux_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
@@ -157,7 +157,7 @@ linux_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> 
 // and tallying DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the child
 // counts subtract 2 from both `entries` and `subdirs`. DT_UNKNOWN remains
 // included in entries but in neither type-specific tally.
-linux_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
+linux_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
@@ -256,7 +256,7 @@ linux_x64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> 
 // A name longer than 255 bytes is truncated (`name_len` is the copied length).
 // The descriptor cursor remains open across fills and closes at the found, EOF,
 // malformed-record, or syscall-error terminal.
-linux_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
+linux_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
@@ -383,7 +383,7 @@ linux_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u6
 // rewinds and re-reads the same fd after each removal).
 // NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
 // path); a future refactor should route `read_dir_nth` through this fd core.
-linux_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
+linux_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
     self.rd_position = 0;
     self.rd_off = 0;
     self.rd_recno = 0;
@@ -506,7 +506,7 @@ linux_x64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> 
 // re-read-first-child drain dodges the shared `dir_buf`-vs-recursion clobber: each
 // step re-reads the fd fresh, and the entry NAME rides a by-value `DirEntry` param
 // so a nested drain cannot overwrite it.
-linux_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+linux_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
     self.read_flags = 0;
     let dfd: i32 = self.host.open(path, self.read_flags);
     transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path, dfd) }
@@ -541,7 +541,7 @@ linux_x64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> 
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, the preserved negative syscall result on host failure,
 // or -5 (canonical Other/EIO) for a structural/fuel/depth failure.
-linux_x64 machine Filesystem::rda_drain(&mut self, fuel: u64)
+linux_x86_64 machine Filesystem::rda_drain(&mut self, fuel: u64)
 terminates by fuel;
 -> i32
 {
@@ -569,7 +569,7 @@ terminates by fuel;
 // dominating conjunct in its OWN incoming transition (facts do not travel).
 // The `step` param exists so the machine has entry arguments (uniform call
 // shape); it is unused.
-linux_x64 machine Filesystem::rda_step(&mut self, step: u64) {
+linux_x86_64 machine Filesystem::rda_step(&mut self, step: u64) {
     self.rda_rc = 0 - 5;
     transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_read() }
 
@@ -665,7 +665,7 @@ linux_x64 machine Filesystem::rda_step(&mut self, step: u64) {
 // slice 2): posix binds the ATOMIC pread/pwrite raw ops directly -- the
 // kernel reads/writes at the offset without touching the fd's cursor.
 // (The windows twin composes seek/op/restore; see its impl file.)
-linux_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+linux_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
     transition n >= 0 { true -> ok(n) _ -> err(n) }
@@ -676,7 +676,7 @@ linux_x64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], 
     state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
 }
 
-linux_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+linux_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err(n) }
@@ -691,7 +691,7 @@ linux_x64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offs
 // posix binds linkat(2) directly -- Linux's negative result carries the failure kind
 // (AlreadyExists / NotFound). (The windows twin rides the designed
 // create_hard_link seam op; see its impl file.)
-linux_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+linux_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.hard_link(original, link);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
@@ -700,7 +700,7 @@ linux_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link
 
 // Set an open file's access + modification times. Compose two native timespec
 // records (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64}) and futimens.
-linux_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+linux_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
     self.times_buf[0] = narrow_i64_to_u8_wrapping(accessed);
     self.times_buf[1] = narrow_i64_to_u8_wrapping(accessed >> 8);
     self.times_buf[2] = narrow_i64_to_u8_wrapping(accessed >> 16);
@@ -729,14 +729,14 @@ linux_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, mo
 // existence-checked, writes the NUL-terminated absolute path into the
 // caller's >= 1024-byte buffer. (The windows twin composes the handle
 // bridge; see its impl file.)
-linux_x64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+linux_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
     let rc: i64 = self.host.canonicalize(path, buffer);
     transition rc != 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self, rc: i64) -> UnitResult { let kind: ErrorKind = self.last_error_i64(rc); UnitResult::Error { kind: kind } }
 }
 
-linux_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+linux_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 2);
     transition rc == 0 { true -> ok() _ -> err(rc) }
@@ -744,7 +744,7 @@ linux_x64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
 }
 
-linux_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+linux_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 1);
     transition rc == 0 { true -> ok() _ -> err(rc) }
@@ -752,7 +752,7 @@ linux_x64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
     state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
 }
 
-linux_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+linux_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 6);
     self.lock_errno = self.native_error_code_i32(rc);
@@ -763,7 +763,7 @@ linux_x64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
     state failed(&mut self, rc: i32) -> TryLockResult { let kind: ErrorKind = self.last_error_i32(rc); TryLockResult::Error { kind: kind } }
 }
 
-linux_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+linux_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 5);
     self.lock_errno = self.native_error_code_i32(rc);
@@ -774,7 +774,7 @@ linux_x64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockR
     state failed(&mut self, rc: i32) -> TryLockResult { let kind: ErrorKind = self.last_error_i32(rc); TryLockResult::Error { kind: kind } }
 }
 
-linux_x64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+linux_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 8);
     transition rc == 0 { true -> ok() _ -> err(rc) }

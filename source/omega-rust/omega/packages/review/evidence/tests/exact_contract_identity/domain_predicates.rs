@@ -13,11 +13,11 @@ requires
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("package callable lookalike should check as an ordinary call");
@@ -57,11 +57,11 @@ pub domain Packet::Ready
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public domain spoof fixture should check")
@@ -228,11 +228,11 @@ pub domain Packet::Ready
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public domain membership fixture should check");
@@ -260,11 +260,11 @@ pub domain Packet::Ready
     );
     private.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let diagnostics = compile_to_checked_with_packages(
         &private.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&private.0),
     )
     .expect_err("ordinary visibility must reject a private domain in a public predicate");
@@ -291,7 +291,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
     first.write("main.omg", &source("self.value == 0; self.value <= 1;"));
     reordered.write("main.omg", &source("self.value <= 1; self.value == 0;"));
     changed.write("main.omg", &source("self.value == 0; self.value <= 2;"));
-    let build = "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n";
+    let build = "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n";
     first.write("build.omg", build);
     reordered.write("build.omg", build);
     changed.write("build.omg", build);
@@ -299,7 +299,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
     let encode = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("multi-fact public domain fixture should check");

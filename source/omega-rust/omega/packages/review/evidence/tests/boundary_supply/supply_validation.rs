@@ -5,8 +5,8 @@ fn unsupported_external_boundary_operator_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -91,8 +91,8 @@ pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -159,8 +159,8 @@ pub machine invoke_leaf()
         );
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
-target linux_x64 { }
+            r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -224,8 +224,8 @@ pub machine invoke_leaf()
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

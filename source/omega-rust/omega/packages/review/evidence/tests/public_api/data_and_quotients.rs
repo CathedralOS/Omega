@@ -12,7 +12,7 @@ fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
         "main.omg",
         "pub data Packet [copy] { #1 value: u64; }\ndata Private { changed: i64; }\n",
     );
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
@@ -21,7 +21,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let encode = |package: &TempPackage| {
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public-shape fixture should check");
@@ -36,7 +36,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 
 #[test]
 fn public_quotient_identity_binds_carrier_and_relation_but_not_proof_implementation() {
-    let build = r#"target windows_x64 { }
+    let build = r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |carrier: &str, relation: &str, evidence: &str, reverse_relation: bool| {
@@ -48,7 +48,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package.write("build.omg", build);
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("public quotient fixture should check");
@@ -111,13 +111,13 @@ fn public_quotient_review_rederives_formation_instead_of_trusting_typed_metadata
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public quotient fixture should check");
@@ -175,13 +175,13 @@ fn public_quotient_package_compilation_requires_a_public_relation() {
     package.write("main.omg", &source);
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect_err("a public quotient cannot omit its relation semantics from review");

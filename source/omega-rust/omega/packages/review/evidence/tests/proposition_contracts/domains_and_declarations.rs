@@ -17,8 +17,8 @@ requires value in u64::Trusted
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -80,8 +80,8 @@ requires value in u64::Hidden
     );
     hidden.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -126,8 +126,8 @@ requires equivalent<Compared>(left, right)
 { }
 "#,
     );
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -204,8 +204,8 @@ proposition hidden();
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -304,8 +304,8 @@ fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x64 { }
-target linux_x64 { }
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

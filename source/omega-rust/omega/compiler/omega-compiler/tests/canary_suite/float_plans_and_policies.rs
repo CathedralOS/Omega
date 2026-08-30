@@ -305,7 +305,12 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "U64::from_f64",
     ];
     let canary = pass_canary("operators/float_operator_identities");
-    for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
+    for target in [
+        "windows_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+    ] {
         let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|diagnostics| {
                 panic!("core float provider plans should check for {target}: {diagnostics:#?}")
@@ -610,7 +615,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-primitive-float-arithmetic-comparison-{target}-{}",
             std::process::id()
@@ -645,7 +650,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -800,7 +805,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-format-conversion-{target}-{}",
             std::process::id()
@@ -822,7 +827,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -932,7 +937,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-integer-to-float-{target}-{}",
             std::process::id()
@@ -954,7 +959,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -1095,7 +1100,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-float-to-integer-{target}-{}",
             std::process::id()
@@ -1117,7 +1122,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -1426,7 +1431,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-float-provider-{target}-{}",
             std::process::id()
@@ -1448,7 +1453,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -1591,7 +1596,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-float-negate-is-nan-{target}-{}",
             std::process::id()
@@ -1615,7 +1620,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -1749,7 +1754,7 @@ fn named_float_classification_predicates_select_and_execute() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-float-classification-{target}-{}",
             std::process::id()
@@ -1771,7 +1776,7 @@ fn named_float_classification_predicates_select_and_execute() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -1913,7 +1918,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-float-classify-{target}-{}",
             std::process::id()
@@ -1933,7 +1938,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -2082,7 +2087,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-named-float-multiply-then-add-{target}-{}",
             std::process::id()
@@ -2106,7 +2111,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -2585,7 +2590,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-directed-add-{target}-{}",
             std::process::id()
@@ -2620,7 +2625,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -2728,7 +2733,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-directed-subtract-{target}-{}",
             std::process::id()
@@ -2763,7 +2768,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -2871,7 +2876,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-directed-multiply-{target}-{}",
             std::process::id()
@@ -2906,7 +2911,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -3014,7 +3019,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-directed-divide-{target}-{}",
             std::process::id()
@@ -3049,7 +3054,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -3157,7 +3162,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    for target in ["linux_x64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64"] {
         let scratch = std::env::temp_dir().join(format!(
             "omega-directed-square-root-{target}-{}",
             std::process::id()
@@ -3193,7 +3198,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         &selected_plan_identities,
         &outcome,
         &output,
-        &["linux_x64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64"],
     );
     assert_eq!(
         result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
@@ -3463,7 +3468,7 @@ fn float_policy_adapters_retain_differential_results() {
         }
         observations.push(((*case_name).to_owned(), outcome, output));
 
-        for target in ["linux_x64", "linux_arm64"] {
+        for target in ["linux_x86_64", "linux_arm64"] {
             let scratch = std::env::temp_dir().join(format!(
                 "omega-float-policy-differential-{}-{target}-{}",
                 case_name.replace('/', "-"),

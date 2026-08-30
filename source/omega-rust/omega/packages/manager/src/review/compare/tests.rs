@@ -134,7 +134,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
         .map(|(index, package)| TestReview {
             key: package.source().key().clone(),
             resolution: package.source().resolution().clone(),
-            target: "windows_x64".to_owned(),
+            target: "windows_x86_64".to_owned(),
             executable_incident_metadata: [1; 32],
             source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
                 [2; 32],
@@ -159,7 +159,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
         let mut changed = reviews.clone();
         let review = &mut changed[dependency_index];
         match change {
-            0 => review.target = "linux_x64".to_owned(),
+            0 => review.target = "linux_x86_64".to_owned(),
             1 => {
                 review.source_consumption =
                     ReviewOnlySourceConsumptionCommitment::from_recovered_digest([9; 32])
@@ -256,7 +256,7 @@ fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
         .map(|package| TestReview {
             key: package.source().key().clone(),
             resolution: package.source().resolution().clone(),
-            target: "windows_x64".to_owned(),
+            target: "windows_x86_64".to_owned(),
             executable_incident_metadata: [1; 32],
             source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
                 [2; 32],

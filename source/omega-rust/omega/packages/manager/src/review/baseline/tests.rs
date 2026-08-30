@@ -46,7 +46,7 @@ fn replay_record_option_framing_round_trips_compiler_bytes() {
         project.join("build.omg"),
         r#"use omega::language::std::filesystem_host;
 
-target windows_x64 { }
+target windows_x86_64 { }
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -64,7 +64,7 @@ invokes FilesystemHost;
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
         .expect("write replay framing source");
     let compilation =
-        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
             .expect("compile replay framing fixture");
     let summary = compilation
         .build_observation_summary()
@@ -444,7 +444,7 @@ fn unknown_descriptor_failure_baseline(
         format!(
             r#"use omega::language::std::filesystem_host;
 
-target windows_x64 {{ }}
+target windows_x86_64 {{ }}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
@@ -460,7 +460,7 @@ invokes FilesystemHost;
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
         .expect("write unknown-descriptor baseline source");
     let compilation =
-        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x86_64"))
             .expect("compile unknown-descriptor baseline fixture");
     let summary = compilation
         .build_observation_summary()

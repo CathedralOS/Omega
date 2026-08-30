@@ -117,13 +117,13 @@ pub enum ProgramEntryPhysicalContractPackage {
 impl ProgramEntryPhysicalContractPackage {
     pub const fn manifest_identity(self) -> &'static str {
         match self {
-            Self::UefiX64 => "omega::language::std::targets::uefi_x64::entry",
+            Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
         }
     }
 
     pub const fn package_relative_source(self) -> &'static str {
         match self {
-            Self::UefiX64 => "targets/uefi_x64/entry.omg",
+            Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
         }
     }
 }
@@ -213,10 +213,10 @@ impl TargetProfile {
     pub const fn identity(self) -> TargetProfileIdentity {
         TargetProfileIdentity(match self {
             Self::LinuxArm64 => "omega.target-profile.v1:linux_arm64",
-            Self::LinuxX64 => "omega.target-profile.v1:linux_x64",
+            Self::LinuxX64 => "omega.target-profile.v1:linux_x86_64",
             Self::MacosArm64 => "omega.target-profile.v1:macos_arm64",
-            Self::WindowsX64 => "omega.target-profile.v1:windows_x64",
-            Self::UefiX64 => "omega.target-profile.v1:uefi_x64",
+            Self::WindowsX64 => "omega.target-profile.v1:windows_x86_64",
+            Self::UefiX64 => "omega.target-profile.v1:uefi_x86_64",
             Self::CrossPlatformCli => "omega.target-profile.v1:cross_platform_cli",
             Self::LocalUnchecked => "omega.target-profile.v1:local_unchecked",
         })
@@ -237,47 +237,59 @@ impl TargetProfile {
     }
 
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
-        match target_name {
-            Some("linux_arm64") => Ok(Self::LinuxArm64),
-            Some("linux_x64") => Ok(Self::LinuxX64),
-            Some("macos_arm64") => Ok(Self::MacosArm64),
-            Some("windows_x64") => Ok(Self::WindowsX64),
-            Some("uefi_x64") => Ok(Self::UefiX64),
-            Some("cross_platform_cli") => Ok(Self::CrossPlatformCli),
-            Some("local_unchecked") => Ok(Self::LocalUnchecked),
-            None => Ok(Self::host()),
-            Some(target_name) => Err(Diagnostic::error(format!(
-                "unknown target profile `{target_name}`; expected linux_arm64, linux_x64, macos_arm64, windows_x64, uefi_x64, cross_platform_cli, or local_unchecked"
-            ))),
-        }
+        let Some(target_name) = target_name else {
+            return Ok(Self::host());
+        };
+        Self::ALL
+            .into_iter()
+            .find(|profile| {
+                profile.target_name() == target_name
+                    || profile.legacy_cli_alias() == Some(target_name)
+            })
+            .ok_or_else(|| Diagnostic::error(format!(
+                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, windows_x86_64, uefi_x86_64, cross_platform_cli, or local_unchecked"
+            )))
+    }
+
+    /// Parse a canonical target identity outside the invocation boundary.
+    /// Transitional CLI aliases must normalize before entering source selection,
+    /// locks, review evidence, or semantic identity.
+    pub fn from_canonical_target_name(target_name: &str) -> Result<Self, Diagnostic> {
+        Self::ALL
+            .into_iter()
+            .find(|profile| profile.target_name() == target_name)
+            .ok_or_else(|| {
+                Diagnostic::error(format!("unknown canonical target profile `{target_name}`"))
+            })
     }
 
     /// Parse the canonical source-level owner of a target-declared slot. This
     /// namespace is intentionally distinct from deployment CLI target names.
     pub fn from_root_slot_owner(owner: &str) -> Result<Self, Diagnostic> {
-        match owner {
-            "linux_arm64" => Ok(Self::LinuxArm64),
-            "linux_x86_64" => Ok(Self::LinuxX64),
-            "macos_arm64" => Ok(Self::MacosArm64),
-            "windows_x86_64" => Ok(Self::WindowsX64),
-            "uefi_x86_64" => Ok(Self::UefiX64),
-            "cross_platform_cli" => Ok(Self::CrossPlatformCli),
-            "local_unchecked" => Ok(Self::LocalUnchecked),
-            _ => Err(Diagnostic::error(format!(
-                "unknown target root-slot owner `{owner}`"
-            ))),
-        }
+        Self::from_canonical_target_name(owner)
+            .map_err(|_| Diagnostic::error(format!("unknown target root-slot owner `{owner}`")))
     }
 
     pub const fn target_name(self) -> &'static str {
         match self {
             Self::LinuxArm64 => "linux_arm64",
-            Self::LinuxX64 => "linux_x64",
+            Self::LinuxX64 => "linux_x86_64",
             Self::MacosArm64 => "macos_arm64",
-            Self::WindowsX64 => "windows_x64",
-            Self::UefiX64 => "uefi_x64",
+            Self::WindowsX64 => "windows_x86_64",
+            Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
+        }
+    }
+
+    const fn legacy_cli_alias(self) -> Option<&'static str> {
+        match self {
+            Self::LinuxX64 => Some("linux_x64"),
+            Self::WindowsX64 => Some("windows_x64"),
+            Self::UefiX64 => Some("uefi_x64"),
+            Self::LinuxArm64 | Self::MacosArm64 | Self::CrossPlatformCli | Self::LocalUnchecked => {
+                None
+            }
         }
     }
 
@@ -539,11 +551,11 @@ mod tests {
             .expect("UEFI must select its closed physical-contract package");
         assert_eq!(
             physical_package.manifest_identity(),
-            "omega::language::std::targets::uefi_x64::entry"
+            "omega::language::std::targets::uefi_x86_64::entry"
         );
         assert_eq!(
             physical_package.package_relative_source(),
-            "targets/uefi_x64/entry.omg"
+            "targets/uefi_x86_64/entry.omg"
         );
         assert_eq!(
             slot.physical_calling_convention,
@@ -560,15 +572,43 @@ mod tests {
     }
 
     #[test]
-    fn deployment_names_and_root_slot_owners_are_distinct_canonical_namespaces() {
-        assert!(TargetProfile::from_omega_target_name(Some("windows_x64")).is_ok());
-        assert!(TargetProfile::from_omega_target_name(Some("windows_x86_64")).is_err());
-        assert!(TargetProfile::from_root_slot_owner("windows_x86_64").is_ok());
-        assert!(TargetProfile::from_root_slot_owner("windows_x64").is_err());
-        assert_eq!(
-            TargetProfile::WindowsX64.root_slot_owner_name(),
-            "windows_x86_64"
-        );
+    fn legacy_cli_aliases_normalize_to_canonical_profile_identities() {
+        for (legacy, canonical, profile, identity) in [
+            (
+                "linux_x64",
+                "linux_x86_64",
+                TargetProfile::LinuxX64,
+                "omega.target-profile.v1:linux_x86_64",
+            ),
+            (
+                "windows_x64",
+                "windows_x86_64",
+                TargetProfile::WindowsX64,
+                "omega.target-profile.v1:windows_x86_64",
+            ),
+            (
+                "uefi_x64",
+                "uefi_x86_64",
+                TargetProfile::UefiX64,
+                "omega.target-profile.v1:uefi_x86_64",
+            ),
+        ] {
+            assert_eq!(
+                TargetProfile::from_omega_target_name(Some(legacy)).unwrap(),
+                profile
+            );
+            assert_eq!(
+                TargetProfile::from_omega_target_name(Some(canonical)).unwrap(),
+                profile
+            );
+            assert_eq!(profile.target_name(), canonical);
+            assert_eq!(profile.identity().as_str(), identity);
+            assert_eq!(
+                TargetProfile::from_root_slot_owner(canonical).unwrap(),
+                profile
+            );
+            assert!(TargetProfile::from_root_slot_owner(legacy).is_err());
+        }
     }
 
     #[test]

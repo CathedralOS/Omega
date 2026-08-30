@@ -7,13 +7,13 @@ fn review_projects_exact_outcome_specific_guarantees() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            r#"target windows_x64 { }
+            r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect("outcome-specific package fixture should check")
@@ -185,8 +185,8 @@ fn claim_free_boundary_supply_does_not_collapse_into_an_accepted_claim() {
     package.write("main.omg", "boundary machine host_ping();\n");
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

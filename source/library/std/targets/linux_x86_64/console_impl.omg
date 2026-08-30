@@ -1,22 +1,22 @@
-// Complete linux_x64 Console provider closure over compiler-known native
+// Complete linux_x86_64 Console provider closure over compiler-known native
 // byte/runtime leaves. Friendly write adapters live in std/console.omg on the
 // same nominal provider type.
 // The string arguments below are bootstrap syntax. The destination
 // `Binding::CompilerIntrinsic` is payload-free and keys lowering by this exact
 // realization symbol, normalized signature, and target.
-linux_x64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
+linux_x86_64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
     satisfies Console::read_line
     via Binding::CompilerIntrinsic;
-linux_x64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
     via Binding::CompilerIntrinsic;
-linux_x64 machine ConsoleNativeProvider::write_byte(byte: i32)
+linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
     via Binding::CompilerIntrinsic;
-linux_x64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via Binding::CompilerIntrinsic;
 
-linux_x64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
     defaults.select_provider<Console, ConsoleNativeProvider>();
 }

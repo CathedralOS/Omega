@@ -198,7 +198,7 @@ mod tests {
             provider_type: String::new(),
             provider_type_package_identity: None,
             target: match profile {
-                omega_target::TargetProfile::LinuxX64 => "linux_x64",
+                omega_target::TargetProfile::LinuxX64 => "linux_x86_64",
                 omega_target::TargetProfile::LinuxArm64 => "linux_arm64",
                 _ => unreachable!(),
             }

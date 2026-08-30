@@ -13,13 +13,13 @@ requires valid_utf8({expression})
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("public collection-view contract should check")
@@ -227,13 +227,13 @@ pub proposition calls_package(value: &Wrapper) = as_slice(value);
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
+        r#"target windows_x86_64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
-        Some("windows_x64"),
+        Some("windows_x86_64"),
         package_inputs(&package.0),
     )
     .expect("package collection-view lookalike should check");

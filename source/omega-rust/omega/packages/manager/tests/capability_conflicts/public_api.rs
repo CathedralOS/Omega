@@ -18,7 +18,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public const baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public const baseline");
 
     write_package(&live, "pub const LIMIT: u64 = 5;\n");
@@ -31,7 +31,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public const candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public const candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -104,7 +104,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public operator baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public operator baseline");
 
     write_package(
@@ -120,7 +120,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     )
     .expect("resolve public operator candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public operator candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -173,7 +173,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     )
     .expect("resolve public callable parameter baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public callable parameter baseline");
 
     write_package(&live, candidate_source);
@@ -186,7 +186,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     )
     .expect("resolve public callable parameter candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public callable parameter candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -286,7 +286,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     )
     .expect("resolve body-call baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile body-call baseline");
 
     write_package(&live, &source("second"));
@@ -299,7 +299,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     )
     .expect("resolve body-call candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile body-call candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -361,7 +361,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     )
     .expect("resolve public conformance baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public conformance baseline");
 
     write_package(&live, &source("Second"));
@@ -374,7 +374,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     )
     .expect("resolve public conformance candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public conformance candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -435,7 +435,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     )
     .expect("resolve public trait requirement baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public trait requirement baseline");
 
     write_package(&live, &source("u64"));
@@ -448,7 +448,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     )
     .expect("resolve public trait requirement candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public trait requirement candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -515,7 +515,7 @@ pub trait Child: {parent} {{ }}
     )
     .expect("resolve public-trait baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public-trait baseline");
 
     write_package(&live, &source("Second"));
@@ -528,7 +528,7 @@ pub trait Child: {parent} {{ }}
     )
     .expect("resolve public-trait candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public-trait candidate");
 
     let conflicts = compare_review_only_capabilities(
@@ -580,7 +580,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     )
     .expect("resolve public data baseline");
     let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile public data baseline");
 
     write_package(&live, "pub data Packet { value: u64; }\n");
@@ -593,7 +593,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     )
     .expect("resolve public data candidate");
     let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
             .expect("compile public data candidate");
 
     let conflicts = compare_review_only_capabilities(

@@ -110,7 +110,7 @@ fn cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker() {
     let diagnostics = production_compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
-        target_name: Some("linux_x64".to_owned()),
+        target_name: Some("linux_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect_err("ELF direct images do not have dynamic import binding yet");
@@ -380,7 +380,7 @@ fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("by-reference aggregate import should compile for windows_x64");
@@ -434,7 +434,7 @@ fn cross_win64_direct_aggregate_import_loads_the_record_by_value() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("direct aggregate import should compile for windows_x64");
@@ -467,7 +467,7 @@ fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("direct aggregate result import should compile for windows_x64");
@@ -500,7 +500,7 @@ fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
     compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("indirect aggregate result import should compile for windows_x64");
@@ -528,7 +528,7 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
-        target_name: Some("windows_x64".to_owned()),
+        target_name: Some("windows_x86_64".to_owned()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("scalar-float import should compile for windows_x64");
@@ -603,7 +603,7 @@ fn windows_external_import_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-external-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x64")
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "windows_x86_64")
         .expect("source external import canary should compile from its Windows root");
 
     let output = Command::new(build_dir.join(executable_name()))
@@ -3406,7 +3406,7 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
 #[test]
 fn named_integer_conversion_filesystem_cross_targets_reach_checked_trees() {
     let canary = pass_canary("filesystem/windows_positioned_io_exit");
-    let targets = ["linux_x64", "linux_arm64", "windows_x64"];
+    let targets = ["linux_x86_64", "linux_arm64", "windows_x86_64"];
     let results = run_bounded_canary_jobs(&targets, |target| {
         compile_to_checked(&canary.join("main.omg"), Some(target))
             .map(|_| ())

@@ -22,8 +22,8 @@ pub WndClassWindowProcedureSlot:
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -72,8 +72,8 @@ fn public_conformance_rows_are_alpha_normalized_and_exclude_private_realizations
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -144,8 +144,8 @@ fn public_conformance_rows_alpha_normalize_lifetime_binders() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -206,8 +206,8 @@ fn public_lifetime_conformances_project_inherited_requirement_substitutions() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -291,8 +291,8 @@ fn public_conformance_target_lifetimes_are_complete_alpha_normalized_identity() 
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
@@ -382,11 +382,11 @@ fn public_conformance_target_lifetimes_fail_closed_before_review() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let diagnostics = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
-            Some("windows_x64"),
+            Some("windows_x86_64"),
             package_inputs(&package.0),
         )
         .expect_err("incomplete target-trait lifetime application must reject");
@@ -419,8 +419,8 @@ pub data Good {{ }}
     );
     package.write(
         "build.omg",
-        r#"target windows_x64 { }
-target linux_x64 { }
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }

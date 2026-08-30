@@ -92,7 +92,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     .expect("resolve baseline provider custody");
     let baseline_reviews = compile_resolved_package_reviews(
         &baseline_sources,
-        "windows_x64",
+        "windows_x86_64",
         &tree.path("compiler-workspace"),
     )
     .expect("compile baseline provider evidence");
@@ -111,7 +111,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     .expect("resolve candidate provider custody");
     let candidate_reviews = compile_resolved_package_reviews(
         &candidate_sources,
-        "windows_x64",
+        "windows_x86_64",
         &tree.path("compiler-workspace"),
     )
     .expect("compile candidate provider evidence");

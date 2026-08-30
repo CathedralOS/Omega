@@ -45,7 +45,7 @@ pub(super) fn parse_canonical_row(
         )
     })?;
     let target_name = decoder.string(limits.maximum_target_bytes)?;
-    let target = TargetProfile::from_omega_target_name(Some(target_name)).map_err(|_| {
+    let target = TargetProfile::from_canonical_target_name(target_name).map_err(|_| {
         PackageReviewCanonicalRowRecoveryError::new(
             "canonical package-review row contains a noncanonical target",
         )
