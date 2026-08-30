@@ -121,9 +121,12 @@ statement spans. A retained transition has either no subject or one precedence-
 correct subject over path, boolean, and unsuffixed nonnegative decimal integer
 primaries with additive, comparison, `&&`, and `||` operators, and expands each
 boolean, integer, or wildcard arm into an ordinary statement targeting one
-named zero-argument state. A subjectless block retains absence explicitly and
-does not manufacture a unit expression. Computed or multiple subjects, richer
-patterns and guards, target arguments,
+named state. Current named targets own a contiguous argument-expression span
+over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
+strings, and shallow struct literals, with an optional trailing comma. A
+subjectless block retains absence explicitly and does not manufacture a unit
+expression. Computed or multiple subjects, richer patterns and guards, richer
+target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
 incomplete. Richer expressions and statements likewise stop the root as
 incomplete, and no body is skipped as opaque text.
@@ -158,10 +161,11 @@ transitions, and `ConsoleNativeProvider::{write,write_line}` through exact
 satisfies and reach clauses, plus `Lexer::emit_punctuation` through retained
 addition. `Lexer::is_identifier_start`, `Lexer::is_identifier_continue`, and
 `Lexer::hex_digit_value` complete through precedence-aware transition subjects
-and subtraction. `SourceUnit::append` and
-`TokenStream::{push,push_decoded}` complete through retained indexed assignment
-places. `SourceUnit::byte_or_nul` completes through the same indexed expression
-in terminal value position.
+and subtraction. `SourceUnit::append` and `TokenStream::push_decoded` complete
+through retained indexed assignment places. `SourceUnit::byte_or_nul` completes
+through the same indexed expression in terminal value position, and
+`TokenStream::push` completes once its indexed place and named transition-target
+argument are both retained.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -211,9 +215,9 @@ the current slice because every retained row of those kinds owns at least one
 type node.
 Import/domain paths, call receivers, and path expressions share the
 independently exhaustible path-member arena after each machine snapshots its
-declaration path. Every current call argument owns exactly one path-expression
-row, so
-`Expressions` dominates the equal argument table. Every call, assignment, or
+declaration path. Every retained call or transition-target argument owns one
+expression row, so `Expressions` dominates the equal argument table. Every
+call, assignment, or
 transition-arm row owns one statement, so `Statements` dominates all equal
 statement-variant tables. Assignments own two expressions, making the
 expression table independently exhaustible. Every retained struct field owns
