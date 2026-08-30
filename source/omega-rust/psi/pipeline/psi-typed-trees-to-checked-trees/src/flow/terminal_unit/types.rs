@@ -1128,11 +1128,12 @@ impl<'program> ShapeCollector<'program> {
         {
             TypeReferenceNode::FixedArray {
                 element_type: leaf_type,
-                length: psi_typed_trees::types::FixedArrayLength::Literal(3),
-            } if *length == 2 => Some(*leaf_type),
+                length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4)),
+            } if *length == 2 => Some((*leaf_type, *inner_length)),
             _ => None,
         };
-        if let Some(leaf_type) = nested_element {
+        if let Some((leaf_type, inner_length)) = nested_element {
+            let inner_length = u64::try_from(inner_length).ok()?;
             if crate::checks::type_multiplicity(self.program, leaf_type) != Multiplicity::Affine
                 || !matches!(
                     self.program.type_reference_table.type_reference(leaf_type),
@@ -1179,7 +1180,7 @@ impl<'program> ShapeCollector<'program> {
                         identity: inner_identity.clone(),
                         shape: CheckedUnitStructuralTypeShape::FixedArray {
                             element_type_identity: leaf_identity,
-                            length: 3,
+                            length: inner_length,
                         },
                     },
                 );
@@ -1187,7 +1188,8 @@ impl<'program> ShapeCollector<'program> {
             }
             if !matches!(
                 self.types.get(&inner_identity).map(|plan| &plan.shape),
-                Some(CheckedUnitStructuralTypeShape::FixedArray { length: 3, .. })
+                Some(CheckedUnitStructuralTypeShape::FixedArray { length, .. })
+                    if *length == inner_length
             ) {
                 self.in_progress.remove(&identity);
                 return None;

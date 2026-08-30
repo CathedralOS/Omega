@@ -1,9 +1,9 @@
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_calling_conventions::ValueShape;
 use omega_image_emission::{
-    build_installation_record, build_object_artifact, decode_installation_record,
-    derive_stack_demand, emit_executable_image, encode_installation_record,
-    validate_installation_record, InstallationError,
+    InstallationError, build_installation_record, build_object_artifact,
+    decode_installation_record, derive_stack_demand, emit_executable_image,
+    encode_installation_record, validate_installation_record,
 };
 use omega_machine_emission::emit_machine_code;
 use omega_optimization_unit::reconstruct_psi_optimization_unit_seed;
@@ -125,6 +125,17 @@ const NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
     data Root {}
     machine Root::enter(values: [[Token; 3]; 2]) {
         Helper::take(values[1][0]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
+const WIDER_NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 4]; 2]) {
+        Helper::take(values[1][3]);
         Helper::take(values[0][1]);
     }
 "#;
@@ -496,6 +507,25 @@ fn nested_affine_array_plan() -> omega_abstract_operations::AbstractOperationPla
         .expect("verified nested affine artifact enters Omega")
 }
 
+fn wider_nested_affine_array_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(WIDER_NESTED_AFFINE_ARRAY_SOURCE)
+        .tokenize()
+        .expect("tokenize wider nested affine array source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse wider nested affine array source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve wider nested affine array source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type wider nested affine array source");
+    let checked = lower_typed_trees(typed).expect("check wider nested affine array source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower wider nested affine array Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode wider nested affine Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode wider nested affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified wider nested affine artifact enters Omega")
+}
+
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
     let tokens = Lexer::new(MIXED_SCALAR_PARTIAL_AFFINE_SOURCE)
         .tokenize()
@@ -688,12 +718,16 @@ fn ordered_contextual_nominal_affine_plan() -> omega_abstract_operations::Abstra
         third_cleanup.cleanup_receiver,
         second_cleanup.cleanup_receiver
     );
-    assert!(cleanups
-        .iter()
-        .all(|cleanup| cleanup.cleanup_receiver.is_some()));
-    assert!(cleanups
-        .iter()
-        .all(|cleanup| cleanup.requirement_obligations.len() == 1));
+    assert!(
+        cleanups
+            .iter()
+            .all(|cleanup| cleanup.cleanup_receiver.is_some())
+    );
+    assert!(
+        cleanups
+            .iter()
+            .all(|cleanup| cleanup.requirement_obligations.len() == 1)
+    );
     assert_eq!(terminal.proof_bundle.evidence.len(), 3);
     let distinct_targets = [
         third_cleanup.cleanup_machine,
@@ -1876,9 +1910,11 @@ fn nested_affine_arrays_retain_exact_offsets_and_decreasing_cleanup_on_all_targe
             ],
         ],
     );
-    assert!(residuals
-        .iter()
-        .all(|residual| { residual.place == root_place && residual.structural_type == leaf_type }));
+    assert!(
+        residuals.iter().all(|residual| {
+            residual.place == root_place && residual.structural_type == leaf_type
+        })
+    );
 
     let mut wrong_order = plan.clone();
     let actions = wrong_order
@@ -2014,6 +2050,331 @@ fn nested_affine_arrays_retain_exact_offsets_and_decreasing_cleanup_on_all_targe
         let installation =
             build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
         validate_installation_record(&installation, &image).unwrap();
+        let encoded = encode_installation_record(&installation).unwrap();
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
+    }
+}
+
+#[test]
+fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
+    let plan = wider_nested_affine_array_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("wider nested caller remains present");
+    let root_place = caller.structural_parameters[0].place;
+    let root_type = caller.structural_parameters[0].structural_type;
+    let StructuralTypeShape::FixedArray {
+        element: inner_type,
+        length: 2,
+    } = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .expect("outer declaration")
+        .shape
+    else {
+        panic!("root remains an exact outer pair")
+    };
+    let StructuralTypeShape::FixedArray {
+        element: leaf_type,
+        length: 4,
+    } = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == inner_type)
+        .expect("inner declaration")
+        .shape
+    else {
+        panic!("element remains an exact inner quartet")
+    };
+    let residuals = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(
+                cleanup_actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        TerminalAffineCleanupAction::DiscardResidual(residual) => {
+                            Some(residual.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .expect("wider nested return retains residuals");
+    assert_eq!(
+        residuals
+            .iter()
+            .map(|residual| residual.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(2),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(0),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::FixedIndex(3),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::FixedIndex(2),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::FixedIndex(0),
+            ],
+        ],
+    );
+    assert!(
+        residuals.iter().all(|residual| {
+            residual.place == root_place && residual.structural_type == leaf_type
+        })
+    );
+
+    let mut missing = plan.clone();
+    missing
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap()
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
+            _ => None,
+        })
+        .unwrap()
+        .remove(0);
+    let missing_unit =
+        reconstruct_psi_optimization_unit_seed(&missing, TerminalFuelSchedule::CURRENT.identity())
+            .expect("missing wider cleanup remains representable as optimizer input");
+    assert!(validate_psi_optimization_unit(&missing_unit).is_err());
+    assert!(lower_to_target_operations(&missing, NativeTarget::linux_x64()).is_err());
+
+    let mut duplicate = plan.clone();
+    let duplicate_actions = duplicate
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap()
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
+            _ => None,
+        })
+        .unwrap();
+    duplicate_actions.insert(0, duplicate_actions[0].clone());
+    let duplicate_unit = reconstruct_psi_optimization_unit_seed(
+        &duplicate,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("duplicated wider cleanup remains representable as optimizer input");
+    assert!(validate_psi_optimization_unit(&duplicate_unit).is_err());
+    assert!(lower_to_target_operations(&duplicate, NativeTarget::linux_x64()).is_err());
+
+    let mut wrong_path = plan.clone();
+    let wrong_call = wrong_path
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap()
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::CallUnit {
+                structural_arguments,
+                ..
+            } => Some(&mut structural_arguments[0]),
+            _ => None,
+        })
+        .unwrap();
+    wrong_call.path[1] = StructuralPathSegment::FixedIndex(4);
+    assert!(lower_to_target_operations(&wrong_path, NativeTarget::linux_x64()).is_err());
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let TargetOperation::UnitBody(body) = &target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .operation
+        else {
+            panic!("wider nested caller remains Unit")
+        };
+        assert_eq!(body.parameters[0].shape, ValueShape::integer(64, 8));
+        let calls = body
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::Call { arguments, .. } => {
+                    Some(&arguments[0])
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call.path.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::FixedIndex(3),
+                ],
+                vec![
+                    StructuralPathSegment::FixedIndex(0),
+                    StructuralPathSegment::FixedIndex(1),
+                ],
+            ],
+        );
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call.source_byte_offset)
+                .collect::<Vec<_>>(),
+            vec![56, 8],
+        );
+        assert!(calls.iter().all(|call| {
+            call.root_structural_type == root_type
+                && call.structural_type == leaf_type
+                && call.fixed_array_length == Some(2)
+                && call.element_stride == Some(32)
+        }));
+
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted
+                .semantic_code_attribution
+                .iter()
+                .map(|attribution| attribution.operation_ordinal)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2],
+        );
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            residuals
+                .iter()
+                .cloned()
+                .map(TerminalAffineCleanupAction::DiscardResidual)
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(emitted.internal_unit_calls.len(), 2);
+
+        for forged in [
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].source_byte_offset = 0;
+                forged
+            },
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].fixed_array_length = Some(3);
+                forged
+            },
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].element_stride = Some(24);
+                forged
+            },
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].element_stride = Some(24);
+                caller.internal_unit_calls[0].arguments[0].source.shape =
+                    ValueShape::integer(48, 8);
+                forged
+            },
+        ] {
+            assert!(
+                build_object_artifact(&forged).is_err(),
+                "object replay rejects wider nested call geometry drift",
+            );
+        }
+
+        let mut tampered_machine = machine.clone();
+        tampered_machine
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions
+            .reverse();
+        assert!(build_object_artifact(&tampered_machine).is_err());
+
+        let object = build_object_artifact(&machine).unwrap();
+        let image = emit_executable_image(&object, 3).unwrap();
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed.unit_affine_cleanup.as_ref().unwrap().actions,
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+        );
+        validate_installation_record(&installation, &image).unwrap();
+
         let encoded = encode_installation_record(&installation).unwrap();
         assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
@@ -2267,16 +2628,18 @@ fn fully_consumed_affine_pair_retains_two_native_calls_and_empty_installed_clean
             .filter(|call| call.machine == caller_machine)
             .collect::<Vec<_>>();
         assert_eq!(installed_calls.len(), 2);
-        assert!(installation
-            .functions()
-            .iter()
-            .find(|function| function.machine == caller_machine)
-            .unwrap()
-            .unit_affine_cleanup
-            .as_ref()
-            .unwrap()
-            .actions
-            .is_empty());
+        assert!(
+            installation
+                .functions()
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap()
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .actions
+                .is_empty()
+        );
         validate_installation_record(&installation, &image).unwrap();
         let bytes = encode_installation_record(&installation).unwrap();
         assert_eq!(decode_installation_record(&bytes), Ok(installation.clone()));
@@ -2329,12 +2692,14 @@ fn fully_consumed_affine_pair_retains_two_native_calls_and_empty_installed_clean
                 vec![StructuralPathSegment::FixedIndex(1)],
             ]
         );
-        assert!(emitted
-            .unit_affine_cleanup
-            .as_ref()
-            .unwrap()
-            .actions
-            .is_empty());
+        assert!(
+            emitted
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .actions
+                .is_empty()
+        );
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
         let installation =
@@ -2640,8 +3005,10 @@ fn wide_partial_affine_cleanup_preserves_reverse_field_order_without_code() {
             _ => None,
         })
         .expect("wide partial return retains cleanup actions");
-    let [TerminalAffineCleanupAction::DiscardResidual(middle), TerminalAffineCleanupAction::DiscardResidual(left)] =
-        cleanup_actions.as_slice()
+    let [
+        TerminalAffineCleanupAction::DiscardResidual(middle),
+        TerminalAffineCleanupAction::DiscardResidual(left),
+    ] = cleanup_actions.as_slice()
     else {
         panic!("wide partial return retains two residual fields")
     };
@@ -2768,8 +3135,10 @@ fn multiple_direct_moves_preserve_exact_residual_complement_on_all_targets() {
             _ => None,
         })
         .expect("multiple-move return retains residual cleanup");
-    let [TerminalAffineCleanupAction::DiscardResidual(third), TerminalAffineCleanupAction::DiscardResidual(first)] =
-        cleanup_actions.as_slice()
+    let [
+        TerminalAffineCleanupAction::DiscardResidual(third),
+        TerminalAffineCleanupAction::DiscardResidual(first),
+    ] = cleanup_actions.as_slice()
     else {
         panic!("multiple-move cleanup retains the reverse residual complement")
     };
@@ -2882,8 +3251,12 @@ fn nested_move_preserves_maximal_residual_subtrees_on_all_targets() {
             _ => None,
         })
         .expect("nested partial return retains cleanup actions");
-    let [TerminalAffineCleanupAction::DiscardResidual(last), TerminalAffineCleanupAction::DiscardResidual(right), TerminalAffineCleanupAction::DiscardResidual(left), TerminalAffineCleanupAction::DiscardResidual(first)] =
-        cleanup_actions.as_slice()
+    let [
+        TerminalAffineCleanupAction::DiscardResidual(last),
+        TerminalAffineCleanupAction::DiscardResidual(right),
+        TerminalAffineCleanupAction::DiscardResidual(left),
+        TerminalAffineCleanupAction::DiscardResidual(first),
+    ] = cleanup_actions.as_slice()
     else {
         panic!("nested cleanup retains four maximal sibling subtrees")
     };
@@ -3237,8 +3610,10 @@ fn two_empty_nominal_cleanups_are_reverse_ordered_and_call_free_on_all_targets()
             _ => None,
         })
         .expect("entry return retains cleanup actions");
-    let [TerminalAffineCleanupAction::InvokeNominal(first), TerminalAffineCleanupAction::InvokeNominal(second)] =
-        cleanup_actions.as_slice()
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(first),
+        TerminalAffineCleanupAction::InvokeNominal(second),
+    ] = cleanup_actions.as_slice()
     else {
         panic!("entry return must invoke exactly two nominal cleanups")
     };
@@ -3452,8 +3827,11 @@ fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_target
             _ => None,
         })
         .expect("ordered contextual cleanup reaches Omega actions");
-    let [TerminalAffineCleanupAction::InvokeNominal(third), TerminalAffineCleanupAction::InvokeNominal(second), TerminalAffineCleanupAction::InvokeNominal(first)] =
-        cleanup_actions.as_slice()
+    let [
+        TerminalAffineCleanupAction::InvokeNominal(third),
+        TerminalAffineCleanupAction::InvokeNominal(second),
+        TerminalAffineCleanupAction::InvokeNominal(first),
+    ] = cleanup_actions.as_slice()
     else {
         panic!("ordered contextual cleanup retains three nominal actions")
     };
@@ -3506,10 +3884,12 @@ fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_target
                 }
             );
         }
-        assert!(emitted
-            .internal_unit_calls
-            .windows(2)
-            .all(|pair| pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset));
+        assert!(
+            emitted
+                .internal_unit_calls
+                .windows(2)
+                .all(|pair| pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset)
+        );
 
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
@@ -3689,8 +4069,10 @@ fn two_executable_nominal_cleanup_actions_retain_order_and_custody_on_all_target
                 _ => None,
             })
             .expect("entry return retains cleanup actions");
-        let [TerminalAffineCleanupAction::InvokeNominal(first), TerminalAffineCleanupAction::InvokeNominal(second)] =
-            cleanup_actions.as_slice()
+        let [
+            TerminalAffineCleanupAction::InvokeNominal(first),
+            TerminalAffineCleanupAction::InvokeNominal(second),
+        ] = cleanup_actions.as_slice()
         else {
             panic!("entry return invokes two nominal cleanups")
         };
@@ -3844,9 +4226,11 @@ fn three_shared_executable_cleanup_actions_retain_exact_order_on_all_targets() {
             .map(|parameter| parameter.place)
             .collect::<Vec<_>>()
     );
-    assert!(cleanup_targets
-        .windows(2)
-        .all(|pair| pair[0].1 == pair[1].1));
+    assert!(
+        cleanup_targets
+            .windows(2)
+            .all(|pair| pair[0].1 == pair[1].1)
+    );
     assert_eq!(plan.functions.len(), 3);
 
     for target in [
@@ -3879,10 +4263,12 @@ fn three_shared_executable_cleanup_actions_retain_exact_order_on_all_targets() {
             );
             assert_eq!(call.target, cleanup_targets[ordinal].1);
         }
-        assert!(emitted
-            .internal_unit_calls
-            .windows(2)
-            .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset }));
+        assert!(
+            emitted
+                .internal_unit_calls
+                .windows(2)
+                .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset })
+        );
 
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
@@ -3958,14 +4344,15 @@ fn finite_cleanup_lists_and_helper_bodies_retain_exact_order_on_all_targets() {
             .find(|function| function.machine == first_cleanup.cleanup_machine)
             .unwrap();
         assert_eq!(drop.internal_unit_calls.len(), 5);
-        assert!(drop
-            .internal_unit_calls
-            .iter()
-            .enumerate()
-            .all(|(ordinal, call)| {
-                call.operation_ordinal == ordinal
-                    && matches!(call.owner, CallSiteOwner::Operation(_))
-            }));
+        assert!(
+            drop.internal_unit_calls
+                .iter()
+                .enumerate()
+                .all(|(ordinal, call)| {
+                    call.operation_ordinal == ordinal
+                        && matches!(call.owner, CallSiteOwner::Operation(_))
+                })
+        );
 
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
@@ -4132,10 +4519,12 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         for (ordinal, call) in emitted_drop.internal_unit_calls.iter().enumerate() {
             assert_eq!(call.operation_ordinal, ordinal);
         }
-        assert!(emitted_drop
-            .internal_unit_calls
-            .windows(2)
-            .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset }));
+        assert!(
+            emitted_drop
+                .internal_unit_calls
+                .windows(2)
+                .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset })
+        );
 
         let mut forged_helper_order = machine.clone();
         let forged_drop = forged_helper_order

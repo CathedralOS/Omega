@@ -1064,8 +1064,8 @@ fn append_expected_partial_residuals(
             matches!(
                 path,
                 [
-                    psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
-                    psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)
+                    psi_terminal::StructuralPathSegment::FixedIndex(_),
+                    psi_terminal::StructuralPathSegment::FixedIndex(_)
                 ]
             )
         })
@@ -1077,7 +1077,7 @@ fn append_expected_partial_residuals(
         };
         let psi_terminal::StructuralTypeShape::FixedArray {
             element: leaf,
-            length: 3,
+            length: inner_length @ (3 | 4),
         } = declarations.get(&element)?.shape
         else {
             return None;
@@ -1098,8 +1098,8 @@ fn append_expected_partial_residuals(
             .filter_map(|(path, _)| match path {
                 [
                     psi_terminal::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    psi_terminal::StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
-                ] => Some((*outer, *inner)),
+                    psi_terminal::StructuralPathSegment::FixedIndex(inner),
+                ] if *inner < inner_length => Some((*outer, *inner)),
                 _ => None,
             })
             .collect::<std::collections::BTreeMap<_, _>>();
@@ -1108,7 +1108,7 @@ fn append_expected_partial_residuals(
         }
         for outer in (0_u64..2).rev() {
             let moved_inner = *moved_by_outer.get(&outer)?;
-            for inner in (0_u64..3).rev() {
+            for inner in (0_u64..inner_length).rev() {
                 if inner != moved_inner {
                     output.push((
                         vec![

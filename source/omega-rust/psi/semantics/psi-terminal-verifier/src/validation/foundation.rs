@@ -1611,9 +1611,9 @@ pub(super) fn is_bounded_partial_affine_path(
         || (matches!(
             path,
             [
-                StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2)
-            ]
+                StructuralPathSegment::FixedIndex(outer),
+                StructuralPathSegment::FixedIndex(_)
+            ] if *outer < 2
         ) && module.structural_types.iter().any(|declaration| {
             declaration.id == root_type
                 && matches!(
@@ -1621,7 +1621,19 @@ pub(super) fn is_bounded_partial_affine_path(
                     StructuralTypeShape::FixedArray { length: 2, element }
                         if module.structural_types.iter().any(|inner| {
                             inner.id == element
-                                && matches!(inner.shape, StructuralTypeShape::FixedArray { length: 3, .. })
+                                && matches!(
+                                    (&inner.shape, path),
+                                    (
+                                        StructuralTypeShape::FixedArray {
+                                            length: inner_length @ (3 | 4),
+                                            ..
+                                        },
+                                        [
+                                            StructuralPathSegment::FixedIndex(_),
+                                            StructuralPathSegment::FixedIndex(index),
+                                        ],
+                                    ) if *index < *inner_length
+                                )
                         })
                 )
         }))
@@ -1685,8 +1697,8 @@ pub(super) fn partial_affine_residuals(
         matches!(
             path.as_slice(),
             [
-                StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2)
+                StructuralPathSegment::FixedIndex(_),
+                StructuralPathSegment::FixedIndex(_)
             ]
         )
     }) {
@@ -1703,7 +1715,7 @@ pub(super) fn partial_affine_residuals(
             .find(|declaration| declaration.id == element)?;
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: 3,
+            length: inner_length @ (3 | 4),
         } = inner.shape
         else {
             return None;
@@ -1724,19 +1736,19 @@ pub(super) fn partial_affine_residuals(
             .iter()
             .filter_map(|path| match path.as_slice() {
                 [
-                    StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
-                ] => Some((*outer, *inner)),
+                    StructuralPathSegment::FixedIndex(outer),
+                    StructuralPathSegment::FixedIndex(inner),
+                ] if *outer < 2 && *inner < inner_length => Some((*outer, *inner)),
                 _ => None,
             })
             .collect::<BTreeMap<_, _>>();
         if moved.len() != 2 {
             return None;
         }
-        let mut residuals = Vec::with_capacity(4);
+        let mut residuals = Vec::with_capacity((2 * (inner_length - 1)) as usize);
         for outer in (0_u64..2).rev() {
             let moved_inner = *moved.get(&outer)?;
-            for inner in (0_u64..3).rev() {
+            for inner in (0_u64..inner_length).rev() {
                 if inner != moved_inner {
                     residuals.push((
                         vec![

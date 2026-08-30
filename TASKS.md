@@ -9264,6 +9264,17 @@ reach or trust, and private proof improvements do not change public identity.
   tampering reject. The interpreter still charges exactly five closure units:
   residual count changes static frontier custody, not executable cleanup work.
 
+  The exact nested successor is also closed. The same carrier admits
+  `[[T; 4]; 2]` with one distinct literal leaf move from each outer element and
+  six live residual leaves in decreasing outer-then-inner order. Every custody
+  and replay layer retains the nested type graph, authored two-call order,
+  64-byte outer layout, 32-byte outer stride, exact leaf offsets, and six
+  cleanup actions on all five native targets. Missing, duplicate, same-outer,
+  out-of-bounds, reordered-cleanup, wrong-length/layout/stride/offset, codec,
+  object, image, and installation tampering reject. Static residual count again
+  does not change the exact five call/return fuel units; no runtime liveness
+  bitmap or cleanup loop is introduced. `[[T; 5]; 2]` remains fenced.
+
   The first construction-prefix ordinary-abandonment rung is closed. An
   uninitialized mutable `[T; 3]`, with `T` the exact empty, unqualified,
   claim-free affine record carrier, may establish literal indices `0` then `1`
@@ -9315,7 +9326,7 @@ reach or trust, and private proof improvements do not change public identity.
   `[T; 8]` and wider prefixes remain fail closed without runtime liveness state
   or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 3]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 4]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 7]` to deeper canonical fuel/action
   ordinals.
 
