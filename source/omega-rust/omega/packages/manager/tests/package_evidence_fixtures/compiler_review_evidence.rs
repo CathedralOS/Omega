@@ -32,6 +32,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
 
         assert_eq!(reviews.reviews().len(), closure.graph().packages().len());
         let mut closure_build_fuel = 0_u64;
+        let mut closure_filesystem_attempts = 0_u64;
         for (package_index, node) in closure.graph().packages().iter().enumerate() {
             let custody = closure
                 .custody(node.source().key())
@@ -45,7 +46,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let usage = issued
                 .build_evaluation_usage()
                 .expect("package review retains sponsored build-evaluation usage");
-            assert_eq!(usage.usage_schema_version, 3);
+            assert_eq!(usage.usage_schema_version, 4);
             assert_eq!(usage.step_schedule_marker, 1);
             assert_eq!(
                 usage.invocation_fuel_ceiling,
@@ -55,9 +56,10 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     100_000
                 }
             );
-            assert_eq!(usage.sponsor_schema_version, Some(2));
+            assert_eq!(usage.sponsor_schema_version, Some(3));
             assert_eq!(usage.session_fuel_ceiling, Some(100_000_000));
             assert_eq!(usage.session_build_log_byte_ceiling, Some(16 * 1024 * 1024));
+            assert_eq!(usage.session_filesystem_attempt_ceiling, Some(65_536));
             assert!(usage.fuel_units > 0);
             assert!(usage.fuel_units <= usage.invocation_fuel_ceiling);
             assert!(usage.replay_fuel_units <= usage.invocation_fuel_ceiling);
@@ -80,6 +82,15 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let observations = issued
                 .build_observation_summary()
                 .expect("fixture package build machine publishes observation evidence");
+            assert_eq!(
+                usage.filesystem_operation_attempts,
+                u64::try_from(observations.filesystem_operation_attempts().len())
+                    .expect("small fixture attempt count")
+            );
+            closure_filesystem_attempts = closure_filesystem_attempts
+                .checked_add(usage.filesystem_operation_attempts)
+                .and_then(|total| total.checked_add(usage.replay_filesystem_operation_attempts))
+                .expect("fixture closure filesystem attempts fit u64");
             assert_eq!(
                 observations.ceiling(),
                 if executes_filesystem_build {
@@ -165,6 +176,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             assert_eq!(&recovered, issued.obligations());
         }
         assert!(closure_build_fuel <= 100_000_000);
+        assert!(closure_filesystem_attempts <= 65_536);
 
         let root_review = reviews
             .review(closure.graph().root())

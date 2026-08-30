@@ -1639,14 +1639,16 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
-The same disposable review session now owns a separate version-2 deterministic
+The same disposable review session now owns a separate version-3 deterministic
 evaluation sponsor across the closure: 100,000,000 total evaluator fuel units
-and 16 MiB of compiler-owned BuildLog bytes,
+16 MiB of compiler-owned BuildLog bytes, and 65,536 canonical filesystem
+operation attempts,
 with the ordinary 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings retained for initial evaluation and replay. Usage
-receipt v3 binds the fuel and BuildLog ceilings and records initial and replay
-charges separately; the compiler rejects a successful closure whose retained
-charges do not exactly reconcile with the shared sponsor. This closes
+receipt v4 binds the fuel, BuildLog, and filesystem-attempt ceilings and records
+initial and replay charges separately; the compiler rejects a successful
+closure whose retained charges do not exactly reconcile with the shared
+sponsor. This closes
 dependency self-budgeting and closure amplification for deterministic work. It
 does not bound process CPU or memory.
 These summary fields are compiler-issued execution evidence kept outside

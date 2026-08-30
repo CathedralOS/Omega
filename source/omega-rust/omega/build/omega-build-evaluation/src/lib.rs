@@ -315,6 +315,9 @@ pub struct BuildEvaluationUsage {
     /// Aggregate compiler-owned BuildLog bytes available to the complete
     /// sponsored review session.
     pub session_build_log_byte_ceiling: Option<u64>,
+    /// Aggregate canonical filesystem operation attempts available to the
+    /// complete sponsored review session.
+    pub session_filesystem_attempt_ceiling: Option<u64>,
     /// Fuel consumed by the initial build-machine evaluation.
     pub fuel_units: u64,
     /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
@@ -323,6 +326,10 @@ pub struct BuildEvaluationUsage {
     pub build_log_bytes: u64,
     /// BuildLog bytes emitted by exact replay, or zero when no replay ran.
     pub replay_build_log_bytes: u64,
+    /// Filesystem operation attempts retained by initial evaluation.
+    pub filesystem_operation_attempts: u64,
+    /// Filesystem operation attempts retained by replay, or zero when absent.
+    pub replay_filesystem_operation_attempts: u64,
     pub result_cells: u64,
 }
 
@@ -4217,10 +4224,15 @@ pub fn compute_build_config(
                 .map(|sponsor| sponsor.limits().maximum_fuel_units()),
             session_build_log_byte_ceiling: evaluation_sponsor
                 .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
+            session_filesystem_attempt_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
             fuel_units: usage.fuel_units(),
             replay_fuel_units: replay_usage.map_or(0, |usage| usage.fuel_units()),
             build_log_bytes: usage.build_log_bytes(),
             replay_build_log_bytes: replay_usage.map_or(0, |usage| usage.build_log_bytes()),
+            filesystem_operation_attempts: usage.filesystem_operation_attempts(),
+            replay_filesystem_operation_attempts: replay_usage
+                .map_or(0, |usage| usage.filesystem_operation_attempts()),
             result_cells: usage.result_cells(),
         }),
         observation_summary: Some(BuildObservationSummary {

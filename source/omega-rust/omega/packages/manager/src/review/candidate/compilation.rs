@@ -275,5 +275,23 @@ fn compile_resolved_package_reviews_in_session(
             },
         );
     }
+    let reported_filesystem_attempts = reviews.iter().try_fold(0_u64, |total, review| {
+        let Some(usage) = review.build_evaluation_usage() else {
+            return Some(total);
+        };
+        total
+            .checked_add(usage.filesystem_operation_attempts)
+            .and_then(|total| total.checked_add(usage.replay_filesystem_operation_attempts))
+    });
+    if reported_filesystem_attempts
+        != Some(evaluation_sponsor.consumed_filesystem_operation_attempts())
+    {
+        return Err(
+            CompileResolvedPackageReviewsError::BuildFilesystemAttemptAccountingMismatch {
+                reported: reported_filesystem_attempts,
+                sponsored: evaluation_sponsor.consumed_filesystem_operation_attempts(),
+            },
+        );
+    }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }
