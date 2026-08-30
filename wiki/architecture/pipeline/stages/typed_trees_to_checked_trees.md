@@ -416,13 +416,16 @@ Current ownership is:
   ending in the same exact primitive or record shapes. A zero extent
   participates only when its terminal independently qualifies and the whole
   record remains nonzero; its element alignment and padding remain covered.
-  Record eligibility and representation
-  recursion use exact symbol identity and require a nonzero, nongeneric,
+  Fully specialized type-parameter record instances use the exact synthesized
+  symbol and substituted fields after validating their concrete base/argument
+  origin. Generic normalization rewrites concrete-machine cast targets and
+  supports recursively nonzero literal-array type arguments. Record eligibility
+  and representation recursion use exact symbol identity and require a nonzero,
   quotient-free, acyclic, all-relevant, recursively fact-free shape. Runtime or
-  merely bounded offsets, slices, total zero-size targets,
-  generic/invariant-bearing/erased/cased records, and other indexed recasts stay
-  fenced because an element path cannot represent their complete target
-  footprint.
+  merely bounded offsets, slices, total zero-size targets, open/unresolved or
+  const/lifetime/machine/proposition generic instances, invariant-bearing/
+  erased/cased records, and other indexed recasts stay fenced because an
+  element path cannot represent their complete target footprint.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),

@@ -1281,7 +1281,12 @@ recursively literal array fields ending in the same exact primitive or closed-
 record shapes. A zero-length field participates only when its terminal
 independently qualifies and the containing record remains nonzero; it adds no
 leaves but its element alignment can still induce protected padding. Total
-zero-size targets remain conservative on this indexed-loan path.
+zero-size targets remain conservative on this indexed-loan path. A fully
+specialized type-parameter record instance uses its exact synthesized symbol
+and already-substituted fields as the schema; the retained generic base and
+argument tuple are validated provenance, never a layout reconstructed from its
+rendered name. Open or unresolved applications and const, lifetime, machine,
+or proposition generic instances remain conservative.
 
 An interior slice recast starts at a proven index in a fixed byte array and
 consumes the complete remaining region. Its descriptor is

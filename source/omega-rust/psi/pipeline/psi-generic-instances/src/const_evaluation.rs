@@ -1535,6 +1535,19 @@ pub(super) fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<Type
             _ => {}
         }
     }
+    // Cast targets are type-reference owners in concrete machine bodies too.
+    // Rewriting the stated local while leaving `as &Pair<u32>` as a raw
+    // Generic node gives downstream representation validation two identities
+    // for the same synthesized instance. Walk only expressions reachable from
+    // non-generic machines; generic template bodies remain deliberately open.
+    let concrete_expressions = super::concrete_machine_expression_handles(syntax);
+    for (handle, expression) in syntax.expressions.iter_expressions() {
+        if concrete_expressions.contains(&handle.arena_index())
+            && let ExpressionNode::Cast(cast) = expression
+        {
+            collect(syntax, cast.target_type, &mut positions);
+        }
+    }
     positions
 }
 
