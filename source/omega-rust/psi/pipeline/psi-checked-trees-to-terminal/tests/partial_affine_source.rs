@@ -142,6 +142,17 @@ const NESTED_AFFINE_QUARTET_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_QUINTET_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Sink {}
+    machine Sink::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 5]; 2]) {
+        Sink::take(values[1][4]);
+        Sink::take(values[0][1]);
+    }
+"#;
+
 #[test]
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
@@ -1183,6 +1194,20 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
         NESTED_AFFINE_QUARTET_SOURCE,
         &[(1, 3), (0, 1)],
         &[(1, 2), (1, 1), (1, 0), (0, 3), (0, 2), (0, 0)],
+    );
+    assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter(
+        NESTED_AFFINE_QUINTET_SOURCE,
+        &[(1, 4), (0, 1)],
+        &[
+            (1, 3),
+            (1, 2),
+            (1, 1),
+            (1, 0),
+            (0, 4),
+            (0, 3),
+            (0, 2),
+            (0, 0),
+        ],
     );
 }
 

@@ -140,6 +140,17 @@ const WIDER_NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
     }
 "#;
 
+const WIDEST_NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 5]; 2]) {
+        Helper::take(values[1][4]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -524,6 +535,25 @@ fn wider_nested_affine_array_plan() -> omega_abstract_operations::AbstractOperat
         encode_proof_bundle(&terminal.proof_bundle).expect("encode wider nested affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified wider nested affine artifact enters Omega")
+}
+
+fn widest_nested_affine_array_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(WIDEST_NESTED_AFFINE_ARRAY_SOURCE)
+        .tokenize()
+        .expect("tokenize widest nested affine array source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse widest nested affine array source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve widest nested affine array source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type widest nested affine array source");
+    let checked = lower_typed_trees(typed).expect("check widest nested affine array source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower widest nested affine array Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode widest nested affine Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode widest nested affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified widest nested affine artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -2055,9 +2085,10 @@ fn nested_affine_arrays_retain_exact_offsets_and_decreasing_cleanup_on_all_targe
     }
 }
 
-#[test]
-fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
-    let plan = wider_nested_affine_array_plan();
+fn assert_wider_nested_affine_array_native_custody(
+    plan: omega_abstract_operations::AbstractOperationPlan,
+    inner_length: u64,
+) {
     let caller_machine = plan.entry;
     let caller = plan
         .functions
@@ -2080,7 +2111,7 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
     };
     let StructuralTypeShape::FixedArray {
         element: leaf_type,
-        length: 4,
+        length: actual_inner_length,
     } = plan
         .structural_types
         .iter()
@@ -2088,8 +2119,9 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
         .expect("inner declaration")
         .shape
     else {
-        panic!("element remains an exact inner quartet")
+        panic!("element remains an exact inner fixed array")
     };
+    assert_eq!(actual_inner_length, inner_length);
     let residuals = caller
         .operations
         .iter()
@@ -2110,37 +2142,26 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
             _ => None,
         })
         .expect("wider nested return retains residuals");
+    let expected_residual_paths = (0_u64..2)
+        .rev()
+        .flat_map(|outer| {
+            (0_u64..inner_length)
+                .rev()
+                .filter(move |inner| *inner != if outer == 1 { inner_length - 1 } else { 1 })
+                .map(move |inner| {
+                    vec![
+                        StructuralPathSegment::FixedIndex(outer),
+                        StructuralPathSegment::FixedIndex(inner),
+                    ]
+                })
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
         residuals
             .iter()
             .map(|residual| residual.path.clone())
             .collect::<Vec<_>>(),
-        vec![
-            vec![
-                StructuralPathSegment::FixedIndex(1),
-                StructuralPathSegment::FixedIndex(2),
-            ],
-            vec![
-                StructuralPathSegment::FixedIndex(1),
-                StructuralPathSegment::FixedIndex(1),
-            ],
-            vec![
-                StructuralPathSegment::FixedIndex(1),
-                StructuralPathSegment::FixedIndex(0),
-            ],
-            vec![
-                StructuralPathSegment::FixedIndex(0),
-                StructuralPathSegment::FixedIndex(3),
-            ],
-            vec![
-                StructuralPathSegment::FixedIndex(0),
-                StructuralPathSegment::FixedIndex(2),
-            ],
-            vec![
-                StructuralPathSegment::FixedIndex(0),
-                StructuralPathSegment::FixedIndex(0),
-            ],
-        ],
+        expected_residual_paths,
     );
     assert!(
         residuals.iter().all(|residual| {
@@ -2210,7 +2231,7 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
             _ => None,
         })
         .unwrap();
-    wrong_call.path[1] = StructuralPathSegment::FixedIndex(4);
+    wrong_call.path[1] = StructuralPathSegment::FixedIndex(inner_length);
     assert!(lower_to_target_operations(&wrong_path, NativeTarget::linux_x64()).is_err());
 
     for target in [
@@ -2230,7 +2251,9 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
         else {
             panic!("wider nested caller remains Unit")
         };
-        assert_eq!(body.parameters[0].shape, ValueShape::integer(64, 8));
+        let inner_stride = u32::try_from(inner_length.checked_mul(8).unwrap()).unwrap();
+        let root_size = u16::try_from(inner_length.checked_mul(16).unwrap()).unwrap();
+        assert_eq!(body.parameters[0].shape, ValueShape::integer(root_size, 8));
         let calls = body
             .operations
             .iter()
@@ -2250,7 +2273,7 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
             vec![
                 vec![
                     StructuralPathSegment::FixedIndex(1),
-                    StructuralPathSegment::FixedIndex(3),
+                    StructuralPathSegment::FixedIndex(inner_length - 1),
                 ],
                 vec![
                     StructuralPathSegment::FixedIndex(0),
@@ -2263,13 +2286,13 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
                 .iter()
                 .map(|call| call.source_byte_offset)
                 .collect::<Vec<_>>(),
-            vec![56, 8],
+            vec![inner_stride * 2 - 8, 8],
         );
         assert!(calls.iter().all(|call| {
             call.root_structural_type == root_type
                 && call.structural_type == leaf_type
                 && call.fixed_array_length == Some(2)
-                && call.element_stride == Some(32)
+                && call.element_stride == Some(inner_stride)
         }));
 
         let assigned = assign_registers(&target_plan).unwrap();
@@ -2325,7 +2348,7 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
                     .iter_mut()
                     .find(|function| function.machine == caller_machine)
                     .unwrap();
-                caller.internal_unit_calls[0].arguments[0].element_stride = Some(24);
+                caller.internal_unit_calls[0].arguments[0].element_stride = Some(inner_stride - 8);
                 forged
             },
             {
@@ -2335,9 +2358,9 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
                     .iter_mut()
                     .find(|function| function.machine == caller_machine)
                     .unwrap();
-                caller.internal_unit_calls[0].arguments[0].element_stride = Some(24);
+                caller.internal_unit_calls[0].arguments[0].element_stride = Some(inner_stride - 8);
                 caller.internal_unit_calls[0].arguments[0].source.shape =
-                    ValueShape::integer(48, 8);
+                    ValueShape::integer(root_size - 16, 8);
                 forged
             },
         ] {
@@ -2378,6 +2401,12 @@ fn wider_nested_affine_arrays_retain_six_residuals_and_exact_native_custody() {
         let encoded = encode_installation_record(&installation).unwrap();
         assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
+}
+
+#[test]
+fn wider_nested_affine_arrays_retain_exact_native_custody() {
+    assert_wider_nested_affine_array_native_custody(wider_nested_affine_array_plan(), 4);
+    assert_wider_nested_affine_array_native_custody(widest_nested_affine_array_plan(), 5);
 }
 
 #[test]

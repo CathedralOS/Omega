@@ -66,7 +66,7 @@ pub(super) fn partial_affine_residuals(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4),
+            length: inner_length @ (3 | 4 | 5),
         } = structural_types.get(&element)?.shape
         else {
             return None;
@@ -94,7 +94,7 @@ pub(super) fn partial_affine_residuals(
         if moved.len() != 2 {
             return None;
         }
-        let mut residuals = Vec::with_capacity(if inner_length == 3 { 4 } else { 6 });
+        let mut residuals = Vec::with_capacity(usize::try_from(2 * (inner_length - 1)).ok()?);
         for outer in (0_u64..2).rev() {
             let moved_inner = *moved.get(&outer)?;
             for inner in (0_u64..inner_length).rev() {
@@ -161,7 +161,7 @@ pub(super) fn is_bounded_partial_affine_path(
                 let Some(inner) = structural_types.get(&element) else {
                     return false;
                 };
-                let StructuralTypeShape::FixedArray { length: inner_length @ (3 | 4), .. } = inner.shape else {
+                let StructuralTypeShape::FixedArray { length: inner_length @ (3 | 4 | 5), .. } = inner.shape else {
                     return false;
                 };
                 matches!(path, [StructuralPathSegment::FixedIndex(outer), StructuralPathSegment::FixedIndex(index)] if *outer < 2 && *index < inner_length)

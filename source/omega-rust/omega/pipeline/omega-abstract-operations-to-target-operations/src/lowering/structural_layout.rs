@@ -306,7 +306,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4),
+            length: inner_length @ (3 | 4 | 5),
         } = declarations.get(&element)?.shape
         else {
             return None;
@@ -335,7 +335,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         if moved_by_outer.len() != 2 {
             return None;
         }
-        let mut residuals = Vec::with_capacity(if inner_length == 3 { 4 } else { 6 });
+        let mut residuals = Vec::with_capacity(usize::try_from(2 * (inner_length - 1)).ok()?);
         for outer in (0_u64..2).rev() {
             let moved_inner = *moved_by_outer.get(&outer)?;
             for inner in (0_u64..inner_length).rev() {
@@ -370,7 +370,7 @@ pub(super) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
             | [
                 StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4),
             ]
     )
 }
