@@ -133,6 +133,7 @@ pub(crate) fn check(audit: &mut Audit) {
             "pre-allocation machine-effect codec",
             REQUIRED_PRE_ALLOCATION_EFFECT_CODEC_LEAVES,
         ),
+        ("AArch64 MOVN proposal", REQUIRED_MOVN_COMPUTE_LEAVES),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {
