@@ -1,16 +1,12 @@
 //! Exact source-bound construction of the current migration trust graph.
 
 use super::{
-    AFFINE_JOINS_SOURCE, CODEC_SOURCE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE,
-    INTEGER_ADD_SUBTRACT_SOURCE, INTEGER_AFFINE_SOURCE, INTEGER_CONVERSION_CHAINS_SOURCE,
-    INTEGER_CONVERSION_COMPOSITION_SOURCE, INTEGER_CONVERSION_SOURCE,
-    INTEGER_DIVIDE_REMAINDER_SOURCE, INTEGER_FOUNDATION_SOURCE, INTEGER_MULTIPLY_SOURCE,
-    INTEGER_SHIFT_CHAINS_SOURCE, INTEGER_SHIFT_COMPOSITION_SOURCE, INTEGER_SHIFT_SOURCE,
-    MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
+    CODEC_SOURCE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
+    OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
     PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
     PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
     PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE,
-    SUBSTITUTION_SOURCE, SUFFICIENT_REDUCTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
+    SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
     TERMINAL_MODEL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_SEMANTICS_SOURCE,
     TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
     TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
@@ -61,7 +57,6 @@ pub(super) fn build_current_terminal_trust_graph()
     nodes.push(decoder_node());
     nodes.push(verifier_node());
     nodes.push(ledger_framework_node());
-    nodes.extend(reduction_nodes());
     nodes.extend(operation_semantics_nodes());
     nodes.push(current_closure_node());
     nodes.sort_by(|left, right| left.identity.cmp(&right.identity));
@@ -246,20 +241,12 @@ fn verifier_node() -> TrustDependencyNode {
                 EVIDENCE_PROVENANCE_SOURCE,
             ),
             (
-                "psi-terminal-verifier/verification/integer_foundation.rs",
-                INTEGER_FOUNDATION_SOURCE,
-            ),
-            (
                 "psi-terminal-verifier/verification/proof_bundle.rs",
                 PROOF_BUNDLE_SOURCE,
             ),
             (
                 "psi-terminal-verifier/verification/reconstruction.rs",
                 RECONSTRUCTION_SOURCE,
-            ),
-            (
-                "psi-terminal-verifier/verification/sufficient_reduction.rs",
-                SUFFICIENT_REDUCTION_SOURCE,
             ),
             (
                 "psi-terminal-verifier/verification/substitution.rs",
@@ -327,115 +314,6 @@ fn ledger_framework_node() -> TrustDependencyNode {
     )
 }
 
-fn reduction_nodes() -> Vec<TrustDependencyNode> {
-    [
-        (
-            "reduction:affine-joins",
-            "affine fork/join, rectangle, product, quadratic, and correlated divide/remainder sufficient forms",
-            "affine-joins-v1",
-            "verification/affine_joins.rs",
-            AFFINE_JOINS_SOURCE,
-        ),
-        (
-            "reduction:integer-add-subtract",
-            "exact integer addition and subtraction sufficient forms",
-            "integer-add-subtract-v1",
-            "verification/integer_add_subtract.rs",
-            INTEGER_ADD_SUBTRACT_SOURCE,
-        ),
-        (
-            "reduction:integer-affine",
-            "integer affine-chain and affine-preimage sufficient forms",
-            "integer-affine-v1",
-            "verification/integer_affine.rs",
-            INTEGER_AFFINE_SOURCE,
-        ),
-        (
-            "reduction:integer-base-interval",
-            "shared integer carrier, interval, path-fact, and dispatch sufficient forms",
-            "integer-base-interval-v1",
-            "verification/integer_foundation.rs",
-            INTEGER_FOUNDATION_SOURCE,
-        ),
-        (
-            "reduction:integer-conversion",
-            "integer cast, widening, and conversion-spine sufficient forms",
-            "integer-conversion-v1",
-            "verification/integer_conversion.rs",
-            INTEGER_CONVERSION_SOURCE,
-        ),
-        (
-            "reduction:integer-divide-remainder",
-            "exact divide and remainder sufficient forms",
-            "integer-divide-remainder-v5",
-            "verification/integer_divide_remainder.rs",
-            INTEGER_DIVIDE_REMAINDER_SOURCE,
-        ),
-        (
-            "reduction:integer-multiply",
-            "integer multiply, product, and signed-product sufficient forms",
-            "integer-multiply-v1",
-            "verification/integer_multiply.rs",
-            INTEGER_MULTIPLY_SOURCE,
-        ),
-        (
-            "reduction:integer-shift",
-            "exact integer shift and mixed shift-chain sufficient forms",
-            "integer-shift-v1",
-            "verification/integer_shift.rs",
-            INTEGER_SHIFT_SOURCE,
-        ),
-    ]
-    .into_iter()
-    .map(|(identity, subject, version, source_name, source)| {
-        let mut exact_sources = vec![
-            (source_name, source),
-            (
-                "verification/sufficient_reduction.rs",
-                SUFFICIENT_REDUCTION_SOURCE,
-            ),
-        ];
-        if identity == "reduction:integer-conversion" {
-            exact_sources.push((
-                "verification/integer_conversion/chains.rs",
-                INTEGER_CONVERSION_CHAINS_SOURCE,
-            ));
-            exact_sources.push((
-                "verification/integer_conversion/composition.rs",
-                INTEGER_CONVERSION_COMPOSITION_SOURCE,
-            ));
-        }
-        if identity == "reduction:integer-shift" {
-            exact_sources.push((
-                "verification/integer_shift/chains.rs",
-                INTEGER_SHIFT_CHAINS_SOURCE,
-            ));
-            exact_sources.push((
-                "verification/integer_shift/composition.rs",
-                INTEGER_SHIFT_COMPOSITION_SOURCE,
-            ));
-        }
-        TrustDependencyNode::new(
-            identity,
-            TrustDependencyKind::SufficientFormReduction,
-            TrustDependencyStatus::TrustedJudgment,
-            subject,
-            version,
-            "psi-terminal-verifier",
-            "sufficient-form proof-obligation reconstruction only",
-            "This reducer may choose a sufficient proposition until it emits a checked derivation of the unchanged canonical goal.",
-            TrustAcceptingPolicy::ExplicitMigrationTrust,
-            dependencies(&[
-                "implementation:rust-terminal-verifier",
-                "root:abstract-terminal-execution-model",
-                "root:explicit-rust-migration-policy",
-            ]),
-            &exact_sources,
-        )
-    })
-    .collect()
-}
-
 fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
     validate_call_composition_semantic_rows(&CallCompositionSemanticRow::ALL)
         .expect("the closed call-composition table is exact, complete, and canonical");
@@ -480,7 +358,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ),
                     "terminal-proof-bearing-scalar-v1-unproved",
                     "one closed proof-bearing scalar denotation/goal schema row",
-                    "The Rust row is trusted until its denotation and canonical-goal theorem plus the global composition bridge are accepted; sufficient-form reduction remains a separate dependency.",
+                    "The Rust row is trusted until its denotation and canonical-goal theorem plus the global composition bridge are accepted.",
                 ),
                 OperationSemanticCustody::LeafDenotation => (
                     TrustDependencyKind::DenotationSchema,
@@ -561,7 +439,6 @@ fn current_closure_node() -> TrustDependencyNode {
         "implementation:rust-terminal-decoder".to_owned(),
         "implementation:rust-terminal-verifier".to_owned(),
     ];
-    dependency_ids.extend(reduction_nodes().into_iter().map(|node| node.identity));
     dependency_ids.extend(
         operation_semantics_nodes()
             .into_iter()

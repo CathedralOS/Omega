@@ -2,8 +2,8 @@
 //!
 //! This is deliberately an honest description of the current deployment
 //! boundary, not the final canonical-ledger implementation. Rust decoding,
-//! semantic reconstruction, every sufficient-form reducer, the current ledger
-//! framework, every unproved leaf schema, and every unproved call-composition
+//! semantic reconstruction, the current ledger framework, every unproved leaf
+//! schema, and every unproved call-composition
 //! row remain explicit trusted judgments until low-rung derivations replace
 //! them.
 
@@ -25,7 +25,7 @@ use psi_terminal_semantics::{
 pub use validation::validate_terminal_trust_graph;
 
 const CURRENT_ENTRY: &str = "closure:terminal-pcc-current";
-const MIGRATION_POLICY_DESCRIPTOR: &[u8] = b"PCC-CANONICAL-SEMANTIC-LEDGER-v1\0canonical bytes -> exhaustive local ledger -> unchanged canonical goals\0Rust decoder/verifier/reducers remain explicit trusted judgments until low-rung derivations replace them\0unknown and cyclic leaves reject\0portable terminal semantics only";
+const MIGRATION_POLICY_DESCRIPTOR: &[u8] = b"PCC-CANONICAL-SEMANTIC-LEDGER-v1\0canonical bytes -> exhaustive local ledger -> unchanged canonical goals\0Rust decoder/verifier remain explicit trusted judgments until low-rung derivations replace them\0unknown and cyclic leaves reject\0portable terminal semantics only";
 static CURRENT_TRUST_GRAPH: OnceLock<Result<ValidatedTerminalTrustGraph, TrustGraphError>> =
     OnceLock::new();
 
@@ -43,39 +43,12 @@ const EVIDENCE_PROVENANCE_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/evidence_provenance.rs");
 const VERIFIER_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/call_composition.rs");
-const INTEGER_FOUNDATION_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_foundation.rs");
 const PROOF_BUNDLE_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/proof_bundle.rs");
 const RECONSTRUCTION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/reconstruction.rs");
-const SUFFICIENT_REDUCTION_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/sufficient_reduction.rs");
 const SUBSTITUTION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/substitution.rs");
-const AFFINE_JOINS_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/affine_joins.rs");
-const INTEGER_ADD_SUBTRACT_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_add_subtract.rs");
-const INTEGER_AFFINE_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_affine.rs");
-const INTEGER_CONVERSION_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_conversion.rs");
-const INTEGER_CONVERSION_CHAINS_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_conversion/chains.rs");
-const INTEGER_CONVERSION_COMPOSITION_SOURCE: &[u8] = include_bytes!(
-    "../../psi-terminal-verifier/src/verification/integer_conversion/composition.rs"
-);
-const INTEGER_DIVIDE_REMAINDER_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_divide_remainder.rs");
-const INTEGER_MULTIPLY_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_multiply.rs");
-const INTEGER_SHIFT_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift.rs");
-const INTEGER_SHIFT_CHAINS_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift/chains.rs");
-const INTEGER_SHIFT_COMPOSITION_SOURCE: &[u8] =
-    include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift/composition.rs");
 const PROOF_ADMISSION_LIB_SOURCE: &[u8] = include_bytes!("../../psi-proof-admission/src/lib.rs");
 const PROOF_ADMISSION_EVIDENCE_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-admission/src/evidence.rs");
@@ -463,7 +436,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::SufficientFormReduction)
                 .count(),
-            8
+            0
         );
         assert_eq!(
             graph
@@ -621,57 +594,6 @@ mod tests {
             &[("source", b"second")],
         );
         assert_ne!(first.digest(), second.digest());
-
-        let shift = graph
-            .nodes()
-            .iter()
-            .find(|node| node.identity == "reduction:integer-shift")
-            .expect("integer-shift reduction node");
-        let root_only_shift = TrustDependencyNode::new(
-            shift.identity.clone(),
-            shift.kind,
-            shift.status,
-            shift.semantic_subject.clone(),
-            shift.version.clone(),
-            shift.owner.clone(),
-            shift.scope.clone(),
-            shift.rationale.clone(),
-            shift.accepting_policy,
-            shift.dependencies.clone(),
-            &[("verification/integer_shift.rs", INTEGER_SHIFT_SOURCE)],
-        );
-        assert_ne!(
-            shift.digest(),
-            root_only_shift.digest(),
-            "shift custody must include both child implementation modules",
-        );
-
-        let conversion = graph
-            .nodes()
-            .iter()
-            .find(|node| node.identity == "reduction:integer-conversion")
-            .expect("integer-conversion reduction node");
-        let root_only_conversion = TrustDependencyNode::new(
-            conversion.identity.clone(),
-            conversion.kind,
-            conversion.status,
-            conversion.semantic_subject.clone(),
-            conversion.version.clone(),
-            conversion.owner.clone(),
-            conversion.scope.clone(),
-            conversion.rationale.clone(),
-            conversion.accepting_policy,
-            conversion.dependencies.clone(),
-            &[(
-                "verification/integer_conversion.rs",
-                INTEGER_CONVERSION_SOURCE,
-            )],
-        );
-        assert_ne!(
-            conversion.digest(),
-            root_only_conversion.digest(),
-            "conversion custody must include both child implementation modules",
-        );
 
         let exact_add = graph
             .nodes()

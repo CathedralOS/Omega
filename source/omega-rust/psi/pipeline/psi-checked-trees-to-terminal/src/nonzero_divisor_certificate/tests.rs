@@ -249,6 +249,146 @@ fn exact_subtract_goal_serializes_independent_and_joint_guards() {
 }
 
 #[test]
+fn exact_multiply_goal_serializes_four_corners_and_negative_quotient_guard() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let left = value(1, integer_type);
+    let right = value(2, integer_type);
+    let quotient = value(3, integer_type);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(1).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(2).unwrap(),
+        }),
+    );
+    let lower_goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+        product,
+    );
+    let direct = prove_canonical_integer_proposition(
+        &context,
+        &lower_goal,
+        &[
+            Proposition::LessOrEqual(integer(integer_type, -4), left.clone()),
+            Proposition::LessOrEqual(left.clone(), integer(integer_type, 5)),
+            Proposition::LessOrEqual(integer(integer_type, -3), right.clone()),
+            Proposition::LessOrEqual(right.clone(), integer(integer_type, 2)),
+        ],
+        &[],
+    )
+    .expect("four signed corners prove the multiplication lower bound");
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        middle_less_or_equal_right,
+        ..
+    } = direct.rule
+    else {
+        panic!("tight four-corner bound is relaxed to the carrier endpoint")
+    };
+    let ProofRule::IntegerAffineBound { root_bound, .. } = middle_less_or_equal_right.rule else {
+        panic!("four corners use the checked affine boundary")
+    };
+    assert!(matches!(
+        root_bound.rule,
+        ProofRule::ConjunctionIntroduction(ref parts) if parts.len() == 4
+    ));
+
+    let quotient_definition = Proposition::Equal(
+        quotient.clone(),
+        ScalarTerm::exact_integer_divide(integer_type, integer(integer_type, -128), right.clone())
+            .unwrap(),
+    );
+    let correlated = prove_canonical_integer_proposition(
+        &context,
+        &lower_goal,
+        &[
+            Proposition::LessOrEqual(right, integer(integer_type, -2)),
+            Proposition::LessOrEqual(left, quotient.clone()),
+        ],
+        std::slice::from_ref(&quotient_definition),
+    )
+    .expect("negative MIN/right guard proves the multiplication lower bound");
+    let ProofRule::IntegerAffineBound {
+        root_bound,
+        witness,
+    } = correlated.rule
+    else {
+        panic!("correlated multiplication uses the checked affine boundary")
+    };
+    assert_eq!(witness.definition_axioms, vec![0]);
+    assert_eq!(witness.literal_axioms, vec![None]);
+    assert!(matches!(
+        root_bound.rule,
+        ProofRule::ConjunctionIntroduction(ref parts) if parts.len() == 2
+    ));
+}
+
+#[test]
+fn exact_multiply_maps_one_immediate_remainder_range_through_an_affine_suffix() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let root = value(1, integer_type);
+    let remainder = value(2, integer_type);
+    let added = value(3, integer_type);
+    let unsigned = |value| {
+        ScalarTerm::integer(integer_type, IntegerValue::Unsigned(value)).expect("u8 literal")
+    };
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let axioms = [
+        Proposition::Equal(
+            remainder.clone(),
+            ScalarTerm::exact_integer_remainder(integer_type, root, unsigned(64)).unwrap(),
+        ),
+        Proposition::Equal(
+            added.clone(),
+            ScalarTerm::exact_integer_add(integer_type, remainder, unsigned(1)).unwrap(),
+        ),
+    ];
+    let goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::Multiply(
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(3).unwrap(),
+            }),
+            Box::new(psi_core::IntegerMathTerm::literal(IntegerValue::Unsigned(
+                2,
+            ))),
+        ),
+        psi_core::IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+    );
+    let proof = prove_canonical_integer_proposition(&context, &goal, &[], &axioms)
+        .expect("the checked remainder hull maps through the one-step affine suffix");
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        left_less_or_equal_middle,
+        ..
+    } = proof.rule
+    else {
+        panic!("the strongest mapped product endpoint is relaxed to the carrier maximum")
+    };
+    let ProofRule::IntegerAffineBound { root_bound, .. } = left_less_or_equal_middle.rule else {
+        panic!("the outer product replays the checked four-endpoint certificate")
+    };
+    let ProofRule::ConjunctionIntroduction(parts) = root_bound.rule else {
+        panic!("the outer product retains four ordered endpoint children")
+    };
+    assert!(parts.iter().any(|part| matches!(
+        part.rule,
+        ProofRule::IntegerAffineBound {
+            root_bound: ref remainder_bound,
+            ..
+        } if matches!(remainder_bound.rule, ProofRule::IntegerAffineBound { .. })
+    )));
+}
+
+#[test]
 fn unsigned_affine_exact_cast_bound_uses_existing_ordered_transform_rule() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let root = value(1, integer_type);

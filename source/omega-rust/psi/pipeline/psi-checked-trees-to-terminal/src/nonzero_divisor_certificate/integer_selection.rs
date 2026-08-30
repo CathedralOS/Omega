@@ -9,6 +9,7 @@ mod bound;
 mod dispatch;
 mod exact;
 mod logical;
+mod multiply;
 mod order;
 mod range;
 mod shift;

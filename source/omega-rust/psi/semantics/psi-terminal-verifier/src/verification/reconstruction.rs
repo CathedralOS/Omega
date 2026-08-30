@@ -3,32 +3,12 @@
 use std::collections::BTreeMap;
 
 use psi_core::{ContractId, EdgeId, MachineId, OperationId, Proposition};
-#[cfg(test)]
-use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_admission::Obligation;
 use psi_terminal::{OutcomeSpecificGuard, TerminalMachine, TerminalModule};
-#[cfg(test)]
-use psi_terminal_semantics::CanonicalScalarGoal;
 
 use crate::validation::exact_payloadless_case_return_exits;
 use crate::{ModuleError, ValidatedInterpretableTerminalModule, validate_module};
 
-#[cfg(test)]
-mod affine_custody;
-#[cfg(test)]
-mod affine_selection;
-#[cfg(test)]
-mod alias_transport;
-#[cfg(test)]
-mod cast_custody;
-#[cfg(test)]
-mod cast_selection;
-#[cfg(test)]
-mod certificate_entry;
-#[cfg(test)]
-mod integer_evidence;
-#[cfg(test)]
-mod integer_selection;
 mod machine_context;
 mod machine_flow;
 mod operation_facts;
@@ -240,7 +220,7 @@ pub(super) fn reconstruct_machine_semantics(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
-    let context = machine_context::MachineReconstructionContext::new(module, machine)?;
+    let context = machine_context::MachineReconstructionContext::new(module, machine);
     let outcome_exit_guards =
         if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
             exact_payloadless_case_return_exits(machine).ok_or(
@@ -279,8 +259,6 @@ pub(super) fn reconstruct_machine_semantics(
                 operation,
                 &context.machines,
                 &context.value_types,
-                &context.proposition_context,
-                &context.machine_parameter_values,
                 &mut axioms,
                 &mut operation_obligations,
             )?;
@@ -310,39 +288,3 @@ pub(super) fn reconstruct_machine_semantics(
             .collect(),
     })
 }
-
-/// Test entry for canonical goals whose proof closes without value-root
-/// custody or operation-definition authority.
-#[cfg(test)]
-fn canonical_goal_has_closed_prior_certificate(
-    goal: &CanonicalScalarGoal,
-    semantic_axioms: &[Proposition],
-    requirements: &[Proposition],
-) -> bool {
-    certificate_entry::retained(None, goal, semantic_axioms, requirements)
-}
-
-/// The complete prior-fact exact divide/remainder families whose canonical
-/// proofs need only exact citations, closed integer order, substitution, and
-/// transitivity.
-#[cfg(test)]
-fn exact_division_has_closed_prior_certificate(
-    goal: &CanonicalScalarGoal,
-    semantic_axioms: &[Proposition],
-    requirements: &[Proposition],
-) -> bool {
-    canonical_goal_has_closed_prior_certificate(goal, semantic_axioms, requirements)
-}
-
-#[cfg(test)]
-fn exact_division_has_prior_certificate(
-    context: &PropositionContext,
-    goal: &CanonicalScalarGoal,
-    semantic_axioms: &[Proposition],
-    requirements: &[Proposition],
-) -> bool {
-    certificate_entry::retained(Some(context), goal, semantic_axioms, requirements)
-}
-
-#[cfg(test)]
-mod tests;

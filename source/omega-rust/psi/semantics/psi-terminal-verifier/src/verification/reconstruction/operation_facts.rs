@@ -1,8 +1,8 @@
 //! Ordered reconstruction of one terminal operation's facts and obligation.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use psi_core::{MachineId, Proposition, PropositionContext, ScalarType, ValueId};
+use psi_core::{MachineId, Proposition, ScalarType, ValueId};
 use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use psi_terminal_semantics::{
@@ -13,7 +13,6 @@ use psi_terminal_semantics::{
 use crate::ModuleError;
 
 use super::super::call_composition::compose_call_operation;
-use super::super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
 use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner};
 
 pub(super) fn append_operation(
@@ -22,8 +21,6 @@ pub(super) fn append_operation(
     operation: &Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_types: &BTreeMap<ValueId, ScalarType>,
-    proposition_context: &PropositionContext,
-    machine_parameter_values: &BTreeSet<ValueId>,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
@@ -36,28 +33,13 @@ pub(super) fn append_operation(
     if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?
     {
-        // Once a canonical goal has a settled kernel projection, obligation
-        // identity is a schema decision. Available facts may influence the
-        // producer's explicit certificate, but cannot make reconstruction
-        // search for a different sufficient proposition. Goal shapes whose
-        // kernel vocabulary is not yet settled retain the legacy reducer.
-        let kernel_proposition = semantics
+        // Obligation identity is a total schema decision. Available facts may
+        // influence the producer's explicit certificate, but cannot make
+        // reconstruction search for a different sufficient proposition.
+        let proposition = semantics
             .canonical_goal()
             .kernel_proposition()
             .map_err(ModuleError::OperationSemanticSchema)?;
-        let (proposition, canonical_certificate) = match kernel_proposition {
-            Some(proposition) => (proposition, true),
-            None => (
-                reduce_proof_bearing_scalar_goal(
-                    proposition_context,
-                    &semantics,
-                    axioms,
-                    &machine.contract.requires,
-                    machine_parameter_values,
-                ),
-                false,
-            ),
-        };
         operation_obligations.push(ReconstructedOperationObligation {
             owner: ReconstructedTerminalObligationOwner::Operation {
                 machine: machine.id,
@@ -69,7 +51,7 @@ pub(super) fn append_operation(
                 class: ObligationClass::Derivable,
             },
             semantic_axioms: axioms.clone(),
-            canonical_certificate,
+            canonical_certificate: true,
         });
         axioms.push(semantics.result_equation().clone());
         return Ok(());

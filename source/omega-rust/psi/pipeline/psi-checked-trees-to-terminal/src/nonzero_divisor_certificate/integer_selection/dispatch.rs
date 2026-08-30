@@ -11,7 +11,7 @@ use psi_proof_admission::{
 
 use super::super::affine_custody::DefinitionIndex;
 use super::super::integer_evidence::cited_facts;
-use super::bound;
+use super::{bound, multiply};
 
 pub(super) fn prove_atomic(
     context: &PropositionContext,
@@ -52,6 +52,9 @@ fn prove_math_relation(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
+    if let Some(proof) = multiply::prove(context, goal, assumptions, semantic_axioms, definitions) {
+        return Some(proof);
+    }
     if let Some(proof) =
         prove_direct_subtract_relation(context, goal, assumptions, semantic_axioms, definitions)
     {
@@ -89,7 +92,6 @@ fn prove_math_relation(
         rule: scalar_proof.rule,
     })
 }
-
 fn prove_direct_subtract_relation(
     context: &PropositionContext,
     goal: &Proposition,
@@ -488,7 +490,10 @@ fn prove_direct_add_relation(
             literal_axioms: Vec::new(),
         };
         let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-        let mapped = map_integer_affine_bound(&form, &evidence.conclusion).ok()?;
+        let mapped = match map_integer_affine_bound(&form, &evidence.conclusion) {
+            Ok(mapped) => mapped,
+            Err(_) => continue,
+        };
         let mapped_proof = ProofNode {
             conclusion: mapped.clone(),
             rule: ProofRule::IntegerAffineBound {
@@ -641,7 +646,10 @@ fn exact_add_operand_value(
     })
 }
 
-fn lower_add_math_leaf(term: &IntegerMathTerm, integer_type: IntegerType) -> Option<ScalarTerm> {
+pub(super) fn lower_add_math_leaf(
+    term: &IntegerMathTerm,
+    integer_type: IntegerType,
+) -> Option<ScalarTerm> {
     match term {
         IntegerMathTerm::MathValue { source_type, value } if *source_type == integer_type => {
             Some(ScalarTerm::value(*value, ScalarType::Integer(integer_type)))
@@ -653,7 +661,7 @@ fn lower_add_math_leaf(term: &IntegerMathTerm, integer_type: IntegerType) -> Opt
     }
 }
 
-fn add_endpoint_candidates(
+pub(super) fn add_endpoint_candidates(
     integer_type: IntegerType,
     operand: &ScalarTerm,
     lower: bool,
@@ -698,7 +706,7 @@ fn add_endpoint_candidates(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn prove_add_operand_endpoint(
+pub(super) fn prove_add_operand_endpoint(
     context: &PropositionContext,
     integer_type: IntegerType,
     operand: &ScalarTerm,
@@ -1010,7 +1018,7 @@ fn shift_preimage(value: IntegerValue, count: u32) -> Option<IntegerValue> {
     }
 }
 
-fn relax_math_bound(goal: &Proposition, mapped: ProofNode) -> Option<ProofNode> {
+pub(super) fn relax_math_bound(goal: &Proposition, mapped: ProofNode) -> Option<ProofNode> {
     let (
         Proposition::IntegerMathLessOrEqual(goal_left, goal_right),
         Proposition::IntegerMathLessOrEqual(mapped_left, mapped_right),

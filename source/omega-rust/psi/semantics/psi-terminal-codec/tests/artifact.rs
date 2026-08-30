@@ -635,7 +635,7 @@ fn synopsis_is_projected_from_the_exact_accepted_certificate() {
     )));
     assert!(first.contains("trust-node implementation:rust-terminal-decoder"));
     assert!(first.contains("trust-node implementation:rust-terminal-verifier"));
-    assert!(first.contains("trust-node reduction:integer-conversion"));
+    assert!(!first.contains("trust-node reduction:"));
     assert!(first.contains("trust-node schema:operation:exact-integer-add"));
     assert_eq!(
         current_rust_operation_semantics_trust_identity(&OperationKind::ExactIntegerAdd {

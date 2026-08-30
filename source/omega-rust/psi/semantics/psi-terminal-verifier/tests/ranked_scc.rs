@@ -1,10 +1,11 @@
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, ProofNode,
+    ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
@@ -229,11 +230,27 @@ fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
     let [reconstructed] = obligations.as_slice() else {
         panic!("ranked countdown has exactly one proof obligation")
     };
-    let semantic_axiom = reconstructed
+    let scalar_type = module.machines[0].parameters[0].scalar_type;
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        unreachable!("ranked countdown parameter is an integer")
+    };
+    let rank = ScalarTerm::value(id(2, ValueId::new), scalar_type);
+    let one = ScalarTerm::value(id(5, ValueId::new), scalar_type);
+    let literal_one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1))
+        .expect("ranked countdown literal one");
+    let literal_guard = Proposition::LessOrEqual(literal_one.clone(), rank.clone());
+    let guard_axiom = reconstructed
         .semantic_axioms
         .iter()
-        .position(|axiom| *axiom == reconstructed.obligation.proposition)
-        .expect("ranked countdown obligation is reconstructed as a semantic axiom");
+        .position(|axiom| *axiom == literal_guard)
+        .expect("ranked countdown positive guard is reconstructed as a semantic axiom");
+    let one_landing = Proposition::Equal(one.clone(), literal_one);
+    let landing_axiom = reconstructed
+        .semantic_axioms
+        .iter()
+        .position(|axiom| *axiom == one_landing)
+        .expect("ranked countdown one is reconstructed as a semantic axiom");
+    let ordered_guard = Proposition::LessOrEqual(one.clone(), rank.clone());
     ProofBundle {
         evidence: vec![ObligationEvidence {
             obligation: reconstructed.obligation.id,
@@ -242,8 +259,34 @@ fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: reconstructed.obligation.proposition.clone(),
-                    rule: ProofRule::SemanticAxiom {
-                        index: semantic_axiom,
+                    rule: ProofRule::IntegerAffineBound {
+                        root_bound: Box::new(ProofNode {
+                            conclusion: ordered_guard,
+                            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                                relation: Box::new(ProofNode {
+                                    conclusion: literal_guard,
+                                    rule: ProofRule::SemanticAxiom { index: guard_axiom },
+                                }),
+                                equality: Box::new(ProofNode {
+                                    conclusion: one_landing,
+                                    rule: ProofRule::SemanticAxiom {
+                                        index: landing_axiom,
+                                    },
+                                }),
+                                endpoint: 0,
+                            },
+                        }),
+                        witness: IntegerAffineWitness {
+                            root: one,
+                            target: ScalarTerm::exact_integer_subtract(
+                                integer_type,
+                                rank,
+                                ScalarTerm::value(id(5, ValueId::new), scalar_type),
+                            )
+                            .expect("ranked countdown subtraction"),
+                            definition_axioms: Vec::new(),
+                            literal_axioms: Vec::new(),
+                        },
                     },
                 },
             }),
@@ -303,10 +346,17 @@ fn ranked_countdown_has_distinct_interpreter_only_authority() {
         .expect("countdown proof question reconstructs over its acyclic skeleton");
     assert_eq!(obligations.len(), 1);
     assert_eq!(obligations[0].obligation.id, id(1, ObligationId::new));
+    let scalar_type = module.machines[0].parameters[0].scalar_type;
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        unreachable!("ranked countdown parameter is an integer")
+    };
     assert!(
         obligations[0]
             .semantic_axioms
-            .contains(&obligations[0].obligation.proposition)
+            .contains(&Proposition::LessOrEqual(
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1)).unwrap(),
+                ScalarTerm::value(id(2, ValueId::new), scalar_type),
+            ))
     );
     assert!(matches!(
         verify_module_for_interpretation(

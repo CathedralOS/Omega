@@ -95,7 +95,7 @@ pub(super) fn reconstruct_value_range_fact(
             {
                 return None;
             }
-            let proposition = goal.kernel_proposition().ok()??;
+            let proposition = goal.kernel_proposition().ok()?;
             let canonical =
                 psi_terminal_codec::canonical_proposition_order_key(&proposition).ok()?;
             let accepted_fact = unit
@@ -231,7 +231,7 @@ pub(crate) fn independently_reconstruct_value_range_fact_at(
             {
                 continue;
             }
-            let Ok(Some(proposition)) = goal.kernel_proposition() else {
+            let Ok(proposition) = goal.kernel_proposition() else {
                 continue;
             };
             let Ok(canonical) = psi_terminal_codec::canonical_proposition_order_key(&proposition)

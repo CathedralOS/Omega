@@ -473,10 +473,8 @@ impl CanonicalScalarGoal {
         }
     }
 
-    /// Project canonical goals whose proposition vocabulary is fully settled.
-    /// Exact multiplication remains an explicit typed carrier until its
-    /// operation-specific projection row lands.
-    pub fn kernel_proposition(&self) -> Result<Option<Proposition>, OperationSemanticError> {
+    /// Project the canonical proposition for every proof-bearing scalar goal.
+    pub fn kernel_proposition(&self) -> Result<Proposition, OperationSemanticError> {
         let proposition = match self {
             Self::ExactCastRepresentable {
                 source_type,
@@ -518,14 +516,116 @@ impl CanonicalScalarGoal {
                 ScalarTerm::ExactIntegerSubtract { .. } => {
                     exact_subtract_representability_proposition(*integer_type, expression)?
                 }
-                _ => return Ok(None),
+                ScalarTerm::ExactIntegerMultiply { .. } => {
+                    exact_multiply_representability_proposition(*integer_type, expression)?
+                }
+                _ => {
+                    return Err(OperationSemanticError::ExactArithmeticExpressionShapeMismatch);
+                }
             },
         };
         proposition
             .validate()
             .map_err(OperationSemanticError::InvalidProposition)?;
-        Ok(Some(proposition))
+        Ok(proposition)
     }
+}
+
+fn exact_multiply_representability_proposition(
+    integer_type: IntegerType,
+    expression: &ScalarTerm,
+) -> Result<Proposition, OperationSemanticError> {
+    if integer_type.carrier() != IntegerCarrier::Fixed {
+        return Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(
+            integer_type,
+        ));
+    }
+    let ScalarTerm::ExactIntegerMultiply {
+        scalar_type,
+        left,
+        right,
+    } = expression
+    else {
+        unreachable!("exact-multiply projection is selected by expression shape")
+    };
+    if *scalar_type != integer_type {
+        return Err(
+            OperationSemanticError::ExactArithmeticExpressionTypeMismatch {
+                declared: integer_type,
+                actual: ScalarType::Integer(*scalar_type),
+            },
+        );
+    }
+    if left.scalar_type() != ScalarType::Integer(integer_type)
+        || right.scalar_type() != ScalarType::Integer(integer_type)
+    {
+        return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
+            declared: integer_type,
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    let mathematical_left = fixed_integer_math_term(
+        integer_type,
+        left,
+        |_| unreachable!("exact-multiply operand types were checked together"),
+        OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
+    )?;
+    let mathematical_right = fixed_integer_math_term(
+        integer_type,
+        right,
+        |_| unreachable!("exact-multiply operand types were checked together"),
+        OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
+    )?;
+    if let (
+        ScalarTerm::Integer {
+            value: left_value, ..
+        },
+        ScalarTerm::Integer {
+            value: right_value, ..
+        },
+    ) = (left.as_ref(), right.as_ref())
+    {
+        return Ok(
+            if integer_type.exact_mul(*left_value, *right_value).is_some() {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            },
+        );
+    }
+    if matches!(mathematical_left, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+        || matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+    {
+        return Ok(Proposition::Truth);
+    }
+    let one = match integer_type.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(1),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+    };
+    if left.integer_value() == Some((integer_type, one))
+        || right.integer_value() == Some((integer_type, one))
+    {
+        return Ok(Proposition::Truth);
+    }
+
+    let product =
+        IntegerMathTerm::Multiply(Box::new(mathematical_left), Box::new(mathematical_right));
+    let embedded_negative_one = integer_type.sign() == IntegerSign::Signed
+        && (left.integer_value() == Some((integer_type, IntegerValue::Signed(-1)))
+            || right.integer_value() == Some((integer_type, IntegerValue::Signed(-1))));
+    let mut bounds = Vec::with_capacity(2);
+    if integer_type.sign() == IntegerSign::Signed && !embedded_negative_one {
+        bounds.push(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(integer_type.minimum_value()),
+            product.clone(),
+        ));
+    }
+    bounds.push(Proposition::IntegerMathLessOrEqual(
+        product,
+        IntegerMathTerm::literal(integer_type.maximum_value()),
+    ));
+    Ok(canonical_conjunction(bounds))
 }
 
 fn exact_subtract_representability_proposition(
@@ -711,7 +811,11 @@ fn fixed_integer_math_term(
             source_type: declared,
             value: *id,
         }),
-        ScalarTerm::Integer { value, .. } => Ok(IntegerMathTerm::literal(*value)),
+        ScalarTerm::Integer { value, .. } => {
+            ScalarTerm::integer(declared, *value)
+                .map_err(OperationSemanticError::InvalidProposition)?;
+            Ok(IntegerMathTerm::literal(*value))
+        }
         _ => Err(unsupported),
     }
 }
@@ -1681,10 +1785,10 @@ mod tests {
                 divisor: signed_divisor.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Disjunction(vec![
+            Ok(Proposition::Disjunction(vec![
                 Proposition::LessOrEqual(signed_divisor.clone(), negative_one),
                 Proposition::LessOrEqual(positive_one, signed_divisor),
-            ]))),
+            ])),
         );
 
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
@@ -1699,7 +1803,7 @@ mod tests {
                 divisor: unsigned_divisor.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::LessOrEqual(one, unsigned_divisor))),
+            Ok(Proposition::LessOrEqual(one, unsigned_divisor)),
         );
     }
 
@@ -1716,10 +1820,10 @@ mod tests {
                 divisor: divisor.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::LessOrEqual(
+            Ok(Proposition::LessOrEqual(
                 divisor,
                 ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("-1i1"),
-            ))),
+            )),
         );
 
         let address = IntegerType::address(64).expect("address64");
@@ -1785,7 +1889,7 @@ mod tests {
                 right: right.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Disjunction(vec![
+            Ok(Proposition::Disjunction(vec![
                 Proposition::LessOrEqual(
                     right.clone(),
                     ScalarTerm::integer(signed, IntegerValue::Signed(-2)).unwrap(),
@@ -1804,7 +1908,7 @@ mod tests {
                         left,
                     ),
                 ]),
-            ]))),
+            ])),
         );
 
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
@@ -1823,10 +1927,10 @@ mod tests {
                 right: right.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::LessOrEqual(
+            Ok(Proposition::LessOrEqual(
                 ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).unwrap(),
                 right,
-            ))),
+            )),
         );
     }
 
@@ -1848,7 +1952,7 @@ mod tests {
                 right: right.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Conjunction(vec![
+            Ok(Proposition::Conjunction(vec![
                 Proposition::LessOrEqual(
                     right,
                     ScalarTerm::integer(i1, IntegerValue::Signed(-1)).unwrap(),
@@ -1857,7 +1961,7 @@ mod tests {
                     ScalarTerm::integer(i1, IntegerValue::Signed(0)).unwrap(),
                     left,
                 ),
-            ]))),
+            ])),
         );
 
         let address = IntegerType::address(64).expect("address64");
@@ -1909,10 +2013,10 @@ mod tests {
                 count: unsigned_count.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::LessOrEqual(
+            Ok(Proposition::LessOrEqual(
                 unsigned_count,
                 ScalarTerm::integer(unsigned_count_type, IntegerValue::Unsigned(63)).unwrap(),
-            ))),
+            )),
         );
 
         let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -1927,7 +2031,7 @@ mod tests {
                 count: signed_count.clone(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Conjunction(vec![
+            Ok(Proposition::Conjunction(vec![
                 Proposition::LessOrEqual(
                     ScalarTerm::integer(signed_count_type, IntegerValue::Signed(0)).unwrap(),
                     signed_count.clone(),
@@ -1936,7 +2040,7 @@ mod tests {
                     signed_count,
                     ScalarTerm::integer(signed_count_type, IntegerValue::Signed(63)).unwrap(),
                 ),
-            ]))),
+            ])),
         );
 
         let narrow_count_type = IntegerType::new(IntegerSign::Unsigned, 5).expect("u5");
@@ -1950,7 +2054,7 @@ mod tests {
                 ),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Truth)),
+            Ok(Proposition::Truth),
         );
     }
 
@@ -1965,7 +2069,7 @@ mod tests {
                 count: ScalarTerm::integer(count_type, IntegerValue::Unsigned(literal))
                     .expect("u8 shift count"),
             };
-            assert_eq!(goal.kernel_proposition(), Ok(Some(expected)));
+            assert_eq!(goal.kernel_proposition(), Ok(expected));
         }
     }
 
@@ -2013,24 +2117,221 @@ mod tests {
     }
 
     #[test]
-    fn exact_multiply_remains_unprojected() {
+    fn exact_multiply_projects_bounds_and_normalizes_embedded_negative_one() {
         let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-        let left = ScalarTerm::value(
-            ValueId::new(24).expect("left"),
-            ScalarType::Integer(integer),
+        let left_id = ValueId::new(24).expect("left");
+        let right_id = ValueId::new(25).expect("right");
+        let left = ScalarTerm::value(left_id, ScalarType::Integer(integer));
+        let right = ScalarTerm::value(right_id, ScalarType::Integer(integer));
+        let product = IntegerMathTerm::Multiply(
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer,
+                value: left_id,
+            }),
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer,
+                value: right_id,
+            }),
         );
-        let right = ScalarTerm::value(
-            ValueId::new(25).expect("right"),
-            ScalarType::Integer(integer),
-        );
-        let expression = ScalarTerm::exact_integer_multiply(integer, left, right).unwrap();
         assert_eq!(
             CanonicalScalarGoal::ExactArithmeticRepresentable {
                 integer_type: integer,
-                expression,
+                expression: ScalarTerm::exact_integer_multiply(integer, left.clone(), right)
+                    .unwrap(),
             }
             .kernel_proposition(),
-            Ok(None),
+            Ok(Proposition::Conjunction(vec![
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                    product.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    product,
+                    IntegerMathTerm::literal(IntegerValue::Signed(127)),
+                ),
+            ])),
+        );
+
+        let negative_one = ScalarTerm::integer(integer, IntegerValue::Signed(-1)).unwrap();
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: integer,
+                expression: ScalarTerm::exact_integer_multiply(
+                    integer,
+                    left.clone(),
+                    negative_one.clone(),
+                )
+                .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Multiply(
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer,
+                        value: left_id,
+                    }),
+                    Box::new(IntegerMathTerm::literal(IntegerValue::Signed(-1))),
+                ),
+                IntegerMathTerm::literal(IntegerValue::Signed(127)),
+            )),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: integer,
+                expression: ScalarTerm::exact_integer_multiply(integer, negative_one, left)
+                    .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Multiply(
+                    Box::new(IntegerMathTerm::literal(IntegerValue::Signed(-1))),
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer,
+                        value: left_id,
+                    }),
+                ),
+                IntegerMathTerm::literal(IntegerValue::Signed(127)),
+            )),
+        );
+
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_left_id = ValueId::new(26).expect("unsigned left");
+        let unsigned_right_id = ValueId::new(27).expect("unsigned right");
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: unsigned,
+                expression: ScalarTerm::exact_integer_multiply(
+                    unsigned,
+                    ScalarTerm::value(unsigned_left_id, ScalarType::Integer(unsigned)),
+                    ScalarTerm::value(unsigned_right_id, ScalarType::Integer(unsigned)),
+                )
+                .unwrap(),
+            }
+            .kernel_proposition(),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Multiply(
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: unsigned,
+                        value: unsigned_left_id,
+                    }),
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: unsigned,
+                        value: unsigned_right_id,
+                    }),
+                ),
+                IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+            )),
+        );
+    }
+
+    #[test]
+    fn exact_multiply_folds_closed_and_zero_products() {
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let literal = |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).unwrap();
+        let value = ScalarTerm::value(ValueId::new(28).unwrap(), ScalarType::Integer(integer));
+        for (left, right, expected) in [
+            (literal(12), literal(10), Proposition::Truth),
+            (literal(64), literal(2), Proposition::Falsehood),
+            (value.clone(), literal(0), Proposition::Truth),
+            (literal(0), value.clone(), Proposition::Truth),
+            (value.clone(), literal(1), Proposition::Truth),
+            (literal(1), value, Proposition::Truth),
+        ] {
+            assert_eq!(
+                CanonicalScalarGoal::ExactArithmeticRepresentable {
+                    integer_type: integer,
+                    expression: ScalarTerm::exact_integer_multiply(integer, left, right).unwrap(),
+                }
+                .kernel_proposition(),
+                Ok(expected),
+            );
+        }
+    }
+
+    #[test]
+    fn exact_multiply_rejects_malformed_declared_and_operand_types() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let address = IntegerType::address(64).expect("address");
+        let i8_value = ScalarTerm::value(
+            ValueId::new(29).expect("i8 value"),
+            ScalarType::Integer(i8_type),
+        );
+        let i16_value = ScalarTerm::value(
+            ValueId::new(30).expect("i16 value"),
+            ScalarType::Integer(i16_type),
+        );
+        let malformed = |scalar_type, left, right| ScalarTerm::ExactIntegerMultiply {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        };
+        assert!(matches!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: address,
+                expression: malformed(address, i8_value.clone(), i8_value.clone()),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(actual))
+                if actual == address
+        ));
+        assert!(matches!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: malformed(i16_type, i8_value.clone(), i8_value.clone()),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticExpressionTypeMismatch { .. })
+        ));
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: i8_value.clone(),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticExpressionShapeMismatch),
+        );
+        assert!(matches!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: malformed(i8_type, i8_value.clone(), i16_value),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch { .. })
+        ));
+        let malformed_zero = ScalarTerm::Integer {
+            scalar_type: i8_type,
+            value: IntegerValue::Unsigned(0),
+        };
+        for expression in [
+            malformed(i8_type, i8_value.clone(), malformed_zero.clone()),
+            malformed(i8_type, malformed_zero, i8_value.clone()),
+        ] {
+            assert!(matches!(
+                CanonicalScalarGoal::ExactArithmeticRepresentable {
+                    integer_type: i8_type,
+                    expression,
+                }
+                .kernel_proposition(),
+                Err(OperationSemanticError::InvalidProposition(_))
+            ));
+        }
+        assert_eq!(
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: i8_type,
+                expression: malformed(
+                    i8_type,
+                    i8_value.clone(),
+                    ScalarTerm::exact_integer_multiply(
+                        i8_type,
+                        i8_value,
+                        ScalarTerm::integer(i8_type, IntegerValue::Signed(1)).unwrap(),
+                    )
+                    .unwrap(),
+                ),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand),
         );
     }
 
@@ -2060,7 +2361,7 @@ mod tests {
                 .unwrap(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Conjunction(vec![
+            Ok(Proposition::Conjunction(vec![
                 Proposition::IntegerMathLessOrEqual(
                     IntegerMathTerm::literal(IntegerValue::Signed(-128)),
                     difference.clone(),
@@ -2069,7 +2370,7 @@ mod tests {
                     difference,
                     IntegerMathTerm::literal(IntegerValue::Signed(127)),
                 ),
-            ]))),
+            ])),
         );
 
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
@@ -2086,7 +2387,7 @@ mod tests {
                 .unwrap(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::IntegerMathLessOrEqual(
+            Ok(Proposition::IntegerMathLessOrEqual(
                 IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
                 IntegerMathTerm::Subtract(
                     Box::new(IntegerMathTerm::MathValue {
@@ -2098,7 +2399,7 @@ mod tests {
                         value: right_id,
                     }),
                 ),
-            ))),
+            )),
         );
     }
 
@@ -2120,7 +2421,7 @@ mod tests {
                     .unwrap(),
                 }
                 .kernel_proposition(),
-                Ok(Some(expected)),
+                Ok(expected),
             );
         }
         assert_eq!(
@@ -2137,7 +2438,7 @@ mod tests {
                 .unwrap(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Truth)),
+            Ok(Proposition::Truth),
         );
         let value = ScalarTerm::value(
             ValueId::new(38).expect("same value"),
@@ -2150,7 +2451,7 @@ mod tests {
                     .unwrap(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Truth)),
+            Ok(Proposition::Truth),
         );
     }
 
@@ -2178,7 +2479,7 @@ mod tests {
                     .unwrap(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Conjunction(vec![
+            Ok(Proposition::Conjunction(vec![
                 Proposition::IntegerMathLessOrEqual(
                     IntegerMathTerm::literal(IntegerValue::Signed(-128)),
                     signed_sum.clone(),
@@ -2187,7 +2488,7 @@ mod tests {
                     signed_sum,
                     IntegerMathTerm::literal(IntegerValue::Signed(127)),
                 ),
-            ]))),
+            ])),
         );
 
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
@@ -2202,7 +2503,7 @@ mod tests {
                     .unwrap(),
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::IntegerMathLessOrEqual(
+            Ok(Proposition::IntegerMathLessOrEqual(
                 IntegerMathTerm::Add(
                     Box::new(IntegerMathTerm::MathValue {
                         source_type: unsigned,
@@ -2214,7 +2515,7 @@ mod tests {
                     }),
                 ),
                 IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
-            ))),
+            )),
         );
     }
 
@@ -2236,7 +2537,7 @@ mod tests {
                     .unwrap(),
                 }
                 .kernel_proposition(),
-                Ok(Some(expected)),
+                Ok(expected),
             );
         }
         let value = ScalarTerm::value(
@@ -2254,7 +2555,7 @@ mod tests {
                     expression,
                 }
                 .kernel_proposition(),
-                Ok(Some(Proposition::Truth)),
+                Ok(Proposition::Truth),
             );
         }
     }
@@ -2419,7 +2720,7 @@ mod tests {
                 count,
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Conjunction(vec![
+            Ok(Proposition::Conjunction(vec![
                 Proposition::LessOrEqual(
                     ScalarTerm::integer(count_type, IntegerValue::Signed(0)).unwrap(),
                     ScalarTerm::value(count_id, ScalarType::Integer(count_type)),
@@ -2436,7 +2737,7 @@ mod tests {
                     shifted,
                     IntegerMathTerm::literal(IntegerValue::Signed(127)),
                 ),
-            ]))),
+            ])),
         );
     }
 
@@ -2457,7 +2758,7 @@ mod tests {
                     count: ScalarTerm::integer(count_type, IntegerValue::Unsigned(count)).unwrap(),
                 }
                 .kernel_proposition(),
-                Ok(Some(expected)),
+                Ok(expected),
             );
         }
         assert_eq!(
@@ -2492,7 +2793,7 @@ mod tests {
                 operand: value,
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Conjunction(vec![
+            Ok(Proposition::Conjunction(vec![
                 Proposition::IntegerMathLessOrEqual(
                     IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
                     mathematical_value.clone(),
@@ -2501,7 +2802,7 @@ mod tests {
                     mathematical_value,
                     IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
                 ),
-            ])))
+            ]))
         );
     }
 
@@ -2520,7 +2821,7 @@ mod tests {
                 operand: value,
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Truth))
+            Ok(Proposition::Truth)
         );
         let literal = ScalarTerm::integer(i16_type, IntegerValue::Signed(-1)).expect("-1:i16");
         assert_eq!(
@@ -2530,7 +2831,7 @@ mod tests {
                 operand: literal,
             }
             .kernel_proposition(),
-            Ok(Some(Proposition::Falsehood))
+            Ok(Proposition::Falsehood)
         );
     }
 }

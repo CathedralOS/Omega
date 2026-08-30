@@ -45,6 +45,8 @@ enum CheckedIntegerEndpointStep {
     CorrelatedSubtractLower,
     CorrelatedSubtractUpper,
     CorrelatedUnsignedSubtract,
+    CorrelatedMultiplyMinimum,
+    CorrelatedMultiplyMaximum,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,6 +89,9 @@ pub fn check_integer_affine_witness(
     if let Some(form) = check_correlated_subtract_witness(context, semantic_axioms, witness)? {
         return Ok(form);
     }
+    if let Some(form) = check_correlated_multiply_witness(context, semantic_axioms, witness)? {
+        return Ok(form);
+    }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
         && let ScalarTerm::ExactIntegerSubtract {
@@ -108,6 +113,27 @@ pub fn check_integer_affine_witness(
             coefficient: 1,
             offset: 0,
             endpoint_steps: vec![CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract],
+        });
+    }
+    if witness.definition_axioms.is_empty()
+        && witness.literal_axioms.is_empty()
+        && let ScalarTerm::ExactIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        } = &witness.target
+        && (left.as_ref() == &witness.root || right.as_ref() == &witness.root)
+        && scalar_type.carrier() == IntegerCarrier::Fixed
+        && direct_math_leaf(left, *scalar_type).is_some()
+        && direct_math_leaf(right, *scalar_type).is_some()
+    {
+        return Ok(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: *scalar_type,
+            coefficient: 1,
+            offset: 0,
+            endpoint_steps: Vec::new(),
         });
     }
     if witness.definition_axioms.is_empty()
@@ -427,6 +453,86 @@ fn check_correlated_subtract_witness(
         }
         Some(value) if value == scalar_type.maximum_value() => {
             CheckedIntegerEndpointStep::CorrelatedSubtractUpper
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(CheckedIntegerAffineForm {
+        root: witness.root.clone(),
+        target: witness.target.clone(),
+        integer_type: *scalar_type,
+        coefficient: 1,
+        offset: 0,
+        endpoint_steps: vec![endpoint_step],
+    }))
+}
+
+fn check_correlated_multiply_witness(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    witness: &IntegerAffineWitness,
+) -> Result<Option<CheckedIntegerAffineForm>, IntegerAffineWitnessError> {
+    let ScalarTerm::ExactIntegerMultiply {
+        scalar_type,
+        left,
+        right,
+    } = &witness.target
+    else {
+        return Ok(None);
+    };
+    if witness.definition_axioms.len() != 1 || witness.literal_axioms.len() != 1 {
+        return Ok(None);
+    }
+    if !matches!(witness.root, ScalarTerm::Value { .. })
+        || scalar_type.carrier() != IntegerCarrier::Fixed
+        || direct_math_leaf(left, *scalar_type).is_none()
+        || direct_math_leaf(right, *scalar_type).is_none()
+        || witness.root.scalar_type() != ScalarType::Integer(*scalar_type)
+    {
+        return Ok(None);
+    }
+    let index = witness.definition_axioms[0];
+    let axiom = semantic_axioms
+        .get(index)
+        .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
+    context
+        .validate(axiom)
+        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+    let Proposition::Equal(equal_left, equal_right) = axiom else {
+        return Ok(None);
+    };
+    let expression = if equal_left == &witness.root {
+        equal_right
+    } else if equal_right == &witness.root {
+        equal_left
+    } else {
+        return Ok(None);
+    };
+    let ScalarTerm::ExactIntegerDivide {
+        scalar_type: divide_type,
+        left: endpoint,
+        right: divide_right,
+    } = expression
+    else {
+        return Ok(None);
+    };
+    if divide_type != scalar_type || divide_right.as_ref() != right.as_ref() {
+        return Ok(None);
+    }
+    let endpoint_value = match (endpoint.integer_value(), witness.literal_axioms[0]) {
+        (Some((actual, value)), None) => (actual == *scalar_type).then_some(value),
+        (None, Some(landing_index)) => {
+            let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
+            (landed.term == endpoint.as_ref().clone() && landed.integer_type == *scalar_type)
+                .then_some(landed.value)
+        }
+        _ => return Ok(None),
+    };
+    let endpoint_step = match endpoint_value {
+        Some(value) if value == scalar_type.minimum_value() => {
+            CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
+        }
+        Some(value) if value == scalar_type.maximum_value() => {
+            CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum
         }
         _ => return Ok(None),
     };
@@ -783,6 +889,13 @@ pub fn map_integer_affine_bound(
     ) {
         return map_correlated_subtract_bound(form, root_bound);
     }
+    if matches!(
+        form.endpoint_steps.as_slice(),
+        [CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum]
+            | [CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum]
+    ) {
+        return map_correlated_multiply_bound(form, root_bound);
+    }
     if form.endpoint_steps.is_empty() && matches!(form.target(), ScalarTerm::ExactIntegerAdd { .. })
     {
         return map_direct_add_bound(form, root_bound);
@@ -791,6 +904,11 @@ pub fn map_integer_affine_bound(
         && matches!(form.target(), ScalarTerm::ExactIntegerSubtract { .. })
     {
         return map_direct_subtract_bound(form, root_bound);
+    }
+    if form.endpoint_steps.is_empty()
+        && matches!(form.target(), ScalarTerm::ExactIntegerMultiply { .. })
+    {
+        return map_direct_multiply_bound(form, root_bound);
     }
     if form.endpoint_steps.is_empty()
         && let ScalarTerm::ExactIntegerShiftLeft {
@@ -859,7 +977,9 @@ pub fn map_integer_affine_bound(
             | CheckedIntegerEndpointStep::CorrelatedAddUpper
             | CheckedIntegerEndpointStep::CorrelatedSubtractLower
             | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
-            | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract => {
+            | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
+            | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
+            | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                 return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
             }
         }
@@ -976,6 +1096,71 @@ fn map_correlated_subtract_bound(
     } else {
         Proposition::IntegerMathLessOrEqual(
             difference,
+            IntegerMathTerm::literal(form.integer_type().maximum_value()),
+        )
+    })
+}
+
+fn map_correlated_multiply_bound(
+    form: &CheckedIntegerAffineForm,
+    evidence: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    let ScalarTerm::ExactIntegerMultiply { left, right, .. } = form.target() else {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    };
+    let Proposition::Conjunction(parts) = evidence else {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    };
+    let [sign_evidence, bound_evidence] = parts.as_slice() else {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    };
+    let one = ScalarTerm::integer(
+        form.integer_type(),
+        match form.integer_type().sign() {
+            IntegerSign::Signed => IntegerValue::Signed(1),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+        },
+    )
+    .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?;
+    let positive = sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone());
+    let negative_two = ScalarTerm::integer(form.integer_type(), IntegerValue::Signed(-2)).ok();
+    let negative = negative_two.is_some_and(|negative_two| {
+        sign_evidence == &Proposition::LessOrEqual(right.as_ref().clone(), negative_two)
+    });
+    if !positive && !negative {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    }
+    let endpoint_minimum = matches!(
+        form.endpoint_steps.as_slice(),
+        [CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum]
+    );
+    let lower = endpoint_minimum;
+    let expected_bound = if lower == positive {
+        Proposition::LessOrEqual(form.root().clone(), left.as_ref().clone())
+    } else {
+        Proposition::LessOrEqual(left.as_ref().clone(), form.root().clone())
+    };
+    if bound_evidence != &expected_bound {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    }
+    let product = IntegerMathTerm::Multiply(
+        Box::new(
+            direct_math_leaf(left, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
+        ),
+        Box::new(
+            direct_math_leaf(right, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
+        ),
+    );
+    Ok(if lower {
+        Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(form.integer_type().minimum_value()),
+            product,
+        )
+    } else {
+        Proposition::IntegerMathLessOrEqual(
+            product,
             IntegerMathTerm::literal(form.integer_type().maximum_value()),
         )
     })
@@ -1100,6 +1285,112 @@ fn map_direct_subtract_bound(
         Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), difference)
     } else {
         Proposition::IntegerMathLessOrEqual(difference, IntegerMathTerm::IntegerLiteral(bound))
+    })
+}
+
+fn map_direct_multiply_bound(
+    form: &CheckedIntegerAffineForm,
+    evidence: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    let Proposition::Conjunction(parts) = evidence else {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    };
+    let [left_first, left_second, right_first, right_second] = parts.as_slice() else {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    };
+    let ScalarTerm::ExactIntegerMultiply {
+        scalar_type,
+        left,
+        right,
+    } = form.target()
+    else {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    };
+    if *scalar_type != form.integer_type() {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
+    }
+    let left_first = direct_operand_endpoint(left, left_first, form.integer_type())?;
+    let left_second = direct_operand_endpoint(left, left_second, form.integer_type())?;
+    let right_first = direct_operand_endpoint(right, right_first, form.integer_type())?;
+    let right_second = direct_operand_endpoint(right, right_second, form.integer_type())?;
+    let pair_orientation = |first: &DirectAddEndpoint,
+                            second: &DirectAddEndpoint|
+     -> Result<Option<bool>, IntegerAffineBoundConversionError> {
+        match (first.orientation(), second.orientation()) {
+            (Some(first), Some(second)) if first != second => Ok(Some(first)),
+            (Some(first), None) if matches!(second, DirectAddEndpoint::Carrier) => Ok(Some(first)),
+            (None, Some(second)) if matches!(first, DirectAddEndpoint::Carrier) => {
+                Ok(Some(!second))
+            }
+            (None, None)
+                if matches!(
+                    (first, second),
+                    (DirectAddEndpoint::Exact(left), DirectAddEndpoint::Exact(right)) if left == right
+                ) || matches!(
+                    (first, second),
+                    (DirectAddEndpoint::Carrier, DirectAddEndpoint::Carrier)
+                ) =>
+            {
+                Ok(None)
+            }
+            _ => Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch),
+        }
+    };
+    let left_orientation = pair_orientation(&left_first, &left_second)?;
+    let right_orientation = pair_orientation(&right_first, &right_second)?;
+    let lower = match (left_orientation, right_orientation) {
+        (Some(left), Some(right)) if left == right => left,
+        (Some(left), None) => left,
+        (None, Some(right)) => right,
+        _ => return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch),
+    };
+    let (left_lower, left_upper, right_lower, right_upper) = if lower {
+        (
+            left_first.literal(form.integer_type(), true),
+            left_second.literal(form.integer_type(), false),
+            right_first.literal(form.integer_type(), true),
+            right_second.literal(form.integer_type(), false),
+        )
+    } else {
+        (
+            left_second.literal(form.integer_type(), true),
+            left_first.literal(form.integer_type(), false),
+            right_second.literal(form.integer_type(), true),
+            right_first.literal(form.integer_type(), false),
+        )
+    };
+    let products = [
+        multiply_math_literals(left_lower, right_lower)?,
+        multiply_math_literals(left_lower, right_upper)?,
+        multiply_math_literals(left_upper, right_lower)?,
+        multiply_math_literals(left_upper, right_upper)?,
+    ];
+    let bound = products
+        .into_iter()
+        .reduce(|current, candidate| {
+            if (lower && math_literal_less(candidate, current))
+                || (!lower && math_literal_less(current, candidate))
+            {
+                candidate
+            } else {
+                current
+            }
+        })
+        .expect("four product corners");
+    let product = IntegerMathTerm::Multiply(
+        Box::new(
+            direct_math_leaf(left, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
+        ),
+        Box::new(
+            direct_math_leaf(right, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
+        ),
+    );
+    Ok(if lower {
+        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), product)
+    } else {
+        Proposition::IntegerMathLessOrEqual(product, IntegerMathTerm::IntegerLiteral(bound))
     })
 }
 
@@ -1233,6 +1524,33 @@ fn subtract_math_literals(
     };
     psi_core::IntegerMathLiteral::new(negative, magnitude)
         .map_err(|_| IntegerAffineBoundConversionError::DirectSubtractBoundOverflow)
+}
+
+fn multiply_math_literals(
+    left: psi_core::IntegerMathLiteral,
+    right: psi_core::IntegerMathLiteral,
+) -> Result<psi_core::IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    let magnitude = left
+        .magnitude()
+        .checked_mul(right.magnitude())
+        .ok_or(IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)?;
+    psi_core::IntegerMathLiteral::new(
+        magnitude != 0 && left.negative() != right.negative(),
+        magnitude,
+    )
+    .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)
+}
+
+fn math_literal_less(
+    left: psi_core::IntegerMathLiteral,
+    right: psi_core::IntegerMathLiteral,
+) -> bool {
+    match (left.negative(), right.negative()) {
+        (true, false) => true,
+        (false, true) => false,
+        (true, true) => left.magnitude() > right.magnitude(),
+        (false, false) => left.magnitude() < right.magnitude(),
+    }
 }
 
 fn direct_math_leaf(term: &ScalarTerm, expected: IntegerType) -> Option<IntegerMathTerm> {
@@ -1534,7 +1852,9 @@ pub fn integer_affine_truth_bounds(
             | CheckedIntegerEndpointStep::CorrelatedAddUpper
             | CheckedIntegerEndpointStep::CorrelatedSubtractLower
             | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
-            | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract => {
+            | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
+            | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
+            | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                 return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
             }
         }
@@ -1602,6 +1922,8 @@ pub enum IntegerAffineBoundConversionError {
     DirectAddBoundOverflow,
     DirectSubtractEvidenceMismatch,
     DirectSubtractBoundOverflow,
+    DirectMultiplyEvidenceMismatch,
+    DirectMultiplyBoundOverflow,
     ConclusionMismatch,
 }
 
@@ -1689,7 +2011,7 @@ mod tests {
         let sibling = value(2, integer_type);
         let target = value(3, integer_type);
         let context = PropositionContext::from_value_types(
-            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+            (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
         )
         .unwrap();
         let landing = Proposition::Equal(sibling.clone(), literal(integer_type, 7));
@@ -2576,7 +2898,7 @@ mod tests {
         let target =
             ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).unwrap();
         let context = PropositionContext::from_value_types(
-            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+            (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
         )
         .unwrap();
         let checked = check_integer_affine_witness(
@@ -2769,6 +3091,231 @@ mod tests {
             map_integer_affine_bound(&checked, &Proposition::LessOrEqual(left, right)).is_err(),
             "reversed unsigned guard rejects",
         );
+    }
+
+    #[test]
+    fn direct_multiply_replays_four_corners_and_rejects_order_mutations() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap();
+        let checked = check_integer_affine_witness(
+            &context,
+            &[],
+            &IntegerAffineWitness {
+                root: left.clone(),
+                target: ScalarTerm::exact_integer_multiply(
+                    integer_type,
+                    left.clone(),
+                    right.clone(),
+                )
+                .unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        )
+        .expect("direct multiply witness");
+        let lower = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(literal(integer_type, -4), left.clone()),
+            Proposition::LessOrEqual(left.clone(), literal(integer_type, 5)),
+            Proposition::LessOrEqual(literal(integer_type, -3), right.clone()),
+            Proposition::LessOrEqual(right.clone(), literal(integer_type, 2)),
+        ]);
+        let product = IntegerMathTerm::Multiply(
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(1).unwrap(),
+            }),
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(2).unwrap(),
+            }),
+        );
+        assert_eq!(
+            map_integer_affine_bound(&checked, &lower),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Signed(-15)),
+                product,
+            )),
+        );
+        for malformed in [
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(left.clone(), literal(integer_type, 5)),
+                Proposition::LessOrEqual(literal(integer_type, -4), left.clone()),
+                Proposition::LessOrEqual(literal(integer_type, -3), right.clone()),
+                Proposition::LessOrEqual(right.clone(), literal(integer_type, 2)),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(literal(integer_type, -4), left.clone()),
+                Proposition::LessOrEqual(left.clone(), literal(integer_type, 5)),
+                Proposition::LessOrEqual(literal(integer_type, -3), value(3, integer_type)),
+                Proposition::LessOrEqual(right.clone(), literal(integer_type, 2)),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(literal(integer_type, -4), left.clone()),
+                Proposition::LessOrEqual(left, literal(integer_type, 5)),
+                Proposition::LessOrEqual(literal(integer_type, -3), right),
+            ]),
+        ] {
+            assert!(map_integer_affine_bound(&checked, &malformed).is_err());
+        }
+    }
+
+    #[test]
+    fn correlated_negative_multiply_uses_target_endpoint_and_sign_orientation() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let quotient = value(3, integer_type);
+        let context = PropositionContext::from_value_types(
+            (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+        )
+        .unwrap();
+        let target =
+            ScalarTerm::exact_integer_multiply(integer_type, left.clone(), right.clone()).unwrap();
+        let negative = Proposition::LessOrEqual(right.clone(), literal(integer_type, -2));
+        for (endpoint, comparison, expected) in [
+            (
+                -128,
+                Proposition::LessOrEqual(left.clone(), quotient.clone()),
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                    IntegerMathTerm::Multiply(
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type: integer_type,
+                            value: ValueId::new(1).unwrap(),
+                        }),
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type: integer_type,
+                            value: ValueId::new(2).unwrap(),
+                        }),
+                    ),
+                ),
+            ),
+            (
+                127,
+                Proposition::LessOrEqual(quotient.clone(), left.clone()),
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::Multiply(
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type: integer_type,
+                            value: ValueId::new(1).unwrap(),
+                        }),
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type: integer_type,
+                            value: ValueId::new(2).unwrap(),
+                        }),
+                    ),
+                    IntegerMathTerm::literal(IntegerValue::Signed(127)),
+                ),
+            ),
+        ] {
+            let axiom = Proposition::Equal(
+                quotient.clone(),
+                ScalarTerm::exact_integer_divide(
+                    integer_type,
+                    literal(integer_type, endpoint),
+                    right.clone(),
+                )
+                .unwrap(),
+            );
+            let checked = check_integer_affine_witness(
+                &context,
+                std::slice::from_ref(&axiom),
+                &IntegerAffineWitness {
+                    root: quotient.clone(),
+                    target: target.clone(),
+                    definition_axioms: vec![0],
+                    literal_axioms: vec![None],
+                },
+            )
+            .expect("negative quotient witness");
+            let evidence = Proposition::Conjunction(vec![negative.clone(), comparison.clone()]);
+            assert_eq!(map_integer_affine_bound(&checked, &evidence), Ok(expected));
+            let Proposition::LessOrEqual(comparison_left, comparison_right) = &comparison else {
+                unreachable!("correlated comparison is ordered")
+            };
+            assert_eq!(
+                map_integer_affine_bound(
+                    &checked,
+                    &Proposition::Conjunction(vec![
+                        negative.clone(),
+                        Proposition::LessOrEqual(comparison_right.clone(), comparison_left.clone(),),
+                    ]),
+                ),
+                Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch),
+                "for right=-2, lower uses left<=MIN/right (64) and upper uses MAX/right (-63)<=left",
+            );
+        }
+
+        let landed_endpoint = value(4, integer_type);
+        let landing = Proposition::Equal(landed_endpoint.clone(), literal(integer_type, -128));
+        let definition = Proposition::Equal(
+            quotient.clone(),
+            ScalarTerm::exact_integer_divide(integer_type, landed_endpoint.clone(), right.clone())
+                .unwrap(),
+        );
+        let landed_witness = IntegerAffineWitness {
+            root: quotient,
+            target,
+            definition_axioms: vec![1],
+            literal_axioms: vec![Some(0)],
+        };
+        assert!(
+            check_integer_affine_witness(
+                &context,
+                &[landing.clone(), definition.clone()],
+                &landed_witness,
+            )
+            .is_ok(),
+            "an exact earlier endpoint landing is replayed",
+        );
+        for (axioms, witness) in [
+            (
+                vec![landing.clone(), definition.clone()],
+                IntegerAffineWitness {
+                    literal_axioms: vec![None],
+                    ..landed_witness.clone()
+                },
+            ),
+            (
+                vec![definition.clone(), landing.clone()],
+                IntegerAffineWitness {
+                    definition_axioms: vec![0],
+                    literal_axioms: vec![Some(1)],
+                    ..landed_witness.clone()
+                },
+            ),
+            (
+                vec![
+                    Proposition::Equal(landed_endpoint.clone(), literal(integer_type, -127)),
+                    definition.clone(),
+                ],
+                landed_witness.clone(),
+            ),
+            (
+                vec![
+                    landing,
+                    Proposition::Equal(
+                        landed_witness.root.clone(),
+                        ScalarTerm::exact_integer_divide(
+                            integer_type,
+                            landed_endpoint,
+                            value(5, integer_type),
+                        )
+                        .unwrap(),
+                    ),
+                ],
+                landed_witness,
+            ),
+        ] {
+            assert!(check_integer_affine_witness(&context, &axioms, &witness).is_err());
+        }
     }
 
     #[test]

@@ -1,17 +1,13 @@
 //! Immutable typed indexes used while reconstructing one terminal machine.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use psi_core::{BlockId, MachineId, PropositionContext, ScalarTerm, ScalarType, ValueId};
+use psi_core::{BlockId, MachineId, ScalarTerm, ScalarType, ValueId};
 use psi_terminal::{Block, OperationKind, TerminalMachine, TerminalModule};
-
-use crate::ModuleError;
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
     pub(super) value_types: BTreeMap<ValueId, ScalarType>,
-    pub(super) proposition_context: PropositionContext,
-    pub(super) machine_parameter_values: BTreeSet<ValueId>,
     pub(super) blocks: BTreeMap<BlockId, &'a Block>,
     pub(super) machines: BTreeMap<MachineId, &'a TerminalMachine>,
 }
@@ -20,7 +16,7 @@ impl<'a> MachineReconstructionContext<'a> {
     pub(super) fn new(
         module: &'a TerminalModule,
         machine: &'a TerminalMachine,
-    ) -> Result<Self, ModuleError> {
+    ) -> Self {
         let reconstruct_path_facts = machine.blocks.iter().any(|block| {
             block.operations.iter().any(|operation| {
                 matches!(
@@ -62,17 +58,6 @@ impl<'a> MachineReconstructionContext<'a> {
             }))
             .map(|declaration| (declaration.id, declaration.scalar_type))
             .collect::<BTreeMap<_, _>>();
-        let proposition_context = PropositionContext::from_value_types(
-            value_types
-                .iter()
-                .map(|(&id, &scalar_type)| (id, scalar_type)),
-        )
-        .map_err(ModuleError::MalformedProposition)?;
-        let machine_parameter_values = machine
-            .parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect::<BTreeSet<_>>();
         let blocks = machine
             .blocks
             .iter()
@@ -83,14 +68,12 @@ impl<'a> MachineReconstructionContext<'a> {
             .iter()
             .map(|machine| (machine.id, machine))
             .collect::<BTreeMap<_, _>>();
-        Ok(Self {
+        Self {
             reconstruct_path_facts,
             value_types,
-            proposition_context,
-            machine_parameter_values,
             blocks,
             machines,
-        })
+        }
     }
 
     pub(super) fn value_term(&self, id: ValueId) -> ScalarTerm {

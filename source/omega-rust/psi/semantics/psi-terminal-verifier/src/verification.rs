@@ -1,10 +1,6 @@
 use std::collections::BTreeMap;
-#[cfg(test)]
-use std::collections::BTreeSet;
 
 use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
-#[cfg(test)]
-use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm};
 use psi_proof_admission::{AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation};
 use psi_terminal::TerminalModule;
 
@@ -14,25 +10,15 @@ use crate::{
     validate_module_for_interpretation, validate_module_for_native_ranked_countdown,
 };
 
-mod affine_joins;
 mod call_composition;
 mod evidence_provenance;
 mod float_meaning_projection;
-mod integer_add_subtract;
-mod integer_affine;
-mod integer_conversion;
-mod integer_divide_remainder;
-mod integer_foundation;
-mod integer_multiply;
-mod integer_shift;
 mod proof_bundle;
 mod reconstruction;
 mod substitution;
-mod sufficient_reduction;
 
 use evidence_provenance::validate_evidence_producer_provenance;
 pub use float_meaning_projection::*;
-use integer_foundation::*;
 pub use proof_bundle::*;
 use reconstruction::reconstruct_validated_terminal_obligations;
 pub use reconstruction::{
@@ -44,92 +30,6 @@ pub use reconstruction::{
 };
 pub(crate) use substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
-};
-
-#[cfg(test)]
-use integer_add_subtract::{exact_integer_add_obligation, exact_integer_subtract_obligation};
-#[cfg(test)]
-use integer_affine::exact_integer_affine_interval_obligation;
-use integer_affine::{
-    exact_integer_affine_cast_affine_obligation, exact_integer_affine_chain_obligation,
-    exact_integer_cast_chain_then_affine_suffix_obligation,
-    exact_integer_cast_then_affine_chain_obligation,
-    exact_integer_signed_affine_cast_affine_obligation,
-    exact_integer_signed_affine_chain_obligation, exact_integer_signed_affine_initial_form,
-    exact_integer_signed_affine_interval_obligation, exact_integer_signed_affine_preimage_interval,
-    exact_integer_signed_affine_replay,
-};
-#[cfg(test)]
-use integer_conversion::exact_integer_cast_obligation;
-#[cfg(test)]
-use integer_conversion::{
-    exact_integer_affine_chain_cast_obligation, exact_integer_cast_chain_obligation,
-    exact_integer_computed_prefix_cast_chain_interval_obligation,
-    exact_integer_computed_prefix_cast_chain_obligation,
-    exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation,
-    exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation,
-    exact_integer_computed_prefix_widen_chain_interval_obligation,
-    exact_integer_signed_affine_chain_cast_obligation,
-    exact_integer_signed_multiply_chain_cast_obligation,
-};
-use integer_conversion::{
-    exact_integer_affine_preimage_interval, exact_integer_affine_preimage_obligation,
-    exact_integer_cast_chain_root_interval, exact_integer_cast_then_offset_obligation,
-    exact_integer_computed_prefix_conversion_interval_obligation,
-    exact_integer_divide_remainder_cast_affine_obligation,
-    exact_integer_divide_remainder_chain_hull,
-    exact_integer_divide_remainder_then_affine_obligation,
-    exact_integer_signed_product_interval_obligation, partial_fixed_native_integer_cast,
-};
-#[cfg(test)]
-use integer_divide_remainder::{
-    exact_integer_divide_obligation, exact_integer_remainder_obligation,
-};
-#[cfg(test)]
-use integer_divide_remainder::{
-    exact_integer_divide_obligation_with_definitions,
-    exact_integer_remainder_obligation_with_definitions, saturating_integer_divide_obligation,
-    saturating_integer_remainder_obligation, wrapping_integer_divide_obligation,
-    wrapping_integer_remainder_obligation,
-};
-#[cfg(test)]
-use integer_multiply::exact_integer_multiply_obligation_with_definitions;
-#[cfg(test)]
-use integer_multiply::{
-    exact_integer_cast_chain_then_signed_product_suffix_obligation,
-    exact_integer_cast_then_signed_affine_chain_obligation,
-    exact_integer_cast_then_signed_multiply_chain_obligation, exact_integer_multiply_obligation,
-    exact_integer_signed_multiply_chain_obligation,
-};
-#[cfg(test)]
-use integer_shift::{
-    exact_integer_affine_cast_shift_obligation,
-    exact_integer_arithmetic_then_shift_chain_obligation,
-    exact_integer_cast_chain_then_shift_suffix_obligation,
-    exact_integer_cast_then_mixed_shift_chain_obligation,
-    exact_integer_cast_then_shift_left_chain_obligation,
-    exact_integer_cumulative_shift_left_obligation,
-    exact_integer_divide_remainder_cast_shift_obligation,
-    exact_integer_divide_remainder_then_shift_obligation,
-    exact_integer_mixed_shift_chain_cast_obligation, exact_integer_mixed_shift_chain_obligation,
-    exact_integer_mixed_shift_preimage, exact_integer_shift_cast_shift_obligation,
-    exact_integer_shift_left_chain_obligation,
-    exact_integer_shift_right_chain_cast_interval_obligation,
-};
-use integer_shift::{
-    exact_integer_shift_cast_affine_obligation,
-    exact_integer_shift_then_arithmetic_chain_obligation,
-};
-#[cfg(test)]
-use integer_shift::{exact_integer_shift_left_obligation, exact_integer_shift_obligation};
-
-#[cfg(test)]
-use affine_joins::{
-    exact_integer_affine_fork_join_obligation, exact_integer_affine_quadratic_range,
-    exact_integer_distinct_root_affine_fork_join_obligation,
-    exact_integer_distinct_root_affine_product_join_obligation,
-    exact_integer_same_root_affine_divide_remainder_join_obligation,
-    exact_integer_same_root_affine_product_join_obligation,
 };
 
 #[derive(Debug)]
@@ -392,6 +292,3 @@ impl std::fmt::Display for VerificationError {
 }
 
 impl std::error::Error for VerificationError {}
-
-#[cfg(test)]
-mod tests;

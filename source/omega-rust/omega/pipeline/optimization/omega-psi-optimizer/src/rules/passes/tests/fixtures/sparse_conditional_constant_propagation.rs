@@ -671,7 +671,6 @@ pub(crate) fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
             count: psi_core::ScalarTerm::value(count, ScalarType::Integer(eight_bit)),
         }
         .kernel_proposition()
-        .unwrap()
         .unwrap();
         let proposition =
             psi_terminal_codec::canonical_proposition_order_key(&proposition).unwrap();
