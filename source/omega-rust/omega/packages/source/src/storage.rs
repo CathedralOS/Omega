@@ -7,7 +7,7 @@ use super::custody::tree::{
     CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root,
     verify_git_cache_root_custody,
 };
-use super::local::capture::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};

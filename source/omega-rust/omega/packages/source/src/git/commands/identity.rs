@@ -1,7 +1,7 @@
 //! Stable identities for sealed Git commands and committed standard input.
 
 use crate::SourceResolveError;
-use crate::local::capture::hash_bytes;
+use crate::identity::digest::{format_sha256, hash_bytes};
 use crate::observations::execution::GitCommandInputCommitment;
 use omega_resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use sha2::{Digest, Sha256};
@@ -59,16 +59,4 @@ pub(crate) fn git_command_configuration_identity_from_resolver(
         }
     }
     format_sha256(&hasher.finalize())
-}
-
-pub(crate) fn format_sha256(bytes: &[u8]) -> String {
-    format_hex(bytes)
-}
-
-pub(crate) fn format_hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
-    }
-    out
 }

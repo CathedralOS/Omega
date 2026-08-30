@@ -3,14 +3,14 @@
 use crate::custody::platform::same_capability_file_identity;
 use crate::error::SourceResolveError;
 use crate::limits::GIT_CONFIG_SHA256;
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use omega_platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
 use std::ffi::OsStr;
 use std::path::Path;
 
-use super::identity::cache_invalid;
+use crate::error::cache_invalid;
 
 pub(crate) fn replace_canonical_git_control_file(
     entry: &CapabilityDirectory,

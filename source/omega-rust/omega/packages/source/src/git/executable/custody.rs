@@ -4,7 +4,7 @@ use crate::SourceResolveError;
 #[cfg(any(target_os = "macos", windows))]
 use crate::custody::lock::same_std_and_capability_file_identity;
 #[cfg(any(target_os = "macos", windows))]
-use crate::local::capture::open_absolute_directory_nofollow;
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 #[cfg(any(target_os = "macos", windows))]
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(any(target_os = "macos", windows))]

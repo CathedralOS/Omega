@@ -3,35 +3,39 @@
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid, read_bounded_cache_record};
-use crate::git::cache::identity::cache_invalid;
+use crate::error::{cache_invalid, git_tree_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::commands::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::authentication::authenticate_git_tree;
-use crate::git::objects::tree::{git_directory_paths, git_tree_invalid};
+use crate::git::objects::tree::git_directory_paths;
 use crate::git::objects::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
 use crate::limits::{
     CANONICAL_DIRECTORY_MODE, GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE, LocalSourceLimits,
 };
-use crate::local::capture::{
-    CapturedLocalEntry, CapturedLocalEntryKind, SourceIdentityHasher, SourceTreePolicy,
-    capture_local_source_from_open_root, io_error, open_absolute_directory_nofollow,
-};
-use crate::local::model::ResolvedLocalSource;
 use crate::storage::RetainedStorageLane;
+use crate::tree::ResolvedLocalSource;
+use crate::tree::capture::{
+    CapturedLocalEntry, CapturedLocalEntryKind, SourceTreePolicy,
+    capture_local_source_from_open_root,
+};
+use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
+use crate::tree::identity::SourceIdentityHasher;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use super::construction::{
+use super::snapshot_metadata::{
+    GitSnapshotMetadata, git_snapshot_metadata, parse_git_snapshot_metadata,
+};
+use crate::snapshot::construction::{
     create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
     write_snapshot_file_from_open_root,
 };
-use super::metadata::{GitSnapshotMetadata, git_snapshot_metadata, parse_git_snapshot_metadata};
-use super::permissions::{make_open_snapshot_read_only, verify_open_snapshot_tree_modes};
-use super::publication::PendingMaterializedSnapshot;
+use crate::snapshot::permissions::{make_open_snapshot_read_only, verify_open_snapshot_tree_modes};
+use crate::snapshot::publication::PendingMaterializedSnapshot;
 
 pub(crate) fn resolve_git_snapshot(
     executor: &GitExecutor,

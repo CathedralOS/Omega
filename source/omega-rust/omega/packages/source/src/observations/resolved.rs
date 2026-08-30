@@ -1,6 +1,6 @@
 use crate::git::request::GitTransportProfile;
 use crate::git::workspace::GitWorkspaceProjectionCustody;
-use crate::local::model::ResolvedLocalSource;
+use crate::tree::ResolvedLocalSource;
 use omega_resolver_execution::ResolverExecutionPolicyObservation;
 use std::path::{Path, PathBuf};
 

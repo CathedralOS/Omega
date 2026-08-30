@@ -13,11 +13,11 @@ use crate::custody::publication::direct_cache_child_name;
 #[cfg(test)]
 use crate::custody::tree::{CacheCustodyKind, verify_git_cache_root_custody};
 use crate::limits::GIT_CACHE_METADATA;
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 #[cfg(test)]
-use crate::local::capture::open_absolute_directory_nofollow;
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 
-use super::identity::cache_invalid;
+use crate::error::cache_invalid;
 
 #[cfg(test)]
 pub(crate) fn invalidate_git_cache_entry_from_retained_parent(

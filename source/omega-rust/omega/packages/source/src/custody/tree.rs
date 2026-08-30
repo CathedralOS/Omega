@@ -11,13 +11,13 @@ use super::platform::{
     verify_windows_open_cache_regular_file_custody,
 };
 use crate::SourceResolveError;
-use crate::git::cache::identity::{cache_invalid, local_snapshot_invalid};
+use crate::error::{cache_invalid, local_snapshot_invalid};
 use crate::limits::{
     CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT, CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE,
     GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT, LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT,
     LocalSourceLimits,
 };
-use crate::local::capture::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use omega_platform_custody::record_file::{RecordFileLimits, RecordFileRoot};

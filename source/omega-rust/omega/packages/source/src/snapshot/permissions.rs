@@ -5,9 +5,9 @@ use crate::custody::platform::same_capability_file_identity;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 #[cfg(unix)]
 use crate::limits::CANONICAL_DIRECTORY_MODE;
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 #[cfg(test)]
-use crate::local::capture::is_executable;
+use crate::tree::filesystem::is_executable;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{
     Dir as CapabilityDirectory, Metadata as CapabilityMetadata,

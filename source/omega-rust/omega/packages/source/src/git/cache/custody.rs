@@ -13,9 +13,9 @@ use crate::SourceResolveError;
 use crate::custody::platform::same_capability_file_identity;
 use crate::custody::tree::{CacheCustodyKind, open_cache_custody_directory};
 use crate::limits::{CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT};
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 
-use super::identity::cache_invalid;
+use crate::error::cache_invalid;
 
 pub(super) fn open_retained_git_directory(
     parent: &CapabilityDirectory,

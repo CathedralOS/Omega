@@ -28,6 +28,7 @@ macro_rules! domain_digest {
     };
 }
 
+pub(crate) mod digest;
 mod error;
 mod git;
 mod local;

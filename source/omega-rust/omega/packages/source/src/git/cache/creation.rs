@@ -26,10 +26,11 @@ use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, GIT_CONFIG_SHA256, LocalSourceLimits,
 };
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 
-use super::identity::{cache_invalid, git_cache_metadata};
+use super::identity::git_cache_metadata;
 use super::repository::VerifiedGitRepository;
+use crate::error::cache_invalid;
 
 pub(crate) fn create_git_cache_entry(
     executor: &GitExecutor,

@@ -3,7 +3,7 @@
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::request::GitExecutionTransport;
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 #[cfg(unix)]
 use omega_resolver_execution::RESOLVER_CONNECT_HELPER_BASENAME;
 use omega_resolver_execution::{

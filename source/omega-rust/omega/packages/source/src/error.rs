@@ -2,7 +2,7 @@
 
 use crate::identity::SourceContentDigest;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceResolveError {
@@ -295,3 +295,30 @@ impl fmt::Display for SourceResolveError {
 }
 
 impl std::error::Error for SourceResolveError {}
+
+pub(crate) fn cache_invalid(path: &Path, message: impl Into<String>) -> SourceResolveError {
+    SourceResolveError::GitCacheInvalid {
+        path: path.to_path_buf(),
+        message: message.into(),
+    }
+}
+
+pub(crate) fn local_snapshot_invalid(
+    path: &Path,
+    message: impl Into<String>,
+) -> SourceResolveError {
+    SourceResolveError::LocalSnapshotInvalid {
+        path: path.to_path_buf(),
+        message: message.into(),
+    }
+}
+
+pub(crate) fn git_tree_invalid(
+    path: impl AsRef<[u8]>,
+    message: impl Into<String>,
+) -> SourceResolveError {
+    SourceResolveError::GitTreeInvalid {
+        path: path.as_ref().to_vec(),
+        message: message.into(),
+    }
+}

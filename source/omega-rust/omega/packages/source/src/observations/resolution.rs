@@ -1,9 +1,8 @@
 use crate::SourceResolveError;
-use crate::git::commands::identity::{
-    format_sha256, git_command_configuration_identity_from_resolver,
-};
+use crate::git::commands::identity::git_command_configuration_identity_from_resolver;
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
 use crate::identity::GitObjectIdAlgorithm;
+use crate::identity::digest::format_sha256;
 use crate::limits::{
     GIT_CACHE_POLICY, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_OBSERVATION_DOMAIN,
     GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION, GIT_SNAPSHOT_POLICY, LocalSourceLimits,

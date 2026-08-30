@@ -3,10 +3,10 @@
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::inspect_git_tree;
-use crate::git::snapshot::materialization::resolve_git_snapshot;
+use crate::git::snapshot::resolve_git_snapshot;
 use crate::git::workspace::{GitWorkspaceProjectionCustody, GitWorkspaceProjectionError};
 use crate::limits::LocalSourceLimits;
-use crate::local::model::ResolvedLocalSource;
+use crate::tree::ResolvedLocalSource;
 use std::path::PathBuf;
 
 pub(super) struct GitMaterializedSource<Evidence> {

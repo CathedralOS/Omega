@@ -1,6 +1,11 @@
-//! Results and verified-entry data shared by local-source operations.
+//! Local-source request, publication, and resolution observations.
 
+use crate::tree::ResolvedSourceTree;
 use std::path::{Path, PathBuf};
+
+pub use crate::tree::{
+    ResolvedLocalSource, VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
+};
 
 /// Compact canonical identity of one locally successful source resolution.
 ///
@@ -29,28 +34,13 @@ impl LocalSourceResolutionObservation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedLocalSource {
-    pub root: PathBuf,
-    /// Number of file and symlink leaves. Directories participate in identity and limits but are
-    /// not reported as files.
-    pub file_count: usize,
-    pub byte_count: u64,
-    pub content_identity: String,
-}
-
 /// A resolver-owned immutable copy of a requested local source tree.
-///
-/// `requested_root` preserves the caller's locator, `canonical_live_root` identifies the mutable
-/// tree that was captured, and `snapshot_root` is the only path downstream consumers should use.
-/// `normalized` is re-resolved from that published snapshot rather than trusted from the live tree
-/// or staging directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLocalSnapshot {
     requested_root: PathBuf,
     canonical_live_root: PathBuf,
     snapshot_root: PathBuf,
-    normalized: ResolvedLocalSource,
+    normalized: ResolvedSourceTree,
     resolution_observation: LocalSourceResolutionObservation,
 }
 
@@ -59,7 +49,7 @@ impl ResolvedLocalSnapshot {
         requested_root: PathBuf,
         canonical_live_root: PathBuf,
         snapshot_root: PathBuf,
-        normalized: ResolvedLocalSource,
+        normalized: ResolvedSourceTree,
         resolution_observation: LocalSourceResolutionObservation,
     ) -> Self {
         Self {
@@ -83,24 +73,11 @@ impl ResolvedLocalSnapshot {
         &self.snapshot_root
     }
 
-    pub const fn normalized(&self) -> &ResolvedLocalSource {
+    pub const fn normalized(&self) -> &ResolvedSourceTree {
         &self.normalized
     }
 
     pub const fn resolution_observation(&self) -> &LocalSourceResolutionObservation {
         &self.resolution_observation
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedPackageSourceEntry {
-    pub relative_path: Vec<u8>,
-    pub kind: VerifiedPackageSourceEntryKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VerifiedPackageSourceEntryKind {
-    Directory,
-    File { bytes: Vec<u8>, executable: bool },
-    Symlink { target_bytes: Vec<u8> },
 }

@@ -253,6 +253,74 @@ fn source_tests_live_with_their_owners() {
 }
 
 #[test]
+fn package_source_has_shared_owners_and_one_way_adapter_dependencies() {
+    let crate_root = package_root().join("source");
+    let source = crate_root.join("src");
+    let readme = fs::read_to_string(crate_root.join("README.md"))
+        .expect("read package-source README entrance");
+    let library = fs::read_to_string(source.join("lib.rs"))
+        .expect("read package-source library entrance");
+
+    for owner in [
+        "identity",
+        "tree",
+        "snapshot",
+        "custody",
+        "local",
+        "git",
+        "observations",
+    ] {
+        assert!(
+            readme.contains(&format!("{owner}/")),
+            "package-source README must advertise `{owner}/`",
+        );
+        assert!(
+            library.contains(&format!("mod {owner};")),
+            "package-source library must name `{owner}`",
+        );
+    }
+
+    for (adapter, forbidden_adapter) in [("local", "git"), ("git", "local")] {
+        for path in rust_files(&source.join(adapter)) {
+            if path
+                .components()
+                .any(|component| component.as_os_str() == "tests")
+            {
+                continue;
+            }
+            let text = fs::read_to_string(&path).expect("read package-source adapter file");
+            assert!(
+                !text.contains(&format!("crate::{forbidden_adapter}::")),
+                "`{adapter}` must not depend on `{forbidden_adapter}`: {}",
+                path.display(),
+            );
+        }
+    }
+
+    for shared_owner in ["identity", "tree", "snapshot", "custody"] {
+        for path in rust_files(&source.join(shared_owner)) {
+            if path
+                .components()
+                .any(|component| component.as_os_str() == "tests")
+            {
+                continue;
+            }
+            let text = fs::read_to_string(&path).expect("read shared package-source owner file");
+            for adapter in ["local", "git"] {
+                assert!(
+                    !text.contains(&format!("crate::{adapter}::")),
+                    "shared `{shared_owner}` must not depend on `{adapter}`: {}",
+                    path.display(),
+                );
+            }
+        }
+    }
+
+    assert!(source.join("tree/capture/mod.rs").is_file());
+    assert!(!source.join("tree/capture.rs").exists());
+}
+
+#[test]
 fn package_sources_are_bounded_and_shallow_enough_to_navigate() {
     let packages = package_root();
     for crate_name in PACKAGE_CRATES {

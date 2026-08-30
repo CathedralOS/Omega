@@ -1,14 +1,10 @@
 //! Stable Git cache identities, metadata records, and cache diagnostics.
 
-use std::path::Path;
-
 use sha2::{Digest, Sha256};
 
-use crate::SourceResolveError;
-use crate::git::commands::identity::format_sha256;
 use crate::git::request::GitExecutionTransport;
+use crate::identity::digest::{append_framed_bytes, format_sha256, hash_bytes};
 use crate::limits::GIT_CACHE_POLICY;
-use crate::local::capture::hash_bytes;
 
 pub(crate) fn git_cache_identity(
     url: &str,
@@ -34,26 +30,4 @@ pub(crate) fn git_cache_metadata(
     append_framed_bytes(&mut metadata, requested_rev.as_bytes());
     append_framed_bytes(&mut metadata, execution_transport.cache_tag());
     metadata
-}
-
-pub(crate) fn append_framed_bytes(output: &mut Vec<u8>, bytes: &[u8]) {
-    output.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
-    output.extend_from_slice(bytes);
-}
-
-pub(crate) fn cache_invalid(path: &Path, message: impl Into<String>) -> SourceResolveError {
-    SourceResolveError::GitCacheInvalid {
-        path: path.to_path_buf(),
-        message: message.into(),
-    }
-}
-
-pub(crate) fn local_snapshot_invalid(
-    path: &Path,
-    message: impl Into<String>,
-) -> SourceResolveError {
-    SourceResolveError::LocalSnapshotInvalid {
-        path: path.to_path_buf(),
-        message: message.into(),
-    }
 }

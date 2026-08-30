@@ -3,15 +3,15 @@
 use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::{verify_git_cache_custody, verify_git_cache_root_custody};
 use crate::error::SourceResolveError;
-use crate::git::cache::identity::cache_invalid;
+use crate::error::cache_invalid;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::request::GitSourceRequest;
 use crate::limits::LocalSourceLimits;
-use crate::local::capture::{SourceTreePolicy, capture_local_source};
 use crate::observations::receipt::reconstruct_git_source_strict_receipt;
 use crate::observations::resolution::issue_git_source_resolution_observation;
 use crate::observations::resolved::{PendingResolvedGitSource, ResolvedGitSource};
 use crate::observations::storage::issue_git_retained_storage_observation;
+use crate::tree::capture::{SourceTreePolicy, capture_local_source};
 use std::path::Path;
 
 pub(super) fn finalize_git_resolution(

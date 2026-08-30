@@ -28,14 +28,15 @@ use crate::limits::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_CONFIG_SHA1,
     GIT_CONFIG_SHA256, LocalSourceLimits,
 };
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 
 use super::custody::{
     open_retained_git_directory, reject_retained_git_path,
     verify_git_repository_tree_from_open_root, verify_retained_git_directory_identity,
 };
-use super::identity::{cache_invalid, git_cache_metadata};
+use super::identity::git_cache_metadata;
 use super::snapshots::RetainedGitSnapshots;
+use crate::error::cache_invalid;
 
 pub(crate) struct VerifiedGitRepository {
     pub(crate) entry_root: PathBuf,

@@ -78,7 +78,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             git_cache_identity(locator_identity, requested_rev, execution_transport);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_name = OsString::from(format!("git-{cache_identity}.lock"));
-        let entry_lock = CacheEntryLock::acquire_with_git_budget_from_parent(
+        let entry_lock = CacheEntryLock::acquire_with_budget_from_parent(
             cache_dir,
             cache_directory,
             &lock_name,

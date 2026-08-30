@@ -7,7 +7,7 @@ use crate::git::objects::{
     GitTreeEntry, GitTreeEntryKind, GitTreeProjectionRequest, inspect_git_tree_graph,
 };
 use crate::git::request::GitSourceRequest;
-use crate::git::snapshot::materialization::publish_git_member_snapshot;
+use crate::git::snapshot::publish_git_member_snapshot;
 use crate::git::workspace::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionCustody,
     GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,

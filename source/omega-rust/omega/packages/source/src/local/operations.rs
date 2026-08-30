@@ -4,17 +4,13 @@ use std::path::Path;
 
 use crate::SourceResolveError;
 use crate::custody::tree::CacheCustodyKind;
-use crate::git::cache::identity::local_snapshot_invalid;
-use crate::git::snapshot::permissions::verify_open_snapshot_tree_modes;
+use crate::error::local_snapshot_invalid;
 use crate::identity::SourceContentDigest;
 use crate::limits::LocalSourceLimits;
+use crate::snapshot::permissions::verify_open_snapshot_tree_modes;
 use crate::storage::RetainedStorageLane;
 use crate::storage::SourceResolverStorage;
 
-use super::capture::{
-    CapturedLocalEntryKind, SourceTreePolicy, capture_local_source,
-    capture_local_source_from_open_root, open_absolute_directory_nofollow,
-};
 use super::model::{
     ResolvedLocalSnapshot, ResolvedLocalSource, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind,
@@ -22,6 +18,11 @@ use super::model::{
 #[cfg(test)]
 use super::snapshot::publish_local_snapshot;
 use super::snapshot::publish_local_snapshot_in_lane;
+use crate::tree::capture::{
+    CapturedLocalEntryKind, SourceTreePolicy, capture_local_source,
+    capture_local_source_from_open_root,
+};
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 
 pub fn resolve_local_source(
     root: impl AsRef<Path>,

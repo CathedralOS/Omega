@@ -8,10 +8,6 @@ use std::path::{Path, PathBuf};
 use cap_fs_ext::DirExt;
 use sha2::{Digest, Sha256};
 
-use super::capture::{
-    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy,
-    capture_local_source_from_open_root, hash_bytes, io_error, raw_os_bytes,
-};
 use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
 use super::observation::issue_local_source_resolution_observation;
 use super::operations::resolve_local_source;
@@ -20,20 +16,25 @@ use crate::custody::lock::CacheEntryLock;
 #[cfg(test)]
 use crate::custody::tree::verify_local_cache_root_custody;
 use crate::custody::tree::{CacheCustodyKind, verify_local_cache_custody};
-use crate::git::cache::identity::local_snapshot_invalid;
-use crate::git::commands::identity::format_sha256;
-use crate::git::snapshot::construction::{
-    create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
-    write_snapshot_file_from_open_root,
-};
-use crate::git::snapshot::metadata::{local_snapshot_metadata, verify_local_snapshot};
-use crate::git::snapshot::permissions::make_open_snapshot_read_only;
-use crate::git::snapshot::publication::PendingMaterializedSnapshot;
+use crate::error::local_snapshot_invalid;
+use crate::identity::digest::{format_sha256, hash_bytes};
 use crate::limits::{
     LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_METADATA,
     LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits,
 };
+use crate::snapshot::construction::{
+    create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
+    write_snapshot_file_from_open_root,
+};
+use crate::snapshot::metadata::{local_snapshot_metadata, verify_local_snapshot};
+use crate::snapshot::permissions::make_open_snapshot_read_only;
+use crate::snapshot::publication::PendingMaterializedSnapshot;
 use crate::storage::RetainedStorageLane;
+use crate::tree::capture::{
+    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy,
+    capture_local_source_from_open_root,
+};
+use crate::tree::filesystem::{io_error, raw_os_bytes};
 
 #[cfg(test)]
 pub(crate) fn publish_local_snapshot(
