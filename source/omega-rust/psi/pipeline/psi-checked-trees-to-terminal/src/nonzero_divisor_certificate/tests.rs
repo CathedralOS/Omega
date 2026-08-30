@@ -253,6 +253,161 @@ fn exact_subtract_goal_serializes_independent_and_joint_guards() {
 }
 
 #[test]
+fn direct_correlated_arithmetic_replays_authored_complement_expressions() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let left = value(1, integer_type);
+    let right = value(2, integer_type);
+    let context = two_value_context(integer_type);
+    let literal = |value| {
+        ScalarTerm::integer(integer_type, IntegerValue::Unsigned(value)).expect("u8 literal")
+    };
+    let add_goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::Add(
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(1).unwrap(),
+            }),
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(2).unwrap(),
+            }),
+        ),
+        psi_core::IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+    );
+    let complement =
+        ScalarTerm::exact_integer_subtract(integer_type, literal(255), right.clone()).unwrap();
+    let add_assumption = Proposition::LessOrEqual(left.clone(), complement.clone());
+    let add = prove_canonical_integer_proposition(
+        &context,
+        &add_goal,
+        std::slice::from_ref(&add_assumption),
+        &[],
+    )
+    .expect("the authored direct MAX-right comparison proves exact addition");
+    let ProofRule::IntegerAffineBound { witness, .. } = &add.rule else {
+        panic!("direct complement replay uses the checked affine rule")
+    };
+    assert_eq!(witness.root, complement);
+    assert!(witness.definition_axioms.is_empty());
+    accept_certificate(
+        &context,
+        &add_goal,
+        std::slice::from_ref(&add_assumption),
+        &[],
+        &add,
+    )
+    .expect("the kernel rejoins the direct complement expression");
+
+    let multiply_goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::Multiply(
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(1).unwrap(),
+            }),
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(2).unwrap(),
+            }),
+        ),
+        psi_core::IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+    );
+    let quotient =
+        ScalarTerm::exact_integer_divide(integer_type, literal(255), right.clone()).unwrap();
+    let multiply_assumptions = [
+        Proposition::LessOrEqual(literal(1), right.clone()),
+        Proposition::LessOrEqual(left.clone(), quotient.clone()),
+    ];
+    let multiply =
+        prove_canonical_integer_proposition(&context, &multiply_goal, &multiply_assumptions, &[])
+            .expect("the authored direct MAX/right comparison proves exact multiplication");
+    let ProofRule::IntegerAffineBound { witness, .. } = &multiply.rule else {
+        panic!("direct quotient replay uses the checked affine rule")
+    };
+    assert_eq!(witness.root, quotient);
+    assert!(witness.definition_axioms.is_empty());
+    accept_certificate(
+        &context,
+        &multiply_goal,
+        &multiply_assumptions,
+        &[],
+        &multiply,
+    )
+    .expect("the kernel rejoins the direct quotient expression");
+
+    let drifted_add = Proposition::LessOrEqual(
+        left.clone(),
+        ScalarTerm::exact_integer_subtract(integer_type, literal(254), right.clone()).unwrap(),
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &add_goal,
+            std::slice::from_ref(&drifted_add),
+            &[],
+        )
+        .is_none(),
+        "a non-carrier complement endpoint remains fenced",
+    );
+    let drifted_multiply = [
+        Proposition::LessOrEqual(literal(1), right.clone()),
+        Proposition::LessOrEqual(
+            left,
+            ScalarTerm::exact_integer_divide(integer_type, literal(254), right).unwrap(),
+        ),
+    ];
+    assert!(
+        prove_canonical_integer_proposition(&context, &multiply_goal, &drifted_multiply, &[],)
+            .is_none(),
+        "a non-carrier quotient endpoint remains fenced",
+    );
+
+    let signed_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let signed_left = value(1, signed_type);
+    let signed_right = value(2, signed_type);
+    let signed_context = two_value_context(signed_type);
+    let subtract_goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::Subtract(
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: signed_type,
+                value: ValueId::new(1).unwrap(),
+            }),
+            Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: signed_type,
+                value: ValueId::new(2).unwrap(),
+            }),
+        ),
+        psi_core::IntegerMathTerm::literal(IntegerValue::Signed(127)),
+    );
+    let signed_complement =
+        ScalarTerm::exact_integer_add(signed_type, integer(signed_type, 127), signed_right.clone())
+            .unwrap();
+    let subtract_assumptions = [
+        Proposition::LessOrEqual(signed_right.clone(), integer(signed_type, 0)),
+        Proposition::LessOrEqual(signed_left, signed_complement.clone()),
+    ];
+    let subtract = prove_canonical_integer_proposition(
+        &signed_context,
+        &subtract_goal,
+        &subtract_assumptions,
+        &[],
+    )
+    .expect("the authored direct MAX+right comparison proves exact subtraction");
+    let ProofRule::IntegerAffineBound { witness, .. } = &subtract.rule else {
+        panic!("direct subtraction complement uses the checked affine rule")
+    };
+    assert_eq!(witness.root, signed_complement);
+    assert!(witness.definition_axioms.is_empty());
+    accept_certificate(
+        &signed_context,
+        &subtract_goal,
+        &subtract_assumptions,
+        &[],
+        &subtract,
+    )
+    .expect("the kernel rejoins the direct subtraction complement");
+}
+
+#[test]
 fn exact_multiply_goal_serializes_four_corners_and_negative_quotient_guard() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let left = value(1, integer_type);
@@ -5116,5 +5271,88 @@ fn correlated_forbidden_root_producer_is_shared_by_exact_divide_and_remainder() 
         )
         .is_err(),
         "changing a selected signature endpoint invalidates the witness",
+    );
+}
+
+#[test]
+fn exact_left_shift_replays_a_prior_shift_rooted_at_one_exact_cast() {
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let input = value(1, u64_type);
+    let cast = value(2, u8_type);
+    let first_count = value(3, i8_type);
+    let first_shift = value(4, u8_type);
+    let second_count = value(5, u16_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(u64_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(u8_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(u8_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(u16_type)),
+    ])
+    .unwrap();
+    let assumptions = [Proposition::LessOrEqual(
+        input.clone(),
+        ScalarTerm::integer(u64_type, IntegerValue::Unsigned(31)).unwrap(),
+    )];
+    let axioms = [
+        Proposition::Equal(
+            cast.clone(),
+            ScalarTerm::integer_exact_cast(u64_type, u8_type, input).unwrap(),
+        ),
+        Proposition::Equal(first_count.clone(), integer(i8_type, 1)),
+        Proposition::Equal(
+            first_shift,
+            ScalarTerm::exact_integer_shift_left(u8_type, i8_type, cast, first_count).unwrap(),
+        ),
+        Proposition::Equal(
+            second_count,
+            ScalarTerm::integer(u16_type, IntegerValue::Unsigned(2)).unwrap(),
+        ),
+    ];
+    prove_canonical_integer_proposition(
+        &context,
+        &Proposition::LessOrEqual(
+            value(2, u8_type),
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(31)).unwrap(),
+        ),
+        &assumptions,
+        &axioms,
+    )
+    .expect("the exact cast replays the source bound");
+    let goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::ShiftLeft {
+            value: Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: u8_type,
+                value: ValueId::new(4).unwrap(),
+            }),
+            count: Box::new(psi_core::IntegerMathTerm::MathValue {
+                source_type: u16_type,
+                value: ValueId::new(5).unwrap(),
+            }),
+        },
+        psi_core::IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+    );
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("the second shift replays its prior shift through the exact cast");
+    accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+        .expect("the kernel replays both landed counts and the exact cast root");
+
+    let insufficient = [Proposition::LessOrEqual(
+        value(1, u64_type),
+        ScalarTerm::integer(u64_type, IntegerValue::Unsigned(32)).unwrap(),
+    )];
+    assert!(
+        prove_canonical_integer_proposition(&context, &goal, &insufficient, &axioms).is_none(),
+        "an out-of-carrier search candidate is rejected rather than becoming proof authority",
+    );
+    let mut drifted_count = axioms.clone();
+    drifted_count[1] = Proposition::Equal(value(3, i8_type), integer(i8_type, 2));
+    assert!(
+        prove_canonical_integer_proposition(&context, &goal, &assumptions, &drifted_count)
+            .is_none(),
+        "drifting the earlier landed count invalidates the retained source endpoint",
     );
 }

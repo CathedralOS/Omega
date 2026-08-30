@@ -14,7 +14,7 @@ const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
         post_zero: u16,
         enabled: bool
     ) -> bool
-    requires unsigned <= 65532u16, unsigned <= 32764u16,
+    requires 0u16 <= unsigned, unsigned <= 65532u16, unsigned <= 32764u16,
         unsigned <= 124u16, unsigned <= 61u16,
         signed <= 32764i16, -16387i16 <= signed, signed <= 16380i16,
         -67i16 <= signed, signed <= 60i16,

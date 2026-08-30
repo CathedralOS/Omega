@@ -2,8 +2,8 @@
 
 use psi_core::{IntegerSign, IntegerValue, Proposition, PropositionContext, ScalarTerm};
 use psi_proof_admission::{
-    IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
-    integer_affine_truth_bounds, map_integer_affine_bound,
+    IntegerAffineBoundConversionError, IntegerAffineWitness, PrimitiveJudgment, ProofNode,
+    ProofRule, check_integer_affine_witness, integer_affine_truth_bounds, map_integer_affine_bound,
 };
 
 use super::super::affine_custody::DefinitionIndex;
@@ -44,7 +44,14 @@ pub(super) fn prove_recursive(
         } else {
             Proposition::LessOrEqual(checked.root().clone(), candidate)
         };
-        let mapped = map_integer_affine_bound(&checked, &root_goal).ok()?;
+        let mapped = match map_integer_affine_bound(&checked, &root_goal) {
+            Ok(mapped) => mapped,
+            Err(
+                IntegerAffineBoundConversionError::MappedBoundOverflow
+                | IntegerAffineBoundConversionError::MappedBoundOutsideCarrier,
+            ) => return Some(false),
+            Err(_) => return None,
+        };
         let Proposition::LessOrEqual(left, right) = &mapped else {
             return None;
         };

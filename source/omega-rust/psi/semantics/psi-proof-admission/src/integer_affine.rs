@@ -319,33 +319,38 @@ fn check_correlated_add_witness(
     else {
         return Ok(None);
     };
-    if witness.definition_axioms.len() != 1 || witness.literal_axioms.len() != 1 {
-        return Ok(None);
-    }
-    if !matches!(witness.root, ScalarTerm::Value { .. })
-        || scalar_type.carrier() != IntegerCarrier::Fixed
+    if scalar_type.carrier() != IntegerCarrier::Fixed
         || direct_math_leaf(left, *scalar_type).is_none()
         || direct_math_leaf(right, *scalar_type).is_none()
         || witness.root.scalar_type() != ScalarType::Integer(*scalar_type)
     {
         return Ok(None);
     }
-    let index = witness.definition_axioms[0];
-    let axiom = semantic_axioms
-        .get(index)
-        .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
-    context
-        .validate(axiom)
-        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
-    let Proposition::Equal(equal_left, equal_right) = axiom else {
-        return Ok(None);
-    };
-    let expression = if equal_left == &witness.root {
-        equal_right
-    } else if equal_right == &witness.root {
-        equal_left
-    } else {
-        return Ok(None);
+    let (expression, landing) = match (
+        witness.definition_axioms.as_slice(),
+        witness.literal_axioms.as_slice(),
+    ) {
+        ([], []) => (&witness.root, None),
+        ([index], [landing]) if matches!(witness.root, ScalarTerm::Value { .. }) => {
+            let axiom = semantic_axioms
+                .get(*index)
+                .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(*index))?;
+            context
+                .validate(axiom)
+                .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+            let Proposition::Equal(equal_left, equal_right) = axiom else {
+                return Ok(None);
+            };
+            let expression = if equal_left == &witness.root {
+                equal_right
+            } else if equal_right == &witness.root {
+                equal_left
+            } else {
+                return Ok(None);
+            };
+            (expression, Some((*index, *landing)))
+        }
+        _ => return Ok(None),
     };
     let ScalarTerm::ExactIntegerSubtract {
         scalar_type: subtract_type,
@@ -358,9 +363,11 @@ fn check_correlated_add_witness(
     if subtract_type != scalar_type || subtract_right.as_ref() != right.as_ref() {
         return Ok(None);
     }
-    let endpoint_value = match (endpoint.integer_value(), witness.literal_axioms[0]) {
-        (Some((actual, value)), None) => (actual == *scalar_type).then_some(value),
-        (None, Some(landing_index)) => {
+    let endpoint_value = match (endpoint.integer_value(), landing) {
+        (Some((actual, value)), None | Some((_, None))) => {
+            (actual == *scalar_type).then_some(value)
+        }
+        (None, Some((index, Some(landing_index)))) => {
             let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
             (landed.term == endpoint.as_ref().clone() && landed.integer_type == *scalar_type)
                 .then_some(landed.value)
@@ -399,33 +406,38 @@ fn check_correlated_subtract_witness(
     else {
         return Ok(None);
     };
-    if witness.definition_axioms.len() != 1 || witness.literal_axioms.len() != 1 {
-        return Ok(None);
-    }
-    if !matches!(witness.root, ScalarTerm::Value { .. })
-        || scalar_type.carrier() != IntegerCarrier::Fixed
+    if scalar_type.carrier() != IntegerCarrier::Fixed
         || direct_math_leaf(left, *scalar_type).is_none()
         || direct_math_leaf(right, *scalar_type).is_none()
         || witness.root.scalar_type() != ScalarType::Integer(*scalar_type)
     {
         return Ok(None);
     }
-    let index = witness.definition_axioms[0];
-    let axiom = semantic_axioms
-        .get(index)
-        .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
-    context
-        .validate(axiom)
-        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
-    let Proposition::Equal(equal_left, equal_right) = axiom else {
-        return Ok(None);
-    };
-    let expression = if equal_left == &witness.root {
-        equal_right
-    } else if equal_right == &witness.root {
-        equal_left
-    } else {
-        return Ok(None);
+    let (expression, landing) = match (
+        witness.definition_axioms.as_slice(),
+        witness.literal_axioms.as_slice(),
+    ) {
+        ([], []) => (&witness.root, None),
+        ([index], [landing]) if matches!(witness.root, ScalarTerm::Value { .. }) => {
+            let axiom = semantic_axioms
+                .get(*index)
+                .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(*index))?;
+            context
+                .validate(axiom)
+                .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+            let Proposition::Equal(equal_left, equal_right) = axiom else {
+                return Ok(None);
+            };
+            let expression = if equal_left == &witness.root {
+                equal_right
+            } else if equal_right == &witness.root {
+                equal_left
+            } else {
+                return Ok(None);
+            };
+            (expression, Some((*index, *landing)))
+        }
+        _ => return Ok(None),
     };
     let ScalarTerm::ExactIntegerAdd {
         scalar_type: add_type,
@@ -438,9 +450,11 @@ fn check_correlated_subtract_witness(
     if add_type != scalar_type || add_right.as_ref() != right.as_ref() {
         return Ok(None);
     }
-    let endpoint_value = match (endpoint.integer_value(), witness.literal_axioms[0]) {
-        (Some((actual, value)), None) => (actual == *scalar_type).then_some(value),
-        (None, Some(landing_index)) => {
+    let endpoint_value = match (endpoint.integer_value(), landing) {
+        (Some((actual, value)), None | Some((_, None))) => {
+            (actual == *scalar_type).then_some(value)
+        }
+        (None, Some((index, Some(landing_index)))) => {
             let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
             (landed.term == endpoint.as_ref().clone() && landed.integer_type == *scalar_type)
                 .then_some(landed.value)
@@ -479,33 +493,38 @@ fn check_correlated_multiply_witness(
     else {
         return Ok(None);
     };
-    if witness.definition_axioms.len() != 1 || witness.literal_axioms.len() != 1 {
-        return Ok(None);
-    }
-    if !matches!(witness.root, ScalarTerm::Value { .. })
-        || scalar_type.carrier() != IntegerCarrier::Fixed
+    if scalar_type.carrier() != IntegerCarrier::Fixed
         || direct_math_leaf(left, *scalar_type).is_none()
         || direct_math_leaf(right, *scalar_type).is_none()
         || witness.root.scalar_type() != ScalarType::Integer(*scalar_type)
     {
         return Ok(None);
     }
-    let index = witness.definition_axioms[0];
-    let axiom = semantic_axioms
-        .get(index)
-        .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
-    context
-        .validate(axiom)
-        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
-    let Proposition::Equal(equal_left, equal_right) = axiom else {
-        return Ok(None);
-    };
-    let expression = if equal_left == &witness.root {
-        equal_right
-    } else if equal_right == &witness.root {
-        equal_left
-    } else {
-        return Ok(None);
+    let (expression, landing) = match (
+        witness.definition_axioms.as_slice(),
+        witness.literal_axioms.as_slice(),
+    ) {
+        ([], []) => (&witness.root, None),
+        ([index], [landing]) if matches!(witness.root, ScalarTerm::Value { .. }) => {
+            let axiom = semantic_axioms
+                .get(*index)
+                .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(*index))?;
+            context
+                .validate(axiom)
+                .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+            let Proposition::Equal(equal_left, equal_right) = axiom else {
+                return Ok(None);
+            };
+            let expression = if equal_left == &witness.root {
+                equal_right
+            } else if equal_right == &witness.root {
+                equal_left
+            } else {
+                return Ok(None);
+            };
+            (expression, Some((*index, *landing)))
+        }
+        _ => return Ok(None),
     };
     let ScalarTerm::ExactIntegerDivide {
         scalar_type: divide_type,
@@ -518,9 +537,11 @@ fn check_correlated_multiply_witness(
     if divide_type != scalar_type || divide_right.as_ref() != right.as_ref() {
         return Ok(None);
     }
-    let endpoint_value = match (endpoint.integer_value(), witness.literal_axioms[0]) {
-        (Some((actual, value)), None) => (actual == *scalar_type).then_some(value),
-        (None, Some(landing_index)) => {
+    let endpoint_value = match (endpoint.integer_value(), landing) {
+        (Some((actual, value)), None | Some((_, None))) => {
+            (actual == *scalar_type).then_some(value)
+        }
+        (None, Some((index, Some(landing_index)))) => {
             let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
             (landed.term == endpoint.as_ref().clone() && landed.integer_type == *scalar_type)
                 .then_some(landed.value)

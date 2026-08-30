@@ -396,6 +396,60 @@ fn prove_correlated_subtract_relation(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
+    let expected_endpoint = if lower {
+        integer_type.minimum_value()
+    } else {
+        integer_type.maximum_value()
+    };
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        let complement = match fact {
+            Proposition::LessOrEqual(complement, actual_left) if lower && actual_left == left => {
+                complement
+            }
+            Proposition::LessOrEqual(actual_left, complement) if !lower && actual_left == left => {
+                complement
+            }
+            _ => continue,
+        };
+        let ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left: endpoint,
+            right: add_right,
+        } = complement
+        else {
+            continue;
+        };
+        if *scalar_type != integer_type
+            || add_right.as_ref() != right
+            || endpoint.integer_value() != Some((integer_type, expected_endpoint))
+        {
+            continue;
+        }
+        let endpoint_proof = citation.proof(fact);
+        let witness = IntegerAffineWitness {
+            root: complement.clone(),
+            target: target.clone(),
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let Some(form) = check_integer_affine_witness(context, semantic_axioms, &witness).ok()
+        else {
+            continue;
+        };
+        let Some(mapped) = map_integer_affine_bound(&form, &endpoint_proof.conclusion).ok() else {
+            continue;
+        };
+        if &mapped != goal {
+            continue;
+        }
+        return Some(ProofNode {
+            conclusion: mapped,
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(endpoint_proof),
+                witness,
+            },
+        });
+    }
     for (index, axiom) in semantic_axioms.iter().enumerate() {
         let Proposition::Equal(equal_left, equal_right) = axiom else {
             continue;
@@ -415,11 +469,6 @@ fn prove_correlated_subtract_relation(
             } = expression
             else {
                 continue;
-            };
-            let expected_endpoint = if lower {
-                integer_type.minimum_value()
-            } else {
-                integer_type.maximum_value()
             };
             if *root_type != integer_type
                 || *scalar_type != integer_type
@@ -782,6 +831,60 @@ fn prove_correlated_add_relation(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
+    let expected_endpoint = if lower {
+        integer_type.minimum_value()
+    } else {
+        integer_type.maximum_value()
+    };
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        let complement = match fact {
+            Proposition::LessOrEqual(complement, actual_left) if lower && actual_left == left => {
+                complement
+            }
+            Proposition::LessOrEqual(actual_left, complement) if !lower && actual_left == left => {
+                complement
+            }
+            _ => continue,
+        };
+        let ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left: endpoint,
+            right: subtract_right,
+        } = complement
+        else {
+            continue;
+        };
+        if *scalar_type != integer_type
+            || subtract_right.as_ref() != right
+            || endpoint.integer_value() != Some((integer_type, expected_endpoint))
+        {
+            continue;
+        }
+        let endpoint_proof = citation.proof(fact);
+        let witness = IntegerAffineWitness {
+            root: complement.clone(),
+            target: target.clone(),
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let Some(form) = check_integer_affine_witness(context, semantic_axioms, &witness).ok()
+        else {
+            continue;
+        };
+        let Some(mapped) = map_integer_affine_bound(&form, &endpoint_proof.conclusion).ok() else {
+            continue;
+        };
+        if &mapped != goal {
+            continue;
+        }
+        return Some(ProofNode {
+            conclusion: mapped,
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(endpoint_proof),
+                witness,
+            },
+        });
+    }
     for (index, axiom) in semantic_axioms.iter().enumerate() {
         let Proposition::Equal(equal_left, equal_right) = axiom else {
             continue;
@@ -801,11 +904,6 @@ fn prove_correlated_add_relation(
             } = expression
             else {
                 continue;
-            };
-            let expected_endpoint = if lower {
-                integer_type.minimum_value()
-            } else {
-                integer_type.maximum_value()
             };
             if *root_type != integer_type
                 || *scalar_type != integer_type
