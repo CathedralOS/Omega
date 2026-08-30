@@ -802,6 +802,13 @@ evaluators consult compiler-owned synthetic descriptor tables, so provider-free
 replay checks only Omega's modeled bridge. It proves no native-handle custody or
 Windows security property.
 
+Summary v60 and filesystem replay-record v41 add exact failed tag-29
+`close_handle` on an unknown native handle after the optional Source prefix.
+The row fixes scoped-real provider, scalar `0`, post-error `6`, and operand-zero
+`Native/Unknown`; every other lane and handoff is empty. Provider-free replay
+checks only the compiler-owned synthetic handle model, not native-handle
+custody or a Windows security property.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

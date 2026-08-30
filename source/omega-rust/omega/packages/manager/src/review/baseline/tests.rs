@@ -314,6 +314,39 @@ fn baseline_retains_unknown_descriptor_get_osfhandle_replay_custody() {
     assert!(!replay.has_output_attempts());
 }
 
+#[test]
+fn baseline_retains_unknown_native_handle_close_replay_custody() {
+    let replay = unknown_descriptor_failure_baseline(
+        "unknown-close-handle",
+        "let status: i32 = builder.filesystem.close_handle(-1);",
+    );
+    let [attempt] = replay.attempts() else {
+        panic!("close_handle baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 29);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            0
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(6));
+    let [handle] = attempt.logical_handle_inputs() else {
+        panic!("close_handle baseline retains one native-handle input")
+    };
+    assert_eq!(handle.operand_ordinal(), 0);
+    assert_eq!(
+        handle.kind(),
+        psi_checked_interpreter::FilesystemLogicalHandleKind::Native
+    );
+    assert_eq!(
+        handle.resolution(),
+        psi_checked_interpreter::FilesystemLogicalHandleInputResolution::Unknown
+    );
+    assert!(attempt.retired_logical_handles().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
 fn assert_baseline_retains_unknown_descriptor_failure(
     label: &str,
     statement: &str,

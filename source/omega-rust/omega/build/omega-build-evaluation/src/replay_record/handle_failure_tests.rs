@@ -76,6 +76,15 @@ fn unknown_descriptor_get_osfhandle_summary() -> BuildObservationSummary {
     summary
 }
 
+fn unknown_native_handle_close_summary() -> BuildObservationSummary {
+    let mut summary = summary(29);
+    summary.filesystem_operation_attempts[0].result = BuildFilesystemOperationResult::Scalar(0);
+    summary.filesystem_operation_attempts[0].post_error = 6;
+    summary.filesystem_operation_attempts[0].logical_handle_inputs[0].kind =
+        BuildFilesystemLogicalHandleKind::Native;
+    summary
+}
+
 fn unknown_descriptor_write_summary(
     operation_tag: u16,
     values: &[BuildFilesystemScalarOperandValue],
@@ -811,4 +820,57 @@ fn unknown_descriptor_get_osfhandle_failure_rejects_model_drift() {
             ),
         });
     assert!(capture_verified_build_filesystem_replay_record(&invented_output, limits).is_err());
+}
+
+#[test]
+fn unknown_native_handle_close_failure_round_trips_exact_model() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let summary = unknown_native_handle_close_summary();
+    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+        .expect("exact unknown-native-handle close encodes")
+        .expect("verified close failure retains replay custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("exact unknown-native-handle close recovers");
+    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("exact native-handle close rehydrates through its typed constructor");
+
+    let [attempt] = replay.attempts() else {
+        panic!("unknown-native-handle close replay retains one attempt")
+    };
+    assert_eq!(attempt.operation_tag(), 29);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            0
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(6));
+    assert!(attempt.retired_logical_handles().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
+#[test]
+fn unknown_native_handle_close_failure_rejects_model_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+
+    let mut changed_result = unknown_native_handle_close_summary();
+    changed_result.filesystem_operation_attempts[0].result =
+        BuildFilesystemOperationResult::Scalar(1);
+    assert!(capture_verified_build_filesystem_replay_record(&changed_result, limits).is_err());
+
+    let mut changed_error = unknown_native_handle_close_summary();
+    changed_error.filesystem_operation_attempts[0].post_error = 0;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_error, limits).is_err());
+
+    let mut wrong_kind = unknown_native_handle_close_summary();
+    wrong_kind.filesystem_operation_attempts[0].logical_handle_inputs[0].kind =
+        BuildFilesystemLogicalHandleKind::Descriptor;
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_kind, limits).is_err());
+
+    let mut invented_retirement = unknown_native_handle_close_summary();
+    invented_retirement.filesystem_operation_attempts[0]
+        .retired_logical_handles
+        .push(BuildFilesystemLogicalHandleIdentity::new(1).unwrap());
+    assert!(capture_verified_build_filesystem_replay_record(&invented_retirement, limits).is_err());
 }

@@ -342,7 +342,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 59);
+    assert_eq!(checked_observations.schema_version(), 60);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2692,6 +2692,101 @@ fn unknown_descriptor_get_osfhandle_failure_replays_exact_modeled_result() {
     }
 }
 
+#[test]
+fn unknown_native_handle_close_failure_replays_exact_modeled_result() {
+    let fixtures = [
+        (
+            "close-handle",
+            "    self.code = self.filesystem.close_handle(-1);",
+            vec![29],
+        ),
+        (
+            "close-handle-after-source",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    self.code = self.filesystem.close_handle(-1);"#,
+            vec![2, 4, 8, 29],
+        ),
+    ];
+
+    for (label, body, operation_tags) in fixtures {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let compilation =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect("unknown-native-handle close should compile and replay");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("unknown-native-handle close retains observations");
+        assert!(summary.filesystem_replay_verdict().is_complete());
+        assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+        assert_eq!(
+            summary
+                .staged_output_tree()
+                .expect("modeled close failure retains empty Output custody")
+                .entry_count(),
+            0
+        );
+        assert_eq!(
+            summary
+                .filesystem_operation_attempts()
+                .iter()
+                .map(|attempt| attempt.operation_tag())
+                .collect::<Vec<_>>(),
+            operation_tags
+        );
+        let attempt = summary.filesystem_operation_attempts().last().unwrap();
+        assert_eq!(attempt.operation_tag(), 29);
+        assert_eq!(attempt.provider(), BuildFilesystemProvider::RealScoped);
+        assert_eq!(attempt.result(), BuildFilesystemOperationResult::Scalar(0));
+        assert_eq!(attempt.post_error(), 6);
+        let [handle] = attempt.logical_handle_inputs() else {
+            panic!("failed close_handle retains one native-handle input")
+        };
+        assert_eq!(handle.operand_ordinal(), 0);
+        assert_eq!(handle.kind(), BuildFilesystemLogicalHandleKind::Native);
+        assert_eq!(
+            handle.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Unknown
+        );
+        assert!(attempt.scalar_operands().is_empty());
+        assert!(attempt.byte_operands().is_empty());
+        assert!(attempt.mutable_byte_operand_resolutions().is_empty());
+        assert!(attempt.mutable_byte_operands().is_empty());
+        assert!(attempt.logical_handle_output().is_none());
+        assert!(attempt.retired_logical_handles().is_empty());
+
+        let limits = BuildFilesystemReplayRecordLimits::default();
+        let record = capture_verified_build_filesystem_replay_record(summary, limits)
+            .expect("verified unknown-native-handle close must encode")
+            .expect("verified modeled close failure retains review-only custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+                .expect("canonical modeled close failure record must recover");
+        std::fs::write(
+            project.join("main.omg"),
+            "data Main { value: u64; changed: u8; }\n",
+        )
+        .expect("change host source after modeled close failure capture");
+        let replayed = compile_to_checked_with_replay_record(
+            &project.join("main.omg"),
+            Some(profile.target_name()),
+            recovered,
+        )
+        .expect("modeled close failure replay must not invoke the host provider");
+        assert_eq!(
+            replayed
+                .build_observation_summary()
+                .expect("replayed modeled close failure retains observations")
+                .filesystem_operation_attempts(),
+            summary.filesystem_operation_attempts()
+        );
+
+        let _ = std::fs::remove_dir_all(project);
+    }
+}
+
 fn assert_unknown_descriptor_write_operation_failure_replay(
     label: &str,
     statement: &str,
@@ -3935,7 +4030,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 59);
+    assert_eq!(summary.schema_version(), 60);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -4836,7 +4931,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 59);
+    assert_eq!(summary.schema_version(), 60);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -4909,7 +5004,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 59);
+    assert_eq!(summary.schema_version(), 60);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
