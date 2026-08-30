@@ -729,7 +729,11 @@ case-free checked-record field may now carry direct erased leaves through an
 authored projection-record spine; complete root-to-leaf paths are checked and
 represented siblings cite the enclosing plan decision. It recognizes only the
 toolchain core trait and grants none of the establishment authority still
-missing here. Deeper recursion, zero-layout wrappers, arrays, generic,
+missing here. Exactly one further represented acyclic, non-generic, case-free
+record with a nonzero canonical fixed representation may occur on that spine;
+both enclosing field identities remain in every direct erased-leaf path, and
+the root plan decision still diagnoses represented siblings. A third
+represented record level, zero-layout wrappers, arrays, generic,
 case-dependent, and planless agreement remain later work.
 
 Retirement is reconstructed from the successful disposition row. Borrowed

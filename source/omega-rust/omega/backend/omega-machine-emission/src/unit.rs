@@ -648,7 +648,7 @@ pub(super) fn emit_unit_body(
                 scalar_arguments,
             } => {
                 operation_site = Some(*psi_operation);
-                if scalar_arguments.len() > 2 {
+                if scalar_arguments.len() > 3 {
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                 }
                 let signature = omega_calling_conventions::CallSignature {
