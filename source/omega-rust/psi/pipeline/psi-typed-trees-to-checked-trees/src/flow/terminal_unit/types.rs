@@ -1072,6 +1072,23 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
+        self.add_bounded_affine_array_type(type_reference, binders, false)
+    }
+
+    pub(super) fn add_affine_array_construction_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        self.add_bounded_affine_array_type(type_reference, binders, true)
+    }
+
+    fn add_bounded_affine_array_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        allow_length_five: bool,
+    ) -> Option<String> {
         let mut resolved = type_reference;
         loop {
             match self.program.type_reference_table.type_reference(resolved) {
@@ -1084,11 +1101,14 @@ impl<'program> ShapeCollector<'program> {
         }
         let TypeReferenceNode::FixedArray {
             element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2 | 3 | 4)),
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2 | 3 | 4 | 5)),
         } = self.program.type_reference_table.type_reference(resolved)
         else {
             return self.add_type(type_reference, binders, &[]);
         };
+        if *length == 5 && !allow_length_five {
+            return None;
+        }
         let nested_element = match self
             .program
             .type_reference_table

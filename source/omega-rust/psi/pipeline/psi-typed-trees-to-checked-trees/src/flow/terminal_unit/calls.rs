@@ -116,6 +116,7 @@ pub(super) fn build_affine_array_construction_prefix(
     let root_length = match assignments.len() {
         2 => 3,
         3 => 4,
+        4 => 5,
         _ => return None,
     };
     if !local.is_mutable
@@ -150,7 +151,8 @@ pub(super) fn build_affine_array_construction_prefix(
     else {
         return None;
     };
-    let root_type_identity = shapes.add_partial_affine_array_type(local.type_reference, binders)?;
+    let root_type_identity =
+        shapes.add_affine_array_construction_type(local.type_reference, binders)?;
     let element_type_identity = shapes.add_type(*element_type, binders, &[])?;
     let root_shape = shapes.types.get(&root_type_identity)?;
     if !matches!(

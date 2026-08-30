@@ -559,6 +559,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             let expected_root_length = match construction_elements.len() {
                 2 => 3,
                 3 => 4,
+                4 => 5,
                 _ => 0,
             };
             let exact_prefix = expected_root_length != 0

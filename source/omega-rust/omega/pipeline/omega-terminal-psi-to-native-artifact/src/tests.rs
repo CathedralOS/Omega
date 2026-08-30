@@ -45,6 +45,18 @@ const WIDER_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const DEEPER_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 5];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+    }
+"#;
+
 const RANKED_COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
     data Root {}
@@ -658,6 +670,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
     for (source, prefix_length) in [
         (CONSTRUCTION_PREFIX_SOURCE, 2_usize),
         (WIDER_CONSTRUCTION_PREFIX_SOURCE, 3_usize),
+        (DEEPER_CONSTRUCTION_PREFIX_SOURCE, 4_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(
@@ -721,7 +734,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             else {
                 unreachable!()
             };
-            *length = 5;
+            *length = u64::try_from(prefix_length).expect("bounded prefix length");
             assert!(omega_machine_emission::emit_machine_code(&wrong_root_length).is_err());
             let emitted = omega_machine_emission::emit_machine_code(&assigned)
                 .expect("construction prefix reaches native cleanup emission");
