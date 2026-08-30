@@ -8075,6 +8075,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Plus -> retain_framed_operator_path()
             OmegaPunctuationKind::Minus -> retain_framed_operator_path()
             OmegaPunctuationKind::Asterisk -> retain_framed_operator_path()
+            OmegaPunctuationKind::Slash -> retain_framed_operator_path()
+            OmegaPunctuationKind::Percent -> retain_framed_operator_path()
             OmegaPunctuationKind::EqualEqual -> retain_framed_operator_path()
             OmegaPunctuationKind::ExclamationEqual ->
                 retain_framed_operator_path()
@@ -10982,6 +10984,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Plus -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Minus -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Asterisk -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Slash -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Percent -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::RightParen -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
@@ -10994,6 +10998,8 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Plus -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Minus -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::Asterisk -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Slash -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Percent -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
     }
