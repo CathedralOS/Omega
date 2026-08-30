@@ -112,7 +112,7 @@ pub use filesystem_replay::{
     FilesystemInputUnknownNativeHandleCloseHandleReplayRecord,
     FilesystemInputUnknownNativeHandleFinalPathNameByHandleReplayRecord,
     FilesystemInputUnknownNativeHandleMutationReplayKind,
-    FilesystemInputUnknownNativeHandleMutationReplayRecord,
+    FilesystemInputUnknownNativeHandleMutationReplayRecord, FilesystemOutputAbsentRemoveKind,
     FilesystemOutputAbsentRemoveReplayRecord, FilesystemOutputDirectoryReplayRecord,
     FilesystemOutputDuplicateReplayRecord, FilesystemOutputHardLinkReplayKind,
     FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
@@ -3705,7 +3705,7 @@ fn output_file_attempt_end(
 }
 
 fn filesystem_output_attempt_tag(operation_tag: u16) -> bool {
-    matches!(operation_tag, 1 | 9 | 11 | 19 | 20 | 27)
+    matches!(operation_tag, 1 | 9 | 11 | 12 | 19 | 20 | 27)
 }
 
 fn output_absent_remove_attempt_is_exact(attempt: &FilesystemOperationAttempt) -> bool {
@@ -4180,12 +4180,16 @@ mod filesystem_replay_record_tests {
 
     #[test]
     fn typed_absent_output_removes_form_a_closed_failure_only_replay() {
-        let first =
-            FilesystemOutputAbsentRemoveReplayRecord::new(root(2), b"missing-first.bin".to_vec())
-                .unwrap();
-        let second = FilesystemOutputAbsentRemoveReplayRecord::new(
+        let first = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::File,
             root(2),
-            b"nested/missing-second.bin".to_vec(),
+            b"missing-first.bin".to_vec(),
+        )
+        .unwrap();
+        let second = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::Directory,
+            root(2),
+            b"nested/missing-second".to_vec(),
         )
         .unwrap();
         let record = FilesystemInputOutputAbsentRemovesReplayRecord::new(
@@ -4197,13 +4201,15 @@ mod filesystem_replay_record_tests {
 
         assert!(replay.has_output_attempts());
         assert!(replay.output_entries().is_empty());
+        assert!((0..3).all(|index| !replay.executes_replay_attempt(index)));
+        assert!((3..5).all(|index| replay.executes_replay_attempt(index)));
         assert_eq!(
             replay
                 .attempts()
                 .iter()
                 .map(FilesystemOperationAttempt::operation_tag)
                 .collect::<Vec<_>>(),
-            vec![2, 4, 8, 9, 9]
+            vec![2, 4, 8, 9, 12]
         );
         for attempt in &replay.attempts()[3..] {
             assert_eq!(

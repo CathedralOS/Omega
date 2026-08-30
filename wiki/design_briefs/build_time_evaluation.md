@@ -927,6 +927,14 @@ only synthetic invalid-handle replay, not native handle, lock, timestamp, or
 Windows security custody. `get_last_error` remains separate ordered provider
 state.
 
+Summary v64 and replay-record v44 generalize the failure-only Output sequence
+to exact absent tag-9 `remove` and tag-12 `remove_dir` attempts. Every row binds
+the selected operation, canonical compiler-rooted Output path, matching write
+authorization, scalar `-1`, and post-error `2`; mixed ordered file/directory
+sequences replay against a fresh namespace and retain empty staged-output
+custody. This receipts those observed attempts only. It is not a claim that a
+host path is globally or durably absent.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

@@ -183,8 +183,10 @@ machine build(builder: &mut Build)
 reaches FilesystemHost
 {{
     builder.package("absent-output-remove");
-    let missing: &[u8] in Path = builder.output.resolve("missing.bin");
-    let remove_result: i32 = builder.filesystem.remove(missing);
+    let missing_directory: &[u8] in Path = builder.output.resolve("missing-directory");
+    let remove_directory_result: i32 = builder.filesystem.remove_dir(missing_directory);
+    let missing_file: &[u8] in Path = builder.output.resolve("missing.bin");
+    let remove_file_result: i32 = builder.filesystem.remove(missing_file);
     builder.freestanding = false;
 }}
 "#,
@@ -392,7 +394,7 @@ fn constant_output_tree_replays_without_an_artificial_source_event() {
 }
 
 #[test]
-fn absent_output_remove_replays_its_exact_failure_without_a_tree_entry() {
+fn absent_output_file_and_directory_removals_replay_without_a_tree_entry() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
     project.write_absent_remove_sources(profile.target_name());
@@ -414,13 +416,16 @@ fn absent_output_remove_replays_its_exact_failure_without_a_tree_entry() {
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert_eq!(summary.schema_version(), 63);
-    let [remove] = summary.filesystem_operation_attempts() else {
-        panic!("absent remove retains one exact attempt")
+    assert_eq!(summary.schema_version(), 64);
+    let [remove_directory, remove_file] = summary.filesystem_operation_attempts() else {
+        panic!("absent removals retain two exact attempts")
     };
-    assert_eq!(remove.operation_tag(), 9);
-    assert_eq!(remove.result(), BuildFilesystemOperationResult::Scalar(-1));
-    assert_eq!(remove.post_error(), 2);
+    assert_eq!(remove_directory.operation_tag(), 12);
+    assert_eq!(remove_file.operation_tag(), 9);
+    for remove in [remove_directory, remove_file] {
+        assert_eq!(remove.result(), BuildFilesystemOperationResult::Scalar(-1));
+        assert_eq!(remove.post_error(), 2);
+    }
     assert_eq!(
         summary
             .staged_output_tree()
@@ -536,7 +541,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 63);
+    assert_eq!(summary.schema_version(), 64);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

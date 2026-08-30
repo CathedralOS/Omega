@@ -1683,8 +1683,9 @@ unknown-descriptor-write-payload, and v58/v39
 unknown-descriptor-read-file-metadata, and v59/v40
 unknown-descriptor-get-osfhandle, and v60/v41 unknown-native-handle-close
 grammars, plus v61/v42 unknown-native-handle-final-path and v62/v43
-unknown-native-handle-mutation above, may join them to verified operation replay
-and reproduced staged-output equality.
+unknown-native-handle-mutation and v64/v44 absent-file-or-directory-removal
+above, may join them to verified operation replay and reproduced staged-output
+equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1720,8 +1721,8 @@ unknown-descriptor-write-payload, and v58/v39
 unknown-descriptor-read-file-metadata, and v59/v40
 unknown-descriptor-get-osfhandle, and v60/v41 unknown-native-handle-close
 grammars, plus v61/v42 unknown-native-handle-final-path and v62/v43
-unknown-native-handle-mutation above, supply canonical operation replay and
-retained observed inputs.
+unknown-native-handle-mutation and v64/v44 absent-file-or-directory-removal
+above, supply canonical operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

@@ -1759,6 +1759,14 @@ before sponsor accounting or host mutation. This is only modeled
 invalid-handle replay, not native handle, lock, timestamp, or Windows security
 custody. Provider-state reads such as tag 35 remain outside the family.
 
+Observation summary v64 and replay-record v44 generalize the failure-only
+Output sequence to exact absent tag-9 `remove` and tag-12 `remove_dir`
+attempts. Each row binds the selected operation, canonical compiler-rooted
+Output path, matching write authorization, scalar `-1`, and post-error `2`.
+Mixed ordered file/directory sequences replay against a fresh namespace and
+retain empty staged-output custody. This receipts those attempts only; it does
+not claim that a host path is globally or durably absent.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
