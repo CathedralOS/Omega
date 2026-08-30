@@ -2468,7 +2468,7 @@ fn efi_struct_handoff_prologue_spreads_registers() {
 #[cfg(windows)]
 #[test]
 fn efi_vtable_call_emits_indirect_dispatch() {
-    // The external-leaf VtableSlot(1) call lowers to `mov rax, [rcx+8];
+    // The external-leaf VtableField(output_string) call lowers to `mov rax, [rcx+8];
     // call rax` -- read OutputString from the con_out protocol struct and
     // dispatch. Pins those bytes in .text (the whole selection->encode chain;
     // the live boot awaits the reference-param projection routing fix).
@@ -2486,7 +2486,7 @@ fn efi_vtable_call_emits_indirect_dispatch() {
     let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
     assert!(
         bytes.windows(needle.len()).any(|window| window == needle),
-        "expected `mov rax, [rcx+8]; call rax` (VtableSlot(1) dispatch) in .text"
+        "expected `mov rax, [rcx+8]; call rax` (named vtable-field dispatch) in .text"
     );
     let footprints = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("vtable-call boundary footprints should be emitted");
@@ -2570,7 +2570,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
     assert!(
         bytes.windows(needle.len()).any(|window| window == needle),
-        "expected `mov rax, [rcx+8]; call rax` (VtableSlot(1) dispatch) in .text"
+        "expected `mov rax, [rcx+8]; call rax` (named vtable-field dispatch) in .text"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

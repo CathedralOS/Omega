@@ -694,12 +694,10 @@ fn parse_provider_binding_case<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
             Ok((ExternalBinding::Syscall { number }, input))
         }
-        "VtableSlot" => {
-            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-            let (index, input) = input.take_integer()?;
-            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-            Ok((ExternalBinding::VtableSlot { index }, input))
-        }
+        "VtableSlot" => Err(input.error_here(
+            "`Binding::VtableSlot` is retired; declare the foreign table layout and use \
+                 `Binding::VtableField(field)`",
+        )),
         "DllImport" => {
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (module, input) = input.take_string()?;
@@ -732,8 +730,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
             "unknown Binding case `{other}`: external leaves require one of \
              `Binding::Syscall(n)`, `Binding::DllImport(\"module\", \"symbol\")`, \
              `Binding::CompilerIntrinsic`, \
-             `Binding::VtableSlot(n)`, `Binding::VtableField(field)`, or \
-             `Binding::TableFunction(field)`"
+             `Binding::VtableField(field)`, or `Binding::TableFunction(field)`"
         ))),
     }
 }

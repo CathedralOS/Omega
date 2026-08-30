@@ -1244,9 +1244,11 @@ implementation evidence behind that published plan identity.
 
 `VtableField(name)` denotes a function-pointer field through one validated
 foreign layout, principally for firmware protocol tables. Authored numeric
-`VtableSlot(n)` is retired: an ordinal is neither stable slot identity nor an
-adequate substitute for the native schema. Legacy slot spellings remain only as
-rejection/compatibility tests while named fields migrate.
+`VtableSlot(n)` is retired: the parser rejects the case before consuming its
+payload because an ordinal is neither stable slot identity nor an adequate
+substitute for the native schema. Downstream artifact enums and codecs retain
+the ordinal variant only for compatibility decoding and reporting; source
+cannot construct it. Named fields are the authored foreign-table surface.
 
 Hardware entry points with no Omega caller are external artifact roots. Their
 reach, trust receipts, state footprints, stack domains, nesting relations,

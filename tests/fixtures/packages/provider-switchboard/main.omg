@@ -1,4 +1,4 @@
-// Provider selection fixture.
+// Checked provider-selection fixture; foreign-table bindings are not component dispatch.
 pub boundary trait ClockHost {
     machine ticks() -> u64;
 }

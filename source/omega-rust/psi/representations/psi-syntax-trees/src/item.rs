@@ -56,7 +56,7 @@ pub struct ConstDefinition {
 /// boundary-trait method to ONE mechanism the compiler knows how to lower. A
 /// new mechanism = a new case + new lowering, never user-invented --
 /// same discipline as `FieldPlan`. Each kind also implies the edge's calling
-/// convention (`Syscall` -> the syscall plan; `DllImport`/`VtableSlot` -> the C
+/// convention (`Syscall` -> the syscall plan; `DllImport`/`VtableField` -> the C
 /// plan), so nobody names a convention in the common case (`calling_plans.md`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBinding {
@@ -69,8 +69,9 @@ pub enum ExternalBinding {
     /// Compiler-known target operation. The resolved realization symbol,
     /// normalized signature, and target key the sealed lowering catalog.
     CompilerIntrinsic,
-    /// COM/UEFI per-object dispatch: `Binding::VtableSlot(1)` (deref `this`, read the
-    /// vtable pointer, read slot N, call at the declared convention).
+    /// Compatibility-only ordinal dispatch retained for decoded artifacts and
+    /// snapshots. The parser rejects authored `Binding::VtableSlot` before its
+    /// payload; new source uses a validated named `VtableField` instead.
     VtableSlot { index: i64 },
     /// COM/UEFI per-object dispatch by FIELD NAME (the field model, decided
     /// 2026-07-04; extern brief SS12.1). The attached provider data type owns

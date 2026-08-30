@@ -609,6 +609,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/via_signature_mismatch_rejected",
     "providers/via_runtime_binding_rejected",
     "providers/via_unknown_binding_rejected",
+    "providers/vtable_slot_retired",
     "providers/via_bare_field_binding_rejected",
     "providers/duplicate_external_leaf_rejected",
     "providers/free_adapter_rejected",

@@ -336,7 +336,7 @@ fn runtime_console_byte_echo_exit_canary_runs() {
 // THE FIELD MODEL: an attached `Binding::VtableField(output_string)` leaf
 // names the fn-ptr field and the provider type's layout computes its offset (+8 behind the
 // leading `reset` field; headers fall out free, no magic slot count). The
-// emitted dispatch must be byte-identical to the VtableSlot(1) original:
+// emitted dispatch must remain byte-identical to the retired ordinal original:
 // `mov rax, [rcx+8]; call rax`. Cross-compiled for uefi_x64, so this pins
 // the whole chain (parse -> external binding row -> layout-resolved mechanism ->
 // relocation placement -> PE bytes) on EVERY host -- unlike the

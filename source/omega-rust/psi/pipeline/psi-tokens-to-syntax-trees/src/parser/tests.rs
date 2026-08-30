@@ -673,6 +673,28 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
 }
 
 #[test]
+fn retired_vtable_slot_rejects_before_consuming_its_payload() {
+    let source = r#"
+        boundary trait Firmware {
+            machine invoke(this: addr);
+        }
+
+        machine legacy(this: addr)
+        satisfies Firmware::invoke
+        via Binding::VtableSlot(not_an_integer_payload);
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize retired vtable slot");
+    let error = parse_syntax_trees(&tokens).expect_err("authored numeric vtable slots are retired");
+    assert_eq!(
+        error.message,
+        "`Binding::VtableSlot` is retired; declare the foreign table layout and use \
+         `Binding::VtableField(field)`"
+    );
+}
+
+#[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
     let tokens = Lexer::new(source)

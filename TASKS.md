@@ -760,10 +760,12 @@ Remaining:
   free `via Binding::CompilerIntrinsic` source/IR form across target libraries.
   Retain `via` only for bindings carrying an undiscoverable payload such as a
   DLL locator, syscall number, or validated foreign-table field. Retire authored
-  numeric `Binding::VtableSlot`; migrate genuine firmware/native-table users to
-  `Binding::VtableField` and retain ordinal spellings only as rejection or
-  compatibility fixtures. Add pass/fail canaries for complete and partial
-  family overrides, canonical reorder stability, generic/exact-family coverage,
+  numeric `Binding::VtableSlot`. The parser now rejects that case before
+  consuming its payload with a stable migration diagnostic, genuine
+  firmware/native-table source uses `Binding::VtableField`, and the downstream
+  ordinal enums/codecs remain only for artifact compatibility. Add pass/fail
+  canaries for complete and partial family overrides, canonical reorder
+  stability, generic/exact-family coverage,
   exact-leaf delegation versus recursive redispatch, missing intrinsic catalog
   entries, payload-bearing bindings, and retired numeric slots.
 
@@ -10948,7 +10950,8 @@ checked-result arithmetic decision listed below.
 - Replace the provider-switchboard fixture's transitional `clock: ClockHost`
   field with `Service<ClockHost> in Bound` once that carrier lands. Keep its
   provider as checked Omega code. Real foreign protocol tables use validated
-  named `Binding::VtableField` leaves; authored numeric `VtableSlot` is retired
+  named `Binding::VtableField` leaves; the parser rejects authored numeric
+  `VtableSlot` while downstream artifact enums/codecs retain compatibility
   under **BOUNDARY-OPERATOR-FAMILY-SELECTION**.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
