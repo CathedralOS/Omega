@@ -67,10 +67,6 @@ stop the item on one precise owner question before adding machinery.
   - retain exact failed and denied outcomes, including their rooted/refused
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
-  - replace the replay-retention guard that mixes Rust `size_of` values with
-    logical payload lengths with either canonical encoded-byte accounting or
-    explicitly named deterministic retention weights. Until then it is only an
-    implementation availability guard, not exact payload or memory evidence;
   - add exact peak-live byte accounts only where the compiler owns a complete
     allocation lifetime. Evaluator `Text` backing payloads are landed.
     Complete synchronous directory enumeration truncates retained components

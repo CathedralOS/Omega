@@ -1680,6 +1680,30 @@ pub struct FilesystemReplay {
 pub const FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE: i32 = 438;
 pub const MAX_INCLUDED_BUILD_SOURCES: usize = 256;
 pub const MAX_FILESYSTEM_REPLAY_RETAINED_BYTES: usize = 16 * 1024 * 1024;
+// Cloning filesystem operation attempts has a deterministic availability
+// limit. Fixed row weights are the current canonical row-width upper bounds;
+// variable payload bytes contribute one unit each. This is deliberately not a
+// second encoder, a Rust-layout measurement, or package evidence.
+const MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT: usize = 16 * 1024 * 1024;
+// Attempt = 16 fixed bytes + fifteen 8-byte lane counts + the 19-byte maximum
+// logical-output row. The remaining weights are each row's fixed-width maximum
+// in encode_attempt; byte-bearing lanes add their payloads below.
+const FILESYSTEM_REPLAY_ATTEMPT_RETENTION_WEIGHT: usize = 155;
+const FILESYSTEM_REPLAY_SCALAR_OPERAND_RETENTION_WEIGHT: usize = 10;
+const FILESYSTEM_REPLAY_BYTE_OPERAND_RETENTION_WEIGHT: usize = 9;
+const FILESYSTEM_REPLAY_PATH_LIKE_OPERAND_RETENTION_WEIGHT: usize = 9;
+const FILESYSTEM_REPLAY_ROOTED_PATH_RETENTION_WEIGHT: usize = 10;
+const FILESYSTEM_REPLAY_RETURNED_PATH_RETENTION_WEIGHT: usize = 11;
+const FILESYSTEM_REPLAY_OBSERVED_REGION_RETENTION_WEIGHT: usize = 18;
+const FILESYSTEM_REPLAY_METADATA_RETENTION_WEIGHT: usize = 102;
+const FILESYSTEM_REPLAY_MUTABLE_BYTE_RESOLUTION_RETENTION_WEIGHT: usize = 9;
+const FILESYSTEM_REPLAY_MUTABLE_I64_RESOLUTION_RETENTION_WEIGHT: usize = 9;
+const FILESYSTEM_REPLAY_MUTABLE_BYTE_RETENTION_WEIGHT: usize = 17;
+const FILESYSTEM_REPLAY_MUTABLE_I64_RETENTION_WEIGHT: usize = 17;
+const FILESYSTEM_REPLAY_AUTHORIZED_PATH_RETENTION_WEIGHT: usize = 11;
+const FILESYSTEM_REPLAY_LOGICAL_INPUT_RETENTION_WEIGHT: usize = 11;
+const FILESYSTEM_REPLAY_RETIRED_HANDLE_RETENTION_WEIGHT: usize = 8;
+const FILESYSTEM_REPLAY_GRANT_REFUSAL_RETENTION_WEIGHT: usize = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemReplayReadKind {
@@ -2984,73 +3008,74 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
 fn validate_filesystem_replay_size(attempts: &[FilesystemOperationAttempt]) -> Result<(), String> {
     let mut retained = attempts
         .len()
-        .checked_mul(std::mem::size_of::<FilesystemOperationAttempt>());
-    let mut add = |bytes: usize| {
+        .checked_mul(FILESYSTEM_REPLAY_ATTEMPT_RETENTION_WEIGHT);
+    let mut add = |weight: usize| {
         retained = retained
-            .and_then(|total| total.checked_add(bytes))
-            .filter(|total| *total <= MAX_FILESYSTEM_REPLAY_RETAINED_BYTES);
+            .and_then(|total| total.checked_add(weight))
+            .filter(|total| *total <= MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT);
     };
-    let lane_bytes = |length: usize, width: usize| length.checked_mul(width).unwrap_or(usize::MAX);
+    let lane_weight =
+        |length: usize, weight: usize| length.checked_mul(weight).unwrap_or(usize::MAX);
     for attempt in attempts {
-        add(lane_bytes(
+        add(lane_weight(
             attempt.scalar_operands.len(),
-            std::mem::size_of::<FilesystemScalarOperand>(),
+            FILESYSTEM_REPLAY_SCALAR_OPERAND_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.byte_operands.len(),
-            std::mem::size_of::<FilesystemByteOperand>(),
+            FILESYSTEM_REPLAY_BYTE_OPERAND_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.path_like_operands.len(),
-            std::mem::size_of::<FilesystemPathLikeOperand>(),
+            FILESYSTEM_REPLAY_PATH_LIKE_OPERAND_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.rooted_path_operand_resolutions.len(),
-            std::mem::size_of::<FilesystemRootedPathOperandResolution>(),
+            FILESYSTEM_REPLAY_ROOTED_PATH_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.returned_paths.len(),
-            std::mem::size_of::<FilesystemReturnedPath>(),
+            FILESYSTEM_REPLAY_RETURNED_PATH_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.observed_byte_regions.len(),
-            std::mem::size_of::<FilesystemObservedByteRegion>(),
+            FILESYSTEM_REPLAY_OBSERVED_REGION_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.metadata_observations.len(),
-            std::mem::size_of::<FilesystemMetadataObservation>(),
+            FILESYSTEM_REPLAY_METADATA_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.mutable_byte_operand_resolutions.len(),
-            std::mem::size_of::<FilesystemMutableByteOperandResolution>(),
+            FILESYSTEM_REPLAY_MUTABLE_BYTE_RESOLUTION_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.mutable_i64_operand_resolutions.len(),
-            std::mem::size_of::<FilesystemMutableI64OperandResolution>(),
+            FILESYSTEM_REPLAY_MUTABLE_I64_RESOLUTION_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.mutable_byte_operands.len(),
-            std::mem::size_of::<FilesystemMutableByteOperand>(),
+            FILESYSTEM_REPLAY_MUTABLE_BYTE_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.mutable_i64_operands.len(),
-            std::mem::size_of::<FilesystemMutableI64Operand>(),
+            FILESYSTEM_REPLAY_MUTABLE_I64_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.authorized_paths.len(),
-            std::mem::size_of::<FilesystemAuthorizedPath>(),
+            FILESYSTEM_REPLAY_AUTHORIZED_PATH_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.logical_handle_inputs.len(),
-            std::mem::size_of::<FilesystemLogicalHandleInput>(),
+            FILESYSTEM_REPLAY_LOGICAL_INPUT_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.retired_logical_handles.len(),
-            std::mem::size_of::<FilesystemLogicalHandleIdentity>(),
+            FILESYSTEM_REPLAY_RETIRED_HANDLE_RETENTION_WEIGHT,
         ));
-        add(lane_bytes(
+        add(lane_weight(
             attempt.grant_refusals.len(),
-            std::mem::size_of::<FilesystemGrantRefusal>(),
+            FILESYSTEM_REPLAY_GRANT_REFUSAL_RETENTION_WEIGHT,
         ));
         for operand in &attempt.byte_operands {
             add(operand.bytes.len());
@@ -3078,7 +3103,7 @@ fn validate_filesystem_replay_size(attempts: &[FilesystemOperationAttempt]) -> R
     retained
         .map(|_| ())
         .ok_or_else(|| format!(
-            "filesystem replay exceeds its {MAX_FILESYSTEM_REPLAY_RETAINED_BYTES}-byte retained-evidence ceiling"
+            "filesystem replay attempts exceed their {MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT}-unit deterministic retention-weight ceiling"
         ))
 }
 
@@ -5302,6 +5327,44 @@ mod filesystem_replay_record_tests {
             FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], vec![included])
                 .expect("large typed record is valid before replay-retention policy");
         assert!(FilesystemReplay::from_input_output_record(record).is_err());
+    }
+
+    #[test]
+    fn replay_retention_weight_accepts_the_exact_limit_and_rejects_one_more_unit() {
+        let payload_length = MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT
+            - FILESYSTEM_REPLAY_ATTEMPT_RETENTION_WEIGHT
+            - FILESYSTEM_REPLAY_BYTE_OPERAND_RETENTION_WEIGHT;
+        let attempt = FilesystemOperationAttempt {
+            operation_tag: 0,
+            provider: FilesystemObservationProvider::RealScoped,
+            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                result: FilesystemOperationResult::Scalar(0),
+                post_error: 0,
+            }),
+            scalar_operands: Vec::new(),
+            byte_operands: vec![FilesystemByteOperand {
+                operand_ordinal: 0,
+                bytes: vec![0; payload_length],
+            }],
+            path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: Vec::new(),
+            returned_paths: Vec::new(),
+            observed_byte_regions: Vec::new(),
+            metadata_observations: Vec::new(),
+            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_i64_operand_resolutions: Vec::new(),
+            mutable_byte_operands: Vec::new(),
+            mutable_i64_operands: Vec::new(),
+            authorized_paths: Vec::new(),
+            logical_handle_inputs: Vec::new(),
+            logical_handle_output: None,
+            retired_logical_handles: Vec::new(),
+            grant_refusals: Vec::new(),
+        };
+        let mut attempts = vec![attempt];
+        assert!(validate_filesystem_replay_size(&attempts).is_ok());
+        attempts[0].byte_operands[0].bytes.push(0);
+        assert!(validate_filesystem_replay_size(&attempts).is_err());
     }
 }
 

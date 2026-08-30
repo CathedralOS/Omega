@@ -829,6 +829,14 @@ evidence, not package admission or an audit attestation. Host CPU and RSS
 controls are deployment availability policy; they do not strengthen the
 verdict or turn review into authority.
 
+Cloning admitted filesystem operation attempts into interpreter custody uses
+explicit, host-independent retention weights instead of Rust-layout sizes.
+Fixed typed rows use their current canonical fixed-width upper bounds and
+retained variable payload bytes contribute one unit each. Separately bounded
+generated-source handoffs are outside this account. This is an implementation
+availability guard, not canonical record length, heap or RSS measurement,
+replay evidence, or package admission.
+
 Summary v53 and filesystem replay-record v34 add one exact no-effect failure
 row: an optional Source prefix followed by tag-10 `seek` on an unknown
 descriptor. Replay binds the authored `i64` offset and `i32` origin alongside
