@@ -12,6 +12,17 @@ pub(crate) fn check(audit: &mut Audit) {
     let violations = &mut audit.violations;
 
     for obsolete in [
+        "source/omega-rust/omega/representations/omega-optimization-core/src/manifest.rs",
+        "source/omega-rust/omega/representations/omega-legalized-operations/src/validation/call_source.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "optimizer representation restored a retired flat or forwarding-wall path: {obsolete}"
+            ));
+        }
+    }
+
+    for obsolete in [
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/rule.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/shapes.rs",
     ] {
