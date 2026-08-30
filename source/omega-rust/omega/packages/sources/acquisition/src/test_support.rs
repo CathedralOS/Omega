@@ -3,6 +3,7 @@
 use crate::error::SourceResolveError;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::repository::VerifiedGitRepository;
+use crate::git::executable::executor::test_system_git_executor;
 use crate::git::request::GitSourceRequest;
 use crate::git::resolution::resolve_git_source_with_storage;
 use crate::limits::LocalSourceLimits;
@@ -49,7 +50,11 @@ pub(crate) fn resolve_git_source(
     hardened_base: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    let storage = SourceResolverStorage::for_hardened_base(hardened_base)?;
+    let primary_git = test_system_git_executor(request.execution_transport())?
+        .identity
+        .path;
+    let storage =
+        SourceResolverStorage::for_hardened_base_with_primary_git(hardened_base, primary_git)?;
     resolve_git_source_with_storage(request, &storage, limits)
 }
 

@@ -227,7 +227,7 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Source integration and fixtures
 
-- [ ] **PRIMARY-GIT-SELECTION-AND-CONSISTENCY — implement the settled host
+- [x] **PRIMARY-GIT-SELECTION-AND-CONSISTENCY — implement the settled host
   selection boundary.** Follow **Primary Git selection and consistency** in
   `source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`:
   - accept one explicit absolute operator path, otherwise snapshot and search

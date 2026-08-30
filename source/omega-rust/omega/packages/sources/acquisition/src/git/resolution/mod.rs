@@ -43,6 +43,7 @@ pub fn resolve_git_source_in_lane(
         request,
         lane.path(),
         lane.directory(),
+        lane.primary_git_path()?,
         limits.compiler_bounded(),
     );
     lane.verify_path_identity()?;
@@ -64,12 +65,14 @@ fn resolve_git_source_from_retained_cache(
     request: &GitSourceRequest,
     cache_dir: &Path,
     cache_directory: &CapabilityDirectory,
+    primary_git: &Path,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     match resolve_git_source_from_retained_cache_with(
         request,
         cache_dir,
         cache_directory,
+        primary_git,
         limits,
         None,
         materialize_whole_git_source,

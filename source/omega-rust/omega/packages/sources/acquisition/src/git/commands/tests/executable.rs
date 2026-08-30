@@ -1,11 +1,10 @@
 #![cfg(unix)]
 
 use super::{
-    GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutionTransport,
-    GitExecutor, LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT,
-    SourceResolveError, change_macos_acl, git_resolution_captured_output_ceiling, run_git_output,
-    sealed_git_command, temp_root, test_system_git_executor,
-    verify_macos_open_executable_acl_custody,
+    change_macos_acl, git_resolution_captured_output_ceiling, run_git_output, sealed_git_command,
+    temp_root, test_system_git_executor, GitExecutionTransport, GitExecutor, LocalSourceLimits,
+    ResolverExecutionPhase, SourceResolveError, GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT,
+    GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, SOURCE_BYTE_ABSOLUTE_LIMIT,
 };
 use std::ffi::OsStr;
 use std::path::Path;
@@ -93,7 +92,7 @@ fn git_executor_rejects_relative_paths_and_executable_drift() {
 
 #[cfg(unix)]
 #[test]
-fn git_executor_rejects_unsafe_executable_modes_and_direct_mutation() {
+fn git_executor_treats_mode_as_launchability_and_detects_metadata_mutation() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("git-executable-custody");
@@ -103,14 +102,19 @@ fn git_executor_rejects_unsafe_executable_modes_and_direct_mutation() {
     let fake_git = root.join("git");
     std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
 
-    for unsafe_mode in [0o720, 0o4700, 0o600] {
-        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(unsafe_mode))
-            .expect("set unsafe Git executable mode");
-        assert!(matches!(
-            GitExecutor::open(&fake_git),
-            Err(SourceResolveError::GitExecutableInvalid { .. })
-        ));
+    for launchable_mode in [0o720, 0o4700] {
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(launchable_mode))
+            .expect("set launchable Git executable mode");
+        GitExecutor::open(&fake_git)
+            .expect("ownership, write, and set-id mode do not establish host trust");
     }
+
+    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o600))
+        .expect("remove executable mode");
+    assert!(matches!(
+        GitExecutor::open(&fake_git),
+        Err(SourceResolveError::GitExecutableInvalid { .. })
+    ));
 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
         .expect("restore safe Git executable mode");
@@ -154,7 +158,7 @@ fn git_executor_normal_custody_does_not_claim_executable_ancestry() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn git_executor_audits_direct_executable_acl_but_not_ancestry_acl() {
+fn git_executor_does_not_treat_acl_shape_as_host_trust() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("git-executable-acl-custody");
@@ -170,24 +174,15 @@ fn git_executor_audits_direct_executable_acl_but_not_ancestry_acl() {
         .expect("make fake Git executable private");
 
     change_macos_acl(&root, &["+a", "everyone allow write"]);
-    let executor = GitExecutor::open(&fake_git)
-        .expect("an ancestry ACL must remain outside normal executable custody");
+    let executor = GitExecutor::open(&fake_git).expect("open operator-selected executable");
     executor
         .verify()
         .expect("an ancestry ACL must not affect repeated direct custody checks");
 
     change_macos_acl(&fake_git, &["+a", "everyone allow write"]);
-    let executable_acl_error = executor
+    executor
         .verify()
-        .expect_err("extended ACL allow on executable must reject");
-    assert!(
-        matches!(
-            &executable_acl_error,
-            SourceResolveError::GitExecutableInvalid { path, message }
-                if path == &fake_git && message.contains("extended ACL allow")
-        ),
-        "unexpected executable ACL error: {executable_acl_error:?}"
-    );
+        .expect("an ACL allow entry is host policy, not source admission");
     change_macos_acl(&fake_git, &["-N"]);
     executor
         .verify()
@@ -208,43 +203,9 @@ fn git_executor_audits_direct_executable_acl_but_not_ancestry_acl() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn executable_acl_handle_open_rejects_classified_path_replacement() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let temporary_root = temp_root("git-executable-acl-handle-replacement");
-    std::fs::create_dir_all(&temporary_root).expect("create executable ACL test root");
-    let root = temporary_root
-        .canonicalize()
-        .expect("canonicalize executable ACL test root");
-    let executable = root.join("git");
-    let retained = root.join("retained");
-    std::fs::write(&executable, b"#!/bin/sh\nexit 0\n").expect("write classified executable");
-    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
-        .expect("make classified executable private");
-    let classified =
-        std::fs::symlink_metadata(&executable).expect("classify executable before replacement");
-
-    std::fs::rename(&executable, &retained).expect("relocate classified executable");
-    std::fs::write(&executable, b"#!/bin/sh\nexit 1\n").expect("write replacement executable");
-    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
-        .expect("make replacement executable private");
-    change_macos_acl(&executable, &["+a", "everyone allow write"]);
-
-    assert!(matches!(
-        verify_macos_open_executable_acl_custody(&executable, &classified),
-        Err(SourceResolveError::GitExecutableChanged { path }) if path == executable
-    ));
-
-    change_macos_acl(&executable, &["-N"]);
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn system_git_executor_excludes_the_apple_dispatcher() {
+fn automatic_git_executor_uses_one_absolute_path_selection() {
     let executor = test_system_git_executor(GitExecutionTransport::Https)
         .expect("concrete macOS Git executor");
-    assert_ne!(executor.identity.path, Path::new("/usr/bin/git"));
     assert!(executor.identity.path.is_absolute());
 }
 

@@ -4,7 +4,7 @@ use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::{
-    GitTreeEntry, GitTreeEntryKind, GitTreeProjectionRequest, inspect_git_tree_graph,
+    inspect_git_tree_graph, GitTreeEntry, GitTreeEntryKind, GitTreeProjectionRequest,
 };
 use crate::git::request::GitSourceRequest;
 use crate::git::snapshot::publish_git_member_snapshot;
@@ -92,6 +92,9 @@ where
         request,
         git_lane.path(),
         git_lane.directory(),
+        git_lane
+            .primary_git_path()
+            .map_err(GitWorkspaceProjectionError::Source)?,
         limits,
         pin,
         |executor, repository, tree, limits| {

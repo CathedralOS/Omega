@@ -111,8 +111,16 @@ pub fn prepare_local_project(
     };
     let target_profile = omega_target::TargetProfile::from_omega_target_name(target_name)
         .map_err(|diagnostic| PrepareLocalProjectError::InvalidTarget(diagnostic.to_string()))?;
-    let storage =
-        SourceResolverStorage::for_current_user().map_err(PrepareLocalProjectError::Storage)?;
+    let canonical_project_root = project_root.canonicalize().map_err(|error| {
+        PrepareLocalProjectError::Storage(SourceResolveError::Io {
+            path: project_root.clone(),
+            message: error.to_string(),
+        })
+    })?;
+    let storage = SourceResolverStorage::for_current_user_excluding_primary_git_roots(
+        std::slice::from_ref(&canonical_project_root),
+    )
+    .map_err(PrepareLocalProjectError::Storage)?;
     let closure = resolve_external_local_project_closure_with_storage(
         &project_root,
         ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),

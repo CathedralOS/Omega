@@ -3,23 +3,24 @@
 use super::budget::GitCapturedOutputBudget;
 use super::custody::verify_git_executable_custody;
 use super::identity::{
-    GitExecutableMetadataIdentity, hash_git_executable, observe_git_executable_metadata,
+    hash_git_executable, observe_git_executable_metadata, GitExecutableMetadataIdentity,
 };
-use super::selection::system_git_candidates;
-use crate::SourceResolveError;
-use crate::git::commands::capture::{BoundedCommandOutput, duration_millis};
+#[cfg(test)]
+use super::selection::PrimaryGitSelection;
+use crate::git::commands::capture::{duration_millis, BoundedCommandOutput};
 use crate::git::request::GitExecutionTransport;
 use crate::identity::digest::format_sha256;
 use crate::limits::{
-    GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,
+    LocalSourceLimits, GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT,
 };
 use crate::observations::accounting::{
-    GitCapturedOutputObservation, git_captured_output_observation,
-    git_resolution_captured_output_ceiling,
+    git_captured_output_observation, git_resolution_captured_output_ceiling,
+    GitCapturedOutputObservation,
 };
 use crate::observations::execution::{
     GitCommandExecutionObservation, GitCommandInputCommitment, GitExecutableIdentity,
 };
+use crate::SourceResolveError;
 use omega_resolver_execution::{
     ResolverExecutionBackend, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
 };
@@ -44,23 +45,18 @@ pub(crate) struct GitExecutor {
 }
 
 impl GitExecutor {
-    pub(crate) fn system(
+    pub(crate) fn selected(
+        path: &Path,
         execution_transport: GitExecutionTransport,
         limits: LocalSourceLimits,
     ) -> Result<Self, SourceResolveError> {
-        for candidate in system_git_candidates() {
-            let path = Path::new(candidate);
-            if path.is_file() {
-                return Self::open_with_budget_for_transport(
-                    path,
-                    GIT_FIXED_COMMAND_ALLOWANCE,
-                    GIT_RESOLUTION_TIMEOUT,
-                    git_resolution_captured_output_ceiling(limits),
-                    execution_transport,
-                );
-            }
-        }
-        Err(SourceResolveError::GitExecutableUnavailable)
+        Self::open_with_budget_for_transport(
+            path,
+            GIT_FIXED_COMMAND_ALLOWANCE,
+            GIT_RESOLUTION_TIMEOUT,
+            git_resolution_captured_output_ceiling(limits),
+            execution_transport,
+        )
     }
 
     #[cfg(test)]
@@ -329,5 +325,28 @@ impl crate::custody::lock::CacheLockBudget for GitExecutor {
 pub(crate) fn test_system_git_executor(
     transport: GitExecutionTransport,
 ) -> Result<GitExecutor, SourceResolveError> {
-    GitExecutor::system(transport, LocalSourceLimits::default())
+    let selection = test_primary_git_selection()?;
+    GitExecutor::selected(selection.path(), transport, LocalSourceLimits::default())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+fn test_primary_git_selection() -> Result<PrimaryGitSelection, SourceResolveError> {
+    let output = std::process::Command::new("/usr/bin/xcrun")
+        .args(["--find", "git"])
+        .output()
+        .map_err(|_| SourceResolveError::GitExecutableUnavailable)?;
+    if !output.status.success() {
+        return Err(SourceResolveError::GitExecutableUnavailable);
+    }
+    let path = std::str::from_utf8(&output.stdout)
+        .map_err(|_| SourceResolveError::GitExecutableUnavailable)?
+        .trim();
+    PrimaryGitSelection::from_operator_or_environment(Some(Path::new(path)), &[])?
+        .ok_or(SourceResolveError::GitExecutableUnavailable)
+}
+
+#[cfg(all(test, not(target_os = "macos")))]
+fn test_primary_git_selection() -> Result<PrimaryGitSelection, SourceResolveError> {
+    PrimaryGitSelection::from_operator_or_environment(None, &[])?
+        .ok_or(SourceResolveError::GitExecutableUnavailable)
 }

@@ -1,12 +1,13 @@
 //! Resolver-owned private storage for ordinary source acquisition.
 
-use super::SourceResolveError;
 use super::custody::platform::same_capability_file_identity;
 use super::custody::publication::{create_private_cache_directory, retain_private_cache_directory};
 use super::custody::tree::{
-    CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root,
-    verify_git_cache_root_custody,
+    cache_custody_invalid, verify_cache_custody_root, verify_git_cache_root_custody,
+    CacheCustodyKind,
 };
+use super::SourceResolveError;
+use crate::git::executable::selection::PrimaryGitSelection;
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};
@@ -22,6 +23,7 @@ pub struct RetainedStorageLane {
     path: PathBuf,
     directory: CapabilityDirectory,
     kind: CacheCustodyKind,
+    primary_git: Option<PrimaryGitSelection>,
 }
 
 /// Retained private per-user storage for source acquisition.
@@ -45,7 +47,33 @@ impl SourceResolverStorage {
     /// no usable per-user cache location, source resolution fails closed.
     pub fn for_current_user() -> Result<Self, SourceResolveError> {
         let base = current_user_cache_base()?;
-        Self::create_beneath(&base)
+        Self::create_beneath_with_primary_git(&base, None, &[])
+    }
+
+    /// Open production storage while excluding operator-known controlled roots
+    /// from automatic primary Git selection.
+    pub fn for_current_user_excluding_primary_git_roots(
+        excluded_roots: &[PathBuf],
+    ) -> Result<Self, SourceResolveError> {
+        let base = current_user_cache_base()?;
+        Self::create_beneath_with_primary_git(&base, None, excluded_roots)
+    }
+
+    /// Open production storage with one explicit operator-selected Git executable.
+    pub fn for_current_user_with_primary_git(
+        primary_git: impl AsRef<Path>,
+    ) -> Result<Self, SourceResolveError> {
+        let base = current_user_cache_base()?;
+        Self::create_beneath_with_primary_git(&base, Some(primary_git.as_ref()), &[])
+    }
+
+    /// Open production storage with explicit Git and controlled-root exclusions.
+    pub fn for_current_user_with_primary_git_and_excluded_roots(
+        primary_git: impl AsRef<Path>,
+        excluded_roots: &[PathBuf],
+    ) -> Result<Self, SourceResolveError> {
+        let base = current_user_cache_base()?;
+        Self::create_beneath_with_primary_git(&base, Some(primary_git.as_ref()), excluded_roots)
     }
 
     /// Open an isolated resolver tree beneath a caller-custodied base.
@@ -54,7 +82,28 @@ impl SourceResolverStorage {
     /// other infrastructure that supplies its own private storage boundary.
     /// Ordinary commands must use [`Self::for_current_user`].
     pub fn for_hardened_base(base: impl AsRef<Path>) -> Result<Self, SourceResolveError> {
-        Self::create_beneath(base.as_ref())
+        Self::create_beneath_with_primary_git(base.as_ref(), None, &[])
+    }
+
+    /// Open isolated storage with one explicit operator-selected Git executable.
+    pub fn for_hardened_base_with_primary_git(
+        base: impl AsRef<Path>,
+        primary_git: impl AsRef<Path>,
+    ) -> Result<Self, SourceResolveError> {
+        Self::create_beneath_with_primary_git(base.as_ref(), Some(primary_git.as_ref()), &[])
+    }
+
+    /// Open isolated storage with explicit Git and controlled-root exclusions.
+    pub fn for_hardened_base_with_primary_git_and_excluded_roots(
+        base: impl AsRef<Path>,
+        primary_git: impl AsRef<Path>,
+        excluded_roots: &[PathBuf],
+    ) -> Result<Self, SourceResolveError> {
+        Self::create_beneath_with_primary_git(
+            base.as_ref(),
+            Some(primary_git.as_ref()),
+            excluded_roots,
+        )
     }
 
     #[cfg(test)]
@@ -102,7 +151,16 @@ impl SourceResolverStorage {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn create_beneath(base: &Path) -> Result<Self, SourceResolveError> {
+        Self::create_beneath_with_primary_git(base, None, &[])
+    }
+
+    fn create_beneath_with_primary_git(
+        base: &Path,
+        explicit_primary_git: Option<&Path>,
+        excluded_primary_git_roots: &[PathBuf],
+    ) -> Result<Self, SourceResolveError> {
         if !base.is_absolute() {
             return Err(SourceResolveError::PrivateStorageUnavailable {
                 message: format!("per-user cache base `{}` is not absolute", base.display()),
@@ -129,19 +187,53 @@ impl SourceResolverStorage {
             )?;
         }
 
-        let git_sources =
-            RetainedStorageLane::create(&root, &directory, GIT_SOURCES, CacheCustodyKind::Git)?;
+        let mut excluded_roots = Vec::new();
+        excluded_roots
+            .try_reserve_exact(excluded_primary_git_roots.len().saturating_add(1))
+            .map_err(|_| SourceResolveError::PrivateStorageUnavailable {
+                message: "primary Git exclusion set exceeds host capacity".to_owned(),
+            })?;
+        excluded_roots.push(root.clone());
+        for excluded in excluded_primary_git_roots {
+            if !excluded.is_absolute() {
+                return Err(SourceResolveError::PrivateStorageUnavailable {
+                    message: format!(
+                        "primary Git exclusion root `{}` is not absolute",
+                        excluded.display()
+                    ),
+                });
+            }
+            excluded_roots.push(
+                excluded
+                    .canonicalize()
+                    .map_err(|error| io_error(excluded, error))?,
+            );
+        }
+        let primary_git = PrimaryGitSelection::from_operator_or_environment(
+            explicit_primary_git,
+            &excluded_roots,
+        )?;
+
+        let git_sources = RetainedStorageLane::create(
+            &root,
+            &directory,
+            GIT_SOURCES,
+            CacheCustodyKind::Git,
+            primary_git.as_ref(),
+        )?;
         let workspace_members = RetainedStorageLane::create(
             &root,
             &directory,
             WORKSPACE_MEMBERS,
             CacheCustodyKind::LocalSnapshot,
+            primary_git.as_ref(),
         )?;
         let external_local_sources = RetainedStorageLane::create(
             &root,
             &directory,
             EXTERNAL_LOCAL_SOURCES,
             CacheCustodyKind::LocalSnapshot,
+            primary_git.as_ref(),
         )?;
         let storage = Self {
             root,
@@ -161,6 +253,7 @@ impl RetainedStorageLane {
         root_directory: &CapabilityDirectory,
         name: &str,
         kind: CacheCustodyKind,
+        primary_git: Option<&PrimaryGitSelection>,
     ) -> Result<Self, SourceResolveError> {
         let path = root.join(name);
         match create_private_cache_directory(root_directory, name) {
@@ -174,6 +267,7 @@ impl RetainedStorageLane {
             path,
             directory,
             kind,
+            primary_git: primary_git.cloned(),
         };
         lane.verify_path_identity()?;
         Ok(lane)
@@ -189,9 +283,22 @@ impl RetainedStorageLane {
 
     pub fn retain_child(&self, name: &str) -> Result<Self, SourceResolveError> {
         self.verify_path_identity()?;
-        let child = Self::create(&self.path, &self.directory, name, self.kind)?;
+        let child = Self::create(
+            &self.path,
+            &self.directory,
+            name,
+            self.kind,
+            self.primary_git.as_ref(),
+        )?;
         self.verify_path_identity()?;
         Ok(child)
+    }
+
+    pub(crate) fn primary_git_path(&self) -> Result<&Path, SourceResolveError> {
+        self.primary_git
+            .as_ref()
+            .map(PrimaryGitSelection::path)
+            .ok_or(SourceResolveError::GitExecutableUnavailable)
     }
 
     pub fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
