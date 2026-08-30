@@ -184,15 +184,15 @@ stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
     '    emit_imm(10, 0)' \
     '    emit_imm(2, 16)' \
     '    emit_jump(19, heap_label)' \
-    '    emit_imm(6, 16777216)' \
+    '    emit_imm(6, 16777248)' \
     '    emit_rrx(16, 0, 6, heap_base_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(heap_base_ok)' \
-    '    emit_imm(6, 16777232)' \
+    '    emit_imm(6, 16777264)' \
     '    emit_rrx(16, 254, 6, heap_first_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(heap_first_ok)' \
-    '    emit_imm(2, 33554416)' \
+    '    emit_imm(2, 33554384)' \
     '    emit_jump(19, heap_label)' \
     '    emit_imm(6, 50331648)' \
     '    emit_rrx(16, 254, 6, heap_cap_ok)' \
@@ -281,6 +281,464 @@ if [ "$runtime_emitter_status" != 1 ] || [ ! -s "$T/runtime-probe.tape" ]; then
   exit 1
 fi
 stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&1
+
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc emit_probe_eq(left, right, success_label, unexpected_label) {' \
+    '    emit_rrx(16, left, right, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(success_label)' \
+    '    return 0' \
+    '}' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let heap_label = new_label()' \
+    '    let add_label = new_label()' \
+    '    let single_label = new_label()' \
+    '    let length_label = new_label()' \
+    '    let concat_label = new_label()' \
+    '    let slice_label = new_label()' \
+    '    let get_label = new_label()' \
+    '    let resource_label = new_label()' \
+    '    let trap_label = new_label()' \
+    '    let internal_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let empty_heap_ok = new_label()' \
+    '    let empty_zero_ok = new_label()' \
+    '    let empty_one_ok = new_label()' \
+    '    let empty_two_ok = new_label()' \
+    '    let empty_three_ok = new_label()' \
+    '    let first_base_ok = new_label()' \
+    '    let first_heap_ok = new_label()' \
+    '    let first_length_ok = new_label()' \
+    '    let first_byte_ok = new_label()' \
+    '    let pair_length_ok = new_label()' \
+    '    let pair_first_ok = new_label()' \
+    '    let pair_second_ok = new_label()' \
+    '    let four_length_ok = new_label()' \
+    '    let cross_length_ok = new_label()' \
+    '    let cross_first_ok = new_label()' \
+    '    let cross_second_ok = new_label()' \
+    '    let nested_byte_ok = new_label()' \
+    '    let empty_concat_ok = new_label()' \
+    '    let full_slice_ok = new_label()' \
+    '    let zero_slice_ok = new_label()' \
+    '    let deep_loop = new_label()' \
+    '    let deep_body = new_label()' \
+    '    let deep_done = new_label()' \
+    '    let deep_byte_ok = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_imm(30, 16777248)' \
+    '    emit_probe_eq(254, 30, empty_heap_ok, unexpected_label)' \
+    '    emit_imm(30, 0)' \
+    '    emit_imm(31, 16777216)' \
+    '    emit_rr(10, 29, 31)' \
+    '    emit_probe_eq(29, 30, empty_zero_ok, unexpected_label)' \
+    '    emit_imm(28, 8)' \
+    '    emit_rr(3, 31, 28)' \
+    '    emit_rr(10, 29, 31)' \
+    '    emit_probe_eq(29, 30, empty_one_ok, unexpected_label)' \
+    '    emit_rr(3, 31, 28)' \
+    '    emit_rr(10, 29, 31)' \
+    '    emit_probe_eq(29, 30, empty_two_ok, unexpected_label)' \
+    '    emit_rr(3, 31, 28)' \
+    '    emit_rr(10, 29, 31)' \
+    '    emit_probe_eq(29, 30, empty_three_ok, unexpected_label)' \
+    '    emit_imm(2, 0)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_rr(2, 20, 0)' \
+    '    emit_imm(30, 16777248)' \
+    '    emit_probe_eq(20, 30, first_base_ok, unexpected_label)' \
+    '    emit_imm(30, 16777280)' \
+    '    emit_probe_eq(254, 30, first_heap_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_rr(2, 28, 0)' \
+    '    emit_imm(29, 1)' \
+    '    emit_probe_eq(28, 29, first_length_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 0)' \
+    '    emit_probe_eq(0, 29, first_byte_ok, unexpected_label)' \
+    '    emit_imm(2, 255)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_rr(2, 21, 0)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_rr(2, 3, 21)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_rr(2, 22, 0)' \
+    '    emit_rr(2, 2, 22)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_rr(2, 28, 0)' \
+    '    emit_imm(29, 2)' \
+    '    emit_probe_eq(28, 29, pair_length_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 22)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 0)' \
+    '    emit_probe_eq(0, 29, pair_first_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 22)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 255)' \
+    '    emit_probe_eq(0, 29, pair_second_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 22)' \
+    '    emit_rr(2, 3, 22)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_rr(2, 23, 0)' \
+    '    emit_rr(2, 2, 23)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_rr(2, 28, 0)' \
+    '    emit_imm(29, 4)' \
+    '    emit_probe_eq(28, 29, four_length_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 23)' \
+    '    emit_imm(3, 1)' \
+    '    emit_imm(4, 2)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_rr(2, 24, 0)' \
+    '    emit_rr(2, 2, 24)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_rr(2, 28, 0)' \
+    '    emit_imm(29, 2)' \
+    '    emit_probe_eq(28, 29, cross_length_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 24)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 255)' \
+    '    emit_probe_eq(0, 29, cross_first_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 24)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 0)' \
+    '    emit_probe_eq(0, 29, cross_second_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 24)' \
+    '    emit_imm(3, 1)' \
+    '    emit_imm(4, 1)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_rr(2, 25, 0)' \
+    '    emit_rr(2, 2, 25)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 0)' \
+    '    emit_probe_eq(0, 29, nested_byte_ok, unexpected_label)' \
+    '    emit_imm(2, 16777216)' \
+    '    emit_rr(2, 3, 25)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_probe_eq(0, 25, empty_concat_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 22)' \
+    '    emit_imm(3, 0)' \
+    '    emit_imm(4, 2)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_probe_eq(0, 22, full_slice_ok, unexpected_label)' \
+    '    emit_rr(2, 2, 22)' \
+    '    emit_imm(3, 2)' \
+    '    emit_imm(4, 0)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_imm(29, 16777216)' \
+    '    emit_probe_eq(0, 29, zero_slice_ok, unexpected_label)' \
+    '    emit_rr(2, 26, 20)' \
+    '    emit_imm(27, 0)' \
+    '    emit_imm(28, 1024)' \
+    '    define_label(deep_loop)' \
+    '    emit_rrx(15, 27, 28, deep_body)' \
+    '    emit_jump(12, deep_done)' \
+    '    define_label(deep_body)' \
+    '    emit_rr(2, 2, 26)' \
+    '    emit_rr(2, 3, 21)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_rr(2, 26, 0)' \
+    '    emit_imm(29, 1)' \
+    '    emit_rr(3, 27, 29)' \
+    '    emit_jump(12, deep_loop)' \
+    '    define_label(deep_done)' \
+    '    emit_rr(2, 2, 26)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(29, 0)' \
+    '    emit_probe_eq(0, 29, deep_byte_ok, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(resource_label)' \
+    '    emit_imm(0, 6)' \
+    '    emit_r(0, 0)' \
+    '    define_label(trap_label)' \
+    '    emit_imm(0, 5)' \
+    '    emit_r(0, 0)' \
+    '    define_label(internal_label)' \
+    '    emit_imm(0, 4)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_heap_allocator(heap_label, resource_label)' \
+    '    emit_checked_add(add_label, trap_label)' \
+    '    emit_bytes_single(single_label, heap_label, trap_label)' \
+    '    emit_bytes_length(length_label, internal_label)' \
+    '    emit_bytes_concat(concat_label, heap_label, add_label, internal_label)' \
+    '    emit_bytes_slice(slice_label, heap_label, trap_label, internal_label)' \
+    '    emit_bytes_get(get_label, trap_label, internal_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/bytes-valid-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + Bytes valid runtime probe) failed"
+  exit 1
+}
+stamp_seed "$T/bytes-valid-emitter.tape" "$SEED" "$T/bytes-valid-emitter.exe" >/dev/null 2>&1
+"$T/bytes-valid-emitter.exe" > "$T/bytes-valid-probe.tape"
+bytes_valid_emitter_status=$?
+if [ "$bytes_valid_emitter_status" != 1 ] || [ ! -s "$T/bytes-valid-probe.tape" ]; then
+  echo "Gamma Bytes valid probe emission failed: status $bytes_valid_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/bytes-valid-probe.tape" "$SEED" "$T/bytes-valid-probe.exe" >/dev/null 2>&1
+
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let heap_label = new_label()' \
+    '    let add_label = new_label()' \
+    '    let single_label = new_label()' \
+    '    let length_label = new_label()' \
+    '    let concat_label = new_label()' \
+    '    let slice_label = new_label()' \
+    '    let get_label = new_label()' \
+    '    let resource_label = new_label()' \
+    '    let trap_label = new_label()' \
+    '    let internal_label = new_label()' \
+    '    let success_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let dispatch_label = new_label()' \
+    '    let single_negative = new_label()' \
+    '    let single_large = new_label()' \
+    '    let get_negative = new_label()' \
+    '    let get_large = new_label()' \
+    '    let slice_start_negative = new_label()' \
+    '    let slice_length_negative = new_label()' \
+    '    let slice_start_large = new_label()' \
+    '    let slice_range_large = new_label()' \
+    '    let misaligned_descriptor = new_label()' \
+    '    let unallocated_descriptor = new_label()' \
+    '    let unknown_kind = new_label()' \
+    '    let malformed_child = new_label()' \
+    '    let exact_resource = new_label()' \
+    '    let exact_base_ok = new_label()' \
+    '    let exact_cap_ok = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_r(17, 11)' \
+    '    emit_imm(2, 42)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_rr(2, 20, 0)' \
+    '    define_label(dispatch_label)' \
+    '    emit_imm(12, 97)' \
+    '    emit_rrx(16, 11, 12, single_negative)' \
+    '    emit_imm(12, 98)' \
+    '    emit_rrx(16, 11, 12, single_large)' \
+    '    emit_imm(12, 99)' \
+    '    emit_rrx(16, 11, 12, get_negative)' \
+    '    emit_imm(12, 100)' \
+    '    emit_rrx(16, 11, 12, get_large)' \
+    '    emit_imm(12, 101)' \
+    '    emit_rrx(16, 11, 12, slice_start_negative)' \
+    '    emit_imm(12, 102)' \
+    '    emit_rrx(16, 11, 12, slice_length_negative)' \
+    '    emit_imm(12, 103)' \
+    '    emit_rrx(16, 11, 12, slice_start_large)' \
+    '    emit_imm(12, 104)' \
+    '    emit_rrx(16, 11, 12, slice_range_large)' \
+    '    emit_imm(12, 105)' \
+    '    emit_rrx(16, 11, 12, misaligned_descriptor)' \
+    '    emit_imm(12, 106)' \
+    '    emit_rrx(16, 11, 12, unallocated_descriptor)' \
+    '    emit_imm(12, 107)' \
+    '    emit_rrx(16, 11, 12, unknown_kind)' \
+    '    emit_imm(12, 108)' \
+    '    emit_rrx(16, 11, 12, malformed_child)' \
+    '    emit_imm(12, 109)' \
+    '    emit_rrx(16, 11, 12, exact_resource)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(single_negative)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 0 - 1)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(single_large)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 256)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(get_negative)' \
+    '    emit_imm(10, 1)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 0 - 1)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(get_large)' \
+    '    emit_imm(10, 1)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(slice_start_negative)' \
+    '    emit_imm(10, 1)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 0 - 1)' \
+    '    emit_imm(4, 0)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(slice_length_negative)' \
+    '    emit_imm(10, 1)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 0)' \
+    '    emit_imm(4, 0 - 1)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(slice_start_large)' \
+    '    emit_imm(10, 1)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 2)' \
+    '    emit_imm(4, 0)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(slice_range_large)' \
+    '    emit_imm(10, 1)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 1)' \
+    '    emit_imm(4, 1)' \
+    '    emit_jump(19, slice_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(misaligned_descriptor)' \
+    '    emit_imm(10, 2)' \
+    '    emit_imm(2, 16777217)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(unallocated_descriptor)' \
+    '    emit_imm(10, 2)' \
+    '    emit_rr(2, 2, 254)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(unknown_kind)' \
+    '    emit_imm(2, 32)' \
+    '    emit_jump(19, heap_label)' \
+    '    emit_rr(2, 21, 0)' \
+    '    emit_imm(12, 99)' \
+    '    emit_rr(11, 21, 12)' \
+    '    emit_rr(2, 13, 21)' \
+    '    emit_imm(12, 24)' \
+    '    emit_rr(3, 13, 12)' \
+    '    emit_imm(12, 1)' \
+    '    emit_rr(11, 13, 12)' \
+    '    emit_imm(10, 2)' \
+    '    emit_rr(2, 2, 21)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(malformed_child)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_rr(2, 3, 20)' \
+    '    emit_jump(19, concat_label)' \
+    '    emit_rr(2, 21, 0)' \
+    '    emit_rr(2, 13, 21)' \
+    '    emit_imm(12, 16)' \
+    '    emit_rr(3, 13, 12)' \
+    '    emit_imm(12, 17)' \
+    '    emit_rr(11, 13, 12)' \
+    '    emit_imm(10, 2)' \
+    '    emit_rr(2, 2, 21)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(exact_resource)' \
+    '    emit_imm(254, 50331616)' \
+    '    emit_imm(2, 7)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_imm(12, 50331616)' \
+    '    emit_rrx(16, 0, 12, exact_base_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(exact_base_ok)' \
+    '    emit_rrx(16, 254, 255, exact_cap_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(exact_cap_ok)' \
+    '    emit_imm(10, 3)' \
+    '    emit_imm(2, 8)' \
+    '    emit_jump(19, single_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(resource_label)' \
+    '    emit_imm(12, 3)' \
+    '    emit_rrx(16, 10, 12, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(trap_label)' \
+    '    emit_imm(12, 1)' \
+    '    emit_rrx(16, 10, 12, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(internal_label)' \
+    '    emit_imm(12, 2)' \
+    '    emit_rrx(16, 10, 12, success_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(success_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_heap_allocator(heap_label, resource_label)' \
+    '    emit_checked_add(add_label, trap_label)' \
+    '    emit_bytes_single(single_label, heap_label, trap_label)' \
+    '    emit_bytes_length(length_label, internal_label)' \
+    '    emit_bytes_concat(concat_label, heap_label, add_label, internal_label)' \
+    '    emit_bytes_slice(slice_label, heap_label, trap_label, internal_label)' \
+    '    emit_bytes_get(get_label, trap_label, internal_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/bytes-invalid-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + Bytes failure-class probe) failed"
+  exit 1
+}
+stamp_seed "$T/bytes-invalid-emitter.tape" "$SEED" "$T/bytes-invalid-emitter.exe" >/dev/null 2>&1
+"$T/bytes-invalid-emitter.exe" > "$T/bytes-invalid-probe.tape"
+bytes_invalid_emitter_status=$?
+if [ "$bytes_invalid_emitter_status" != 1 ] || [ ! -s "$T/bytes-invalid-probe.tape" ]; then
+  echo "Gamma Bytes failure-class probe emission failed: status $bytes_invalid_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/dev/null 2>&1
 
 {
   sed -n '1,$p' gamma_compiler.beta
@@ -577,6 +1035,24 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
 stamp_seed "$T/lowering-emitter.tape" "$SEED" "$T/lowering-emitter.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
+"$T/bytes-valid-probe.exe" > "$T/bytes-valid.out"
+bytes_valid_status=$?
+if [ "$bytes_valid_status" = 7 ] && [ ! -s "$T/bytes-valid.out" ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL Bytes valid/deep probe: status $bytes_valid_status, output $(wc -c < "$T/bytes-valid.out" | tr -d ' ') bytes"
+fi
+for bytes_invalid_mode in a b c d e f g h i j k l m; do
+  printf '%s' "$bytes_invalid_mode" | "$T/bytes-invalid-probe.exe" > "$T/bytes-invalid-$bytes_invalid_mode.out"
+  bytes_invalid_status=$?
+  if [ "$bytes_invalid_status" = 7 ] && [ ! -s "$T/bytes-invalid-$bytes_invalid_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL Bytes failure class $bytes_invalid_mode: status $bytes_invalid_status, output $(wc -c < "$T/bytes-invalid-$bytes_invalid_mode.out" | tr -d ' ') bytes"
+  fi
+done
 "$T/emitter.exe" > "$T/emitter.out"
 emitter_status=$?
 if [ "$emitter_status" = 1 ] && [ ! -s "$T/emitter.out" ]; then

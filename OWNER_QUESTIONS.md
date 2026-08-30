@@ -313,3 +313,44 @@ endpoint directly.
 - Tempting but wrong: say ambient proxies work while command-scoped overrides
   silently replace them, or record the requested host as the observed peer
   after an unobserved host proxy route.
+## Q6 — Classify Gamma `Bytes` logical-length overflow
+
+### Context
+
+D16 makes `Bytes` an immutable finite byte sequence and fixes
+`bytes_length : Bytes -> Int`, where `Int` is signed 64-bit. The compact runtime
+representation permits constant-space concatenation: repeatedly concatenating
+a rope with itself can exceed `INT64_MAX` logical bytes after roughly 63
+descriptor allocations, long before the implementation exhausts its heap.
+Neither D16 nor the Gamma guide says whether that operation traps, becomes a
+private resource failure, or is excluded by another language invariant.
+
+### Problem statement
+
+Classify `bytes_concat(left, right)` when both operands are valid `Bytes` but
+their mathematical combined length is not representable by `Int`. This is
+observable Gamma meaning rather than merely a representation choice because a
+compact implementation can reach it, `bytes_length` must return an `Int`, and
+the compiler customer may construct output incrementally. Implementations must
+not disagree by wrapping the length, fabricating a value, or conflating the
+same authored operation with ambient heap exhaustion.
+
+### Proposed direction
+
+Trap deterministically before allocation when the exact combined length
+exceeds `INT64_MAX`. Treat this as an authored operation outside the closed
+`Bytes`/`Int` value relation, parallel to checked arithmetic overflow, not as
+profile-dependent `Incomplete`. Do not mutate the heap or publish a partial
+descriptor before the check completes.
+
+### Alternates
+
+- Acceptable: define a smaller fixed maximum `Bytes` length and trap every
+  constructor that would exceed it, provided the limit is Gamma meaning rather
+  than a private runtime capacity and `bytes_length` remains total.
+- Acceptable: change the language to expose an unbounded length carrier, but
+  that is a larger D16 revision and must update the compiler customer and all
+  six built-ins together.
+- Tempting but wrong: wrap signed length, call the deterministic value overflow
+  `Incomplete`, rely on eventual physical allocation to make it unreachable,
+  or silently flatten ropes until a private resource limit decides meaning.
