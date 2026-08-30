@@ -735,11 +735,41 @@ cannot assert it. The operation provides neither cross-core synchronization
 nor device visibility.
 
 DMA publication, device acquisition, cache maintenance, MMIO notification,
-and posted-write completion are separate sealed provider operations. They are
-not stronger spellings of `Atomic::fence`: a CPU fence can correctly order CPU
-participants while establishing nothing for a device. Such an operation emits
-requirements naming its exact range, mapping, device instance, and ordering
-scope. All requirements must be discharged or the program rejects.
+and posted-write completion are separate device-protocol roles. They are not
+stronger spellings of `Atomic::fence`: a CPU fence can correctly order CPU
+participants while establishing nothing for a device. The intended checked
+driver model exposes those roles as explicit custody transitions rather than
+hiding them behind an untyped fence.
+
+The first source-admitted rung is deliberately narrower. An opaque or hosted
+provider may expose one complete DMA service boundary selected and admitted by
+`build.omg`; its internal publication, cache, notification, and completion
+steps remain provider-private. This compatibility boundary does not authorize
+checked source to compose the five roles or manufacture their evidence. A
+source-visible primitive family waits for a concrete checked driver whose
+protocol fixes the exact role-specific arguments and results.
+
+Build selection admits the provider and its scope-capability schema; it does
+not mint one ordering-scope occurrence. A runtime device, queue, or session may
+have many occurrences under one selected provider. The installed provider
+issues each sealed occurrence, and source may carry or pass that capability but
+cannot construct, inspect, or compare its identity. Every emitted operation
+binds the exact mapped range, mapping, stable device instance, runtime scope
+occurrence, and role. The role discriminant is an input to canonical identity,
+not merely a selector used while decoding an otherwise identical payload.
+
+Starting an admitted transfer creates a linear pending loan bound to one exact
+external-loan occurrence. Pre-commit rejection returns every consumed
+candidate unchanged. Acquisition restores Stable CPU custody only when exact
+completion evidence proves that the external borrower released that loan.
+Device status and custody release are independent: a failed device operation
+may have released the range, while a success-looking report that does not prove
+release cannot restore CPU access. A non-releasing, stale, mismatched, or
+incomplete completion therefore returns the pending loan and completion
+candidate for resolution rather than fabricating Stable custody. Missing
+provider coverage rejects compilation or installation and has no runtime
+`Rejected` arm; ordinary runtime device failures are explicit protocol
+outcomes, not crash edges.
 
 Publication evidence is invalidated by any later write whose frame intersects
 the published range. Passing erased evidence to a doorbell does not itself
@@ -749,9 +779,10 @@ of device-written data consumes matching completion evidence. It establishes a
 Stable CPU view only when the protocol also returns custody; otherwise the
 storage remains External.
 
-The current compiler foundation retains these five provider-operation demands
-as distinct, exact structural rows and can close an emitted row set against
-one-to-one provider assertions. That staging carrier neither proves provider
+The current compiler foundation retains these five provider-operation roles as
+distinct, exact structural rows and can close a supplied test row set against
+one-to-one provider assertions. No checked source operation emits them. That
+staging carrier neither proves provider
 admission nor authorizes anything: source emission, ordering-scope validation,
 Terminal events, publication/acquisition evidence, completion, custody
 transitions, and target lowering are not implemented by it.

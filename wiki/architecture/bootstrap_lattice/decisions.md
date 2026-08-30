@@ -834,6 +834,55 @@ placement or execution. Disjoint artifacts need not share a representation,
 and source review must not claim that an artifact composition has already
 occurred.
 
+## D27 — Device protocols separate checked custody from opaque compatibility
+
+DMA publication, device acquisition, cache maintenance, MMIO notification,
+and posted-write completion are distinct protocol roles. The intended
+checked-driver model represents them as explicit typed custody and ordering
+transitions. The existing access-plan row is only provisional,
+non-authorizing structural scaffolding: no checked source operation emits it,
+test construction grants no authority, and its uniform one-range payload is
+not public ABI. Notification, completion, and acquisition may require distinct
+data, descriptor, doorbell, read-back, request, and completion coordinates.
+
+The first source-admitted rung is one complete DMA service boundary for a named
+customer. Hosted, firmware, native, and other opaque implementations enter
+through the ordinary `build.omg` trust weld and keep the five lower-level roles
+provider-private. The weld selects and audits an exact provider, target,
+calling plan, authority, and contract; it does not prove the provider's
+internal register, cache, queue, or firmware protocol. Checked source cannot
+compose the private roles or claim their intermediate proofs. A public
+primitive family waits for a concrete checked driver whose protocol determines
+the exact role-specific signatures.
+
+Build selection admits a provider and the schema of its sealed ordering-scope
+capability. It cannot issue a runtime occurrence: one selected provider may
+create many device, queue, or session scopes. The installed provider issues
+each occurrence. Source may carry and pass the capability but cannot construct,
+inspect, or compare its identity. Every event binds the exact mapped range,
+mapping, stable device instance, runtime scope occurrence, and role. In every
+role-keyed row, sum, or certificate collection, the role discriminant itself
+enters canonical identity rather than serving only as a payload-decoding
+selector.
+
+DMA is an external borrow. Accepted submission creates one linear pending loan
+bound to the exact per-transfer `ExternalLoanId`; incompatible CPU access stays
+excluded until release is proven. A pre-commit rejection returns every consumed
+candidate unchanged. Missing provider coverage rejects compilation or
+installation and has no runtime `Rejected` arm. After submission, ordinary
+device status and custody release are separate axes. Acquisition returns Stable
+CPU custody plus the device status only when exact completion evidence proves
+release. A stale, mismatched, incomplete, or non-releasing completion returns
+the pending loan and completion candidate for higher-level recovery and never
+fabricates Stable custody. Ordinary device failure is a protocol outcome, not
+a crash; a provider contract violation remains a trusted-provider defect.
+
+Generic result sums introduce no new multiplicity rule. The nominal container
+keeps its declared multiplicity while the active payload carries every affine
+or linear obligation introduced by substitution. This is the general rule
+already exercised by `TaskOutcome`, atomic outcomes, and retry-custody sums;
+it does not determine an operation's disposition table.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

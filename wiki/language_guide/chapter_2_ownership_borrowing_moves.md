@@ -68,6 +68,13 @@ Conditional ownership uses an ordinary sum such as `Idle | Running(Task<T>)`.
 The obligation belongs only to the live payload. Zeroed storage is not a
 universal consumed linear value.
 
+This rule is unchanged for generic sums. The nominal container keeps its own
+declared multiplicity while the active payload carries every affine or linear
+obligation introduced by substitution. `Returned(LinearT)` and
+`Rejected(LinearArguments)` therefore participate in the same conditional
+permission accounting as `Idle | Running(Task<T>)`; a generic parameter does
+not erase custody, and an inactive case does not acquire it.
+
 Flow analysis therefore carries two different kinds of context. Propositions
 can weaken or duplicate where logic permits. Permissions track establishment,
 multiplicity, loan compatibility (`owned`, `shared`, `exclusive`), permitted
