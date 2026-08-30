@@ -278,7 +278,7 @@ pub(super) fn validate_unit_operation_static(
                                 StructuralPathSegment::FixedIndex(_),
                             ]
                     )
-                    && !is_nonempty_field_path(&argument.path)
+                    && !is_write_only_subloan_path(&argument.path)
             }) {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
                     operation: operation.id,
@@ -294,7 +294,7 @@ pub(super) fn validate_unit_operation_static(
                                             StructuralPathSegment::FixedIndex(_),
                                         ]
                                 )
-                                && !is_nonempty_field_path(&argument.path)
+                                && !is_write_only_subloan_path(&argument.path)
                         })
                         .unwrap_or_default() as u32,
                 });
@@ -322,6 +322,19 @@ pub(super) fn validate_unit_operation_static(
                 true,
                 false,
             )?;
+            if let Some(argument_index) = structural_arguments
+                .iter()
+                .zip(&callee.structural_parameters)
+                .position(|(argument, expected)| {
+                    is_literal_indexed_field_path(&argument.path)
+                        && !is_unrestricted_write_only_subloan(machine, expected, argument)
+                })
+            {
+                return Err(ModuleError::InvalidStructuralArgumentPath {
+                    operation: operation.id,
+                    argument_index: argument_index as u32,
+                });
+            }
             if let Some((argument_index, _)) = structural_arguments
                 .iter()
                 .zip(&callee.structural_parameters)
@@ -948,12 +961,8 @@ fn validate_structural_arguments(
                 presented: argument.access,
             });
         }
-        let unrestricted_write_only_field_subloan = is_nonempty_field_path(&argument.path)
-            && argument.access == StructuralAccess::WriteOnlyBorrow
-            && expected.access == StructuralAccess::WriteOnlyBorrow
-            && actual_access == StructuralAccess::WriteOnlyBorrow
-            && expected.multiplicity == StructuralMultiplicity::Unrestricted
-            && actual_multiplicity == StructuralMultiplicity::Unrestricted;
+        let unrestricted_write_only_field_subloan =
+            is_unrestricted_write_only_subloan(caller, expected, argument);
         let actual_multiplicity = if argument.path.is_empty() {
             actual_multiplicity
         } else if unrestricted_write_only_field_subloan {
@@ -1032,6 +1041,36 @@ fn structural_paths_may_overlap(
     left.iter().zip(right).all(|(left, right)| left == right)
 }
 
+fn is_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
+    let Some((StructuralPathSegment::FixedIndex(_), fields)) = path.split_last() else {
+        return false;
+    };
+    is_nonempty_field_path(fields)
+}
+
+fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {
+    is_nonempty_field_path(path) || is_literal_indexed_field_path(path)
+}
+
+fn is_unrestricted_write_only_subloan(
+    caller: &TerminalMachine,
+    expected: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+) -> bool {
+    is_write_only_subloan_path(&argument.path)
+        && argument.access == StructuralAccess::WriteOnlyBorrow
+        && expected.access == StructuralAccess::WriteOnlyBorrow
+        && expected.multiplicity == StructuralMultiplicity::Unrestricted
+        && caller
+            .structural_parameters
+            .iter()
+            .find(|actual| actual.place == argument.place)
+            .is_some_and(|actual| {
+                actual.access == StructuralAccess::WriteOnlyBorrow
+                    && actual.multiplicity == StructuralMultiplicity::Unrestricted
+            })
+}
+
 pub(super) fn validate_service_reach(
     operation: OperationId,
     caller: &[ServiceId],
@@ -1065,23 +1104,13 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
-            let claim_free_unrestricted_write_only_field = caller
-                .structural_parameters
-                .iter()
-                .find(|actual| actual.place == argument.place)
-                .is_some_and(|actual| {
-                    is_nonempty_field_path(&argument.path)
-                        && argument.access == StructuralAccess::WriteOnlyBorrow
-                        && parameter.access == StructuralAccess::WriteOnlyBorrow
-                        && actual.access == StructuralAccess::WriteOnlyBorrow
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && actual.multiplicity == StructuralMultiplicity::Unrestricted
-                })
-                && callee_claims.is_empty()
-                && caller
-                    .entry_claims
-                    .iter()
-                    .all(|claim| claim.input != argument.place);
+            let claim_free_unrestricted_write_only_field =
+                is_unrestricted_write_only_subloan(caller, parameter, argument)
+                    && callee_claims.is_empty()
+                    && caller
+                        .entry_claims
+                        .iter()
+                        .all(|claim| claim.input != argument.place);
             let claim_free_direct_affine = caller
                 .structural_parameters
                 .iter()

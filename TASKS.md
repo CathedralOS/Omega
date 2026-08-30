@@ -6440,12 +6440,18 @@ Owners:
   A bounded direct-call subloan rung now also admits
   `&write root.field...leaf` only at the immediate checked-call argument when
   every segment is an eligible common field and the leaf satisfies the existing
-  non-observing replacement referee. Reusable local aliases, case/payload,
-  index/range, qualified/generic/invariant/constrained paths, multi-parameter
-  structural calls, and provider boundaries remain fenced. One exact
-  unrestricted structural `[copy]` record-leaf canary crosses checked Unit
-  planning, Terminal codec replay, and verification with its ordered `Field`
-  path and write-only access unchanged. This creates no Terminal write event.
+  non-observing replacement referee. One successor additionally permits that
+  field path to end in exactly one in-bounds literal index of a nonempty literal
+  fixed-array leaf with an unrestricted primitive element. Checked and Terminal custody retain the
+  ordered `Field` identities followed by the exact `FixedIndex`; the independent
+  verifier replays the field and array shapes, bounds, type, multiplicity, and
+  write-only access. Reusable local aliases, direct-root indexing, dynamic or
+  range projection, a second index, case/payload, qualified/generic/invariant/
+  constrained paths, aggregate or recursively nested array elements,
+  multi-parameter structural calls, and provider boundaries remain fenced.
+  Exact unrestricted record-leaf and literal-index canaries cross
+  checked Unit planning, Terminal codec replay, and verification. Neither form
+  creates a Terminal write event.
 
   The first forwarding-only Terminal rung is also live. Checked and Terminal
   structural parameter and call-argument rows carry a closed

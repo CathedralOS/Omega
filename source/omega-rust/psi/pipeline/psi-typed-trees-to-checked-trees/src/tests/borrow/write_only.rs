@@ -72,25 +72,95 @@ fn exact_common_field_write_only_subloan_is_forwardable() {
 }
 
 #[test]
-fn indexed_write_only_subloan_remains_fenced() {
-    let rendered = rendered_rejection(
+fn exact_literal_indexed_write_only_subloan_is_forwardable() {
+    lower_typed_trees(typed(
         r#"
-            data Outer { values: [u16; 2]; }
+            data Inner { values: [u16; 2]; sibling: u16; }
+            data Outer { inner: Inner; other: Inner; }
 
             machine replace(value: &write u16) {
                 value = 7;
             }
 
             machine forward(outer: &write Outer) {
-                replace(&write outer.values[0]);
+                replace(&write outer.inner.values[1]);
             }
         "#,
-    );
-    assert!(
-        rendered.contains("forms `&write` from an unsupported projection")
-            && rendered.contains("content-independent common-field path"),
-        "indexed subloan unexpectedly crossed the common-field gate: {rendered}"
-    );
+    ))
+    .expect("one exact literal fixed-array index may finish a common-field subloan");
+}
+
+#[test]
+fn wider_indexed_write_only_subloans_remain_fenced() {
+    for (name, source) in [
+        (
+            "direct root index",
+            r#"
+                machine replace(value: &write u16) {}
+                machine forward(values: &write [u16; 2]) {
+                    replace(&write values[0]);
+                }
+            "#,
+        ),
+        (
+            "runtime index",
+            r#"
+                data Outer { values: [u16; 2]; }
+                machine replace(value: &write u16) {}
+                machine forward(outer: &write Outer, index: u64) {
+                    replace(&write outer.values[index]);
+                }
+            "#,
+        ),
+        (
+            "out of bounds index",
+            r#"
+                data Outer { values: [u16; 2]; }
+                machine replace(value: &write u16) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.values[2]);
+                }
+            "#,
+        ),
+        (
+            "second index",
+            r#"
+                data Outer { values: [[u16; 2]; 2]; }
+                machine replace(value: &write u16) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.values[0][0]);
+                }
+            "#,
+        ),
+        (
+            "nested array element",
+            r#"
+                data Outer { values: [[u16; 2]; 2]; }
+                machine replace(value: &write [u16; 2]) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.values[0]);
+                }
+            "#,
+        ),
+        (
+            "record element",
+            r#"
+                data Leaf [copy] { value: u16; }
+                data Outer { values: [Leaf; 2]; }
+                machine replace(value: &write Leaf) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.values[0]);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("forms `&write` from an unsupported projection")
+                && rendered.contains("one in-bounds literal fixed-array index"),
+            "{name} unexpectedly crossed the literal-indexed subloan gate: {rendered}"
+        );
+    }
 }
 
 #[test]

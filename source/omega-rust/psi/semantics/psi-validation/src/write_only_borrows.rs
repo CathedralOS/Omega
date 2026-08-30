@@ -640,6 +640,39 @@ fn write_only_element_assignment_index(
     }
 }
 
+/// Admit one exact literal element below an already-admitted common-field
+/// path only at the direct checked-call boundary. The ordinary element-place
+/// judgment remains the authority for fixed-array shape and bounds; this
+/// wrapper deliberately excludes direct roots, dynamic indices, ranges, and a
+/// second array projection.
+fn write_only_literal_indexed_record_field_subloan(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some(collection_type) = write_only_record_field_type(program, indexed.collection, roots)
+    else {
+        return false;
+    };
+    let Some((element_type, _)) =
+        fixed_unrestricted_write_only_array_shape(program, collection_type)
+    else {
+        return false;
+    };
+    if !is_unrestricted_scalar(program, element_type)
+        || !matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Integer(_)
+        )
+    {
+        return false;
+    }
+    write_only_element_assignment_index(program, expression, roots) == Some(indexed.index)
+}
+
 fn diagnose_unsupported_write_only_assignment_target(
     program: &TypedTrees,
     machine: &str,
@@ -704,7 +737,8 @@ fn validate_call_argument(
 ) {
     if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
-        && write_only_record_field_assignment(program, borrow.target, roots)
+        && (write_only_record_field_assignment(program, borrow.target, roots)
+            || write_only_literal_indexed_record_field_subloan(program, borrow.target, roots))
     {
         // This milestone admits the exact projected subloan only at the direct
         // checked-call argument boundary. It does not create a reusable local
@@ -735,7 +769,7 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path only as a direct checked-call argument"
+                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by one in-bounds literal fixed-array index only as a direct checked-call argument"
                     )));
                 }
             }

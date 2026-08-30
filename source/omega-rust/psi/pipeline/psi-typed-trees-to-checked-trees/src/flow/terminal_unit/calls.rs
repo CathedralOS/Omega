@@ -691,6 +691,30 @@ fn checked_boundary_scalar_arguments(
         .collect()
 }
 
+fn checked_nonempty_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    !path.is_empty()
+        && path
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+}
+
+fn checked_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    let Some((CheckedUnitStructuralPathSegment::FixedIndex(_), fields)) = path.split_last() else {
+        return false;
+    };
+    checked_nonempty_field_path(fields)
+}
+
+fn place_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
+    let Some((psi_facts::PlaceSegment::FixedIndex { .. }, fields)) = path.split_last() else {
+        return false;
+    };
+    !fields.is_empty()
+        && fields
+            .iter()
+            .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
+}
+
 pub(super) fn ordinary_projected_call_is_supported(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -723,18 +747,19 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    let field_path = !arguments[0].path.is_empty()
-        && arguments[0]
-            .path
-            .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)));
-    let write_only_field_path = field_path
+    let field_path = checked_nonempty_field_path(&arguments[0].path);
+    let literal_indexed_field_path = checked_literal_indexed_field_path(&arguments[0].path);
+    let write_only_subloan_path = (field_path || literal_indexed_field_path)
         && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
         && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
-    if field_path && !allow_field_path_projection && !write_only_field_path {
+    if field_path && !allow_field_path_projection && !write_only_subloan_path {
+        return false;
+    }
+    if literal_indexed_field_path && !write_only_subloan_path {
         return false;
     }
     if !field_path
+        && !literal_indexed_field_path
         && !matches!(
             arguments[0].path.as_slice(),
             [CheckedUnitStructuralPathSegment::FixedIndex(_)]
@@ -831,7 +856,7 @@ pub(super) fn ordinary_projected_call_is_supported(
     } else {
         false
     };
-    if write_only_field_path {
+    if write_only_subloan_path {
         let [target_parameter] = target_parameters.as_slice() else {
             return false;
         };
@@ -1223,14 +1248,20 @@ pub(super) fn structural_call_arguments(
                     .collect::<Option<Vec<_>>>()?
             }
             segments @ [psi_facts::PlaceSegment::Field { .. }, ..]
-                if (allow_field_path_projection
+                if ((allow_field_path_projection
+                    && segments.iter().all(|segment| {
+                        matches!(segment, psi_facts::PlaceSegment::Field { .. })
+                    }))
                     || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                         && caller_parameters.get(source_index)?.access
                             == CheckedStructuralAccess::WriteOnlyBorrow
                         && structural_access_for_type_reference(
                             program,
                             target.type_reference,
-                        )? == CheckedStructuralAccess::WriteOnlyBorrow))
+                        )? == CheckedStructuralAccess::WriteOnlyBorrow
+                        && (segments.iter().all(|segment| {
+                            matches!(segment, psi_facts::PlaceSegment::Field { .. })
+                        }) || place_literal_indexed_field_path(segments))))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
@@ -1251,6 +1282,13 @@ pub(super) fn structural_call_arguments(
                             Some(CheckedUnitStructuralPathSegment::Field(
                                 terminal_field_identity(program, *symbol)?,
                             ))
+                        }
+                        psi_facts::PlaceSegment::FixedIndex { index }
+                            if place_literal_indexed_field_path(segments) =>
+                        {
+                            u64::try_from(*index)
+                                .ok()
+                                .map(CheckedUnitStructuralPathSegment::FixedIndex)
                         }
                         psi_facts::PlaceSegment::FixedIndex { .. }
                         | psi_facts::PlaceSegment::FixedRange { .. }

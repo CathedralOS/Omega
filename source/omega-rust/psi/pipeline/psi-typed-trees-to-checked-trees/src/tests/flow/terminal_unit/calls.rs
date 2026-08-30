@@ -409,6 +409,51 @@ fn retains_exact_write_only_common_field_subloan() {
 }
 
 #[test]
+fn retains_exact_literal_indexed_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Inner [copy] { values: [u16; 2]; sibling: u16; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.inner.values[1]);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let forward = plans
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("literal-indexed write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("literal-indexed attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one literal-indexed write-only argument")
+    };
+    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert!(matches!(
+        argument.path.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+        ]
+    ));
+}
+
+#[test]
 fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
     for (name, source) in [
         (

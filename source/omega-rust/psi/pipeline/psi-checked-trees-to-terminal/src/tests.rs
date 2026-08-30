@@ -586,6 +586,108 @@ fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
+    let source = r#"
+        data Inner [copy] { values: [u16; 2]; sibling: u16; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.inner.values[1]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered =
+        lower_machine(&checked, "Root::forward").expect("lower literal-indexed forwarding");
+    let module = &lowered.semantic_module;
+
+    let [call] = module.machines[0].blocks[0].operations.as_slice() else {
+        panic!("literal-indexed caller emits one forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.access == StructuralAccess::WriteOnlyBorrow
+                    && matches!(argument.path.as_slice(), [
+                        StructuralPathSegment::Field(_),
+                        StructuralPathSegment::Field(_),
+                        StructuralPathSegment::FixedIndex(1),
+                    ]))
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode indexed module");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode indexed module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify indexed write-only subloan");
+
+    let mutate_path = |module: &mut TerminalModule,
+                       mutation: &dyn Fn(&mut Vec<StructuralPathSegment>)| {
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            panic!("literal-indexed caller call")
+        };
+        mutation(&mut structural_arguments[0].path);
+    };
+
+    let mut out_of_bounds = decoded.clone();
+    mutate_path(&mut out_of_bounds, &|path| {
+        *path.last_mut().expect("index") = StructuralPathSegment::FixedIndex(2);
+    });
+    psi_terminal_verifier::validate_module(&out_of_bounds)
+        .expect_err("an out-of-bounds literal subloan index must reject");
+
+    let mut missing_index = decoded.clone();
+    mutate_path(&mut missing_index, &|path| {
+        path.pop();
+    });
+    psi_terminal_verifier::validate_module(&missing_index)
+        .expect_err("omitting the indexed subloan coordinate must reject");
+
+    let mut duplicated_index = decoded.clone();
+    mutate_path(&mut duplicated_index, &|path| {
+        path.push(StructuralPathSegment::FixedIndex(1));
+    });
+    psi_terminal_verifier::validate_module(&duplicated_index)
+        .expect_err("duplicating the indexed subloan coordinate must reject");
+
+    let mut reordered_index = decoded.clone();
+    mutate_path(&mut reordered_index, &|path| {
+        path.rotate_right(1);
+    });
+    psi_terminal_verifier::validate_module(&reordered_index)
+        .expect_err("moving the index before its field path must reject");
+
+    let mut source_access_drifted = decoded.clone();
+    source_access_drifted.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+    psi_terminal_verifier::validate_module(&source_access_drifted)
+        .expect_err("an indexed subloan requires exact write-only source access");
+
+    let mut target_multiplicity_drifted = decoded.clone();
+    target_multiplicity_drifted.machines[1].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Linear;
+    psi_terminal_verifier::validate_module(&target_multiplicity_drifted)
+        .expect_err("an indexed subloan cannot become a linear projected call");
+
+    let mut field_drifted = decoded;
+    mutate_path(&mut field_drifted, &|path| {
+        path[1] = path[0].clone();
+    });
+    psi_terminal_verifier::validate_module(&field_drifted)
+        .expect_err("a redirected indexed-subloan field identity must reject");
+}
+
+#[test]
 fn rejects_tampered_owned_carrier_for_source_literal() {
     let mut checked = checked_write_line_literal();
     let literal_type = checked
