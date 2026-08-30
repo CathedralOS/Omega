@@ -2681,8 +2681,9 @@ Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings
 therefore have identical canonical identity, while changing any octet changes
-the reviewed contract. Unsupported aggregate and advanced call forms remain
-fail-closed.
+the reviewed contract. At that revision aggregate and advanced call forms
+remained fail-closed; v67 and v68 below close every typed aggregate-literal
+node through ordered arrays and exact nominal record/case constructors.
 Review v62 and canonical row v20 admit inherited requirement surfaces for
 lifetime-generic public conformances when the selected trait has no lifetime
 telescope of its own. Requirement rows apply the complete inherited type
@@ -2910,7 +2911,7 @@ proposition/evidence static arguments, quotient calls, true nested
 machine/conformance applications, unrepresented compiler-intrinsic calls,
 computed members whose receivers are not in the closed expression vocabulary,
 proposition-argument members without their checked join, and unsupported
-aggregate expression forms fail closed.
+call forms fail closed.
 Contract
 casts retain their structural operand, alpha-normalized target, arithmetic
 policy, package-qualified semantic domain and arguments, and value/recast form.
