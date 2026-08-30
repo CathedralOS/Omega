@@ -363,9 +363,20 @@ Current ownership is:
   direct-root lifetime records `StateExitDirectRootHandoff`. Independent replay
   reconstructs the phase, path, and final target and rejects either label in
   the other circumstance before either resource arena is rebuilt. Both remain
-  non-authorizing. Checked suspension/freeze-containment evidence must still
-  rejoin the exact access and resource rows before any outcome becomes
-  authorizing, and Terminal publication remains open. Root handoff grants the
+  non-authorizing.
+
+  Suspension/freeze containment is now retained in a sibling checked-only
+  certificate arena after the complete semantic-phase lifecycle replay
+  succeeds. Each permitted exclusive child has one suspension row, and each
+  `Mutable`-to-`Read` child has one freeze row; `Read`-to-`Read` release has no
+  containment claim. A row binds the exact child and typed parent resources,
+  parent and child access plus classified effect, child activation and exact
+  parent-entry constraint, both weakening handles, and the frozen parent and
+  child places with their ordered projection remainder. Independent replay
+  reconstructs that entire join and rejects missing, duplicate, reordered,
+  access-amplified, or retargeted rows before rebuilding either resource arena.
+  These certificates remain non-authorizing and do not establish completed
+  restoration. Terminal publication remains open. Root handoff grants the
   borrow layer no cleanup, transfer, or linear-consumption authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,

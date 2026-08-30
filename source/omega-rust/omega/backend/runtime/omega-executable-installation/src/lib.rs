@@ -1845,6 +1845,31 @@ impl InstalledCode {
             && frozen.materialized.bytes() == expected_materialized
     }
 
+    /// Test the exact materialized byte interval beginning at one admitted
+    /// entry. The installed image remains provider-side: callers can bind a
+    /// generated stub to its frozen executable bytes without receiving either
+    /// the image or an executable address.
+    pub fn binds_exact_materialized_entry_bytes(
+        &self,
+        entry: EntryStubId,
+        expected: &[u8],
+    ) -> bool {
+        if expected.is_empty() {
+            return false;
+        }
+        let frozen = &self.validated.frozen;
+        let Some(candidate) = frozen.artifact.artifact.entry(entry) else {
+            return false;
+        };
+        let Ok(start) = usize::try_from(candidate.code_offset) else {
+            return false;
+        };
+        let Some(end) = start.checked_add(expected.len()) else {
+            return false;
+        };
+        frozen.materialized.bytes().get(start..end) == Some(expected)
+    }
+
     /// Test the exact admitted code offset of one selected entry without
     /// exposing a resolved address.
     pub fn binds_entry_offset(&self, entry: EntryStubId, expected_offset: u64) -> bool {
@@ -2953,6 +2978,19 @@ mod tests {
         assert!(
             !installed.binds_exact_materialized_artifact_bytes(candidate.code(), &changed_final)
         );
+        assert!(
+            installed
+                .binds_exact_materialized_entry_bytes(entry_id(1001), &materialized.bytes()[..8])
+        );
+        let mut changed_entry = materialized.bytes()[..8].to_vec();
+        changed_entry[1] ^= 1;
+        assert!(!installed.binds_exact_materialized_entry_bytes(entry_id(1001), &changed_entry));
+        assert!(
+            !installed
+                .binds_exact_materialized_entry_bytes(entry_id(1002), &materialized.bytes()[..8])
+        );
+        assert!(!installed.binds_exact_materialized_entry_bytes(entry_id(1001), &[]));
+        assert!(!installed.binds_exact_materialized_entry_bytes(entry_id(1001), &[0; 65]));
     }
 
     #[test]
