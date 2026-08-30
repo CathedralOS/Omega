@@ -271,26 +271,24 @@ branch inside producer lowering. Its sub-100-line `validation/mod.rs` entrance
 owns target/root/roster custody and hands each function to the sub-100-line
 ordered `catalog/mod.rs` enable/disable inventory. Descriptor model and typed
 replay adapters descend into `catalog/model.rs` and
-`catalog/dispatch/{immediate,parameter,terminal}.rs`; the
+`catalog/dispatch/{immediate,parameter,terminal}`; the parameter adapter
+entrance names `direct`, `unary`, and `comparison` leaves. The
 catalog rejects duplicate or overlapping matches before dispatch. Exact replay
 then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
-`straight_line_scalar_crash.rs` and
-`straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than,integer_less_or_equal,integer_bitwise_not}.rs`.
-The governed parameter coordinator visibly joins the 49-line `source/mod.rs`
+`straight_line_scalar_crash.rs` and the
+`straight_line_parameter/{boolean,integer}/{direct,unary,comparison}` taxonomy.
+The governed parameter coordinator visibly joins the small `source/mod.rs`
 cross-result grammar map and shared `envelope.rs` to whole-roster `abi.rs`
-calling-plan replay. Integer-derived grammar descends through its own 78-line
-`source/integer/mod.rs`, which owns common result-envelope reconstruction for
-integer-derived grammars and typed-parameter lookup before the named equality,
-strict/inclusive-ordering, or bitwise-not leaves. The retired flat integer
-grammar leaves are
-architecture-forbidden.
-`derived/mod.rs` owns the Boolean and integer unary joins and descends to `derived/equality.rs` for
-Boolean or integer equality and `derived/ordering.rs` for integer less-than or
-less-or-equal source identity, exact register/stack placements, and provenance
-before the typed target leaf. Boolean-not and integer bitwise-not preserve
-their operands; each binary
+calling-plan replay. Integer grammar descends through its own small
+`source/integer/mod.rs`, which owns typed-parameter lookup before named
+`unary/{bitwise_not,widen}` or `comparison/{equal,less_than,less_or_equal}`
+leaves. Target replay mirrors that semantic taxonomy; shared comparison ABI and
+provenance mechanics descend one more rung into `comparison/replay.rs`.
+Boolean-not, integer bitwise-not, and integer-widen preserve their operands;
+integer-widen additionally retains distinct source and target types and admits
+only the exact native widening relation. Each binary
 family preserves both ordered operands, including identity, while integer
 families also retain the exact common integer type alongside produced value,
 operation, and edge custody. Immutable
@@ -300,7 +298,9 @@ target-operation entrance owns the visible
 `lower -> independent validation -> retained carrier` join. An architecture
 gate prevents validation from importing lowering helpers, and each complete
 function-roster row carries either `Uncovered` or exactly one typed validated
-family receipt.
+family receipt. The architecture gate forbids restoration of the old flat,
+mixed `derived`, parameter-model, parameter-error/receipt, and catalog-adapter
+catchalls.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function

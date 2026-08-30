@@ -17,6 +17,7 @@ pub use parameter::{
     StraightLineIntegerLessOrEqualParametersTranslationReceipt,
     StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationReceipt,
+    StraightLineIntegerWidenParameterTranslationReceipt,
 };
 pub use roster::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
@@ -43,6 +44,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerLessOrEqualParameters(
         StraightLineIntegerLessOrEqualParametersTranslationReceipt,
     ),
+    StraightLineIntegerWidenParameter(StraightLineIntegerWidenParameterTranslationReceipt),
 }
 
 impl AbstractToTargetFunctionTranslationReceipt {
@@ -80,6 +82,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             Self::StraightLineIntegerLessOrEqualParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualParameters
+            }
+            Self::StraightLineIntegerWidenParameter(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerWidenParameter
             }
         }
     }

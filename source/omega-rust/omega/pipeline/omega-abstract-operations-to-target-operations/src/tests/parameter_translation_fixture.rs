@@ -158,6 +158,58 @@ pub(super) fn uniform_integer_bitwise_not_plan(
     )
 }
 
+pub(super) fn integer_widen_parameter_plan(
+    parameter_types: &[ScalarType],
+    operand_parameter: usize,
+    target_type: IntegerType,
+) -> AbstractOperationPlan {
+    let mut plan = parameter_return_plan(parameter_types, operand_parameter);
+    let function = &mut plan.functions[0];
+    let ScalarType::Integer(source_type) = function.parameters[operand_parameter].scalar_type
+    else {
+        panic!("integer widen fixture requires an integer operand")
+    };
+    let widen_result = ValueId::new(4_301).unwrap();
+    let operand = function.parameters[operand_parameter].value;
+    function.operations.insert(
+        0,
+        AbstractOperation::IntegerWiden {
+            psi_operation: OperationId::new(4_300).unwrap(),
+            result: widen_result,
+            source_type,
+            target_type,
+            operand,
+        },
+    );
+    let AbstractOperation::Return {
+        value,
+        scalar_type: return_type,
+        ..
+    } = &mut function.operations[1]
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = widen_result;
+    *return_type = ScalarType::Integer(target_type);
+    function.result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(3_003).unwrap(),
+        scalar_type: ScalarType::Integer(target_type),
+    });
+    plan
+}
+
+pub(super) fn uniform_integer_widen_plan(
+    source_type: IntegerType,
+    target_type: IntegerType,
+    parameter_count: usize,
+) -> AbstractOperationPlan {
+    integer_widen_parameter_plan(
+        &vec![ScalarType::Integer(source_type); parameter_count],
+        parameter_count - 1,
+        target_type,
+    )
+}
+
 pub(super) fn boolean_equal_parameters_plan(
     parameter_types: &[ScalarType],
     left_parameter: usize,
