@@ -60,6 +60,8 @@ const PROOF_ADMISSION_INTEGER_AFFINE_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-admission/src/integer_affine.rs");
 const PROOF_ADMISSION_INTEGER_CAST_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-admission/src/integer_cast.rs");
+const PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE: &[u8] =
+    include_bytes!("../../psi-proof-admission/src/integer_forbidden_root.rs");
 const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
 const OBLIGATION_LEDGER_CODEC_SOURCE: &[u8] = include_bytes!("obligation_ledger.rs");
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");

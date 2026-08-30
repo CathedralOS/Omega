@@ -11,8 +11,10 @@ use psi_core::{
     PropositionError, PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
 };
 use psi_proof_admission::{
-    AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness,
-    IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope, CorrelatedAffineBranchWitness,
+    CorrelatedAffineStepWitness, EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
+    IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
 };
 use psi_terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
@@ -25,7 +27,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 20;
+pub(crate) const FORMAT_MARKER: u16 = 21;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -359,6 +361,48 @@ fn encode_proof_node(
             )?;
             for &index in &witness.definition_axioms {
                 writer.index("integer cast definition axiom", index)?;
+            }
+        }
+        ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
+            writer.u8(14);
+            encode_correlated_affine_branch(writer, &witness.dividend, format_marker)?;
+            encode_correlated_affine_branch(writer, &witness.divisor, format_marker)?;
+            writer.index(
+                "integer correlated definition axiom count",
+                witness.definition_axiom_count,
+            )?;
+            writer.index(
+                "integer correlated lower-bound axiom",
+                witness.lower_bound_axiom,
+            )?;
+            writer.index(
+                "integer correlated upper-bound axiom",
+                witness.upper_bound_axiom,
+            )?;
+            encode_proposition(writer, &witness.conclusion, 0, format_marker)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_correlated_affine_branch(
+    writer: &mut Writer,
+    branch: &CorrelatedAffineBranchWitness,
+    format_marker: u16,
+) -> Result<(), ProofCodecError> {
+    encode_scalar_term(writer, &branch.root, 0, format_marker)?;
+    encode_scalar_term(writer, &branch.target, 0, format_marker)?;
+    writer.len("integer correlated affine steps", branch.steps.len())?;
+    for step in &branch.steps {
+        writer.index(
+            "integer correlated affine definition axiom",
+            step.definition_axiom,
+        )?;
+        match step.literal_axiom {
+            None => writer.u8(0),
+            Some(index) => {
+                writer.u8(1);
+                writer.index("integer correlated affine literal axiom", index)?;
             }
         }
     }
@@ -1193,9 +1237,58 @@ fn decode_proof_node(
                 },
             }
         }
+        14 => {
+            let dividend = decode_correlated_affine_branch(reader, format_marker)?;
+            let divisor = decode_correlated_affine_branch(reader, format_marker)?;
+            let definition_axiom_count = reader.index()?;
+            let lower_bound_axiom = reader.index()?;
+            let upper_bound_axiom = reader.index()?;
+            let conclusion = decode_proposition(reader, 0, format_marker)?;
+            ProofRule::IntegerCorrelatedForbiddenRoots {
+                witness: IntegerCorrelatedForbiddenRootWitness {
+                    dividend,
+                    divisor,
+                    definition_axiom_count,
+                    lower_bound_axiom,
+                    upper_bound_axiom,
+                    conclusion,
+                },
+            }
+        }
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };
     Ok(ProofNode { conclusion, rule })
+}
+
+fn decode_correlated_affine_branch(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<CorrelatedAffineBranchWitness, ProofCodecError> {
+    let root = decode_scalar_term(reader, 0, format_marker)?;
+    let target = decode_scalar_term(reader, 0, format_marker)?;
+    let step_count = reader.count()?;
+    let mut steps = Vec::new();
+    for _ in 0..step_count {
+        let definition_axiom = reader.index()?;
+        let literal_axiom = match reader.u8()? {
+            0 => None,
+            1 => Some(reader.index()?),
+            tag => {
+                return Err(ProofCodecError::UnknownIntegerCorrelatedAffineLiteralTag(
+                    tag,
+                ));
+            }
+        };
+        steps.push(CorrelatedAffineStepWitness {
+            definition_axiom,
+            literal_axiom,
+        });
+    }
+    Ok(CorrelatedAffineBranchWitness {
+        root,
+        target,
+        steps,
+    })
 }
 
 fn decode_proposition(
@@ -1744,6 +1837,7 @@ pub enum ProofCodecError {
     UnsupportedFormatMarker(u16),
     UnsupportedProofSystemMarker(u16),
     UnknownIntegerAffineLiteralTag(u8),
+    UnknownIntegerCorrelatedAffineLiteralTag(u8),
     UnexpectedEnd,
     TrailingBytes(usize),
     InvalidBoolean(u8),

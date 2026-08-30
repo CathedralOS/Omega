@@ -4,15 +4,15 @@ use super::{
     CODEC_SOURCE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
     OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
     PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
-    PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
-    PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE,
-    SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
-    TERMINAL_MODEL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_SEMANTICS_SOURCE,
-    TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
-    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
-    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
-    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
-    validate_terminal_trust_graph,
+    PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
+    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE, PROOF_BUNDLE_SOURCE,
+    PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
+    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_MODEL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
+    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
+    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
+    VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
+    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
 use psi_terminal_semantics::{
@@ -42,7 +42,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-20"
+    "root:canonical-proof-calculus-format-21"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -176,6 +176,10 @@ fn proof_admission_node() -> TrustDependencyNode {
             (
                 "psi-proof-admission/integer_cast.rs",
                 PROOF_ADMISSION_INTEGER_CAST_SOURCE,
+            ),
+            (
+                "psi-proof-admission/integer_forbidden_root.rs",
+                PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
             ),
             ("psi-proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
         ],

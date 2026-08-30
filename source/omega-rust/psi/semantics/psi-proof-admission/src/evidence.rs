@@ -6,7 +6,8 @@ use psi_core::{
 };
 
 use crate::{
-    CertificateAcceptance, PrimitiveJudgment, ProofNode, accept_certificate, decide_primitive,
+    CertificateAcceptance, PrimitiveJudgment, ProofNode,
+    accept_certificate_with_machine_parameters, decide_primitive,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -132,6 +133,26 @@ pub fn verify_obligation(
     route: EvidenceRoute,
     profile: &AdmissionProfile,
 ) -> Result<AcceptedFact, EvidenceError> {
+    verify_obligation_with_machine_parameters(
+        context,
+        obligation,
+        assumptions,
+        semantic_axioms,
+        &BTreeSet::new(),
+        route,
+        profile,
+    )
+}
+
+pub fn verify_obligation_with_machine_parameters(
+    context: &PropositionContext,
+    obligation: &Obligation,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<psi_core::ValueId>,
+    route: EvidenceRoute,
+    profile: &AdmissionProfile,
+) -> Result<AcceptedFact, EvidenceError> {
     context
         .validate(&obligation.proposition)
         .map_err(EvidenceError::MalformedProposition)?;
@@ -142,11 +163,12 @@ pub fn verify_obligation(
             AcceptedFactRoute::KernelDerived(judgment)
         }
         EvidenceRoute::CertificateDerived(certificate) => {
-            let acceptance = accept_certificate(
+            let acceptance = accept_certificate_with_machine_parameters(
                 context,
                 &obligation.proposition,
                 assumptions,
                 semantic_axioms,
+                machine_parameter_values,
                 &certificate.proof,
             )
             .map_err(EvidenceError::Certificate)?;

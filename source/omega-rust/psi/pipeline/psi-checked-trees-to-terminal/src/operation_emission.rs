@@ -1,7 +1,7 @@
 //! Terminal operation emission and proof finalization.
 
 use super::*;
-use crate::nonzero_divisor_certificate::prove_canonical_integer_proposition;
+use crate::nonzero_divisor_certificate::prove_canonical_integer_proposition_with_machine_parameters;
 
 pub(super) fn finalize_operation_proofs(
     lowered: &mut LoweredTerminalPsi,
@@ -62,11 +62,17 @@ pub(super) fn finalize_operation_proofs(
                     .value_context(machine)
             }
             .map_err(LoweringError::InvalidTerminalModule)?;
-            prove_canonical_integer_proposition(
+            let machine_parameter_values = machine
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect();
+            prove_canonical_integer_proposition_with_machine_parameters(
                 &context,
                 &site.obligation.proposition,
                 assumptions,
                 &site.semantic_axioms,
+                &machine_parameter_values,
             )
         } else {
             proof_from_available_facts(

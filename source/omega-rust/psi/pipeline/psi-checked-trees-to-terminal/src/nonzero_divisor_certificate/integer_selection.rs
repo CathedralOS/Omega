@@ -1,6 +1,8 @@
 //! Canonical fixed-integer proposition and bound selection.
 
-use psi_core::{Proposition, PropositionContext};
+use std::collections::BTreeSet;
+
+use psi_core::{Proposition, PropositionContext, ValueId};
 use psi_proof_admission::ProofNode;
 
 use super::affine_custody::DefinitionIndex;
@@ -8,6 +10,7 @@ use super::affine_custody::DefinitionIndex;
 mod bound;
 mod dispatch;
 mod exact;
+mod forbidden_root;
 mod logical;
 mod multiply;
 mod order;
@@ -21,7 +24,32 @@ pub(super) fn build(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
+    build_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        &BTreeSet::new(),
+    )
+}
+
+pub(super) fn build_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<ProofNode> {
     let mut definitions = DefinitionIndex::new(semantic_axioms);
+    if let Some(proof) = forbidden_root::prove(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameter_values,
+    ) {
+        return Some(proof);
+    }
     build_with_definitions(
         context,
         goal,

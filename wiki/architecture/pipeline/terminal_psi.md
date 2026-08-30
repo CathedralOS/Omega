@@ -3564,7 +3564,7 @@ no other direct, cast-adjacent, affine-adjacent, or divide/remainder shift famil
 switches custody.
 
 The correlated affine exact-divide/remainder family now has one complete
-non-serialized `IntegerCorrelatedForbiddenRootWitness`. It independently
+`IntegerCorrelatedForbiddenRootWitness`. It independently
 replays both nonempty exact add/subtract/multiply branches backward from the
 dividend and divisor, including exact prior canonical equalities for nonclosed
 landed siblings. The definition walks must be disjoint, source ordered, and end
@@ -3579,24 +3579,27 @@ falsehood; partial safety rejects. Stale definitions or landed siblings,
 branch/correlation/order/type/root drift, one-sided or redirected bounds,
 constant branches, and checked arithmetic failure reject.
 
-The legacy trusted exact divide/remainder reducer now selects the complete
+The untrusted exact divide/remainder producer selects the complete
 branch-definition and landed-literal coordinates plus the deterministic tight
-lower/upper axiom indexes, constructs this witness, calls the independent
-checker, and returns only its reconstructed sufficient conclusion. The prior
-duplicate divisor-root and dividend-value lattice calculation has been removed.
-This is checker consumption, not proof promotion: the reducer remains trusted
-and its exact divide/remainder certificate routing is unchanged.
+lower/upper requirement indexes and serializes them as
+`IntegerCorrelatedForbiddenRoots` proof tag 14. Admission rebuilds the exact
+semantic-axiom-plus-requirement ledger, requires the witness boundary to equal
+the semantic-axiom count, requires the common root to be a verifier-supplied
+machine parameter, and invokes the independent checker. Only an empty checked
+forbidden-root set converts to the unchanged canonical signed
+`ExactDivisionDefined` proposition. Every cited definition and landed literal
+is recorded as a semantic premise; both selected bounds are recorded as
+requirement premises. Redirected or reordered branches, literal or bound drift,
+nonparameter roots, partial safety, nonempty forbidden roots, and forged goals
+reject without verifier search or operation-result self-citation.
 
-This forbidden-root checker accepts no proposition as authority and does not
-turn its checked sufficient conclusion or selected bounds into a certificate
-premise. `IntegerAffineBound` covers one mapped affine target bound, not this
-correlated two-branch lattice conclusion. Producer selection of complete affine
-root proofs/definition words is now live in the legacy reducer; a dedicated
-correlated certificate conversion still remains. Until that conversion covers
-every accepted family, neither exact row switches reconstruction or gains an
-evidence-dependent fallback. No proof vocabulary, schema, or reducer node is
-further promoted by the correlated custody form, and terminal closure remains
-`fully-derived false`.
+`IntegerAffineBound` continues to cover one mapped affine target bound rather
+than this correlated two-branch lattice conclusion. The dedicated conversion
+uses proof-bundle format 21 and canonical proof-calculus trust root 21; terminal
+semantic format 39, vocabulary 42, proof-system marker 1, and installation
+encoding are unchanged. The legacy correlated sufficient-form reducer and its
+duplicate lattice-root/value computation are gone. Other partial exact rows
+remain outside this slice, so terminal closure remains `fully-derived false`.
 
 Proof-bundle v15 additionally carries exact fixed-integer `<=` endpoint
 substitution. One recursively checked relation child, one recursively checked

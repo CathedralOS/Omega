@@ -117,6 +117,13 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             validate_scalar_term_depth(&witness.root, 0)?;
             validate_scalar_term_depth(&witness.target, 0)
         }
+        ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
+            validate_scalar_term_depth(&witness.dividend.root, 0)?;
+            validate_scalar_term_depth(&witness.dividend.target, 0)?;
+            validate_scalar_term_depth(&witness.divisor.root, 0)?;
+            validate_scalar_term_depth(&witness.divisor.target, 0)?;
+            validate_proposition(&witness.conclusion, 0)
+        }
     }
 }
 

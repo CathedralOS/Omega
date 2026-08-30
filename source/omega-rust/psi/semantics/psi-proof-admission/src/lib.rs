@@ -23,6 +23,7 @@ pub use evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
     AdmissionProfile, AuthorizedAdmission, CertificateEnvelope, EvidenceError, EvidenceRoute,
     Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
+    verify_obligation_with_machine_parameters,
 };
 pub use integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
@@ -36,8 +37,10 @@ pub use integer_cast::{
 };
 pub use integer_forbidden_root::{
     CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
-    CorrelatedAffineStepWitness, IntegerCorrelatedForbiddenRootWitness,
-    IntegerCorrelatedForbiddenRootWitnessError, check_integer_correlated_forbidden_root_witness,
+    CorrelatedAffineStepWitness, IntegerCorrelatedForbiddenRootConversionError,
+    IntegerCorrelatedForbiddenRootWitness, IntegerCorrelatedForbiddenRootWitnessError,
+    check_integer_correlated_forbidden_root_conversion,
+    check_integer_correlated_forbidden_root_witness,
 };
 pub use integer_shift::{
     CheckedIntegerShiftChain, CheckedIntegerShiftStep, IntegerShiftChainWitness,
@@ -52,7 +55,8 @@ pub use normalization::{
 };
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
-    accept_certificate, check_certificate, lift_fixed_integer_relation,
+    accept_certificate, accept_certificate_with_machine_parameters, check_certificate,
+    check_certificate_with_machine_parameters, lift_fixed_integer_relation,
     lower_integer_math_relation,
 };
 pub use recursion::{
