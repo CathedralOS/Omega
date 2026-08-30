@@ -2090,6 +2090,137 @@ stamp_seed "$T/call-lowering-emitter.tape" "$SEED" "$T/call-lowering-emitter.exe
 }
 stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-lowering-emitter.exe" >/dev/null 2>&1
 
+# Keep the resolved local/let seam in its own temporary entry for the same
+# fixed-tape reason as the constructor bridge above.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to failed when (frontend_status != 1)' \
+    '        let let_expr = word[8388608 + 24]' \
+    '        to failed when (word[let_expr] % 256 != 4)' \
+    '        let value_expr = word[let_expr + 16]' \
+    '        let body_expr = word[let_expr + 24]' \
+    '        emit_reset()' \
+    '        let invalid_prefix_status = lower_resolved_let(value_expr, body_expr, 1, 47)' \
+    '        to invalid_prefix_checked' \
+    '    }' \
+    '    state invalid_prefix_checked {' \
+    '        to failed when (invalid_prefix_status != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 47)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        emit_reset()' \
+    '        let invalid_index_status = lower_resolved_let(value_expr, body_expr, 1, 33554480)' \
+    '        to invalid_index_checked' \
+    '    }' \
+    '    state invalid_index_checked {' \
+    '        to failed when (invalid_index_status != 0)' \
+    '        to failed when (word[2097016] != 13)' \
+    '        to failed when (word[2097008] != 2)' \
+    '        to failed when (word[2097040] != 0)' \
+    '        emit_reset()' \
+    '        let entry_label = new_label()' \
+    '        let stack_label = new_label()' \
+    '        let heap_label = new_label()' \
+    '        let single_label = new_label()' \
+    '        let get_label = new_label()' \
+    '        let let_frame_label = new_label()' \
+    '        let result_kind_label = new_label()' \
+    '        let result_payload_label = new_label()' \
+    '        let root_stack_label = new_label()' \
+    '        let root_base_label = new_label()' \
+    '        let heap_once_label = new_label()' \
+    '        let local_kind_label = new_label()' \
+    '        let local_payload_label = new_label()' \
+    '        let failure_label = new_label()' \
+    '        let unexpected_label = new_label()' \
+    '        word[2097000] = stack_label' \
+    '        word[2096952] = heap_label' \
+    '        word[2096944] = single_label' \
+    '        word[2096928] = get_label' \
+    '        define_label(entry_label)' \
+    '        emit_runtime_init()' \
+    '        emit_gamma_call_frame(stack_label, let_frame_label, 48, 0)' \
+    '        emit_imm(20, 0)' \
+    '        emit_rrx(16, 0, 20, result_kind_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(result_kind_label)' \
+    '        emit_imm(20, 9)' \
+    '        emit_rrx(16, 1, 20, result_payload_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(result_payload_label)' \
+    '        emit_imm(20, 16777216)' \
+    '        emit_rrx(16, 252, 20, root_stack_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(root_stack_label)' \
+    '        emit_rrx(16, 253, 20, root_base_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(root_base_label)' \
+    '        emit_imm(20, 16777280)' \
+    '        emit_rrx(16, 254, 20, heap_once_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(heap_once_label)' \
+    '        emit_imm(0, 7)' \
+    '        emit_r(0, 0)' \
+    '        define_label(let_frame_label)' \
+    '        let lower_status = lower_resolved_let(value_expr, body_expr, 1, 16777264)' \
+    '        to let_lowered' \
+    '    }' \
+    '    state let_lowered {' \
+    '        to failed when (lower_status != 1)' \
+    '        emit_gamma_frame_local(48, 0, 1)' \
+    '        lower_resolved_local(48, 1)' \
+    '        emit_imm(20, 1)' \
+    '        emit_rrx(16, 0, 20, local_kind_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(local_kind_label)' \
+    '        emit_rr(2, 2, 1)' \
+    '        emit_imm(3, 0)' \
+    '        emit_jump(19, word[2096928])' \
+    '        emit_imm(20, 7)' \
+    '        emit_rrx(16, 0, 20, local_payload_label)' \
+    '        emit_jump(12, unexpected_label)' \
+    '        define_label(local_payload_label)' \
+    '        lower_resolved_local(48, 0)' \
+    '        emit_gamma_return_frame()' \
+    '        define_label(failure_label)' \
+    '        emit_imm(0, 253)' \
+    '        emit_r(0, 0)' \
+    '        define_label(unexpected_label)' \
+    '        emit_imm(0, 254)' \
+    '        emit_r(0, 0)' \
+    '        emit_stack_reserver(stack_label, failure_label)' \
+    '        emit_heap_allocator(heap_label, failure_label)' \
+    '        emit_bytes_single(single_label, heap_label, failure_label)' \
+    '        emit_bytes_get(get_label, failure_label, unexpected_label)' \
+    '        let payload_ok = validate_payload()' \
+    '        to publish_setup' \
+    '    }' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/local-let-lowering-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + resolved local/let lowering gate) failed"
+  exit 1
+}
+stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-emitter.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
 for frame_mode in e f; do
   printf '%s' "$frame_mode" | "$T/frame-probe.exe" > "$T/frame-$frame_mode.out"
@@ -2287,6 +2418,28 @@ else
   echo "  FAIL resolved-constructor lowering reconstruction: statuses $resolved_constructor_a_status/$resolved_constructor_b_status"
 fi
 unset resolved_constructor_source resolved_constructor_a_status resolved_constructor_b_status resolved_constructor_runtime_status
+resolved_local_let_source='(def main () Int (let held (bytes_single 7) 9))'
+printf '%s' "$resolved_local_let_source" | "$T/local-let-lowering-emitter.exe" > "$T/lower-local-let-a.tape"
+resolved_local_let_a_status=$?
+printf '%s' "$resolved_local_let_source" | "$T/local-let-lowering-emitter.exe" > "$T/lower-local-let-b.tape"
+resolved_local_let_b_status=$?
+if [ "$resolved_local_let_a_status" = 1 ] && [ "$resolved_local_let_b_status" = 1 ] &&
+   [ -s "$T/lower-local-let-a.tape" ] &&
+   cmp -s "$T/lower-local-let-a.tape" "$T/lower-local-let-b.tape"; then
+  stamp_seed "$T/lower-local-let-a.tape" "$SEED" "$T/lower-local-let.exe" >/dev/null 2>&1
+  "$T/lower-local-let.exe" > "$T/lower-local-let.out"
+  resolved_local_let_runtime_status=$?
+  if [ "$resolved_local_let_runtime_status" = 7 ] && [ ! -s "$T/lower-local-let.out" ]; then
+    PASS=$((PASS+2))
+  else
+    FAIL=$((FAIL+2))
+    echo "  FAIL resolved local/let lowering runtime: status $resolved_local_let_runtime_status, output $(wc -c < "$T/lower-local-let.out" | tr -d ' ') bytes"
+  fi
+else
+  FAIL=$((FAIL+2))
+  echo "  FAIL resolved local/let lowering reconstruction: statuses $resolved_local_let_a_status/$resolved_local_let_b_status"
+fi
+unset resolved_local_let_source resolved_local_let_a_status resolved_local_let_b_status resolved_local_let_runtime_status
 deterministic_source='(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))'
 printf '%s' "$deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
 deterministic_a_status=$?

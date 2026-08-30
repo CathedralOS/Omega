@@ -15,15 +15,16 @@ runs all 82 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup/structural-replay failures, executes six generated
 runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases,
-executes one resolved-call and one resolved-constructor bridge payload, compares
-four repeated payloads byte-identically, and executes 14 compact-`Bytes`, two
+executes resolved-call, resolved-constructor, and resolved-local/let bridge
+payloads, compares five repeated payloads byte-identically, and executes 14
+compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 100 procedures. With the fixed frontend
-gate entry, the compiled gate uses 101 of Beta's 128 procedure slots and
-compiles to 231,957 bytes. The remaining 30,183 bytes under
+The retained compiler source declares 103 procedures. With the fixed frontend
+gate entry, the compiled gate uses 104 of Beta's 128 procedure slots and
+compiles to 234,462 bytes. The remaining 27,678 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -38,9 +39,12 @@ accepted-language edge's failure frame. Fuel and private storage ceilings yield
 outer resource outcomes; they never change Gamma meaning.
 
 Fixed frame locals use zero-based opaque indexes into the aligned two-word
-slots after the frame header. One guarded emitter owns both load and store, so
-future resolved variables, lets, and pattern binders reuse one containment
-check rather than separate validators. Q3 still owns assigning source binders
+slots after the frame header. One shared validator and guarded emitter own both
+load and store, so resolved variables, lets, and future pattern binders reuse
+one containment rule. The resolved let seam validates its packed
+`(prefix,index)` profile before emitting its initializer, evaluates that
+initializer once outside tail position, stores the complete value, and passes
+the caller's tail context to its body. Q3 still owns assigning source binders
 and references to those indexes; this ABI chooses no scope or shadowing rule.
 
 ## Implementation shape
@@ -163,6 +167,16 @@ contained failures, then checks two repeated raw payloads byte-for-byte. This
 is general expression-dispatch material; no partial Gamma compiler or subset
 artifact is published.
 
+Resolved local and let lowering now reuse the fixed-frame ABI without assigning
+source identity. A local loads one complete pair from an opaque slot. A let
+prevalidates that slot before emission, lowers its initializer non-tail exactly
+once, retains the pair, and lowers its body with the incoming tail-position bit.
+The focused executable bridge carries a `Bytes` initializer and an `Int` body
+through separate slots in a real 48-byte frame, observes the stored byte,
+restores the root frame, rejects malformed prefix/index profiles with zero
+payload, and reconstructs the same tape twice. Connecting source tag 1 or 4 to
+these seams remains Q3-blocked; no source spelling or shadowing choice is made.
+
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them
 overlap-safely into the replacement frame, restores the original caller frame,
@@ -173,10 +187,10 @@ It prevalidates the forward arena list and every fixed extent before emitting
 argument code; malformed private metadata cannot loop, wrap frame arithmetic,
 or leave a partial candidate payload.
 Its compact executed payload carries mixed `Bytes`/`Int` arguments through both
-paths and returns with the root stack and frame restored. `if` lowering already
-preserves its tail-position bit; future `let` and selected-match lowering must
-propagate the same transfer so terminating tail recursion grows neither Gamma
-activations nor Alpha's hidden return stack. Connecting tag-5 source call
+paths and returns with the root stack and frame restored. `if` and the resolved
+let seam already preserve their tail-position bit; future selected-match
+lowering must propagate the same transfer so terminating tail recursion grows
+neither Gamma activations nor Alpha's hidden return stack. Connecting tag-5 source call
 spellings, callee metadata, and binder slots to the seam still waits for Q3's
 deterministic source-identity ruling; no resolved AST is serialized or executed.
 
