@@ -3813,7 +3813,7 @@ pub fn compute_build_config(
             "`{machine_name}` produced an invalid Build: {reason}"
         ))]
     })?;
-    config.grants = harvest_root_grants(typed, machine);
+    config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
@@ -4221,7 +4221,7 @@ pub fn harvest_provider_selections(
 fn harvest_root_grants(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
-) -> Vec<omega_trust_model::AuthoredRootGrant> {
+) -> Result<Vec<omega_trust_model::AuthoredRootGrant>, Diagnostic> {
     let mut grants = Vec::new();
     let mut record = |selector: &str, source_span: psi_source::SourceSpan| {
         if !grants
@@ -4244,7 +4244,7 @@ fn harvest_root_grants(
                 psi_typed_trees::statement::StatementNode::Call(call) => {
                     // A statement-level call keeps the marker in its target.
                     if let Some(path) = call.target.as_str().strip_prefix("accept_boundary#") {
-                        record(path, call.source_span);
+                        record(path, authored_root_grant_statement_span(typed, call)?);
                     }
                     Vec::new()
                 }
@@ -4255,12 +4255,85 @@ fn harvest_root_grants(
                     typed.expression_table.expression(handle)
                     && let Some(path) = call.target.as_str().strip_prefix("accept_boundary#")
                 {
-                    record(path, typed.expression_table.source_span(handle));
+                    record(path, authored_root_grant_expression_span(typed, handle)?);
                 }
             }
         }
     }
-    grants
+    Ok(grants)
+}
+
+fn authored_root_grant_statement_span(
+    typed: &TypedTrees,
+    call: &psi_typed_trees::statement::TableCall,
+) -> Result<psi_source::SourceSpan, Diagnostic> {
+    let Some(occurrence) = call.authored_call_selection else {
+        return Err(Diagnostic::error(
+            "build boundary grant has no authored selection occurrence",
+        ));
+    };
+    authored_root_grant_selection_span(typed, occurrence)
+}
+
+fn authored_root_grant_expression_span(
+    typed: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Result<psi_source::SourceSpan, Diagnostic> {
+    let occurrences = typed
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .filter(|selection| authored_root_grant_selection(**selection))
+                .map(|_| occurrence)
+        })
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "build boundary grant expression has {} exact authored selection occurrences",
+            occurrences.len(),
+        )));
+    };
+    authored_root_grant_selection_span(typed, *occurrence)
+}
+
+fn authored_root_grant_selection_span(
+    typed: &TypedTrees,
+    occurrence: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+) -> Result<psi_source::SourceSpan, Diagnostic> {
+    let selection = typed
+        .authored_declaration_selections()
+        .get(occurrence)
+        .filter(|selection| authored_root_grant_selection(**selection))
+        .ok_or_else(|| {
+            Diagnostic::error("build boundary grant has no exact authored selection evidence")
+        })?;
+    let span = selection.source_span();
+    if span.span.start >= span.span.end {
+        return Err(Diagnostic::error(
+            "build boundary grant has an empty authored source span",
+        ));
+    }
+    Ok(span)
+}
+
+fn authored_root_grant_selection(
+    selection: psi_language_semantics::declaration_selection::AuthoredDeclarationSelection,
+) -> bool {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as LateBinding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    selection.kind() == Kind::Call
+        && matches!(
+            selection.target(),
+            Target::LateBound(LateBinding::CheckedCall)
+                | Target::Intrinsic(Intrinsic::BuildBoundaryAcceptance)
+        )
 }
 
 fn extract_build_config(

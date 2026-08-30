@@ -66,8 +66,9 @@ pub use package::{
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
     CheckedPackageReviewProjection, PackageReviewCheckedServiceReach,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
+    PackageReviewSelectedProviderGrant,
 };
 pub use representation::{
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,

@@ -1086,6 +1086,7 @@ dependencies = [
  "omega-provider-planning",
  "omega-selected-dispatch",
  "omega-target",
+ "omega-trust-model",
  "psi-arena",
  "psi-checked-trees",
  "psi-core",

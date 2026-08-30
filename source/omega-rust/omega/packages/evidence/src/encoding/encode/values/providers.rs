@@ -3,8 +3,8 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::evidence::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
 };
 use omega_effects::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind,
@@ -19,6 +19,14 @@ pub(crate) fn encode_provider(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.string(&provider.plan_name)?;
     encoder.u64(provider.plan_report_fingerprint);
+    encoder.sequence(&provider.grants, |encoder, grant| {
+        encoder.byte(match grant.selector_kind {
+            PackageReviewProviderGrantSelectorKind::PlanName => 0,
+            PackageReviewProviderGrantSelectorKind::ProviderSlot => 1,
+        });
+        encoder.fixed_bytes(&grant.selected_plan_digest);
+        Ok(())
+    })?;
     encoder.optional_package_identity(provider.realizing_package);
     encode_nominal(encoder, &provider.schema_declaration)?;
     encoder.string(&provider.provider_type)?;

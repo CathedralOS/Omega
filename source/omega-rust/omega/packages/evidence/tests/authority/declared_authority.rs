@@ -35,6 +35,7 @@ machine build(builder: &mut Build)
 crashes Abort
 {
     builder.package("review-fixture");
+    builder.accept_boundary<Host>();
     helper();
     let receipt: Receipt = Receipt { code: 1 };
     crash Abort;
@@ -104,8 +105,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 88);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 46);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 89);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 47);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -290,6 +291,19 @@ crashes Abort
         panic!("one selected provider review row")
     };
     assert_eq!(provider.realizing_package(), Some(package_identity()));
+    let [grant] = provider.grants() else {
+        panic!("one exact selected-provider grant")
+    };
+    assert_eq!(
+        grant.selector_kind(),
+        PackageReviewProviderGrantSelectorKind::ProviderSlot
+    );
+    assert_eq!(
+        grant.selected_plan_digest(),
+        checked.selected_provider_plans().plans()[0]
+            .identity_digest()
+            .as_bytes()
+    );
     assert_eq!(provider.schema_declaration().path(), "Host");
     assert_eq!(
         provider.schema_declaration().owner(),
@@ -343,6 +357,10 @@ crashes Abort
         .authored_locations()
         .expect("implicit provider still retains authored schema and realization provenance");
     assert!(provider_locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::ProviderGrant
+            && location.relative_path() == "build.omg"
+    }));
+    assert!(provider_locations.iter().any(|location| {
         location.role() == PackageReviewSourceLocationRole::ProviderSchemaDeclaration
             && location.relative_path() == "main.omg"
     }));
@@ -359,6 +377,88 @@ crashes Abort
         PackageReviewSourceLocationRole::ProviderSelection
             | PackageReviewSourceLocationRole::ProviderTypeDeclaration
     )));
+}
+
+#[test]
+fn review_projects_plan_name_provider_grant() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"boundary trait Host { machine ping(); }
+machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
+"#,
+    );
+    package.write(
+        "build.omg",
+        &format!(
+            r#"target windows_x64 {{ }}
+target linux_x64 {{ }}
+target linux_arm64 {{ }}
+target macos_arm64 {{ }}
+machine build(builder: &mut Build) {{
+    builder.package("review-fixture");
+    builder.accept_boundary<{target}::satisfies::Host>();
+}}
+"#,
+        ),
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("plan-name provider grant fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("plan-name provider grant should project exactly");
+    let [provider] = review.selected_providers() else {
+        panic!("one selected provider")
+    };
+    let [grant] = provider.grants() else {
+        panic!("one selected-provider grant")
+    };
+    assert_eq!(
+        grant.selector_kind(),
+        PackageReviewProviderGrantSelectorKind::PlanName
+    );
+    assert_eq!(
+        grant.selected_plan_digest(),
+        checked.selected_provider_plans().plans()[0]
+            .identity_digest()
+            .as_bytes()
+    );
+    let granted_bytes = review
+        .canonical_review_bytes()
+        .expect("granted provider review encodes canonically");
+
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let unchecked_grant = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("otherwise identical provider fixture without a grant should check");
+    let ungranted_review = project_checked_package_review(&unchecked_grant)
+        .expect("ungranted selected provider should still project");
+    assert!(ungranted_review.selected_providers()[0].grants().is_empty());
+    assert_ne!(
+        granted_bytes,
+        ungranted_review
+            .canonical_review_bytes()
+            .expect("ungranted provider review encodes canonically"),
+        "an authored provider grant must change canonical package evidence",
+    );
 }
 
 #[test]

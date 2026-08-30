@@ -1014,6 +1014,11 @@ Owner admission follows the same rule before reporting. A provider grant
 retains the complete selected plan and its `ProviderPlanDigest`; a generic
 accepted grant retains the canonical `MachineTemplateCommitment`; and an
 ordinary accepted machine retains its checked `MachineContractCommitment`.
+Package review v89 carries each authored provider grant on that exact selected
+plan as the selector kind plus `ProviderPlanDigest`, with the granting
+build-machine occurrence retained separately as exact `build.omg` source
+custody. Neither the selector string nor the compact plan report fingerprint
+can stand in for the selected plan.
 The persisted trust-admission digest domain-separates those subject kinds and
 also binds the human policy commitment. The narrow standalone `omega.lock`
 receipt section stores the full digest, while legacy compact-only rows fail

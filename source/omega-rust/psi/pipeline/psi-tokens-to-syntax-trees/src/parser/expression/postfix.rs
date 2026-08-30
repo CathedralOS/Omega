@@ -217,9 +217,10 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
                             receiver: expression,
-                            target: psi_syntax_trees::identifier::Identifier::generated(format!(
-                                "accept_boundary#{rendered}"
-                            )),
+                            target: psi_syntax_trees::identifier::Identifier::new(
+                                format!("accept_boundary#{rendered}"),
+                                member.source_span(),
+                            ),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
                             evidence_arguments: Box::default(),

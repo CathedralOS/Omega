@@ -75,7 +75,7 @@ forming a second flattened API.
 
 ## Canonical schema
 
-The canonical review schema is version 88 and row schema version 46. Its exact
+The canonical review schema is version 89 and row schema version 47. Its exact
 closed vocabulary and revision notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md); they are persistence documentation,
 not the reader entrance to this crate.

@@ -16,6 +16,7 @@ omega-provider-planning = { path = "../../build/omega-provider-planning" }
 omega-selected-dispatch = { path = "../../build/omega-selected-dispatch" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-target = { path = "../../representations/omega-target" }
+omega-trust-model = { path = "../../build/omega-trust-model" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
