@@ -319,6 +319,15 @@ and four operation plus one return-edge fuel units. Missing or reordered
 establishments, root/index/length drift, cleanup-order drift, and wider prefixes
 remain fail closed without runtime liveness state or a cleanup loop.
 
+The next bounded successor admits `[T; 6]` under the same restrictions and
+establishes literal indices `0`, `1`, `2`, `3`, then `4`. Ordinary abandonment
+cleans the five zero-ABI element occurrences in order `[4, 3, 2, 1, 0]`;
+Terminal and every native artifact layer independently retain the common
+length-six root and five operation plus one return-edge fuel units. Missing or
+reordered establishments, root/index/length drift, cleanup-order drift, and
+length-seven or wider prefixes remain fail closed without runtime liveness
+state or a cleanup loop.
+
 Named record and case literals generalize the construction half without
 changing completed-value ownership. Field expressions establish exactly once in
 authored literal order. Ordinary abandonment cleans that established prefix in

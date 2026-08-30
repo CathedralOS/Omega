@@ -359,6 +359,13 @@ reverse order `[3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
 wrong-root, wrong-length, or wider construction shapes remain unsupported, and
 trap or nuclear-abort edges still clean nothing.
 
+The fourth bounded slice admits `[T; 6]` under those same restrictions.
+Establishments must be the literal prefix `[0, 1, 2, 3, 4]`; an ordinary Unit
+return records five distinct zero-ABI element occurrences and cleans them in
+reverse order `[4, 3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
+wrong-root, wrong-length, or length-seven and wider construction shapes remain
+unsupported, and trap or nuclear-abort edges still clean nothing.
+
 ## Contextual Droppability
 
 Multiplicity is a type property; automatic droppability is checked at the
