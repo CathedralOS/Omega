@@ -9,10 +9,8 @@ use crate::git::cache::{
 };
 use crate::git::executable::executor::test_system_git_executor;
 use crate::git::request::*;
-use crate::git::snapshot::permissions::*;
 use crate::identity::*;
 use crate::limits::*;
-use crate::local::capture::open_absolute_directory_nofollow;
 use crate::observations::{
     accounting::{git_resolution_captured_output_ceiling, git_resolution_network_transfer_ceiling},
     execution::*,
@@ -21,7 +19,9 @@ use crate::observations::{
     resolved::*,
     storage::*,
 };
+use crate::snapshot::permissions::*;
 use crate::test_support::*;
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 use omega_resolver_execution::ResolverExecutionPhase;
 use std::process::Command;
 

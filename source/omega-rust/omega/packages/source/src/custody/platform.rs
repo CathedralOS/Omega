@@ -5,7 +5,7 @@ use super::lock::same_std_and_capability_file_identity;
 use super::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::SourceResolveError;
 #[cfg(any(target_os = "macos", windows))]
-use crate::local::capture::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 #[cfg(any(target_os = "macos", windows))]
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(any(target_os = "macos", windows))]

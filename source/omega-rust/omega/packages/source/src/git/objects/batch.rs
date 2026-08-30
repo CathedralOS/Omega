@@ -24,8 +24,7 @@ use crate::custody::platform::{
     verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
 };
 use crate::custody::tree::CacheCustodyKind;
-use crate::error::SourceResolveError;
-use crate::git::cache::identity::cache_invalid;
+use crate::error::{SourceResolveError, cache_invalid, git_tree_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::commands::capture::{
     ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
@@ -39,9 +38,9 @@ use crate::git::commands::reconciliation::{
 };
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::{GIT_STDERR_LIMIT, LocalSourceLimits, STAGING_SEQUENCE};
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 
-use super::tree::{git_tree_invalid, validate_git_symlink_target};
+use super::tree::validate_git_symlink_target;
 use super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
 
 pub(super) fn read_git_blobs_batch(

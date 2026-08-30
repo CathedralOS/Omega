@@ -8,9 +8,8 @@ use super::platform::{
 use super::publication::direct_cache_child_name;
 use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
 use crate::SourceResolveError;
-use crate::git::executable::executor::GitExecutor;
 use crate::limits::{LOCAL_SNAPSHOT_LOCK_TIMEOUT, PROCESS_POLL_INTERVAL};
-use crate::local::capture::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;
@@ -22,6 +21,16 @@ use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+
+/// Deadline and resource budget consulted while a cache lock is contended.
+///
+/// Custody owns lock behavior; acquisition adapters supply their own budget
+/// without making custody depend on Git execution machinery.
+pub(crate) trait CacheLockBudget {
+    fn verify_cache_lock_budget(&self) -> Result<(), SourceResolveError>;
+    fn remaining_cache_lock_time(&self) -> Result<Duration, SourceResolveError>;
+}
+
 pub(crate) struct CacheEntryLock {
     pub(crate) file: File,
     pub(crate) parent: CapabilityDirectory,
@@ -141,17 +150,17 @@ impl CacheEntryLock {
     }
 
     #[cfg(test)]
-    pub(crate) fn acquire_with_git_budget(
+    pub(crate) fn acquire_with_budget(
         path: &Path,
-        executor: &GitExecutor,
+        budget: &impl CacheLockBudget,
     ) -> Result<Self, SourceResolveError> {
         let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
         loop {
-            executor.verify_budget()?;
+            budget.verify_cache_lock_budget()?;
             match file.try_lock() {
                 Ok(()) => break,
                 Err(std::fs::TryLockError::WouldBlock) => {
-                    let remaining = executor.remaining_time()?;
+                    let remaining = budget.remaining_cache_lock_time()?;
                     std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
                 }
                 Err(std::fs::TryLockError::Error(error)) => {
@@ -159,7 +168,7 @@ impl CacheEntryLock {
                 }
             }
         }
-        if let Err(error) = executor.verify_budget() {
+        if let Err(error) = budget.verify_cache_lock_budget() {
             let _ = file.unlock();
             return Err(error);
         }
@@ -173,11 +182,11 @@ impl CacheEntryLock {
         })
     }
 
-    pub(crate) fn acquire_with_git_budget_from_parent(
+    pub(crate) fn acquire_with_budget_from_parent(
         parent_path: &Path,
         retained_parent: &CapabilityDirectory,
         lock_name: &OsStr,
-        executor: &GitExecutor,
+        budget: &impl CacheLockBudget,
     ) -> Result<Self, SourceResolveError> {
         let path = parent_path.join(lock_name);
         let (file, parent, lock_name) = Self::open_from_retained_parent(
@@ -187,11 +196,11 @@ impl CacheEntryLock {
             lock_name,
         )?;
         loop {
-            executor.verify_budget()?;
+            budget.verify_cache_lock_budget()?;
             match file.try_lock() {
                 Ok(()) => break,
                 Err(std::fs::TryLockError::WouldBlock) => {
-                    let remaining = executor.remaining_time()?;
+                    let remaining = budget.remaining_cache_lock_time()?;
                     std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
                 }
                 Err(std::fs::TryLockError::Error(error)) => {
@@ -199,7 +208,7 @@ impl CacheEntryLock {
                 }
             }
         }
-        if let Err(error) = executor.verify_budget() {
+        if let Err(error) = budget.verify_cache_lock_budget() {
             let _ = file.unlock();
             return Err(error);
         }

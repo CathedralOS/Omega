@@ -12,8 +12,8 @@ use super::selection::{
 };
 use crate::SourceResolveError;
 use crate::git::commands::capture::{BoundedCommandOutput, duration_millis};
-use crate::git::commands::identity::format_sha256;
 use crate::git::request::GitExecutionTransport;
+use crate::identity::digest::format_sha256;
 use crate::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,
 };
@@ -465,6 +465,16 @@ impl GitExecutor {
         } else {
             Ok(self.timeout - elapsed)
         }
+    }
+}
+
+impl crate::custody::lock::CacheLockBudget for GitExecutor {
+    fn verify_cache_lock_budget(&self) -> Result<(), SourceResolveError> {
+        self.verify_budget()
+    }
+
+    fn remaining_cache_lock_time(&self) -> Result<Duration, SourceResolveError> {
+        self.remaining_time()
     }
 }
 

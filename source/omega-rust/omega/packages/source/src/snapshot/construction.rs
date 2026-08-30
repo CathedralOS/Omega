@@ -3,8 +3,8 @@
 use crate::SourceResolveError;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 #[cfg(not(unix))]
-use crate::git::objects::tree::git_tree_invalid;
-use crate::local::capture::io_error;
+use crate::error::git_tree_invalid;
+use crate::tree::filesystem::io_error;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;

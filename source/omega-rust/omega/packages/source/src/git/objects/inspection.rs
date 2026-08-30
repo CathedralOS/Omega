@@ -3,7 +3,7 @@
 use std::ffi::OsStr;
 
 use crate::error::SourceResolveError;
-use crate::git::cache::identity::cache_invalid;
+use crate::error::cache_invalid;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::LocalSourceLimits;

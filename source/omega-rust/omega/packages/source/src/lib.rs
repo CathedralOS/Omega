@@ -2,8 +2,9 @@
 
 //! Package-source identity and hostile source acquisition.
 //!
-//! [`identity`] names immutable package sources, [`local`] and [`git`] capture
-//! hostile source under shared [`custody`]. This crate stops at immutable
+//! [`identity`] names immutable package sources, [`tree`] owns source-neutral
+//! traversal and results, and [`local`] and [`git`] acquire hostile source
+//! under shared snapshot and custody owners. This crate stops at immutable
 //! source custody; package declarations, graph construction, review, and
 //! admission belong to `omega-package-manager`.
 
@@ -14,7 +15,9 @@ pub(crate) mod identity;
 mod limits;
 pub mod local;
 mod observations;
+mod snapshot;
 pub mod storage;
+pub mod tree;
 
 pub use error::SourceResolveError;
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
@@ -47,6 +50,7 @@ pub use observations::resolution::GitSourceResolutionObservation;
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageObservation;
 pub use storage::SourceResolverStorage;
+pub use tree::ResolvedSourceTree;
 
 #[cfg(test)]
 mod test_support;

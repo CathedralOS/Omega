@@ -1,7 +1,7 @@
 //! Validated Git locators, revisions, transports, and endpoint identity.
 
 #[cfg(any(test, feature = "test-fixtures"))]
-use crate::git::commands::identity::format_sha256;
+use crate::identity::digest::format_sha256;
 use crate::identity::{GitRequestedNetworkEndpoint, GitTransport, IdentityError, SourceLineage};
 use crate::limits::{GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT};
 use omega_resolver_execution::ResolverExecutionNetworkTransport;

@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use crate::error::SourceResolveError;
+use crate::error::{SourceResolveError, git_tree_invalid};
 use crate::limits::{LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT, SOURCE_ENTRY_ABSOLUTE_LIMIT};
 
 use super::identity::is_object_id;
@@ -338,14 +338,4 @@ pub(crate) fn validate_git_symlink_target(
         }
     }
     Ok(())
-}
-
-pub(crate) fn git_tree_invalid(
-    path: impl AsRef<[u8]>,
-    message: impl Into<String>,
-) -> SourceResolveError {
-    SourceResolveError::GitTreeInvalid {
-        path: path.as_ref().to_vec(),
-        message: message.into(),
-    }
 }

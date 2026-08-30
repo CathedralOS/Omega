@@ -9,9 +9,9 @@ use crate::custody::publication::{
 use crate::custody::tree::verify_cache_custody_root;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::limits::STAGING_SEQUENCE;
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 #[cfg(test)]
-use crate::local::capture::open_absolute_directory_nofollow;
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;

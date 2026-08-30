@@ -1,11 +1,13 @@
 //! Local-source behavior tests grouped by resolver responsibility.
 
-use super::{capture::*, model::*, operations::*, snapshot::*};
+use super::{model::*, operations::*, snapshot::*};
 use crate::error::SourceResolveError;
-use crate::git::snapshot::permissions::*;
 use crate::identity::*;
 use crate::limits::*;
+use crate::snapshot::permissions::*;
 use crate::test_support::*;
+use crate::tree::capture::*;
+use crate::tree::filesystem::*;
 use cap_std::ambient_authority;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::collections::BTreeSet;

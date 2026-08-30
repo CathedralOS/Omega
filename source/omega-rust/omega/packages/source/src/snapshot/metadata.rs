@@ -2,16 +2,14 @@
 
 use crate::SourceResolveError;
 use crate::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
-use crate::git::cache::identity::{append_framed_bytes, cache_invalid, local_snapshot_invalid};
-use crate::git::objects::identity::is_object_id;
+use crate::error::local_snapshot_invalid;
+use crate::identity::digest::append_framed_bytes;
 use crate::limits::{
-    GIT_SNAPSHOT_POLICY, LOCAL_SNAPSHOT_METADATA, LOCAL_SNAPSHOT_POLICY, LOCAL_SNAPSHOT_SOURCE,
-    LocalSourceLimits,
+    LOCAL_SNAPSHOT_METADATA, LOCAL_SNAPSHOT_POLICY, LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits,
 };
-use crate::local::capture::{
-    SourceTreePolicy, capture_local_source_from_open_root, open_absolute_directory_nofollow,
-};
-use crate::local::model::ResolvedLocalSource;
+use crate::tree::ResolvedLocalSource;
+use crate::tree::capture::{SourceTreePolicy, capture_local_source_from_open_root};
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 use cap_fs_ext::DirExt;
 use std::path::Path;
 
@@ -114,61 +112,6 @@ pub(crate) fn verify_local_snapshot(
         ));
     }
     Ok(normalized)
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct GitSnapshotMetadata {
-    pub(super) tree: String,
-    pub(super) file_count: usize,
-    pub(super) byte_count: u64,
-    pub(super) content_identity: String,
-}
-
-pub(crate) fn git_snapshot_metadata(tree: &str, local: &ResolvedLocalSource) -> Vec<u8> {
-    let mut metadata = GIT_SNAPSHOT_POLICY.to_vec();
-    append_framed_bytes(&mut metadata, tree.as_bytes());
-    metadata.extend_from_slice(&(local.file_count as u64).to_le_bytes());
-    metadata.extend_from_slice(&local.byte_count.to_le_bytes());
-    append_framed_bytes(&mut metadata, local.content_identity.as_bytes());
-    metadata
-}
-
-pub(super) fn parse_git_snapshot_metadata(
-    bytes: &[u8],
-    path: &Path,
-) -> Result<GitSnapshotMetadata, SourceResolveError> {
-    let Some(mut remaining) = bytes.strip_prefix(GIT_SNAPSHOT_POLICY) else {
-        return Err(cache_invalid(
-            path,
-            "snapshot metadata policy does not match",
-        ));
-    };
-    let tree = take_framed_bytes(&mut remaining)
-        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-        .filter(|tree| is_object_id(tree))
-        .ok_or_else(|| cache_invalid(path, "snapshot metadata tree is invalid"))?
-        .to_owned();
-    let file_count = take_u64(&mut remaining)
-        .and_then(|count| usize::try_from(count).ok())
-        .ok_or_else(|| cache_invalid(path, "snapshot file count is invalid"))?;
-    let byte_count = take_u64(&mut remaining)
-        .ok_or_else(|| cache_invalid(path, "snapshot byte count is invalid"))?;
-    let content_identity = take_framed_bytes(&mut remaining)
-        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-        .filter(|identity| {
-            identity.len() == 64 && identity.bytes().all(|byte| byte.is_ascii_hexdigit())
-        })
-        .ok_or_else(|| cache_invalid(path, "snapshot content identity is invalid"))?
-        .to_owned();
-    if !remaining.is_empty() {
-        return Err(cache_invalid(path, "snapshot metadata has trailing bytes"));
-    }
-    Ok(GitSnapshotMetadata {
-        tree,
-        file_count,
-        byte_count,
-        content_identity,
-    })
 }
 
 fn take_u64(bytes: &mut &[u8]) -> Option<u64> {

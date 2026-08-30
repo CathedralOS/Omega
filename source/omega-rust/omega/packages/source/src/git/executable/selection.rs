@@ -79,6 +79,8 @@ pub(super) fn open_resolver_execution_helpers(
 #[cfg(unix)]
 fn ssh_runtime_shell_paths() -> Vec<PathBuf> {
     let mut paths = vec![PathBuf::from("/bin/sh")];
+    #[cfg(target_os = "macos")]
+    paths.push(PathBuf::from("/bin/bash"));
     if let Ok(Some(user)) = User::from_uid(Uid::effective())
         && user.shell.is_absolute()
         && !paths.contains(&user.shell)

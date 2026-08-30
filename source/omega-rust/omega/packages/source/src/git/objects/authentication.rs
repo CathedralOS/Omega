@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 
-use crate::error::SourceResolveError;
+use crate::error::{SourceResolveError, git_tree_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::identity::GitObjectIdAlgorithm;
@@ -13,7 +13,6 @@ use super::identity::{
     decode_git_object_id, git_object_algorithm, git_object_identity, git_object_invalid,
     is_object_id, verify_git_object_identity,
 };
-use super::tree::git_tree_invalid;
 use super::{GitTreeEntry, GitTreeEntryKind};
 
 #[derive(Debug)]

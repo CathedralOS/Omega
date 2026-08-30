@@ -220,7 +220,7 @@ fn git_cache_lock_wait_obeys_the_whole_resolution_budget() {
         .expect("capture time-bounded Git");
 
     assert!(matches!(
-        CacheEntryLock::acquire_with_git_budget(&lock_path, &executor),
+        CacheEntryLock::acquire_with_budget(&lock_path, &executor),
         Err(SourceResolveError::GitResolutionTimedOut { .. })
     ));
 

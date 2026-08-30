@@ -1,7 +1,7 @@
 //! Resolver-owned evidence for accepted retained storage state.
 
 use crate::custody::tree::{CacheCustodyMeasurement, git_cache_custody_byte_limit};
-use crate::git::commands::identity::format_sha256;
+use crate::identity::digest::format_sha256;
 use crate::limits::{
     CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT, GIT_CACHE_POLICY,
     GIT_RETAINED_STORAGE_OBSERVATION_DOMAIN, GIT_RETAINED_STORAGE_OBSERVATION_SCHEMA_VERSION,

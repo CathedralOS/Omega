@@ -9,10 +9,10 @@ use crate::SourceResolveError;
 use crate::custody::publication::direct_cache_child_name;
 use crate::custody::tree::CacheCustodyKind;
 use crate::limits::GIT_CACHE_SNAPSHOTS;
-use crate::local::capture::io_error;
+use crate::tree::filesystem::io_error;
 
 use super::custody::verify_retained_git_directory_identity;
-use super::identity::cache_invalid;
+use crate::error::cache_invalid;
 
 pub(crate) struct RetainedGitSnapshots {
     pub(crate) path: PathBuf,
