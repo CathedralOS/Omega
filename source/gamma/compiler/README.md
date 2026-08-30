@@ -14,16 +14,16 @@ The adjacent gate compiles this one source with temporary fixed test entries,
 runs all 82 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup/structural-replay failures, executes six generated
 runtime-containment programs,
-exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, executes
-one resolved-call bridge payload, compares three repeated payloads
-byte-identically, and executes 14 compact-`Bytes`, two
+exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases,
+executes one resolved-call and one resolved-constructor bridge payload, compares
+four repeated payloads byte-identically, and executes 14 compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 98 procedures. With the fixed frontend
-gate entry, the compiled gate uses 99 of Beta's 128 procedure slots and
-compiles to 229,538 bytes. The remaining 32,602 bytes under
+The retained compiler source declares 100 procedures. With the fixed frontend
+gate entry, the compiled gate uses 101 of Beta's 128 procedure slots and
+compiles to 231,723 bytes. The remaining 30,417 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -106,7 +106,11 @@ field-pointer extent/alignment before loads. Odd field counts round to a
 32-byte heap row, preserving the compact `Bytes` descriptor alignment across
 mixed allocations. The adjacent probe covers 600 fields, nested and nullary
 values, malformed private pointers, and the exact heap edge. Source
-constructor-tag and pattern-slot assignment remains Q3-blocked.
+constructor-tag and pattern-slot assignment remains Q3-blocked. The resolved
+constructor seam shares the call seam's single guarded argument routine rather
+than retaining a second list verifier; it consumes only an opaque resolved kind
+and does not assign source identity. Its focused failure discriminator also
+keeps a malformed child lowering distinct from successful zero arity.
 
 Generated code treats `r249`/`r250` as caller-clobbered fixed-offset address
 scratch, reserves `r252` for the downward stack pointer, `r253` for the current

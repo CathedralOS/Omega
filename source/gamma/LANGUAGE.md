@@ -192,8 +192,9 @@ nonexhaustive source statically.
 The current oracle gates check the outer source contract before parsing: the
 evaluation surface passes 48 focused cases, the compiler frontend passes 82
 plus one exact emitter-substrate probe, six executed runtime-containment
-probes, 16 checked-`Int` paths, 31 source-to-code lowering cases, two
-byte-determinism comparisons, 14 compact-`Bytes` runtime paths, two executed
+probes, 16 checked-`Int` paths, 31 source-to-code lowering cases, resolved-call
+and resolved-constructor bridge payloads, four byte-determinism comparisons,
+14 compact-`Bytes` runtime paths, two executed
 arbitrary-arity/frame-ABI paths, three algebraic-value ABI paths, eight
 sealed-input runtime paths, and one sealed-input reconstruction comparison; the
 temporary independent evaluator agrees on 106 fixed or generated cases.
