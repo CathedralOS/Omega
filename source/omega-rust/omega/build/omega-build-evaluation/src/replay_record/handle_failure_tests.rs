@@ -66,6 +66,23 @@ fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservation
     summary
 }
 
+fn unknown_descriptor_write_summary(
+    operation_tag: u16,
+    values: &[BuildFilesystemScalarOperandValue],
+) -> BuildObservationSummary {
+    let mut summary = summary(operation_tag);
+    summary.filesystem_operation_attempts[0].scalar_operands = values
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, value)| BuildFilesystemScalarOperand {
+            operand_ordinal: u8::try_from(index + 1).unwrap(),
+            value,
+        })
+        .collect();
+    summary
+}
+
 #[test]
 fn operand_free_unknown_descriptor_failure_records_recover_and_rehydrate_exactly() {
     let limits = BuildFilesystemReplayRecordLimits::default();
@@ -203,4 +220,89 @@ fn unknown_descriptor_seek_failure_rejects_scalar_and_side_lane_drift() {
         .retired_logical_handles
         .push(BuildFilesystemLogicalHandleIdentity::new(1).unwrap());
     assert!(capture_verified_build_filesystem_replay_record(&retired, limits).is_err());
+}
+
+#[test]
+fn unknown_descriptor_write_operation_failures_round_trip_exact_scalars() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let fixtures = [
+        (17, vec![BuildFilesystemScalarOperandValue::U32(u32::MAX)]),
+        (41, vec![BuildFilesystemScalarOperandValue::I64(i64::MIN)]),
+        (46, vec![BuildFilesystemScalarOperandValue::I32(i32::MAX)]),
+        (
+            49,
+            vec![
+                BuildFilesystemScalarOperandValue::I32(-1),
+                BuildFilesystemScalarOperandValue::I32(i32::MIN),
+            ],
+        ),
+    ];
+
+    for (operation_tag, values) in fixtures {
+        let summary = unknown_descriptor_write_summary(operation_tag, &values);
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .expect("exact unknown-descriptor write operation encodes")
+            .expect("verified write operation retains replay custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("exact unknown-descriptor write operation recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("exact write operation rehydrates through its typed constructor");
+        let [attempt] = replay.attempts() else {
+            panic!("unknown-descriptor write replay retains one attempt")
+        };
+        assert_eq!(attempt.operation_tag(), operation_tag);
+        assert_eq!(
+            attempt
+                .scalar_operands()
+                .iter()
+                .map(|operand| operand.value())
+                .collect::<Vec<_>>(),
+            values
+                .iter()
+                .copied()
+                .map(|value| match value {
+                    BuildFilesystemScalarOperandValue::I32(value) => {
+                        psi_checked_interpreter::FilesystemScalarOperandValue::I32(value)
+                    }
+                    BuildFilesystemScalarOperandValue::U32(value) => {
+                        psi_checked_interpreter::FilesystemScalarOperandValue::U32(value)
+                    }
+                    BuildFilesystemScalarOperandValue::I64(value) => {
+                        psi_checked_interpreter::FilesystemScalarOperandValue::I64(value)
+                    }
+                    BuildFilesystemScalarOperandValue::U64(value) => {
+                        psi_checked_interpreter::FilesystemScalarOperandValue::U64(value)
+                    }
+                })
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(attempt.post_error(), Some(9));
+        assert!(!replay.has_output_attempts());
+    }
+}
+
+#[test]
+fn unknown_descriptor_write_operation_failures_reject_scalar_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+
+    let mut wrong_type =
+        unknown_descriptor_write_summary(17, &[BuildFilesystemScalarOperandValue::U32(0o755)]);
+    wrong_type.filesystem_operation_attempts[0].scalar_operands[0].value =
+        BuildFilesystemScalarOperandValue::I32(0o755);
+    assert!(capture_verified_build_filesystem_replay_record(&wrong_type, limits).is_err());
+
+    let mut extra =
+        unknown_descriptor_write_summary(41, &[BuildFilesystemScalarOperandValue::I64(7)]);
+    extra.filesystem_operation_attempts[0]
+        .scalar_operands
+        .push(BuildFilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: BuildFilesystemScalarOperandValue::I32(0),
+        });
+    assert!(capture_verified_build_filesystem_replay_record(&extra, limits).is_err());
+
+    let missing =
+        unknown_descriptor_write_summary(49, &[BuildFilesystemScalarOperandValue::I32(-1)]);
+    assert!(capture_verified_build_filesystem_replay_record(&missing, limits).is_err());
 }

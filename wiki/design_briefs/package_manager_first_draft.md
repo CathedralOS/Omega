@@ -1676,6 +1676,17 @@ table and issues empty staged-output custody only after attempt, result,
 namespace, and teardown equality. Alternate scalar shapes, handles, failures,
 repetition, and mixed lifecycles remain non-receipted.
 
+Observation summary v54 and replay-record v35 additionally admit one exact
+write-gated scalar operation on an unknown descriptor after the optional Source
+prefix: tag-17 `set_file_permissions(u32)`, tag-41 `set_len(i64)`, tag-46
+`lock_file(i32)`, or tag-49 `change_file_owner(i32, i32)`. Every row binds
+scoped-real provider, scalar `-1`, post-error `9`, operand-zero
+`Descriptor/Unknown`, and exact authored scalar ordinals and values while all
+other lanes and handoffs remain empty. Missing-descriptor rejection occurs at
+the compiler write-grant lookup before host mutation; provider-free replay must
+reproduce the selected operation, namespace, and teardown before empty
+staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

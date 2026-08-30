@@ -108,151 +108,116 @@ invokes FilesystemHost;
 
 #[test]
 fn baseline_retains_operand_free_unknown_descriptor_failure_replay_custody() {
-    let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
-    let project = std::env::temp_dir().join(format!(
-        "omega-review-baseline-unknown-sync-data-{}-{sequence}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&project);
-    std::fs::create_dir_all(&project).expect("create unknown-sync-data baseline fixture");
-    std::fs::write(
-        project.join("build.omg"),
-        r#"use omega::language::std::filesystem_host;
-
-target windows_x64 { }
-
-machine build(builder: &mut Build)
-reaches FilesystemHost
-invokes FilesystemHost;
-{
-    builder.application("review-baseline-unknown-sync-data");
-    let status: i32 = builder.filesystem.sync_data(-1);
-}
-"#,
-    )
-    .expect("write unknown-sync-data baseline build");
-    std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
-        .expect("write unknown-sync-data baseline source");
-    let compilation =
-        omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
-            .expect("compile unknown-sync-data baseline fixture");
-    let summary = compilation
-        .build_observation_summary()
-        .expect("unknown sync_data publishes build observations");
-    assert!(summary.filesystem_replay_verdict().is_complete());
-    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-
-    let limits = ReviewOnlyBaselineLimits::default();
-    let replay =
-        capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
-            .expect("capture unknown-sync-data replay record")
-            .expect("verified unknown sync_data retains replay custody");
-    let mut encoder = Encoder::bounded(limits.maximum_capsule_bytes);
-    encode_replay_record_option(&mut encoder, Some(&replay))
-        .expect("frame unknown-sync-data replay");
-    let framed = encoder
-        .finish()
-        .expect("finish unknown-sync-data replay frame");
-    let mut decoder = Decoder::new(&framed);
-    let recovered = decode_replay_record_option(&mut decoder, limits)
-        .expect("recover unknown-sync-data replay frame")
-        .expect("unknown-sync-data replay frame is present");
-    decoder
-        .finish()
-        .expect("unknown-sync-data replay consumes frame");
-    let rehydrated = rehydrate_review_only_build_filesystem_replay_record(
-        &recovered,
-        replay_record_limits(limits),
-    )
-    .expect("unknown-sync-data baseline rehydrates through compiler replay custody");
-    assert_eq!(
-        rehydrated
-            .attempts()
-            .iter()
-            .map(|attempt| attempt.operation_tag())
-            .collect::<Vec<_>>(),
-        vec![44]
+    assert_baseline_retains_unknown_descriptor_failure(
+        "unknown-sync-data",
+        "let status: i32 = builder.filesystem.sync_data(-1);",
+        44,
+        &[],
     );
-    assert!(!rehydrated.has_output_attempts());
-
-    let _ = std::fs::remove_dir_all(project);
 }
 
 #[test]
 fn baseline_retains_unknown_descriptor_seek_failure_replay_custody() {
+    assert_baseline_retains_unknown_descriptor_failure(
+        "unknown-seek",
+        "let position: i64 = builder.filesystem.seek(-1, -17, 2);",
+        10,
+        &[
+            psi_checked_interpreter::FilesystemScalarOperandValue::I64(-17),
+            psi_checked_interpreter::FilesystemScalarOperandValue::I32(2),
+        ],
+    );
+}
+
+#[test]
+fn baseline_retains_unknown_descriptor_write_operation_replay_custody() {
+    assert_baseline_retains_unknown_descriptor_failure(
+        "unknown-change-file-owner",
+        "let status: i32 = builder.filesystem.change_file_owner(-1, -1, -2);",
+        49,
+        &[
+            psi_checked_interpreter::FilesystemScalarOperandValue::I32(-1),
+            psi_checked_interpreter::FilesystemScalarOperandValue::I32(-2),
+        ],
+    );
+}
+
+fn assert_baseline_retains_unknown_descriptor_failure(
+    label: &str,
+    statement: &str,
+    operation_tag: u16,
+    scalar_values: &[psi_checked_interpreter::FilesystemScalarOperandValue],
+) {
     let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
     let project = std::env::temp_dir().join(format!(
-        "omega-review-baseline-unknown-seek-{}-{sequence}",
+        "omega-review-baseline-{label}-{}-{sequence}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&project);
-    std::fs::create_dir_all(&project).expect("create unknown-seek baseline fixture");
+    std::fs::create_dir_all(&project).expect("create unknown-descriptor baseline fixture");
     std::fs::write(
         project.join("build.omg"),
-        r#"use omega::language::std::filesystem_host;
+        format!(
+            r#"use omega::language::std::filesystem_host;
 
-target windows_x64 { }
+target windows_x64 {{ }}
 
 machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
-{
-    builder.application("review-baseline-unknown-seek");
-    let position: i64 = builder.filesystem.seek(-1, -17, 2);
-}
-"#,
+{{
+    builder.application("review-baseline-{label}");
+    {statement}
+}}
+"#
+        ),
     )
-    .expect("write unknown-seek baseline build");
+    .expect("write unknown-descriptor baseline build");
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
-        .expect("write unknown-seek baseline source");
+        .expect("write unknown-descriptor baseline source");
     let compilation =
         omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
-            .expect("compile unknown-seek baseline fixture");
+            .expect("compile unknown-descriptor baseline fixture");
     let summary = compilation
         .build_observation_summary()
-        .expect("unknown seek publishes build observations");
+        .expect("unknown-descriptor failure publishes build observations");
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
 
     let limits = ReviewOnlyBaselineLimits::default();
     let replay =
         capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
-            .expect("capture unknown-seek replay record")
-            .expect("verified unknown seek retains replay custody");
+            .expect("capture unknown-descriptor replay record")
+            .expect("verified unknown-descriptor failure retains replay custody");
     let mut encoder = Encoder::bounded(limits.maximum_capsule_bytes);
-    encode_replay_record_option(&mut encoder, Some(&replay)).expect("frame unknown-seek replay");
-    let framed = encoder.finish().expect("finish unknown-seek replay frame");
+    encode_replay_record_option(&mut encoder, Some(&replay))
+        .expect("frame unknown-descriptor replay");
+    let framed = encoder
+        .finish()
+        .expect("finish unknown-descriptor replay frame");
     let mut decoder = Decoder::new(&framed);
     let recovered = decode_replay_record_option(&mut decoder, limits)
-        .expect("recover unknown-seek replay frame")
-        .expect("unknown-seek replay frame is present");
+        .expect("recover unknown-descriptor replay frame")
+        .expect("unknown-descriptor replay frame is present");
     decoder
         .finish()
-        .expect("unknown-seek replay consumes frame");
+        .expect("unknown-descriptor replay consumes frame");
     let rehydrated = rehydrate_review_only_build_filesystem_replay_record(
         &recovered,
         replay_record_limits(limits),
     )
-    .expect("unknown-seek baseline rehydrates through compiler replay custody");
-    let [seek] = rehydrated.attempts() else {
-        panic!("unknown-seek baseline retains one operation")
+    .expect("unknown-descriptor baseline rehydrates through compiler replay custody");
+    let [attempt] = rehydrated.attempts() else {
+        panic!("unknown-descriptor baseline retains one operation")
     };
-    assert_eq!(seek.operation_tag(), 10);
+    assert_eq!(attempt.operation_tag(), operation_tag);
     assert_eq!(
-        seek.scalar_operands()
+        attempt
+            .scalar_operands()
             .iter()
-            .map(|operand| (operand.operand_ordinal(), operand.value()))
+            .map(|operand| operand.value())
             .collect::<Vec<_>>(),
-        vec![
-            (
-                1,
-                psi_checked_interpreter::FilesystemScalarOperandValue::I64(-17)
-            ),
-            (
-                2,
-                psi_checked_interpreter::FilesystemScalarOperandValue::I32(2)
-            ),
-        ]
+        scalar_values
     );
     assert!(!rehydrated.has_output_attempts());
 

@@ -1522,6 +1522,17 @@ and issues empty staged-output custody only after attempt, result, namespace,
 and teardown equality. Alternate scalar shapes, handles, failures, repetition,
 and mixed lifecycles remain non-receipted.
 
+Summary v54 and replay-record v35 additionally admit one exact write-gated
+scalar operation on an unknown descriptor after the optional Source prefix:
+tag-17 `set_file_permissions(u32)`, tag-41 `set_len(i64)`, tag-46
+`lock_file(i32)`, or tag-49 `change_file_owner(i32, i32)`. Every row binds
+scoped-real provider, scalar `-1`, post-error `9`, operand-zero
+`Descriptor/Unknown`, and exact authored scalar ordinals and values while all
+other lanes and handoffs remain empty. Missing-descriptor rejection occurs at
+the compiler write-grant lookup before host mutation; provider-free replay must
+reproduce the selected operation, namespace, and teardown before empty
+staged-output custody issues.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1568,7 +1579,7 @@ empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
 unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, and
-v53/v34 unknown-descriptor-seek grammars
+v53/v34 unknown-descriptor-seek, and v54/v35 unknown-descriptor-write grammars
 above may join them to verified operation
 replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
@@ -1600,7 +1611,7 @@ empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
 v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, v50/v31
 unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, and
-v53/v34 unknown-descriptor-seek grammars
+v53/v34 unknown-descriptor-seek, and v54/v35 unknown-descriptor-write grammars
 above supply canonical operation replay and
 retained observed inputs.
 Generated-source cases bind the complete present
