@@ -88,6 +88,30 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
 
 pub(super) fn checked_machine_call_target_from_exact_owner(
     program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: ExpressionHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Option<SymbolHandle> {
+    checked_machine_call_target_from_type_owners(program, facts, expression, call)
+        .or_else(|| checked_machine_call_target_from_executable_owner(program, expression, call))
+}
+
+fn checked_machine_call_target_from_type_owners(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: ExpressionHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Option<SymbolHandle> {
+    let mut target = None;
+    for environment in exact_owner_environments(program, facts, expression)? {
+        let candidate = call_target_in_environment(program, call, &environment)?;
+        retain_consistent(&mut target, candidate)?;
+    }
+    target
+}
+
+fn checked_machine_call_target_from_executable_owner(
+    program: &TypedTrees,
     expression: ExpressionHandle,
     call: &psi_typed_trees::expression::TableCallExpression,
 ) -> Option<SymbolHandle> {
@@ -180,6 +204,71 @@ pub(super) fn checked_machine_call_target_from_exact_owner(
     target
 }
 
+fn call_target_in_environment(
+    program: &TypedTrees,
+    call: &psi_typed_trees::expression::TableCallExpression,
+    environment: &TypeEnvironment,
+) -> Option<SymbolHandle> {
+    if !call.receiver.is_valid() {
+        return None;
+    }
+    let receiver_type = exact_static_data_receiver(program, call.receiver, environment)
+        .or_else(|| infer_expression_type(program, call.receiver, environment, &mut Vec::new()))?;
+    attached_machine_target(program, receiver_type, call.target.as_str())
+}
+
+fn exact_static_data_receiver(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    environment: &TypeEnvironment,
+) -> Option<InferredType> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(receiver) else {
+        return None;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    let selected = crate::lookup::resolve_name_path_member_symbol(
+        program,
+        path,
+        members.len().checked_sub(1)?,
+    );
+    if selected.is_valid() && program.symbols.get(selected).kind == psi_symbols::SymbolKind::Data {
+        return Some(InferredType::Nominal(selected));
+    }
+
+    // Proof-owned static receivers can remain intentionally unresolved until
+    // checked finalization. Rejoin the authored qualifier only to nominal
+    // identities supplied by this exact owner environment. The text narrows
+    // that closed identity set; it never performs a program-wide name lookup.
+    let authored_path = members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let mut retained = None;
+    for inferred in environment
+        .self_type
+        .into_iter()
+        .chain(environment.result_type.map(InferredType::TypeReference))
+        .chain(
+            environment
+                .bindings
+                .iter()
+                .map(|binding| InferredType::TypeReference(binding.type_reference)),
+        )
+    {
+        let Some(candidate) = inferred_nominal_symbol(program, inferred) else {
+            continue;
+        };
+        if program.symbols.get(candidate).kind != psi_symbols::SymbolKind::Data
+            || program.symbols.display_path(candidate, "::") != authored_path
+        {
+            continue;
+        }
+        retain_consistent(&mut retained, candidate)?;
+    }
+    retained.map(InferredType::Nominal)
+}
+
 fn attached_machine_target(
     program: &TypedTrees,
     receiver_type: InferredType,
@@ -206,10 +295,7 @@ fn attached_machine_target(
     candidates.next().is_none().then_some(selected)
 }
 
-fn retain_consistent(
-    retained: &mut Option<OwnerMemberTarget>,
-    candidate: OwnerMemberTarget,
-) -> Option<()> {
+fn retain_consistent<T: Copy + PartialEq>(retained: &mut Option<T>, candidate: T) -> Option<()> {
     if retained.is_some_and(|target| target != candidate) {
         return None;
     }
@@ -393,10 +479,44 @@ fn exact_owner_environments(
             });
         }
     }
+    collect_proposition_environments(program, expression, &mut environments);
     collect_parameter_constraint_environments(program, expression, &mut environments)?;
     collect_ranking_environments(program, expression, &mut environments);
     collect_executable_environments(program, expression, &mut environments)?;
     (!environments.is_empty()).then_some(environments)
+}
+
+fn collect_proposition_environments(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    environments: &mut Vec<TypeEnvironment>,
+) {
+    use psi_typed_trees::proposition::{PropositionBody, PropositionFormula};
+
+    for proposition in program.propositions() {
+        let PropositionBody::Transparent { proposition: body } = &proposition.body else {
+            continue;
+        };
+        let contains = match body {
+            PropositionFormula::Application(application) => program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .any(|root| {
+                    super::expression_contains(program, *root, expression, &mut Vec::new())
+                }),
+            PropositionFormula::BooleanExpression(root) => {
+                super::expression_contains(program, *root, expression, &mut Vec::new())
+            }
+        };
+        if contains {
+            environments.push(environment_from_parameters(
+                program.proposition_parameters(proposition),
+                TypeReferenceHandle::invalid(),
+                None,
+            ));
+        }
+    }
 }
 
 fn collect_ranking_environments(
