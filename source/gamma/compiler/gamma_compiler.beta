@@ -28,6 +28,9 @@
 ;          2097008 EMIT_FAILURE_COORDINATE
 ;          2097000 STACK_HELPER_LABEL 2096992 ADD_LABEL 2096984 SUB_LABEL
 ;          2096976 MUL_LABEL 2096968 DIV_LABEL 2096960 MOD_LABEL
+;          2096952 HEAP_LABEL 2096944 BYTES_SINGLE_LABEL
+;          2096936 BYTES_LENGTH_LABEL 2096928 BYTES_GET_LABEL
+;          2096920 BYTES_SLICE_LABEL 2096912 BYTES_CONCAT_LABEL
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -2042,13 +2045,144 @@ proc emit_bytes_get(entry_label, trap_label, internal_label) {
     return 0
 }
 
+proc validate_payload() {
+    state sticky { to invalid when (word[2097016] != 0)  to nonempty }
+    state nonempty { to empty when (word[2097040] == 0)  to resolve }
+    state resolve { to resolved when (resolve_fixups() == 1)  return 0 }
+    state resolved { to invalid when (word[2097016] != 0)  return 1 }
+    state empty { emit_fail_once(12, 0)  return 0 }
+    state invalid { return 0 }
+}
+
 ; This is the eventual expression dispatcher with its first retained lowering
 ; slice, not an accepted subset compiler. It currently consumes already checked
-; closed Int trees containing literals, the seven primitive operators, and
-; conditionals. The tail-position bit is behaviorally inert until call lowering
-; lands, but conditionals already preserve it for both arms. Runtime
-; intermediate values use the explicit stack so compile-time expression depth
-; does not become a generated register limit.
+; trees containing literals, the seven primitive operators,
+; conditionals, and the six closed Bytes builtins. The tail-position bit is
+; behaviorally inert until ordinary call lowering lands, but conditionals
+; already preserve it for both arms. Runtime intermediate values use the
+; explicit stack so compile-time expression depth does not become a generated
+; register limit.
+
+proc lower_bytes_builtin(kind, args) {
+    state dispatch {
+        to empty when (kind == 1)
+        to single when (kind == 2)
+        to length when (kind == 3)
+        to get when (kind == 4)
+        to slice when (kind == 5)
+        to concat
+    }
+    state empty {
+        emit_imm(0, 1)
+        return emit_imm(1, 16777216)
+    }
+    state single {
+        let single_arg = word[args + 8]
+        to single_done when (lower_expr(single_arg, 0) == 1)
+        return 0
+    }
+    state single_done {
+        emit_rr(2, 2, 1)
+        emit_jump(19, word[2096944])
+        emit_rr(2, 1, 0)
+        return emit_imm(0, 1)
+    }
+    state length {
+        let length_arg = word[args + 8]
+        to length_done when (lower_expr(length_arg, 0) == 1)
+        return 0
+    }
+    state length_done {
+        emit_rr(2, 2, 1)
+        emit_jump(19, word[2096936])
+        emit_rr(2, 1, 0)
+        return emit_imm(0, 0)
+    }
+    state get {
+        let get_bytes = word[args + 8]
+        let get_rest = word[args + 16]
+        let get_index = word[get_rest + 8]
+        to get_bytes_done when (lower_expr(get_bytes, 0) == 1)
+        return 0
+    }
+    state get_bytes_done {
+        emit_imm(2, 8)
+        emit_jump(19, word[2097000])
+        emit_rr(11, 0, 1)
+        to get_index_done when (lower_expr(get_index, 0) == 1)
+        return 0
+    }
+    state get_index_done {
+        emit_rr(2, 3, 1)
+        emit_rr(2, 2, 252)
+        emit_rr(10, 2, 2)
+        emit_imm(4, 8)
+        emit_rr(3, 252, 4)
+        emit_jump(19, word[2096928])
+        emit_rr(2, 1, 0)
+        return emit_imm(0, 0)
+    }
+    state slice {
+        let slice_bytes = word[args + 8]
+        let slice_second = word[args + 16]
+        let slice_start = word[slice_second + 8]
+        let slice_third = word[slice_second + 16]
+        let slice_length = word[slice_third + 8]
+        to slice_bytes_done when (lower_expr(slice_bytes, 0) == 1)
+        return 0
+    }
+    state slice_bytes_done {
+        emit_imm(2, 8)
+        emit_jump(19, word[2097000])
+        emit_rr(11, 0, 1)
+        to slice_start_done when (lower_expr(slice_start, 0) == 1)
+        return 0
+    }
+    state slice_start_done {
+        emit_imm(2, 8)
+        emit_jump(19, word[2097000])
+        emit_rr(11, 0, 1)
+        to slice_length_done when (lower_expr(slice_length, 0) == 1)
+        return 0
+    }
+    state slice_length_done {
+        emit_rr(2, 4, 1)
+        emit_rr(2, 3, 252)
+        emit_rr(10, 3, 3)
+        emit_imm(5, 8)
+        emit_rr(3, 252, 5)
+        emit_rr(2, 2, 252)
+        emit_rr(10, 2, 2)
+        emit_rr(3, 252, 5)
+        emit_jump(19, word[2096920])
+        emit_rr(2, 1, 0)
+        return emit_imm(0, 1)
+    }
+    state concat {
+        let concat_left = word[args + 8]
+        let concat_rest = word[args + 16]
+        let concat_right = word[concat_rest + 8]
+        to concat_left_done when (lower_expr(concat_left, 0) == 1)
+        return 0
+    }
+    state concat_left_done {
+        emit_imm(2, 8)
+        emit_jump(19, word[2097000])
+        emit_rr(11, 0, 1)
+        to concat_right_done when (lower_expr(concat_right, 0) == 1)
+        return 0
+    }
+    state concat_right_done {
+        emit_rr(2, 3, 1)
+        emit_rr(2, 2, 252)
+        emit_rr(10, 2, 2)
+        emit_imm(4, 8)
+        emit_rr(3, 252, 4)
+        emit_jump(19, word[2096912])
+        emit_rr(2, 1, 0)
+        return emit_imm(0, 1)
+    }
+}
 
 proc lower_expr(expr, tail_position) {
     let tag = word[expr] % 256
@@ -2058,7 +2192,14 @@ proc lower_expr(expr, tail_position) {
         return emit_imm(1, word[expr + 8])
     }
     state primitive_check { to primitive when (tag == 2)  to if_check }
-    state if_check { to if_expr when (tag == 3)  return 0 }
+    state if_check { to if_expr when (tag == 3)  to call_check }
+    state call_check { to call_expr when (tag == 5)  return 0 }
+    state call_expr {
+        let builtin = bytes_builtin_kind(word[expr + 8])
+        to bytes_expr when (builtin != 0)
+        return 0
+    }
+    state bytes_expr { return lower_bytes_builtin(builtin, word[expr + 16]) }
     state if_expr {
         let else_label = new_label()
         let done_label = new_label()
@@ -2134,15 +2275,6 @@ proc lower_expr(expr, tail_position) {
         emit_rr(2, 1, 0)
         return emit_imm(0, 0)
     }
-}
-
-proc validate_payload() {
-    state sticky { to invalid when (word[2097016] != 0)  to nonempty }
-    state nonempty { to empty when (word[2097040] == 0)  to resolve }
-    state resolve { to resolved when (resolve_fixups() == 1)  return 0 }
-    state resolved { to invalid when (word[2097016] != 0)  return 1 }
-    state empty { emit_fail_once(12, 0)  return 0 }
-    state invalid { return 0 }
 }
 
 proc frontend_check_main() {

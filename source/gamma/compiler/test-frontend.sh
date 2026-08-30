@@ -21,6 +21,11 @@ cd "$OMEGA_GATE_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
+runtime_emitter_source() {
+  sed -n \
+    '/^; ---- direct Alpha payload and fixup substrate/,/^; This is the eventual expression dispatcher/p' \
+    gamma_compiler.beta
+}
 {
   sed -n '1,$p' gamma_compiler.beta
   printf '\nproc main() { return frontend_check_main() }\n'
@@ -31,7 +36,7 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null
 stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 
 {
-  sed -n '1,$p' gamma_compiler.beta
+  runtime_emitter_source
   printf '%s\n' \
     'proc main() {' \
     '    emit_reset()' \
@@ -143,7 +148,7 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
 
 {
-  sed -n '1,$p' gamma_compiler.beta
+  runtime_emitter_source
   printf '%s\n' \
     'proc main() {' \
     '    emit_reset()' \
@@ -283,7 +288,7 @@ fi
 stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&1
 
 {
-  sed -n '1,$p' gamma_compiler.beta
+  runtime_emitter_source
   printf '%s\n' \
     'proc emit_probe_eq(left, right, success_label, unexpected_label) {' \
     '    emit_rrx(16, left, right, success_label)' \
@@ -512,7 +517,7 @@ fi
 stamp_seed "$T/bytes-valid-probe.tape" "$SEED" "$T/bytes-valid-probe.exe" >/dev/null 2>&1
 
 {
-  sed -n '1,$p' gamma_compiler.beta
+  runtime_emitter_source
   printf '%s\n' \
     'proc main() {' \
     '    emit_reset()' \
@@ -741,7 +746,7 @@ fi
 stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/dev/null 2>&1
 
 {
-  sed -n '1,$p' gamma_compiler.beta
+  runtime_emitter_source
   printf '%s\n' \
     'proc main() {' \
     '    emit_reset()' \
@@ -965,11 +970,17 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        emit_reset()' \
     '        let entry_label = new_label()' \
     '        let stack_label = new_label()' \
+    '        let heap_label = new_label()' \
     '        let add_label = new_label()' \
     '        let sub_label = new_label()' \
     '        let mul_label = new_label()' \
     '        let div_label = new_label()' \
     '        let mod_label = new_label()' \
+    '        let single_label = new_label()' \
+    '        let length_label = new_label()' \
+    '        let get_label = new_label()' \
+    '        let slice_label = new_label()' \
+    '        let concat_label = new_label()' \
     '        let failure_label = new_label()' \
     '        let kind_ok_label = new_label()' \
     '        let stack_ok_label = new_label()' \
@@ -980,6 +991,12 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        word[2096976] = mul_label' \
     '        word[2096968] = div_label' \
     '        word[2096960] = mod_label' \
+    '        word[2096952] = heap_label' \
+    '        word[2096944] = single_label' \
+    '        word[2096936] = length_label' \
+    '        word[2096928] = get_label' \
+    '        word[2096920] = slice_label' \
+    '        word[2096912] = concat_label' \
     '        define_label(entry_label)' \
     '        emit_runtime_init()' \
     '        let body = word[8388608 + 24]' \
@@ -1004,11 +1021,17 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        emit_imm(0, 254)' \
     '        emit_r(0, 0)' \
     '        emit_stack_reserver(stack_label, failure_label)' \
+    '        emit_heap_allocator(heap_label, failure_label)' \
     '        emit_checked_add(add_label, failure_label)' \
     '        emit_checked_sub(sub_label, failure_label)' \
     '        emit_checked_mul(mul_label, failure_label)' \
     '        emit_checked_div(div_label, failure_label)' \
     '        emit_checked_mod(mod_label, failure_label)' \
+    '        emit_bytes_single(single_label, heap_label, failure_label)' \
+    '        emit_bytes_length(length_label, unexpected_label)' \
+    '        emit_bytes_concat(concat_label, heap_label, add_label, unexpected_label)' \
+    '        emit_bytes_slice(slice_label, heap_label, failure_label, unexpected_label)' \
+    '        emit_bytes_get(get_label, failure_label, unexpected_label)' \
     '        let payload_ok = validate_payload()' \
     '        to publish_setup' \
     '    }' \
@@ -1125,6 +1148,17 @@ lower_int '(def main () Int (if (lt 1 2) (if 0 3 4) 5))' 4 'nested conditional j
 lower_int '(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))' 22 'outer spill survives conditional'
 lower_int '(def main () Int (+ 9223372036854775807 1))' 253 'lowered addition overflow'
 lower_int '(def main () Int (/ -9223372036854775808 -1))' 253 'lowered division overflow'
+lower_int '(def main () Int (bytes_length (bytes_empty)))' 0 'empty Bytes length'
+lower_int '(def main () Int (bytes_get (bytes_single 255) 0))' 255 'single Bytes access'
+lower_int '(def main () Int (bytes_get (bytes_concat (bytes_single 7) (bytes_single 9)) 1))' 9 'concatenated Bytes access'
+lower_int '(def main () Int (bytes_length (bytes_concat (bytes_single 1) (bytes_concat (bytes_single 2) (bytes_single 3)))))' 3 'nested Bytes concatenation length'
+lower_int '(def main () Int (bytes_get (bytes_slice (bytes_concat (bytes_concat (bytes_single 10) (bytes_single 20)) (bytes_single 30)) 1 2) 1))' 30 'cross-rope Bytes slice'
+lower_int '(def main () Int (bytes_length (bytes_slice (bytes_single 8) 1 0)))' 0 'zero Bytes slice at exact end'
+lower_int '(def main () Int (bytes_get (if 0 (bytes_single (/ 1 0)) (bytes_single 44)) 0))' 44 'conditional selects one Bytes branch lazily'
+lower_int '(def main () Int (+ 1 (bytes_get (bytes_slice (bytes_concat (bytes_single 8) (bytes_single 9)) 1 1) 0)))' 10 'outer Int spill survives Bytes lowering'
+lower_int '(def main () Int (bytes_length (bytes_single 256)))' 253 'invalid constructed byte traps'
+lower_int '(def main () Int (bytes_get (bytes_single 1) 1))' 253 'invalid Bytes index traps'
+lower_int '(def main () Int (bytes_length (bytes_slice (bytes_single 1) 1 1)))' 253 'invalid Bytes range traps'
 deterministic_source='(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))'
 printf '%s' "$deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
 deterministic_a_status=$?
@@ -1138,6 +1172,19 @@ else
   echo "  FAIL lower deterministic reconstruction: statuses $deterministic_a_status/$deterministic_b_status"
 fi
 unset deterministic_source deterministic_a_status deterministic_b_status
+bytes_deterministic_source='(def main () Int (bytes_get (bytes_slice (bytes_concat (bytes_single 8) (bytes_single 9)) 1 1) 0))'
+printf '%s' "$bytes_deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-bytes-deterministic-a.tape"
+bytes_deterministic_a_status=$?
+printf '%s' "$bytes_deterministic_source" | "$T/lowering-emitter.exe" > "$T/lower-bytes-deterministic-b.tape"
+bytes_deterministic_b_status=$?
+if [ "$bytes_deterministic_a_status" = 1 ] && [ "$bytes_deterministic_b_status" = 1 ] &&
+   cmp -s "$T/lower-bytes-deterministic-a.tape" "$T/lower-bytes-deterministic-b.tape"; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL lower Bytes deterministic reconstruction: statuses $bytes_deterministic_a_status/$bytes_deterministic_b_status"
+fi
+unset bytes_deterministic_source bytes_deterministic_a_status bytes_deterministic_b_status
 tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi
