@@ -250,11 +250,13 @@ fn type_satisfies_structural_property(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => {
-            if let Some(parameter) = type_parameter_named(type_parameters, name.as_str()) {
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(parameter) =
+                type_parameter_for_reference(type_parameters, *symbol, name.as_str())
+            {
                 return type_parameter_declares_property(parameter, property);
             }
-            named_type_declares_property(program, symbols, name.as_str(), property)
+            named_type_declares_property(program, symbols, *symbol, name.as_str(), property)
         }
         TypeReferenceNode::Constrained { base_type, .. } => type_satisfies_structural_property(
             program,
@@ -273,9 +275,17 @@ fn type_satisfies_structural_property(
         // An instantiated generic carries the property when its base data
         // declares it; the instantiation-time bound check separately verifies
         // the arguments uphold the base's parameter bounds.
-        TypeReferenceNode::Generic { base_name, .. } => {
-            named_type_declares_property(program, symbols, base_name.as_str(), property)
-        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => named_type_declares_property(
+            program,
+            symbols,
+            *base_symbol,
+            base_name.as_str(),
+            property,
+        ),
         // References, slices, dyn traits, unit: not part of the verified set
         // yet.
         _ => false,
@@ -300,10 +310,16 @@ pub fn declared_property_requirements(
     names
 }
 
-fn type_parameter_named<'program>(
+fn type_parameter_for_reference<'program>(
     type_parameters: &'program [TypeParameter],
+    symbol: psi_symbols::SymbolHandle,
     name: &str,
 ) -> Option<&'program TypeParameter> {
+    if symbol.is_valid() {
+        return type_parameters
+            .iter()
+            .find(|parameter| parameter.symbol == symbol);
+    }
     type_parameters
         .iter()
         .find(|parameter| parameter.name.as_str() == name)
@@ -332,8 +348,8 @@ pub(crate) fn referenced_type_parameter<'program>(
         return None;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => {
-            type_parameter_named(type_parameters, name.as_str())
+        TypeReferenceNode::Named { symbol, name } => {
+            type_parameter_for_reference(type_parameters, *symbol, name.as_str())
         }
         TypeReferenceNode::Reference { referee, .. } => {
             referenced_type_parameter(program, type_parameters, *referee)
@@ -351,6 +367,7 @@ pub(crate) fn referenced_type_parameter<'program>(
 fn named_type_declares_property(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
+    symbol: psi_symbols::SymbolHandle,
     name: &str,
     property: &str,
 ) -> bool {
@@ -360,7 +377,13 @@ fn named_type_declares_property(
     program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == name)
+        .find(|definition| {
+            if symbol.is_valid() {
+                definition.symbol == symbol
+            } else {
+                definition.name.as_str() == name
+            }
+        })
         .is_some_and(|definition| match property {
             "copy" => {
                 definition.properties.multiplicity

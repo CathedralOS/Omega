@@ -54,9 +54,11 @@ stop the item on one precise owner question before adding machinery.
     corroborated by the operands. Unit-returning statement syntax survives its
     existing expression normalization with exact authored-selection custody;
     retained statement calls have a distinct exact use coordinate. Open,
-    bounded, or unresolved types remain demand work rather than being
-    mislabeled concrete. Remaining work is property-bound named applications,
-    evaluated const value plus declared-carrier binding,
+    or unresolved types remain demand work rather than being mislabeled
+    concrete. Closed named type applications now discharge every declared
+    copy/linear/carry property bound through the shared compiler judgment and
+    replay that judgment during checked rejoin. Remaining work is evaluated
+    const value plus declared-carrier binding,
     artifact-qualified symbolic demand and final substitution, role-specific
     realization replay, D32's optimized-projection-to-physical-child join, and
     replacement of the provisional arity/string coverage identity. The

@@ -15,6 +15,14 @@ pub(crate) fn bind_boundary_operator_application_demands(
     validated: &[psi_validation::ValidatedBoundaryOperatorApplication],
     operators: &mut CheckedOperatorFacts,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    let mut symbol_diagnostics = Vec::new();
+    let symbols = psi_validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
+    if symbol_diagnostics
+        .iter()
+        .any(psi_diagnostics::Diagnostic::is_error)
+    {
+        return Err(symbol_diagnostics);
+    }
     let mut applications = operators
         .uses
         .iter()
@@ -90,6 +98,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 for operator_use in matching_uses {
                     if let Some(arguments) = rejoin_validated_arguments(
                         program,
+                        &symbols,
                         operator,
                         &application.arguments,
                         &mut diagnostics,
@@ -120,6 +129,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 }
                 if let Some(arguments) = rejoin_validated_arguments(
                     program,
+                    &symbols,
                     operator,
                     &application.arguments,
                     &mut diagnostics,
@@ -186,6 +196,7 @@ fn checked_boundary_application_from_bindings(
 
 fn rejoin_validated_arguments(
     program: &TypedTrees,
+    symbols: &psi_validation::TopLevelSymbols<'_>,
     operator: &psi_typed_trees::operator::OperatorDefinition,
     validated: &[psi_validation::ValidatedBoundaryOperatorApplicationArgument],
     diagnostics: &mut Vec<psi_diagnostics::Diagnostic>,
@@ -196,7 +207,7 @@ fn rejoin_validated_arguments(
             !matches!(
                 parameter.kind,
                 psi_typed_trees::data::TypeParameterKind::Type
-            ) || parameter.bounds != Default::default()
+            )
         })
         || validated.len() != parameters.len()
     {
@@ -224,6 +235,21 @@ fn rejoin_validated_arguments(
         {
             diagnostics.push(psi_diagnostics::Diagnostic::error(
                 "validated boundary application does not rejoin the selected operator binder",
+            ));
+            return None;
+        }
+        for property in psi_validation::declared_property_requirements(&parameter.bounds) {
+            if psi_validation::type_satisfies_declared_property(
+                program,
+                symbols,
+                &[],
+                *type_reference,
+                property,
+            ) {
+                continue;
+            }
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "validated boundary application no longer satisfies the selected operator binder bounds",
             ));
             return None;
         }

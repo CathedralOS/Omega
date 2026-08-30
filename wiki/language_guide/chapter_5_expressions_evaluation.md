@@ -215,14 +215,16 @@ authored selection occurrence rather than infer identity from the leaf spelling
 `ordered`.
 
 For the currently implemented generic named-operator cohort, all static
-parameters must be unbounded type parameters and the runtime operands must
-infer one complete closed application. The call may omit the static arguments
-or explicitly repeat that same application; an explicit argument that differs
-from operand inference rejects. Open or property-bounded type applications and
-const, lifetime, machine, and proposition applications remain outside this
-closed exact-application evidence cohort; they do not acquire a concrete row.
-A Unit-returning named call written as a statement preserves the same
-declaration selection when the compiler normalizes it into value form.
+parameters must be type parameters and the runtime operands must infer one
+complete closed application. The call may omit the static arguments or
+explicitly repeat that same application; an explicit argument that differs
+from operand inference rejects. Each inferred type must satisfy its declared
+copy, linear, and carry property bounds through the same structural judgment
+used by ordinary generic instantiation. Open type applications and const,
+lifetime, machine, and proposition applications remain outside this closed
+exact-application evidence cohort; they do not acquire a concrete row. A
+Unit-returning named call written as a statement preserves the same declaration
+selection when the compiler normalizes it into value form.
 
 A selected nongeneric checked-body provider may realize a boundary operator
 without changing that public declaration identity. The checked execution path

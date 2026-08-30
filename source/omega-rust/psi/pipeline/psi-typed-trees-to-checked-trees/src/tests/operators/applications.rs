@@ -1,5 +1,7 @@
 use super::*;
 
+mod property_bounds;
+
 #[test]
 fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
     let operator_symbol = SymbolHandle::from_arena_index(151);
@@ -479,7 +481,7 @@ fn checked_named_open_generic_boundary_application_remains_absent() {
 }
 
 #[test]
-fn checked_named_bounded_generic_boundary_application_remains_absent() {
+fn checked_named_bounded_generic_boundary_application_retains_exact_type() {
     let checked = checked_program_from_source(
         r#"
         data Math {}
@@ -492,7 +494,27 @@ fn checked_named_bounded_generic_boundary_application_remains_absent() {
     );
 
     assert_eq!(checked.facts.operators.named_uses().count(), 1);
-    assert!(checked.facts.operators.boundary_applications.is_empty());
+    let [application] = checked.facts.operators.boundary_applications.as_slice() else {
+        panic!("one closed bounded boundary application")
+    };
+    let [
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            binder_owner,
+            binder_ordinal,
+            binder_symbol,
+            type_reference,
+        },
+    ] = application.arguments.as_slice()
+    else {
+        panic!("one exact checked type application")
+    };
+    assert_eq!(*binder_owner, application.requirement_symbol);
+    assert_eq!(*binder_ordinal, 0);
+    assert!(binder_symbol.is_valid());
+    assert_eq!(
+        checked.typed.primitive_type_reference(*type_reference),
+        Some(psi_typed_trees::types::PrimitiveType::I32)
+    );
 }
 
 #[test]

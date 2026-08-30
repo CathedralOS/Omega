@@ -7,6 +7,8 @@ use psi_typed_trees::operator::OperatorDefinition;
 use psi_typed_trees::statement::{StatementHandle, TableCall};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+use crate::symbols::TopLevelSymbols;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValidatedBoundaryOperatorApplicationUseSite {
     Expression(ExpressionHandle),
@@ -35,6 +37,7 @@ pub enum ValidatedBoundaryOperatorApplicationArgument {
 /// The returned bindings are ordered by the operator's declaration telescope.
 pub fn validate_named_operator_type_application(
     program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
     operator: &OperatorDefinition,
     static_arguments: &[StaticMachineArgument],
     operand_types: &[Option<TypeReferenceHandle>],
@@ -51,15 +54,12 @@ pub fn validate_named_operator_type_application(
         || parameters
             .iter()
             .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Type))
-        || parameters
-            .iter()
-            .any(|parameter| parameter.bounds != Default::default())
     {
         if static_arguments.is_empty() {
             return Ok(None);
         }
         return Err(Diagnostic::error(format!(
-            "named operator `{operator_name}` has a lifetime, bounded, const, machine, or proposition telescope whose explicit application is not yet supported"
+            "named operator `{operator_name}` has a lifetime, const, machine, or proposition telescope whose explicit application is not yet supported"
         )));
     }
 
@@ -85,6 +85,28 @@ pub fn validate_named_operator_type_application(
             "named operator `{operator_name}` cannot validate explicit static arguments because its operand application remains open or unresolved"
         )));
     };
+
+    for (parameter, (_, argument)) in parameters.iter().zip(&inferred) {
+        let bounds = crate::properties::declared_property_requirements(&parameter.bounds);
+        let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();
+        for property in bounds {
+            if crate::properties::type_satisfies_declared_property(
+                program,
+                symbols,
+                &[],
+                *argument,
+                property,
+            ) {
+                continue;
+            }
+            return Err(Diagnostic::error(format!(
+                "type parameter `{} [{}]` of named operator `{operator_name}` was instantiated with `{}`, which does not satisfy `[{property}]`",
+                parameter.name,
+                bound_labels.join(", "),
+                program.display_type_reference_with_constraints(*argument),
+            )));
+        }
+    }
 
     if static_arguments.is_empty() {
         return Ok(Some(inferred));
@@ -157,6 +179,7 @@ pub(crate) fn retain_validated_boundary_operator_application(
 
 pub(crate) fn validate_named_statement_operator_application(
     program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     statement: StatementHandle,
@@ -185,6 +208,7 @@ pub(crate) fn validate_named_statement_operator_application(
     );
     match validate_named_operator_type_application(
         program,
+        symbols,
         operator,
         &call.machine_arguments,
         &operand_types,
