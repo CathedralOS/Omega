@@ -73,8 +73,25 @@ pub(super) fn replay_installed_provider_unit_calls(
                 else {
                     return Err(malformed());
                 };
-                if !argument.path.is_empty()
-                    || signature.position as usize != index
+                let Some(argument_type) = resolve_structural_argument_type(
+                    module,
+                    caller_parameter.structural_type,
+                    &argument.path,
+                ) else {
+                    return Err(malformed());
+                };
+                let caller_matches = if argument.path.is_empty() {
+                    caller_parameter.structural_type == signature.structural_type
+                        && caller_parameter.multiplicity == signature.multiplicity
+                        && caller_parameter.access == signature.access
+                        && caller_parameter.qualifications == signature.qualifications
+                } else {
+                    argument_type == signature.structural_type
+                        && signature.multiplicity == StructuralMultiplicity::Linear
+                        && structural_access_can_supply(caller_parameter.access, signature.access)
+                        && signature.qualifications.is_empty()
+                };
+                if signature.position as usize != index
                     || argument.access != signature.access
                     || boundary_parameter.position != signature.position
                     || boundary_parameter.is_self != signature.is_self
@@ -88,10 +105,7 @@ pub(super) fn replay_installed_provider_unit_calls(
                     || candidate_parameter.multiplicity != signature.multiplicity
                     || candidate_parameter.access != signature.access
                     || candidate_parameter.qualifications != signature.qualifications
-                    || caller_parameter.structural_type != signature.structural_type
-                    || caller_parameter.multiplicity != signature.multiplicity
-                    || caller_parameter.access != signature.access
-                    || caller_parameter.qualifications != signature.qualifications
+                    || !caller_matches
                 {
                     return Err(malformed());
                 }
@@ -112,6 +126,18 @@ pub(super) fn replay_installed_provider_unit_calls(
             if completion_receipts.len() != expected_claims.len() {
                 return Err(malformed());
             }
+            if structural_arguments
+                .iter()
+                .enumerate()
+                .any(|(index, argument)| {
+                    !argument.path.is_empty()
+                        && !expected_claims
+                            .iter()
+                            .any(|(argument_index, _)| *argument_index as usize == index)
+                })
+            {
+                return Err(malformed());
+            }
             for (receipt, (argument_index, candidate_claim)) in
                 completion_receipts.iter().zip(&expected_claims)
             {
@@ -125,7 +151,7 @@ pub(super) fn replay_installed_provider_unit_calls(
                 let entry = source.entry.as_ref().ok_or_else(malformed)?;
                 if receipt.argument_index != *argument_index
                     || entry.input != argument.place
-                    || !entry.path.is_empty()
+                    || entry.path != argument.path
                 {
                     return Err(malformed());
                 }
@@ -134,6 +160,9 @@ pub(super) fn replay_installed_provider_unit_calls(
                     .iter()
                     .find(|content| content.claim == *candidate_claim)
                 {
+                    if !argument.path.is_empty() {
+                        return Err(malformed());
+                    }
                     let caller_content = source.content.as_ref().ok_or_else(malformed)?;
                     if caller_content.input.root != argument.place
                         || caller_content.input.segments != candidate_content.input.segments
@@ -169,4 +198,56 @@ pub(super) fn replay_installed_provider_unit_calls(
         }
     }
     Ok(calls)
+}
+
+fn resolve_structural_argument_type(
+    module: &psi_terminal::TerminalModule,
+    mut structural_type: psi_core::StructuralTypeId,
+    path: &[psi_terminal::StructuralPathSegment],
+) -> Option<psi_core::StructuralTypeId> {
+    for segment in path {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)?;
+        structural_type = match (segment, &declaration.shape) {
+            (
+                psi_terminal::StructuralPathSegment::Field(identity),
+                psi_terminal::StructuralTypeShape::Record { fields },
+            ) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let psi_terminal::StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                next
+            }
+            (
+                psi_terminal::StructuralPathSegment::FixedIndex(index),
+                psi_terminal::StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
+        };
+    }
+    Some(structural_type)
+}
+
+fn structural_access_can_supply(
+    source: psi_terminal::StructuralAccess,
+    presented: psi_terminal::StructuralAccess,
+) -> bool {
+    use psi_terminal::StructuralAccess;
+
+    match source {
+        StructuralAccess::Owned => true,
+        StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow => matches!(
+            presented,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
+    }
 }

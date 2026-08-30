@@ -1500,7 +1500,15 @@ Remaining:
   provider rejection leaves custody live, and successful completion consumes
   it. This slice remains deliberately whole-root: projected bodyless exits still
   require authored partition/residual geometry. Bodyless boundary completion
-  sources also retain one canonical combined whole-claim/content row: exact
+  without content now has a separate projected installed-provider replay
+  slice. Omega resolves each relevant-record or in-range fixed-array path to
+  the exact provider leaf type, rebases the provider's whole-root entry claim
+  onto that caller path, requires the matching completion receipt and source,
+  and preserves unrelated sibling claim sources. Cross-path, receipt, provider,
+  access, multiplicity, or type substitution rejects. Projected content remains
+  fenced by the residual-geometry requirement above.
+  Content-bearing bodyless boundary completion sources also retain one
+  canonical combined whole-claim/content row: exact
   claim, optional structural entry path, full callable-entry-revision content
   subject,
   and owner-unique projection/algebra identity. Omega preserves and replays the
