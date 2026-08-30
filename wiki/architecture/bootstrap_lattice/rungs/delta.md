@@ -54,10 +54,10 @@ census, D31's profile-independent structural type formation, and pure symbolic
 Alpha encoding. The formed program retains explicit record/sum classification
 and direct value-containment edges; candidate selection covers array length,
 shape, placement, unknown owners, and recursive value cycles by exact source
-coordinate. Remaining entry/body/control checking, lowering, `main`, tape
-publication, and refinement are open implementation work. Physical storage
-refusal additionally waits on the final nonaliasing map and Q6's over-`Int`
-demand representation.
+coordinate. Remaining body/control checking, lowering, `main`, tape
+publication, and refinement are open implementation work. Q6 blocks the
+incomplete entry-diagnostic judgment. Physical storage refusal additionally
+waits on the final nonaliasing map and Q5's over-`Int` demand representation.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns

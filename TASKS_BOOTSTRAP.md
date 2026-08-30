@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | complete entry/body/control checking and lowering, resolve Q5 before physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | resolve Q6 entry diagnostics, complete body/control checking and lowering, resolve Q5 before physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1141,6 +1141,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
     Gamma-profile schema check. This establishes nominal plumbing only and
     claims no storage-demand calculation or refusal behavior.
+  - [ ] **OWNER-BLOCKED — Q6 DELTA ENTRY-SHAPE TOTALITY.** The accepted
+    `Console`/`Main`/`Main::main` headline is fixed, but `MissingEntry` versus
+    `InvalidEntry`, absent-component and malformed-component coordinates,
+    boundary member order/binder-name sensitivity, and ties with ordinary
+    body/control failures are not total. Retain entry candidates for the final
+    phase, but do not promote a rejection or publish golden coordinates until
+    Q6 settles them. This does not block the independent expression, statement,
+    state, transition, and return judgments.
+  - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
+    type owner, callable, constructor, field, state, and control target against
+    the complete census and formed shape graph. Check ordered initialization,
+    value/place/call classification, arity and type equality, terminal and
+    return obligations, duplicate patterns, and sum exhaustiveness. Accumulate
+    all final-phase candidates by packed coordinate and merge the eventual Q6
+    entry candidates before accepting one resolved program; traversal and wire
+    reason order must not select the diagnostic.
   - [ ] **OWNER/DEPENDENCY-BLOCKED — Q5 AND INCOMPLETE CHECK/LOWERING: D31
     APPLICATION STATIC STORAGE.** After complete body/control checking and the
     final nonaliasing generated-program map exist, derive its selected static-
