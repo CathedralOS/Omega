@@ -939,14 +939,23 @@ pub(super) fn build_checked_machine(
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
-    let local_count = construction.as_ref().map_or_else(
+    let scalar_result_local = checked_unit_scalar_result_local(program, statements);
+    if scalar_result_local.is_some() && (write_only_store.is_some() || construction.is_some()) {
+        return None;
+    }
+    let local_count = scalar_result_local.as_ref().map_or_else(
         || {
-            statements
-                .iter()
-                .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
-                .count()
+            construction.as_ref().map_or_else(
+                || {
+                    statements
+                        .iter()
+                        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+                        .count()
+                },
+                |(_, local_statement_count)| *local_statement_count,
+            )
         },
-        |(_, local_statement_count)| *local_statement_count,
+        |_| 1,
     );
     let call_statements = if construction.is_some() {
         &statements[statements.len()..]
@@ -958,7 +967,10 @@ pub(super) fn build_checked_machine(
             return None;
         }
     } else {
-        if calls.len() != call_statements.len()
+        let expected_call_count = call_statements
+            .len()
+            .checked_add(usize::from(scalar_result_local.is_some()))?;
+        if calls.len() != expected_call_count
             || call_statements
                 .iter()
                 .any(|statement| !matches!(statement, StatementNode::Call(_)))
@@ -983,9 +995,10 @@ pub(super) fn build_checked_machine(
             return None;
         }
     }
-    let local_rows = match construction {
-        Some((rows, _)) => rows,
-        None => build_unit_trivial_affine_locals(
+    let local_rows = match (scalar_result_local.as_ref(), construction) {
+        (Some(_), None) => Vec::new(),
+        (None, Some((rows, _))) => rows,
+        (None, None) => build_unit_trivial_affine_locals(
             program,
             facts,
             shapes,
@@ -994,6 +1007,7 @@ pub(super) fn build_checked_machine(
             &binders,
             &statements[..local_count],
         )?,
+        (Some(_), Some(_)) => unreachable!("scalar and affine local lanes were separated above"),
     };
     let trivial_affine_locals = local_rows
         .iter()
@@ -1023,7 +1037,52 @@ pub(super) fn build_checked_machine(
     if let Some(store) = write_only_store {
         operations.push(store);
     } else {
-        for (call_index, call) in calls.iter().enumerate() {
+        let call_offset = if let Some(result) = scalar_result_local {
+            let call = calls.first()?;
+            if call.statement_index != usize::try_from(result.statement_index).ok()?
+                || call.call_ordinal != 0
+            {
+                return None;
+            }
+            let CheckedUnitEffectOperationPlan::BoundaryCall {
+                coordinate,
+                target_machine,
+                target_state,
+                target_contract_report_fingerprint,
+                service_reach,
+                scalar_arguments,
+                structural_arguments,
+                completion_receipts,
+            } = build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                &structural_parameters,
+                &entry_claims,
+                call,
+                false,
+                Some(result.primitive_type),
+            )?
+            else {
+                return None;
+            };
+            operations.push(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                coordinate,
+                result,
+                target_machine,
+                target_state,
+                target_contract_report_fingerprint,
+                service_reach,
+                scalar_arguments,
+                structural_arguments,
+                completion_receipts,
+            });
+            1
+        } else {
+            0
+        };
+        for (call_index, call) in calls[call_offset..].iter().enumerate() {
             let statement_index = local_count.checked_add(call_index)?;
             if call.statement_index != statement_index || call.call_ordinal != 0 {
                 return None;
@@ -1093,6 +1152,30 @@ pub(super) fn build_checked_machine(
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
         operations,
+    })
+}
+
+fn checked_unit_scalar_result_local(
+    program: &TypedTrees,
+    statements: &[StatementNode],
+) -> Option<CheckedUnitScalarResultBindingPlan> {
+    let StatementNode::LocalData(local) = statements.first()? else {
+        return None;
+    };
+    if local.is_mutable || !local.initial_value.is_valid() {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(local.type_reference)?;
+    if !matches!(
+        program.expression_table.expression(local.initial_value),
+        ExpressionNode::Call(_)
+    ) {
+        return None;
+    }
+    Some(CheckedUnitScalarResultBindingPlan {
+        statement_index: 0,
+        binding_ordinal: 0,
+        primitive_type,
     })
 }
 

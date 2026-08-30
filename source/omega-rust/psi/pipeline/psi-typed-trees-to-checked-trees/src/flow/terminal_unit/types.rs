@@ -22,6 +22,10 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::BoundaryCall {
                 structural_arguments,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
             } => structural_arguments
                 .iter()
                 .filter(|argument| argument.byte_sequence_literal.is_none())

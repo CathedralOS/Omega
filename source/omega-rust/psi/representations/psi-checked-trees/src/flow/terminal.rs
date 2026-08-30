@@ -1003,6 +1003,17 @@ pub struct CheckedUnitClaimTransferPlan {
     pub argument_index: u32,
 }
 
+/// Exact state-local coordinate receiving one primitive boundary result in a
+/// Unit-effect body. The local has no structural place or cleanup action; its
+/// dense binding ordinal is the scalar value namespace used by later checked
+/// call arguments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedUnitScalarResultBindingPlan {
+    pub statement_index: u32,
+    pub binding_ordinal: u32,
+    pub primitive_type: PrimitiveType,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
     EstablishTrivialAffineLocal {
@@ -1028,6 +1039,21 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Checked primitive arguments in the boundary declaration's dense
         /// scalar-parameter order. Structural arguments retain their separate
         /// custody namespace below.
+        scalar_arguments: Vec<CheckedScalarExpression>,
+        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+        completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
+    },
+    /// Invoke one result-bearing bodyless boundary and bind its primitive
+    /// result to the exact immutable local declared by this statement. This is
+    /// deliberately distinct from `BoundaryCall`: downstream lowering must
+    /// publish a scalar result and make it available to later operations.
+    BoundaryScalarCall {
+        coordinate: CheckedUnitCallCoordinate,
+        result: CheckedUnitScalarResultBindingPlan,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_report_fingerprint: u64,
+        service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedScalarExpression>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,

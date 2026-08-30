@@ -38,6 +38,71 @@ pub(super) use parameters::{
 };
 use providers::checked_unit_provider_candidates;
 
+#[allow(clippy::too_many_arguments)]
+fn retain_exact_unit_boundary<'plans>(
+    checked: &CheckedTrees,
+    plans: &'plans psi_checked_trees::CheckedUnitEffectPlans,
+    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
+    target_machine: psi_symbols::SymbolHandle,
+    target_state: psi_symbols::SymbolHandle,
+    target_contract_report_fingerprint: u64,
+    service_reach: ServiceReachSummary,
+    expected_result: Option<PrimitiveType>,
+) -> Result<(), LoweringError> {
+    let target = unique_unit_boundary(plans, target_machine)?;
+    if target.contract_report_fingerprint == 0 {
+        return unsupported("Unit boundary target has a null checked contract fingerprint");
+    }
+    if target.state != target_state
+        || target.contract_report_fingerprint != target_contract_report_fingerprint
+        || target.result_type != expected_result
+        || !checked_unit_target_reach_matches(service_reach, target.contract_service_reach)
+    {
+        return unsupported(
+            "Unit boundary call does not match the exact checked target state, result, contract, and reach",
+        );
+    }
+    let exact_identity = checked
+        .facts
+        .contract_plans
+        .for_machine(target.contract_owner)
+        .map(|contract| (contract.report_fingerprint, contract.commitment))
+        .or_else(|| {
+            checked
+                .facts
+                .contract_plans
+                .crash_capsule(target.contract_owner, target.state)
+                .map(|capsule| {
+                    (
+                        capsule.target_contract_report_fingerprint(),
+                        capsule.target_contract_commitment(),
+                    )
+                })
+        })
+        .ok_or(LoweringError::Unsupported(
+            "Unit boundary target is missing its canonical checked contract identity",
+        ))?;
+    if (
+        target.contract_report_fingerprint,
+        target.contract_commitment,
+    ) != exact_identity
+    {
+        return unsupported(
+            "Unit boundary target contract compatibility coordinate or strong commitment drifted",
+        );
+    }
+    if !boundaries
+        .iter()
+        .any(|(candidate, _)| candidate.machine == target.machine)
+    {
+        boundaries.push((
+            target,
+            checked_unit_boundary_identity(checked, target.machine)?,
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn lower_attached_unit_closure(
     checked: &CheckedTrees,
     entry: psi_symbols::SymbolHandle,
@@ -133,61 +198,35 @@ pub(super) fn lower_attached_unit_closure_including(
                     service_reach,
                     ..
                 } => {
-                    let target = unique_unit_boundary(plans, *target_machine)?;
-                    if target.contract_report_fingerprint == 0 {
-                        return unsupported(
-                            "Unit boundary target has a null checked contract fingerprint",
-                        );
-                    }
-                    if target.state != *target_state
-                        || target.contract_report_fingerprint != *target_contract_report_fingerprint
-                        || !checked_unit_target_reach_matches(
-                            *service_reach,
-                            target.contract_service_reach,
-                        )
-                    {
-                        return unsupported(
-                            "boundary Unit call does not match the exact checked target state, contract, and reach",
-                        );
-                    }
-                    let exact_identity = checked
-                        .facts
-                        .contract_plans
-                        .for_machine(target.contract_owner)
-                        .map(|contract| (contract.report_fingerprint, contract.commitment))
-                        .or_else(|| {
-                            checked
-                                .facts
-                                .contract_plans
-                                .crash_capsule(target.contract_owner, target.state)
-                                .map(|capsule| {
-                                    (
-                                        capsule.target_contract_report_fingerprint(),
-                                        capsule.target_contract_commitment(),
-                                    )
-                                })
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit boundary target is missing its canonical checked contract identity",
-                        ))?;
-                    if (
-                        target.contract_report_fingerprint,
-                        target.contract_commitment,
-                    ) != exact_identity
-                    {
-                        return unsupported(
-                            "Unit boundary target contract compatibility coordinate or strong commitment drifted",
-                        );
-                    }
-                    if !boundaries
-                        .iter()
-                        .any(|(candidate, _)| candidate.machine == target.machine)
-                    {
-                        boundaries.push((
-                            target,
-                            checked_unit_boundary_identity(checked, target.machine)?,
-                        ));
-                    }
+                    retain_exact_unit_boundary(
+                        checked,
+                        plans,
+                        &mut boundaries,
+                        *target_machine,
+                        *target_state,
+                        *target_contract_report_fingerprint,
+                        *service_reach,
+                        None,
+                    )?;
+                }
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    result,
+                    ..
+                } => {
+                    retain_exact_unit_boundary(
+                        checked,
+                        plans,
+                        &mut boundaries,
+                        *target_machine,
+                        *target_state,
+                        *target_contract_report_fingerprint,
+                        *service_reach,
+                        Some(result.primitive_type),
+                    )?;
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
@@ -582,6 +621,10 @@ pub(super) fn lower_attached_unit_closure_including(
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    structural_arguments,
+                    ..
                 } => literal_arguments.extend(
                     structural_arguments
                         .iter()
@@ -640,6 +683,7 @@ pub(super) fn lower_attached_unit_closure_including(
         }
         let mut next_literal_argument = 0usize;
         let mut next_value_identity = 1_u64;
+        let mut scalar_result_values = Vec::<ValueDeclaration>::new();
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let kind = match operation {
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -842,6 +886,10 @@ pub(super) fn lower_attached_unit_closure_including(
                             "boundary Unit scalar argument count disagrees with its declaration",
                         );
                     }
+                    let scalar_value_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
                     let arguments = scalar_arguments
                         .iter()
                         .zip(target_scalar_parameters)
@@ -852,9 +900,10 @@ pub(super) fn lower_attached_unit_closure_including(
                                     "boundary Unit scalar argument type disagrees with its declaration",
                                 );
                             }
+                            validate_direct_parameter_types(&argument, &scalar_value_types)?;
                             Ok(emit_direct_expression(
                                 &argument,
-                                &[],
+                                &scalar_result_values,
                                 &mut next_value_identity,
                                 &mut operations,
                             ))
@@ -900,6 +949,149 @@ pub(super) fn lower_attached_unit_closure_including(
                             .collect::<Result<Vec<_>, LoweringError>>()?,
                         requirement_obligations: Vec::new(),
                     }
+                }
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    result,
+                    target_machine,
+                    scalar_arguments,
+                    structural_arguments,
+                    completion_receipts,
+                    ..
+                } => {
+                    if usize::try_from(result.binding_ordinal).ok()
+                        != Some(scalar_result_values.len())
+                    {
+                        return unsupported(
+                            "Unit scalar result binding ordinal drifted from source order",
+                        );
+                    }
+                    let target = unique_unit_boundary(plans, *target_machine)?;
+                    if target.result_type != Some(result.primitive_type) {
+                        return unsupported(
+                            "Unit scalar result type drifted from its checked boundary target",
+                        );
+                    }
+                    let expected_claim_arguments = structural_arguments
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(argument_index, argument)| {
+                            plan.entry_claims
+                                .iter()
+                                .filter(move |claim| {
+                                    argument.byte_sequence_literal.is_none()
+                                        && claim.parameter_index == argument.source_parameter_index
+                                        && (argument.path.is_empty() || claim.path == argument.path)
+                                })
+                                .map(move |_| {
+                                    u32::try_from(argument_index).map_err(|_| {
+                                        LoweringError::Unsupported(
+                                            "boundary scalar argument index exceeds u32",
+                                        )
+                                    })
+                                })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    validate_transfer_shape(
+                        structural_arguments,
+                        completion_receipts,
+                        parameters,
+                        &target.structural_parameters,
+                        &type_ids,
+                        &structural_types,
+                        &expected_claim_arguments,
+                    )?;
+                    let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
+                        .iter()
+                        .find(|(symbol, _, _, _)| *symbol == *target_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "boundary scalar call target is absent from the lowered closure",
+                        ))?;
+                    if scalar_arguments.len() != target_scalar_parameters.len() {
+                        return unsupported(
+                            "boundary scalar argument count disagrees with its declaration",
+                        );
+                    }
+                    let scalar_value_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let arguments = scalar_arguments
+                        .iter()
+                        .zip(target_scalar_parameters)
+                        .map(|(argument, target_type)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if argument.scalar_type() != *target_type {
+                                return unsupported(
+                                    "boundary scalar argument type disagrees with its declaration",
+                                );
+                            }
+                            validate_direct_parameter_types(&argument, &scalar_value_types)?;
+                            Ok(emit_direct_expression(
+                                &argument,
+                                &scalar_result_values,
+                                &mut next_value_identity,
+                                &mut operations,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let literal_count = structural_arguments
+                        .iter()
+                        .filter(|argument| argument.byte_sequence_literal.is_some())
+                        .count();
+                    let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
+                        LoweringError::Unsupported(
+                            "byte-sequence literal argument count overflows usize",
+                        ),
+                    )?;
+                    let call_literal_places = literal_places
+                        .get(next_literal_argument..literal_end)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte-sequence literal argument place is absent",
+                        ))?
+                        .iter()
+                        .map(|place| place.id)
+                        .collect::<Vec<_>>();
+                    next_literal_argument = literal_end;
+                    let kind = OperationKind::BoundaryCall {
+                        boundary: *boundary,
+                        arguments,
+                        structural_arguments: lower_structural_arguments(
+                            structural_arguments,
+                            parameters,
+                            &call_literal_places,
+                        )?,
+                        completion_receipts: completion_receipts
+                            .iter()
+                            .map(|settlement| {
+                                Ok(CompletionReceipt {
+                                    claim: lookup_claim_id(
+                                        claim_bindings,
+                                        settlement.claim_identity,
+                                    )?,
+                                    argument_index: settlement.argument_index,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()?,
+                        requirement_obligations: Vec::new(),
+                    };
+                    let value = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type: terminal_scalar_type(result.primitive_type)?,
+                    };
+                    next_value_identity =
+                        next_value_identity
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit scalar result value identity space is exhausted",
+                            ))?;
+                    let id = operations.allocate();
+                    operations.push(Operation {
+                        id,
+                        result: psi_terminal::OperationResult::Scalar(value),
+                        kind,
+                    });
+                    scalar_result_values.push(value);
+                    continue;
                 }
                 CheckedUnitEffectOperationPlan::PortWrite {
                     service_reach,

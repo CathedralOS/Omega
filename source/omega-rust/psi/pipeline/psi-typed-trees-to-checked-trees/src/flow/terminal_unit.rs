@@ -24,11 +24,12 @@ use psi_checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
@@ -103,6 +104,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                     checked_symbols.contains(target_machine)
                 }
                 CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                    boundary_symbols.contains(target_machine)
+                }
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
                     boundary_symbols.contains(target_machine)
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
