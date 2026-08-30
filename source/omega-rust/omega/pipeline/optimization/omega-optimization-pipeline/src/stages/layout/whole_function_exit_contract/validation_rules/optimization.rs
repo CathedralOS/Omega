@@ -90,7 +90,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_layout_c
 mod tests {
     use omega_optimization_core::Optimization;
 
-    use super::{generic_layout_custody, WholeFunctionExitLayoutCustody};
+    use super::{WholeFunctionExitLayoutCustody, generic_layout_custody};
 
     #[test]
     fn generic_custody_binds_the_exact_rule_and_typed_leaf_identity() {

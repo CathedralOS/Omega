@@ -2,12 +2,11 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    validate_optimized_resolved_selected_form_layout,
-    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
-    validate_optimized_x86_branch_relaxation,
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-    StagedOptimizedX86BranchRelaxation,
+    StagedOptimizedX86BranchRelaxation, validate_optimized_resolved_selected_form_layout,
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
+    validate_optimized_x86_branch_relaxation,
 };
 
 use super::{

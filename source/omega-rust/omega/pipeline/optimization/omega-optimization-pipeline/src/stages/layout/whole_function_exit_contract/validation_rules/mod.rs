@@ -10,4 +10,4 @@ pub(super) use selected_forms::{
     validate_return,
 };
 pub(super) use structural::validate_structural_unit_functions;
-pub(super) use target::{target_contract_inputs, view, EntryAssumptionKind};
+pub(super) use target::{EntryAssumptionKind, target_contract_inputs, view};

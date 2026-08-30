@@ -15,9 +15,9 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
 };
 
 /// Establish the canonical whole-function exit contract for one owning typed
