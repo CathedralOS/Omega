@@ -121,6 +121,18 @@ pub(crate) fn check(audit: &mut Audit) {
             "selected-lowering tests",
             REQUIRED_SELECTED_LOWERING_TEST_LEAVES,
         ),
+        (
+            "conditional-control lowering",
+            REQUIRED_CONDITIONAL_CONTROL_LEAVES,
+        ),
+        (
+            "provider-execution settlement",
+            REQUIRED_PROVIDER_SETTLEMENT_LEAVES,
+        ),
+        (
+            "pre-allocation machine-effect codec",
+            REQUIRED_PRE_ALLOCATION_EFFECT_CODEC_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

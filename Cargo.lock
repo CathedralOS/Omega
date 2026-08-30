@@ -989,6 +989,7 @@ dependencies = [
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
  "omega-target-operations-to-selected-instructions",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-admission",
  "psi-terminal",

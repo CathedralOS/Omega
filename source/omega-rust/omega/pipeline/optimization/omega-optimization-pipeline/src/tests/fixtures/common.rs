@@ -19,6 +19,61 @@ pub(crate) fn canonical_artifact(
     psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, None).unwrap()
 }
 
+/// Build certificates for exact integer operations in a fixture.
+///
+/// Satisfiable operations use the same independently checked producer as Psi
+/// lowering. Deliberately overflowing or underflowing negative fixtures retain
+/// a certificate-shaped rejection case so the artifact verifier, rather than
+/// fixture construction, remains the boundary under test.
+pub(crate) fn operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
+    let validated = psi_terminal_verifier::validate_module(module).unwrap();
+    let reconstructed = reconstruct_operation_obligations(module).unwrap();
+    let mut evidence = reconstructed
+        .into_iter()
+        .map(|question| {
+            let machine = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == question.owner.machine())
+                .expect("reconstructed operation owner belongs to the fixture module");
+            assert!(
+                question.canonical_certificate,
+                "fixture operation must expose a canonical certificate goal"
+            );
+            let context = validated.value_context(machine).unwrap();
+            let machine_parameter_values = machine
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect();
+            let proof = psi_checked_trees_to_terminal::produce_checked_canonical_integer_proof(
+                &context,
+                &question.obligation.proposition,
+                &machine.contract.requires,
+                &question.semantic_axioms,
+                &machine_parameter_values,
+            )
+            .unwrap_or_else(|| ProofNode {
+                conclusion: question.obligation.proposition.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            });
+            ObligationEvidence {
+                obligation: question.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(question.obligation.id.get()).unwrap(),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof,
+                }),
+            }
+        })
+        .collect::<Vec<_>>();
+    evidence.sort_by_key(|evidence| evidence.obligation);
+    ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence,
+    }
+}
+
 pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(2_001).unwrap();
     let entry = BlockId::new(2_002).unwrap();
@@ -120,13 +175,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
             },
         }],
     };
-    let proof = ProofBundle {
-        evidence_producers: Vec::new(),
-        evidence: vec![ObligationEvidence {
-            obligation,
-            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-        }],
-    };
+    let proof = operation_proof_bundle(&module);
     (
         psi_terminal_codec::encode_module(&module).unwrap(),
         psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),

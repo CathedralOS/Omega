@@ -34,7 +34,12 @@ pub(super) fn prove_canonical_integer_proposition(
     certificate_entry::prove(context, goal, assumptions, semantic_axioms)
 }
 
-pub(super) fn prove_canonical_integer_proposition_with_machine_parameters(
+/// Produce a kernel-checked proof for the canonical integer proposition subset.
+///
+/// This is a proof-search boundary, not an admission boundary. The returned
+/// proof has already passed the proof kernel, and consumers must still submit
+/// it through their normal artifact verification path.
+pub fn produce_checked_canonical_integer_proof(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],

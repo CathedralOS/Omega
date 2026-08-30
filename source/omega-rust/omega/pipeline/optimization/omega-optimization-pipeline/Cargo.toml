@@ -40,4 +40,5 @@ sha2 = "0.10.9"
 [dev-dependencies]
 omega-optimization-unit = { path = "../../../representations/omega-optimization-unit" }
 omega-abstract-operations = { path = "../../../representations/omega-abstract-operations" }
+psi-checked-trees-to-terminal = { path = "../../../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-terminal-verifier = { path = "../../../../psi/semantics/psi-terminal-verifier" }

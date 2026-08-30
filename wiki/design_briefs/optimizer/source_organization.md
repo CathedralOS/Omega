@@ -173,16 +173,21 @@ does not yet fully satisfy this contract.
   compare/receipt join; independent GVN keys descend by total,
   proof-certified, and compatible-policy vocabulary. The former 1,457-line
   structural-catalog test matrix now mirrors six production validation families.
-- All 277 governed module maps are source-locally classified: 157 executable
-  entrances, 14 crate maps, and 106 stage groups. The guard exhaustively checks
+- All 282 governed module maps are source-locally classified: 158 executable
+  entrances, 14 crate maps, and 110 stage groups. The guard exhaustively checks
   those roles and the real coordination marker of every executable entrance.
 - The transformation ledger now descends from a 92-line custody-validation
   entrance into model, error, validation, encoding, decoding, cursor, and test
   leaves. Register-allocation and selected-lowering test matrices now mirror
   their retained artifact and exact-rule families; their largest leaves are
   388 and 599 lines respectively.
-- Nine production-classified leaves remain at 750-1,000 lines in register
-  allocation, machine planning, codecs, and lowering.
+- Conditional-control lowering now descends by Boolean result, integer result,
+  and shared edge binding. Provider settlement has one 61-line executable join
+  over exact-plan, normalized-call, and per-boundary leaves. Pre-allocation
+  machine-effect persistence descends through an explicit V6 vocabulary into
+  framing, instruction, structural, ownership, and value leaves.
+- Six production-classified leaves remain at 750-1,000 lines in register
+  allocation, machine planning, selected validation, rewriting, and lowering.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of

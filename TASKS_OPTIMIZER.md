@@ -22,7 +22,7 @@ decision. Only true language-semantic questions belong in
 3. [ ] Add abstract-to-target translation validation for
    `WrappingIntegerAdd(parameter, parameter)`, then wrapping subtract and
    multiply as separate exact catalog rows and leaves.
-4. [ ] Repair the four stale optimization-pipeline proof fixtures whose exact
+4. [x] Repair the four stale optimization-pipeline proof fixtures whose exact
    add/subtract goals are still represented by `KernelDerived(Truth)`. Use
    checked certificate-derived proofs; do not weaken proof admission.
 5. [ ] Finish workspace validation and rollout canaries before promoting any
@@ -79,10 +79,16 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 1,388-line selected-lowering test matrix by pressure recovery,
   named-suite behavior, exact immediates, and exit contracts; its largest
   focused leaf is now 599 lines.
+- [x] Split conditional-control lowering into Boolean, integer, and shared-edge
+  binding leaves below an honest group map; its largest leaf is 410 lines.
+- [x] Split provider settlement into a 61-line executable entrance over exact
+  plan, normalized foreign-call, per-boundary admission, and mirrored tests.
+- [x] Split the pre-allocation machine-effect codec into a versioned V6 group
+  over framing, instruction, structural, ownership, value, cursor, and error
+  leaves; its largest leaf is 260 lines.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 9 production-classified leaves at 750+ lines. Continue with machine
-  effects, MOVN, spill choice, selected validation, rewrite, and lowering
-  control/settlement leaves.
+  has 6 production-classified leaves at 750+ lines. Continue with MOVN, spill
+  choice, selected validation, rewrite, and remaining lowering leaves.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
   register-allocation, and selected-lowering matrices now mirror their

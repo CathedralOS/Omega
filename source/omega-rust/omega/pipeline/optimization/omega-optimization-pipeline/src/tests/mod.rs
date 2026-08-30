@@ -49,8 +49,7 @@ use psi_core::{
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     BindingRelevance, Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,

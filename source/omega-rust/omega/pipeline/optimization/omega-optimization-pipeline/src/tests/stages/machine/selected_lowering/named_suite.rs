@@ -167,7 +167,7 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
                 .functions()
                 .iter()
                 .map(|function| function.byte_count)
-                .sum()
+                .sum::<u64>()
         );
     }
 }
