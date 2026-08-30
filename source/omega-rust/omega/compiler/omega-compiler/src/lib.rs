@@ -8,11 +8,12 @@ mod pipeline;
 
 pub use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileOutputKind, CompileReport, CompileRequest,
-    Compiler, ExecutablePublicationDestination, ExecutablePublicationReceipt, OptimizationRollback,
-    OptimizationRollbackInputError, OptimizationRollbackReceipt, ProductionArtifactIdentity,
-    ProductionCompilationManifest, ProductionCompilationManifestIdentity,
-    ProductionCompilationSubject, RequestedCompileProduct, RetainedNativeArtifact, TrustAdmission,
-    TrustAdmissionSettlement, compile,
+    Compiler, ExecutablePublicationDestination, ExecutablePublicationReceipt,
+    NativeCompilationWithCheckedReceipt, OptimizationRollback, OptimizationRollbackInputError,
+    OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
+    ProductionCompilationManifestIdentity, ProductionCompilationSubject, RequestedCompileProduct,
+    RetainedNativeArtifact, TrustAdmission, TrustAdmissionSettlement, compile,
+    compile_native_with_checked_receipt,
 };
 pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

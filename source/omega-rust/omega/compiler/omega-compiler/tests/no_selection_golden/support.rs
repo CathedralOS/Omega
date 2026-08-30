@@ -1,6 +1,6 @@
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    RetainedNativeArtifact,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, NativeCompilationWithCheckedReceipt,
+    RequestedCompileProduct, RetainedNativeArtifact,
 };
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -80,6 +80,29 @@ pub(super) fn compile_retained_native(target: &str) -> RetainedNativeArtifact {
         .expect("the retained no-selection artifact must replay");
     let _ = std::fs::remove_dir_all(build_dir);
     artifact
+}
+
+pub(super) fn compile_native_with_checked_receipt(
+    target: &str,
+) -> NativeCompilationWithCheckedReceipt {
+    let build_dir = temporary_build_dir(target);
+    let compilation = omega_compiler::compile_native_with_checked_receipt(
+        CompileRequest::new(CompileOptions {
+            root_path: native_canary().join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "checked-receipt native compilation for {target} failed: {:#?}",
+            diagnostic_snapshots(&diagnostics)
+        )
+    });
+    let _ = std::fs::remove_dir_all(build_dir);
+    compilation
 }
 
 pub(super) fn diagnostic_snapshots(diagnostics: &[psi_diagnostics::Diagnostic]) -> Vec<String> {

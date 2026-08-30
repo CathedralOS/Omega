@@ -7406,6 +7406,23 @@ Owners:
   reusable `CheckedTrees` receipt; exceptional, interactive, report-bearing,
   slow float/cast/policy, numeric-conversion, rendering, coercion, and automaton
   owners remain unchanged, with exact-owner pins stable.
+  The compiler now owns an additive `NativeCompilationWithCheckedReceipt` seam:
+  native realization borrows the exact targetful `CheckedCompilation` produced
+  by that invocation, then the sealed non-clone carrier retains it beside the
+  ordinary native report. Construction rejoins source count, target profile,
+  native target, retained artifact, and any production manifest before custody
+  escapes; native publication preserves the checked half, while legacy compile/
+  report APIs remain unchanged. A four-target no-selection native regression
+  rejoins source count and target identity, consumes the paired report, and
+  independently replays the retained artifact. The profiled plain record-view
+  migration remains fenced on an existing native-coverage gap: its three-state
+  attached entry has
+  byte stores, recast projection, conversion, locals, and conditional control,
+  while the current exact checked structural-Unit carrier retains only
+  signatures plus no-code return/jump/conditional terminators. Admitting that
+  source through the existing carrier would erase work. Closing the gap requires
+  operation custody through checked, Terminal, Omega, target, and native replay;
+  it is engineering coverage rather than a language-design question.
   The two-entry residual scalar cohort now launches
   `guarded_transition_dispatch` and `record_array_field_access` solely through
   exact checked-report executable receipts while preserving literal status 0
