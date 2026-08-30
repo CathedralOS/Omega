@@ -1318,6 +1318,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       remains 53 of 72. Keep exact path/list/delimiter, static-versus-value
       ownership, capacity, reset, and Complete-only publication vectors at the
       real Delta-compiler gate.
+    - [x] Share one retained primary-literal path between call arguments and
+      assignment values, and add source-shaped string expressions beside the
+      existing booleans and unsuffixed nonnegative decimal integers. Boolean
+      rows own their value and exact span; integer rows own exact spelling by
+      span without parser-time evaluation; string rows own the exact token span
+      and scanner-proven decoded byte length without a decoded-byte mirror.
+      Consumer-specific delimiter states attach the completed expression to a
+      call's value-argument handle span or an assignment's value handle, so the
+      parser does not clone literal grammars or confuse static and runtime
+      arguments. Other integer spellings, floats, unary/binary expressions,
+      arrays, struct literals, casts, indexing, and nested calls remain
+      implementation-incomplete. This completes the real `psi` package build
+      root (`builder.package("psi");`), raising completed current `C` roots from
+      fifteen to sixteen while body-boundary coverage remains 53 of 72. Keep
+      exact literal/span/decoded-length, consumer/delimiter, capacity, reset,
+      and partial-publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

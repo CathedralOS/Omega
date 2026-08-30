@@ -87,16 +87,19 @@ The retained nonempty-body slices include ordinary semicolon-terminated call
 statements without acknowledgements, evidence arguments, or result discard.
 Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
-value arguments are exact name/self paths represented by tagged expression
-nodes; zero arguments and trailing commas are supported. Calls may also own a
+value arguments are exact name/self paths, booleans, unsuffixed nonnegative
+decimal integers, or string tokens represented by tagged expression nodes;
+zero arguments and trailing commas are supported. Calls may also own a
 separate nonempty `<...>` lane of path-only static machine arguments. Qualified
 paths are retained exactly; const arguments, evidence projections, nested
 static applications, lifetime arguments, and empty or trailing-comma static
 lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
 place path; current values are self-member paths, qualified-name paths,
-booleans, or unsuffixed nonnegative decimal integer literals. Literal spelling
-is retained by source span and is not evaluated during parsing. The implicit
+booleans, unsuffixed nonnegative decimal integer literals, or strings. Integer
+spelling is retained by source span and is not evaluated during parsing;
+strings retain the exact token span and scanner-proven decoded byte length
+without a decoded-byte mirror. The implicit
 entry state owns one contiguous mixed statement span. Richer expressions and
 statements stop the root as implementation-incomplete, and no body is skipped
 as opaque text.
@@ -114,10 +117,10 @@ other public roots, bodyless declarations, and other body forms remain
 incomplete. The parser never skips a body as opaque
 syntax. In the current 72-root `C` closure, all 112
 parameter occurrences and all 72 complete parameter lists are representable,
-and 53 headers reach body parsing. Fifteen are complete: four initial call-only
-roots, seven roots using the retained assignment slice, and four target-provider
-roots using path-only static call arguments. Every other reached body contains
-richer syntax.
+and 53 headers reach body parsing. Sixteen are complete: four initial call-only
+roots, seven roots using the retained assignment slice, four target-provider
+roots using path-only static call arguments, and the string-argument `psi`
+package build root. Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
