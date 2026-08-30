@@ -2019,12 +2019,18 @@ Owners:
   plan. Every direct erased record field omitted from that normalized physical
   plan must occur once in the custody record under the same canonical field
   path, exact normalized type, and multiplicity; represented fields must be
-  absent. Revalidation cites the exact `Policy::plan` machine and its retained
+  absent. The next bounded recursion rung also accepts one acyclic,
+  non-generic, case-free checked-record field that is itself represented while
+  direct erased leaves below it travel through an authored projection-record
+  spine. Those leaves retain their complete root-to-leaf canonical paths, and
+  represented siblings remain forbidden with the enclosing plan entry cited.
+  Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. Recursive and
-  case-dependent custody, planless agreement checking, generic placement
-  operation selection, and outcome dispositions remain open.
+  storage, content, domain, provider, or establishment authority. Deeper
+  recursion, structurally zero-layout wrappers, arrays, generic or case-
+  dependent custody, planless agreement checking, generic placement operation
+  selection, and outcome dispositions remain open.
 
 - Implement the settled borrowed/owned `Placed<P, T>` establishment and
   retirement model from `Extent in Granted`, using ordinary subrange borrows

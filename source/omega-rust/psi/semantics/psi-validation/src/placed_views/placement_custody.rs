@@ -9,7 +9,8 @@ use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNo
 
 /// Check the first closed `PlacementCustody` agreement slice. The agreement is
 /// ordinary conformance evidence: this pass only replays one exact concrete
-/// policy/schema plan and its direct erased schema fields.
+/// policy/schema plan, its direct erased fields, and one acyclic ordinary
+/// record path from a represented outer field to direct erased leaves.
 pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
@@ -81,14 +82,44 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
         }
 
         for schema_field in &schema_fields {
-            if !schema_field.relevance.is_erased() {
-                continue;
-            }
-            let layout_entry = exact_layout_entry(plan, schema_field);
             let custody_field = custody_fields
                 .iter()
                 .copied()
                 .find(|candidate| same_canonical_field(schema_field, candidate));
+            if !schema_field.relevance.is_erased() {
+                let Some(layout_entry) = exact_layout_entry(plan, schema_field) else {
+                    continue;
+                };
+                let Some(nested_schema) = direct_nested_custody_record(program, schema_field)
+                else {
+                    if custody_field.is_some() {
+                        diagnostics.push(represented_field_diagnostic(
+                            program,
+                            conformance,
+                            schema,
+                            custody,
+                            schema_field,
+                            &plan_name,
+                            layout_entry,
+                        ));
+                    }
+                    continue;
+                };
+                validate_nested_record(
+                    program,
+                    conformance,
+                    schema,
+                    custody,
+                    schema_field,
+                    nested_schema,
+                    custody_field,
+                    &plan_name,
+                    layout_entry,
+                    diagnostics,
+                );
+                continue;
+            }
+            let layout_entry = exact_layout_entry(plan, schema_field);
             if let Some(layout_entry) = layout_entry {
                 if custody_field.is_some() {
                     diagnostics.push(represented_field_diagnostic(
@@ -139,11 +170,10 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
         }
 
         for custody_field in custody_fields {
-            let Some(schema_field) = schema_fields
+            if !schema_fields
                 .iter()
-                .copied()
-                .find(|candidate| same_canonical_field(candidate, custody_field))
-            else {
+                .any(|candidate| same_canonical_field(candidate, custody_field))
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{}` path, but `{}` declares extra canonical field path `{}`",
                     program.symbols.display_path(conformance.symbol, "::"),
@@ -152,22 +182,176 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
                     canonical_path(custody, custody_field),
                 )));
                 continue;
-            };
-            if !schema_field.relevance.is_erased()
-                && let Some(layout_entry) = exact_layout_entry(plan, schema_field)
-            {
-                diagnostics.push(represented_field_diagnostic(
+            }
+            // Every known direct field was checked in the schema walk above.
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_nested_record(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    schema: &psi_typed_trees::data::DataDefinition,
+    custody: &psi_typed_trees::data::DataDefinition,
+    outer_field: &DataField,
+    nested_schema: &psi_typed_trees::data::DataDefinition,
+    custody_field: Option<&DataField>,
+    plan_name: &str,
+    outer_entry: &LayoutFieldEntryReport,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let nested_schema_fields = program
+        .data_members(nested_schema)
+        .iter()
+        .filter_map(field)
+        .collect::<Vec<_>>();
+    let Some(custody_field) = custody_field else {
+        for nested_field in nested_schema_fields
+            .iter()
+            .filter(|field| field.relevance.is_erased())
+        {
+            let path = nested_canonical_path(schema, outer_field, nested_field);
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                program.normalized_type_identity(nested_field.type_reference),
+                program.type_multiplicity(nested_field.type_reference),
+                custody.name,
+            )));
+        }
+        return;
+    };
+    let Some(nested_custody) = plain_record_for_type(program, custody_field.type_reference) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{}` requires one authored ordinary projection record, but `{}` has type `{}`",
+            program.symbols.display_path(conformance.symbol, "::"),
+            canonical_path(schema, outer_field),
+            canonical_path(custody, custody_field),
+            program.normalized_type_identity(custody_field.type_reference),
+        )));
+        return;
+    };
+    let nested_custody_fields = program
+        .data_members(nested_custody)
+        .iter()
+        .filter_map(field)
+        .collect::<Vec<_>>();
+    if nested_custody_fields.len() != program.data_members(nested_custody).len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{}` must use an ordinary projection record without case members",
+            program.symbols.display_path(conformance.symbol, "::"),
+            canonical_path(schema, outer_field),
+        )));
+        return;
+    }
+
+    for nested_field in &nested_schema_fields {
+        let custody_leaf = nested_custody_fields
+            .iter()
+            .copied()
+            .find(|candidate| same_canonical_field(nested_field, candidate));
+        let path = nested_canonical_path(schema, outer_field, nested_field);
+        if !nested_field.relevance.is_erased() {
+            if custody_leaf.is_some() {
+                diagnostics.push(nested_represented_field_diagnostic(
                     program,
                     conformance,
                     schema,
+                    outer_field,
+                    nested_field,
                     custody,
-                    schema_field,
-                    &plan_name,
-                    layout_entry,
+                    plan_name,
+                    outer_entry,
                 ));
             }
+            continue;
+        }
+        let Some(custody_leaf) = custody_leaf else {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                program.normalized_type_identity(nested_field.type_reference),
+                program.type_multiplicity(nested_field.type_reference),
+                custody.name,
+            )));
+            continue;
+        };
+        let expected_multiplicity = program.type_multiplicity(nested_field.type_reference);
+        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
+        if actual_multiplicity != expected_multiplicity {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
+                program.symbols.display_path(conformance.symbol, "::"),
+                custody.name,
+            )));
+            continue;
+        }
+        let expected_type = program.normalized_type_identity(nested_field.type_reference);
+        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
+        if actual_type != expected_type {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                custody.name,
+            )));
         }
     }
+
+    for custody_leaf in nested_custody_fields {
+        if !nested_schema_fields
+            .iter()
+            .any(|candidate| same_canonical_field(candidate, custody_leaf))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{}.{}` path, but `{}` declares that extra canonical field path",
+                program.symbols.display_path(conformance.symbol, "::"),
+                canonical_path(schema, outer_field),
+                canonical_segment(custody_leaf),
+                custody.name,
+            )));
+            continue;
+        }
+        // Every known nested field was checked in the schema walk above.
+    }
+}
+
+fn direct_nested_custody_record<'program>(
+    program: &'program TypedTrees,
+    schema_field: &DataField,
+) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+    let record = plain_record_for_type(program, schema_field.type_reference)?;
+    program
+        .data_members(record)
+        .iter()
+        .filter_map(field)
+        .any(|field| field.relevance.is_erased())
+        .then_some(record)
+}
+
+fn plain_record_for_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&psi_typed_trees::data::DataDefinition> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let record = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *symbol)?;
+    (record.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+        && record.generic_instance.is_none()
+        && record.type_parameters.is_empty()
+        && record.lifetime_parameters.is_empty()
+        && record.quotient.is_none()
+        && program
+            .data_members(record)
+            .iter()
+            .all(|member| matches!(member, DataMember::Field(_))))
+    .then_some(record)
 }
 
 fn is_core_placement_custody(program: &TypedTrees, definition: &TraitDefinition) -> bool {
@@ -222,10 +406,27 @@ fn exact_layout_entry<'plan>(
 }
 
 fn canonical_path(owner: &psi_typed_trees::data::DataDefinition, field: &DataField) -> String {
+    format!("{}.{}", owner.name, canonical_segment(field))
+}
+
+fn canonical_segment(field: &DataField) -> String {
     match field.identity {
-        Some(identity) => format!("{}.#{}", owner.name, identity),
-        None => format!("{}.{}", owner.name, field.name),
+        Some(identity) => format!("#{identity}"),
+        None => field.name.to_string(),
     }
+}
+
+fn nested_canonical_path(
+    root: &psi_typed_trees::data::DataDefinition,
+    outer: &DataField,
+    nested: &DataField,
+) -> String {
+    format!(
+        "{}.{}.{}",
+        root.name,
+        canonical_segment(outer),
+        canonical_segment(nested)
+    )
 }
 
 fn represented_field_diagnostic(
@@ -247,13 +448,35 @@ fn represented_field_diagnostic(
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
+fn nested_represented_field_diagnostic(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    schema: &psi_typed_trees::data::DataDefinition,
+    outer_field: &DataField,
+    nested_field: &DataField,
+    custody: &psi_typed_trees::data::DataDefinition,
+    plan_name: &str,
+    outer_entry: &LayoutFieldEntryReport,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is contained in `{}`, which is {}, so represented field `{}` must be absent from `{}`",
+        program.symbols.display_path(conformance.symbol, "::"),
+        nested_canonical_path(schema, outer_field, nested_field),
+        canonical_path(schema, outer_field),
+        represented_decision(program, outer_field.type_reference, &outer_entry.placement),
+        nested_canonical_path(schema, outer_field, nested_field),
+        custody.name,
+    ))
+}
+
 fn represented_decision(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     placement: &LayoutPlacementReport,
 ) -> String {
     match placement {
-        LayoutPlacementReport::At { offset } => primitive_width_bytes(program, type_reference)
+        LayoutPlacementReport::At { offset } => fixed_type_width_bytes(program, type_reference)
             .map_or_else(
                 || format!("represented at offset {offset} with its exact semantic width"),
                 |width| format!("represented at offset {offset} with width {width}"),
@@ -278,14 +501,57 @@ fn represented_decision(
     }
 }
 
-fn primitive_width_bytes(
+fn fixed_type_width_bytes(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
-    let TypeReferenceNode::Named { name, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    PrimitiveType::from_name(name.as_str())?.scalar_byte_size()
+    fixed_type_layout(program, type_reference, &mut Vec::new()).map(|(size, _)| size)
+}
+
+fn fixed_type_layout(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Option<(usize, usize)> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(primitive) = PrimitiveType::from_name(name.as_str()) {
+                let size = primitive.scalar_byte_size()?;
+                return Some((size, size));
+            }
+            if visiting.contains(symbol) {
+                return None;
+            }
+            let record = plain_record_for_type(program, type_reference)?;
+            visiting.push(*symbol);
+            let mut size = 0usize;
+            let mut aggregate_align = 1usize;
+            for field in program.data_members(record).iter().filter_map(field) {
+                if field.relevance.is_erased() {
+                    continue;
+                }
+                let (field_size, field_align) =
+                    fixed_type_layout(program, field.type_reference, visiting)?;
+                size = align_up(size, field_align)?.checked_add(field_size)?;
+                aggregate_align = aggregate_align.max(field_align);
+            }
+            visiting.pop();
+            Some((align_up(size, aggregate_align)?, aggregate_align))
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            let (element_size, element_align) =
+                fixed_type_layout(program, *element_type, visiting)?;
+            Some((element_size.checked_mul(*length)?, element_align))
+        }
+        _ => None,
+    }
+}
+
+fn align_up(value: usize, align: usize) -> Option<usize> {
+    value
+        .checked_add(align.checked_sub(1)?)
+        .map(|value| value / align * align)
 }

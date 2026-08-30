@@ -71,6 +71,72 @@ machine Main::main(&mut self) {{}}
     )
 }
 
+fn nested_source(header_custody_fields: &str, packet_custody_fields: &str) -> String {
+    format!(
+        r#"
+use omega::language::core::layout;
+
+pub data Evidence {{}}
+pub data OtherEvidence {{}}
+pub data CopyEvidence [copy] {{}}
+pub data Header {{
+    bits: u32;
+    authority [erased]: Evidence;
+}}
+pub data Plain {{ bits: u32; }}
+pub data Packet {{
+    header: Header;
+    sibling: Plain;
+}}
+
+pub data Native {{
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}}
+
+machine Native::plan(&mut self, schema: Schema) -> PlacementPlan {{
+    self.entries[0] = FieldEntry {{
+        key: schema.fields[0].key,
+        placement: FieldPlan::At {{ offset: 0 }},
+    }};
+    self.entries[1] = FieldEntry {{
+        key: schema.fields[1].key,
+        placement: FieldPlan::At {{ offset: 4 }},
+    }};
+    PlacementPlan {{
+        layout: Plan {{
+            entries: self.entries,
+            entry_count: 2,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4,
+        }},
+        access: AccessPlan::inaccessible(schema),
+        reach: BoundaryReach {{
+            services: self.services,
+            service_count: 0,
+        }},
+    }}
+}}
+
+data HeaderCustody {{
+{header_custody_fields}
+}}
+data PacketCustody {{
+{packet_custody_fields}
+}}
+
+PacketNativeCustody:
+    PacketCustody satisfies PlacementCustody<Native, Packet>;
+
+machine retain_plan(view: &Placed<Native, Packet>) {{}}
+
+data Main {{}}
+machine Main::main(&mut self) {{}}
+"#
+    )
+}
+
 #[test]
 fn source_placement_custody_accepts_the_exact_erased_field_projection() {
     let main = write_program("exact", &source("    authority: Evidence;"));
@@ -198,6 +264,118 @@ fn placement_custody_revalidation_rejects_policy_decision_drift() {
             "Packet.authority",
             "represented at offset 4",
             "must be absent",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_accepts_one_nested_projection_record_path() {
+    let main = write_program(
+        "nested-exact",
+        &nested_source("    authority: Evidence;", "    header: HeaderCustody;"),
+    );
+    compile_to_checked(&main, None).expect("exact nested placement custody should compile");
+}
+
+#[test]
+fn source_placement_custody_rejects_a_missing_nested_leaf() {
+    let main = write_program(
+        "nested-missing",
+        &nested_source("", "    header: HeaderCustody;"),
+    );
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("missing nested custody leaf must fail closed");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.header.authority",
+            "custody-carried",
+            "omits canonical field path",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_cross_sibling_projection() {
+    let main = write_program(
+        "nested-cross-sibling",
+        &nested_source("    authority: Evidence;", "    sibling: HeaderCustody;"),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("custody projection paths cannot move across siblings");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.header.authority",
+            "omits canonical field path",
+            "Packet.sibling",
+            "represented at offset 4 with width 4",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_nested_represented_sibling() {
+    let main = write_program(
+        "nested-represented",
+        &nested_source(
+            "    authority: Evidence;\n    bits: u32;",
+            "    header: HeaderCustody;",
+        ),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("represented nested fields must remain absent from custody");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.header.bits",
+            "contained in `Packet.header`",
+            "represented at offset 0 with width 4",
+            "must be absent",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_the_wrong_nested_leaf_type() {
+    let main = write_program(
+        "nested-wrong-type",
+        &nested_source(
+            "    authority: OtherEvidence;",
+            "    header: HeaderCustody;",
+        ),
+    );
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("nested custody leaf type must agree exactly");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.header.authority",
+            "exact type",
+            "OtherEvidence",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_the_wrong_nested_leaf_multiplicity() {
+    let main = write_program(
+        "nested-wrong-multiplicity",
+        &nested_source("    authority: CopyEvidence;", "    header: HeaderCustody;"),
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("nested custody leaf multiplicity must agree exactly");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.header.authority",
+            "multiplicity Affine",
+            "multiplicity Unrestricted",
         ],
     );
 }

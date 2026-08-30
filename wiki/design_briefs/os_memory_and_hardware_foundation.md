@@ -724,9 +724,13 @@ operations and authority issuance remain later implementation work. One bounded
 agreement checker is now live for an exact concrete named conformance after its
 source-derived policy/schema plan has been retained: direct erased record fields
 must match the custody record by canonical path, exact type, and multiplicity,
-and represented fields must be absent. It recognizes only the toolchain core
-trait and grants none of the establishment authority still missing here.
-Recursive, case-dependent, and planless agreement remain later work.
+and represented fields must be absent. One represented acyclic, non-generic,
+case-free checked-record field may now carry direct erased leaves through an
+authored projection-record spine; complete root-to-leaf paths are checked and
+represented siblings cite the enclosing plan decision. It recognizes only the
+toolchain core trait and grants none of the establishment authority still
+missing here. Deeper recursion, zero-layout wrappers, arrays, generic,
+case-dependent, and planless agreement remain later work.
 
 Retirement is reconstructed from the successful disposition row. Borrowed
 initialization constructs and destroys `T` wholly inside the exclusive borrow,
