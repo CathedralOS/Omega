@@ -173,7 +173,7 @@ does not yet fully satisfy this contract.
   compare/receipt join; independent GVN keys descend by total,
   proof-certified, and compatible-policy vocabulary. The former 1,457-line
   structural-catalog test matrix now mirrors six production validation families.
-- All 294 governed module maps are source-locally classified: 160 executable
+- All 295 governed module maps are source-locally classified: 161 executable
   entrances, 14 crate maps, and 120 stage groups. The guard exhaustively checks
   those roles and the real coordination marker of every executable entrance.
 - The transformation ledger now descends from a 92-line custody-validation
@@ -200,8 +200,11 @@ does not yet fully satisfy this contract.
   separate grammar, target, error, receipt, corruption, and custody leaves.
   The adjacent family-error entrance keeps its exact typed sum below 100 lines
   by separating whole-translation validation failures from family failures.
-- Three production-classified leaves remain at 750-1,000 lines in selected
-  validation, legalization source classification, and rewrite modeling.
+- Selected-block validation now has a 39-line roster/entry/return-routes join
+  over exact block-family replay leaves and one shared instruction comparator;
+  its largest leaf is 195 lines and it never calls construction helpers.
+- Two production-classified leaves remain at 750-1,000 lines in legalization
+  source classification and rewrite modeling.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of

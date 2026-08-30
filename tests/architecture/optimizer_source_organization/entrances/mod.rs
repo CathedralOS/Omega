@@ -143,6 +143,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "translation error taxonomy",
             REQUIRED_TRANSLATION_ERROR_LEAVES,
         ),
+        (
+            "selected-block validation",
+            REQUIRED_SELECTED_BLOCK_VALIDATION_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {
