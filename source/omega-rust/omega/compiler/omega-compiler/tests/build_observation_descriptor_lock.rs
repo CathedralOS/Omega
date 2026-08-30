@@ -154,7 +154,7 @@ fn successful_output_lock_pair_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("descriptor-lock build retains observations");
-    assert_eq!(summary.schema_version(), 57);
+    assert_eq!(summary.schema_version(), 58);
     assert_eq!(
         summary.filesystem_replay_verdict().disposition(),
         BuildFilesystemReplayDisposition::Complete

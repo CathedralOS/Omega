@@ -377,3 +377,22 @@ exact payload and executes the selected write against a fresh virtual table,
 requiring exact attempt, empty namespace, and teardown equality before issuing
 empty staged-output custody. Changed payloads, offsets or ordinals, alternate
 handles or errors, repetitions, and mixed lifecycles remain non-receipted.
+
+## Unknown-descriptor file metadata (summary v58, replay record v39)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one tag-39 `read_file_metadata` call on an unknown
+descriptor. The row fixes the scoped-real provider, scalar `-1`, post-error
+`9`, and operand-zero `Descriptor/Unknown`. It retains operand one's complete
+authored mutable carrier as equal resolution and provider pre/post states.
+The carrier must satisfy the preparer's 144-byte metadata-ABI minimum. There is
+no metadata observation; every other evidence lane and generated-source
+handoff is empty.
+
+The real evaluator rejects at its compiler-owned descriptor table before host
+metadata access and leaves the carrier unchanged. Provider-free replay restores
+the exact carrier and executes the call against a fresh virtual table,
+requiring exact attempt, empty namespace, and teardown equality before issuing
+empty staged-output custody. Changed carrier bytes or ordinals, metadata rows,
+alternate handles or errors, repetitions, and mixed lifecycles remain
+non-receipted.

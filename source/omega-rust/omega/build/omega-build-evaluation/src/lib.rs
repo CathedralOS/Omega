@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 57;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 58;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2562,6 +2562,10 @@ const fn unknown_descriptor_write_payload_operation_tag(operation_tag: u16) -> b
     matches!(operation_tag, 5 | 7)
 }
 
+const fn unknown_descriptor_read_file_metadata_tag(operation_tag: u16) -> bool {
+    operation_tag == 39
+}
+
 fn source_input_replay_prefix_end(
     attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
 ) -> Option<usize> {
@@ -2583,6 +2587,7 @@ fn source_input_replay_prefix_end(
                 | 19
                 | 20
                 | 27
+                | 39
                 | 41
                 | 42
                 | 43
@@ -2685,6 +2690,7 @@ fn source_input_replay_prefix_end(
                         | 19
                         | 20
                         | 27
+                        | 39
                         | 41
                         | 42
                         | 43
@@ -3511,6 +3517,15 @@ pub fn compute_build_config(
                     measured.observations(),
                 )
                 .ok()
+            } else if attempts.len() - operation_suffix_start == 1
+                && unknown_descriptor_read_file_metadata_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
+            {
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_read_file_metadata_observations(
+                    measured.observations(),
+                )
+                .ok()
             } else {
                 psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
                     measured.observations(),
@@ -3543,7 +3558,8 @@ pub fn compute_build_config(
                     || unknown_descriptor_write_operation_tag(failure.operation_tag())
                     || unknown_descriptor_set_file_times_tag(failure.operation_tag())
                     || unknown_descriptor_read_operation_tag(failure.operation_tag())
-                    || unknown_descriptor_write_payload_operation_tag(failure.operation_tag()))
+                    || unknown_descriptor_write_payload_operation_tag(failure.operation_tag())
+                    || unknown_descriptor_read_file_metadata_tag(failure.operation_tag()))
                     && (source_attempts.is_empty()
                         || source_input_replay_prefix_end(source_attempts)
                             == Some(source_attempts.len()))

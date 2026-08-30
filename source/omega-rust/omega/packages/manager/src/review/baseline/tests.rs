@@ -252,6 +252,38 @@ fn baseline_retains_unknown_descriptor_write_payload_replay_custody() {
     assert!(!replay.has_output_attempts());
 }
 
+#[test]
+fn baseline_retains_unknown_descriptor_read_file_metadata_replay_custody() {
+    let replay = unknown_descriptor_failure_baseline(
+        "unknown-read-file-metadata",
+        r#"let mut buffer: [u8; 144];
+    buffer[0] = 11;
+    buffer[71] = 29;
+    buffer[143] = 173;
+    let status: i32 = builder.filesystem.read_file_metadata(-1, &mut buffer);"#,
+    );
+    let [attempt] = replay.attempts() else {
+        panic!("read_file_metadata baseline retains one operation")
+    };
+    assert_eq!(attempt.operation_tag(), 39);
+    let [resolution] = attempt.mutable_byte_operand_resolutions() else {
+        panic!("read_file_metadata baseline retains one resolution-time carrier")
+    };
+    let [carrier] = attempt.mutable_byte_operands() else {
+        panic!("read_file_metadata baseline retains one provider carrier")
+    };
+    assert_eq!(resolution.operand_ordinal(), 1);
+    assert_eq!(resolution.bytes().len(), 144);
+    assert_eq!(resolution.bytes()[0], 11);
+    assert_eq!(resolution.bytes()[71], 29);
+    assert_eq!(resolution.bytes()[143], 173);
+    assert_eq!(carrier.operand_ordinal(), 1);
+    assert_eq!(carrier.pre_bytes(), resolution.bytes());
+    assert_eq!(carrier.post_bytes(), resolution.bytes());
+    assert!(attempt.metadata_observations().is_empty());
+    assert!(!replay.has_output_attempts());
+}
+
 fn assert_baseline_retains_unknown_descriptor_failure(
     label: &str,
     statement: &str,
