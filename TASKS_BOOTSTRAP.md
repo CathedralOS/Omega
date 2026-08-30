@@ -424,6 +424,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the exact current Beta source/tape checks both named chunk equalities and
       the second nested `eqelim`; this validates the selected composition shape,
       but no skeleton proof is retained and assembly-row semantics remain open.
+      The current framed subjects allocate 395,164 of the 1,048,576 arena
+      nodes, leaving 653,412 nodes (15,681,888 bytes) for declarations,
+      retained lemmas, and one equality's scratch. A real raw-tree selector plus
+      the exact textual-ASCII/comment DFA checks the first 1,024 source bytes in
+      the authoritative checker with a 3,134-byte temporary certificate in
+      under one second. That closes the traversal and byte-dispatch shape, not
+      pass one: parser-rich measurement starts at 256-byte power-of-two
+      subtrees and may coarsen cheap regions only after they remain below the
+      100,000-reduction and semantic-stack ceilings. The useful first adjacent
+      pair is `[4096,4352)` / `[4352,4608)`: it crosses `read_source`, advances
+      PC `10 -> 83 -> 164`, and records `source_done = 92`. The terminal
+      `[104448,104704)` selector has 11 real leaves plus checker `EMPTY`
+      padding and must close the final `db "main"` at source byte 104,459 and
+      PC 27,087.
+    - Implement the eventual proof in place only when pass one is vertically
+      complete: exact D15/token/comment/`db` streaming states, fixed-width
+      decimal/register/PC checks, every source subtree equality, balanced
+      boundary and unique-label joins, the 457-record frozen map, and the
+      104,459-byte / 27,087-byte root. A temporary producer may choose paths,
+      boundary states, and compact label IDs, but none survives as a parser,
+      ledger, receipt, or authority. Use a compact label-record dispatch rather
+      than repeating the full map in every proposition. Do not retain a
+      one-chunk demonstration or advertise partial pass-one acceptance as edge
+      admission; extend the same final `.proof` and single gate with pass two
+      and `VERIFY` after the complete pass-one checkpoint.
     - [x] Publish the canonical Beta checker's exact arena, semantic-stack,
       framed input, certificate, declaration, function, and lemma-table profile.
       Arena and proof-context exhaustion are now explicit fail-closed guards,
