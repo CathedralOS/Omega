@@ -3,8 +3,9 @@ use crate::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemByteOperand,
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
-    BuildFilesystemScalarOperand, BuildObservationClass,
+    BuildFilesystemLogicalHandleOutput, BuildFilesystemMutableByteOperand,
+    BuildFilesystemMutableByteOperandResolution, BuildFilesystemScalarOperand,
+    BuildObservationClass,
 };
 
 fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesystemOperationAttempt {
@@ -65,6 +66,13 @@ fn unknown_descriptor_seek_summary(offset: i64, whence: i32) -> BuildObservation
             value: BuildFilesystemScalarOperandValue::I32(whence),
         },
     ];
+    summary
+}
+
+fn unknown_descriptor_get_osfhandle_summary() -> BuildObservationSummary {
+    let mut summary = summary(30);
+    summary.filesystem_operation_attempts[0].result = BuildFilesystemOperationResult::Scalar(-2);
+    summary.filesystem_operation_attempts[0].post_error = 0;
     summary
 }
 
@@ -750,4 +758,57 @@ fn unknown_descriptor_read_file_metadata_failure_rejects_carrier_drift() {
         .unwrap()
         .unwrap();
     assert_ne!(first.commitment(), second.commitment());
+}
+
+#[test]
+fn unknown_descriptor_get_osfhandle_failure_round_trips_exact_model() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let summary = unknown_descriptor_get_osfhandle_summary();
+    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+        .expect("exact unknown-descriptor get_osfhandle encodes")
+        .expect("verified get_osfhandle failure retains replay custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("exact unknown-descriptor get_osfhandle recovers");
+    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("exact get_osfhandle rehydrates through its typed constructor");
+
+    let [attempt] = replay.attempts() else {
+        panic!("unknown-descriptor get_osfhandle replay retains one attempt")
+    };
+    assert_eq!(attempt.operation_tag(), 30);
+    assert_eq!(
+        attempt.result(),
+        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+            -2
+        ))
+    );
+    assert_eq!(attempt.post_error(), Some(0));
+    assert!(attempt.logical_handle_output().is_none());
+    assert!(!replay.has_output_attempts());
+}
+
+#[test]
+fn unknown_descriptor_get_osfhandle_failure_rejects_model_drift() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+
+    let mut changed_result = unknown_descriptor_get_osfhandle_summary();
+    changed_result.filesystem_operation_attempts[0].result =
+        BuildFilesystemOperationResult::Scalar(-1);
+    assert!(capture_verified_build_filesystem_replay_record(&changed_result, limits).is_err());
+
+    let mut changed_error = unknown_descriptor_get_osfhandle_summary();
+    changed_error.filesystem_operation_attempts[0].post_error = 9;
+    assert!(capture_verified_build_filesystem_replay_record(&changed_error, limits).is_err());
+
+    let mut invented_output = unknown_descriptor_get_osfhandle_summary();
+    invented_output.filesystem_operation_attempts[0].logical_handle_output =
+        Some(BuildFilesystemLogicalHandleOutput {
+            identity: BuildFilesystemLogicalHandleIdentity::new(2).unwrap(),
+            kind: BuildFilesystemLogicalHandleKind::Native,
+            source: BuildFilesystemLogicalHandleOutputSource::Borrowed(
+                BuildFilesystemLogicalHandleIdentity::new(1).unwrap(),
+            ),
+        });
+    assert!(capture_verified_build_filesystem_replay_record(&invented_output, limits).is_err());
 }

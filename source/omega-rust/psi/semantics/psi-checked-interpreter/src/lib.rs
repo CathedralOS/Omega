@@ -92,6 +92,7 @@ pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputAbsentRemovesReplayRecord,
     FilesystemInputOutputDirectoryReplayRecord, FilesystemInputOutputTreeReplayRecord,
+    FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
     FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,

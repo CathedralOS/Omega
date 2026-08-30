@@ -12,11 +12,14 @@ use crate::{
 
 const UNKNOWN_DESCRIPTOR_RESULT: i64 = -1;
 const BAD_DESCRIPTOR_ERROR: i32 = 9;
+const UNKNOWN_DESCRIPTOR_OSF_HANDLE_RESULT: i64 = -2;
+const UNCHANGED_ERROR: i32 = 0;
 const READ_OPERATION_TAG: u16 = 4;
 const WRITE_OPERATION_TAG: u16 = 5;
 const READ_AT_OPERATION_TAG: u16 = 6;
 const WRITE_AT_OPERATION_TAG: u16 = 7;
 const SEEK_OPERATION_TAG: u16 = 10;
+const GET_OSF_HANDLE_OPERATION_TAG: u16 = 30;
 const READ_FILE_METADATA_OPERATION_TAG: u16 = 39;
 const SET_FILE_TIMES_OPERATION_TAG: u16 = 42;
 const SET_FILE_TIMES_MINIMUM_CARRIER_BYTES: usize = 32;
@@ -87,6 +90,32 @@ impl FilesystemInputUnknownDescriptorOperationReplayRecord {
         FilesystemInputUnknownDescriptorOperationReplayKind,
     ) {
         (self.source_input, self.kind)
+    }
+}
+
+/// Optional exact Source-input prefix followed by one modeled fd-to-handle
+/// bridge call on an unknown descriptor.
+///
+/// The operation has no caller-authored coordinates beyond the optional
+/// prefix. Its synthetic `-2` result and empty handle-output lane are fixed by
+/// this record type; no provider descriptor or operating-system handle is
+/// retained.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord {
+    source_input: Option<FilesystemSourceInputReplayRecord>,
+}
+
+impl FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord {
+    pub fn new(source_input: Option<FilesystemSourceInputReplayRecord>) -> Self {
+        Self { source_input }
+    }
+
+    pub const fn source_input(&self) -> Option<&FilesystemSourceInputReplayRecord> {
+        self.source_input.as_ref()
+    }
+
+    fn into_source_input(self) -> Option<FilesystemSourceInputReplayRecord> {
+        self.source_input
     }
 }
 
@@ -492,6 +521,31 @@ impl FilesystemReplay {
         )
     }
 
+    /// Construct the closed optional-Source plus one unknown-descriptor
+    /// `get_osfhandle` failure from typed compiler-owned evidence.
+    pub fn from_input_unknown_descriptor_get_osfhandle_record(
+        record: FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
+    ) -> Result<Self, String> {
+        unknown_descriptor_failure_replay_from_record(
+            record.into_source_input(),
+            unknown_descriptor_get_osfhandle_attempt(),
+            unknown_descriptor_get_osfhandle_attempt_is_exact,
+            "get_osfhandle",
+        )
+    }
+
+    /// Validate observed evidence for an optional Source-input prefix followed
+    /// by one modeled fd-to-handle failure on an unknown descriptor.
+    pub fn from_input_unknown_descriptor_get_osfhandle_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        unknown_descriptor_failure_replay_from_observations(
+            observations,
+            unknown_descriptor_get_osfhandle_attempt_is_exact,
+            "get_osfhandle",
+        )
+    }
+
     /// Construct the closed optional-Source plus unknown-descriptor seek rung
     /// from typed compiler-owned evidence.
     pub fn from_input_unknown_descriptor_seek_record(
@@ -744,6 +798,30 @@ pub(crate) fn unknown_descriptor_operation_attempt(
     kind: FilesystemInputUnknownDescriptorOperationReplayKind,
 ) -> FilesystemOperationAttempt {
     unknown_descriptor_failure_attempt(kind.operation_tag(), Vec::new())
+}
+
+pub(crate) fn unknown_descriptor_get_osfhandle_attempt_is_exact(
+    attempt: &FilesystemOperationAttempt,
+) -> bool {
+    attempt.scalar_operands.is_empty()
+        && attempt.byte_operands.is_empty()
+        && attempt.mutable_byte_operand_resolutions.is_empty()
+        && attempt.mutable_byte_operands.is_empty()
+        && unknown_descriptor_failure_has_exact_core_shape_with_outcome(
+            attempt,
+            GET_OSF_HANDLE_OPERATION_TAG,
+            UNKNOWN_DESCRIPTOR_OSF_HANDLE_RESULT,
+            UNCHANGED_ERROR,
+        )
+}
+
+pub(crate) fn unknown_descriptor_get_osfhandle_attempt() -> FilesystemOperationAttempt {
+    let mut attempt = unknown_descriptor_failure_attempt(GET_OSF_HANDLE_OPERATION_TAG, Vec::new());
+    attempt.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(UNKNOWN_DESCRIPTOR_OSF_HANDLE_RESULT),
+        post_error: UNCHANGED_ERROR,
+    });
+    attempt
 }
 
 pub(crate) fn unknown_descriptor_seek_from_exact_attempt(
@@ -1027,6 +1105,7 @@ pub(crate) fn unknown_descriptor_failure_attempt_is_exact(
     attempt: &FilesystemOperationAttempt,
 ) -> bool {
     unknown_descriptor_operation_attempt_is_exact(attempt)
+        || unknown_descriptor_get_osfhandle_attempt_is_exact(attempt)
         || unknown_descriptor_seek_attempt_is_exact(attempt)
         || unknown_descriptor_read_attempt_is_exact(attempt)
         || unknown_descriptor_read_file_metadata_attempt_is_exact(attempt)
@@ -1056,14 +1135,28 @@ fn unknown_descriptor_failure_has_exact_core_shape(
     attempt: &FilesystemOperationAttempt,
     operation_tag: u16,
 ) -> bool {
+    unknown_descriptor_failure_has_exact_core_shape_with_outcome(
+        attempt,
+        operation_tag,
+        UNKNOWN_DESCRIPTOR_RESULT,
+        BAD_DESCRIPTOR_ERROR,
+    )
+}
+
+fn unknown_descriptor_failure_has_exact_core_shape_with_outcome(
+    attempt: &FilesystemOperationAttempt,
+    operation_tag: u16,
+    result: i64,
+    post_error: i32,
+) -> bool {
     matches!(
         attempt,
         FilesystemOperationAttempt {
             operation_tag: observed_operation_tag,
             provider: FilesystemObservationProvider::RealScoped,
             outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-                result: FilesystemOperationResult::Scalar(UNKNOWN_DESCRIPTOR_RESULT),
-                post_error: BAD_DESCRIPTOR_ERROR,
+                result: FilesystemOperationResult::Scalar(observed_result),
+                post_error: observed_post_error,
             }),
             scalar_operands: _,
             byte_operands: _,
@@ -1082,6 +1175,8 @@ fn unknown_descriptor_failure_has_exact_core_shape(
             retired_logical_handles,
             grant_refusals,
         } if *observed_operation_tag == operation_tag
+            && *observed_result == result
+            && *observed_post_error == post_error
             && path_like_operands.is_empty()
             && rooted_path_operand_resolutions.is_empty()
             && returned_paths.is_empty()

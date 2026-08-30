@@ -1572,6 +1572,14 @@ observation, other lane, or handoff is present. Compiler-owned descriptor
 lookup rejects before host metadata access. Provider-free replay must reproduce
 the attempt, namespace, and teardown before empty staged-output custody issues.
 
+Summary v59 and replay-record v40 additionally admit one failed tag-30
+`get_osfhandle` on an unknown descriptor after the optional Source prefix. The
+row fixes scoped-real provider, scalar `-2`, unchanged post-error `0`, and
+operand-zero `Descriptor/Unknown`; every other lane and handoff is empty. Both
+evaluators consult compiler-owned synthetic descriptor tables, so provider-free
+replay checks only Omega's modeled bridge. It does not claim custody of a native
+operating-system handle or a Windows security property.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1621,7 +1629,8 @@ unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, v53/v34
 unknown-descriptor-seek, v54/v35 unknown-descriptor-write, and v55/v36
 unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, v57/v38
 unknown-descriptor-write-payload, and v58/v39
-unknown-descriptor-read-file-metadata grammars above may join them to verified
+unknown-descriptor-read-file-metadata, and v59/v40
+unknown-descriptor-get-osfhandle grammars above may join them to verified
 operation replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1655,7 +1664,8 @@ unknown-descriptor-close, v51/v32 operand-free-unknown-descriptor, v53/v34
 unknown-descriptor-seek, v54/v35 unknown-descriptor-write, and v55/v36
 unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, v57/v38
 unknown-descriptor-write-payload, and v58/v39
-unknown-descriptor-read-file-metadata grammars above supply canonical operation
+unknown-descriptor-read-file-metadata, and v59/v40
+unknown-descriptor-get-osfhandle grammars above supply canonical operation
 replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

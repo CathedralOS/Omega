@@ -44,6 +44,7 @@ pub(crate) use duplicates::{
 };
 pub(crate) use handle_failures::unknown_descriptor_failure_attempt_is_exact;
 pub use handle_failures::{
+    FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
     FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
@@ -58,6 +59,7 @@ pub use handle_failures::{
 };
 #[cfg(test)]
 pub(crate) use handle_failures::{
+    unknown_descriptor_get_osfhandle_attempt, unknown_descriptor_get_osfhandle_attempt_is_exact,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
     unknown_descriptor_read_attempt, unknown_descriptor_read_file_metadata_attempt,
     unknown_descriptor_read_file_metadata_from_exact_attempt,

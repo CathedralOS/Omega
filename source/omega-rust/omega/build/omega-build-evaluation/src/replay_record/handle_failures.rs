@@ -45,6 +45,17 @@ pub(super) fn unknown_descriptor_seek_failure_shape_is_exact(shape: &AttemptShap
         && unknown_descriptor_failure_base_is_exact(shape)
 }
 
+pub(super) fn unknown_descriptor_get_osfhandle_failure_shape_is_exact(
+    shape: &AttemptShape<'_>,
+) -> bool {
+    shape.operation == 30
+        && shape.scalars.is_empty()
+        && shape.mutable_byte_resolutions.is_empty()
+        && shape.mutable_bytes.is_empty()
+        && shape.byte_operands.is_empty()
+        && unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(shape, -2, 0)
+}
+
 pub(super) fn unknown_descriptor_write_operation(operation: u16) -> bool {
     matches!(operation, 17 | 41 | 46 | 49)
 }
@@ -154,9 +165,21 @@ fn unknown_descriptor_failure_core_is_exact(shape: &AttemptShape<'_>) -> bool {
 }
 
 fn unknown_descriptor_failure_core_except_bytes_is_exact(shape: &AttemptShape<'_>) -> bool {
+    unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(
+        shape,
+        BAD_DESCRIPTOR_RESULT,
+        BAD_DESCRIPTOR_ERROR,
+    )
+}
+
+fn unknown_descriptor_failure_core_except_bytes_with_outcome_is_exact(
+    shape: &AttemptShape<'_>,
+    result: i64,
+    post_error: i32,
+) -> bool {
     shape.provider == REAL_SCOPED_PROVIDER_TAG
-        && shape.result == ShapeResult::Scalar(BAD_DESCRIPTOR_RESULT)
-        && shape.post_error == BAD_DESCRIPTOR_ERROR
+        && shape.result == ShapeResult::Scalar(result)
+        && shape.post_error == post_error
         && shape.inputs.as_slice()
             == [ShapeLogicalInput {
                 ordinal: 0,
@@ -175,6 +198,18 @@ fn unknown_descriptor_failure_core_except_bytes_is_exact(shape: &AttemptShape<'_
         && shape.output.is_none()
         && shape.retired.is_empty()
         && shape.refusal_count == 0
+}
+
+pub(super) fn validate_unknown_descriptor_get_osfhandle_failure_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if unknown_descriptor_get_osfhandle_failure_shape_is_exact(shape) {
+        Ok(())
+    } else {
+        Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-descriptor get_osfhandle failure is internally inconsistent",
+        ))
+    }
 }
 
 pub(super) fn validate_unknown_descriptor_write_payload_failure_shape(

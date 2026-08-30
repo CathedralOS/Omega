@@ -1,4 +1,5 @@
 use super::{
+    FilesystemInputUnknownDescriptorGetOsfHandleReplayRecord as GetOsfHandleRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
     FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
     FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord as ReadFileMetadataRecord,
@@ -10,6 +11,7 @@ use super::{
     FilesystemInputUnknownDescriptorWriteOperationReplayRecord as WriteRecord,
     FilesystemInputUnknownDescriptorWriteReplayKind as PayloadWriteKind,
     FilesystemInputUnknownDescriptorWriteReplayRecord as PayloadWriteRecord,
+    unknown_descriptor_get_osfhandle_attempt, unknown_descriptor_get_osfhandle_attempt_is_exact,
     unknown_descriptor_operation_attempt, unknown_descriptor_operation_from_exact_attempt,
     unknown_descriptor_read_attempt, unknown_descriptor_read_file_metadata_attempt,
     unknown_descriptor_read_file_metadata_from_exact_attempt,
@@ -138,6 +140,51 @@ reaches FilesystemHost
     lower_typed_trees(typed).expect("check read_file_metadata replay fixture")
 }
 
+fn checked_unknown_descriptor_get_osfhandle() -> psi_checked_trees::CheckedTrees {
+    const SOURCE: &str = r#"
+data Main { filesystem: FilesystemHost; result: i64; }
+
+machine Main::get_unknown(&mut self)
+reaches FilesystemHost
+{
+    self.result = self.filesystem.get_osfhandle(-1);
+}
+"#;
+    let mut sources = SourceMap::default();
+    let filesystem_host_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/std/filesystem_host.omg"),
+            FILESYSTEM_HOST.to_owned(),
+            PathBuf::from("source/library/std"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let source_id = sources
+        .add_with_metadata(
+            PathBuf::from("tests/unknown_descriptor_get_osfhandle.omg"),
+            SOURCE.to_owned(),
+            PathBuf::from("tests"),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let filesystem_host_tokens = Lexer::new(FILESYSTEM_HOST)
+        .tokenize()
+        .expect("tokenize canonical filesystem host");
+    let mut syntax = parse_syntax_trees_with_id(filesystem_host_source_id, &filesystem_host_tokens)
+        .expect("parse canonical filesystem host");
+    let tokens = Lexer::new(SOURCE)
+        .tokenize()
+        .expect("tokenize get_osfhandle replay fixture");
+    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        .expect("parse get_osfhandle replay fixture");
+    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolve get_osfhandle replay fixture");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type get_osfhandle replay fixture");
+    lower_typed_trees(typed).expect("check get_osfhandle replay fixture")
+}
+
 #[test]
 fn unknown_descriptor_operation_records_compose_after_optional_source_input() {
     for (kind, tag) in KINDS_AND_TAGS {
@@ -242,6 +289,151 @@ fn assert_tampered_operation_rejected(attempt: crate::FilesystemOperationAttempt
         EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
     assert!(
         FilesystemReplay::from_input_unknown_descriptor_operation_observations(&observations)
+            .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_get_osfhandle_records_compose_after_optional_source_input() {
+    let record = GetOsfHandleRecord::new(None);
+    assert!(record.source_input().is_none());
+    let without_source =
+        FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_record(record).unwrap();
+    assert_eq!(without_source.attempts().len(), 1);
+    let attempt = &without_source.attempts()[0];
+    assert!(unknown_descriptor_get_osfhandle_attempt_is_exact(attempt));
+    assert_eq!(attempt.operation_tag(), 30);
+    assert_eq!(
+        attempt.result(),
+        Some(FilesystemOperationResult::Scalar(-2))
+    );
+    assert_eq!(attempt.post_error(), Some(0));
+    assert!(attempt.logical_handle_output().is_none());
+    assert!(without_source.executes_replay_attempt(0));
+    assert!(!without_source.has_output_attempts());
+    assert!(without_source.expected_included_sources().is_empty());
+
+    let source = source_input();
+    let record = GetOsfHandleRecord::new(Some(source.clone()));
+    assert_eq!(record.source_input(), Some(&source));
+    let with_source =
+        FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_record(record).unwrap();
+    assert_eq!(
+        with_source
+            .attempts()
+            .iter()
+            .map(FilesystemOperationAttempt::operation_tag)
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 30]
+    );
+    assert!((0..3).all(|index| !with_source.executes_replay_attempt(index)));
+    assert!(with_source.executes_replay_attempt(3));
+    assert!(!with_source.has_output_attempts());
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        with_source.attempts().to_vec(),
+        Vec::new(),
+    );
+    let observed =
+        FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_observations(&observations)
+            .unwrap();
+    assert_eq!(observed.attempts(), with_source.attempts());
+}
+
+#[test]
+fn unknown_descriptor_get_osfhandle_rejects_model_and_lane_drift() {
+    let exact = unknown_descriptor_get_osfhandle_attempt();
+
+    let mut changed = exact.clone();
+    changed.provider = FilesystemObservationProvider::Virtual;
+    assert_tampered_get_osfhandle_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(-1),
+        post_error: 0,
+    });
+    assert_tampered_get_osfhandle_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(-2),
+        post_error: 9,
+    });
+    assert_tampered_get_osfhandle_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.logical_handle_inputs[0].kind = FilesystemLogicalHandleKind::Native;
+    assert_tampered_get_osfhandle_rejected(changed);
+
+    let mut changed = exact.clone();
+    changed.scalar_operands.push(FilesystemScalarOperand {
+        operand_ordinal: 1,
+        value: FilesystemScalarOperandValue::I32(0),
+    });
+    assert_tampered_get_osfhandle_rejected(changed);
+
+    for changed in nonempty_side_lane_attempts(exact) {
+        assert_tampered_get_osfhandle_rejected(changed);
+    }
+}
+
+#[test]
+fn unknown_descriptor_get_osfhandle_rejects_handoff_and_invalid_prefix() {
+    let exact = unknown_descriptor_get_osfhandle_attempt();
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![exact.clone()],
+        vec![
+            BuildIncludedSource::from_coordinate(
+                FilesystemGrantRootIdentity::new(2).unwrap(),
+                b"generated.omg".to_vec(),
+                1,
+            )
+            .unwrap(),
+        ],
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_observations(&observations)
+            .is_err()
+    );
+
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        vec![unknown_descriptor_seek_attempt(0, 0), exact],
+        Vec::new(),
+    );
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_observations(&observations)
+            .is_err()
+    );
+}
+
+#[test]
+fn unknown_descriptor_get_osfhandle_executes_exact_replay_provider_free() {
+    let replay = FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_record(
+        GetOsfHandleRecord::new(None),
+    )
+    .unwrap();
+    let outcome = interpret_entry_with_options(
+        &checked_unknown_descriptor_get_osfhandle(),
+        "Main::get_unknown",
+        &[],
+        InterpretOptions {
+            filesystem: FilesystemAccess::ReplayFilesystem(replay),
+            ..InterpretOptions::default()
+        },
+    );
+
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 0);
+    assert!(outcome.stdout.is_empty());
+    assert!(outcome.stderr.is_empty());
+}
+
+fn assert_tampered_get_osfhandle_rejected(attempt: FilesystemOperationAttempt) {
+    let observations =
+        EvaluationObservations::from_filesystem_operation_attempts(vec![attempt], Vec::new());
+    assert!(
+        FilesystemReplay::from_input_unknown_descriptor_get_osfhandle_observations(&observations)
             .is_err()
     );
 }

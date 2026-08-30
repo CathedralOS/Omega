@@ -1727,6 +1727,14 @@ observation, other lane, or handoff is present. Compiler-owned descriptor
 lookup rejects before host metadata access. Provider-free replay must reproduce
 the attempt, namespace, and teardown before empty staged-output custody issues.
 
+Observation summary v59 and replay-record v40 additionally admit one failed
+tag-30 `get_osfhandle` on an unknown descriptor after the optional Source
+prefix. The row fixes scoped-real provider, scalar `-2`, unchanged post-error
+`0`, and operand-zero `Descriptor/Unknown`; every other lane and handoff is
+empty. Both evaluators consult compiler-owned synthetic descriptor tables, so
+provider-free replay checks only Omega's modeled bridge. It claims neither
+native-handle custody nor a Windows security property.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

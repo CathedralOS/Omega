@@ -396,3 +396,18 @@ requiring exact attempt, empty namespace, and teardown equality before issuing
 empty staged-output custody. Changed carrier bytes or ordinals, metadata rows,
 alternate handles or errors, repetitions, and mixed lifecycles remain
 non-receipted.
+
+## Unknown-descriptor modeled handle bridge (summary v59, replay record v40)
+
+The failed-handle grammar additionally admits an optional exact Source prefix
+followed by exactly one tag-30 `get_osfhandle` call on an unknown descriptor.
+The row fixes the scoped-real provider, scalar `-2`, unchanged post-error `0`,
+and operand-zero `Descriptor/Unknown`. Every scalar, byte, mutable, path,
+metadata, refusal, logical-output, retirement, and generated-source handoff
+lane is empty.
+
+Both evaluators answer this call from their compiler-owned synthetic descriptor
+tables. Provider-free replay therefore requires the exact modeled result,
+attempt, empty namespace, and teardown before issuing empty staged-output
+custody. This receipts only Omega's descriptor-to-handle model; it claims no
+custody of a native operating-system handle and no Windows security property.
