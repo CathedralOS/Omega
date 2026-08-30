@@ -116,7 +116,7 @@ impl ValidatedConstRecordWithDepthTwoNestedSumMaterialization {
                     .into(),
             ));
         }
-        let fingerprint = depth_two_nested_sum_materialization_fingerprint(
+        let fingerprint = depth_two_nested_sum_materialization_report_fingerprint(
             schema_name,
             replayed.schema_report_fingerprint,
             outer_fingerprint,
@@ -169,7 +169,7 @@ pub fn validate_const_materializable_record_with_depth_two_nested_sum(
     let derived =
         derive_depth_two_nested_sum_bytes(typed, schema_name, path_layout, value, byte_order)?;
     let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_two_nested_sum_materialization_fingerprint(
+    let materialization_fingerprint = depth_two_nested_sum_materialization_report_fingerprint(
         schema_name,
         derived.schema_report_fingerprint,
         outer_fingerprint,
@@ -380,7 +380,7 @@ impl ValidatedConstRecordWithDepthTwoNestedSumsMaterialization {
                 "ConstMaterializable plural depth-two bytes drifted after exact replay".into(),
             ));
         }
-        let fingerprint = depth_two_nested_sums_materialization_fingerprint(
+        let fingerprint = depth_two_nested_sums_materialization_report_fingerprint(
             schema_name,
             replayed.schema_report_fingerprint,
             outer_fingerprint,
@@ -434,7 +434,7 @@ pub fn validate_const_materializable_record_with_depth_two_nested_sums(
     let derived =
         derive_depth_two_nested_sums_bytes(typed, schema_name, path_layout, value, byte_order)?;
     let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_two_nested_sums_materialization_fingerprint(
+    let materialization_fingerprint = depth_two_nested_sums_materialization_report_fingerprint(
         schema_name,
         derived.schema_report_fingerprint,
         outer_fingerprint,
@@ -1213,7 +1213,7 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
                 "ConstMaterializable nested-record path custody drifted from exact replay".into(),
             ));
         }
-        let fingerprint = nested_record_sum_materialization_fingerprint(
+        let fingerprint = nested_record_sum_materialization_report_fingerprint(
             schema_name,
             replayed.schema_report_fingerprint,
             outer_fingerprint,
@@ -1269,7 +1269,7 @@ pub fn validate_const_materializable_record_with_nested_sum_record(
     let derived =
         derive_nested_record_sum_bytes(typed, schema_name, path_layout, value, byte_order)?;
     let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = nested_record_sum_materialization_fingerprint(
+    let materialization_fingerprint = nested_record_sum_materialization_report_fingerprint(
         schema_name,
         derived.schema_report_fingerprint,
         outer_fingerprint,
@@ -1442,7 +1442,7 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
                 "ConstMaterializable nested-record paths bytes drifted from exact replay".into(),
             ));
         }
-        let fingerprint = nested_record_sums_materialization_fingerprint(
+        let fingerprint = nested_record_sums_materialization_report_fingerprint(
             schema_name,
             replayed.schema_report_fingerprint,
             outer_fingerprint,
@@ -1520,7 +1520,7 @@ fn validate_const_materializable_record_with_nested_sum_records_with_reachabilit
         reachability,
     )?;
     let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = nested_record_sums_materialization_fingerprint(
+    let materialization_fingerprint = nested_record_sums_materialization_report_fingerprint(
         schema_name,
         derived.schema_report_fingerprint,
         outer_fingerprint,
@@ -2369,7 +2369,7 @@ fn nested_paths_reports_match_for_replay(
         })
 }
 
-fn depth_two_nested_sum_materialization_fingerprint(
+fn depth_two_nested_sum_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     outer_layout_report_fingerprint: u64,
@@ -2418,7 +2418,7 @@ fn depth_two_nested_sum_materialization_fingerprint(
     if hash == 0 { 1 } else { hash }
 }
 
-fn depth_two_nested_sums_materialization_fingerprint(
+fn depth_two_nested_sums_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     outer_layout_report_fingerprint: u64,
@@ -2472,7 +2472,7 @@ fn depth_two_nested_sums_materialization_fingerprint(
     if hash == 0 { 1 } else { hash }
 }
 
-fn nested_record_sum_materialization_fingerprint(
+fn nested_record_sum_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     outer_layout_report_fingerprint: u64,
@@ -2521,7 +2521,7 @@ fn nested_record_sum_materialization_fingerprint(
     if hash == 0 { 1 } else { hash }
 }
 
-fn nested_record_sums_materialization_fingerprint(
+fn nested_record_sums_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     outer_layout_report_fingerprint: u64,
