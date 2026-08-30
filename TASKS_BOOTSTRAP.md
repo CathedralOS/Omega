@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, named-type candidate scan, and symbolic Alpha encoding | implement D31 type formation, complete body checking and lowering, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, and symbolic Alpha encoding | complete entry/body/control checking and lowering, resolve Q5 before physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1118,14 +1118,37 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `never`/view/`Console` placement, and disjoint structural anchors. Valid
     source that exceeds one selected application-static-storage profile returns
     attributed or aggregate outer `Incomplete`; it is never a Delta rejection.
-  - [ ] **IMPLEMENTATION — D31 DELTA TYPE FORMATION.** Implement lengths
-    `1..INT32_MAX`, zero-field records, mixed-data rejection, exact
-    `never`/view/`Console` placement, and structurally anchored candidate
-    selection. Add exact positive/negative canaries plus attributed and
-    aggregate `ApplicationStaticStorageBytes` refusal. Derive the selected
-    application-static-storage limit from the final nonaliasing generated-
-    program map; do not make that profile limit a Delta validity rule or infer
-    diagnostics from traversal order.
+  - [x] **IMPLEMENTATION — D31 STRUCTURAL TYPE FORMATION.** Replace the
+    unknown-name-only precursor with the complete profile-independent
+    structural judgment. It classifies every empty declaration explicitly as
+    a zero-field record, rejects mixed data at the declaration name, enforces
+    positive array lengths, admits `never` and views only at their exact outer
+    placements, suppresses every child defect beneath a forbidden view, and
+    treats exact `Console` spelling as the sealed `Main.console` capability
+    before ordinary owner lookup. One source-coordinate candidate sum merges
+    all placement, shape, unknown, and recursive-value failures by offset;
+    same-class ties are idempotent and distinct same-anchor reasons take the
+    private internal-contradiction path rather than a reason-table priority.
+    The accepted formed program retains source-ordered record/sum rows and a
+    complete immutable data-containment edge graph. Per-edge visited-set
+    reachability marks every recursive edge at its named-reference coordinate
+    without path-exponential expansion through acyclic diamonds. The native
+    pass now promotes the winning candidate after D22/D24 census and type-
+    checks through the Gamma frontend gate. Exact behavioral vectors remain in
+    the adjacent contract-derived plan until the real Gamma compiler can
+    execute them; no host evaluator is introduced.
+  - [x] **D31 OUTCOME-SCHEMA PLUMBING.** Retain the two source-owned
+    `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
+    Gamma-profile schema check. This establishes nominal plumbing only and
+    claims no storage-demand calculation or refusal behavior.
+  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q5 AND INCOMPLETE CHECK/LOWERING: D31
+    APPLICATION STATIC STORAGE.** After complete body/control checking and the
+    final nonaliasing generated-program map exist, derive its selected static-
+    storage limit and expand only reachable roots. Then implement exact
+    attributed/aggregate refusal and no-publication canaries. Q5 must first
+    settle how a valid nested-array demand above Gamma `INT64_MAX` and the
+    fixed `DCOUT` scalar field is represented; do not trap, choose saturation
+    privately, impose a Delta validity limit, or report a traversal prefix.
 - [x] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
