@@ -2413,7 +2413,7 @@ fn build_checked_proposition_vocabulary(
     }
 }
 
-fn lower_checked_proposition_application(
+pub(crate) fn lower_checked_proposition_application(
     normalized: psi_typed_trees::proposition::NormalizedPropositionApplicationIdentity,
 ) -> psi_checked_trees::CheckedPropositionApplication {
     let evidence_interface = match &normalized.classification {

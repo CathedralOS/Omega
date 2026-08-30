@@ -5,6 +5,7 @@ use super::calls::{
 };
 use super::casts::project_contract_cast;
 use super::constructors::project_contract_constructor_expression;
+use super::evidence::project_contract_call_evidence_arguments;
 use super::members::{
     checked_contract_member_path, contract_member_has_exact_collection_length,
     contract_member_path_root, contract_member_path_source, is_data_subject_field_expression,
@@ -244,12 +245,23 @@ pub(crate) fn project_contract_expression_with_substitutions(
                     context.subject_kind, context.subject_name
                 ))]);
             }
-            if !call.evidence_arguments.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` uses a contract call with evidence arguments not yet represented by package review",
-                    context.subject_kind, context.subject_name
-                ))]);
-            }
+            let evidence_arguments = if call.evidence_arguments.is_empty() {
+                Vec::new()
+            } else {
+                project_contract_call_evidence_arguments(
+                    compilation,
+                    context,
+                    checked_fact,
+                    expression,
+                    resolved_symbol.ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "reviewed {} `{}` evidence-bearing call has no exact resolved target",
+                            context.subject_kind, context.subject_name,
+                        ))]
+                    })?,
+                    call.evidence_arguments.len(),
+                )?
+            };
             require_exact_named_const_static_argument_selections(
                 compilation,
                 context,
@@ -280,6 +292,7 @@ pub(crate) fn project_contract_expression_with_substitutions(
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?,
+                evidence_arguments,
                 arguments: compilation
                     .expression_table
                     .expression_handles(call.arguments)

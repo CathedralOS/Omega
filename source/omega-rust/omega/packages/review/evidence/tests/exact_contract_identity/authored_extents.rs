@@ -144,6 +144,7 @@ requires
             receiver,
             target,
             static_arguments,
+            evidence_arguments,
             arguments,
         }),
     ] = domain.predicate_facts()
@@ -156,6 +157,7 @@ requires
         "within_calibration::entry"
     );
     assert!(static_arguments.is_empty());
+    assert!(evidence_arguments.is_empty());
     assert_eq!(arguments, &[PackageReviewContractExpression::DomainSubject]);
 }
 

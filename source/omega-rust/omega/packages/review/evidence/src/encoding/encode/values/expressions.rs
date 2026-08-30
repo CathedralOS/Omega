@@ -5,7 +5,8 @@ use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewByteSequencePredicate, PackageReviewCastForm,
     PackageReviewCollectionViewOperation, PackageReviewContractBinaryOperator,
-    PackageReviewContractCallTarget, PackageReviewContractExpression,
+    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
+    PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
@@ -155,6 +156,7 @@ pub(crate) fn encode_contract_expression(
             receiver,
             target,
             static_arguments,
+            evidence_arguments,
             arguments,
         } => {
             encoder.byte(11);
@@ -192,6 +194,7 @@ pub(crate) fn encode_contract_expression(
                 }
             }
             encoder.sequence(static_arguments, encode_contract_static_argument)?;
+            encoder.sequence(evidence_arguments, encode_contract_evidence_argument)?;
             encoder.sequence(arguments, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Binary {
@@ -233,6 +236,22 @@ pub(crate) fn encode_contract_expression(
             });
             encode_contract_expression(encoder, operand)?;
         }
+    }
+    Ok(())
+}
+
+fn encode_contract_evidence_argument(
+    encoder: &mut Encoder,
+    argument: &PackageReviewContractEvidenceArgument,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.u32(argument.lane_position());
+    for term in [argument.source(), argument.parameter()] {
+        encode_nominal(encoder, term.owner())?;
+        encoder.byte(match term.kind() {
+            PackageReviewContractKind::Requires => 0,
+            PackageReviewContractKind::Ensures => 1,
+        });
+        encoder.u32(term.lane_position());
     }
     Ok(())
 }

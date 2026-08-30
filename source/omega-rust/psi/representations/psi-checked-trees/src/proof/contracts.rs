@@ -176,6 +176,30 @@ pub struct ContractEvidenceArgument {
     pub lane_position: usize,
 }
 
+/// One exact erased binding on a call occurrence nested in a checked proof
+/// fact. Unlike `ContractCallFact`, this is denotational proof-expression
+/// custody and has no executable statement coordinate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractExpressionEvidenceArgumentFact {
+    pub source: Handle<CheckedEvidenceTerm>,
+    pub parameter: Handle<CheckedEvidenceTerm>,
+    pub lane_position: usize,
+    pub instantiated_proposition: crate::CheckedPropositionApplication,
+}
+
+/// Checked identity for one evidence-bearing call occurrence inside one exact
+/// proof fact. `expression` is the private occurrence join; package projection
+/// must replace every handle and symbol with stable semantic identities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractExpressionEvidenceCallFact {
+    pub owner: ContractProofFactOwner,
+    pub fact: Handle<psi_typed_trees::domain::ProofFact>,
+    pub expression: ExpressionHandle,
+    pub target_machine_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub evidence_arguments: Vec<ContractExpressionEvidenceArgumentFact>,
+}
+
 /// The exact checked source of one erased outgoing evidence assignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvidenceAssignmentSource {
