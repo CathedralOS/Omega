@@ -136,6 +136,7 @@ fn retains_public_machine_visibility_in_syntax() {
 
     assert!(machine.is_public);
     assert!(!machine.boundary);
+    assert!(!machine.is_top_level_boundary_requirement);
     assert!(
         parsed
             .snapshot_json()
@@ -2445,26 +2446,103 @@ fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
 }
 
 #[test]
-fn parses_installation_bound_reach_on_top_level_boundary_requirement() {
+fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_machine() {
     let source = r#"
-        boundary machine InterruptAcknowledgement::complete(acknowledgement: u64)
-        reaches <= MachineControl + PortIo;
+        pub boundary requirement InterruptAcknowledgement::complete<T>(acknowledgement: T) -> bool
+        reaches <= MachineControl + PortIo
+        requires acknowledgement == acknowledgement;
+        boundary requirement Task::finish(task: u64);
+        boundary machine Transitional::claim();
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("top-level boundary requirement should parse");
-    let machine = parsed
+    let parsed = parse_syntax_trees(&tokens).expect("top-level boundary requirements should parse");
+    let machines = parsed
         .root_items()
-        .find_map(|item| match item {
+        .filter_map(|item| match item {
             psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
-        .expect("boundary machine");
-    assert!(machine.boundary);
-    assert!(machine.bodyless);
-    assert!(machine.service_reach_is_installation_bound);
-    assert_eq!(machine.service_reaches.len(), 2);
+        .collect::<Vec<_>>();
+    assert_eq!(machines.len(), 3);
+
+    let requirement = machines[0];
+    assert_eq!(
+        requirement.name.as_str(),
+        "InterruptAcknowledgement::complete"
+    );
+    assert_eq!(
+        requirement
+            .attached_data
+            .as_ref()
+            .expect("qualified requirement owner")
+            .as_str(),
+        "InterruptAcknowledgement"
+    );
+    assert!(requirement.is_public);
+    assert!(requirement.is_top_level_boundary_requirement);
+    assert!(!requirement.boundary);
+    assert!(requirement.bodyless);
+    assert!(requirement.satisfies.is_empty());
+    assert_eq!(requirement.type_parameters.len(), 1);
+    assert!(requirement.service_reach_is_installation_bound);
+    assert_eq!(requirement.service_reaches.len(), 2);
+    assert_eq!(requirement.contracts.len(), 1);
+    let entry = parsed
+        .items
+        .state(parsed.items.state_handles(requirement.states)[0]);
+    assert_eq!(entry.parameters.len(), 1);
+    assert!(entry.return_type.is_valid());
+
+    let private_requirement = machines[1];
+    assert!(!private_requirement.is_public);
+    assert!(private_requirement.is_top_level_boundary_requirement);
+    assert!(!private_requirement.boundary);
+    assert!(private_requirement.bodyless);
+
+    let transitional = machines[2];
+    assert!(transitional.boundary);
+    assert!(!transitional.is_top_level_boundary_requirement);
+    assert!(transitional.bodyless);
+
+    let snapshot = parsed
+        .snapshot_json()
+        .expect("boundary requirement snapshot");
+    assert!(
+        snapshot.contains("\"is_top_level_boundary_requirement\":true"),
+        "{snapshot}"
+    );
+    assert!(snapshot.contains("\"is_public\":true"), "{snapshot}");
+    assert!(snapshot.contains("MachineControl"), "{snapshot}");
+    assert!(snapshot.contains("PortIo"), "{snapshot}");
+}
+
+#[test]
+fn rejects_invalid_explicit_top_level_boundary_requirement_forms() {
+    for (source, expected) in [
+        (
+            "boundary requirement Package::operation() {}",
+            "is bodyless and must end with `;`",
+        ),
+        (
+            "boundary requirement Package::operation() satisfies Contract::operation;",
+            "cannot itself carry a `satisfies` clause",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize invalid boundary requirement");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("invalid explicit top-level boundary requirement must reject");
+        assert!(error.message.contains(expected), "got: {}", error.message);
+    }
+
+    let tokens = Lexer::new("trait Nested { boundary requirement Package::operation(); }")
+        .tokenize()
+        .expect("tokenize nested boundary requirement");
+    parse_syntax_trees(&tokens)
+        .expect_err("an explicit boundary requirement must remain top-level");
 }
 
 #[test]

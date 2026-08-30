@@ -261,6 +261,22 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_contextual("boundary") {
         let input = input.take_contextual("boundary")?;
+        if input.at_contextual("requirement") {
+            let input = input.take_contextual("requirement")?;
+            let (mut item, rest) = parse_machine(syntax_trees, input)?;
+            if !item.satisfies.is_empty() {
+                return Err(rest.error_here(
+                    "a top-level `boundary requirement` declares a required operation and cannot itself carry a `satisfies` clause",
+                ));
+            }
+            if !item.bodyless {
+                return Err(rest.error_here(
+                    "a top-level `boundary requirement` is bodyless and must end with `;`, not a checked `{ ... }` body",
+                ));
+            }
+            item.is_top_level_boundary_requirement = true;
+            return Ok((Item::Machine(item), rest));
+        }
         if input.at_keyword(KeywordKind::Data) {
             let input = input.take_keyword(KeywordKind::Data, "data")?;
             let (item, rest) = parse_boundary_data_definition(syntax_trees, input)?;
@@ -407,6 +423,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`pub`",
         "`trait`",
         "`boundary operator`",
+        "`boundary requirement`",
         "`boundary data`",
         "`boundary trait`",
     ]))

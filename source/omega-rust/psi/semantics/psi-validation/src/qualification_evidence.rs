@@ -90,7 +90,7 @@ fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<
     for machine in program.machines().iter().filter(|machine| {
         matches!(
             machine.supply_mode,
-            MachineSupplyMode::Accepted
+            MachineSupplyMode::AdmissionClaim
                 | MachineSupplyMode::Requirement
                 | MachineSupplyMode::ExternalRealization { .. }
         )

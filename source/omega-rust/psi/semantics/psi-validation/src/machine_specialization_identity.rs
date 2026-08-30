@@ -41,13 +41,15 @@ pub fn recompute_checked_machine_specialization_commitment(
         template.supply_mode,
         &specialization.accepted_template_commitment,
     ) {
-        (MachineSupplyMode::Accepted, None) => {
+        (MachineSupplyMode::AdmissionClaim, None) => {
             return Err("accepted checked specialization lost its template commitment");
         }
-        (MachineSupplyMode::Accepted, Some(commitment)) if template.name.as_str() != commitment => {
+        (MachineSupplyMode::AdmissionClaim, Some(commitment))
+            if template.name.as_str() != commitment =>
+        {
             return Err("accepted checked specialization mismatches its template commitment");
         }
-        (MachineSupplyMode::Accepted, Some(_)) => {}
+        (MachineSupplyMode::AdmissionClaim, Some(_)) => {}
         (_, Some(_)) => {
             return Err(
                 "checked specialization attached an accepted commitment to a checked template",

@@ -14,8 +14,9 @@ pub enum PackageReviewCallableRole {
 pub enum PackageReviewCallableSupply {
     CheckedBody,
     Requirement,
+    TopLevelRequirement,
     Boundary,
-    Accepted,
+    AdmissionClaim,
     ExternalRealization,
 }
 

@@ -49,7 +49,7 @@ pub(crate) fn encode_rows_with_limits(
             review
                 .callables
                 .iter()
-                .filter(|callable| callable.supply == PackageReviewCallableSupply::Accepted)
+                .filter(|callable| callable.supply == PackageReviewCallableSupply::AdmissionClaim)
                 .count(),
         )
         .saturating_add(review.dangerous_authorities.len())
@@ -239,7 +239,7 @@ pub(crate) fn encode_rows_with_limits(
                 |encoder| encode_callable(encoder, callable),
             )?,
         )?;
-        if callable.supply == PackageReviewCallableSupply::Accepted {
+        if callable.supply == PackageReviewCallableSupply::AdmissionClaim {
             push_row(
                 &mut rows,
                 &mut total_row_bytes,

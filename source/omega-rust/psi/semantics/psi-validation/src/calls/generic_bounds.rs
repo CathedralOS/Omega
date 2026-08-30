@@ -51,8 +51,11 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
         .attached_data
         .as_ref()
         .is_some_and(|attached| attached.as_str().starts_with("PlacedField<"));
-    if callee_machine.supply_mode == psi_language_semantics::MachineSupplyMode::Boundary
-        && !compiler_placed_accessor
+    if matches!(
+        callee_machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::Boundary
+            | psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+    ) && !compiler_placed_accessor
         && !callee_machine.body_is_present
     {
         diagnostics.push(Diagnostic::error(format!(

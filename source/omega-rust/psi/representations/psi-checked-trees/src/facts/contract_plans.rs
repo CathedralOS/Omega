@@ -1752,10 +1752,11 @@ pub fn contract_identity(
         MachineSupplyMode::CheckedBody => 1,
         MachineSupplyMode::Requirement => 2,
         MachineSupplyMode::Boundary => 3,
-        MachineSupplyMode::Accepted => 4,
+        MachineSupplyMode::AdmissionClaim => 4,
         // PRV4: the leaf's supply tag; the binding identity folds separately
         // below so two leaves with different bindings differ.
         MachineSupplyMode::ExternalRealization { .. } => 5,
+        MachineSupplyMode::TopLevelRequirement => 6,
     });
     if let MachineSupplyMode::ExternalRealization { binding, mechanism } = supply_mode {
         fold(mechanism.identity_tag());
@@ -2388,6 +2389,44 @@ mod tests {
         assert_ne!(neither, suspending);
         assert_ne!(neither, blocking);
         assert_ne!(suspending, blocking);
+    }
+
+    #[test]
+    fn machine_supply_vocabulary_participates_independently_in_contract_identity() {
+        let fingerprint = |supply_mode| {
+            contract_report_fingerprint(
+                supply_mode,
+                &[],
+                SynchronousInvocationInterface::PublishedCeiling,
+                &[],
+                SuspensionInterface::PublishedMaySuspend(false),
+                BlockingInterface::PublishedMayBlock(false),
+                &CrashPlan::default(),
+                &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
+                &[],
+            )
+        };
+        let fingerprints = [
+            MachineSupplyMode::CheckedBody,
+            MachineSupplyMode::Requirement,
+            MachineSupplyMode::Boundary,
+            MachineSupplyMode::AdmissionClaim,
+            MachineSupplyMode::ExternalRealization {
+                binding: psi_language_semantics::ExternalBindingId(1),
+                mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+            },
+            MachineSupplyMode::TopLevelRequirement,
+        ]
+        .map(fingerprint);
+
+        for (index, fingerprint) in fingerprints.iter().enumerate() {
+            assert!(
+                fingerprints[..index]
+                    .iter()
+                    .all(|earlier| earlier != fingerprint),
+                "machine supply modes must have distinct contract identities"
+            );
+        }
     }
 
     #[test]

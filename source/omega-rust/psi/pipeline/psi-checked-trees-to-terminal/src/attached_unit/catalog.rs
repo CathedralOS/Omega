@@ -637,8 +637,11 @@ pub(crate) fn lower_root_service_reach(
                     .identity(),
                 ([], [machine])
                     if machine.service_reach_is_installation_bound
-                        && machine.supply_mode
-                            == psi_language_semantics::MachineSupplyMode::Boundary =>
+                        && matches!(
+                            machine.supply_mode,
+                            psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                                | psi_language_semantics::MachineSupplyMode::Boundary
+                        ) =>
                 {
                     checked
                         .typed

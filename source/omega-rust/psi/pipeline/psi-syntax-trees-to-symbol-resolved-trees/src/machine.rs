@@ -66,8 +66,10 @@ pub(crate) fn lower_machine_into(
     let termination_plan = build_termination_plan(lowerer, syntax_trees, machine, states);
 
     // STR3: the supply mode's ONE population site. Requirement gains its
-    // source when trait requirements reach this record; Accepted is the
-    // bodyless `boundary machine` proof form (CH10 GR6d); a bodyless
+    // source when trait requirements reach this record; TopLevelRequirement is
+    // populated only from the explicit `boundary requirement` marker;
+    // AdmissionClaim is the bodyless `boundary machine` proof form (CH10
+    // GR6d); a bodyless
     // NON-boundary machine with a `via` clause is PRV4's external leaf (the
     // item parser refuses every other bodyless shape). Computed before the
     // push so the interner borrow does not overlap the machines borrow.
@@ -78,8 +80,10 @@ pub(crate) fn lower_machine_into(
             .iter()
             .find_map(|clause| clause.via.as_ref())
             .map(external_binding_identity);
-        if machine.bodyless && machine.boundary {
-            // A bodyless boundary declaration is ACCEPTED only when it
+        if machine.is_top_level_boundary_requirement {
+            psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+        } else if machine.bodyless && machine.boundary {
+            // A bodyless boundary declaration is an admission claim only when it
             // actually authors a fact. Claim-free symbols such as the
             // axiomatic Real package's operations assert nothing and need no
             // grant; they remain ordinary boundary supply.
@@ -94,7 +98,7 @@ pub(crate) fn lower_machine_into(
                     ) && !contract.facts.is_empty()
                 });
             if authors_fact {
-                psi_language_semantics::MachineSupplyMode::Accepted
+                psi_language_semantics::MachineSupplyMode::AdmissionClaim
             } else {
                 psi_language_semantics::MachineSupplyMode::Boundary
             }

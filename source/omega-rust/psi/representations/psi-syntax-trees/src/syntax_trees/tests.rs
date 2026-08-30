@@ -179,6 +179,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
         is_public: false,
         target: None,
         boundary: false,
+        is_top_level_boundary_requirement: false,
         bodyless: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
@@ -233,7 +234,8 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         is_public: true,
         target: None,
         boundary: false,
-        bodyless: false,
+        is_top_level_boundary_requirement: true,
+        bodyless: true,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
@@ -262,6 +264,17 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         panic!("expected machine root item");
     };
     assert!(machine.is_public, "syntax assembly must retain visibility");
+    assert!(
+        machine.is_top_level_boundary_requirement,
+        "syntax assembly must retain the explicit top-level requirement kind"
+    );
+    assert!(matches!(
+        &assembled.snapshot().root_items[0],
+        ItemSnapshot::Machine {
+            is_top_level_boundary_requirement: true,
+            ..
+        }
+    ));
     assert_eq!(
         machine.suspends_keyword_source_spans,
         [suspends_keyword_source_span]
@@ -364,6 +377,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         is_public: false,
         target: None,
         boundary: false,
+        is_top_level_boundary_requirement: false,
         bodyless: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
@@ -492,6 +506,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         is_public: false,
         target: None,
         boundary: false,
+        is_top_level_boundary_requirement: false,
         bodyless: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),

@@ -67,8 +67,9 @@ pub(super) fn project_callable_conformances(
         }
         MachineSupplyMode::CheckedBody
         | MachineSupplyMode::Requirement
+        | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Boundary
-        | MachineSupplyMode::Accepted => None,
+        | MachineSupplyMode::AdmissionClaim => None,
     };
     let mut projected = Vec::new();
     let mut operator_realizations = Vec::new();

@@ -469,6 +469,7 @@ impl SyntaxTrees {
             is_public: machine.is_public,
             target: machine.target.clone(),
             boundary: machine.boundary,
+            is_top_level_boundary_requirement: machine.is_top_level_boundary_requirement,
             bodyless: machine.bodyless,
             lifetime_parameters: machine.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),

@@ -497,7 +497,7 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
     let mut machine = Machine {
         symbol,
         name: Identifier::generated("accepted_map"),
-        supply_mode: MachineSupplyMode::Accepted,
+        supply_mode: MachineSupplyMode::AdmissionClaim,
         ..Default::default()
     };
     program.typed.push_machine_state(

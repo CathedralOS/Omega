@@ -501,8 +501,9 @@ pub struct GenericConformanceBoundSnapshot {
 pub enum MachineSupplySnapshot {
     CheckedBody,
     Requirement,
+    TopLevelRequirement,
     Boundary,
-    Accepted,
+    AdmissionClaim,
     ExternalRealization {
         binding: u32,
         mechanism: &'static str,
@@ -1178,8 +1179,9 @@ fn machine_supply_snapshot(
     match supply {
         MachineSupplyMode::CheckedBody => MachineSupplySnapshot::CheckedBody,
         MachineSupplyMode::Requirement => MachineSupplySnapshot::Requirement,
+        MachineSupplyMode::TopLevelRequirement => MachineSupplySnapshot::TopLevelRequirement,
         MachineSupplyMode::Boundary => MachineSupplySnapshot::Boundary,
-        MachineSupplyMode::Accepted => MachineSupplySnapshot::Accepted,
+        MachineSupplyMode::AdmissionClaim => MachineSupplySnapshot::AdmissionClaim,
         MachineSupplyMode::ExternalRealization { binding, mechanism } => {
             MachineSupplySnapshot::ExternalRealization {
                 binding: binding.0,

@@ -4138,8 +4138,9 @@ fn canonical_template_contract_bytes(program: &TypedTrees, machine_index: usize)
         psi_language_semantics::MachineSupplyMode::CheckedBody => 1,
         psi_language_semantics::MachineSupplyMode::Requirement => 2,
         psi_language_semantics::MachineSupplyMode::Boundary => 3,
-        psi_language_semantics::MachineSupplyMode::Accepted => 4,
+        psi_language_semantics::MachineSupplyMode::AdmissionClaim => 4,
         psi_language_semantics::MachineSupplyMode::ExternalRealization { .. } => 5,
+        psi_language_semantics::MachineSupplyMode::TopLevelRequirement => 6,
     });
     for (index, parameter) in parameters.iter().enumerate() {
         bytes.push(match parameter.kind {
@@ -4401,7 +4402,7 @@ pub fn generic_machine_template_commitment(
 
 fn accepted_template_commitment(program: &TypedTrees, machine_index: usize) -> Option<String> {
     let machine = &program.machines()[machine_index];
-    (machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted)
+    (machine.supply_mode == psi_language_semantics::MachineSupplyMode::AdmissionClaim)
         .then(|| machine.name.as_str().to_owned())
 }
 
@@ -4504,19 +4505,19 @@ fn replay_machine_specialization_identity(
         template.supply_mode,
         &specialization.accepted_template_commitment,
     ) {
-        (psi_language_semantics::MachineSupplyMode::Accepted, None) => {
+        (psi_language_semantics::MachineSupplyMode::AdmissionClaim, None) => {
             return Err(Diagnostic::error(
                 "accepted generic specialization lost its template trust commitment",
             ));
         }
-        (psi_language_semantics::MachineSupplyMode::Accepted, Some(commitment))
+        (psi_language_semantics::MachineSupplyMode::AdmissionClaim, Some(commitment))
             if template.name.as_str() != commitment =>
         {
             return Err(Diagnostic::error(format!(
                 "accepted generic specialization records template commitment `{commitment}`, but its template identity no longer matches"
             )));
         }
-        (psi_language_semantics::MachineSupplyMode::Accepted, Some(_)) => {}
+        (psi_language_semantics::MachineSupplyMode::AdmissionClaim, Some(_)) => {}
         (mode, Some(commitment)) => {
             return Err(Diagnostic::error(format!(
                 "generic specialization records accepted template commitment `{commitment}`, but the retained template supply mode is {mode:?}"

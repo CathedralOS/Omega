@@ -52,7 +52,10 @@ fn installation_requirement_identity(
         ([(owner, requirement)], []) => trait_requirement_identity(compilation, owner, requirement),
         ([], [machine])
             if machine.service_reach_is_installation_bound
-                && machine.supply_mode == MachineSupplyMode::Boundary =>
+                && matches!(
+                    machine.supply_mode,
+                    MachineSupplyMode::TopLevelRequirement | MachineSupplyMode::Boundary
+                ) =>
         {
             let path = compilation
                 .normalized_machine_overload_identity(machine)
@@ -68,7 +71,7 @@ fn installation_requirement_identity(
             })
         }
         _ => Err(vec![Diagnostic::error(format!(
-            "package review installation reach resolves to {} trait requirements and {} boundary machines; expected exactly one",
+            "package review installation reach resolves to {} trait requirements and {} requirement machines; expected exactly one",
             trait_matches.len(),
             machine_matches.len(),
         ))]),
