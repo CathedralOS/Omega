@@ -150,6 +150,17 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        to failed when (invalid_constructor_result != 0)' \
     '        to failed when (word[2097016] != 14)' \
     '        to failed when (word[2097040] != 0)' \
+    '        to input_profile_setup' \
+    '    }' \
+    '    state input_profile_setup {' \
+    '        emit_reset()' \
+    '        let invalid_input_result = emit_gamma_read_sealed_bytes(frame_label, frame_label, frame_label, 0 - 1)' \
+    '        to input_profile_check' \
+    '    }' \
+    '    state input_profile_check {' \
+    '        to failed when (invalid_input_result != 0)' \
+    '        to failed when (word[2097016] != 15)' \
+    '        to failed when (word[2097040] != 0)' \
     '        to empty_setup' \
     '    }' \
     '    state empty_setup {' \
@@ -1300,6 +1311,163 @@ stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/
     'proc main() {' \
     '    emit_reset()' \
     '    let entry_label = new_label()' \
+    '    let read_label = new_label()' \
+    '    let read_zero_label = new_label()' \
+    '    let length_label = new_label()' \
+    '    let get_label = new_label()' \
+    '    let resource_label = new_label()' \
+    '    let internal_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let empty_label = new_label()' \
+    '    let nonempty_label = new_label()' \
+    '    let empty_pointer_ok = new_label()' \
+    '    let nonempty_pointer_ok = new_label()' \
+    '    let heap_extent_ok = new_label()' \
+    '    let byte_zero_ok = new_label()' \
+    '    let byte_one_ok = new_label()' \
+    '    let byte_two_ok = new_label()' \
+    '    let read_zero = new_label()' \
+    '    let exact_heap = new_label()' \
+    '    let adjacent_heap = new_label()' \
+    '    let misaligned_heap = new_label()' \
+    '    let after_read = new_label()' \
+    '    let resource_heap_ok = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_r(17, 30)' \
+    '    emit_imm(21, 122)' \
+    '    emit_rrx(16, 30, 21, read_zero)' \
+    '    emit_imm(21, 111)' \
+    '    emit_rrx(16, 30, 21, read_zero)' \
+    '    emit_imm(21, 104)' \
+    '    emit_rrx(16, 30, 21, exact_heap)' \
+    '    emit_imm(21, 72)' \
+    '    emit_rrx(16, 30, 21, adjacent_heap)' \
+    '    emit_imm(21, 105)' \
+    '    emit_rrx(16, 30, 21, misaligned_heap)' \
+    '    emit_jump(19, read_label)' \
+    '    emit_jump(12, after_read)' \
+    '    define_label(read_zero)' \
+    '    emit_jump(19, read_zero_label)' \
+    '    emit_jump(12, after_read)' \
+    '    define_label(exact_heap)' \
+    '    emit_imm(255, 16777312)' \
+    '    emit_jump(19, read_label)' \
+    '    emit_jump(12, after_read)' \
+    '    define_label(adjacent_heap)' \
+    '    emit_imm(255, 16777311)' \
+    '    emit_jump(19, read_label)' \
+    '    emit_jump(12, after_read)' \
+    '    define_label(misaligned_heap)' \
+    '    emit_imm(254, 16777249)' \
+    '    emit_jump(19, read_label)' \
+    '    define_label(after_read)' \
+    '    emit_rr(2, 20, 0)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_jump(19, length_label)' \
+    '    emit_imm(21, 0)' \
+    '    emit_rrx(16, 0, 21, empty_label)' \
+    '    emit_imm(21, 3)' \
+    '    emit_rrx(16, 0, 21, nonempty_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(empty_label)' \
+    '    emit_imm(21, 16777216)' \
+    '    emit_rrx(16, 20, 21, empty_pointer_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(empty_pointer_ok)' \
+    '    emit_imm(21, 16777248)' \
+    '    emit_rrx(16, 254, 21, byte_two_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(nonempty_label)' \
+    '    emit_imm(21, 16777248)' \
+    '    emit_rrx(16, 20, 21, nonempty_pointer_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(nonempty_pointer_ok)' \
+    '    emit_imm(21, 16777312)' \
+    '    emit_rrx(16, 254, 21, heap_extent_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(heap_extent_ok)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(21, 0)' \
+    '    emit_rrx(16, 0, 21, byte_zero_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(byte_zero_ok)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(21, 255)' \
+    '    emit_rrx(16, 0, 21, byte_one_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(byte_one_ok)' \
+    '    emit_rr(2, 2, 20)' \
+    '    emit_imm(3, 2)' \
+    '    emit_jump(19, get_label)' \
+    '    emit_imm(21, 65)' \
+    '    emit_rrx(16, 0, 21, byte_two_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(byte_two_ok)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(resource_label)' \
+    '    emit_imm(21, 16777248)' \
+    '    emit_rrx(16, 254, 21, resource_heap_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(resource_heap_ok)' \
+    '    emit_imm(22, 16777248)' \
+    '    emit_rr(10, 22, 22)' \
+    '    emit_rx(14, 22, unexpected_label)' \
+    '    emit_imm(0, 6)' \
+    '    emit_r(0, 0)' \
+    '    define_label(internal_label)' \
+    '    emit_imm(0, 4)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_gamma_read_sealed_bytes(read_label, resource_label, internal_label, 3)' \
+    '    emit_gamma_read_sealed_bytes(read_zero_label, resource_label, internal_label, 0)' \
+    '    emit_bytes_length(length_label, internal_label)' \
+    '    emit_bytes_get(get_label, unexpected_label, internal_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/sealed-input-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + sealed input probe) failed"
+  exit 1
+}
+stamp_seed "$T/sealed-input-emitter.tape" "$SEED" "$T/sealed-input-emitter.exe" >/dev/null 2>&1
+"$T/sealed-input-emitter.exe" > "$T/sealed-input-probe.tape"
+sealed_input_emitter_status=$?
+if [ "$sealed_input_emitter_status" != 1 ] || [ ! -s "$T/sealed-input-probe.tape" ]; then
+  echo "Gamma sealed input probe emission failed: status $sealed_input_emitter_status" >&2
+  exit 1
+fi
+"$T/sealed-input-emitter.exe" > "$T/sealed-input-probe-repeat.tape"
+sealed_input_repeat_status=$?
+stamp_seed "$T/sealed-input-probe.tape" "$SEED" "$T/sealed-input-probe.exe" >/dev/null 2>&1
+
+{
+  runtime_emitter_source
+  printf '%s\n' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
     '    let add_label = new_label()' \
     '    let sub_label = new_label()' \
     '    let mul_label = new_label()' \
@@ -1645,6 +1813,38 @@ for bytes_invalid_mode in a b c d e f g h i j k l m; do
     echo "  FAIL Bytes failure class $bytes_invalid_mode: status $bytes_invalid_status, output $(wc -c < "$T/bytes-invalid-$bytes_invalid_mode.out" | tr -d ' ') bytes"
   fi
 done
+for sealed_input_mode in e b x z o h H i; do
+  case "$sealed_input_mode" in
+    e) printf 'e' ;;
+    b) printf 'b\000\377A' ;;
+    x) printf 'x\000\377AB' ;;
+    z) printf 'z' ;;
+    o) printf 'oA' ;;
+    h) printf 'h\000\377A' ;;
+    H) printf 'H\000\377A' ;;
+    i) printf 'i' ;;
+  esac | "$T/sealed-input-probe.exe" > "$T/sealed-input-$sealed_input_mode.out"
+  sealed_input_status=$?
+  case "$sealed_input_mode" in
+    e|b|z|h) sealed_input_expected=7 ;;
+    x|o|H) sealed_input_expected=6 ;;
+    i) sealed_input_expected=4 ;;
+  esac
+  if [ "$sealed_input_status" = "$sealed_input_expected" ] &&
+     [ ! -s "$T/sealed-input-$sealed_input_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL Gamma sealed input $sealed_input_mode: status $sealed_input_status, output $(wc -c < "$T/sealed-input-$sealed_input_mode.out" | tr -d ' ') bytes"
+  fi
+done
+if [ "$sealed_input_repeat_status" = 1 ] &&
+   cmp -s "$T/sealed-input-probe.tape" "$T/sealed-input-probe-repeat.tape"; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL Gamma sealed input deterministic reconstruction: status $sealed_input_repeat_status"
+fi
 "$T/emitter.exe" > "$T/emitter.out"
 emitter_status=$?
 if [ "$emitter_status" = 1 ] && [ ! -s "$T/emitter.out" ]; then

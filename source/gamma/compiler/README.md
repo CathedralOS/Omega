@@ -15,12 +15,13 @@ runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup failures, executes six generated runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases, compares
 two repeated payloads byte-identically, and executes 14 compact-`Bytes`, two
-arbitrary-arity/frame-ABI, and three algebraic-value ABI paths. It publishes no
+arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
+runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 98 procedures. With the fixed frontend
-gate entry, the compiled gate uses 99 of Beta's 128 procedure slots and compiles
-to 225,027 bytes. The remaining 37,113 bytes under
+The retained compiler source declares 99 procedures. With the fixed frontend
+gate entry, the compiled gate uses 100 of Beta's 128 procedure slots and
+compiles to 233,800 bytes. The remaining 28,340 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -155,6 +156,15 @@ kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
 addition; slicing validates the complete signed range; indexed access descends
 iteratively. An application adapter preflights an entire returned rope and
 output extent before replaying it to stdout, preventing partial artifacts.
+
+The dormant sealed-input reader is reusable emitted runtime machinery, not an
+application adapter or a profile choice. It accepts a compiler-supplied maximum,
+reads stdin exactly once into a flat `LEAF`, and atomically commits its aligned
+descriptor and heap cursor only after EOF and full extent validation. Its seven
+ordinary runtime paths plus one malformed-private-heap path pin empty and
+binary input, exact and adjacent source/heap limits, zero capacity, internal
+containment, no output, and byte-identical reconstruction. Q2 still owns the
+profile maximum, selected entry, result validation, and wire publication.
 
 The direct emitter owns byte/word append, label definition, and
 `{payload_offset,label_id}` fixup rows. Branch and call targets remain private
