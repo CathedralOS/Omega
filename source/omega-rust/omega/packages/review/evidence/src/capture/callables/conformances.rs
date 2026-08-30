@@ -1,11 +1,14 @@
 use super::super::api::operators::project_operator_coordinate;
-use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
+use super::super::semantics::declarations::{
+    nominal_identity, top_level_requirement_identity, trait_requirement_identity,
+};
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::boundary_operators::{
     validate_fixed_token_checked_adapter_dispatch_shape,
     validate_selected_boundary_operator_checked_adapter,
     validate_selected_boundary_operator_external_supply,
 };
+use super::boundary_requirements::validate_selected_top_level_requirement_external_supply;
 use super::external_supply::{
     project_external_binding, project_external_executable_supply_with_source,
     validate_external_binding_payload,
@@ -127,6 +130,81 @@ pub(super) fn project_callable_conformances(
                     machine.name
                 ))]);
             };
+            if let Some(psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                requirement,
+            )) = psi_typed_trees::machine::resolve_satisfied_declaration(
+                &compilation.typed,
+                machine,
+                conformance,
+            ) {
+                if conformance.symbol != requirement.symbol
+                    || conformance.requirement_symbol != requirement.symbol
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` top-level requirement realization `{}` drifted from its retained exact overload",
+                        machine.name, requirement_name
+                    ))]);
+                }
+                if !requirement.is_public {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes non-public top-level requirement `{}` whose complete contract is absent from package review",
+                        machine.name, requirement.name
+                    ))]);
+                }
+                if expected_external.is_none() || conformance.external_binding.is_none() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes top-level requirement `{}` without external executable supply not yet represented by package review",
+                        machine.name, requirement.name
+                    ))]);
+                }
+                if !compilation
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments)
+                    .is_empty()
+                    || !requirement.lifetime_parameters.is_empty()
+                    || !compilation.machine_type_parameters(requirement).is_empty()
+                    || !machine.lifetime_parameters.is_empty()
+                    || !machine.type_parameters.is_empty()
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes generic or lifetime-parameterized top-level requirement `{}` through external supply not yet represented by package review",
+                        machine.name, requirement.name
+                    ))]);
+                }
+                if conformance.alias.is_some() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes top-level requirement `{}` through an alias not yet represented by package review",
+                        machine.name, requirement.name
+                    ))]);
+                }
+                let Some((_, binding)) = expected_external.as_ref() else {
+                    unreachable!("external supply was checked above")
+                };
+                if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes top-level requirement `{}` through a compiler intrinsic whose closed execution is not yet represented by package review",
+                        machine.name, requirement.name
+                    ))]);
+                }
+                validate_selected_top_level_requirement_external_supply(
+                    compilation,
+                    machine,
+                    requirement,
+                    binding,
+                )?;
+                external_executable_supply.push(project_external_executable_supply_with_source(
+                    machine,
+                    conformance,
+                    PackageReviewExternalExecutableSupply {
+                        callable: callable_identity.clone(),
+                        requirement: PackageReviewExternalRequirement::TopLevelRequirement(
+                            top_level_requirement_identity(compilation, requirement)?,
+                        ),
+                        binding: binding.clone(),
+                    },
+                )?);
+                continue;
+            }
             if !compilation
                 .type_reference_table
                 .type_reference_handles(conformance.arguments)

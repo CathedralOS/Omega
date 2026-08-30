@@ -816,8 +816,12 @@ Remaining:
   external satisfiers now derive selectable provider candidates from their
   exact typed requirement edge and binding. Candidate validation and selected
   provenance replay reject binding, realization-symbol, or requirement-symbol
-  substitution. Remaining work is package-review and executable extraction of
-  those external rows, selected invocation replay of the installed execution
+  substitution. Package review now emits a distinct opaque-blocking external-
+  supply row keyed by the exact normalized top-level requirement overload and
+  independently replays selected requirement, realization, provider-type, and
+  binding identity; canonical review v95/row v53 and recovery canaries retain
+  that association. Remaining work is executable extraction of those external
+  rows, selected invocation replay of the installed execution
   and era, exact generic-provider coverage, compiler-intrinsic catalog
   settlement, and final removal of the transitional undifferentiated
   bodyless-machine cases.

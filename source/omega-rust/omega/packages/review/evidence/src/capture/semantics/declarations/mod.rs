@@ -10,6 +10,6 @@ pub(crate) use ownership::{
     toolchain_source_identity,
 };
 pub(crate) use requirements::{
-    provider_requirement_identity, trait_requirement_identity,
+    provider_requirement_identity, top_level_requirement_identity, trait_requirement_identity,
     trait_requirement_identity_from_symbols,
 };

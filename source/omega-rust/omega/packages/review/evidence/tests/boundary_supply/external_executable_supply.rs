@@ -1,6 +1,95 @@
 use crate::support::*;
 
 #[test]
+fn review_projects_external_top_level_requirement_supply_with_exact_overload_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data InterruptAcknowledgement [copy] { token: u64; }
+pub data LinuxCompletion {}
+
+pub boundary requirement InterruptAcknowledgement::complete(self);
+
+pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
+    satisfies InterruptAcknowledgement::complete
+    via Binding::Syscall(60);
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("external top-level requirement fixture should check and select");
+    let review = project_checked_package_review(&checked)
+        .expect("external top-level requirement supply should project exactly");
+
+    let [supply] = review.external_executable_supply() else {
+        panic!("one exact external executable-supply row")
+    };
+    assert_eq!(supply.callable().path(), "LinuxCompletion::complete");
+    assert_eq!(
+        supply.binding(),
+        &PackageReviewExternalBinding::Syscall { number: 60 }
+    );
+    assert_eq!(supply.conformance(), None);
+    assert_eq!(supply.operator(), None);
+    let requirement = supply
+        .top_level_requirement()
+        .expect("top-level requirement classification");
+    let selected = review
+        .selected_providers()
+        .iter()
+        .find(|provider| {
+            provider
+                .row_declarations()
+                .iter()
+                .any(|row| row.realization() == supply.callable())
+        })
+        .expect("selected external top-level provider");
+    let [selected_row] = selected.row_declarations() else {
+        panic!("one selected top-level requirement row")
+    };
+    assert_eq!(selected_row.requirement(), requirement);
+    assert!(matches!(
+        supply.requirement(),
+        PackageReviewExternalRequirement::TopLevelRequirement(identity)
+            if identity == requirement
+    ));
+
+    let rows = review
+        .canonical_rows()
+        .expect("canonical external top-level supply rows");
+    let supply_row = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
+        .expect("canonical external executable-supply row");
+    assert_eq!(
+        supply_row.risk(),
+        PackageReviewCanonicalRowRisk::OpaqueBlocking
+    );
+    let encoded = encode_package_review_canonical_row(supply_row)
+        .expect("external top-level supply recovery envelope should encode");
+    let decoded = decode_package_review_canonical_row(&encoded)
+        .expect("external top-level supply recovery envelope should decode");
+    assert_eq!(decoded.key_bytes(), supply_row.key_bytes());
+    assert_eq!(decoded.canonical_bytes(), supply_row.canonical_bytes());
+}
+
+#[test]
 fn review_projects_every_external_executable_supply_mechanism_as_opaque_blocking() {
     let Some(target) = host_target_name() else {
         return;

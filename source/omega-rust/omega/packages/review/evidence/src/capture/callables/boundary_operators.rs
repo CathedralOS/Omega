@@ -1,3 +1,4 @@
+use super::external_supply::external_binding_matches_provider_binding;
 use crate::record::PackageReviewExternalBinding;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
@@ -193,61 +194,10 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
             plan.name,
         ))]);
     };
-    let expected_machine_identity = compilation
-        .normalized_machine_overload_identity(machine)
-        .map(|identity| identity.identity())
-        .unwrap_or_default();
     let expected_package = compilation
         .typed
         .symbols
         .symbol_package_identity(machine.symbol);
-    let expected_table = machine
-        .attached_data
-        .as_ref()
-        .map(|name| name.as_str())
-        .unwrap_or_default();
-    let binding_matches = match (binding, &row.binding) {
-        (
-            PackageReviewExternalBinding::Import { library, symbol },
-            omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
-                library: selected_library,
-                symbol: selected_symbol,
-            },
-        ) => library == selected_library && symbol == selected_symbol,
-        (
-            PackageReviewExternalBinding::Syscall { number },
-            omega_effects::provider_plan::ProviderBinding::Syscall {
-                number: selected_number,
-            },
-        ) => number == selected_number,
-        (
-            PackageReviewExternalBinding::CompilerIntrinsic,
-            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                machine: selected_machine,
-            },
-        ) => selected_machine == &expected_machine_identity,
-        (
-            PackageReviewExternalBinding::VtableSlot { index },
-            omega_effects::provider_plan::ProviderBinding::VtableSlot {
-                index: selected_index,
-            },
-        ) => index == selected_index,
-        (
-            PackageReviewExternalBinding::VtableField { field },
-            omega_effects::provider_plan::ProviderBinding::VtableField {
-                table,
-                field: selected_field,
-            },
-        ) => table == expected_table && field == selected_field,
-        (
-            PackageReviewExternalBinding::TableFunction { field },
-            omega_effects::provider_plan::ProviderBinding::TableFunction {
-                table,
-                field: selected_field,
-            },
-        ) => table == expected_table && field == selected_field,
-        _ => false,
-    };
     if retained.plan != **plan
         || *requirement_symbol != operator.symbol
         || *realization_symbol != machine.symbol
@@ -255,7 +205,7 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
         || method.requirement_owner != slot
         || method.requirement_identity != slot
         || row.requirement_identity != slot
-        || !binding_matches
+        || !external_binding_matches_provider_binding(compilation, machine, binding, &row.binding)
     {
         return Err(vec![Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to external leaf `{}` and its binding",

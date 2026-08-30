@@ -89,18 +89,7 @@ pub(crate) fn provider_requirement_identity(
                     matches.len(),
                 ))]);
             };
-            let path = compilation
-                .normalized_machine_overload_identity(requirement)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected provider row top-level requirement has no normalized overload identity",
-                    )]
-                })?
-                .identity();
-            Ok(PackageReviewNominalIdentity {
-                owner: nominal_owner(compilation, requirement.symbol)?,
-                path,
-            })
+            top_level_requirement_identity(compilation, requirement)
         }
         omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
@@ -128,4 +117,29 @@ pub(crate) fn provider_requirement_identity(
             })
         }
     }
+}
+
+pub(crate) fn top_level_requirement_identity(
+    compilation: &CheckedCompilation,
+    requirement: &psi_typed_trees::machine::Machine,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    if requirement.supply_mode != psi_language_semantics::MachineSupplyMode::TopLevelRequirement {
+        return Err(vec![Diagnostic::error(format!(
+            "package review declaration `{}` is not a top-level boundary requirement",
+            requirement.name
+        ))]);
+    }
+    let path = compilation
+        .normalized_machine_overload_identity(requirement)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "top-level requirement `{}` has no normalized overload identity",
+                requirement.name
+            ))]
+        })?
+        .identity();
+    Ok(PackageReviewNominalIdentity {
+        owner: nominal_owner(compilation, requirement.symbol)?,
+        path,
+    })
 }

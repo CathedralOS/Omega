@@ -648,7 +648,8 @@ v75/row v33, recovery v13, conflict fingerprint v16, and renderer V15 bind the
 current source schema. External executable leaves retain the exact authored
 `via` keyword on the same conformance as the normalized binding identity.
 Projection requires binding/span parity and carries that occurrence under
-`external_binding` for public and private trait or operator supply. Semantic
+`external_binding` for public and private trait, operator, or top-level
+requirement supply. Semantic
 row bytes remain unchanged; missing, source-free, or contradictory custody
 rejects. Public const declarations additionally retain the exact parsed
 initializer-expression span through symbol resolution and typed lowering,
@@ -941,6 +942,14 @@ Changing the declaration value changes review identity. Private declarations,
 missing or malformed canonical values, non-integer consts, and selection drift
 reject. Source names and diagnostic displays are not value identity; recovery
 remains v14.
+Review v95 and canonical row v53 extend opaque external executable-supply keys
+with a third exact requirement tag for public top-level boundary requirements.
+Supported leaves are bodyless, nongeneric, lifetime-free, and payload-bearing.
+Projection retains the normalized requirement-overload identity and
+independently rejoins exact satisfies symbols, binding, provider type, selected
+plan when present, and realization declaration. Unselected disclosure still
+implies neither selection nor audit. Compiler-intrinsic execution remains
+fenced pending closed catalog settlement; recovery remains v14.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings
@@ -1858,8 +1867,9 @@ as a weaker “complete enough” bit or mistaken for a Terminal-verified claim.
 Every package-owned bodyless external realization, including a private
 implementation leaf, is consequently one separate blocking
 executable-supply trust row. It binds the exact package-qualified callable and
-tagged requirement application—trait conformance or operator overload
-coordinate—to a closed compiler-owned mechanism identity: import library and
+tagged requirement application—trait conformance, operator overload
+coordinate, or top-level boundary-requirement overload—to a closed compiler-
+owned mechanism identity: import library and
 symbol, syscall number, compiler intrinsic, vtable slot, vtable field, or table-
 function field. The projector cross-checks machine supply mode, satisfies
 binding, and the external-binding table. Missing, duplicate,

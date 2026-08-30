@@ -2227,7 +2227,8 @@ Review v75/row v33, recovery v13, conflict fingerprint v16, and renderer V15 bin
 the current source schema. External executable leaves retain the exact authored
 `via` keyword beside the normalized binding identity on the same conformance.
 Projection requires binding/span parity and carries that occurrence under
-`external_binding` for public and private trait or operator supply. Semantic
+`external_binding` for public and private trait, operator, or top-level
+requirement supply. Semantic
 row bytes remain unchanged; missing, source-free, or contradictory custody
 rejects. Public const declarations additionally retain the exact parsed
 initializer-expression span through symbol resolution and typed lowering,
@@ -2393,10 +2394,11 @@ Every package-owned bodyless external realization, including a private
 implementation leaf, therefore projects as a separate blocking
 executable-supply trust row, not as callable API, reach, boundary
 representation, accepted proof, or Terminal evidence. The row binds the exact
-package-qualified callable and tagged requirement application—trait conformance
-or operator overload coordinate—to one closed mechanism: import library and
-symbol, syscall number, compiler intrinsic, vtable slot, vtable field, or table-
-function field. Projection cross-checks the machine supply mode, satisfies
+package-qualified callable and tagged requirement application—trait
+conformance, operator overload coordinate, or top-level boundary-requirement
+overload—to one closed mechanism: import library and symbol, syscall number,
+compiler intrinsic, vtable slot, vtable field, or table-function field.
+Projection cross-checks the machine supply mode, satisfies
 binding, and external-binding table and rejects
 missing, duplicate, mismatched, or unsupported state. It makes no claim that
 the supplied executable was audited or that its implementation satisfies the
@@ -2513,6 +2515,16 @@ canonical integer value into the existing const-argument row. A changed value
 changes review identity; private declarations, missing or malformed canonical
 values, non-integer consts, and selection drift reject. Source names and
 diagnostic displays are not value identity, and recovery remains v14.
+
+Package review v95/canonical row v53 extends the opaque external executable-
+supply key with a third exact requirement tag for public top-level boundary
+requirements. A supported leaf is bodyless, nongeneric, lifetime-free, and
+payload-bearing. Projection retains the normalized requirement-overload
+identity and independently rejoins the exact satisfies symbols, binding,
+provider type, selected plan when present, and realization declaration.
+Disclosure of an unselected leaf still implies no selection or audit.
+Compiler-intrinsic execution remains closed pending catalog settlement, and
+canonical recovery remains v14.
 
 The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a

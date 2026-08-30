@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 94 and row schema version 52. This file
+The canonical review schema is version 95 and row schema version 53. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -129,3 +129,14 @@ checked adapter. External, aliased, bodyless, generic, and lifetime-bearing
 neighbors remain outside this admission slice. This acceptance-boundary
 expansion is schema v94 / row v52 and introduces no new canonical row atom or
 recovery-grammar revision.
+
+External executable-supply rows may also bind a bodyless, nongeneric,
+lifetime-free external realization to one exact public top-level boundary
+requirement. The tagged requirement identity is the requirement's normalized
+machine-overload identity, not its source spelling. Projection rejoins the
+typed satisfies edge, structural binding, provider type, selected plan when
+present, exact requirement and realization declarations, and authored `via`
+custody. Unselected leaves remain disclosed without implying selection;
+compiler-intrinsic execution remains fenced pending its closed catalog. The
+new requirement tag is schema v95 / row v53; canonical-row recovery remains
+v14.
