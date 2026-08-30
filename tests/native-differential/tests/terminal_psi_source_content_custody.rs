@@ -37,7 +37,7 @@ fn source_canary() -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/psi/content_custody_exit/main.omg")
+        .join("tests/omega/pass/terminal_psi/content_custody_exit/main.omg")
 }
 
 #[test]
@@ -140,7 +140,8 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
         realization: BoundaryRealization::DirectPortReadU8(DirectPortReadU8Realization {
             service: *service,
             port: 0x60,
-        }),
+        })
+        .into(),
     };
     let mut unbound_linear_input = abstract_plan.clone();
     let AbstractOperation::BoundaryCall {
@@ -159,7 +160,7 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
         lower_to_target_operations_with_provider_executions(
             &unbound_linear_input,
             omega_target::NativeTarget::linux_x64(),
-            &[settlement],
+            &[settlement.clone()],
         ),
         Err(
             omega_abstract_operations_to_target_operations::LoweringError::UnsupportedOperationInScalarFunction(_)

@@ -16,7 +16,10 @@ mod selected_form_encoding;
 mod semantic_unit_wrapper_encoding;
 mod xor_zero_i64_materialization;
 
-pub use fma::{encode_vfmadd132sd, encode_vfmadd132ss};
+pub use fma::{
+    DecodedScalarFmaFormat, DecodedVfmadd132Scalar, decode_vfmadd132_scalar, encode_vfmadd132sd,
+    encode_vfmadd132ss,
+};
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog,

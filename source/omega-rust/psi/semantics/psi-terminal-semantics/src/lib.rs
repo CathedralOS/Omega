@@ -251,6 +251,13 @@ pub enum OperationSemanticError {
         declared: IntegerType,
         actual: ScalarType,
     },
+    ExactCastRequiresFixedSourceInteger(IntegerType),
+    ExactCastRequiresFixedTargetInteger(IntegerType),
+    ExactCastOperandTypeMismatch {
+        declared: IntegerType,
+        actual: ScalarType,
+    },
+    ExactCastRequiresValueOrLiteralOperand,
     InvalidProposition(PropositionError),
 }
 

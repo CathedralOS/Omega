@@ -5,12 +5,17 @@
 //! encodings shared by neighboring scalar replay. It does not construct stack
 //! demand or emit executable images.
 
-use omega_machine_code::{StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence};
+use omega_machine_code::{
+    ForeignCallRelocation, StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
+};
 use omega_target::Architecture;
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 
-use super::{ObjectError, ObjectUnitCallStack, ObjectUnitStack, validate_internal_call_site};
+use super::{
+    ObjectError, ObjectUnitCallStack, ObjectUnitStack, validate_foreign_call_site,
+    validate_internal_call_site,
+};
 
 pub(super) fn validate_unit_function_stack(
     architecture: Architecture,
@@ -174,6 +179,73 @@ pub(super) fn validate_unit_call_stack(
     })
 }
 
+pub(super) fn validate_foreign_unit_call_stack(
+    architecture: Architecture,
+    caller: MachineId,
+    bytes: &[u8],
+    relocation: &ForeignCallRelocation,
+    function_evidence: UnitStackEvidence,
+    function: ObjectUnitStack,
+) -> Result<u32, ObjectError> {
+    validate_foreign_call_site(architecture, caller, bytes, relocation)?;
+    let owner = relocation.owner;
+    let outbound_bytes = match relocation.unit_stack.outbound {
+        Some(outbound) => {
+            validate_stack_adjustment_pair(architecture, caller, Some(owner), bytes, outbound)?;
+            outbound.byte_size
+        }
+        None => 0,
+    };
+    let (call_start, call_end, linkage_bytes) = match architecture {
+        Architecture::X86_64 => (
+            relocation.offset.saturating_sub(1),
+            relocation.offset.saturating_add(4),
+            8,
+        ),
+        Architecture::Aarch64 => (relocation.offset, relocation.offset.saturating_add(4), 0),
+    };
+    if architecture == Architecture::X86_64 && relocation.unit_stack.outbound.is_none() {
+        return Err(ObjectError::MissingX86UnitCallStackAdjustment { caller, owner });
+    }
+    if let Some(outbound) = relocation.unit_stack.outbound {
+        let allocation_end = outbound
+            .allocation_offset
+            .checked_add(outbound.allocation_byte_count)
+            .ok_or(ObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
+        let frame_release = function_evidence.frame.map(|frame| frame.release_offset);
+        if allocation_end > call_start
+            || outbound.release_offset != call_end
+            || frame_release.is_some_and(|release| {
+                outbound
+                    .release_offset
+                    .checked_add(outbound.release_byte_count)
+                    .is_none_or(|end| end > release)
+            })
+        {
+            return Err(ObjectError::InvalidUnitStackEncoding {
+                machine: caller,
+                owner: Some(owner),
+                offset: outbound.allocation_offset,
+            });
+        }
+    }
+    let transient_bytes = outbound_bytes
+        .checked_add(linkage_bytes)
+        .ok_or(ObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
+    let caller_live_bytes = function
+        .frame_bytes
+        .checked_add(transient_bytes)
+        .ok_or(ObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
+    if !caller_live_bytes.is_multiple_of(function.stack_alignment) {
+        return Err(ObjectError::MisalignedUnitCalleeEntry {
+            caller,
+            owner,
+            caller_live_bytes,
+        });
+    }
+    Ok(caller_live_bytes)
+}
+
 pub(super) fn validate_stack_adjustment_pair(
     architecture: Architecture,
     machine: MachineId,
@@ -235,6 +307,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
     bytes: &[u8],
     function: UnitStackEvidence,
     calls: &[omega_machine_code::InternalCallRelocation],
+    foreign_calls: &[ForeignCallRelocation],
     inline_data: &[std::ops::Range<usize>],
 ) -> Result<(), ObjectError> {
     let mut claimed = std::collections::BTreeMap::new();
@@ -256,6 +329,13 @@ pub(super) fn validate_complete_unit_stack_evidence(
             return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
         }
     }
+    for call in foreign_calls {
+        if let Some(outbound) = call.unit_stack.outbound
+            && !claim_pair(outbound)
+        {
+            return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
+        }
+    }
 
     match architecture {
         Architecture::X86_64 => {
@@ -263,6 +343,11 @@ pub(super) fn validate_complete_unit_stack_evidence(
             let call_starts = calls
                 .iter()
                 .map(|call| call.offset.saturating_sub(1))
+                .chain(
+                    foreign_calls
+                        .iter()
+                        .map(|call| call.offset.saturating_sub(1)),
+                )
                 .collect::<std::collections::BTreeSet<_>>();
             for code in code_ranges(bytes.len(), inline_data) {
                 let mut decoder = iced_x86::Decoder::with_ip(

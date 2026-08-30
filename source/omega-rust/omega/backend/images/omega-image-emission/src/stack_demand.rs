@@ -32,6 +32,30 @@ pub fn derive_stack_demand(
     if !functions.contains_key(&entry) {
         return Err(ObjectError::EntryFunctionMissing(entry));
     }
+    // Object construction has already replayed these complete, exact native
+    // bodies. A nonreturning `exit_group` leaf has no return frame to encode,
+    // but still contributes an exact zero bytes rather than an unknown stack.
+    let stackless_nonreturning = functions
+        .values()
+        .filter(|function| function.unit_stack.is_none() && function.scalar_stack.is_none())
+        .filter(|function| {
+            let mut matching = artifact
+                .boundary_settlements
+                .iter()
+                .filter(|row| row.machine == function.machine);
+            let Some(row) = matching.next() else {
+                return false;
+            };
+            matching.next().is_none()
+                && matches!(
+                    row.settlement.realization,
+                    omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+                )
+                && row.settlement.code_offset == 0
+                && row.settlement.byte_count == function.byte_count
+        })
+        .map(|function| function.machine)
+        .collect::<std::collections::BTreeSet<_>>();
     let mut active = std::collections::BTreeSet::new();
     let mut memoized = std::collections::BTreeMap::new();
     let mut contributing_machines = std::collections::BTreeSet::new();
@@ -41,6 +65,7 @@ pub fn derive_stack_demand(
         &mut active,
         &mut memoized,
         &mut contributing_machines,
+        &stackless_nonreturning,
     )?;
     Ok(StackDemand {
         psi: artifact.psi,
@@ -58,6 +83,7 @@ fn derive_terminal_stack_peak(
     active: &mut std::collections::BTreeSet<MachineId>,
     memoized: &mut std::collections::BTreeMap<MachineId, u64>,
     contributing_machines: &mut std::collections::BTreeSet<MachineId>,
+    stackless_nonreturning: &std::collections::BTreeSet<MachineId>,
 ) -> Result<u64, ObjectError> {
     if let Some(peak) = memoized.get(&machine) {
         contributing_machines.insert(machine);
@@ -81,6 +107,7 @@ fn derive_terminal_stack_peak(
         }
         (Some(stack), None) => u64::from(stack.local_peak_bytes),
         (None, Some(stack)) => u64::from(stack.local_peak_bytes),
+        (None, None) if stackless_nonreturning.contains(&machine) => 0,
         (None, None) => return Err(ObjectError::UnaccountedTerminalStack(machine)),
     };
     for call in &function.unit_call_stacks {
@@ -90,6 +117,7 @@ fn derive_terminal_stack_peak(
             active,
             memoized,
             contributing_machines,
+            stackless_nonreturning,
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
         let composed = caller_live.checked_add(callee_peak).ok_or(
@@ -107,6 +135,7 @@ fn derive_terminal_stack_peak(
             active,
             memoized,
             contributing_machines,
+            stackless_nonreturning,
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
         let composed = caller_live.checked_add(callee_peak).ok_or(

@@ -18,6 +18,7 @@ omega-installation-evidence = { path = "../omega-installation-evidence" }
 omega-abstract-operations = { path = "../omega-abstract-operations" }
 omega-selected-instructions = { path = "../omega-selected-instructions" }
 omega-target-operations = { path = "../omega-target-operations" }
+omega-task-plans = { path = "../omega-task-plans" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 sha2 = "0.10.9"

@@ -6,23 +6,31 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId};
+#[cfg(test)]
+use psi_core::IntegerSign;
+use psi_core::{IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId};
 
+#[cfg(test)]
 use super::super::integer_affine::{
     exact_integer_affine_target_interval_obligation,
     exact_integer_signed_affine_interval_obligation, exact_integer_signed_affine_replay,
 };
 use super::super::integer_shift::exact_integer_shifted_interval_obligation;
 use super::super::{
-    ExactIntegerAffineOperation, ExactIntegerDivideRemainderTransfer, ExactIntegerOffsetOperation,
-    IntegerOffset, checked_integer_ceil_division, checked_integer_floor_division,
-    checked_signed_integer_product, exact_integer_carrier_total_hull_obligation,
-    exact_integer_source_interval_obligation, fixed_integer_type_interval, fixed_integer_value,
-    integer_type_span, integer_value_as_i128, landed_integer_constant_value,
-    nonnegative_integer_factor, signed_negative_magnitude,
+    ExactIntegerAffineOperation, ExactIntegerDivideRemainderTransfer, IntegerOffset,
+    checked_integer_ceil_division, checked_integer_floor_division,
+    exact_integer_carrier_total_hull_obligation, exact_integer_source_interval_obligation,
+    fixed_integer_type_interval, fixed_integer_value, integer_type_span, integer_value_as_i128,
+    landed_integer_constant_value, nonnegative_integer_factor,
+};
+#[cfg(test)]
+use super::super::{
+    ExactIntegerOffsetOperation, checked_signed_integer_product, signed_negative_magnitude,
 };
 
-use super::chains::{exact_integer_affine_preimage_interval, partial_fixed_native_integer_cast};
+use super::chains::exact_integer_affine_preimage_interval;
+#[cfg(test)]
+use super::chains::partial_fixed_native_integer_cast;
 
 pub(in crate::verification) fn exact_integer_divide_remainder_cast_affine_obligation(
     target_type: psi_core::IntegerType,
@@ -272,7 +280,8 @@ pub(in crate::verification) fn exact_integer_divide_remainder_then_affine_obliga
     exact_integer_carrier_total_hull_obligation(hull, interval)
 }
 
-pub(super) fn exact_integer_divide_remainder_chain_cast_obligation(
+#[cfg(test)]
+pub(in crate::verification) fn exact_integer_divide_remainder_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
     mut value: ScalarTerm,
@@ -463,7 +472,8 @@ fn exact_integer_divide_remainder_interval_transfer(
     }
 }
 
-pub(super) fn exact_integer_multiply_chain_cast_obligation(
+#[cfg(test)]
+pub(in crate::verification) fn exact_integer_multiply_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
     mut variable: ScalarTerm,
@@ -542,6 +552,7 @@ pub(super) fn exact_integer_multiply_chain_cast_obligation(
     ))
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_signed_affine_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -584,6 +595,7 @@ pub(in crate::verification) fn exact_integer_signed_affine_chain_cast_obligation
     )
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_signed_multiply_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -695,6 +707,7 @@ pub(in crate::verification) fn exact_integer_signed_product_interval_obligation(
     ))
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_affine_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -830,6 +843,7 @@ pub(in crate::verification) fn exact_integer_affine_chain_cast_obligation(
     ))
 }
 
+#[cfg(test)]
 fn exact_integer_product_cast_interval_obligation(
     root_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -869,7 +883,8 @@ fn exact_integer_product_cast_interval_obligation(
     exact_integer_source_interval_obligation(root_type, root, target_minimum, target_maximum)
 }
 
-pub(super) fn exact_integer_offset_chain_cast_obligation(
+#[cfg(test)]
+pub(in crate::verification) fn exact_integer_offset_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
     mut variable: ScalarTerm,

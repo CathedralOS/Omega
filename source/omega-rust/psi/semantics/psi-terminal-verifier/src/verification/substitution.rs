@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{
     CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
-    PlaceId, Proposition, ScalarTerm, ValueId,
+    IntegerMathTerm, PlaceId, Proposition, ScalarTerm, ValueId,
 };
 
 pub(crate) fn substitute_proposition_values(
@@ -26,6 +26,18 @@ pub(crate) fn substitute_proposition_values(
         Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(
             substitute_scalar_term_values(left, substitutions),
             substitute_scalar_term_values(right, substitutions),
+        ),
+        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
+            substitute_integer_math_term_values(left, substitutions),
+            substitute_integer_math_term_values(right, substitutions),
+        ),
+        Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
+            substitute_integer_math_term_values(left, substitutions),
+            substitute_integer_math_term_values(right, substitutions),
+        ),
+        Proposition::IntegerMathLessOrEqual(left, right) => Proposition::IntegerMathLessOrEqual(
+            substitute_integer_math_term_values(left, substitutions),
+            substitute_integer_math_term_values(right, substitutions),
         ),
         Proposition::IeeeFloatComparison {
             kind,
@@ -104,6 +116,15 @@ pub(crate) fn substitute_proposition_structural_places(
             substitute_scalar_term_places(left, substitutions),
             substitute_scalar_term_places(right, substitutions),
         ),
+        Proposition::IntegerMathEqual(left, right) => {
+            Proposition::IntegerMathEqual(left.clone(), right.clone())
+        }
+        Proposition::IntegerMathLessThan(left, right) => {
+            Proposition::IntegerMathLessThan(left.clone(), right.clone())
+        }
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            Proposition::IntegerMathLessOrEqual(left.clone(), right.clone())
+        }
         Proposition::IeeeFloatComparison {
             kind,
             format,
@@ -176,6 +197,48 @@ pub(crate) fn substitute_proposition_structural_places(
                 substitute_content_term_places(conservation.right(), substitutions),
             ))
         }
+    }
+}
+
+fn substitute_integer_math_term_values(
+    term: &IntegerMathTerm,
+    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+) -> IntegerMathTerm {
+    match term {
+        IntegerMathTerm::MathValue { source_type, value } => substitutions
+            .get(value)
+            .and_then(|replacement| match replacement {
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: psi_core::ScalarType::Integer(actual),
+                } if actual == source_type => Some(IntegerMathTerm::MathValue {
+                    source_type: *source_type,
+                    value: *id,
+                }),
+                ScalarTerm::Integer {
+                    scalar_type: actual,
+                    value,
+                } if actual == source_type => Some(IntegerMathTerm::literal(*value)),
+                _ => None,
+            })
+            .unwrap_or_else(|| term.clone()),
+        IntegerMathTerm::IntegerLiteral(_) => term.clone(),
+        IntegerMathTerm::Add(left, right) => IntegerMathTerm::Add(
+            Box::new(substitute_integer_math_term_values(left, substitutions)),
+            Box::new(substitute_integer_math_term_values(right, substitutions)),
+        ),
+        IntegerMathTerm::Subtract(left, right) => IntegerMathTerm::Subtract(
+            Box::new(substitute_integer_math_term_values(left, substitutions)),
+            Box::new(substitute_integer_math_term_values(right, substitutions)),
+        ),
+        IntegerMathTerm::Multiply(left, right) => IntegerMathTerm::Multiply(
+            Box::new(substitute_integer_math_term_values(left, substitutions)),
+            Box::new(substitute_integer_math_term_values(right, substitutions)),
+        ),
+        IntegerMathTerm::ShiftLeft { value, count } => IntegerMathTerm::ShiftLeft {
+            value: Box::new(substitute_integer_math_term_values(value, substitutions)),
+            count: Box::new(substitute_integer_math_term_values(count, substitutions)),
+        },
     }
 }
 

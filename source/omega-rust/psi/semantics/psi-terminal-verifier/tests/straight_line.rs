@@ -2,10 +2,10 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId, ValueId,
-    content_conservation_report_fingerprint,
+    ContractId, EdgeId, EvidenceIdentity, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
+    ValueId, content_conservation_report_fingerprint,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
@@ -1610,6 +1610,20 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
         }],
     };
     validate_module(&module).expect("admits a proof-owned fixed partial conversion");
+    let reconstructed =
+        reconstruct_operation_obligations(&module).expect("reconstruct exact-cast goal");
+    assert_eq!(reconstructed.len(), 1);
+    assert!(reconstructed[0].canonical_certificate);
+    assert_eq!(
+        reconstructed[0].obligation.proposition,
+        Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::MathValue {
+                source_type: IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                value: operand,
+            },
+            IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+        ),
+    );
 
     let mut redundant = module.clone();
     redundant.machines[0].blocks[0].operations[0]

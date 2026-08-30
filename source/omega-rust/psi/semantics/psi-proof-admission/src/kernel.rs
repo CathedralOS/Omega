@@ -1,4 +1,5 @@
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
+use psi_core::{IntegerMathLiteral, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm};
+use psi_numerics::bignum::BigInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveJudgment {
@@ -18,6 +19,9 @@ pub fn decide_primitive(
     let accepted = match (judgment, proposition) {
         (PrimitiveJudgment::Truth, Proposition::Truth) => true,
         (PrimitiveJudgment::ReflexiveEquality, Proposition::Equal(left, right)) => left == right,
+        (PrimitiveJudgment::ReflexiveEquality, Proposition::IntegerMathEqual(left, right)) => {
+            left == right
+        }
         (PrimitiveJudgment::ReflexiveEquality, Proposition::ContentConservation(conservation)) => {
             conservation.left() == conservation.right()
         }
@@ -30,11 +34,58 @@ pub fn decide_primitive(
         (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessOrEqual(left, right)) => {
             compare_integer_literals(left, right).is_some_and(|ordering| !ordering.is_gt())
         }
+        (PrimitiveJudgment::ClosedIntegerRelation, Proposition::IntegerMathEqual(left, right)) => {
+            compare_integer_math_terms(left, right).is_some_and(|ordering| ordering.is_eq())
+        }
+        (
+            PrimitiveJudgment::ClosedIntegerRelation,
+            Proposition::IntegerMathLessThan(left, right),
+        ) => compare_integer_math_terms(left, right).is_some_and(|ordering| ordering.is_lt()),
+        (
+            PrimitiveJudgment::ClosedIntegerRelation,
+            Proposition::IntegerMathLessOrEqual(left, right),
+        ) => compare_integer_math_terms(left, right).is_some_and(|ordering| !ordering.is_gt()),
         _ => false,
     };
     accepted
         .then_some(())
         .ok_or(KernelError::JudgmentDoesNotEstablishGoal { judgment })
+}
+
+fn compare_integer_math_terms(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+) -> Option<std::cmp::Ordering> {
+    Some(evaluate_integer_math_term(left)?.cmp(&evaluate_integer_math_term(right)?))
+}
+
+fn evaluate_integer_math_term(term: &IntegerMathTerm) -> Option<BigInt> {
+    match term {
+        IntegerMathTerm::MathValue { .. } => None,
+        IntegerMathTerm::IntegerLiteral(literal) => Some(big_integer_literal(*literal)),
+        IntegerMathTerm::Add(left, right) => {
+            Some(evaluate_integer_math_term(left)?.add(&evaluate_integer_math_term(right)?))
+        }
+        IntegerMathTerm::Subtract(left, right) => {
+            Some(evaluate_integer_math_term(left)?.sub(&evaluate_integer_math_term(right)?))
+        }
+        IntegerMathTerm::Multiply(left, right) => {
+            Some(evaluate_integer_math_term(left)?.mul(&evaluate_integer_math_term(right)?))
+        }
+        IntegerMathTerm::ShiftLeft { value, count } => {
+            let count = usize::try_from(evaluate_integer_math_term(count)?.to_u64()?).ok()?;
+            Some(evaluate_integer_math_term(value)?.shl_bits(count))
+        }
+    }
+}
+
+fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
+    let magnitude = BigInt::from_u128(literal.magnitude());
+    if literal.negative() {
+        BigInt::zero().sub(&magnitude)
+    } else {
+        magnitude
+    }
 }
 
 fn compare_integer_literals(left: &ScalarTerm, right: &ScalarTerm) -> Option<std::cmp::Ordering> {
@@ -85,6 +136,22 @@ mod tests {
                 PrimitiveJudgment::ClosedIntegerRelation,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn closed_mathematical_integer_relations_use_unbounded_evaluation() {
+        let maximum = IntegerMathTerm::literal(IntegerValue::Unsigned(u128::MAX));
+        let one = IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+        let sum = IntegerMathTerm::Add(Box::new(maximum.clone()), Box::new(one.clone()));
+        let product = IntegerMathTerm::Multiply(Box::new(maximum), Box::new(one));
+        assert!(
+            decide_primitive(
+                &PropositionContext::default(),
+                &Proposition::IntegerMathLessThan(product, sum),
+                PrimitiveJudgment::ClosedIntegerRelation,
+            )
+            .is_ok()
         );
     }
 }

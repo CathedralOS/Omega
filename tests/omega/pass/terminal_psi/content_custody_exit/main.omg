@@ -8,7 +8,7 @@ trait Content<A> {
     machine project(subject: &Self) -> A;
 }
 
-data Region [linear] {
+pub data Region [linear] {
     length: u64;
 }
 

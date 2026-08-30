@@ -58,9 +58,17 @@ scanners, or receipts.
   its canonical lower and upper bounds; operation identity remains in
   `CanonicalScalarGoal` rather than multiplying proposition families.
 
-  Implement those remaining mappings, make `kernel_proposition` total rather
-  than optional, and remove their production sufficient-form reducer and
-  mirrored verifier search. Deterministic schema-local normalization may fold
+  Exact cast now projects the canonical mathematical carrier bounds, uses a
+  producer certificate checked through the existing equality/order calculus,
+  and has no production sufficient-form reducer or mirrored verifier search.
+  The existing affine- and cast-bound witnesses now replay ordered literal
+  arithmetic, exact divide/remainder and shifts, partial cast words, and strict
+  fixed-native widening edges. Carrier-determined total images and exact
+  cast-intersection endpoints may use only a kernel-checked `Truth` child; the
+  checker derives and validates the exact endpoint itself. This extends no
+  proof tag or verifier search route.
+  Implement exact shift-left and exact add/subtract/multiply next, then make
+  `kernel_proposition` total rather than optional. Deterministic schema-local normalization may fold
   closed mathematical expressions, bare carrier inclusion, and vacuous bounds.
   Symbolic interval propagation, affine reduction, aliases, and other
   fact-dependent proof discovery remain untrusted producer work.
@@ -589,7 +597,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q8 (ranked native-fuel sponsor):** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q6 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -1579,7 +1587,10 @@ Remaining:
   Linux-only `exit_group(i32)` realization. Object, image, and installation
   validation independently replay the consumed literal, ABI destination,
   nonempty code interval, syscall bytes, and trap-on-return tail; Darwin and
-  Windows reject this realization before emission. All format-31 custody rows
+  Windows reject this realization before emission. Whole-entry stack-demand
+  composition recognizes only that validated full-body nonreturning leaf as
+  an exact zero-stack contribution; other missing stack evidence still
+  rejects. All format-31 custody rows
   retain their canonical spelling under the new marker. The ordered installed-
   function collection now lives in a private 172-line
   composition codec. Function identity, attachment and spans, stack facts,
@@ -10028,8 +10039,8 @@ Remaining N6/N8 work:
   evidence. Runtime Booleans, machine operations/contracts, native lowering,
   and proof-kernel discharge remain open under
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
-  Proof-kernel discharge is now an explicit language-design block rather than
-  an implementation task: the kernel accepts only scalar-term equality, with
+  Proof-kernel discharge is now **OWNER-BLOCKED — Q8 (proof-only FloatMeaning
+  equality ownership)** rather than an implementation task: the kernel accepts only scalar-term equality, with
   no proof-only `FloatMeaning`/`ProofValueId` term; independently authored
   projection invocations do not retain a shared landed-source identity; and
   Terminal equality rows have no contract owner or evidence-provenance lane.
@@ -10360,12 +10371,23 @@ boundary without its corresponding checked law.
   dynamic-ELF driver can therefore start from the ordinary object builder for
   both Linux profiles without a private `ObjectArtifact` fixture, and repeated
   calls to one locator share one import symbol while retaining distinct call
-  sites. The remaining pre-integration seam is earlier: assigned target
-  operations and the ordinary machine emitter do not yet produce these rows
-  from the selected `HostImportLocator::Normalized` binding and its exact call
-  site, so source compilation still reaches the machine-code carrier empty.
-  That checked/target lowering, its foreign-call stack custody, optional
-  `.gnu.hash`, and ordinary source `via` evaluation remain unimplemented.
+  sites. The first preceding production path is now closed for a zero-argument,
+  `Unit`-returning normalized import leaf. Checked compilation retains the
+  extracted external-binding rows before consuming typed trees; native
+  settlement rejoins one unique retained row to the complete selected
+  `ProviderPlan`, exact selected-plan evidence, and admitted same-stack
+  contribution. Compact report fingerprints are never used as plan authority,
+  and an equal-report substitute plan rejects. A distinct target operation
+  survives assignment; ordinary machine emission produces an x86-64 `CALL
+  rel32` or AArch64 `BL` placeholder and retains the locator, provider
+  execution, evaluated call plan, admitted contribution, and exact physical
+  `Unit` stack evidence in `MachineCodeFunction::foreign_calls`. Object
+  construction now replays that physical stack custody before consuming the
+  row. Both Linux profiles advance from the exact native rejoin through target,
+  assignment, machine, ordinary object, and the complete dynamic-ELF driver;
+  stack-plan or compact-plan tampering rejects. Broader argument/result
+  signatures, complete task-stack-budget composition, optional `.gnu.hash`,
+  and ordinary source `via` evaluation remain engineering work.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
@@ -10398,9 +10420,18 @@ Remaining F7 work:
 
 The mechanical x86-64 prerequisite is live: `omega-isa-x86_64` owns exact
 register-only VEX encoders for scalar `VFMADD132SS` and `VFMADD132SD`, including
-extended-register and invalid-register coverage. These helpers grant no target
-feature admission and are not selected by generic FMA lowering; that still
-requires the feature-qualified provider or checked software realization above.
+extended-register and invalid-register coverage. A bounded source-free custody
+seam is also live: `omega-target` owns the immutable, profile-bound AVX+FMA3
+requirement; machine emission retains exact format/register/interval identity;
+and object construction independently decodes `VFMADD132SS`/`VFMADD132SD`,
+replays the target and deployment profile, and rejects stripped, substituted,
+overlapping, or identity-drifted custody. The ordinary object builder rejects
+feature-requiring FMA without an explicit profile, and executable-image
+construction rejects it because no admitted provider discharges the retained
+requirement yet. This seam grants no target feature admission, accepts no
+Terminal/source operation, and remains unselected by generic FMA lowering;
+that still requires the feature-qualified provider or checked software
+realization above.
 
 The generic Linux and Windows x86-64 baselines now retain target-specific
 semantic-edge suites. Each checked half pins the exact 36 nearest arithmetic,

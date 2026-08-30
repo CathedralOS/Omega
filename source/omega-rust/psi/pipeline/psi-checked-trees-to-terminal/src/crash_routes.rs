@@ -1632,7 +1632,12 @@ pub(super) fn substitute_structural_requirement_roots(
             substitute_structural_requirement_roots(premise, substitutions)?;
             substitute_structural_requirement_roots(conclusion, substitutions)?;
         }
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::IntegerMathEqual(_, _)
+        | Proposition::IntegerMathLessThan(_, _)
+        | Proposition::IntegerMathLessOrEqual(_, _) => {}
         Proposition::ContentConservation(_) => {
             return unsupported(
                 "runtime structural requirements cannot carry content conservation",

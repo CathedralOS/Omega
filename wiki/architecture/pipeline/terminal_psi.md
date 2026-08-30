@@ -2760,15 +2760,16 @@ twelve local equations in operation-specific branches. The policy join now
 binds eleven rows—exact arithmetic, divide/remainder and shifts plus
 wrapping/saturating divide/remainder—to the shared integer-policy catalog by
 primitive and domain identity; exact cast is the sole table row outside that
-catalog. A separate migration
-dispatcher still chooses the legacy sufficient proposition for eight rows and
-is explicitly hashed into each affected reduction dependency. The four
+catalog. A separate migration dispatcher still chooses the legacy sufficient
+proposition for exact shift-left and exact add/subtract/multiply and is
+explicitly hashed into each affected reduction dependency. The four
 wrapping/saturating divide/remainder rows instead select their canonical
 proposition directly from their exact operation tags. This does not certify the
 remaining reducers, and the current closure remains `fully-derived false`.
 
-`NonzeroDivisor`, `ExactDivisionDefined`, and `ExactShiftCount` currently have
-exact kernel-proposition projections. Unsigned fixed integers use `1 <= d` for both.
+`NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`, and
+`ExactCastRepresentable` currently have exact kernel-proposition projections.
+Unsigned fixed integers use `1 <= d` for both.
 Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
 exact division/remainder uses the ordered disjunction `(d <= -2) OR (1 <= d)
 OR ((d <= -1) AND (MIN + 1 <= n))`, where `n` is the dividend. Signed one-bit
@@ -2778,8 +2779,11 @@ project the settled `[0, width)` law: known literals become `Truth` or
 `Falsehood`, symbolic signed counts retain the ordered lower and upper bounds,
 symbolic unsigned counts omit the carrier-implied lower bound, and a narrow
 count carrier may imply the whole goal. Address carriers and mismatched operand
-types reject. The other three canonical goal shapes remain unprojected in the
-current implementation, but their exact projection is settled below.
+types reject. Exact cast folds closed operands and complete source-carrier
+inclusion, otherwise retaining the stricter target lower bound before the
+stricter target upper bound in the mathematical relation vocabulary. The other
+two canonical goal shapes remain unprojected in the current implementation,
+but their exact projection is settled below.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -3525,15 +3529,39 @@ capability; no reducer or operation row is promoted by doing so.
 
 The production verifier now reconstructs the implemented scalar kernel
 questions directly from `CanonicalScalarGoal`. `NonzeroDivisor`,
-`ExactDivisionDefined`, and `ExactShiftCount` never invoke the mirrored
+`ExactDivisionDefined`, `ExactShiftCount`, and `ExactCastRepresentable` never invoke the mirrored
 candidate selector: alternate available facts cannot change their question,
-and the proof kernel checks only the producer-serialized derivation. Exact-cast,
-exact shift-left, and exact add/subtract/multiply retain the legacy reducer only
-until the settled total-mathematical-term projection above is implemented. At
-that point `kernel_proposition` becomes total, with no wildcard or optional
-unsettled result, and the remaining production reducer and mirrored verifier
-search are deleted. Until then this is an explicit implementation dependency,
-not permission for new verifier search.
+and the proof kernel checks only the producer-serialized derivation. Exact cast
+uses the settled total-mathematical-term projection and canonical fixed-carrier
+normalization in the existing proof rules; its cast-specific production reducer
+and mirrored search leaves are gone. Exact shift-left and exact
+add/subtract/multiply retain the legacy reducer until their corresponding
+mathematical projections and producer certificates land. At that point
+`kernel_proposition` becomes total, with no wildcard or optional unsettled
+result, and the remaining production reducer and mirrored verifier search are
+deleted. Until then this is an explicit implementation dependency, not
+permission for new verifier search.
+
+The existing `IntegerAffineBound` proof tag now names its checked ordered
+endpoint-transform boundary rather than only a closed-form affine map. Its
+unchanged ordered definition/literal witness may replay fixed-native exact
+add, subtract, multiply, divide, remainder, and left/right shift when every
+non-chain operand is embedded or independently landed by a strictly prior
+semantic axiom. The checker applies every step to the cited endpoint in
+definition order. For a total image determined entirely by the checked carrier
+and literal—multiply by zero, remainder, a full-carrier-safe divide, right
+shift, or a zero-count left shift—the recursively checked child may be `Truth`, but the checker itself
+derives the exact image hull. Zero divisors, signed `MIN / -1`, mixed carriers,
+runtime, negative or out-of-width counts, and redirected or reordered operands
+fail closed. `IntegerCastBound` likewise accepts a `Truth` child only for an
+exact endpoint of the nonempty checked source/target carrier intersection. Its
+ordered conversion word may contain validator-legal partial exact casts and
+strict fixed-native widening identity edges; every carrier and endpoint is
+replayed independently. These are extensions of existing checked witness
+boundaries, not new proof rules, mathematical-relation lifts, or verifier-side
+route search. They let an exact-cast certificate retain the established
+arithmetic, shift, cast-chain, and widening corpus while exact-left-shift
+representability itself remains on the legacy migration path.
 
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely
@@ -3928,7 +3956,7 @@ owner-derived identity. The former metered object-container publication API was
 deleted because no supported consumer ended at that weaker checkpoint.
 Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
 honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q8, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
+owner decision (Q6, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
 helper.
 
 Omega may use a certificate only for the exact installed terminal bytes,

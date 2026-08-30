@@ -3,7 +3,7 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
 use psi_proof_admission::ProofNode;
 
-use super::super::super::{affine_selection, cast_custody};
+use super::super::super::{cast_custody, integer_selection};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -24,7 +24,7 @@ pub(super) fn prove(
     } else {
         Proposition::LessOrEqual(source.clone(), literal)
     };
-    let root_bound = affine_selection::prove(
+    let root_bound = integer_selection::build(
         context,
         &source_goal,
         assumptions,

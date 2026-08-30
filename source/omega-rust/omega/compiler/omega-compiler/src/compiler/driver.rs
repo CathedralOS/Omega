@@ -124,6 +124,7 @@ fn native_report(
             program_entry,
             optimization_selections: rollback_settlement.effective(),
             selected_provider_plans: checked.selected_provider_plans(),
+            external_binding_rows: checked.external_binding_rows(),
             settlements: &[],
         },
     )?;

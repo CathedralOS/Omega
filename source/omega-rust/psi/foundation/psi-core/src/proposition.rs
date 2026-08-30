@@ -808,6 +808,113 @@ pub enum IntegerValue {
     Unsigned(u128),
 }
 
+/// One canonical mathematical integer literal. Unlike [`IntegerValue`], this
+/// proof-only form carries no fixed-width signedness and therefore has exactly
+/// one representation for every integer in its supported literal range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct IntegerMathLiteral {
+    negative: bool,
+    magnitude: u128,
+}
+
+impl IntegerMathLiteral {
+    pub fn new(negative: bool, magnitude: u128) -> Result<Self, PropositionError> {
+        if negative && magnitude == 0 {
+            return Err(PropositionError::NegativeZeroIntegerMathLiteral);
+        }
+        Ok(Self {
+            negative,
+            magnitude,
+        })
+    }
+
+    pub const fn negative(self) -> bool {
+        self.negative
+    }
+
+    pub const fn magnitude(self) -> u128 {
+        self.magnitude
+    }
+
+    pub const fn from_integer_value(value: IntegerValue) -> Self {
+        match value {
+            IntegerValue::Signed(value) => Self {
+                negative: value.is_negative(),
+                magnitude: value.unsigned_abs(),
+            },
+            IntegerValue::Unsigned(value) => Self {
+                negative: false,
+                magnitude: value,
+            },
+        }
+    }
+
+    pub fn as_integer_value(self, integer_type: IntegerType) -> Option<IntegerValue> {
+        let value = match integer_type.sign() {
+            IntegerSign::Signed if self.negative => {
+                if self.magnitude == (i128::MAX as u128) + 1 {
+                    IntegerValue::Signed(i128::MIN)
+                } else {
+                    IntegerValue::Signed(-i128::try_from(self.magnitude).ok()?)
+                }
+            }
+            IntegerSign::Signed => IntegerValue::Signed(i128::try_from(self.magnitude).ok()?),
+            IntegerSign::Unsigned if !self.negative => IntegerValue::Unsigned(self.magnitude),
+            IntegerSign::Unsigned => return None,
+        };
+        integer_type.admits(value).then_some(value)
+    }
+}
+
+/// Total, proof-only mathematical integer syntax. `MathValue` embeds the
+/// mathematical value of one fixed-width integer carrier; the other forms are
+/// interpreted over unbounded integers rather than machine arithmetic.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IntegerMathTerm {
+    IntegerLiteral(IntegerMathLiteral),
+    MathValue {
+        source_type: IntegerType,
+        value: ValueId,
+    },
+    Add(Box<Self>, Box<Self>),
+    Subtract(Box<Self>, Box<Self>),
+    Multiply(Box<Self>, Box<Self>),
+    ShiftLeft {
+        value: Box<Self>,
+        count: Box<Self>,
+    },
+}
+
+impl IntegerMathTerm {
+    pub fn literal(value: IntegerValue) -> Self {
+        Self::IntegerLiteral(IntegerMathLiteral::from_integer_value(value))
+    }
+
+    pub fn validate(&self) -> Result<(), PropositionError> {
+        match self {
+            Self::MathValue { source_type, .. } => {
+                if source_type.is_address() {
+                    return Err(PropositionError::AddressIntegerMathValue(*source_type));
+                }
+            }
+            Self::IntegerLiteral(literal) => {
+                if literal.negative && literal.magnitude == 0 {
+                    return Err(PropositionError::NegativeZeroIntegerMathLiteral);
+                }
+            }
+            Self::Add(left, right) | Self::Subtract(left, right) | Self::Multiply(left, right) => {
+                left.validate()?;
+                right.validate()?;
+            }
+            Self::ShiftLeft { value, count } => {
+                value.validate()?;
+                count.validate()?;
+            }
+        }
+        Ok(())
+    }
+}
+
 fn wrapping_shift_count(width: u16, count: IntegerValue) -> Option<u32> {
     let width = u128::from(width);
     match count {
@@ -2386,6 +2493,9 @@ pub enum Proposition {
     Equal(ScalarTerm, ScalarTerm),
     LessThan(ScalarTerm, ScalarTerm),
     LessOrEqual(ScalarTerm, ScalarTerm),
+    IntegerMathEqual(IntegerMathTerm, IntegerMathTerm),
+    IntegerMathLessThan(IntegerMathTerm, IntegerMathTerm),
+    IntegerMathLessOrEqual(IntegerMathTerm, IntegerMathTerm),
     /// IEEE `==` or `!=` over two exact structural leaves. This remains atomic
     /// rather than using mathematical equality: NaNs are non-reflexive while
     /// signed zeroes compare equal under `==` and unequal under `!=`.
@@ -2425,6 +2535,18 @@ impl Proposition {
             Self::Equal(left, right) => require_same_type(left, right),
             Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
                 require_same_integer_type(left, right)
+            }
+            Self::IntegerMathEqual(left, right) => {
+                left.validate()?;
+                right.validate()?;
+                if left > right {
+                    return Err(PropositionError::NonCanonicalIntegerMathEqualityOperands);
+                }
+                Ok(())
+            }
+            Self::IntegerMathLessThan(left, right) | Self::IntegerMathLessOrEqual(left, right) => {
+                left.validate()?;
+                right.validate()
             }
             Self::IeeeFloatComparison { left, right, .. } => {
                 if left.path.is_empty() || right.path.is_empty() {
@@ -2542,6 +2664,12 @@ impl PropositionContext {
                 self.validate_term(left)?;
                 self.validate_term(right)
             }
+            Proposition::IntegerMathEqual(left, right)
+            | Proposition::IntegerMathLessThan(left, right)
+            | Proposition::IntegerMathLessOrEqual(left, right) => {
+                self.validate_integer_math_term(left)?;
+                self.validate_integer_math_term(right)
+            }
             Proposition::IeeeFloatComparison { left, right, .. } => {
                 for field in [left, right] {
                     if !self.structural_places.contains_key(&field.root) {
@@ -2582,6 +2710,36 @@ impl PropositionContext {
                 self.validate_content_term(conservation.right())
             }
         }
+    }
+
+    fn validate_integer_math_term(&self, term: &IntegerMathTerm) -> Result<(), PropositionError> {
+        match term {
+            IntegerMathTerm::MathValue { source_type, value } => {
+                let Some(expected) = self.value_types.get(value) else {
+                    return Err(PropositionError::UnknownValue(*value));
+                };
+                let actual = ScalarType::Integer(*source_type);
+                if expected != &actual {
+                    return Err(PropositionError::ValueTypeMismatch {
+                        id: *value,
+                        expected: *expected,
+                        actual,
+                    });
+                }
+            }
+            IntegerMathTerm::IntegerLiteral(_) => {}
+            IntegerMathTerm::Add(left, right)
+            | IntegerMathTerm::Subtract(left, right)
+            | IntegerMathTerm::Multiply(left, right) => {
+                self.validate_integer_math_term(left)?;
+                self.validate_integer_math_term(right)?;
+            }
+            IntegerMathTerm::ShiftLeft { value, count } => {
+                self.validate_integer_math_term(value)?;
+                self.validate_integer_math_term(count)?;
+            }
+        }
+        Ok(())
     }
 
     fn validate_content_term(&self, term: &ContentTerm) -> Result<(), PropositionError> {
@@ -2738,6 +2896,9 @@ fn require_same_integer_type(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PropositionError {
     InvalidIntegerWidth(u16),
+    NegativeZeroIntegerMathLiteral,
+    AddressIntegerMathValue(IntegerType),
+    NonCanonicalIntegerMathEqualityOperands,
     IntegerLiteralOutsideType {
         scalar_type: IntegerType,
         value: IntegerValue,

@@ -35,8 +35,10 @@ pub(super) fn lower_function(
                 ..
             } if !arguments.is_empty()
                 && !matches!(
-                    settlements.get(boundary).map(|binding| binding.realization),
-                    Some(BoundaryRealization::LinuxExitGroupI32(_))
+                    settlements.get(boundary).map(|binding| &binding.realization),
+                    Some(omega_target_operations::BoundarySettlementRealization::Builtin(
+                        BoundaryRealization::LinuxExitGroupI32(_)
+                    ))
                 )
         )
     }) {

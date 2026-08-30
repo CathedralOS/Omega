@@ -815,6 +815,9 @@ fn validate_boolean_field_terms(
         Proposition::Truth
         | Proposition::Falsehood
         | Proposition::Atom(_)
+        | Proposition::IntegerMathEqual(_, _)
+        | Proposition::IntegerMathLessThan(_, _)
+        | Proposition::IntegerMathLessOrEqual(_, _)
         | Proposition::ContentConservation(_) => {}
     }
     Ok(())

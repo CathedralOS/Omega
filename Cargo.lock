@@ -684,6 +684,8 @@ dependencies = [
  "omega-object-file",
  "omega-target",
  "omega-target-operations",
+ "omega-target-operations-to-assigned-target-operations",
+ "omega-task-plans",
  "omega-x86-encoding",
  "psi-core",
  "psi-diagnostics",
@@ -812,6 +814,7 @@ dependencies = [
  "omega-selected-instructions",
  "omega-target",
  "omega-target-operations",
+ "omega-task-plans",
  "psi-core",
  "psi-terminal",
  "sha2",
@@ -831,8 +834,10 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
+ "omega-task-plans",
  "omega-x86-encoding",
  "psi-core",
+ "psi-diagnostics",
  "psi-terminal",
  "psi-terminal-fuel",
 ]
@@ -1343,6 +1348,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
  "omega-target",
+ "omega-task-plans",
  "psi-core",
  "psi-terminal",
 ]
@@ -1422,6 +1428,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
+ "omega-task-plans",
  "psi-checked-trees",
  "psi-checked-trees-to-terminal",
  "psi-core",
@@ -1707,6 +1714,7 @@ name = "psi-proof-admission"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+ "psi-numerics",
 ]
 
 [[package]]

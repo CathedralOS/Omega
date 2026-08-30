@@ -1,5 +1,6 @@
 use omega_image_emission::{
-    INSTALLATION_FORMAT_MARKER, InstallationError, ObjectError, build_installation_record,
+    INSTALLATION_FORMAT_MARKER, InstallationError, ObjectError,
+    build_feature_required_x86_fma_object_artifact, build_installation_record,
     build_installation_record_with_evidence, build_installation_record_with_provider_executions,
     build_installation_record_with_selected_provider_plans_and_evidence,
     build_native_fuel_installation_record, build_object_artifact, can_emit_executable_image,
@@ -21,11 +22,12 @@ use omega_machine_code::{
     ScalarControlFlowEvidence, ScalarDivisionBranchEvidence, ScalarStackEvidence,
     ScalarStackMutation, ScalarStackMutationKind, StackAdjustmentPair, UnitAffineCleanupRecord,
     UnitCallStackEvidence, UnitParameterHomeRecord, UnitParameterRecord, UnitStackEvidence,
+    X86ScalarFmaFormat,
 };
 use omega_object_file::{
     RelocationKind, RelocationOrigin, SectionKind, SymbolKind, object_symbol_name,
 };
-use omega_target::{NativeTarget, TargetProfile};
+use omega_target::{NativeTarget, TargetProfile, X86FeatureRequirement};
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
     LinuxExitGroupI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
@@ -99,6 +101,119 @@ fn object_artifact_owns_canonical_function_spans_and_psi_provenance() {
     assert_eq!(container.output.bss_bytes, 0);
     assert_eq!(container.output.symbols, 2);
     assert_eq!(container.output.relocations, 0);
+}
+
+#[test]
+fn source_free_x86_fma_object_replays_exact_feature_profile_and_instruction_custody() {
+    for (profile, format) in [
+        (TargetProfile::LinuxX64, X86ScalarFmaFormat::Binary32),
+        (TargetProfile::WindowsX64, X86ScalarFmaFormat::Binary64),
+        (TargetProfile::UefiX64, X86ScalarFmaFormat::Binary32),
+    ] {
+        let plan = x86_fma_plan(profile, format);
+        assert!(matches!(
+            build_object_artifact(&plan),
+            Err(ObjectError::MissingX86ScalarFmaProfile(_))
+        ));
+        let artifact = build_feature_required_x86_fma_object_artifact(&plan, profile)
+            .expect("feature-requiring scalar FMA object");
+        assert_eq!(artifact.x86_feature_profile(), Some(profile));
+        assert_eq!(
+            artifact.functions()[0].x86_scalar_fma,
+            plan.functions[0].x86_scalar_fma
+        );
+        assert_eq!(
+            artifact.functions()[0].bytes(&artifact),
+            &plan.functions[0].bytes
+        );
+        assert!(
+            emit_executable_image(&artifact, 3).is_err(),
+            "retained requirements are not hardware admission"
+        );
+    }
+}
+
+#[test]
+fn source_free_x86_fma_object_rejects_stripped_and_mutated_custody() {
+    let baseline = x86_fma_plan(TargetProfile::LinuxX64, X86ScalarFmaFormat::Binary32);
+
+    let mut stripped = baseline.clone();
+    stripped.functions[0].x86_scalar_fma.clear();
+    assert!(matches!(
+        build_object_artifact(&stripped),
+        Err(ObjectError::MissingX86ScalarFmaCustody { .. })
+    ));
+    assert_eq!(
+        build_feature_required_x86_fma_object_artifact(&stripped, TargetProfile::LinuxX64),
+        Err(ObjectError::MissingX86ScalarFmaFragment)
+    );
+
+    let mut candidates = Vec::new();
+    let mut changed = baseline.clone();
+    changed.functions[0].bytes[3] = 0x98;
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].format = X86ScalarFmaFormat::Binary64;
+    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].destination =
+        omega_calling_conventions::MachineRegister::X86Xmm(3);
+    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].addend =
+        omega_calling_conventions::MachineRegister::X86Xmm(4);
+    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].multiplicand =
+        omega_calling_conventions::MachineRegister::X86Xmm(5);
+    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].code_offset = 1;
+    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].byte_count = 4;
+    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma[0].identity = [0; 32];
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    let duplicate = changed.functions[0].x86_scalar_fma[0];
+    changed.functions[0].x86_scalar_fma.push(duplicate);
+    candidates.push(changed);
+
+    for candidate in candidates {
+        assert!(
+            build_feature_required_x86_fma_object_artifact(&candidate, TargetProfile::LinuxX64)
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn source_free_x86_fma_object_rejects_cross_profile_even_when_native_target_matches() {
+    let mut windows = x86_fma_plan(TargetProfile::WindowsX64, X86ScalarFmaFormat::Binary64);
+    assert_eq!(
+        windows.target,
+        TargetProfile::UefiX64.native_target(),
+        "Windows and UEFI intentionally share one physical NativeTarget"
+    );
+    assert!(
+        build_feature_required_x86_fma_object_artifact(&windows, TargetProfile::UefiX64).is_err()
+    );
+
+    windows.functions[0].x86_scalar_fma[0].requirement =
+        X86FeatureRequirement::scalar_fma(TargetProfile::UefiX64).unwrap();
+    refresh_x86_fma_identity(&mut windows.functions[0].x86_scalar_fma[0]);
+    assert!(
+        build_feature_required_x86_fma_object_artifact(&windows, TargetProfile::WindowsX64)
+            .is_err()
+    );
 }
 
 #[test]
@@ -182,6 +297,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                     edges: vec![nominal_return],
                 },
                 bytes: bytes.clone(),
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -381,6 +497,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                 edges: vec![return_edge],
             },
             bytes: bytes.clone(),
+            x86_scalar_fma: Vec::new(),
             unit_stack: Some(UnitStackEvidence {
                 frame: None,
                 aarch64_return_link: None,
@@ -2203,6 +2320,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                     edges: vec![edge_id(1)],
                 },
                 bytes: bytes.clone(),
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2293,7 +2411,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "6d74f6abaae159cde404f8d6d4d18e058370cb9ed513925a228f8f7763e89e9a"
+        "9af33f97b4ae96accbb61179446ea2950989f591facc599f51afb40e313884b3"
     );
 
     let mut changed_plan = plan;
@@ -2482,6 +2600,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 edges: vec![edge_id(1)],
             },
             bytes,
+            x86_scalar_fma: Vec::new(),
             unit_stack: None,
             unit_parameter_homes: Vec::new(),
             unit_parameters: Vec::new(),
@@ -2657,6 +2776,7 @@ fn two_function_plan() -> MachineCodePlan {
                     edges: vec![edge_id(1)],
                 },
                 bytes: integer_return(3),
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2683,6 +2803,7 @@ fn two_function_plan() -> MachineCodePlan {
                     edges: vec![edge_id(2)],
                 },
                 bytes: integer_return(7),
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2703,6 +2824,33 @@ fn two_function_plan() -> MachineCodePlan {
             },
         ],
     }
+}
+
+fn x86_fma_plan(profile: TargetProfile, format: X86ScalarFmaFormat) -> MachineCodePlan {
+    let requirement = X86FeatureRequirement::scalar_fma(profile).expect("x86 FMA profile");
+    let emitted = omega_machine_emission::emit_feature_required_x86_scalar_fma(
+        requirement,
+        profile.native_target(),
+        format,
+        omega_calling_conventions::MachineRegister::X86Xmm(0),
+        omega_calling_conventions::MachineRegister::X86Xmm(1),
+        omega_calling_conventions::MachineRegister::X86Xmm(2),
+        0,
+    )
+    .expect("source-free scalar FMA emission");
+    let mut plan = two_function_plan();
+    plan.target = profile.native_target();
+    plan.entry = machine_id(1);
+    plan.functions.truncate(1);
+    plan.functions[0].bytes = emitted.bytes.into_iter().chain([0xc3]).collect();
+    plan.functions[0].x86_scalar_fma = vec![emitted.custody];
+    plan
+}
+
+fn refresh_x86_fma_identity(fragment: &mut omega_machine_code::X86ScalarFmaFragment) {
+    fragment.identity = fragment
+        .recomputed_identity()
+        .expect("mutated test fragment remains structurally identity-bearing");
 }
 
 fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
@@ -2727,6 +2875,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                     edges: vec![edge_id(1)],
                 },
                 bytes: callee,
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2753,6 +2902,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                     edges: vec![edge_id(2)],
                 },
                 bytes: caller,
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -3692,6 +3842,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     edges: vec![edge_id(1)],
                 },
                 bytes: x86_empty_call_bytes.clone(),
+                x86_scalar_fma: Vec::new(),
                 unit_stack,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -3735,6 +3886,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     edges: vec![edge_id(2)],
                 },
                 bytes: vec![0xc3],
+                x86_scalar_fma: Vec::new(),
                 unit_stack,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -3773,6 +3925,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     edges: vec![edge_id(3)],
                 },
                 bytes: x86_empty_call_bytes,
+                x86_scalar_fma: Vec::new(),
                 unit_stack,
                 unit_parameter_homes: vec![UnitParameterHomeRecord {
                     place,

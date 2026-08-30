@@ -273,6 +273,12 @@ pub enum AssignedUnitOperation {
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
     },
+    NormalizedForeignCall {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider_execution: ProviderExecutionBinding,
+        binding: omega_target_operations::NormalizedForeignCallBinding,
+    },
     PortWrite {
         psi_operation: OperationId,
         service: ServiceId,

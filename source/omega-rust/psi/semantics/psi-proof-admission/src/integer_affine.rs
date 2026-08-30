@@ -1,8 +1,9 @@
-//! Independently checked normalization for ordered same-carrier affine facts.
+//! Independently checked normalization for ordered same-carrier endpoint maps.
 //!
 //! This is a certificate prerequisite, not an arithmetic proof rule. It binds
-//! a producer's normalized `A * root + B` claim to exact, prior semantic-axiom
-//! rows so later proof rules do not need to trust an analyzer's coefficients.
+//! a producer's normalized affine or landed-count exact-shift claim to exact,
+//! prior semantic-axiom rows so later proof rules do not need to trust an
+//! analyzer's coefficients or endpoint arithmetic.
 
 use psi_core::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
@@ -27,6 +28,25 @@ pub struct CheckedIntegerAffineForm {
     integer_type: IntegerType,
     coefficient: i128,
     offset: i128,
+    endpoint_steps: Vec<CheckedIntegerEndpointStep>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckedIntegerEndpointStep {
+    Add(i128),
+    Subtract(i128),
+    Multiply(i128),
+    Divide(i128),
+    Remainder(i128),
+    ShiftLeft(u32),
+    ShiftRight(u32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LandedInteger {
+    term: ScalarTerm,
+    integer_type: IntegerType,
+    value: IntegerValue,
 }
 
 impl CheckedIntegerAffineForm {
@@ -62,8 +82,7 @@ pub fn check_integer_affine_witness(
     let ScalarType::Integer(integer_type) = witness.root.scalar_type() else {
         return Err(IntegerAffineWitnessError::RootNotInteger);
     };
-    if integer_type.carrier() != IntegerCarrier::Fixed || integer_type.sign() != IntegerSign::Signed
-    {
+    if integer_type.carrier() != IntegerCarrier::Fixed {
         return Err(IntegerAffineWitnessError::UnsupportedCarrier(integer_type));
     }
     if witness.target.scalar_type() != ScalarType::Integer(integer_type) {
@@ -75,10 +94,18 @@ pub fn check_integer_affine_witness(
     if witness.literal_axioms.len() != witness.definition_axioms.len() {
         return Err(IntegerAffineWitnessError::LiteralAxiomCountMismatch);
     }
+    if witness
+        .definition_axioms
+        .windows(2)
+        .any(|indices| indices[0] >= indices[1])
+    {
+        return Err(IntegerAffineWitnessError::NonCanonicalDefinitionOrder);
+    }
 
     let mut current = witness.root.clone();
     let mut coefficient = 1_i128;
     let mut offset = 0_i128;
+    let mut endpoint_steps = Vec::with_capacity(witness.definition_axioms.len());
     let mut previous = None;
     for (&index, &literal_index) in witness
         .definition_axioms
@@ -99,9 +126,7 @@ pub fn check_integer_affine_witness(
             return Err(IntegerAffineWitnessError::DefinitionNotEquality(index));
         };
         let landed = literal_index
-            .map(|literal_index| {
-                landed_literal(context, semantic_axioms, integer_type, index, literal_index)
-            })
+            .map(|literal_index| landed_integer(context, semantic_axioms, index, literal_index))
             .transpose()?;
         let forward = apply_definition(
             left,
@@ -121,19 +146,29 @@ pub fn check_integer_affine_witness(
             offset,
             landed.as_ref(),
         );
-        let (next, next_coefficient, next_offset, used_landing) = match (forward, reverse) {
-            (Some(next), None) | (None, Some(next)) => next?,
-            (None, None) => return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(index)),
-            (Some(_), Some(_)) => {
-                return Err(IntegerAffineWitnessError::AmbiguousDefinition(index));
-            }
-        };
+        let shift_forward =
+            apply_shift_definition(left, right, &current, integer_type, landed.as_ref(), index);
+        let shift_reverse =
+            apply_shift_definition(right, left, &current, integer_type, landed.as_ref(), index);
+        let candidates = [forward, reverse, shift_forward, shift_reverse]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        let (next, next_coefficient, next_offset, used_landing, endpoint_step) =
+            match candidates.as_slice() {
+                [next] => next.clone()?,
+                [] => return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(index)),
+                _ => {
+                    return Err(IntegerAffineWitnessError::AmbiguousDefinition(index));
+                }
+            };
         if landed.is_some() != used_landing {
             return Err(IntegerAffineWitnessError::UnusedLiteralAxiom(index));
         }
         current = next;
         coefficient = next_coefficient;
         offset = next_offset;
+        endpoint_steps.push(endpoint_step);
     }
     if current != witness.target {
         return Err(IntegerAffineWitnessError::TargetMismatch);
@@ -144,6 +179,7 @@ pub fn check_integer_affine_witness(
         integer_type,
         coefficient,
         offset,
+        endpoint_steps,
     })
 }
 
@@ -154,8 +190,10 @@ fn apply_definition(
     integer_type: IntegerType,
     coefficient: i128,
     offset: i128,
-    landed: Option<&(ScalarTerm, i128)>,
-) -> Option<Result<(ScalarTerm, i128, i128, bool), IntegerAffineWitnessError>> {
+    landed: Option<&LandedInteger>,
+) -> Option<
+    Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
+> {
     if !matches!(target, ScalarTerm::Value { .. })
         || target.scalar_type() != ScalarType::Integer(integer_type)
     {
@@ -168,7 +206,12 @@ fn apply_definition(
             right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
             let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
-            (Some(coefficient), offset.checked_add(literal), used_landing)
+            (
+                Some(coefficient),
+                offset.checked_add(literal),
+                used_landing,
+                CheckedIntegerEndpointStep::Add(literal),
+            )
         }
         ScalarTerm::ExactIntegerAdd {
             scalar_type,
@@ -176,7 +219,12 @@ fn apply_definition(
             right,
         } if *scalar_type == integer_type && right.as_ref() == current => {
             let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
-            (Some(coefficient), offset.checked_add(literal), used_landing)
+            (
+                Some(coefficient),
+                offset.checked_add(literal),
+                used_landing,
+                CheckedIntegerEndpointStep::Add(literal),
+            )
         }
         ScalarTerm::ExactIntegerSubtract {
             scalar_type,
@@ -184,7 +232,12 @@ fn apply_definition(
             right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
             let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
-            (Some(coefficient), offset.checked_sub(literal), used_landing)
+            (
+                Some(coefficient),
+                offset.checked_sub(literal),
+                used_landing,
+                CheckedIntegerEndpointStep::Subtract(literal),
+            )
         }
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
@@ -196,6 +249,39 @@ fn apply_definition(
                 coefficient.checked_mul(literal),
                 offset.checked_mul(literal),
                 used_landing,
+                CheckedIntegerEndpointStep::Multiply(literal),
+            )
+        }
+        ScalarTerm::ExactIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            if literal == 0 {
+                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
+            }
+            (
+                Some(coefficient),
+                Some(offset),
+                used_landing,
+                CheckedIntegerEndpointStep::Divide(literal),
+            )
+        }
+        ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            if literal == 0 {
+                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
+            }
+            (
+                Some(coefficient),
+                Some(offset),
+                used_landing,
+                CheckedIntegerEndpointStep::Remainder(literal),
             )
         }
         ScalarTerm::ExactIntegerMultiply {
@@ -208,14 +294,19 @@ fn apply_definition(
                 coefficient.checked_mul(literal),
                 offset.checked_mul(literal),
                 used_landing,
+                CheckedIntegerEndpointStep::Multiply(literal),
             )
         }
         _ => return None,
     };
     Some(match transformed {
-        (Some(coefficient), Some(offset), used_landing) => {
-            Ok((target.clone(), coefficient, offset, used_landing))
-        }
+        (Some(coefficient), Some(offset), used_landing, endpoint_step) => Ok((
+            target.clone(),
+            coefficient,
+            offset,
+            used_landing,
+            endpoint_step,
+        )),
         _ => Err(IntegerAffineWitnessError::CoefficientOverflow),
     })
 }
@@ -223,25 +314,32 @@ fn apply_definition(
 fn signed_literal(
     term: &ScalarTerm,
     integer_type: IntegerType,
-    landed: Option<&(ScalarTerm, i128)>,
+    landed: Option<&LandedInteger>,
 ) -> Option<(i128, bool)> {
     if let Some((actual_type, IntegerValue::Signed(value))) = term.integer_value()
         && actual_type == integer_type
     {
         return Some((value, false));
     }
+    if let Some((actual_type, IntegerValue::Unsigned(value))) = term.integer_value()
+        && actual_type == integer_type
+    {
+        return i128::try_from(value).ok().map(|value| (value, false));
+    }
     landed
-        .filter(|(value, _)| value == term)
-        .map(|(_, literal)| (*literal, true))
+        .filter(|landed| landed.term == *term && landed.integer_type == integer_type)
+        .and_then(|landed| match landed.value {
+            IntegerValue::Signed(value) => Some((value, true)),
+            IntegerValue::Unsigned(value) => i128::try_from(value).ok().map(|value| (value, true)),
+        })
 }
 
-fn landed_literal(
+fn landed_integer(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
-    integer_type: IntegerType,
     definition_index: usize,
     literal_index: usize,
-) -> Result<(ScalarTerm, i128), IntegerAffineWitnessError> {
+) -> Result<LandedInteger, IntegerAffineWitnessError> {
     if literal_index >= definition_index {
         return Err(IntegerAffineWitnessError::LiteralAxiomNotPrior {
             definition: definition_index,
@@ -261,15 +359,99 @@ fn landed_literal(
     };
     for (value, literal) in [(left, right), (right, left)] {
         if matches!(value, ScalarTerm::Value { .. })
-            && value.scalar_type() == ScalarType::Integer(integer_type)
-            && let Some((literal, false)) = signed_literal(literal, integer_type, None)
+            && let Some((integer_type, literal)) = literal.integer_value()
         {
-            return Ok((value.clone(), literal));
+            return Ok(LandedInteger {
+                term: value.clone(),
+                integer_type,
+                value: literal,
+            });
         }
     }
     Err(IntegerAffineWitnessError::LiteralAxiomShapeMismatch(
         literal_index,
     ))
+}
+
+fn apply_shift_definition(
+    target: &ScalarTerm,
+    expression: &ScalarTerm,
+    current: &ScalarTerm,
+    integer_type: IntegerType,
+    landed: Option<&LandedInteger>,
+    definition_index: usize,
+) -> Option<
+    Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
+> {
+    if !matches!(target, ScalarTerm::Value { .. })
+        || target.scalar_type() != ScalarType::Integer(integer_type)
+        || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
+    {
+        return None;
+    }
+    let (count_type, count, left) = match expression {
+        ScalarTerm::ExactIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count,
+        } if *value_type == integer_type && value.as_ref() == current => {
+            (*count_type, count.as_ref(), true)
+        }
+        ScalarTerm::ExactIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+        } if *value_type == integer_type && value.as_ref() == current => {
+            (*count_type, count.as_ref(), false)
+        }
+        _ => return None,
+    };
+    let Some((count, used_landing)) = nonnegative_count(count, count_type, landed) else {
+        return Some(Err(IntegerAffineWitnessError::ShiftCountNotLanded(
+            definition_index,
+        )));
+    };
+    let Ok(count) = u32::try_from(count) else {
+        return Some(Err(IntegerAffineWitnessError::ShiftCountOutsideValueWidth(
+            definition_index,
+        )));
+    };
+    if count >= u32::from(integer_type.bits()) {
+        return Some(Err(IntegerAffineWitnessError::ShiftCountOutsideValueWidth(
+            definition_index,
+        )));
+    }
+    let step = if left {
+        CheckedIntegerEndpointStep::ShiftLeft(count)
+    } else {
+        CheckedIntegerEndpointStep::ShiftRight(count)
+    };
+    Some(Ok((target.clone(), 1, 0, used_landing, step)))
+}
+
+fn nonnegative_count(
+    term: &ScalarTerm,
+    count_type: IntegerType,
+    landed: Option<&LandedInteger>,
+) -> Option<(u128, bool)> {
+    let (actual_type, value, used_landing) =
+        if let Some((actual_type, value)) = term.integer_value() {
+            (actual_type, value, false)
+        } else {
+            let landed = landed.filter(|landed| landed.term == *term)?;
+            (landed.integer_type, landed.value, true)
+        };
+    if actual_type != count_type || actual_type.carrier() != IntegerCarrier::Fixed {
+        return None;
+    }
+    match value {
+        IntegerValue::Signed(value) => u128::try_from(value)
+            .ok()
+            .map(|value| (value, used_landing)),
+        IntegerValue::Unsigned(value) => Some((value, used_landing)),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -291,6 +473,9 @@ pub enum IntegerAffineWitnessError {
     DefinitionShapeMismatch(usize),
     AmbiguousDefinition(usize),
     CoefficientOverflow,
+    ZeroDivisionLiteral,
+    ShiftCountNotLanded(usize),
+    ShiftCountOutsideValueWidth(usize),
     TargetMismatch,
 }
 
@@ -306,13 +491,26 @@ impl std::error::Error for IntegerAffineWitnessError {}
 ///
 /// The caller must supply a root-bound proposition whose proof or citation was
 /// checked independently. This function accepts no proof authority; it checks
-/// only that the already-normalized affine form maps that exact bound to the
-/// claimed target relation.
+/// only that the already-normalized ordered endpoint transform maps that exact
+/// bound to the claimed target relation.
 pub fn check_integer_affine_bound_conversion(
     form: &CheckedIntegerAffineForm,
     root_bound: &Proposition,
     conclusion: &Proposition,
 ) -> Result<(), IntegerAffineBoundConversionError> {
+    let expected = map_integer_affine_bound(form, root_bound)?;
+    if conclusion != &expected {
+        return Err(IntegerAffineBoundConversionError::ConclusionMismatch);
+    }
+    Ok(())
+}
+
+/// Compute the unique endpoint relation established by one checked ordered
+/// transform and one independently proved root bound.
+pub fn map_integer_affine_bound(
+    form: &CheckedIntegerAffineForm,
+    root_bound: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
     let Proposition::LessOrEqual(bound_left, bound_right) = root_bound else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
     };
@@ -323,34 +521,220 @@ pub fn check_integer_affine_bound_conversion(
     } else {
         return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
     };
-    let Some((bound, false)) = signed_literal(bound, form.integer_type(), None) else {
+    let Some(bound) = integer_literal_as_i128(bound, form.integer_type()) else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
     };
-    let mapped = form
-        .coefficient()
-        .checked_mul(bound)
-        .and_then(|value| value.checked_add(form.offset()))
+    let mut mapped = bound;
+    let mut reverses_order = false;
+    for step in &form.endpoint_steps {
+        mapped = match *step {
+            CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(value),
+            CheckedIntegerEndpointStep::Subtract(value) => mapped.checked_sub(value),
+            CheckedIntegerEndpointStep::Multiply(value) => {
+                if value < 0 {
+                    reverses_order = !reverses_order;
+                }
+                mapped.checked_mul(value)
+            }
+            CheckedIntegerEndpointStep::Divide(value) => {
+                if value < 0 {
+                    reverses_order = !reverses_order;
+                }
+                mapped.checked_div(value)
+            }
+            CheckedIntegerEndpointStep::Remainder(value) => {
+                let magnitude = value
+                    .checked_abs()
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                let current_is_lower = root_is_lower_endpoint ^ reverses_order;
+                Some(
+                    if current_is_lower && form.integer_type().sign() == IntegerSign::Signed {
+                        1_i128
+                            .checked_sub(magnitude)
+                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                    } else if current_is_lower {
+                        0
+                    } else {
+                        magnitude
+                            .checked_sub(1)
+                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                    },
+                )
+            }
+            CheckedIntegerEndpointStep::ShiftLeft(count) => mapped.checked_mul(
+                1_i128
+                    .checked_shl(count)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?,
+            ),
+            CheckedIntegerEndpointStep::ShiftRight(count) => Some(mapped >> count),
+        }
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
-    let mapped = ScalarTerm::integer(form.integer_type(), IntegerValue::Signed(mapped))
+    }
+    let mapped_value = match form.integer_type().sign() {
+        IntegerSign::Signed => IntegerValue::Signed(mapped),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(
+            u128::try_from(mapped)
+                .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?,
+        ),
+    };
+    let mapped = ScalarTerm::integer(form.integer_type(), mapped_value)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
 
     // Positive forms preserve order, negative forms reverse it. A constant
     // form can soundly provide either orientation; retaining the root bound's
     // orientation makes that choice deterministic.
-    let target_is_left = if form.coefficient() < 0 {
+    let target_is_left = if reverses_order {
         root_is_lower_endpoint
     } else {
         !root_is_lower_endpoint
     };
-    let expected = if target_is_left {
+    Ok(if target_is_left {
         Proposition::LessOrEqual(form.target().clone(), mapped)
     } else {
         Proposition::LessOrEqual(mapped, form.target().clone())
-    };
-    if conclusion != &expected {
-        return Err(IntegerAffineBoundConversionError::ConclusionMismatch);
+    })
+}
+
+/// Derive the two carrier-tight endpoint relations for a checked word whose
+/// landed nonzero exact divide or remainder has a total full-carrier image,
+/// making its output range independent of the incoming root value. The caller
+/// still supplies and recursively checks a `Truth` child so ordinary
+/// proof-node custody remains explicit.
+pub fn integer_affine_truth_bounds(
+    form: &CheckedIntegerAffineForm,
+) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
+    let mut minimum = integer_value_to_i128(form.integer_type().minimum_value())
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+    let mut maximum = integer_value_to_i128(form.integer_type().maximum_value())
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+    let carrier_minimum = minimum;
+    let carrier_maximum = maximum;
+    let mut saw_total_image = false;
+    for step in &form.endpoint_steps {
+        match *step {
+            CheckedIntegerEndpointStep::Add(value) => {
+                minimum = minimum
+                    .checked_add(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                maximum = maximum
+                    .checked_add(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+            }
+            CheckedIntegerEndpointStep::Subtract(value) => {
+                minimum = minimum
+                    .checked_sub(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                maximum = maximum
+                    .checked_sub(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+            }
+            CheckedIntegerEndpointStep::Multiply(value) => {
+                let left = minimum
+                    .checked_mul(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                let right = maximum
+                    .checked_mul(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                (minimum, maximum) = (left.min(right), left.max(right));
+                if value == 0 {
+                    saw_total_image = true;
+                }
+            }
+            CheckedIntegerEndpointStep::Divide(value) => {
+                if form.integer_type().sign() == IntegerSign::Signed && value == -1 {
+                    return Err(IntegerAffineBoundConversionError::NonTotalDivisionImage);
+                }
+                let left = carrier_minimum
+                    .checked_div(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                let right = carrier_maximum
+                    .checked_div(value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                (minimum, maximum) = (left.min(right), left.max(right));
+                saw_total_image = true;
+            }
+            CheckedIntegerEndpointStep::Remainder(value) => {
+                let magnitude = value
+                    .checked_abs()
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                minimum = if form.integer_type().sign() == IntegerSign::Signed {
+                    1_i128
+                        .checked_sub(magnitude)
+                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                } else {
+                    0
+                };
+                maximum = magnitude
+                    .checked_sub(1)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                saw_total_image = true;
+            }
+            CheckedIntegerEndpointStep::ShiftLeft(count) => {
+                if count == 0 {
+                    minimum = carrier_minimum;
+                    maximum = carrier_maximum;
+                    saw_total_image = true;
+                    continue;
+                }
+                let scale = 1_i128
+                    .checked_shl(count)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                minimum = minimum
+                    .checked_mul(scale)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                maximum = maximum
+                    .checked_mul(scale)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+            }
+            CheckedIntegerEndpointStep::ShiftRight(count) => {
+                minimum = carrier_minimum >> count;
+                maximum = carrier_maximum >> count;
+                saw_total_image = true;
+            }
+        }
     }
-    Ok(())
+    if !saw_total_image {
+        return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
+    }
+    let minimum = scalar_integer_from_i128(form.integer_type(), minimum)?;
+    let maximum = scalar_integer_from_i128(form.integer_type(), maximum)?;
+    Ok(vec![
+        Proposition::LessOrEqual(minimum, form.target().clone()),
+        Proposition::LessOrEqual(form.target().clone(), maximum),
+    ])
+}
+
+fn scalar_integer_from_i128(
+    integer_type: IntegerType,
+    value: i128,
+) -> Result<ScalarTerm, IntegerAffineBoundConversionError> {
+    let value = match integer_type.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(value),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(
+            u128::try_from(value)
+                .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?,
+        ),
+    };
+    ScalarTerm::integer(integer_type, value)
+        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
+}
+
+fn integer_value_to_i128(value: IntegerValue) -> Option<i128> {
+    match value {
+        IntegerValue::Signed(value) => Some(value),
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
+    }
+}
+
+fn integer_literal_as_i128(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> {
+    let (actual_type, value) = term.integer_value()?;
+    if actual_type != integer_type {
+        return None;
+    }
+    match value {
+        IntegerValue::Signed(value) => Some(value),
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -360,6 +744,8 @@ pub enum IntegerAffineBoundConversionError {
     RootBoundNotTypedLiteral,
     MappedBoundOverflow,
     MappedBoundOutsideCarrier,
+    TruthRootWithoutTotalImage,
+    NonTotalDivisionImage,
     ConclusionMismatch,
 }
 
@@ -554,7 +940,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_value_roots_unsupported_carriers_and_checked_overflow() {
+    fn rejects_non_value_roots_stale_unsigned_words_and_checked_overflow() {
         let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let i8_target = value(1, i8_type);
         let i8_context = PropositionContext::from_value_types([(
@@ -603,7 +989,7 @@ mod tests {
                     literal_axioms: vec![None],
                 },
             ),
-            Err(IntegerAffineWitnessError::UnsupportedCarrier(u8_type)),
+            Err(IntegerAffineWitnessError::UnknownSemanticAxiom(0)),
         );
 
         let i128_type = IntegerType::new(IntegerSign::Signed, 128).expect("i128");
@@ -657,6 +1043,10 @@ mod tests {
             integer_type,
             coefficient,
             offset,
+            endpoint_steps: vec![
+                CheckedIntegerEndpointStep::Multiply(coefficient),
+                CheckedIntegerEndpointStep::Add(offset),
+            ],
         };
         let upper = Proposition::LessOrEqual(root.clone(), literal(4));
         let lower = Proposition::LessOrEqual(literal(-3), root.clone());
@@ -709,6 +1099,13 @@ mod tests {
             ),
             Ok(()),
         );
+        assert_eq!(
+            integer_affine_truth_bounds(&form(0, 5)),
+            Ok(vec![
+                Proposition::LessOrEqual(literal(5), target.clone()),
+                Proposition::LessOrEqual(target, literal(5)),
+            ]),
+        );
     }
 
     #[test]
@@ -723,6 +1120,10 @@ mod tests {
             integer_type,
             coefficient: 2,
             offset: 1,
+            endpoint_steps: vec![
+                CheckedIntegerEndpointStep::Multiply(2),
+                CheckedIntegerEndpointStep::Add(1),
+            ],
         };
         assert_eq!(
             check_integer_affine_bound_conversion(
@@ -759,8 +1160,10 @@ mod tests {
         assert_eq!(
             check_integer_affine_bound_conversion(
                 &CheckedIntegerAffineForm {
-                    coefficient: i128::MAX,
-                    offset: i128::MAX,
+                    endpoint_steps: vec![
+                        CheckedIntegerEndpointStep::Multiply(i128::MAX),
+                        CheckedIntegerEndpointStep::Add(i128::MAX),
+                    ],
                     ..form
                 },
                 &Proposition::LessOrEqual(root, literal(2)),
@@ -776,11 +1179,111 @@ mod tests {
                     integer_type,
                     coefficient: 2,
                     offset: 1,
+                    endpoint_steps: vec![
+                        CheckedIntegerEndpointStep::Multiply(2),
+                        CheckedIntegerEndpointStep::Add(1),
+                    ],
                 },
                 &Proposition::LessOrEqual(value(1, integer_type), literal(100)),
                 &Proposition::LessOrEqual(value(2, integer_type), literal(127)),
             ),
             Err(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier),
+        );
+    }
+
+    #[test]
+    fn maps_mixed_exact_shift_endpoints_and_rejects_witness_tamper() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let root = value(1, value_type);
+        let first = value(2, value_type);
+        let second = value(3, value_type);
+        let target = value(4, value_type);
+        let landed_count = value(5, i8_type);
+        let integer = |integer_type: IntegerType, value: i128| {
+            let value = match integer_type.sign() {
+                IntegerSign::Signed => IntegerValue::Signed(value),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(value.try_into().unwrap()),
+            };
+            ScalarTerm::integer(integer_type, value).unwrap()
+        };
+        let axioms = vec![
+            Proposition::Equal(landed_count.clone(), integer(i8_type, 1)),
+            Proposition::Equal(
+                first.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    value_type,
+                    i8_type,
+                    root.clone(),
+                    landed_count,
+                )
+                .unwrap(),
+            ),
+            Proposition::Equal(
+                second.clone(),
+                ScalarTerm::exact_integer_shift_right(
+                    value_type,
+                    u16_type,
+                    first,
+                    integer(u16_type, 2),
+                )
+                .unwrap(),
+            ),
+            Proposition::Equal(
+                target.clone(),
+                ScalarTerm::exact_integer_shift_left(
+                    value_type,
+                    i32_type,
+                    second,
+                    integer(i32_type, 3),
+                )
+                .unwrap(),
+            ),
+        ];
+        let context = PropositionContext::from_value_types(
+            (1..=4)
+                .map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(value_type)))
+                .chain([(ValueId::new(5).unwrap(), ScalarType::Integer(i8_type))]),
+        )
+        .unwrap();
+        let witness = IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            definition_axioms: vec![1, 2, 3],
+            literal_axioms: vec![Some(0), None, None],
+        };
+        let checked = check_integer_affine_witness(&context, &axioms, &witness)
+            .expect("ordered mixed shift witness");
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(root.clone(), integer(value_type, 63)),
+            ),
+            Ok(Proposition::LessOrEqual(target, integer(value_type, 248),)),
+        );
+        assert_eq!(
+            check_integer_affine_witness(
+                &context,
+                &axioms,
+                &IntegerAffineWitness {
+                    definition_axioms: vec![1, 3, 2],
+                    ..witness.clone()
+                },
+            ),
+            Err(IntegerAffineWitnessError::NonCanonicalDefinitionOrder),
+        );
+        assert_eq!(
+            check_integer_affine_witness(
+                &context,
+                &axioms,
+                &IntegerAffineWitness {
+                    literal_axioms: vec![None, None, None],
+                    ..witness
+                },
+            ),
+            Err(IntegerAffineWitnessError::ShiftCountNotLanded(1)),
         );
     }
 }

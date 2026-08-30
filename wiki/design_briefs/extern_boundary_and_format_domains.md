@@ -420,11 +420,23 @@ target, order, uniqueness, and diagnostic-fingerprint collision boundary. It
 then deduplicates exact locators into unresolved import symbols, the atomic
 locator side table, and distinct call-site relocations. The dynamic-ELF driver
 tests now begin at this ordinary object builder rather than constructing its
-private result. The preceding assigned-target and machine-emission stages still
-have no foreign-call operation that joins the selected normalized host binding
-to its call site, so ordinary source compilation does not populate the new
-carrier yet. That lowering and its foreign-call stack custody, optional
-`.gnu.hash`, and ordinary source `via` evaluation remain open. An owned direct
+private result. The first preceding production path is now closed for one
+zero-argument, `Unit`-returning normalized import leaf. Checked compilation
+retains extracted external-binding rows before consuming typed trees. Native
+settlement rejoins one unique retained row only through the complete selected
+`ProviderPlan`, its exact selected-plan evidence, and the admitted same-stack
+contribution; compact report fingerprints provide no plan-selection authority,
+and an equal-report substitute rejects. A distinct target operation survives
+assignment. Ordinary x86-64 and AArch64 machine emission then produces the
+unresolved `CALL rel32` or `BL` field and retains the complete normalized
+locator, provider execution, evaluated call plan, admitted contribution, and
+physical `Unit` stack evidence in the foreign-call row. Object construction
+replays that physical stack custody before consuming the row, and both Linux
+profiles advance from the exact native rejoin through target, assignment,
+machine, ordinary object construction, and the complete dynamic-ELF driver.
+Broader argument/result signatures, complete task-stack-budget composition,
+optional `.gnu.hash`, and ordinary source `via` evaluation remain open
+engineering work. An owned direct
 `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte

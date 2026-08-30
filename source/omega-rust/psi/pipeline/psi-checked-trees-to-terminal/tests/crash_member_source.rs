@@ -4229,6 +4229,9 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
             | Proposition::Equal(_, _)
             | Proposition::LessThan(_, _)
             | Proposition::LessOrEqual(_, _)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::ContentConservation(_) => {}
@@ -4457,6 +4460,9 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
             Proposition::Truth
             | Proposition::Falsehood
             | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::ContentConservation(_) => {}
@@ -4788,6 +4794,9 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
             Proposition::Truth
             | Proposition::Falsehood
             | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::ContentConservation(_) => {}
@@ -5127,6 +5136,9 @@ fn payload_sum_nested_sum_equality_replays_end_to_end() {
             Proposition::Truth
             | Proposition::Falsehood
             | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }

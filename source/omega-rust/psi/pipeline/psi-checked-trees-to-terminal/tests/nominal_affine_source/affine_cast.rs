@@ -67,6 +67,9 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
         })
         .collect::<Vec<_>>();
     assert_eq!(obligations.len(), 17);
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("reconstruct sandwich obligations");
     for (index, obligation) in obligations.iter().enumerate() {
         assert!(!obligations[index + 1..].contains(obligation));
         let operation = operations
@@ -98,6 +101,23 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
             evidence.obligation == *obligation
                 && matches!(evidence.route, EvidenceRoute::CertificateDerived(_))
         }));
+        if matches!(operation.kind, OperationKind::IntegerExactCast { .. }) {
+            let site = reconstructed
+                .iter()
+                .find(|site| site.obligation.id == *obligation)
+                .expect("reconstructed exact-cast site");
+            assert!(site.canonical_certificate);
+            let evidence = lowered
+                .proof_bundle
+                .evidence
+                .iter()
+                .find(|evidence| evidence.obligation == *obligation)
+                .expect("exact-cast evidence");
+            let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+                panic!("exact cast uses a certificate")
+            };
+            assert_eq!(certificate.proof.conclusion, site.obligation.proposition);
+        }
     }
 
     let verified = psi_terminal_verifier::verify_module(
@@ -136,6 +156,34 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
                 if missing_obligation == *obligation
         ));
     }
+    let cast_obligation = operations
+        .iter()
+        .find_map(|operation| match operation.kind {
+            OperationKind::IntegerExactCast { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .expect("one exact-cast obligation");
+    let mut malformed = decode_proof_bundle(&proof).expect("decode sandwich proof");
+    let malformed_evidence = malformed
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == cast_obligation)
+        .expect("exact-cast evidence");
+    let EvidenceRoute::CertificateDerived(certificate) = &mut malformed_evidence.route else {
+        panic!("exact cast uses a certificate")
+    };
+    certificate.proof.conclusion = Proposition::Truth;
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode unchanged sandwich module"),
+            &malformed,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == cast_obligation
+    ));
 
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let produced_by_two = operations

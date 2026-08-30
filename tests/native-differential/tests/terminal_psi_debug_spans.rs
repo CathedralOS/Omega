@@ -9,7 +9,7 @@ fn source_canary() -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/psi/integer_control_contract/main.omg")
+        .join("tests/omega/pass/terminal_psi/integer_control_contract/main.omg")
 }
 
 fn operation_site<'map>(sites: &'map [DebugSite], operation: OperationId) -> &'map DebugSite {

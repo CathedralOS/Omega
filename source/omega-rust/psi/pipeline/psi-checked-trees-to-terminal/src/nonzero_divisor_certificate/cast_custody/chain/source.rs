@@ -16,8 +16,11 @@ pub(super) fn root(
             .iter()
             .enumerate()
             .filter_map(|(index, axiom)| {
-                let Proposition::Equal(output, ScalarTerm::IntegerExactCast { operand, .. }) =
-                    axiom
+                let Proposition::Equal(
+                    output,
+                    ScalarTerm::IntegerExactCast { operand, .. }
+                    | ScalarTerm::IntegerWiden { operand, .. },
+                ) = axiom
                 else {
                     return None;
                 };

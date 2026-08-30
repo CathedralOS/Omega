@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{ContentTerm, Proposition, PropositionId, ScalarTerm};
+use psi_core::{ContentTerm, IntegerMathTerm, Proposition, PropositionId, ScalarTerm};
 use psi_terminal::{
     CrashRouteBucket, CrashRouteGuard, FloatProjectionInputId, OperationKind, ProofPropositionId,
     ProofValueId, StructuralParameterDeclaration, StructuralTypeShape, TerminalModule, Terminator,
@@ -607,6 +607,21 @@ fn validate_canonical_proposition(
             validate_scalar_term_depth(left)?;
             validate_scalar_term_depth(right)
         }
+        Proposition::IntegerMathEqual(left, right) => {
+            validate_integer_math_term_depth(left)?;
+            validate_integer_math_term_depth(right)?;
+            if left > right {
+                return Err(CodecError::NonCanonicalOrder(
+                    "mathematical integer equality operands",
+                ));
+            }
+            Ok(())
+        }
+        Proposition::IntegerMathLessThan(left, right)
+        | Proposition::IntegerMathLessOrEqual(left, right) => {
+            validate_integer_math_term_depth(left)?;
+            validate_integer_math_term_depth(right)
+        }
         Proposition::IeeeFloatComparison { left, right, .. } => {
             if left > right {
                 return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
@@ -664,6 +679,29 @@ fn validate_canonical_proposition(
             validate_content_term_depth(conservation.right(), 0)
         }
     }
+}
+
+fn validate_integer_math_term_depth(term: &IntegerMathTerm) -> Result<(), CodecError> {
+    let mut pending = vec![(term, 0_usize)];
+    while let Some((term, depth)) = pending.pop() {
+        if depth > MAX_SCALAR_TERM_DEPTH {
+            return Err(CodecError::ScalarTermNestingTooDeep);
+        }
+        match term {
+            IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {}
+            IntegerMathTerm::Add(left, right)
+            | IntegerMathTerm::Subtract(left, right)
+            | IntegerMathTerm::Multiply(left, right) => {
+                pending.push((left, depth + 1));
+                pending.push((right, depth + 1));
+            }
+            IntegerMathTerm::ShiftLeft { value, count } => {
+                pending.push((value, depth + 1));
+                pending.push((count, depth + 1));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn canonical_propositions_strictly_increase(

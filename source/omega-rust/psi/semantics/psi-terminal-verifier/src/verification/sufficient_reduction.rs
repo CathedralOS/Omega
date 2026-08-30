@@ -16,7 +16,6 @@ use psi_terminal_semantics::{
 use super::integer_add_subtract::{
     exact_integer_add_obligation, exact_integer_subtract_obligation,
 };
-use super::integer_conversion::exact_integer_cast_obligation;
 use super::integer_divide_remainder::{
     exact_integer_divide_obligation_with_definitions,
     exact_integer_remainder_obligation_with_definitions,
@@ -40,20 +39,6 @@ pub(super) fn reduce_proof_bearing_scalar_goal(
         available
     };
     match (semantics.schema().denotation(), semantics.canonical_goal()) {
-        (
-            ScalarLeafDenotation::IntegerExactCast,
-            CanonicalScalarGoal::ExactCastRepresentable {
-                source_type,
-                target_type,
-                operand,
-            },
-        ) => exact_integer_cast_obligation(
-            *source_type,
-            *target_type,
-            operand.clone(),
-            semantic_axioms,
-            machine_parameter_values,
-        ),
         (
             ScalarLeafDenotation::ExactIntegerShiftRight,
             CanonicalScalarGoal::ExactShiftCount {
@@ -180,6 +165,10 @@ pub(super) fn reduce_proof_bearing_scalar_goal(
             ScalarLeafDenotation::SaturatingIntegerRemainder,
             CanonicalScalarGoal::NonzeroDivisor { .. },
         ) => unreachable!("canonical nonzero rows bypass legacy sufficient reduction"),
+        (
+            ScalarLeafDenotation::IntegerExactCast,
+            CanonicalScalarGoal::ExactCastRepresentable { .. },
+        ) => unreachable!("canonical exact-cast rows bypass legacy sufficient reduction"),
         _ => unreachable!("validated proof-bearing scalar row has one canonical goal mapping"),
     }
 }

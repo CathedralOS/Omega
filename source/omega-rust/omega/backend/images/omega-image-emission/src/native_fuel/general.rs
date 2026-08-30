@@ -527,6 +527,7 @@ mod tests {
                     edges: Vec::new(),
                 },
                 bytes: bytes.clone(),
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),

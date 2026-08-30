@@ -25,6 +25,18 @@ pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Propo
             encode_scalar_term(bytes, left);
             encode_scalar_term(bytes, right);
         }
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right)
+        | Proposition::IntegerMathLessOrEqual(left, right) => {
+            bytes.u8(match proposition {
+                Proposition::IntegerMathEqual(_, _) => 14,
+                Proposition::IntegerMathLessThan(_, _) => 15,
+                Proposition::IntegerMathLessOrEqual(_, _) => 16,
+                _ => unreachable!(),
+            });
+            encode_integer_math_term(bytes, left);
+            encode_integer_math_term(bytes, right);
+        }
         Proposition::Conjunction(values) => {
             bytes.u8(7);
             bytes.slice(values, encode_proposition);
@@ -68,6 +80,38 @@ pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Propo
             bytes.u8(13);
             encode_case_subject(bytes, subject);
             bytes.id(*case);
+        }
+    }
+}
+
+fn encode_integer_math_term(bytes: &mut CanonicalBytes, term: &IntegerMathTerm) {
+    match term {
+        IntegerMathTerm::IntegerLiteral(literal) => {
+            bytes.u8(1);
+            bytes.boolean(literal.negative());
+            bytes.u128(literal.magnitude());
+        }
+        IntegerMathTerm::MathValue { source_type, value } => {
+            bytes.u8(2);
+            encode_integer_type(bytes, *source_type);
+            bytes.id(*value);
+        }
+        IntegerMathTerm::Add(left, right)
+        | IntegerMathTerm::Subtract(left, right)
+        | IntegerMathTerm::Multiply(left, right) => {
+            bytes.u8(match term {
+                IntegerMathTerm::Add(_, _) => 3,
+                IntegerMathTerm::Subtract(_, _) => 4,
+                IntegerMathTerm::Multiply(_, _) => 5,
+                _ => unreachable!(),
+            });
+            encode_integer_math_term(bytes, left);
+            encode_integer_math_term(bytes, right);
+        }
+        IntegerMathTerm::ShiftLeft { value, count } => {
+            bytes.u8(6);
+            encode_integer_math_term(bytes, value);
+            encode_integer_math_term(bytes, count);
         }
     }
 }

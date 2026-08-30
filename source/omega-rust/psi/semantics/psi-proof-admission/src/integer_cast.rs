@@ -1,4 +1,4 @@
-//! Independently checked normalization for contiguous partial integer casts.
+//! Independently checked normalization for contiguous integer conversion words.
 //!
 //! This producer-visible prerequisite binds an ordered word of exact semantic
 //! equalities to its root, target, carrier sequence, and exact surviving root
@@ -91,13 +91,20 @@ pub fn check_integer_cast_chain_witness(
                 index,
             ));
         }
-        let ScalarTerm::IntegerExactCast {
-            source_type,
-            target_type,
-            operand,
-        } = definition
-        else {
-            return Err(IntegerCastChainWitnessError::DefinitionNotExactCast(index));
+        let (source_type, target_type, operand, exact_cast) = match definition {
+            ScalarTerm::IntegerExactCast {
+                source_type,
+                target_type,
+                operand,
+            } => (source_type, target_type, operand, true),
+            ScalarTerm::IntegerWiden {
+                source_type,
+                target_type,
+                operand,
+            } => (source_type, target_type, operand, false),
+            _ => {
+                return Err(IntegerCastChainWitnessError::DefinitionNotExactCast(index));
+            }
         };
         if operand.as_ref() != &current
             || *source_type != current_type
@@ -105,8 +112,15 @@ pub fn check_integer_cast_chain_witness(
         {
             return Err(IntegerCastChainWitnessError::CastChainMismatch(index));
         }
-        if !partial_fixed_native_cast(*source_type, *target_type) {
+        if exact_cast && !partial_fixed_native_cast(*source_type, *target_type) {
             return Err(IntegerCastChainWitnessError::NonPartialCastEdge {
+                index,
+                source: *source_type,
+                target: *target_type,
+            });
+        }
+        if !exact_cast && !strict_fixed_native_widen(*source_type, *target_type) {
+            return Err(IntegerCastChainWitnessError::InvalidWidenEdge {
                 index,
                 source: *source_type,
                 target: *target_type,
@@ -146,6 +160,13 @@ fn partial_fixed_native_cast(source: IntegerType, target: IntegerType) -> bool {
         && !source.can_widen_to(target)
 }
 
+fn strict_fixed_native_widen(source: IntegerType, target: IntegerType) -> bool {
+    fixed_native_interval(source).is_some()
+        && fixed_native_interval(target).is_some()
+        && source != target
+        && source.can_widen_to(target)
+}
+
 fn fixed_native_interval(integer_type: IntegerType) -> Option<(i128, i128)> {
     if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
         return None;
@@ -178,6 +199,11 @@ pub enum IntegerCastChainWitnessError {
     DefinitionNotExactCast(usize),
     CastChainMismatch(usize),
     NonPartialCastEdge {
+        index: usize,
+        source: IntegerType,
+        target: IntegerType,
+    },
+    InvalidWidenEdge {
         index: usize,
         source: IntegerType,
         target: IntegerType,
@@ -246,6 +272,35 @@ pub fn check_integer_cast_bound_conversion(
     Ok(())
 }
 
+/// Exact target-carrier endpoint facts implied by every successfully produced
+/// value of one checked partial-cast word.
+pub fn integer_cast_truth_bounds(
+    chain: &CheckedIntegerCastChain,
+) -> Result<Vec<Proposition>, IntegerCastBoundConversionError> {
+    let (minimum, maximum) = chain
+        .surviving_root_interval()
+        .ok_or(IntegerCastBoundConversionError::EmptySurvivingInterval)?;
+    let target_type = *chain
+        .carriers()
+        .last()
+        .expect("a checked cast chain retains its target carrier");
+    let literal = |value| {
+        let value = match target_type.sign() {
+            IntegerSign::Signed => IntegerValue::Signed(value),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(
+                u128::try_from(value)
+                    .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)?,
+            ),
+        };
+        ScalarTerm::integer(target_type, value)
+            .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)
+    };
+    Ok(vec![
+        Proposition::LessOrEqual(literal(minimum)?, chain.target().clone()),
+        Proposition::LessOrEqual(chain.target().clone(), literal(maximum)?),
+    ])
+}
+
 fn typed_integer_as_i128(term: &ScalarTerm, expected: IntegerType) -> Option<i128> {
     let (actual, value) = term.integer_value()?;
     (actual == expected)
@@ -262,6 +317,7 @@ pub enum IntegerCastBoundConversionError {
     ConclusionTargetMismatch,
     ConclusionNotTypedLiteral,
     ConclusionLiteralMismatch,
+    EmptySurvivingInterval,
 }
 
 impl std::fmt::Display for IntegerCastBoundConversionError {

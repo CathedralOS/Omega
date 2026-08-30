@@ -39,6 +39,48 @@ pub fn extract_external_binding_rows(
     ],
     typed: &psi_typed_trees::TypedTrees,
 ) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
+    extract_external_binding_rows_for_scope(
+        selected_target,
+        native_target,
+        selected_plans,
+        boundary_calling_plan_realizations,
+        typed,
+        false,
+    )
+}
+
+/// Extract only normalized import leaves for compiler-to-native custody.
+/// Other selected provider mechanisms retain their existing specialized
+/// lowering and must not be forced through host-ABI compatibility planning.
+pub fn extract_normalized_import_binding_rows(
+    selected_target: Option<&str>,
+    native_target: omega_target::NativeTarget,
+    selected_plans: &[omega_effects::provider_plan::ProviderPlan],
+    boundary_calling_plan_realizations: &[
+        crate::calling_policy_plans::BoundaryCallingPlanRealization
+    ],
+    typed: &psi_typed_trees::TypedTrees,
+) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
+    extract_external_binding_rows_for_scope(
+        selected_target,
+        native_target,
+        selected_plans,
+        boundary_calling_plan_realizations,
+        typed,
+        true,
+    )
+}
+
+fn extract_external_binding_rows_for_scope(
+    selected_target: Option<&str>,
+    native_target: omega_target::NativeTarget,
+    selected_plans: &[omega_effects::provider_plan::ProviderPlan],
+    boundary_calling_plan_realizations: &[
+        crate::calling_policy_plans::BoundaryCallingPlanRealization
+    ],
+    typed: &psi_typed_trees::TypedTrees,
+    normalized_imports_only: bool,
+) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     use omega_calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
     use omega_effects::provider_plan::ProviderBinding;
 
@@ -48,6 +90,9 @@ pub fn extract_external_binding_rows(
     // a second binding authority beside the retained typed identity.
     for plan in selected_plans {
         for row in &plan.rows {
+            if normalized_imports_only && !matches!(&row.binding, ProviderBinding::Import { .. }) {
+                continue;
+            }
             let binding = match &row.binding {
                 ProviderBinding::Import { locator } => ExternalBindingKind::Import {
                     locator: locator.clone(),

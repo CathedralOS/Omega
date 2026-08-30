@@ -16,22 +16,6 @@ mod literal;
 mod transitive;
 mod value_index;
 
-pub(super) fn prove(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    let mut definitions = DefinitionIndex::new(semantic_axioms);
-    prove_with_definitions(
-        context,
-        goal,
-        assumptions,
-        semantic_axioms,
-        &mut definitions,
-    )
-}
-
 pub(super) fn prove_with_definitions(
     context: &PropositionContext,
     goal: &Proposition,

@@ -1,17 +1,11 @@
 //! Producer-local exact affine endpoint mapping for relaxation.
 
 use psi_core::Proposition;
-use psi_proof_admission::CheckedIntegerAffineForm;
-
-mod endpoint;
-mod orientation;
-mod value;
+use psi_proof_admission::{CheckedIntegerAffineForm, map_integer_affine_bound};
 
 pub(in super::super) fn mapped_bound(
     form: &CheckedIntegerAffineForm,
     root_bound: &Proposition,
 ) -> Option<Proposition> {
-    let endpoint = endpoint::select(form, root_bound)?;
-    let mapped = value::mapped(form, endpoint.bound)?;
-    Some(orientation::bound(form, mapped, endpoint.root_is_lower))
+    map_integer_affine_bound(form, root_bound).ok()
 }

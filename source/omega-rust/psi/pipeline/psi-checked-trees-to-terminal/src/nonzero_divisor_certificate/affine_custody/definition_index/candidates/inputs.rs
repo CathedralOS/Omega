@@ -5,7 +5,9 @@ use psi_core::ScalarTerm;
 pub(super) fn affine_values(expression: &ScalarTerm) -> impl Iterator<Item = &ScalarTerm> {
     let inputs = match expression {
         ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
+        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+        | ScalarTerm::ExactIntegerDivide { left, right, .. }
+        | ScalarTerm::ExactIntegerRemainder { left, right, .. } => {
             [Some(left.as_ref()), Some(right.as_ref())]
         }
         ScalarTerm::ExactIntegerSubtract { left, .. } => [Some(left.as_ref()), None],

@@ -1,16 +1,16 @@
 use omega_calling_conventions::PlanDiagnostic;
 use omega_target::NativeTarget;
-use omega_target_operations::BoundaryRealization;
+use omega_target_operations::BoundarySettlementRealization;
 use psi_core::{BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId};
 
 /// One boundary realization sourced from a validated, admitted provider
 /// execution. Callers supply the exact target mechanism but cannot substitute
 /// a secondary provider-plan identity.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct AdmittedBoundarySettlement<'execution> {
     pub boundary: BoundaryMachineId,
     pub provider_execution: &'execution dyn omega_installation_evidence::ProviderExecutionEvidence,
-    pub realization: BoundaryRealization,
+    pub realization: BoundarySettlementRealization,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

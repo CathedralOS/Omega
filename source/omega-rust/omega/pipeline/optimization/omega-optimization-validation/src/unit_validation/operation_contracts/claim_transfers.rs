@@ -231,7 +231,12 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
                 collect(premise, roots);
                 collect(conclusion, roots);
             }
-            Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _) => {}
         }
     }
 

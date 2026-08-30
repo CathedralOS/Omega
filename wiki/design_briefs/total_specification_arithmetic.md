@@ -180,8 +180,16 @@ independent. Completely closed terms, bare source-carrier inclusion, and
 vacuous bounds normalize deterministically. Symbolic interval propagation,
 affine reduction, aliases, and every other fact-dependent simplification remain
 producer proof steps checked against the unchanged canonical bounds. The
-current optional projection and legacy reducer are implementation fences, not
-alternate semantics.
+exact-cast projection and certificate route now implement this construction:
+the verifier reconstructs the mathematical carrier bounds and checks the
+producer-selected fixed-carrier derivation through canonical carrier
+normalization in the existing proof calculus. Existing checked affine and cast
+bound witnesses replay ordered exact arithmetic, landed shift counts, partial
+casts, and widening identity edges; carrier-determined total images and exact
+cast-intersection endpoints may start from a checked `Truth` child. This adds no
+proof rule and gives the verifier no search authority. Exact shift-left and
+exact add/subtract/multiply remain behind the optional projection and legacy
+reducer; those fences are implementation status, not alternate semantics.
 
 `Float::meaning32` and `Float::meaning64` are the corresponding explicit total
 projections for floats. They produce `FloatMeaning`, retaining signed zero,

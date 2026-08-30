@@ -4,15 +4,19 @@
 //! trusted migration dependencies until they prove canonical ledger goals.
 //! This parent owns precedence and the direct fallback, not their algorithms.
 
+#[cfg(test)]
 use std::collections::BTreeSet;
 
+#[cfg(test)]
 use psi_core::{Proposition, ScalarTerm, ScalarType, ValueId};
 
+#[cfg(test)]
 use super::integer_shift::{
     exact_integer_mixed_shift_chain_cast_obligation,
     exact_integer_shift_left_chain_cast_obligation,
     exact_integer_shift_right_chain_cast_obligation,
 };
+#[cfg(test)]
 use super::integer_value_cmp;
 
 mod chains;
@@ -20,32 +24,36 @@ mod composition;
 
 pub(super) use chains::{
     exact_integer_affine_preimage_interval, exact_integer_affine_preimage_obligation,
-    exact_integer_cast_chain_obligation, exact_integer_cast_chain_root_interval,
-    exact_integer_computed_prefix_cast_chain_obligation,
+    exact_integer_cast_chain_root_interval,
     exact_integer_computed_prefix_conversion_interval_obligation,
-    exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation,
     partial_fixed_native_integer_cast,
 };
 #[cfg(test)]
 pub(super) use chains::{
+    exact_integer_cast_chain_obligation,
     exact_integer_computed_prefix_cast_chain_interval_obligation,
+    exact_integer_computed_prefix_cast_chain_obligation,
+    exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation,
     exact_integer_computed_prefix_mixed_conversion_chain_interval_obligation,
     exact_integer_computed_prefix_widen_chain_interval_obligation,
 };
+#[cfg(test)]
 pub(super) use composition::{
-    exact_integer_affine_chain_cast_obligation, exact_integer_cast_then_offset_obligation,
+    exact_integer_affine_chain_cast_obligation,
+    exact_integer_divide_remainder_chain_cast_obligation,
+    exact_integer_multiply_chain_cast_obligation, exact_integer_offset_chain_cast_obligation,
+    exact_integer_signed_affine_chain_cast_obligation,
+    exact_integer_signed_multiply_chain_cast_obligation,
+};
+pub(super) use composition::{
+    exact_integer_cast_then_offset_obligation,
     exact_integer_divide_remainder_cast_affine_obligation,
     exact_integer_divide_remainder_chain_hull,
     exact_integer_divide_remainder_then_affine_obligation,
-    exact_integer_signed_affine_chain_cast_obligation,
-    exact_integer_signed_multiply_chain_cast_obligation,
     exact_integer_signed_product_interval_obligation,
 };
-use composition::{
-    exact_integer_divide_remainder_chain_cast_obligation,
-    exact_integer_multiply_chain_cast_obligation, exact_integer_offset_chain_cast_obligation,
-};
 
+#[cfg(test)]
 pub(super) fn exact_integer_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,

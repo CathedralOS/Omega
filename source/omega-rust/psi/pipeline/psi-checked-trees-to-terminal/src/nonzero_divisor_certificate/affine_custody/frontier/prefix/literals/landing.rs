@@ -23,7 +23,8 @@ pub(super) fn unique(
                     (value == sibling
                         && matches!(
                             literal.integer_value(),
-                            Some((actual, IntegerValue::Signed(_))) if actual == integer_type
+                            Some((actual, IntegerValue::Signed(_) | IntegerValue::Unsigned(_)))
+                                if actual == integer_type
                         ))
                     .then_some(index)
                 })

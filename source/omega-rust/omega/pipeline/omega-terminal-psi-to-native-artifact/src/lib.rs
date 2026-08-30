@@ -28,8 +28,8 @@ pub use optimized_semantic_wrapper_encoding::{
 };
 pub use optimized_semantic_wrapper_object::*;
 pub use realization::{
-    NativeProviderSettlement, NativeRealizationRequest, SettledNativeArtifact,
-    realize_native_artifact, realize_program_entry_native_artifact,
+    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationRequest,
+    SettledNativeArtifact, realize_native_artifact, realize_program_entry_native_artifact,
 };
 
 #[cfg(test)]

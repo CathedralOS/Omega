@@ -223,15 +223,60 @@ pub(super) fn lower_boundary_call(
             }
             let binding = settlements
                 .get(boundary)
-                .copied()
+                .cloned()
                 .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
             let declaration = boundary_machines
                 .get(boundary)
                 .copied()
                 .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
+            if let omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                foreign,
+            ) = &binding.realization
+            {
+                let signature = omega_calling_conventions::CallSignature {
+                    parameters: Vec::new(),
+                    result: None,
+                };
+                let Ok(validated) = omega_calling_conventions::validate_boundary_entry_plan(
+                    foreign.boundary_entry_plan.clone(),
+                    &signature,
+                ) else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                };
+                if !arguments.is_empty()
+                    || !structural_arguments.is_empty()
+                    || !completion_claim_sources.is_empty()
+                    || !completion_receipts.is_empty()
+                    || !declaration.scalar_parameters.is_empty()
+                    || !declaration.structural_parameters.is_empty()
+                    || declaration.result.is_some()
+                    || validated.plan() != &foreign.boundary_entry_plan
+                    || target.object_format != ObjectFormat::Elf
+                    || foreign.boundary_entry_plan.call.policy
+                        != omega_calling_conventions::CallingPolicy::native_for_target(target)
+                    || foreign.boundary_entry_plan.call.entry_control
+                        != omega_calling_conventions::EntryControl::CallReturn
+                    || foreign.locator.target().native_target() != target
+                {
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                }
+                operations.push(TargetUnitOperation::NormalizedForeignCall {
+                    psi_operation: *psi_operation,
+                    boundary: *boundary,
+                    provider_execution: binding.provider_execution,
+                    binding: foreign.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+                return Ok(());
+            }
+            let omega_target_operations::BoundarySettlementRealization::Builtin(realization) =
+                binding.realization
+            else {
+                unreachable!("normalized foreign settlement returns above")
+            };
             let mut scalar_arguments = Vec::new();
             let mut byte_sequence_arguments = Vec::new();
-            match binding.realization {
+            match realization {
                 BoundaryRealization::MetadataOnlyPort(realization) => {
                     if !arguments.is_empty()
                         || !matches!(
@@ -367,7 +412,7 @@ pub(super) fn lower_boundary_call(
                 psi_operation: *psi_operation,
                 boundary: *boundary,
                 provider_execution: binding.provider_execution,
-                realization: binding.realization,
+                realization,
                 scalar_arguments,
                 arguments: structural_arguments.clone(),
                 byte_sequence_arguments,

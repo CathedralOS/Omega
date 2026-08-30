@@ -18,6 +18,9 @@ pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
         | Proposition::Equal(_, _)
         | Proposition::LessThan(_, _)
         | Proposition::LessOrEqual(_, _)
+        | Proposition::IntegerMathEqual(_, _)
+        | Proposition::IntegerMathLessThan(_, _)
+        | Proposition::IntegerMathLessOrEqual(_, _)
         | Proposition::IeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. } => false,
@@ -104,6 +107,9 @@ pub(super) fn proposition_boolean_field_roots(proposition: &Proposition) -> BTre
             Proposition::Truth
             | Proposition::Falsehood
             | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::ContentConservation(_) => {}
         }
     }
@@ -151,6 +157,9 @@ pub(super) fn proposition_content_roots(proposition: &Proposition) -> BTreeSet<P
             | Proposition::Equal(_, _)
             | Proposition::LessThan(_, _)
             | Proposition::LessOrEqual(_, _)
+            | Proposition::IntegerMathEqual(_, _)
+            | Proposition::IntegerMathLessThan(_, _)
+            | Proposition::IntegerMathLessOrEqual(_, _)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralCaseMembership { .. } => {}

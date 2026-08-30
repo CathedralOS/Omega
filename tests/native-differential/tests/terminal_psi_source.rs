@@ -216,6 +216,7 @@ fn stage_terminal_component(
             ),
             optimization_selections: checked.optimization_selections(),
             selected_provider_plans: checked.selected_provider_plans(),
+            external_binding_rows: checked.external_binding_rows(),
             settlements,
         },
     )?;
@@ -1009,6 +1010,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         .expect("selected source entry should retain its build-bound progress manifest");
     assert_eq!(manifest.pending().len(), 1);
     assert_eq!(checked.selected_provider_plans().plans().len(), 1);
+    let selected_plan = &checked.selected_provider_plans().plans()[0];
     let demand = &manifest.pending()[0];
     assert_eq!(demand.provider_service_identity, "Scheduler");
     assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
@@ -1027,7 +1029,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert!(direct_native.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("cannot discard pending build-bound component progress")
+            .contains("cannot discharge build-bound progress demand")
     }));
 
     let provider = admit_native_provider_for_selected_plan(
@@ -1072,6 +1074,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &AdmissionProfile::default(),
         &[ComponentProviderSettlement {
             provider_execution: &unselected,
+            provider_plan: selected_plan,
             realization: LinuxExitGroupI32Realization.into(),
         }],
     )
@@ -1079,7 +1082,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert!(
         unselected_error
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("names unselected plan")),
+            .any(|diagnostic| diagnostic.message.contains("does not carry exact evidence")),
         "{unselected_error:#?}"
     );
 
@@ -1090,6 +1093,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &AdmissionProfile::default(),
         &[ComponentProviderSettlement {
             provider_execution: &provider,
+            provider_plan: selected_plan,
             realization: LinuxExitGroupI32Realization.into(),
         }],
     )
@@ -1300,6 +1304,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             &AdmissionProfile::default(),
             &[ComponentProviderSettlement {
                 provider_execution: &provider,
+                provider_plan: selected_plan,
                 realization: LinuxExitGroupI32Realization.into(),
             }],
         )

@@ -5,6 +5,34 @@ use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_native_artifact::NativeArtifact;
 use omega_target_operations::BoundaryRealization;
 
+#[derive(Debug, Clone, Copy)]
+pub enum NativeBoundaryRealization<'execution> {
+    Builtin(BoundaryRealization),
+    NormalizedForeignCall(&'execution omega_task_plans::AdmittedSameStackContribution),
+}
+
+impl<'execution> From<BoundaryRealization> for NativeBoundaryRealization<'execution> {
+    fn from(realization: BoundaryRealization) -> Self {
+        Self::Builtin(realization)
+    }
+}
+
+macro_rules! builtin_native_realization_conversion {
+    ($realization:ty) => {
+        impl<'execution> From<$realization> for NativeBoundaryRealization<'execution> {
+            fn from(realization: $realization) -> Self {
+                Self::Builtin(realization.into())
+            }
+        }
+    };
+}
+
+builtin_native_realization_conversion!(omega_target_operations::MetadataOnlyPortRealization);
+builtin_native_realization_conversion!(omega_target_operations::DirectPortReadU8Realization);
+builtin_native_realization_conversion!(omega_target_operations::LinuxWriteLineRealization);
+builtin_native_realization_conversion!(omega_target_operations::LinuxExitGroupI32Realization);
+builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionOnlyRealization);
+
 pub(crate) enum NativeRealizationInput {
     Unoptimized(omega_psi_to_abstract_operations::NativeArtifactOperationPlan),
     ExplicitOptimization(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
@@ -25,7 +53,10 @@ impl NativeRealizationInput {
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProviderSettlement<'execution> {
     pub provider_execution: &'execution dyn ProviderExecutionEvidence,
-    pub realization: BoundaryRealization,
+    /// Complete selected-plan evidence. The compact report identity remains a
+    /// report coordinate and cannot select or authorize a plan by itself.
+    pub provider_plan: &'execution omega_effects::provider_plan::ProviderPlan,
+    pub realization: NativeBoundaryRealization<'execution>,
 }
 
 /// Complete build-owned inputs for one target-native realization. Keeping
@@ -38,6 +69,7 @@ pub struct NativeRealizationRequest<'request> {
     pub program_entry: NativeProgramEntrySettlement<'request>,
     pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
     pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
+    pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],
 }
 

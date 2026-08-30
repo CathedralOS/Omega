@@ -304,13 +304,20 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         realization: omega_target_operations::LinuxExitGroupI32Realization.into(),
     };
 
-    let x86 =
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[binding])
-            .expect("Linux x86-64 exit_group lowering");
+    let x86 = lower_to_target_operations_with_settlements(
+        &plan,
+        NativeTarget::linux_x64(),
+        &[binding.clone()],
+    )
+    .expect("Linux x86-64 exit_group lowering");
     assert_eq!(
         x86,
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[binding],)
-            .expect("deterministic lowering")
+        lower_to_target_operations_with_settlements(
+            &plan,
+            NativeTarget::linux_x64(),
+            &[binding.clone()],
+        )
+        .expect("deterministic lowering")
     );
     assert!(matches!(
         &x86.functions[0].operation,
@@ -321,20 +328,31 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
                 && argument.destination == MachineRegister::X86Rdi
                 && *nominal_return_edge == return_edge
     ));
-    let arm =
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_arm64(), &[binding])
-            .expect("Linux AArch64 exit_group lowering");
+    let arm = lower_to_target_operations_with_settlements(
+        &plan,
+        NativeTarget::linux_arm64(),
+        &[binding.clone()],
+    )
+    .expect("Linux AArch64 exit_group lowering");
     assert!(matches!(
         &arm.functions[0].operation,
         TargetOperation::ExitProcessI32 { argument, .. }
             if argument.destination == MachineRegister::Aarch64X(0)
     ));
     assert!(matches!(
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::windows_x64(), &[binding],),
+        lower_to_target_operations_with_settlements(
+            &plan,
+            NativeTarget::windows_x64(),
+            &[binding.clone()],
+        ),
         Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
     ));
     assert!(matches!(
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::macos_arm64(), &[binding],),
+        lower_to_target_operations_with_settlements(
+            &plan,
+            NativeTarget::macos_arm64(),
+            &[binding.clone()],
+        ),
         Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
     ));
 
@@ -344,7 +362,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         lower_to_target_operations_with_settlements(
             &wrong_signature,
             NativeTarget::linux_x64(),
-            &[binding],
+            &[binding.clone()],
         ),
         Err(LoweringError::InvalidLinuxExitGroupShape(machine))
     );

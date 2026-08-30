@@ -45,6 +45,7 @@ mod structural_return;
 mod unit_affine_cleanup;
 mod unit_call_custody;
 mod unit_stack;
+mod x86_fma;
 
 pub use dynamic_elf::{
     DynamicElfImageEmission, DynamicElfImageEmissionError, DynamicElfOrchestrationError,
@@ -88,7 +89,8 @@ use structural_return::validate_structural_return_record;
 use unit_affine_cleanup::validate_unit_affine_cleanup;
 use unit_call_custody::{expected_projected_copy_bytes, validate_internal_unit_call_custody};
 use unit_stack::{
-    validate_complete_unit_stack_evidence, validate_unit_call_stack, validate_unit_function_stack,
+    validate_complete_unit_stack_evidence, validate_foreign_unit_call_stack,
+    validate_unit_call_stack, validate_unit_function_stack,
 };
 
 use omega_machine_code::{
@@ -110,6 +112,9 @@ use psi_terminal_fuel::TerminalFuelSchedule;
 pub struct ObjectArtifact {
     psi: TerminalPsiIdentity,
     target: NativeTarget,
+    /// Exact deployment profile for the source-free feature-requiring x86 FMA
+    /// seam. Ordinary object construction retains `None` and rejects FMA.
+    x86_feature_profile: Option<omega_target::TargetProfile>,
     entry: MachineId,
     object: ObjectPlan,
     relocations: RelocationPlan,
@@ -127,6 +132,10 @@ impl ObjectArtifact {
 
     pub const fn target(&self) -> NativeTarget {
         self.target
+    }
+
+    pub const fn x86_feature_profile(&self) -> Option<omega_target::TargetProfile> {
+        self.x86_feature_profile
     }
 
     pub const fn entry(&self) -> MachineId {
@@ -220,6 +229,9 @@ pub struct ObjectFunction {
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
     pub byte_count: usize,
+    /// Independently replayed feature requirements for exact scalar FMA3
+    /// intervals. These remain requirements, not executable admission.
+    pub x86_scalar_fma: Vec<omega_machine_code::X86ScalarFmaFragment>,
     /// Byte-validated stack facts for a completely accounted Unit body.
     pub unit_stack: Option<ObjectUnitStack>,
     /// Byte-validated stack facts for a branch-free scalar body.
@@ -416,6 +428,30 @@ pub(crate) const SCALAR_CALL_REFERENCE_FINGERPRINT: [u8; 32] = [
 /// normalizing it. Each function gets exactly one symbol and one retained Psi
 /// provenance row.
 pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, ObjectError> {
+    build_object_artifact_with_x86_feature_profile(plan, None)
+}
+
+/// Construct the bounded source-free object seam for feature-requiring scalar
+/// x86 FMA. The profile is explicit because `NativeTarget` deliberately
+/// collapses Windows and UEFI x86-64 physical layouts.
+pub fn build_feature_required_x86_fma_object_artifact(
+    plan: &MachineCodePlan,
+    profile: omega_target::TargetProfile,
+) -> Result<ObjectArtifact, ObjectError> {
+    if !plan
+        .functions
+        .iter()
+        .any(|function| !function.x86_scalar_fma.is_empty())
+    {
+        return Err(ObjectError::MissingX86ScalarFmaFragment);
+    }
+    build_object_artifact_with_x86_feature_profile(plan, Some(profile))
+}
+
+fn build_object_artifact_with_x86_feature_profile(
+    plan: &MachineCodePlan,
+    x86_feature_profile: Option<omega_target::TargetProfile>,
+) -> Result<ObjectArtifact, ObjectError> {
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
@@ -447,6 +483,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
         if function.bytes.is_empty() {
             return Err(ObjectError::EmptyFunction(function.machine));
         }
+        x86_fma::validate_x86_scalar_fma_function(plan.target, x86_feature_profile, function)?;
         if function
             .internal_calls
             .windows(2)
@@ -673,6 +710,27 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
                 }
                 (None, None) => {}
             }
+        }
+        for call in &function.foreign_calls {
+            let Some(stack) = function.unit_stack else {
+                return Err(ObjectError::UnexpectedUnitCallStackEvidence {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            };
+            let caller_live_bytes = validate_foreign_unit_call_stack(
+                plan.target.architecture,
+                function.machine,
+                &function.bytes,
+                call,
+                stack,
+                validated_function_stack.expect("validated Unit stack exists"),
+            )?;
+            let function_stack = validated_function_stack
+                .as_mut()
+                .expect("validated Unit stack exists");
+            function_stack.local_peak_bytes =
+                function_stack.local_peak_bytes.max(caller_live_bytes);
         }
         let is_unit_custody_relocation = |call: &&omega_machine_code::InternalCallRelocation| {
             call.unit_stack.is_some()
@@ -966,6 +1024,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
                 &function.bytes,
                 stack,
                 &function.internal_calls,
+                &function.foreign_calls,
                 &inline_data,
             )?;
         }
@@ -1382,6 +1441,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
             symbol,
             text_offset,
             byte_count: function.bytes.len(),
+            x86_scalar_fma: function.x86_scalar_fma.clone(),
             unit_stack,
             scalar_stack,
             unit_call_stacks,
@@ -1522,6 +1582,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
     Ok(ObjectArtifact {
         psi: plan.psi,
         target: plan.target,
+        x86_feature_profile,
         entry: plan.entry,
         object,
         relocations,
@@ -1603,6 +1664,26 @@ pub enum ObjectError {
         current: MachineId,
     },
     EmptyFunction(MachineId),
+    MissingX86ScalarFmaFragment,
+    MissingX86ScalarFmaProfile(MachineId),
+    X86ScalarFmaUnsupportedTarget(MachineId),
+    NonCanonicalX86ScalarFmaOrder(MachineId),
+    InvalidX86ScalarFmaInterval {
+        machine: MachineId,
+        offset: usize,
+    },
+    InvalidX86ScalarFmaEncoding {
+        machine: MachineId,
+        offset: usize,
+    },
+    InvalidX86ScalarFmaCustody {
+        machine: MachineId,
+        offset: usize,
+    },
+    MissingX86ScalarFmaCustody {
+        machine: MachineId,
+        offset: usize,
+    },
     MissingRankedCountdownCustody(MachineId),
     InvalidRankedCountdown(MachineId),
     NonCanonicalInternalCallOrder(MachineId),

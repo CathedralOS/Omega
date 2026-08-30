@@ -211,6 +211,32 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
 }
 
 #[test]
+fn successful_checking_finalizes_operator_occurrence_retained_on_folded_float_literal() {
+    let source = r#"
+        data Main { value: f64; }
+
+        machine Main::main(&mut self) {
+            self.value = 0.0 - 1.000000000000000444089209850062616169452667236328125;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Operator
+            && selection.target()
+                == AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                )
+    }));
+    assert!(selections.all_finalized(), "selections={selections:#?}");
+}
+
+#[test]
 fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
     let source = r#"
         data Reading { value: i64; minimum: i64; maximum: i64; }

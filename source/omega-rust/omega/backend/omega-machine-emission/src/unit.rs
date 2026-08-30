@@ -6,9 +6,10 @@ use omega_calling_conventions::{
 };
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord,
-    InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
-    NativeFuelAttribution, NativeFuelSite, PortEffectRecord, StackAdjustmentPair,
-    UnitCallStackEvidence, UnitStackEvidence, derive_completion_provider_custody,
+    ForeignCallRelocation, InternalCallRelocation, InternalUnitCallArgumentRecord,
+    InternalUnitCallRecord, NativeFuelAttribution, NativeFuelSite, PortEffectRecord,
+    StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
+    derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
@@ -26,6 +27,7 @@ use super::{
 pub(super) struct UnitEmission {
     pub(super) bytes: Vec<u8>,
     pub(super) internal_calls: Vec<InternalCallRelocation>,
+    pub(super) foreign_calls: Vec<ForeignCallRelocation>,
     pub(super) internal_unit_calls: Vec<InternalUnitCallRecord>,
     pub(super) fuel_attribution: Vec<NativeFuelAttribution>,
     pub(super) port_effects: Vec<PortEffectRecord>,
@@ -335,6 +337,7 @@ pub(super) fn emit_unit_body(
 ) -> Result<UnitEmission, EmissionError> {
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
+    let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut fuel_attribution = Vec::new();
     let mut port_effects = Vec::new();
@@ -545,6 +548,89 @@ pub(super) fn emit_unit_body(
                     operation_ordinal,
                     code_offset,
                     byte_count: bytes.len() - code_offset,
+                });
+            }
+            AssignedUnitOperation::NormalizedForeignCall {
+                psi_operation,
+                boundary: _,
+                provider_execution,
+                binding: foreign,
+            } => {
+                operation_site = Some(*psi_operation);
+                let signature = omega_calling_conventions::CallSignature {
+                    parameters: Vec::new(),
+                    result: None,
+                };
+                let validated = omega_calling_conventions::validate_boundary_entry_plan(
+                    foreign.boundary_entry_plan.clone(),
+                    &signature,
+                )
+                .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
+                let call_plan = &foreign.boundary_entry_plan.call;
+                if validated.plan() != &foreign.boundary_entry_plan
+                    || target.object_format != ObjectFormat::Elf
+                    || foreign.locator.target().native_target() != target
+                    || call_plan.policy
+                        != omega_calling_conventions::CallingPolicy::native_for_target(target)
+                    || call_plan.entry_control
+                        != omega_calling_conventions::EntryControl::CallReturn
+                    || call_plan.stack_alignment != 16
+                {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
+                let shadow_bytes = u32::from(call_plan.shadow_bytes);
+                let mut allocation = None;
+                let mut release = None;
+                let (relocation_offset, outbound) = match target.architecture {
+                    Architecture::X86_64 => {
+                        let padding = (8 + 16 - (shadow_bytes % 16)) % 16;
+                        let outbound = shadow_bytes
+                            .checked_add(padding)
+                            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                        if outbound != 0 {
+                            let adjustment_offset = bytes.len();
+                            emit_x86_64_adjust_sp(&mut bytes, outbound, false);
+                            allocation = Some((adjustment_offset, bytes.len() - adjustment_offset));
+                        }
+                        bytes.push(0xe8);
+                        let relocation_offset = bytes.len();
+                        bytes.extend_from_slice(&0_i32.to_le_bytes());
+                        if outbound != 0 {
+                            let adjustment_offset = bytes.len();
+                            emit_x86_64_adjust_sp(&mut bytes, outbound, true);
+                            release = Some((adjustment_offset, bytes.len() - adjustment_offset));
+                        }
+                        (relocation_offset, outbound)
+                    }
+                    Architecture::Aarch64 => {
+                        let outbound = align_u32(shadow_bytes, 16)?;
+                        if outbound != 0 {
+                            allocation = Some((bytes.len(), 4));
+                            let mut instructions = Vec::new();
+                            emit_aarch64_adjust_sp(&mut instructions, outbound, false)?;
+                            append_aarch64_instructions(&mut bytes, instructions);
+                        }
+                        let relocation_offset = bytes.len();
+                        bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes());
+                        if outbound != 0 {
+                            release = Some((bytes.len(), 4));
+                            let mut instructions = Vec::new();
+                            emit_aarch64_adjust_sp(&mut instructions, outbound, true)?;
+                            append_aarch64_instructions(&mut bytes, instructions);
+                        }
+                        (relocation_offset, outbound)
+                    }
+                };
+                foreign_calls.push(ForeignCallRelocation {
+                    owner: CallSiteOwner::Operation(*psi_operation),
+                    offset: relocation_offset,
+                    locator: foreign.locator.clone(),
+                    provider_execution: (*provider_execution).into(),
+                    call_plan: call_plan.clone(),
+                    unit_stack: UnitCallStackEvidence {
+                        outbound: stack_adjustment_pair(outbound, allocation, release),
+                    },
+                    same_stack_contribution: foreign.same_stack_contribution.clone(),
                 });
             }
             AssignedUnitOperation::BoundarySettlement {
@@ -981,6 +1067,7 @@ pub(super) fn emit_unit_body(
     Ok(UnitEmission {
         bytes,
         internal_calls,
+        foreign_calls,
         internal_unit_calls,
         fuel_attribution,
         port_effects,

@@ -477,6 +477,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         attachment: function.attachment,
         provenance: function.provenance.clone(),
         bytes: emitted.bytes,
+        x86_scalar_fma: Vec::new(),
         unit_stack: None,
         unit_parameter_homes: Vec::new(),
         unit_parameters: Vec::new(),
