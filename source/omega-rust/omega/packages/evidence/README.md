@@ -34,6 +34,7 @@ src/
 |   |   `-- propositions/     application, binders, endpoints, and evidence
 |   |-- providers/            selected plans, installation reach, families, and intrinsics
 |   |-- behavior/             reach, invocation, mutation, crash, termination, and flow rows
+|   |   `-- crash/            plan assembly, closed expressions, and permission frontiers
 |   `-- semantics/            declarations, types, signatures, facts, and conformances
 |-- encoding/                 public canonical persistence boundaries; no compiler IR
 |   |-- encode/               canonical framing, row assembly, limits, and primitive encoder

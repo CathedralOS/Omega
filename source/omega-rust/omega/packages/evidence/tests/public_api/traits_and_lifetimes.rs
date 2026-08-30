@@ -61,10 +61,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [parent] = service.parents() else {
         panic!("one exact parent edge")
     };
-    assert_eq!(
-        parent.kind(),
-        PackageReviewTraitCompositionKind::Policy
-    );
+    assert_eq!(parent.kind(), PackageReviewTraitCompositionKind::Policy);
     assert_eq!(parent.identity().path(), "Parent");
     assert_eq!(parent.arguments().len(), 1);
     let canonical_rows = first_review

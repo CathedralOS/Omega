@@ -15,6 +15,7 @@ packages/
 │   ├── declarations/          checked package declarations from build.omg
 │   ├── resolution/            exact source selection and dependency closure
 │   └── review/                compile, compare, audit, and decide
+│       └── baseline/capsule/  capture, recover, and persist review-only baselines
 ├── tests/                     manager integration tests
 ├── source/                    hostile source acquisition and custody
 ├── source-execution/          confined native resolver processes
