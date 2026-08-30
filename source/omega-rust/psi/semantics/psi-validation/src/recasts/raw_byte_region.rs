@@ -7,6 +7,8 @@ use psi_typed_trees::types::{
 };
 use std::collections::HashSet;
 
+type SymbolIdentity = (u32, u32);
+
 /// Exact value of an interior byte offset when its syntax or declared range
 /// pins one value. A mere upper bound is sufficient for fixed-footprint views,
 /// but an unsized slice with multi-byte elements additionally owes divisibility
@@ -147,53 +149,115 @@ pub(super) fn push_offset_unproven(
 /// fact-free scalar primitives or records with no default-domain facts.
 fn record_view_is_fact_free(
     program: &TypedTrees,
-    name: &str,
-    visiting: &mut HashSet<String>,
+    symbol: psi_symbols::SymbolHandle,
+    visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {
-    if !visiting.insert(name.to_owned()) {
+    if !symbol.is_valid() {
+        return false;
+    }
+    let symbol_identity = (symbol.arena_index(), symbol.generation());
+    if !visiting.insert(symbol_identity) {
         return false;
     }
     let Some(data) = program
         .data_definitions()
         .iter()
-        .find(|data| data.name.as_str() == name)
+        .find(|data| data.symbol == symbol)
     else {
-        visiting.remove(name);
+        visiting.remove(&symbol_identity);
         return false;
     };
     if !data.where_facts.is_empty() || data.zero_gated {
-        visiting.remove(name);
+        visiting.remove(&symbol_identity);
         return false;
     }
     for member in program.data_members(data) {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
-            visiting.remove(name);
+            visiting.remove(&symbol_identity);
             return false;
         };
         if !record_view_type_is_fact_free(program, field.type_reference, visiting) {
-            visiting.remove(name);
+            visiting.remove(&symbol_identity);
             return false;
         }
     }
-    visiting.remove(name);
+    visiting.remove(&symbol_identity);
     true
 }
 
 pub(super) fn record_view_type_is_fact_free(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    visiting: &mut HashSet<String>,
+    visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => {
+        TypeReferenceNode::Named { symbol, name } => {
             PrimitiveType::from_name(name.as_str())
                 .is_some_and(|primitive| primitive != PrimitiveType::Bool)
-                || record_view_is_fact_free(program, name.as_str(), visiting)
+                || record_view_is_fact_free(program, *symbol, visiting)
         }
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(_),
         } => record_view_type_is_fact_free(program, *element_type, visiting),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_typed_trees::data::{DataDefinition, DataField, DataMember};
+    use psi_typed_trees::name::Identifier;
+
+    fn named_type(
+        program: &mut TypedTrees,
+        symbol: psi_symbols::SymbolHandle,
+        name: &str,
+    ) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::generated(name),
+            })
+    }
+
+    fn push_single_field_record(
+        program: &mut TypedTrees,
+        symbol: psi_symbols::SymbolHandle,
+        field_type: TypeReferenceHandle,
+    ) {
+        let mut definition = DataDefinition {
+            symbol,
+            name: Identifier::generated("Cell"),
+            ..DataDefinition::default()
+        };
+        program.push_data_member(
+            &mut definition,
+            DataMember::Field(DataField {
+                type_reference: field_type,
+                ..DataField::default()
+            }),
+        );
+        program.push_data_definition(definition);
+    }
+
+    #[test]
+    fn fact_free_walk_resolves_same_spelling_by_exact_symbol() {
+        let mut program = TypedTrees::default();
+        let first_symbol = psi_symbols::SymbolHandle::from_arena_index(21);
+        let selected_symbol = psi_symbols::SymbolHandle::from_arena_index(22);
+        let bool_type = named_type(&mut program, psi_symbols::SymbolHandle::invalid(), "bool");
+        let u8_type = named_type(&mut program, psi_symbols::SymbolHandle::invalid(), "u8");
+        push_single_field_record(&mut program, first_symbol, bool_type);
+        push_single_field_record(&mut program, selected_symbol, u8_type);
+        let selected_type = named_type(&mut program, selected_symbol, "Cell");
+
+        assert!(record_view_type_is_fact_free(
+            &program,
+            selected_type,
+            &mut HashSet::new(),
+        ));
     }
 }

@@ -539,14 +539,17 @@ remain subject to their separate footprint and overlap judgment. A validated
 recast of a whole named value or member retains an ordinary shared or mutable
 loan on that exact source place. A recast at an exact literal index into a fixed
 byte array may now retain one complete half-open fixed-range loan when its
-target is a fact-free primitive, one recursively nonzero literal fixed array
-whose ultimate element is an exact fact-free non-Boolean fixed-width primitive,
-or one nonzero closed
-acyclic tree of nongeneric, quotient-free, all-relevant fact-free records, and
-the ordinary recast judgment has proved the whole footprint in bounds. The
-array extent comes from its normalized exactly tiled representation, and
-normalized record padding remains inside that range. Runtime or merely bounded
-offsets, slices, record-element array targets,
+target is a fact-free primitive, one nonzero closed acyclic tree of nongeneric,
+quotient-free, all-relevant fact-free records, or one recursively nonzero
+literal fixed array ending in either exact shape, provided the ordinary recast
+judgment has proved the whole footprint in bounds. The
+primitive-array extent comes from its normalized exactly tiled representation;
+record arrays repeat the complete normalized padded record extent under exact
+symbol identity. Eligible records may themselves contain recursively literal
+array fields ending in the same exact primitive or record shapes. A zero-length
+field participates only when its terminal independently qualifies and the
+whole record remains nonzero; its element alignment can still induce protected
+padding. Runtime or merely bounded offsets, slices, total zero-size targets,
 generic/invariant-bearing/erased/cased records, and other indexed forms remain
 conservative. Last-use accounting compares the canonical
 field/index path, so a
