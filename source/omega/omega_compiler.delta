@@ -536,7 +536,6 @@ data OmegaParserResource {
     case TypeDepth;
     case Statements;
     case Expressions;
-    case StaticArguments;
 }
 
 data OmegaParser {
@@ -4198,14 +4197,7 @@ machine OmegaParser::parse_view(
     }
 
     state retain_call_static_argument() {
-        transition self.static_machine_argument_count < 16384 {
-            true -> retain_call_static_argument_bounded()
-            _ -> resource_failure(
-                OmegaParserResource::StaticArguments,
-                16384,
-                self.static_machine_argument_count + 1
-            )
-        }
+        transition true { true -> retain_call_static_argument_bounded() }
     }
 
     state retain_call_static_argument_bounded() {
@@ -5088,28 +5080,12 @@ machine OmegaParser::parse_view(
     state possible_implicit_struct_field() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::StructFieldValue -> incomplete_root()
-            _ -> primary_expression_end_failure()
+            _ -> incomplete_root()
         }
     }
 
     state primary_expression_end_failure() {
-        transition self.expression_consumer {
-            OmegaExpressionConsumer::CallArgument -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedCallArgumentEnd,
-                self.scan.token_start,
-                self.scan.token_end
-            )
-            OmegaExpressionConsumer::AssignmentValue -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedAssignmentSemicolon,
-                self.scan.token_start,
-                self.scan.token_end
-            )
-            OmegaExpressionConsumer::StructFieldValue -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd,
-                self.scan.token_start,
-                self.scan.token_end
-            )
-        }
+        transition true { true -> incomplete_root() }
     }
 
     state primary_expression_end_punctuation() {
@@ -5126,14 +5102,14 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::Comma -> retain_call_literal_argument()
             OmegaPunctuationKind::RightParen -> retain_call_literal_argument()
-            _ -> primary_expression_end_failure()
+            _ -> incomplete_root()
         }
     }
 
     state assignment_literal_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Semicolon -> retain_assignment_literal_value()
-            _ -> primary_expression_end_failure()
+            _ -> incomplete_root()
         }
     }
 
@@ -5141,7 +5117,7 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::Comma -> retain_struct_field_literal_value()
             OmegaPunctuationKind::RightBrace -> retain_struct_field_literal_value()
-            _ -> primary_expression_end_failure()
+            _ -> incomplete_root()
         }
     }
 

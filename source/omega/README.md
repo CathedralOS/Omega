@@ -101,9 +101,10 @@ booleans, unsuffixed nonnegative decimal integer literals, or strings. Integer
 spelling is retained by source span and is not evaluated during parsing;
 strings retain the exact token span and scanner-proven decoded byte length
 without a decoded-byte mirror. Shallow struct literals accept an exact one-
-member record or two-member case type path and a named field list with an
-optional trailing comma. Nested struct literals and richer field expressions
-remain incomplete until a bounded expression-frame design exists. The implicit
+member record or two-member case type path and a comma-separated named field
+list with an optional trailing comma. Canonical adjacent fields without commas,
+nested struct literals, and richer field expressions remain incomplete until a
+bounded expression-frame design exists. The implicit
 entry state owns one contiguous mixed statement span. Richer expressions and
 statements stop the root as implementation-incomplete, and no body is skipped
 as opaque text.
@@ -119,9 +120,9 @@ types placed after clauses, generics, clause-bearing headers, and
 `boundary` forms; target declarations and public target-scoped combinations,
 other public roots, bodyless declarations, and other body forms remain
 incomplete. The parser never skips a body as opaque
-syntax. In the current 72-root `C` closure, all 112
-parameter occurrences and all 72 complete parameter lists are representable,
-and 53 headers reach body parsing. Eighteen are complete: four initial call-only
+syntax. In the current 73-root `C` closure, all 113
+parameter occurrences and all 73 complete parameter lists are representable,
+and 54 headers reach body parsing. Eighteen are complete: four initial call-only
 roots, seven roots using the retained assignment slice, four target-provider
 roots using path-only static call arguments, the string-argument `psi` package
 build root, `Lexer::initialize`, and the canonical Omega package build root.
@@ -178,10 +179,11 @@ owns one statement, so `Statements` dominates both equal statement-variant
 tables. Assignments own two expressions, making the expression table
 independently exhaustible. Every retained struct field owns one value expression
 and every struct literal owns its expression node, so `Expressions` dominates
-both equal struct tables. A call may own multiple static machine arguments, so
-`StaticArguments` is independently exhaustible as well. The meaningful
+both equal struct tables. Every static machine argument owns at least one
+same-capacity path-member row, so `PathMembers` dominates that table as well.
+The meaningful
 resource distinctions are therefore `Roots`, `PathMembers`, `DataMembers`,
-`TypeNodes`, `TypeDepth`, `Statements`, `Expressions`, and `StaticArguments`.
+`TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`.
 These are private compiler budgets to profile against the real compiler
 closure, not Omega source limits; exhaustion is retained for the future outer
 `Incomplete` mapping.
