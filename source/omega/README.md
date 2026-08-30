@@ -142,11 +142,11 @@ through to the integer bitwise lane. Once formed, an unparenthesized membership
 may continue only into comparison, equality, or logical tiers; grouping is
 required before a tighter operator can apply to its Boolean result.
 Parentheses delimit reduction frames and preserve their exact transient source
-extent without manufacturing a group syntax node. Recursive logical `!` and
-fixed-width integer complement `~` prefixes wrap a completed operand from the
-admitted primary, group, and cast slice before that value enters the binary
-frame; unary call operands, borrows, negative values, and contextual unary
-forms remain incomplete.
+extent without manufacturing a group syntax node. Recursive logical `!`,
+fixed-width integer complement `~`, and arithmetic negation `-` prefixes wrap
+a completed operand from the admitted primary, group, and cast slice before
+that value enters the binary frame; borrow/reference and other contextual
+unary forms remain incomplete.
 Shallow struct literals
 accept an exact one-member record or two-member case type path and a comma-
 separated named field list with an optional trailing comma. Canonical adjacent

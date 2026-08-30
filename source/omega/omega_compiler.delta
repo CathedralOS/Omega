@@ -566,6 +566,7 @@ data OmegaBinaryExpressionSyntax {
 data OmegaUnaryOperatorKind {
     case BitwiseNot;
     case LogicalNot;
+    case Negate;
 }
 
 data OmegaUnaryExpressionSyntax {
@@ -5987,6 +5988,8 @@ machine OmegaParser::parse_view(
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Minus ->
+                begin_unary_expression(OmegaUnaryOperatorKind::Negate)
             _ -> incomplete_root()
         }
     }
@@ -8199,6 +8202,8 @@ machine OmegaParser::parse_view(
                 begin_first_unary_call_argument(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_first_unary_call_argument(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Minus ->
+                begin_first_unary_call_argument(OmegaUnaryOperatorKind::Negate)
             _ -> incomplete_root()
         }
     }
@@ -9443,6 +9448,8 @@ machine OmegaParser::parse_view(
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Minus ->
+                begin_unary_expression(OmegaUnaryOperatorKind::Negate)
             _ -> incomplete_root()
         }
     }
