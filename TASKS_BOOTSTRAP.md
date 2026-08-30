@@ -1434,9 +1434,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Literal/computed/multiple indices, chained indexing, postfix members,
       and compound assignment remain implementation-
       incomplete. This completes `SourceUnit::append` and
-      `TokenStream::{push,push_decoded}`, raising completed current `C` roots
-      from twenty-six to twenty-nine while body-boundary coverage remains 54 of
-      73. Keep exact base/index/bracket/equal spans, expression/path capacity,
+      `TokenStream::push_decoded`, raising completed current `C` roots from
+      twenty-six to twenty-eight while body-boundary coverage remains 54 of
+      73. `TokenStream::push` still requires its transition target argument.
+      Keep exact base/index/bracket/equal spans, expression/path capacity,
       richer-postfix incompleteness, reset, and Complete-only publication
       vectors at the real Delta-compiler gate.
     - [x] Retain canonical terminal expression statements without inventing a
@@ -1448,7 +1449,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       while the state-closing `}` selects it as a terminal value. Richer
       postfix/index forms and nonterminal bare expressions remain
       implementation-incomplete. This completes `SourceUnit::byte_or_nul`,
-      raising completed current `C` roots from twenty-nine to thirty while
+      raising completed current `C` roots from twenty-eight to twenty-nine while
       body-boundary coverage remains 54 of 73. Keep exact terminal/bracket
       spans, value/place discrimination, statement/expression capacity, reset,
       and Complete-only publication vectors at the real Delta-compiler gate.
@@ -1457,11 +1458,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Every expanded arm now records subject presence separately from its
       optional expression handle; the existing explicit-subject precedence
       frame remains unchanged. This covers all 49 subjectless transitions in
-      the current `C` closure. It does not raise the thirty complete-root count
+      the current `C` closure. It does not raise the twenty-nine complete-root count
       yet because every owning root also contains target arguments, local
       bindings, casts, or another unretained form. Keep zero-versus-one-subject,
       wildcard, reset, and Complete-only publication vectors at the real
       Delta-compiler gate.
+    - [x] Retain nonempty named transition-target argument lists through the
+      same expression-handle ledger used by ordinary calls. The current lane
+      accepts comma-separated self/name/member paths, Booleans, unsuffixed
+      nonnegative decimal integers, strings, and shallow struct literals, with
+      an optional trailing comma; richer argument expressions remain
+      implementation-incomplete. Each expanded transition row owns its exact
+      contiguous argument span, and no target-specific expression arena is
+      introduced. This legitimately completes `TokenStream::push`, raising
+      completed current `C` roots from twenty-nine to thirty while body-
+      boundary coverage remains 54 of 73. Keep exact argument order,
+      delimiter/trailing-comma behavior, expression/argument capacity, reset,
+      and Complete-only publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
