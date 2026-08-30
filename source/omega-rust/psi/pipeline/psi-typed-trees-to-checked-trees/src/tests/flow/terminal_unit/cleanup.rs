@@ -348,6 +348,93 @@ fn retains_six_element_fixed_array_construction_prefix_and_reverse_cleanup() {
 }
 
 #[test]
+fn retains_seven_element_fixed_array_construction_prefix_and_reverse_cleanup() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Root {}
+        machine Root::enter() {
+            let mut values: [Empty; 8];
+            values[0] = Empty {};
+            values[1] = Empty {};
+            values[2] = Empty {};
+            values[3] = Empty {};
+            values[4] = Empty {};
+            values[5] = Empty {};
+            values[6] = Empty {};
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("seven-element construction prefix should have a Unit plan");
+    assert_eq!(plan.trivial_affine_locals.len(), 7);
+    assert!(
+        plan.trivial_affine_locals
+            .iter()
+            .enumerate()
+            .all(|(index, local)| {
+                usize::try_from(local.declaration_ordinal) == Ok(index)
+                    && local.type_identity == "named(name(Empty))"
+                    && local.construction.as_ref().is_some_and(|construction| {
+                        construction.root_type_identity == "array(named(name(Empty)),literal(8))"
+                            && usize::try_from(construction.index) == Ok(index)
+                    })
+            })
+    );
+    assert!(matches!(
+        plan.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 1,
+                declaration_ordinal: 0,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 2,
+                declaration_ordinal: 1,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 3,
+                declaration_ordinal: 2,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 4,
+                declaration_ordinal: 3,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 5,
+                declaration_ordinal: 4,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 6,
+                declaration_ordinal: 5,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 7,
+                declaration_ordinal: 6,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 8,
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+            },
+        ] if trivial_affine_local_discard_ordinals == &[6, 5, 4, 3, 2, 1, 0]
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
 fn wider_construction_prefix_rejects_missing_or_reordered_establishments() {
     for (name, body) in [
         (
@@ -431,7 +518,7 @@ fn wider_construction_prefix_rejects_missing_or_reordered_establishments() {
             "#,
         ),
         (
-            "length_eight",
+            "missing_eight",
             r#"
                 let mut values: [Empty; 8];
                 values[0] = Empty {};
@@ -440,7 +527,33 @@ fn wider_construction_prefix_rejects_missing_or_reordered_establishments() {
                 values[3] = Empty {};
                 values[4] = Empty {};
                 values[5] = Empty {};
+            "#,
+        ),
+        (
+            "reordered_eight",
+            r#"
+                let mut values: [Empty; 8];
+                values[0] = Empty {};
+                values[1] = Empty {};
+                values[2] = Empty {};
+                values[3] = Empty {};
+                values[4] = Empty {};
                 values[6] = Empty {};
+                values[5] = Empty {};
+            "#,
+        ),
+        (
+            "length_nine",
+            r#"
+                let mut values: [Empty; 9];
+                values[0] = Empty {};
+                values[1] = Empty {};
+                values[2] = Empty {};
+                values[3] = Empty {};
+                values[4] = Empty {};
+                values[5] = Empty {};
+                values[6] = Empty {};
+                values[7] = Empty {};
             "#,
         ),
     ] {

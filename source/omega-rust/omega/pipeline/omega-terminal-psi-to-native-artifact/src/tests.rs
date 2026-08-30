@@ -82,6 +82,21 @@ const SIXTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const SEVENTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 8];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+    }
+"#;
+
 const RANKED_COUNTDOWN_SOURCE: &str = r#"
     data Token { value: i32; }
     data Root {}
@@ -526,6 +541,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
         (DEEPER_CONSTRUCTION_PREFIX_SOURCE, 4_usize),
         (DEEPEST_CONSTRUCTION_PREFIX_SOURCE, 5_usize),
         (SIXTH_CONSTRUCTION_PREFIX_SOURCE, 6_usize),
+        (SEVENTH_CONSTRUCTION_PREFIX_SOURCE, 7_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(

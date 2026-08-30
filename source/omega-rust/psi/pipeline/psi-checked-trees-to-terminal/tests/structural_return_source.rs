@@ -293,6 +293,22 @@ const UNIT_AFFINE_SEVEN_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_EIGHT_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 8];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -580,6 +596,7 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             6_u64,
         ),
         (UNIT_AFFINE_SEVEN_CONSTRUCTION_PREFIX_SOURCE, 6_usize, 7_u64),
+        (UNIT_AFFINE_EIGHT_CONSTRUCTION_PREFIX_SOURCE, 7_usize, 8_u64),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
