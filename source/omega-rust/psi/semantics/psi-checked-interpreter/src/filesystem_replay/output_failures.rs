@@ -6,7 +6,8 @@ use crate::{
     filesystem_root_relative_path_is_canonical,
 };
 
-const REMOVE_OPERATION_TAG: u16 = 9;
+const REMOVE_FILE_OPERATION_TAG: u16 = 9;
+const REMOVE_DIRECTORY_OPERATION_TAG: u16 = 12;
 const NOT_FOUND_RESULT: i64 = -1;
 const NOT_FOUND_ERROR: i32 = 2;
 pub const MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES: usize = 4_096;
@@ -67,7 +68,31 @@ impl FilesystemInputOutputAbsentRemovesReplayRecord {
     }
 }
 
-/// One exact authorized attempt to remove a nonexistent Output file.
+/// The exact removal operation attempted against an absent Output path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemOutputAbsentRemoveKind {
+    File,
+    Directory,
+}
+
+impl FilesystemOutputAbsentRemoveKind {
+    const fn operation_tag(self) -> u16 {
+        match self {
+            Self::File => REMOVE_FILE_OPERATION_TAG,
+            Self::Directory => REMOVE_DIRECTORY_OPERATION_TAG,
+        }
+    }
+
+    const fn from_operation_tag(operation_tag: u16) -> Option<Self> {
+        match operation_tag {
+            REMOVE_FILE_OPERATION_TAG => Some(Self::File),
+            REMOVE_DIRECTORY_OPERATION_TAG => Some(Self::Directory),
+            _ => None,
+        }
+    }
+}
+
+/// One exact authorized attempt to remove a nonexistent Output path.
 ///
 /// The path is retained as a compiler-rooted coordinate. Replay executes the
 /// operation against the fresh virtual Output namespace and therefore checks
@@ -75,12 +100,14 @@ impl FilesystemInputOutputAbsentRemovesReplayRecord {
 /// effect. Broader failure classes remain outside this first failure lane.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOutputAbsentRemoveReplayRecord {
+    kind: FilesystemOutputAbsentRemoveKind,
     output_root: FilesystemGrantRootIdentity,
     output_relative_path: Vec<u8>,
 }
 
 impl FilesystemOutputAbsentRemoveReplayRecord {
     pub fn new(
+        kind: FilesystemOutputAbsentRemoveKind,
         output_root: FilesystemGrantRootIdentity,
         output_relative_path: Vec<u8>,
     ) -> Result<Self, String> {
@@ -91,9 +118,14 @@ impl FilesystemOutputAbsentRemoveReplayRecord {
             );
         }
         Ok(Self {
+            kind,
             output_root,
             output_relative_path,
         })
+    }
+
+    pub const fn kind(&self) -> FilesystemOutputAbsentRemoveKind {
+        self.kind
     }
 
     pub const fn output_root(&self) -> FilesystemGrantRootIdentity {
@@ -124,8 +156,13 @@ pub(crate) fn output_absent_remove_record_from_attempt(
             "filesystem replay absent Output remove has no unique write authorization".to_owned(),
         );
     };
-    if attempt.operation_tag != REMOVE_OPERATION_TAG
-        || attempt.provider != FilesystemObservationProvider::RealScoped
+    let Some(kind) = FilesystemOutputAbsentRemoveKind::from_operation_tag(attempt.operation_tag)
+    else {
+        return Err(
+            "filesystem replay absent Output remove has an unsupported operation".to_owned(),
+        );
+    };
+    if attempt.provider != FilesystemObservationProvider::RealScoped
         || attempt.outcome
             != Some(FilesystemOperationAttemptOutcome::Returned {
                 result: FilesystemOperationResult::Scalar(NOT_FOUND_RESULT),
@@ -153,14 +190,14 @@ pub(crate) fn output_absent_remove_record_from_attempt(
     {
         return Err("filesystem replay absent Output remove lanes are inconsistent".to_owned());
     }
-    FilesystemOutputAbsentRemoveReplayRecord::new(rooted.root, rooted.relative_path.clone())
+    FilesystemOutputAbsentRemoveReplayRecord::new(kind, rooted.root, rooted.relative_path.clone())
 }
 
 pub(crate) fn output_absent_remove_attempt(
     record: FilesystemOutputAbsentRemoveReplayRecord,
 ) -> FilesystemOperationAttempt {
     FilesystemOperationAttempt {
-        operation_tag: REMOVE_OPERATION_TAG,
+        operation_tag: record.kind.operation_tag(),
         provider: FilesystemObservationProvider::RealScoped,
         outcome: Some(FilesystemOperationAttemptOutcome::Returned {
             result: FilesystemOperationResult::Scalar(NOT_FOUND_RESULT),
@@ -205,6 +242,7 @@ mod tests {
     #[test]
     fn absent_remove_round_trips_exact_rooted_failure() {
         let record = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::Directory,
             root(),
             b"generated/missing.bin".to_vec(),
         )
@@ -218,13 +256,29 @@ mod tests {
 
     #[test]
     fn absent_remove_rejects_noncanonical_paths_and_changed_failure_lanes() {
-        assert!(FilesystemOutputAbsentRemoveReplayRecord::new(root(), Vec::new()).is_err());
         assert!(
-            FilesystemOutputAbsentRemoveReplayRecord::new(root(), b"../escape".to_vec()).is_err()
+            FilesystemOutputAbsentRemoveReplayRecord::new(
+                FilesystemOutputAbsentRemoveKind::File,
+                root(),
+                Vec::new(),
+            )
+            .is_err()
+        );
+        assert!(
+            FilesystemOutputAbsentRemoveReplayRecord::new(
+                FilesystemOutputAbsentRemoveKind::File,
+                root(),
+                b"../escape".to_vec(),
+            )
+            .is_err()
         );
 
-        let record =
-            FilesystemOutputAbsentRemoveReplayRecord::new(root(), b"missing.bin".to_vec()).unwrap();
+        let record = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::File,
+            root(),
+            b"missing.bin".to_vec(),
+        )
+        .unwrap();
         let mut changed = output_absent_remove_attempt(record);
         changed.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
             result: FilesystemOperationResult::Scalar(-1),
@@ -235,10 +289,18 @@ mod tests {
 
     #[test]
     fn failure_only_record_requires_one_bounded_root() {
-        let first =
-            FilesystemOutputAbsentRemoveReplayRecord::new(root(), b"first.bin".to_vec()).unwrap();
-        let second =
-            FilesystemOutputAbsentRemoveReplayRecord::new(root(), b"second.bin".to_vec()).unwrap();
+        let first = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::File,
+            root(),
+            b"first.bin".to_vec(),
+        )
+        .unwrap();
+        let second = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::Directory,
+            root(),
+            b"second".to_vec(),
+        )
+        .unwrap();
         assert!(
             FilesystemInputOutputAbsentRemovesReplayRecord::new(None, vec![first.clone(), second])
                 .is_ok()
@@ -246,6 +308,7 @@ mod tests {
         assert!(FilesystemInputOutputAbsentRemovesReplayRecord::new(None, Vec::new()).is_err());
 
         let other = FilesystemOutputAbsentRemoveReplayRecord::new(
+            FilesystemOutputAbsentRemoveKind::File,
             FilesystemGrantRootIdentity::new(10).unwrap(),
             b"third.bin".to_vec(),
         )

@@ -89,8 +89,8 @@ pub use native_mutation_failures::{
     FilesystemInputUnknownNativeHandleMutationReplayRecord,
 };
 pub use output_failures::{
-    FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemOutputAbsentRemoveReplayRecord,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
+    FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemOutputAbsentRemoveKind,
+    FilesystemOutputAbsentRemoveReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
 };
 pub(crate) use output_failures::{
     output_absent_remove_attempt, output_absent_remove_record_from_attempt,

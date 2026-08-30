@@ -550,9 +550,26 @@ bounded generated-source handoffs. Its numeric result is an implementation
 availability weight, not canonical record length, Rust heap size, resident
 memory, replay evidence, or package admission.
 
-The filesystem replay record remains at v43 because it proves only the bounded
-filesystem operation grammar. Build re-evaluation compares the complete
-observation, including BuildLog bytes, while the package-level observation
-identity binds those bytes durably. Copying the log into the filesystem record
-would add no filesystem claim and would conflate two independent observation
-lanes.
+Summary v63 left the filesystem replay record at v43 because that record proves
+only the bounded filesystem operation grammar. Build re-evaluation compares
+the complete observation, including BuildLog bytes, while the package-level
+observation identity binds those bytes durably. Copying the log into the
+filesystem record would add no filesystem claim and would conflate two
+independent observation lanes.
+
+## Absent Output file-or-directory removal (summary v64, replay record v44)
+
+The failure-only Output grammar generalizes its exact absent-path sequence to
+tag-9 `remove` and tag-12 `remove_dir`. Each typed row retains whether file or
+directory removal was attempted, one canonical compiler-rooted Output path,
+matching write authorization, scalar `-1`, and post-error `2` (`not found`).
+Ordered sequences may mix the two tags; every other evidence lane and
+generated-source handoff remains empty.
+
+Provider-free replay executes each exact operation against a fresh virtual
+Output namespace, requires the same failure, and verifies that the complete
+sequence still leaves the namespace and staged-output custody empty. This is
+evidence of the observed and replayed attempts only. It does not claim that a
+host path is globally or durably absent. Successful removals, alternate errors,
+refused or unrooted paths, and mixtures with successful Output mutation remain
+non-receipted.

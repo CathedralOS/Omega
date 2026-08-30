@@ -75,7 +75,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 43;
+const VERSION: u16 = 44;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -232,7 +232,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let shapes = decoded.shapes;
     let operation_suffix_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27))
+        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 12 | 19 | 20 | 27))
         .or_else(|| {
             shapes
                 .last()
@@ -689,7 +689,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     }
     if shapes[operation_suffix_start..]
         .iter()
-        .all(|shape| shape.operation == 9)
+        .all(|shape| matches!(shape.operation, 9 | 12))
     {
         let mut absent_removes = Vec::new();
         absent_removes
@@ -703,8 +703,14 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             let [rooted] = shape.rooted_paths.as_slice() else {
                 unreachable!("validated absent Output remove has one rooted path")
             };
+            let kind = match shape.operation {
+                9 => psi_checked_interpreter::FilesystemOutputAbsentRemoveKind::File,
+                12 => psi_checked_interpreter::FilesystemOutputAbsentRemoveKind::Directory,
+                _ => unreachable!("validated absent Output remove has an exact operation"),
+            };
             absent_removes.push(
                 psi_checked_interpreter::FilesystemOutputAbsentRemoveReplayRecord::new(
+                    kind,
                     crate::BUILD_OUTPUT_ROOT_IDENTITY,
                     clone_bytes(rooted.bytes)?,
                 )
@@ -1903,6 +1909,7 @@ fn validate_first_rung(
                 | 9
                 | 10
                 | 11
+                | 12
                 | 17
                 | 19
                 | 20
@@ -2002,6 +2009,7 @@ fn validate_first_rung(
                     | 9
                     | 10
                     | 11
+                    | 12
                     | 17
                     | 19
                     | 20
@@ -2079,7 +2087,10 @@ fn validate_first_rung(
             validate_unknown_native_handle_mutation_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
-        if shapes[cursor..].iter().all(|shape| shape.operation == 9) {
+        if shapes[cursor..]
+            .iter()
+            .all(|shape| matches!(shape.operation, 9 | 12))
+        {
             validate_output_absent_remove_shapes(&shapes[cursor..])?;
             return Ok(());
         }
@@ -2403,7 +2414,7 @@ fn validate_included_source_shapes(
     }
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27))
+        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 12 | 19 | 20 | 27))
         .ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
                 "source-only filesystem replay cannot retain included-source handoffs",
@@ -2886,7 +2897,7 @@ fn validate_output_absent_remove_shapes(
                     "filesystem replay absent Output remove paths exceed their aggregate ceiling",
                 )
             })?;
-        if shape.operation != 9
+        if !matches!(shape.operation, 9 | 12)
             || shape.provider != 2
             || shape.result != ShapeResult::Scalar(-1)
             || shape.post_error != 2

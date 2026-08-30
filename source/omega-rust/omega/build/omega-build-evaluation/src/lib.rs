@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 63;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 64;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2671,6 +2671,7 @@ fn source_input_replay_prefix_end(
                 | 9
                 | 10
                 | 11
+                | 12
                 | 17
                 | 19
                 | 20
@@ -2780,6 +2781,7 @@ fn source_input_replay_prefix_end(
                         | 9
                         | 10
                         | 11
+                        | 12
                         | 17
                         | 19
                         | 20
