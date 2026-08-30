@@ -3574,6 +3574,270 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
 }
 
 #[test]
+fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce(&self)
+            requires public_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = public_in;
+            }
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {}
+
+        machine Root::invoke<Element, Order: Element satisfies Producer>(
+            &self,
+            value: &Element
+        )
+        requires incoming: ready()
+        {
+            let (; public_out: result) = Order::produce(value; incoming);
+        }
+
+        machine Root::caller(&self, value: &Token)
+        requires incoming: ready()
+        {
+            self.invoke<Token, TokenProducer>(value; incoming);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let default_row = typed
+        .conformances()
+        .iter()
+        .filter_map(|conformance| typed.closed_conformance_rows(conformance))
+        .flatten()
+        .find(|row| {
+            row.source == psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+        })
+        .expect("one selected trait-default row");
+    assert_eq!(
+        default_row.source,
+        psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+    );
+    let default_realization = default_row.realization_state;
+
+    let checked = lower_typed_trees(typed)
+        .expect("one exact trait-default static requirement witness call should check");
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .collect::<Vec<_>>();
+    let [(invocation, dispatch)] = invocations.as_slice() else {
+        panic!("one exact trait-default static requirement proof-output call")
+    };
+    assert_eq!(dispatch.realization_state, default_realization);
+    assert_eq!(invocation.target_state_symbol, default_realization);
+    let [argument] = invocation.evidence_arguments.as_slice() else {
+        panic!("one public requirement input")
+    };
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one public requirement output")
+    };
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(argument.callee_input)
+            .name,
+        "public_in"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(output.callee_output)
+            .name,
+        "public_out"
+    );
+    assert_ne!(output.output, Some(argument.source));
+}
+
+#[test]
+fn static_named_witness_trait_defaults_remain_conformance_scoped() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce(&self)
+            requires public_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = public_in;
+            }
+        }
+
+        data First {}
+        data Second {}
+        FirstProducer: First satisfies Producer {}
+        SecondProducer: Second satisfies Producer {}
+
+        machine Root::invoke_first<Element, Order: Element satisfies Producer>(
+            &self,
+            value: &Element
+        )
+        requires incoming: ready()
+        {
+            let (; public_out: result) = Order::produce(value; incoming);
+        }
+
+        machine Root::invoke_second<Element, Order: Element satisfies Producer>(
+            &self,
+            value: &Element
+        )
+        requires incoming: ready()
+        {
+            let (; public_out: result) = Order::produce(value; incoming);
+        }
+
+        machine Root::caller(&self, first: &First, second: &Second)
+        requires incoming: ready()
+        {
+            self.invoke_first<First, FirstProducer>(first; incoming);
+            self.invoke_second<Second, SecondProducer>(second; incoming);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked =
+        lower_typed_trees(typed).expect("two exact conformance-scoped defaults should check");
+    let dispatches = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| invocation.static_requirement_dispatch.as_ref())
+        .collect::<Vec<_>>();
+    let [first, second] = dispatches.as_slice() else {
+        panic!(
+            "two exact trait-default static dispatches, got {}",
+            dispatches.len()
+        )
+    };
+    assert_ne!(first.application_commitment, second.application_commitment);
+    assert_ne!(first.realization_machine, second.realization_machine);
+    assert_ne!(first.realization_state, second.realization_state);
+}
+
+#[test]
+fn static_named_witness_inline_override_wins_over_trait_default() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce(&self)
+            requires public_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = public_in;
+            }
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self)
+            requires local_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = local_in;
+            }
+        }
+
+        machine Root::invoke<Element, Order: Element satisfies Producer>(
+            &self,
+            value: &Element
+        )
+        requires incoming: ready()
+        {
+            let (; public_out: result) = Order::produce(value; incoming);
+        }
+
+        machine Root::caller(&self, value: &Token)
+        requires incoming: ready()
+        {
+            self.invoke<Token, TokenProducer>(value; incoming);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let override_row = typed
+        .conformances()
+        .iter()
+        .filter_map(|conformance| typed.closed_conformance_rows(conformance))
+        .flatten()
+        .find(|row| row.requirement_name.as_str() == "produce")
+        .expect("one selected override row");
+    assert_eq!(
+        override_row.source,
+        psi_typed_trees::trait_definition::ConformanceRowSource::Inline
+    );
+    assert!(override_row.realization_state.is_valid());
+}
+
+#[test]
+fn static_named_witness_trait_default_must_assign_its_public_output() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Producer {
+            machine Self::produce(&self)
+            requires public_in: ready()
+            ensures public_out: ready()
+            {}
+        }
+        data Token {}
+        TokenProducer: Token satisfies Producer {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a trait default cannot omit its public witness assignment");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("named ensures evidence `public_out` is not definitely assigned")
+    }));
+}
+
+#[test]
 fn static_named_witness_requirement_call_hides_satisfier_strengthening_selector() {
     let source = r#"
         trait Evidence {}

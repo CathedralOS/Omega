@@ -794,7 +794,6 @@ fn checked_static_requirement_dispatch<'program>(
 > {
     use psi_typed_trees::domain::ProofFact;
     use psi_typed_trees::signature::SignatureContractKind;
-    use psi_typed_trees::trait_definition::ConformanceRowSource;
 
     let Some(dispatch) = call.static_requirement_dispatch.as_ref() else {
         return Ok(None);
@@ -887,15 +886,11 @@ fn checked_static_requirement_dispatch<'program>(
                 && row.realization_state == dispatch.realization_state
         })
         .collect::<Vec<_>>();
-    let [selected_row] = exact_rows.as_slice() else {
+    let [_selected_row] = exact_rows.as_slice() else {
         return Err(rejected(
             "its selected conformance no longer owns one exact realization row",
         ));
     };
-    if selected_row.source == ConformanceRowSource::TraitDefault {
-        return Err(rejected("trait-default realizations remain unsupported"));
-    }
-
     let concrete = application.lifetime_arguments.is_empty()
         && application.type_arguments.is_empty()
         && application.const_arguments.is_empty()
