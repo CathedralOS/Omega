@@ -60,12 +60,12 @@ The committed tree still has two important gaps:
 - `source/gamma/compiler/gamma_compiler.beta` now owns a real strict frontend,
   direct Alpha emitter substrate, resolved expression lowering, and
   profile-neutral whole-function emission. Both D19 source schemas are
-  validated, but Q2's physical application profiles, the generated adapters,
-  canonical tape, and refinement are still missing.
+  validated, and D30 fixes the physical application profiles; the generated
+  adapters, canonical tape, and refinement are still missing.
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
-  named-type candidate scanning, and symbolic Alpha encoding; Q3 and the
+  named-type candidate scanning, and symbolic Alpha encoding; Q2 and the
   remaining type/body checking, lowering, tape publication, and refinement are
   still open. The restricted Delta-written native compiler prototype was also
   deleted: it was neither that compiler nor the full Omega closure `D` and had

@@ -140,10 +140,68 @@ D19 schema admission now resolves the exact `main` signature for both profiles.
 For `DeltaCompilerV1` it additionally validates the two source-owned nominal
 types, the exact `Complete`/`Reject` field lists, all 26 nullary rejection
 constructors, and the fixed code bijection without using declaration order or
-runtime constructor kinds. The physical sealed request, exact profile maxima,
-Conformance observations, and complete `GCOUT`/`DCOUT` tables remain
-owner-blocked by Q2; no canonical adapter bytes are emitted until those facts
-are fixed.
+runtime constructor kinds. D30 now fixes the physical sealed request, exact
+profile maxima, Conformance observations, and complete `GCOUT`/`DCOUT` tables.
+The remaining work is implementation: retain one semantic rejection code
+alongside `FAIL_OFF`, emit the two PC-zero adapters, embed the table constants,
+and publish no canonical artifact until the projections and exact/adjacent
+gates agree.
+
+## D30 physical application profiles
+
+`GCREQ` V1 is `[47 43 52 45 51 01 00 00]`, followed by one little-endian
+`u32` profile ID, one little-endian `u32` Gamma-source length, the exact source
+bytes, and exact EOF. Profile 1 is `ConformanceBytesV1`; profile 2 is
+`DeltaCompilerV1`. Both generated applications admit 4,194,304 input bytes.
+Conformance admits 4,194,304 successful output bytes, while Delta compilation
+admits AlphaBootstrapV2's 1,048,572-byte tape maximum. These application facts
+do not derive from this compiler's separate 4-MiB source buffer.
+
+The compiler edge uses `GCOUT` magic `[FF 47 43 4F 55 54 01 00]`; the
+generated Delta-compiler edge uses `DCOUT` magic
+`[FF 44 43 4F 55 54 01 00]`. Both retain the common 40-byte failure frame and
+halt tags 0 through 3. `GCREQ` validation precedes Gamma source processing, so
+a malformed or unknown profile reports a request-byte coordinate before any
+source defect; selected-profile schema mismatch reports the exact Gamma-source
+coordinate after resolution.
+
+The embedded profile and outcome constants project exactly to:
+
+- `profiles-v1.tsv`;
+- `conformance-observations-v1.tsv`;
+- `gcout-v1.tsv`; and
+- `dcout-v1.tsv`.
+
+The gate must compare every row rather than merely parse those files. They are
+not inputs read by the completed offline compiler. `gcout-v1.tsv` deliberately
+publishes authored semantic rejection classes instead of the frontend's private
+parser states or its historical one-bit `INVALID_TYPE`. `dcout-v1.tsv` retains
+D17 codes 1 through 26 unchanged.
+
+The compiler's exact V1 resource limits are:
+
+| Resource | Last admitted extent |
+| --- | ---: |
+| Gamma source | 4,194,304 bytes |
+| Total type rows, including `Int` and `Bytes` | 65,536 |
+| Constructor rows | 65,536 |
+| Function rows | 32,768 |
+| Active environment rows | 65,536 |
+| Coverage rows | 65,536 |
+| Syntax arena | 114,294,752 bytes / 3,571,711 nodes |
+| Parse depth | 1,024 |
+| Simultaneously live local slots | 65,535 |
+| Labels | 65,536 |
+| Fixups | 116,508 |
+| Emitted runnable Alpha payload | 1,048,572 bytes |
+
+Generated applications separately use a 15-MiB explicit Gamma stack and a
+112-MiB immutable heap. The shared generated-program observation block is 248
+InternalFailure, 249 AuthoredTrap, 250 StackExhausted, 251
+MemoryContainmentViolation, 252 HeapExhausted, 253 InputExtent, and 254
+OutputExtent. Alpha's illegal-instruction trap remains 132; 255 is unassigned
+and noncanonical. `interp.beta` predates this block and its private statuses 252
+through 255 remain oracle-only until that oracle is deleted.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
@@ -281,8 +339,8 @@ ordinary runtime paths plus one malformed-private-heap path pin empty and
 binary input, exact and adjacent source/heap limits, zero capacity, internal
 containment, no output, and byte-identical reconstruction. D19 now fixes the
 two closed profiles, their selected entries, result validation, and wire
-ownership; exact profile maxima and adapter emission remain implementation
-work.
+ownership, while D30 fixes their exact maxima and physical boundaries. Adapter
+emission remains implementation work.
 
 The direct emitter owns byte/word append, label definition, and
 `{payload_offset,label_id}` fixup rows. Branch and call targets remain private
@@ -298,8 +356,8 @@ depends on falling into an uncatchable Alpha trap.
 
 D20's declaration/binder resolver, source joins, and profile-neutral
 whole-function label/body emission are implemented. D19's exact source-owned
-schemas and reason-code bijection are implemented; Q2's physical profile facts,
-both adapters, and final publication still gate the tape. No incomplete slice
+schemas and reason-code bijection and D30's physical profile facts are settled;
+both adapters and final publication still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.

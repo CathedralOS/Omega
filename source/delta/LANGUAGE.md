@@ -513,6 +513,33 @@ unwrapped Alpha tape. Every failure uses the versioned `DCOUT` diagnostic frame
 and publishes no tape bytes. Adapter resource exhaustion and traps produce tags
 2 and 3 because pure `main` cannot return those outcomes.
 
+D30 fixes `DeltaCompilerV1` profile ID 2, a 4,194,304-byte maximum sealed
+Delta input, and AlphaBootstrapV2's 1,048,572-byte maximum successful output.
+`DCOUT` V1 magic is `[FF 44 43 4F 55 54 01 00]`. Its 40-byte frame uses
+coordinate spaces 0 none, 1 Delta-source byte, 2 emitted-payload byte, and 3
+runtime-internal row. D17 rejection codes 1 through 26 above remain unchanged.
+The closed additional codes are:
+
+```text
+Incomplete
+1 InputBytes  2 StackBytes  3 HeapBytes  4 OutputBytes
+
+InternalFailure
+1 GammaTrap                    2 MemoryContainmentViolation
+3 InvalidReturnedOutcome       4 MalformedBytes
+5 InvalidRejectOffset          6 OutputReplayMismatch
+7 AdapterContradiction         8 PublicationContradiction
+```
+
+The generated application uses the committed 15-MiB explicit Gamma stack and
+112-MiB immutable heap. The exact wire table is
+`source/gamma/compiler/dcout-v1.tsv`, a checked projection of constants embedded
+in the Gamma-compiler artifact rather than a host runtime input. A returned
+offset outside `0..input length`, a malformed private value, or an authored
+Gamma trap is an adapter/internal contradiction, never a fabricated Delta
+rejection. Input, stack, heap, and output exhaustion remain `Incomplete` with
+their exact limit and requested extent.
+
 The required compiler-correctness relation is:
 
 ```text

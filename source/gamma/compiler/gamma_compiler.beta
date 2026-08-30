@@ -3268,8 +3268,9 @@ proc lower_expr(expr, tail_position) {
 ; ---- D19 selected application schemas --------------------------------
 ;
 ; These checks consume only resolved D20 identities and author no candidate
-; payload.  The still-unruled compilation-request envelope, exact profile
-; maxima, and GCOUT/DCOUT resource tables remain outside this slice.
+; payload. D30 fixes the compilation-request envelope, exact profile maxima,
+; and GCOUT/DCOUT tables; embedding them and emitting the selected adapter
+; remain outside this slice.
 
 proc validate_d19_conformance_schema() {
     let function_index = 0

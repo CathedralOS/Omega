@@ -64,8 +64,10 @@ Successful stdout remains the exact runnable payload; failures carry the
 versioned diagnostic frame defined by the compiler owner and can never publish
 an artifact. `Reject` means a Beta rule was observed to fail. `Incomplete`
 means only that this compiler's private profile was insufficient. Generated
-program statuses 250 and 251 remain runtime containment outcomes and are not
-compiler failures.
+program statuses remain runtime observations rather than compiler failures.
+D30 preserves Beta's 250 StackExhausted and 251
+MemoryContainmentViolation meanings inside the common 248-through-254
+generated-program block; Alpha's VM trap remains 132 and 255 is noncanonical.
 
 ## Implementation frontiers
 

@@ -161,7 +161,12 @@ procedure reserves at least its caller-frame word, as specified in
 `../CALLING_CONVENTION.md`. Generated programs receive 134,217,728 zeroed bytes
 of source-visible raw memory biased at physical byte 4,194,304. Their data-stack
 and raw-memory containment failures are runtime statuses 250 and 251, not
-compiler `Incomplete` results.
+compiler `Incomplete` results. D30 preserves those meanings in the lattice-wide
+generated-program block: 248 InternalFailure, 249 AuthoredTrap, 250
+StackExhausted, 251 MemoryContainmentViolation, 252 HeapExhausted, 253
+InputExtent, and 254 OutputExtent. A generated profile need not produce every
+row. Alpha's VM trap remains 132, and 255 is deliberately unassigned and
+noncanonical rather than aliasing a shell's projection of `-1`.
 
 The private compiler map keeps the expanded procedure/initialization tables in
 `[5 MiB,5,556,417)`, the payload buffer at 16 MiB, the internal-PC table at

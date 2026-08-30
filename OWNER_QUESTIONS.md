@@ -91,66 +91,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q2 — Fix the physical D19 Gamma application profiles
-
-### Context
-
-D19 settles the logical two-profile contract. `ConformanceBytesV1` requires
-pure `main : Bytes -> Bytes`; `DeltaCompilerV1` requires the exact source-owned
-`DeltaCompileOutcome`/`DeltaRejectReason` schema and D17's 26-code rejection
-bijection. The Beta-written Gamma compiler now resolves and validates both
-entry schemas before emission, independent of declaration order.
-
-The final generated adapters are still not byte-exactly specifiable. No ruling
-assigns a physical profile ID or source-plus-profile request envelope, either
-profile's exact sealed-input maximum, the Conformance runtime observation
-table, `GCOUT` magic and closed tables, or `DCOUT` magic and its resource and
-internal-failure tables. Only the common four halt tags, 40-byte failure-frame
-shape, and `DCOUT` rejection codes 1 through 26 are fixed. Guessing these facts
-inside the compiler would make reconstruction depend on implementation folklore.
-
-### Problem statement
-
-Choose one exact version-1 realization covering:
-
-1. the sealed compilation-request bytes that bind one profile ID to the exact
-   Gamma source;
-2. the exact maximum sealed application input for each profile and any maximum
-   successful Conformance output;
-3. the complete Conformance runtime status/resource observations;
-4. `GCOUT` magic, rejection/resource/internal codes, and coordinate spaces,
-   including selected-profile schema mismatch; and
-5. `DCOUT` magic plus its resource/internal codes and coordinates, retaining
-   D17's existing rejection table unchanged.
-
-### Proposed direction
-
-Use one small length-delimited `GCREQ` v1 envelope with explicit numeric profile
-IDs; the envelope, profile ID, exact source bytes, and profile metadata all
-participate in compiler identity. Keep both application-input maxima explicit
-and conservative under the existing Gamma heap/`Int` bounds rather than
-inferring them from stdin EOF or source names.
-
-Publish `gcout-v1.tsv`, `dcout-v1.tsv`, and the Conformance observation table
-beside the compiler and make the implementation and gates consume those exact
-tables. Preserve the common halt tags and 40-byte family shape, but give each
-edge distinct magic and closed codes. Schema mismatch is a `GCOUT` rejection;
-generated-program exhaustion and contradiction use only the selected
-application profile's outcomes.
-
-### Alternates
-
-- Acceptable: make profile selection a fixed out-of-band field in the checked
-  compiler invocation rather than an encoded `GCREQ`, provided reconstruction
-  retains that field exactly and it cannot be inferred from source or filename.
-- Acceptable: choose different maxima for conformance and Delta compilation,
-  provided both are exact D21-valid profile facts with adjacent fail-closed
-  canaries.
-- Tempting but wrong: assume 4 MiB because the current Gamma source reader uses
-  that ceiling, derive wire codes from constructor order, reuse `BCOUT` magic,
-  or let `main`/type names select the profile.
-
-## Q3 — Complete Delta v1 type-formation rejection rules
+## Q2 — Complete Delta v1 type-formation rejection rules
 
 ### Context
 
@@ -205,7 +146,7 @@ boundary/entry-shape check rather than ordinary nominal type formation.
   compiler, likely use by `D`, or whichever recursive check happens to run
   first.
 
-## Q4 — Complete the physical OCREQ/OCOUT v1 tables
+## Q3 — Complete the physical OCREQ/OCOUT v1 tables
 
 ### Context
 
