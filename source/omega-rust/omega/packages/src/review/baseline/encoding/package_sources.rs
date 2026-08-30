@@ -1,102 +1,15 @@
-//! Canonical baseline codec and identity encoding.
+//! Canonical codecs for package lineage and immutable source resolution.
 
-use super::validation::replay_record_limits;
-use super::{
-    CHECKSUM_DOMAIN, REPLAY_PARENT_BINDING_DOMAIN, ReviewOnlyBaselineError,
-    ReviewOnlyBaselineLimits,
-};
+use super::{Decoder, Encoder, ensure_bounded_string};
 use crate::declarations::{PackageKey, PackageName};
-use crate::review::candidate::ReviewOnlyCanonicalRow;
-use omega_build_evaluation::{
-    ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
-};
-use omega_package_evidence::encoding::{
-    PackageReviewCanonicalRowRecoveryLimits, decode_package_review_canonical_row_with_limits,
-};
+use crate::review::baseline::ReviewOnlyBaselineError;
 use omega_package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
-use sha2::{Digest, Sha256};
 
-pub(super) fn replay_parent_binding(parent: [u8; 32], replay: [u8; 32]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(REPLAY_PARENT_BINDING_DOMAIN);
-    digest.update(parent);
-    digest.update(replay);
-    digest.finalize().into()
-}
-
-pub(super) fn encode_replay_record_option(
-    encoder: &mut Encoder,
-    replay: Option<&ReviewOnlyBuildFilesystemReplayRecord>,
-) -> Result<(), ReviewOnlyBaselineError> {
-    match replay {
-        None => encoder.byte(0),
-        Some(replay) => {
-            encoder.byte(1);
-            encoder.bytes(replay.canonical_bytes())?;
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn decode_replay_record_option(
-    decoder: &mut Decoder<'_>,
-    limits: ReviewOnlyBaselineLimits,
-) -> Result<Option<ReviewOnlyBuildFilesystemReplayRecord>, ReviewOnlyBaselineError> {
-    match decoder.byte()? {
-        0 => Ok(None),
-        1 => recover_review_only_build_filesystem_replay_record(
-            decoder.bytes(limits.maximum_capsule_bytes)?,
-            replay_record_limits(limits),
-        )
-        .map(Some)
-        .map_err(|_| ReviewOnlyBaselineError::new("invalid compiler filesystem replay record")),
-        _ => Err(ReviewOnlyBaselineError::new(
-            "invalid filesystem-replay-record option tag",
-        )),
-    }
-}
-
-pub(super) fn capsule_checksum(prefix: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(CHECKSUM_DOMAIN);
-    digest.update(
-        u64::try_from(prefix.len())
-            .expect("bounded capsule length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(prefix);
-    digest.finalize().into()
-}
-
-pub(super) fn clone_baseline_bytes(
-    bytes: &[u8],
-    allocation_error: &'static str,
-) -> Result<Vec<u8>, ReviewOnlyBaselineError> {
-    let mut owned = Vec::new();
-    owned
-        .try_reserve_exact(bytes.len())
-        .map_err(|_| ReviewOnlyBaselineError::new(allocation_error))?;
-    owned.extend_from_slice(bytes);
-    Ok(owned)
-}
-
-pub(super) fn ensure_bounded_string(
-    value: &str,
-    maximum_bytes: usize,
-    error: &'static str,
-) -> Result<(), ReviewOnlyBaselineError> {
-    if value.is_empty() || value.len() > maximum_bytes {
-        Err(ReviewOnlyBaselineError::new(error))
-    } else {
-        Ok(())
-    }
-}
-
-pub(super) fn validate_package_key_bounds(
+pub(in crate::review::baseline) fn validate_package_key_bounds(
     key: &PackageKey,
     maximum_identity_bytes: usize,
 ) -> Result<(), ReviewOnlyBaselineError> {
@@ -131,33 +44,7 @@ pub(super) fn validate_package_key_bounds(
     Ok(())
 }
 
-pub(super) fn validate_recovery_row<'a>(
-    row: &'a ReviewOnlyCanonicalRow,
-    key: &PackageKey,
-    target: &str,
-    limits: PackageReviewCanonicalRowRecoveryLimits,
-) -> Result<&'a [u8], ReviewOnlyBaselineError> {
-    let recovery_bytes = row.recovery_bytes().ok_or_else(|| {
-        ReviewOnlyBaselineError::new("review baseline contains a non-recoverable comparison row")
-    })?;
-    let decoded = decode_package_review_canonical_row_with_limits(recovery_bytes, limits)
-        .map_err(|_| ReviewOnlyBaselineError::new("invalid recovered compiler review row"))?;
-    if decoded.package() != key.identity()
-        || decoded.target().target_name() != target
-        || decoded.kind() != row.kind()
-        || decoded.risk() != row.risk()
-        || decoded.key_bytes() != row.key_bytes()
-        || decoded.canonical_bytes() != row.canonical_bytes()
-        || decoded.source() != row.source()
-    {
-        return Err(ReviewOnlyBaselineError::new(
-            "recovered compiler review row disagrees with review-only comparison metadata",
-        ));
-    }
-    Ok(recovery_bytes)
-}
-
-pub(super) fn encode_package_key(
+pub(in crate::review::baseline) fn encode_package_key(
     encoder: &mut Encoder,
     key: &PackageKey,
     maximum_identity_bytes: usize,
@@ -214,7 +101,7 @@ pub(super) fn encode_package_key(
     Ok(())
 }
 
-pub(super) fn decode_package_key(
+pub(in crate::review::baseline) fn decode_package_key(
     decoder: &mut Decoder<'_>,
     maximum_identity_bytes: usize,
 ) -> Result<PackageKey, ReviewOnlyBaselineError> {
@@ -298,7 +185,7 @@ fn generic_git_locator(
     }
 }
 
-pub(super) fn encode_resolution(
+pub(in crate::review::baseline) fn encode_resolution(
     encoder: &mut Encoder,
     resolution: &ImmutableSourceResolution,
 ) -> Result<(), ReviewOnlyBaselineError> {
@@ -325,7 +212,7 @@ pub(super) fn encode_resolution(
     Ok(())
 }
 
-pub(super) fn decode_resolution(
+pub(in crate::review::baseline) fn decode_resolution(
     decoder: &mut Decoder<'_>,
 ) -> Result<ImmutableSourceResolution, ReviewOnlyBaselineError> {
     let content = |decoder: &mut Decoder<'_>| {
@@ -387,169 +274,4 @@ fn encode_hex(bytes: &[u8]) -> String {
         encoded.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
     }
     encoded
-}
-
-pub(super) struct Encoder {
-    bytes: Vec<u8>,
-    maximum_bytes: usize,
-    exceeded: bool,
-}
-
-impl Encoder {
-    pub(super) fn bounded(maximum_bytes: usize) -> Self {
-        Self {
-            bytes: Vec::new(),
-            maximum_bytes,
-            exceeded: false,
-        }
-    }
-
-    pub(super) fn append(&mut self, bytes: &[u8]) {
-        if self.exceeded
-            || self
-                .bytes
-                .len()
-                .checked_add(bytes.len())
-                .is_none_or(|length| length > self.maximum_bytes)
-        {
-            self.exceeded = true;
-            return;
-        }
-        if self.bytes.try_reserve(bytes.len()).is_err() {
-            self.exceeded = true;
-            return;
-        }
-        self.bytes.extend_from_slice(bytes);
-    }
-
-    pub(super) fn fixed(&mut self, bytes: &[u8]) {
-        self.append(bytes);
-    }
-
-    pub(super) fn byte(&mut self, value: u8) {
-        self.append(&[value]);
-    }
-
-    pub(super) fn u16(&mut self, value: u16) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(super) fn u32(&mut self, value: u32) {
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(super) fn usize(&mut self, value: usize) -> Result<(), ReviewOnlyBaselineError> {
-        self.append(
-            &u64::try_from(value)
-                .map_err(|_| ReviewOnlyBaselineError::new("baseline length exceeds u64"))?
-                .to_le_bytes(),
-        );
-        Ok(())
-    }
-
-    pub(super) fn bytes(&mut self, bytes: &[u8]) -> Result<(), ReviewOnlyBaselineError> {
-        self.usize(bytes.len())?;
-        self.append(bytes);
-        Ok(())
-    }
-
-    pub(super) fn string(&mut self, value: &str) -> Result<(), ReviewOnlyBaselineError> {
-        self.bytes(value.as_bytes())
-    }
-
-    pub(super) fn finish(self) -> Result<Vec<u8>, ReviewOnlyBaselineError> {
-        if self.exceeded {
-            Err(ReviewOnlyBaselineError::new(
-                "review baseline encoding exceeds its byte ceiling",
-            ))
-        } else {
-            Ok(self.bytes)
-        }
-    }
-}
-
-pub(super) struct Decoder<'a> {
-    bytes: &'a [u8],
-    offset: usize,
-}
-
-impl<'a> Decoder<'a> {
-    pub(super) const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    pub(super) fn take(&mut self, length: usize) -> Result<&'a [u8], ReviewOnlyBaselineError> {
-        let end = self
-            .offset
-            .checked_add(length)
-            .ok_or_else(|| ReviewOnlyBaselineError::new("baseline length overflow"))?;
-        let value = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or_else(|| ReviewOnlyBaselineError::new("truncated review baseline capsule"))?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    pub(super) fn fixed(&mut self, expected: &[u8]) -> Result<(), ReviewOnlyBaselineError> {
-        if self.take(expected.len())? == expected {
-            Ok(())
-        } else {
-            Err(ReviewOnlyBaselineError::new(
-                "invalid review baseline capsule magic",
-            ))
-        }
-    }
-
-    pub(super) fn byte(&mut self) -> Result<u8, ReviewOnlyBaselineError> {
-        Ok(self.take(1)?[0])
-    }
-
-    pub(super) fn u16(&mut self) -> Result<u16, ReviewOnlyBaselineError> {
-        Ok(u16::from_le_bytes(
-            self.take(2)?.try_into().expect("exact u16 width"),
-        ))
-    }
-
-    pub(super) fn u32(&mut self) -> Result<u32, ReviewOnlyBaselineError> {
-        Ok(u32::from_le_bytes(
-            self.take(4)?.try_into().expect("exact u32 width"),
-        ))
-    }
-
-    pub(super) fn usize(&mut self) -> Result<usize, ReviewOnlyBaselineError> {
-        usize::try_from(u64::from_le_bytes(
-            self.take(8)?.try_into().expect("exact u64 width"),
-        ))
-        .map_err(|_| ReviewOnlyBaselineError::new("baseline length exceeds usize"))
-    }
-
-    pub(super) fn bytes(&mut self, maximum: usize) -> Result<&'a [u8], ReviewOnlyBaselineError> {
-        let length = self.usize()?;
-        if length > maximum {
-            return Err(ReviewOnlyBaselineError::new(
-                "review baseline field exceeds its byte ceiling",
-            ));
-        }
-        self.take(length)
-    }
-
-    pub(super) fn string(&mut self, maximum: usize) -> Result<&'a str, ReviewOnlyBaselineError> {
-        std::str::from_utf8(self.bytes(maximum)?)
-            .map_err(|_| ReviewOnlyBaselineError::new("review baseline string is not UTF-8"))
-    }
-
-    pub(super) fn array_32(&mut self) -> Result<[u8; 32], ReviewOnlyBaselineError> {
-        Ok(self.take(32)?.try_into().expect("exact digest width"))
-    }
-
-    pub(super) fn finish(self) -> Result<(), ReviewOnlyBaselineError> {
-        if self.offset == self.bytes.len() {
-            Ok(())
-        } else {
-            Err(ReviewOnlyBaselineError::new(
-                "review baseline capsule has trailing bytes",
-            ))
-        }
-    }
 }
