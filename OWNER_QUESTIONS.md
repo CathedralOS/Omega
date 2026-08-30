@@ -189,7 +189,7 @@ built-ins remain reserved as already required by D16.
 - Tempting but wrong: allow duplicate pattern binders to imply equality without
   adding an explicit pattern rule and executable comparison semantics.
 
-## Q5 — Freeze Delta declaration namespaces and duplicate phase
+## Q4 — Freeze Delta declaration namespaces and duplicate phase
 
 ### Context
 
