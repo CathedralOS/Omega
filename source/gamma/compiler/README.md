@@ -15,17 +15,17 @@ runs all 97 frontend discriminators, checks exact emitter bytes plus sticky
 capacity/fixup/structural-replay failures, executes six generated
 runtime-containment programs,
 exercises 16 checked-`Int` paths, runs 31 source-to-code lowering cases,
-executes separate ordinary/tail resolved-call, resolved-constructor, and
-resolved-local/let bridge payloads, compares six repeated payloads
+executes separate ordinary/tail source-call, source-constructor, and
+source-local/let bridge payloads, compares six repeated payloads
 byte-identically, and executes 17
 compact-`Bytes`, two
 arbitrary-arity/frame-ABI, three algebraic-value ABI, and eight sealed-input
 runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
-The retained compiler source declares 107 procedures. With the fixed frontend
-gate entry, the compiled gate uses 108 of Beta's 128 procedure slots and
-compiles to 249,220 bytes. The remaining 12,920 bytes under
+The retained compiler source declares 104 procedures. With the fixed frontend
+gate entry, the compiled gate uses 105 of Beta's 128 procedure slots and
+compiles to 251,142 bytes. The remaining 10,998 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -116,8 +116,10 @@ The same lexical environment now assigns source-order parameter indexes and
 fixed local slots to parameters, lets, pattern fields, catch-alls, and every
 variable reference. Disjoint scopes reuse local slots, while each function
 retains its return type, maximum live-local count, and exact parameter count in
-one packed profile word. Runtime labels/frame prefixes and connecting these
-resolved identities to lowering remain open.
+one packed profile word. Source variables, lets, ordinary calls, and constructor
+applications now consume those identities directly in `lower_expr`. Publishing
+the complete function-label table, entering every function with its retained
+frame profile, and selected-match lowering remain open.
 
 An emitted Gamma program uses this Alpha-memory profile:
 
@@ -144,12 +146,13 @@ from that stack into source-order immutable field vectors and checks private
 field-pointer extent/alignment before loads. Odd field counts round to a
 32-byte heap row, preserving the compact `Bytes` descriptor alignment across
 mixed allocations. The adjacent probe covers 600 fields, nested and nullary
-values, malformed private pointers, and the exact heap edge. Source
-constructor-tag and pattern-slot assignment must now implement D20. The resolved
-constructor seam shares the call seam's single guarded argument routine rather
-than retaining a second list verifier; it consumes only an opaque resolved kind
-and does not assign source identity. Its focused failure discriminator also
-keeps a malformed child lowering distinct from successful zero arity.
+values, malformed private pointers, and the exact heap edge. Source tag 7 maps
+its retained one-based constructor table identity to the disjoint runtime kind
+range starting at two, then uses the resolved-constructor seam and the call
+seam's single guarded argument routine rather than retaining a second list
+verifier. Its focused failure discriminator also keeps a malformed child
+lowering distinct from successful zero arity. Selected-match lowering must use
+the same identity-to-kind map and the already-retained pattern slots.
 
 Generated code treats `r249`/`r250` as caller-clobbered fixed-offset address
 scratch, reserves `r252` for the downward stack pointer, `r253` for the current
@@ -178,8 +181,9 @@ addition and subtraction overflow directions, multiplication overflow and the
 valid `INT64_MIN * 1` edge, and both exceptional division/remainder classes.
 
 The retained `lower_expr(expr, tail_position)` dispatcher currently consumes
-already checked trees with literals, all seven primitive operators, `if`, and
-the six closed `Bytes` forms. It emits nested evaluation left-to-right, spills
+already checked trees with literals, variables, lets, ordinary calls,
+constructor applications, all seven primitive operators, `if`, and the six
+closed `Bytes` forms. It emits nested evaluation left-to-right, spills
 intermediates through the guarded explicit stack, calls the checked helpers,
 and reconstructs `(kind,payload)` results. Conditions lower non-tail; both arms inherit the
 caller's tail position before call lowering gives that bit executable behavior.
@@ -192,16 +196,17 @@ contained failures, then checks two repeated raw payloads byte-for-byte. This
 is general expression-dispatch material; no partial Gamma compiler or subset
 artifact is published.
 
-Resolved local and let lowering now reuse the fixed-frame ABI without assigning
-source identity. A local loads one complete pair from an opaque slot. A let
+Resolved local and let lowering reuse the fixed-frame ABI. Source tag 1 decodes
+the retained parameter/local kind and zero-based runtime index; source tag 4
+converts the retained one-based slot identity into the current function's fixed
+frame profile. A local loads one complete pair from that slot. A let
 prevalidates that slot before emission, lowers its initializer non-tail exactly
 once, retains the pair, and lowers its body with the incoming tail-position bit.
-The focused executable bridge carries a `Bytes` initializer and an `Int` body
-through separate slots in a real 48-byte frame, observes the stored byte,
+The focused executable bridge carries a `Bytes` initializer through a real
+48-byte frame, reads it from the source-resolved local in a `bytes_get`,
 restores the root frame, rejects malformed prefix/index profiles with zero
-payload, and reconstructs the same tape twice. Connecting source tag 1 or 4 to
-these seams must implement D20's exact local environment; the ABI makes no
-additional source-spelling or scope choice.
+payload, and reconstructs the same tape twice. The ABI makes no additional
+source-spelling or scope choice.
 
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them
@@ -213,13 +218,16 @@ It prevalidates the forward arena list and every fixed extent before emitting
 argument code; malformed private metadata cannot loop, wrap frame arithmetic,
 or leave a partial candidate payload.
 Its compact executed payload carries mixed `Bytes`/`Int` arguments through both
-paths, reads both parameters through the guarded resolved accessor, and returns
+paths from a source tag-5 node, reads both parameters through the guarded
+resolved accessor and source tag-1 node, and returns
 with the root stack and frame restored. `if` and the resolved
 let seam already preserve their tail-position bit; future selected-match
 lowering must propagate the same transfer so terminating tail recursion grows
-neither Gamma activations nor Alpha's hidden return stack. Connecting tag-5 source call
-spellings, callee metadata, and binder slots to the seam must implement D20's
-deterministic source identities; no resolved AST is serialized or executed.
+neither Gamma activations nor Alpha's hidden return stack. The source connection
+uses the retained one-based function identity, the compiler-owned label table,
+and the callee's packed maximum-live-local profile; whole-function emission must
+populate that label table before lowering callers. No resolved AST is
+serialized or executed.
 
 `Bytes` uses a compact immutable rope/view representation with closed descriptor
 kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
@@ -256,11 +264,13 @@ branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
 
-D20 fixes the final declaration/binder resolver policy. D19 fixes application-
-profile selection; implementing the resolver, complete lowering, and adapters
-still gates final tape publication. No incomplete slice authorizes a subset
-compiler or blocks the settled parser, private target ABI, runtime helpers,
-direct emitter, or profile-independent lowering described above.
+D20's declaration/binder resolver and the variable, let, call, and constructor
+source joins are implemented. Selected-match lowering and whole-function label/
+entry emission remain. D19 fixes application-profile selection; implementing
+both adapters and final publication still gates the tape. No incomplete slice
+authorizes a subset compiler or blocks the settled parser, private target ABI,
+runtime helpers, direct emitter, or profile-independent lowering described
+above.
 
 Any future validation placed here must reconstruct the exact
 Beta-source-to-Alpha-tape edge for `gamma_compiler.beta`. Generic evidence,

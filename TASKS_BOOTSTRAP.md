@@ -525,8 +525,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       namespaces, and keeps the 32,768-function capacity canary linear in
       ordinary hash behavior. Exact-offset negatives and cross-namespace,
       colliding-hash, branch, and arm positives are adjacent. Global identities
-      now retain exact table rows; runtime labels/frame prefixes and
-      source-tag-to-lowering joins remain open.
+      now retain exact table rows; whole-function runtime label publication
+      remains open.
     - [x] Retain exact one-based function and constructor table identities on
       every checked ordinary call, constructor application, and constructor
       pattern. Zero remains the unresolved/builtin sentinel. The adjacent
@@ -540,7 +540,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       its resolved return type, maximum simultaneously live locals, and exact
       parameter count. The metadata gate pins parameter/local kinds, slots,
       references, pattern fields, reuse-derived maximum, and profile counts.
-      Runtime label/frame-prefix construction and source-tag lowering remain.
+      The variable/let/call/constructor source joins consume those profiles;
+      selected-match and whole-function entry construction remain.
   - Implement D19's sealed application-profile input as part of the exact Gamma
     compilation question and reconstruction evidence. Generate exactly
     `ConformanceBytesV1` (`main : Bytes -> Bytes`) and
@@ -567,9 +568,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 107 procedures; with the frontend
-    gate entry, the gate uses 108 of Beta's 128 procedure slots and compiles to
-    249,220 bytes, leaving 12,920 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 104 procedures; with the frontend
+    gate entry, the gate uses 105 of Beta's 128 procedure slots and compiles to
+    251,142 bytes, leaving 10,998 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -699,9 +700,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     metadata cannot wrap, loop, or author a partial payload. Execute one
     compact two-argument mixed-kind payload through both paths, recover the
     source-order values in the callee, restore the root stack/frame after the
-    tail return, and require byte-identical reconstruction. The tag-5 source
-    connection, callee metadata assignment, and binder slots must implement D20;
-    this seam introduces no resolved-AST serialization or subset compiler.
+    tail return, and require byte-identical reconstruction. The D20 source
+    connection below consumes this seam; it introduces no resolved-AST
+    serialization or subset compiler.
   - [x] Bridge already-resolved constructor applications into the eventual
     expression backend without assigning source spelling or declaration
     identity. Calls and constructors now share one guarded canonical argument
@@ -714,8 +715,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     recover its second field, restore the root stack, and require byte-identical
     reconstruction. A focused malformed-child discriminator requires failure
     with no emitter error or payload, preventing an incomplete lowering from
-    being mistaken for zero arity. The tag-7 source connection must implement
-    D20; no parallel verifier, serialized resolved tree, or duplicate
+    being mistaken for zero arity. The D20 source connection below consumes
+    this seam; no parallel verifier, serialized resolved tree, or duplicate
     list walk is retained.
   - [x] Bridge already-resolved local references and lets into the eventual
     expression backend without assigning source identity. Reuse the
@@ -727,8 +728,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
     the body. Execute a mixed `Bytes` initializer/`Int` body in a real 48-byte
     frame, recover both values from distinct slots, restore the root stack/base,
     reject malformed prefix and adjacent-index profiles with zero payload, and
-    require byte-identical reconstruction. Source tag-1/tag-4 connection,
-    binder-to-slot assignment and scope must implement D20.
+    require byte-identical reconstruction. The D20 source connection below
+    consumes this seam.
+  - [x] Connect D20's resolved source metadata to general lowering. Source tag 1
+    selects the retained parameter/local kind and runtime index; tag 4 combines
+    its one-based fixed slot with the current function prefix; tag 5 consumes
+    the one-based function identity, compiler-owned label table, and retained
+    maximum-live-local profile; and tag 7 maps the one-based constructor
+    identity into runtime kinds starting at two. Execute source-derived ordinary
+    and proper-tail calls, a parameter return, constructor allocation, and a
+    let/local `Bytes` read; compile each bridge twice byte-identically. Malformed
+    resolved metadata fails before publication. Selected-match and complete
+    function-label/entry emission remain open.
+  - [x] Perform the bounded ordinary compaction required before D12 escalation.
+    Merge identical global lookup and root-form scans, share the call/
+    constructor type-argument zipper, remove the one-use local wrapper, and
+    merge the checked divide/remainder emitters without changing emitted Alpha.
+    This reduces the live source-join compiler with a trivial entry from
+    254,109 to 250,761 bytes; the complete adjacent gate remains 193/193.
+  - [ ] **OWNER-BLOCKED — Q8: GAMMA-ALPHA-TAPE-CAPACITY.** Choose the capacity
+    policy for the standalone Beta-written Gamma compiler before adding
+    selected-match lowering, whole-function label/entry emission, or either
+    D19 adapter. The current fixed frontend entry is already 251,142 of 262,140
+    runnable Alpha bytes after ordinary cleanup. Do not hide the pressure by
+    deleting required gates, splitting the compiler behind an older rung or
+    host script, adding a jet, weakening Gamma, or publishing a subset tape.
   - [x] Establish the dormant profile-parameterized sealed-input reader before
     selecting D19's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
@@ -829,15 +853,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [x] Absorb the reusable static frontend into `gamma_compiler.beta` without a
   duplicate checker source, and keep `interp.beta` only as a bounded semantic
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
-  compiler source is an accepted compiler artifact. The retained gates pass 48
-  interpreter cases, the fail-closed arena case, 82 compiler-frontend cases,
-  one exact emitter probe, six executed runtime-containment probes, 16 checked
-  `Int` paths, 31 source-to-code lowering cases, one resolved-call and one
-  resolved-constructor bridge payload, four byte-determinism comparisons, 14
-  compact-`Bytes` runtime paths, two arbitrary-arity/frame-ABI
-  paths, three algebraic-value ABI paths, eight sealed-input runtime paths, one
-  sealed-input reconstruction comparison, and 106 independent differential
-  cases.
+  compiler source is an accepted compiler artifact. The retained compiler gate
+  passes 193 cases spanning 97 frontend discriminators, direct emitter and
+  containment probes, checked `Int` and compact-`Bytes` runtime paths, 31
+  source-to-code cases, source-derived ordinary/tail call, constructor, and
+  local/let payloads, repeated byte-identical reconstruction, frame/algebraic
+  ABIs, and sealed input. Separate oracle gates retain 48 interpreter cases,
+  the fail-closed arena case, and 106 independent differential cases.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
