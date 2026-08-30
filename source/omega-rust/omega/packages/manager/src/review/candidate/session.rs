@@ -10,11 +10,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static REVIEW_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Deterministic evaluator work granted to one complete package-review
-/// closure. This does not claim to bound CPU time or process memory.
+/// closure. The sibling limits below bound retained compiler resources; none
+/// claims to bound CPU time or process memory.
 const PACKAGE_REVIEW_BUILD_FUEL_CEILING: u64 = 100_000_000;
 /// Aggregate compiler-owned BuildLog bytes across initial evaluation and
 /// replay for the complete package closure.
 const PACKAGE_REVIEW_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
+/// Aggregate canonical filesystem operation attempts across initial evaluation
+/// and replay for the complete package closure.
+const PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
 
 #[derive(Debug)]
 pub(super) struct ReviewBuildSession {
@@ -82,6 +86,7 @@ impl ReviewBuildSession {
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
                         PACKAGE_REVIEW_BUILD_FUEL_CEILING,
                         PACKAGE_REVIEW_BUILD_LOG_CEILING,
+                        PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING,
                     )
                     .expect("package-review build ceilings are nonzero");
                     return Ok(Self {

@@ -462,18 +462,18 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
-Package review additionally owns one unobservable version-2 evaluation sponsor
+Package review additionally owns one unobservable version-3 evaluation sponsor
 across the complete resolved closure. The current compiler policy grants
-100,000,000 deterministic evaluator fuel units and 16 MiB of compiler-owned
-BuildLog output to that session while retaining
-the ordinary 100,000-unit ceiling for an effect-free invocation and
+100,000,000 deterministic evaluator fuel units, 16 MiB of compiler-owned
+BuildLog output, and 65,536 canonical filesystem operation attempts while
+retaining the ordinary 100,000-unit ceiling for an effect-free invocation and
 10,000,000-unit ceiling for a granted invocation. Initial evaluation and
 automatic provider-free replay debit the same shared sponsor;
-dependencies cannot raise it. The version-3 usage receipt binds the step
+dependencies cannot raise it. The version-4 usage receipt binds the step
 schedule, per-invocation ceiling, optional sponsor schema and session ceilings,
-and distinct initial/replay fuel and BuildLog charges. Successful closure
-review rejects unless both retained charge totals exactly equal the sponsor's
-counters. The ambient
+and distinct initial/replay fuel, BuildLog, and filesystem-attempt charges.
+Successful closure review rejects unless all retained charge totals exactly
+equal the sponsor's counters. The ambient
 interpreter development override does not alter package-policy evaluation.
 These are deterministic work and retained-log limits, not claims about CPU
 time, resident memory, or hostile-process containment.

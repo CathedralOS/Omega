@@ -1784,16 +1784,18 @@ and open-but-unlinked objects under a 4,096-entry, 256-MiB-total, and
 256-MiB-per-object ceiling. Provider mutations reserve before touching the OS
 and commit after success; ceiling refusal is resource exhaustion. Neither
 per-package limits nor path-summing bound the actual resource.
-A distinct version-2 evaluation sponsor now accounts deterministic evaluator
-work and compiler-owned BuildLog bytes across that same closure. The compiler
-policy grants 100,000,000 total fuel units and 16 MiB of BuildLog output,
+A distinct version-3 evaluation sponsor now accounts deterministic evaluator
+work, compiler-owned BuildLog bytes, and filesystem operation attempts across
+that same closure. The compiler
+policy grants 100,000,000 total fuel units, 16 MiB of BuildLog output, and
+65,536 canonical filesystem operation attempts,
 preserves the 100,000-unit effect-free and 10,000,000-unit granted
 per-invocation ceilings for initial evaluation and automatic replay, and
 prevents dependencies or the ambient interpreter development override from
-raising package-policy limits. Usage receipt v3 binds those limits and
-separates initial from replay fuel and BuildLog charges; successful closure
-review requires exact reconciliation with the shared sponsor. This is not a
-CPU-time or process-memory claim.
+raising package-policy limits. Usage receipt v4 binds those limits and
+separates initial from replay fuel, BuildLog, and filesystem-attempt charges;
+successful closure review requires exact reconciliation with the shared
+sponsor. This is not a CPU-time or process-memory claim.
 
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable

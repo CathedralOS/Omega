@@ -472,9 +472,16 @@ Package review debits every retained byte, including the newline, from one
 16-MiB compiler-owned account shared by initial evaluation, automatic replay,
 and the complete resolved closure. A write that would exceed the account
 rejects before changing the retained log; output is never truncated. Usage
-schema v3 records initial and replay BuildLog bytes, and successful closure
+schema v4 records initial and replay BuildLog bytes, and successful closure
 review requires their exact reconciliation with the shared account. This
 limits retained BuildLog custody only; it is not resident-memory containment.
+
+The same sponsor permits at most 65,536 canonical filesystem operation attempts
+across initial evaluation, automatic replay, and the complete package closure.
+The evaluator charges before appending a pending attempt row, retains exact
+initial and replay counts in usage schema v4, and successful closure review
+reconciles both counts with the shared account. This bounds observation-vector
+cardinality; it does not claim a bound on resident memory.
 
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete

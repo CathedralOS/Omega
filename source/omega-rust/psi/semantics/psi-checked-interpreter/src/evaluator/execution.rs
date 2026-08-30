@@ -95,6 +95,19 @@ impl<'program> Evaluator<'program> {
             .ok_or_else(|| Halt::Resource("BuildLog byte accounting overflowed".to_owned()))
     }
 
+    pub(super) fn charge_filesystem_operation_attempt(&mut self) -> EvalResult<()> {
+        if let Some(sponsor) = &self.build_evaluation_sponsor {
+            sponsor
+                .charge_filesystem_operation_attempt()
+                .map_err(Halt::Resource)?;
+        }
+        self.usage
+            .charge_filesystem_operation_attempt()
+            .ok_or_else(|| {
+                Halt::Resource("filesystem operation-attempt accounting overflowed".to_owned())
+            })
+    }
+
     // ---- entry --------------------------------------------------------------
 
     pub(super) fn run_entry(&mut self, entry_machine_name: &str) -> EvalResult<()> {

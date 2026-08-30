@@ -180,7 +180,7 @@ impl EvaluationUsageSchemaIdentity {
 }
 
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
-    EvaluationUsageSchemaIdentity(3);
+    EvaluationUsageSchemaIdentity(4);
 
 /// Deterministic work measured by the current evaluator-step schedule.
 ///
@@ -194,6 +194,7 @@ pub struct EvaluationUsage {
     fuel_units: u64,
     fuel_ceiling: u64,
     build_log_bytes: u64,
+    filesystem_operation_attempts: u64,
     result_cells: u64,
 }
 
@@ -5818,6 +5819,7 @@ impl EvaluationUsage {
             fuel_units: 0,
             fuel_ceiling,
             build_log_bytes: 0,
+            filesystem_operation_attempts: 0,
             result_cells: 0,
         }
     }
@@ -5844,6 +5846,11 @@ impl EvaluationUsage {
         self.build_log_bytes
     }
 
+    /// Canonical filesystem calls that entered operation-attempt capture.
+    pub const fn filesystem_operation_attempts(self) -> u64 {
+        self.filesystem_operation_attempts
+    }
+
     /// Number of value cells retained by the successful evaluation result.
     /// Scalar and unit roots count as one cell; each structured value counts
     /// its root plus every recursively retained field, payload, or element.
@@ -5862,6 +5869,11 @@ impl EvaluationUsage {
 
     fn charge_build_log_bytes(&mut self, bytes: u64) -> Option<()> {
         self.build_log_bytes = self.build_log_bytes.checked_add(bytes)?;
+        Some(())
+    }
+
+    fn charge_filesystem_operation_attempt(&mut self) -> Option<()> {
+        self.filesystem_operation_attempts = self.filesystem_operation_attempts.checked_add(1)?;
         Some(())
     }
 

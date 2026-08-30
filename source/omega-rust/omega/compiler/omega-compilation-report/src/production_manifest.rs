@@ -6,7 +6,7 @@ use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V4\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V5\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -66,15 +66,26 @@ impl ProductionCompilationSubject {
             build_evaluation_usage.sponsor_schema_version,
             build_evaluation_usage.session_fuel_ceiling,
             build_evaluation_usage.session_build_log_byte_ceiling,
+            build_evaluation_usage.session_filesystem_attempt_ceiling,
         ) {
-            (None, None, None) => {}
-            (Some(_), Some(0), Some(_)) => {
+            (None, None, None, None) => {}
+            (Some(_), Some(0), Some(_), Some(_)) => {
                 return Err("production compilation subject has a zero session fuel ceiling");
             }
-            (Some(_), Some(_), Some(0)) => {
+            (Some(_), Some(_), Some(0), Some(_)) => {
                 return Err("production compilation subject has a zero session BuildLog ceiling");
             }
-            (Some(_), Some(session_ceiling), Some(build_log_ceiling)) => {
+            (Some(_), Some(_), Some(_), Some(0)) => {
+                return Err(
+                    "production compilation subject has a zero session filesystem-attempt ceiling",
+                );
+            }
+            (
+                Some(_),
+                Some(session_ceiling),
+                Some(build_log_ceiling),
+                Some(filesystem_attempt_ceiling),
+            ) => {
                 let consumed = build_evaluation_usage
                     .fuel_units
                     .checked_add(build_evaluation_usage.replay_fuel_units)
@@ -89,6 +100,17 @@ impl ProductionCompilationSubject {
                 if build_log > build_log_ceiling {
                     return Err(
                         "production compilation subject exceeded its session BuildLog ceiling",
+                    );
+                }
+                let filesystem_attempts = build_evaluation_usage
+                    .filesystem_operation_attempts
+                    .checked_add(build_evaluation_usage.replay_filesystem_operation_attempts)
+                    .ok_or(
+                        "production compilation subject filesystem-attempt accounting overflowed",
+                    )?;
+                if filesystem_attempts > filesystem_attempt_ceiling {
+                    return Err(
+                        "production compilation subject exceeded its session filesystem-attempt ceiling",
                     );
                 }
             }
@@ -274,20 +296,29 @@ fn canonical_manifest_bytes(
         usage.sponsor_schema_version,
         usage.session_fuel_ceiling,
         usage.session_build_log_byte_ceiling,
+        usage.session_filesystem_attempt_ceiling,
     ) {
-        (Some(schema), Some(fuel_ceiling), Some(build_log_ceiling)) => {
+        (
+            Some(schema),
+            Some(fuel_ceiling),
+            Some(build_log_ceiling),
+            Some(filesystem_attempt_ceiling),
+        ) => {
             bytes.push(1);
             bytes.extend_from_slice(&schema.to_le_bytes());
             bytes.extend_from_slice(&fuel_ceiling.to_le_bytes());
             bytes.extend_from_slice(&build_log_ceiling.to_le_bytes());
+            bytes.extend_from_slice(&filesystem_attempt_ceiling.to_le_bytes());
         }
-        (None, None, None) => bytes.push(0),
+        (None, None, None, None) => bytes.push(0),
         _ => unreachable!("validated production subject has paired sponsor identity"),
     }
     bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
     bytes.extend_from_slice(&usage.replay_fuel_units.to_le_bytes());
     bytes.extend_from_slice(&usage.build_log_bytes.to_le_bytes());
     bytes.extend_from_slice(&usage.replay_build_log_bytes.to_le_bytes());
+    bytes.extend_from_slice(&usage.filesystem_operation_attempts.to_le_bytes());
+    bytes.extend_from_slice(&usage.replay_filesystem_operation_attempts.to_le_bytes());
     bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
     bytes.extend_from_slice(subject.build_observation_identity.as_bytes());
     bytes.push(target_profile_tag(subject.target_profile));

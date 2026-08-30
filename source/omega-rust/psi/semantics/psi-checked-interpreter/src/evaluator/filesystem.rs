@@ -26,6 +26,7 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &Frame,
     ) -> EvalResult<Value> {
+        self.charge_filesystem_operation_attempt()?;
         let attempt_index = self.filesystem_operation_attempts.len();
         let replay_expected = self.expected_filesystem_replay_attempt(attempt_index, operation)?;
         let execute_replayed_attempt = self
