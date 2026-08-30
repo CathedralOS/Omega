@@ -10,18 +10,17 @@ Beta understand Delta.
 ## Adds
 
 - algebraic data types and pattern matching;
-- pure functions and recursion;
+- checked signed integers and compact immutable bytes;
+- pure functions, recursion, and proper tail calls;
 - a small monomorphic static type system; and
 - explicit, bounded evaluation resources.
 
-Gamma's intended source semantics must be fixed independently of every
-implementation, but OWNER Q3 has not yet selected one executable language from the
-current disconnected interpreter and type-checker surfaces. The required
+Gamma has one typed executable contract: `data* def*`, exhaustive matches,
+nominal immutable data, and no trailing untyped expression. The required
 compiler artifact is written in Beta and emits Alpha tape for arbitrary source
-accepted by the eventual contract. An interpreter may serve as an early
-correctness route, but the canonical edge must yield a standalone tape for the
-Gamma-written Delta compiler without an external Beta compiler or host
-transformation.
+accepted by that contract. An interpreter may remain a bounded oracle, but the
+canonical edge yields a standalone tape for the Gamma-written Delta compiler
+without an external Beta compiler or host transformation.
 
 ## Direct responsibility
 
@@ -36,14 +35,21 @@ Gamma-written Delta compiler source
 Gamma implements the Delta compiler. It does not merely provide an evaluator
 for a Beta-written translator that already parsed Delta.
 
+The compiler application exposes pure `main : Bytes -> DeltaCompileOutcome`.
+The returned sum contains only `Complete(Bytes)` and a structured Delta
+rejection. A generated Alpha adapter owns sealed byte I/O, private exhaustion,
+internal failure, and the `DCOUT` frame. Gamma source receives no general I/O
+primitive merely because one application is a compiler.
+
 ## Current migration
 
 `source/gamma/interp.beta` and `typeck.beta` are bounded, disconnected semantic
-oracles and useful implementation material. Neither defines Gamma before OWNER Q3,
-and together they do not yet constitute the standalone Gamma-to-Alpha compiler
-required by D11. The former Beta-written Delta-to-Gamma route was outside Gamma
-ownership and is deleted rather than retained as the Delta edge or a
-compatibility layer.
+oracles and useful implementation material. They do not define alternate Gamma
+languages and together do not constitute the standalone Gamma-to-Alpha compiler
+required by D11. Their shared omission of match exhaustiveness is a recorded
+warning that differential agreement cannot establish a rule both omit. The
+former Beta-written Delta-to-Gamma route was outside Gamma ownership and is
+deleted rather than retained as the Delta edge or a compatibility layer.
 
 ## Must not contain
 

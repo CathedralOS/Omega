@@ -115,7 +115,7 @@ No implementation gains authority by occupying more than one role.
 | --- | --- | --- |
 | [Alpha](rungs/alpha.md) | minimal deterministic tape execution | written semantics plus audited native VM seeds |
 | [Beta](rungs/beta.md) | small structured compiler language | Alpha-written compiler to Alpha tape |
-| [Gamma](rungs/gamma.md) | safe definitional computation | Beta-written compiler/reference semantics to Alpha tape |
+| [Gamma](rungs/gamma.md) | safe typed definitional computation | Beta-written direct compiler to Alpha tape |
 | [Delta](rungs/delta.md) | deterministic compiler-host systems language | Gamma-written compiler to Alpha tape |
 | [Omega](omega_toolchain.md) | full product language and compiler | Delta-written first compiler, then Omega-written compiler |
 

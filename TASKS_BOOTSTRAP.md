@@ -113,18 +113,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
     its otherwise content-free `artifacts/` bucket, and make path hygiene reject
     nested artifact buckets for every canonical compiler owner.
-  - [ ] **DESIGN-BLOCKED — OWNER Q3.** Materialize the Gamma compiler source, tape,
-    and adjacent validation in `source/gamma/compiler/`; section 3 owns the
-    implementation.
-  - [ ] **DESIGN-BLOCKED — OWNER Q2/Q3.** Materialize the Delta compiler source,
+  - [ ] Materialize the Gamma compiler source, tape, and adjacent validation in
+    `source/gamma/compiler/` under D16; section 3 owns the implementation.
+  - [ ] **DESIGN-BLOCKED — OWNER Q2.** Materialize the Delta compiler source,
     tape, and adjacent validation in `source/delta/compiler/`; section 4 owns
     the implementation.
   - [ ] **DESIGN-BLOCKED — OWNER Q2.** Author
     `source/omega/omega_compiler.delta` once Delta's source and closure contract
     is selected; section 5 owns the implementation. This source work does not
     wait for the physical Gamma/Delta compiler artifacts.
-  - [ ] **DEPENDENCY-BLOCKED — OWNER Q3, missing Gamma/Delta compilers, and missing
-    `D`.** Materialize the resulting `omega0_compiler_bytecode.tape` only after
+  - [ ] **DEPENDENCY-BLOCKED — missing Gamma/Delta compilers and missing `D`.**
+    Materialize the resulting `omega0_compiler_bytecode.tape` only after
     the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
     section 6 owns completion of the existing `build.omg`/`main.omg` closure and
     `C → omega`.
@@ -152,7 +151,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   distinction consistently; paths that still contradict it are migration tasks
   above rather than alternate roles.
 - [ ] **BOOTSTRAP-ASCII-SOURCE:** Implement D15's one source-byte envelope for
-  Alpha assembly, Beta, the selected Gamma contract, and Delta. Reject before
+  Alpha assembly, Beta, the fixed Gamma contract, and Delta. Reject before
   tokenization every byte other than HT, LF, CR, and printable ASCII; use
   explicit ASCII identifier/digit predicates, exactly space/tab/CR/LF trivia,
   CR/LF/source-end comment termination, and printable direct literal bytes plus
@@ -450,21 +449,35 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Beta-written Gamma compiler
 
-- [ ] **DESIGN-BLOCKED — OWNER Q3: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
-  implement `source/gamma/compiler/gamma_compiler.beta` as a standalone
-  compiler from Gamma source to Alpha tape. It may reuse or reorganize
-  `interp.beta` and `typeck.beta`; no external interpreter may remain part of
-  compilation. OWNER Q3 must first select one typed executable grammar, entry/stream
-  ABI, outcome model, and fuel/resource meaning. The current interpreter and
-  type checker implement disconnected untyped-executable and typed-nonexecuting
-  languages, so choosing either in code would invent Gamma semantics.
+- [ ] **BUILD-GAMMA-COMPILER.** Implement D16 and
+  `source/gamma/LANGUAGE.md` in
+  `source/gamma/compiler/gamma_compiler.beta` as a standalone compiler from
+  Gamma source to Alpha tape. Type-check before emission, use the private
+  arbitrary-arity Gamma frame ABI, preserve proper tail calls, and emit Alpha
+  tape directly. It may reuse or reorganize `interp.beta` and `typeck.beta`; no
+  external interpreter or serialized-AST runtime may remain part of
+  compilation.
+  - Derive positive and negative canaries directly from the fixed grammar and
+    static semantics: forward/mutual recursion, arbitrary arity, proper tail
+    calls, exhaustive and nonexhaustive matches, checked `Int` traps, every
+    `Bytes` operation, and invalid byte/range access.
+  - Implement the Gamma compiler's `GCOUT` boundary and generate each selected
+    compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
+    supplies sealed `Bytes`, validates structured returned rejection values,
+    owns private failures, and never emits partial artifact bytes.
+- [ ] **GAMMA-NO-MATCH-HARDENING.** Make the current interpreter trap rather than
+  fabricate integer zero when `eval_match` reaches no arm, and add a focused
+  fail canary. Implement complete match-exhaustiveness rejection in the direct
+  compiler. Keep the correlated-oracle warning explicit: the current type
+  checker and interpreter both omit this obligation, so their agreement cannot
+  establish it.
 - [x] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Their inventories now name present gates and
-  explicit OWNER Q3 absorption/deletion conditions; neither is accepted as a
-  compiler edge. The retained post-prune gates pass 41 interpreter cases, the
-  fail-closed arena case, 23 type-checker cases, and 101 independent
-  differential cases. OWNER Q3's compiler task owns the later
-  absorb-or-delete step.
+  explicit D16 absorption/deletion conditions; neither is accepted as a
+  compiler edge. The retained post-prune gates pass 46 interpreter cases, the
+  fail-closed arena case, 28 type-checker cases, and 106 independent
+  differential cases. `BUILD-GAMMA-COMPILER` owns the later absorb-or-delete
+  step.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
@@ -474,7 +487,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove the type checker's retired proof-kernel purpose and reject
     unknown declared types explicitly instead of allowing the shared `-1`
     error/type sentinel to compare equal.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q3 and missing `gamma_compiler.beta`.** Check the
+- [ ] **DEPENDENCY-BLOCKED — missing `gamma_compiler.beta`.** Check the
   exact Beta-source-to-Alpha-tape refinement and all resource outcomes. Measure
   representative compiler-sized inputs; a 12-hour ceiling is emergency
   containment, not acceptable normal performance.
@@ -484,11 +497,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] **DESIGN-BLOCKED — OWNER Q2: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
   semantics, deterministic execution model, sealed byte I/O contract, and
   resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling. Q3
+  language; it does not inherit Omega meaning merely by sharing spelling. Q2
   must close the contradictory `Incomplete` placement, exact reject/trap
   taxonomy, keyword policy, optional domains/contracts, builtin resolution,
   Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — OWNER Q2/Q3: BUILD-DELTA-COMPILER.** Implement
+- [ ] **DESIGN-BLOCKED — OWNER Q2: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
@@ -497,7 +510,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
   translator.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q3 and missing `delta_compiler.gamma`.** Run that
+- [ ] **DEPENDENCY-BLOCKED — missing `delta_compiler.gamma`.** Run that
   contract-derived suite through the real Gamma-written compiler and bind every
   outcome to its no-partial-tape behavior.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
@@ -508,7 +521,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     demonstrations, and unresolved keyword/domain/result/builtin proposals.
     After OWNER Q2 freezes Delta v1, derive a compact positive/negative suite from
     the frozen contract and run it through the actual Gamma-written compiler.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q2/Q3 and missing Gamma/Delta compilers.** Check
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and missing Gamma/Delta compilers.** Check
   exact Gamma-source-to-Alpha-tape refinement, including realistic source
   closures large enough to compile `D`.
 

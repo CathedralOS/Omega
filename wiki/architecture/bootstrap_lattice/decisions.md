@@ -319,6 +319,44 @@ are deleted once the checked direct edge subsumes their named diagnostic role.
 No network, host Unicode database, package installation, or historical
 compiler is a prerequisite of the completed bootstrap.
 
+## D16 — Gamma is one typed pure language with an explicit compiler adapter
+
+Gamma accepts typed `data* def*` programs with no trailing untyped expression.
+It has nominal immutable algebraic data, checked signed 64-bit `Int`, compact
+immutable `Bytes`, exhaustive matches, strict left-to-right evaluation, mutual
+recursion, and proper tail calls. Functions and constructors have arbitrary
+arity; a predecessor register count is an implementation concern rather than a
+Gamma language limit. Gamma exposes no general byte-I/O effect.
+
+`Bytes` is a language primitive because compiler input cannot be represented as
+one algebraic node per byte within the rung's realistic memory profile. Its
+representation is private and cannot expose storage coordinates. Fuel, source,
+heap, stack, and output ceilings are implementation-profile bounds. Their
+exhaustion yields `Incomplete`, never a Gamma result, rejection, divergence
+verdict, or partial artifact.
+
+A Gamma compiler application publishes a typed, profile-selected `main`. The
+Delta compiler returns only `Complete(Bytes)` or
+`Reject(DeltaRejectReason, source_offset)`. The accepted Delta contract owns the
+closed reason sum and an explicit constructor-to-code table; declaration order
+is not a wire code. The generated Alpha adapter alone reads sealed input,
+invokes pure `main`, writes raw success bytes, and maps private exhaustion or a
+trap to outer `Incomplete` or `InternalFailure` cases.
+
+Compiler boundaries share D13's four halt tags and canonical failure-frame
+shape, not its Beta-specific identity. `BCOUT`, `GCOUT`, and `DCOUT` have
+edge-owned magic, version, code tables, and coordinates. One parameterized gate
+may decode them, but an edge never accepts another edge's frame. Success remains
+an unwrapped Alpha tape and every failure publishes no partial artifact.
+
+The current Gamma interpreter and type checker remain temporary oracles and
+candidate compiler material. Their correlated omission of match exhaustiveness
+demonstrates the limit of a differential diamond: agreement detects divergence
+between implementations but cannot establish a rule both omit. The interpreter
+must fail loudly on no match during migration; the canonical compiler rejects
+nonexhaustive source statically. The Beta-written compiler type-checks and emits
+Alpha tape directly rather than packaging an interpreter with source syntax.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;
