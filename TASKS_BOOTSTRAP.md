@@ -1249,6 +1249,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Self nesting, bare-versus-structural domain, lifetime ordering/span,
       access, reset, postorder, and consumer-isolation vectors at the real
       Delta-compiler gate.
+    - [x] Retain the payload-free Unit type `()` through the same shared base
+      node path as Named and SelfType. Exact paired delimiters admit Unit as a
+      direct field, parameter, return, or outer-reference referee, and as the
+      leaf of the existing bounded fixed-array/slice stack. Bare Unit rejects a
+      domain suffix while a structural outer bracket may take one, matching the
+      canonical parser. Unit consumes the already-counted one base TypeNode and
+      needs no arena, resource class, or consumer branch. Current `C` signatures
+      do not use Unit, so body-boundary coverage remains 53 of 72. Keep exact
+      delimiter/EOF, nested bracket, reference, domain, reset, postorder, and
+      consumer-isolation vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
