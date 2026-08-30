@@ -69,10 +69,11 @@ empty-body machine roots.
 One mixed root table preserves authored use/data/machine order. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and an
-immediately empty body. The list
-retains canonical optional `const` and leading `mut`, consuming or borrowed
-`self`, and shared/mutable/write-only binding-reference forms. Non-receiver
-parameters retain `name: Type`. Non-receiver parameter types, data fields,
+immediately empty body. An optional leading target selector is retained as an
+exact span on the same machine row; selection and activation remain later
+phases. The list retains canonical optional `const` and leading `mut`, consuming
+or borrowed `self`, and shared/mutable/write-only binding-reference forms.
+Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data fields,
 case-payload fields, and immediate machine return types share one engine for
 bare named, outer elided-lifetime references, unqualified domains, inclusive
 literal ranges, and nested fixed arrays and slices. Self receivers materialize
@@ -89,11 +90,12 @@ parameter types can append domain members. A trailing parameter comma rejects
 as malformed. Explicit reference lifetimes, general type-position `Self`,
 constrained slice elements and the `Slice<T>` spelling, return types placed
 after clauses, generics, clause-bearing headers, and
-`boundary`/target-scoped forms; other public roots, bodyless declarations, and
+`boundary` forms; target declarations and public target-scoped combinations,
+other public roots, bodyless declarations, and
 nonempty bodies remain incomplete. The parser never skips a body as opaque
 syntax. In the current 72-root `C` closure, all 112
 parameter occurrences and all 72 complete parameter lists are representable,
-and 49 headers reach body parsing. Every reached body is nonempty, so zero current
+and 53 headers reach body parsing. Every reached body is nonempty, so zero current
 `C` roots complete.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
