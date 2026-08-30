@@ -454,20 +454,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the exact textual-ASCII/comment DFA checks the first 1,024 source bytes in
       the authoritative checker with a 1,606-byte, 73-declaration temporary
       certificate in 0.19 seconds. That closes the traversal and byte-dispatch
-      shape, not pass one. A current-source parser measurement over
-      `[4096,4352)` uses a 16,236-byte, 605-declaration certificate and 167 of
-      768 function IDs. Starting from a canonical base state and PC zero, it
-      recognizes the ten complete instructions and `read_source:` in that
-      slice, reaches PC 80 with one label, and checks in 0.19 seconds. Unknown
-      mnemonics and a mutated source envelope reject. The former documented
-      `10 -> 83 -> 164` adjacent-slice accounting is stale and must not seed the
-      final certificate. Parser-rich measurement may coarsen 256-byte
-      power-of-two subtrees only after they remain below the 100,000-reduction
-      and semantic-stack ceilings. The complete implementation still needs a
-      compact label-record map and uniqueness join, exact register and `u64`
-      bounds, continuation-preserving comments, `db` decoding, the remaining
-      mnemonics and operands, cross-cut parser state, and explicit total reject
-      results. The terminal
+      shape, not pass one. The current compact parser prototype uses five user
+      constructors and 371 of 768 function IDs; fixed 16-nibble words carry PC,
+      source coordinates, decimal/register accumulators, and label
+      `(start,end,pc)` spans. Its shared prefix has 2,348 declarations. The
+      exact `[4096,4352)` slice accepts at PC 80 and coordinate 4,352 with
+      `read_source` span `4111..4122@10` in a 68,571-byte certificate and 0.40
+      seconds. The adjacent `[4352,4608)` slice starts from that state, records
+      `source_done` as `4396..4407@92`, and ends cross-cut in register digits at
+      PC 151 and coordinate 4,608 in a 71,020-byte certificate and 0.47 seconds.
+      One computation over both checked subtrees accepts in 0.62 seconds; this
+      validates real state transfer but is not yet the required named-equality
+      adjacency composition. Exact `r255`/`u64::MAX` accept; `r256`,
+      `u64::MAX + 1`, PC/source-coordinate overflow, unknown mnemonics, D15 NUL,
+      and a removed label colon normalize to explicit `Reject` in 0.05--0.24
+      seconds rather than consuming the 100,000-reduction ceiling. A comment
+      split across raw subtrees restores its pre-comment parser continuation.
+      The former documented `10 -> 83 -> 164` accounting is stale and must not
+      seed the final certificate. Parser-rich measurement may coarsen 256-byte
+      power-of-two subtrees only after they remain below the reduction and
+      semantic-stack ceilings. The complete implementation still needs all 21
+      mnemonics, `db`, delimiter-time classification from source spans rather
+      than a carried reverse token list, bytewise label-span comparison, the
+      balanced uniqueness/frozen-457-map join and accessor, generic checked cut
+      witnesses and named adjacency/ownership composition, canonical EOF
+      finalization, and full-source resource measurement. The terminal
       `[104448,104704)` selector has 124 real leaves plus checker `EMPTY`
       padding and must close the final `db "main"` at source byte 104,572 and
       PC 27,087.
