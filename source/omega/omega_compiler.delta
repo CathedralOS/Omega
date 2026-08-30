@@ -213,6 +213,7 @@ data OmegaTypeConsumer {
     case DirectDataField;
     case CasePayloadField;
     case MachineParameter;
+    case MachineReturn;
 }
 
 data OmegaPathDestination {
@@ -397,6 +398,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedMachineParameterColon;
     case ExpectedMachineParameterType;
     case ExpectedMachineParameterEnd;
+    case ExpectedMachineReturnType;
+    case ExpectedMachineReturnEnd;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
     case ExpectedDataFieldEnd;
@@ -487,6 +490,8 @@ data OmegaParser {
     machine_first_parameter: i32;
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
+    machine_has_return_type: i32;
+    machine_return_type: i32;
     machine_parameter_is_const: i32;
     machine_parameter_is_leading_mutable: i32;
     machine_parameter_is_mutable: i32;
@@ -2551,11 +2556,11 @@ machine OmegaLexScan::validate_lexical(
 // positions; no purpose or preflight fact escapes this invocation.
 //
 // The retained syntax currently owns ordinary `use path::member;`, basic
-// `[pub] data` roots, and empty-body machine roots with state parameters. Data
-// fields and parameters share named, outer-reference, domain-qualified,
-// range-refined, and nested fixed-array/slice type syntax; parameters
-// additionally retain their canonical simple modifiers, binding references,
-// and receivers.
+// `[pub] data` roots, and empty-body machine roots with state parameters and an
+// optional immediate return type. Data fields, parameters, and returns share
+// named, outer-reference, domain-qualified, range-refined, and nested fixed-
+// array/slice type syntax; parameters additionally retain their canonical
+// simple modifiers, binding references, and receivers.
 // Rich valid syntax stops as Incomplete rather than becoming a false Omega
 // rejection. Later grammar slices extend this machine.
 machine OmegaParser::parse_view(
@@ -2615,6 +2620,8 @@ machine OmegaParser::parse_view(
     self.machine_first_parameter = 0;
     self.machine_parameter_has_more = 0;
     self.machine_path_member_count = 0;
+    self.machine_has_return_type = 0;
+    self.machine_return_type = 0;
     self.machine_parameter_is_const = 0;
     self.machine_parameter_is_leading_mutable = 0;
     self.machine_parameter_is_mutable = 0;
@@ -2964,6 +2971,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaTypeConsumer::MachineReturn -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineReturnType,
+                source.len,
+                source.len
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldType,
                 source.len,
@@ -2976,6 +2988,11 @@ machine OmegaParser::parse_view(
         transition self.type_consumer {
             OmegaTypeConsumer::MachineParameter -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameterEnd,
+                source.len,
+                source.len
+            )
+            OmegaTypeConsumer::MachineReturn -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineReturnEnd,
                 source.len,
                 source.len
             )
@@ -3050,6 +3067,8 @@ machine OmegaParser::parse_view(
         self.item_start = self.scan.token_start;
         self.first_member = self.member_count;
         self.machine_first_parameter = self.machine_parameter_count;
+        self.machine_has_return_type = 0;
+        self.machine_return_type = 0;
         self.path_destination = OmegaPathDestination::Machine;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(1) }
@@ -3154,7 +3173,7 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::LeftParen -> begin_machine_parameters()
             OmegaPunctuationKind::LeftBrace -> enter_machine_body()
             OmegaPunctuationKind::Less -> incomplete_root()
-            OmegaPunctuationKind::Arrow -> incomplete_root()
+            OmegaPunctuationKind::Arrow -> begin_machine_return_type()
             OmegaPunctuationKind::Semicolon -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineBody,
@@ -3540,7 +3559,7 @@ machine OmegaParser::parse_view(
     state machine_header_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBrace -> enter_machine_body()
-            OmegaPunctuationKind::Arrow -> incomplete_root()
+            OmegaPunctuationKind::Arrow -> begin_machine_return_type()
             OmegaPunctuationKind::Semicolon -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineBody,
@@ -3548,6 +3567,11 @@ machine OmegaParser::parse_view(
                 self.scan.token_end
             )
         }
+    }
+
+    state begin_machine_return_type() {
+        self.type_consumer = OmegaTypeConsumer::MachineReturn;
+        transition true { true -> begin_type() }
     }
 
     state enter_machine_body() {
@@ -3575,8 +3599,10 @@ machine OmegaParser::parse_view(
             self.machine_first_parameter;
         self.machine_states[self.machine_state_count].parameter_count =
             self.machine_parameter_count - self.machine_first_parameter;
-        self.machine_states[self.machine_state_count].has_return_type = 0;
-        self.machine_states[self.machine_state_count].return_type = 0;
+        self.machine_states[self.machine_state_count].has_return_type =
+            self.machine_has_return_type;
+        self.machine_states[self.machine_state_count].return_type =
+            self.machine_return_type;
         transition self.machine_path_member_count {
             1 -> retain_free_machine_entry()
             _ -> retain_attached_machine_entry()
@@ -4148,6 +4174,11 @@ machine OmegaParser::parse_view(
                 start,
                 end
             )
+            OmegaTypeConsumer::MachineReturn -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineReturnType,
+                start,
+                end
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldType,
                 start,
@@ -4483,6 +4514,11 @@ machine OmegaParser::parse_view(
                 start,
                 end
             )
+            OmegaTypeConsumer::MachineReturn -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedMachineReturnEnd,
+                start,
+                end
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
                 start,
@@ -4701,6 +4737,26 @@ machine OmegaParser::parse_view(
             OmegaTypeConsumer::DirectDataField -> direct_data_field_end()
             OmegaTypeConsumer::CasePayloadField -> case_payload_field_end()
             OmegaTypeConsumer::MachineParameter -> machine_parameter_end()
+            OmegaTypeConsumer::MachineReturn -> machine_return_end()
+        }
+    }
+
+    state machine_return_end() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> retain_type_for_consumer(
+                self.type_end,
+                self.scan.next_cursor
+            )
+            OmegaPunctuationKind::Semicolon -> incomplete_root()
+            OmegaPunctuationKind::ColonColon -> incomplete_root()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            _ -> type_end_failure(
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -4797,6 +4853,10 @@ machine OmegaParser::parse_view(
                 next_cursor
             )
             OmegaTypeConsumer::MachineParameter -> retain_type_nodes(
+                member_end,
+                next_cursor
+            )
+            OmegaTypeConsumer::MachineReturn -> retain_type_nodes(
                 member_end,
                 next_cursor
             )
@@ -5117,7 +5177,17 @@ machine OmegaParser::parse_view(
             OmegaTypeConsumer::MachineParameter -> retain_machine_parameter_by_reference(
                 next_cursor
             )
+            OmegaTypeConsumer::MachineReturn -> retain_machine_return_type(
+                next_cursor
+            )
         }
+    }
+
+    state retain_machine_return_type(next_cursor: i32) {
+        self.machine_has_return_type = 1;
+        self.machine_return_type = self.type_root;
+        self.cursor = next_cursor;
+        transition true { true -> scan_semantic(30) }
     }
 
     state retain_machine_parameter_by_reference(next_cursor: i32) {

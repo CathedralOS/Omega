@@ -1190,6 +1190,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       because every reached body remains nonempty. Keep exact bracket-kind,
       nesting, delimiter, postorder, resource, and reset vectors at the real
       Delta-compiler gate.
+    - [x] Retain an ordinary machine's optional immediate `-> Type` on its
+      implicit entry state through the same consumer-neutral type engine used
+      by fields and parameters. Both parameterized and zero-parameter machines
+      enter the shared parser from the arrow, and only an opening body commits
+      the completed postorder type root to machine scratch; the state row still
+      publishes atomically only after its empty body closes. Missing and
+      unterminated returns retain machine-return-specific private diagnostics.
+      Return nodes consume TypeNodes but need no new row arena or resource
+      class. Returns after clauses, generic return types, clauses themselves,
+      prefixed roots, bodyless declarations, and nonempty bodies remain
+      implementation-incomplete. Five current `C` roots have simple returns,
+      but four are already stopped by target prefixes; the remaining private
+      root now reaches body parsing, raising the current total from 40 to 41
+      without claiming a completed root. Keep exact arrow/type/delimiter,
+      consumer-isolation, resource, reset, and state-publication vectors at the
+      real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
