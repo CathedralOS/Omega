@@ -7,9 +7,9 @@ fn bind_selected_provider_plan_facts_for_test(
     root_grants: &[String],
 ) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
     let original = Arc::new(std::mem::take(checked));
-    match bind_selected_provider_plan_facts(&original, candidates, facts, root_grants) {
+    match bind_selected_provider_plan_facts(&original, candidates, facts, root_grants, &[]) {
         Ok(binding) => {
-            let (program, selected) = binding.into_parts();
+            let (program, selected, _) = binding.into_parts();
             *checked = Arc::try_unwrap(program).unwrap_or_else(|shared| (*shared).clone());
             Ok(selected)
         }
@@ -298,10 +298,15 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
     )
     .expect("select exact operator provider");
 
-    let binding =
-        bind_selected_provider_plan_facts(&original, std::slice::from_ref(&plan), selected, &[])
-            .expect("exact provider binding succeeds");
-    let (bound, selected) = binding.into_parts();
+    let binding = bind_selected_provider_plan_facts(
+        &original,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+        &[],
+    )
+    .expect("exact provider binding succeeds");
+    let (bound, selected, _) = binding.into_parts();
 
     assert!(!Arc::ptr_eq(&bound, &original));
     assert_eq!(original.as_ref(), &original_contents);
@@ -357,7 +362,7 @@ fn late_reach_rejection_publishes_no_staged_operator_updates() {
     let original_contents = checked.clone();
     let original = Arc::new(checked);
 
-    let diagnostics = bind_selected_provider_plan_facts(&original, &candidates, selected, &[])
+    let diagnostics = bind_selected_provider_plan_facts(&original, &candidates, selected, &[], &[])
         .expect_err("missing typed requirement must reject after operator staging");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -396,9 +401,10 @@ fn empty_provider_binding_preserves_exact_arc_identity_and_contents() {
         &[],
         omega_effects::SelectedProviderPlanFacts::default(),
         &[],
+        &[],
     )
     .expect("empty provider binding is already settled");
-    let (bound, selected) = binding.into_parts();
+    let (bound, selected, _) = binding.into_parts();
 
     assert!(Arc::ptr_eq(&bound, &original));
     assert_eq!(bound.as_ref(), &original_contents);
@@ -564,6 +570,7 @@ fn provider_grant_binding_rejects_compact_equal_selected_plan_substitution() {
         std::slice::from_ref(&candidate),
         selected,
         std::slice::from_ref(&candidate.name),
+        &[],
     )
     .expect_err("compact-equal selected plan must not satisfy an exact provider grant");
 
@@ -1339,9 +1346,10 @@ fn granted_selected_plan_attaches_receipt_by_exact_inherited_requirement() {
         )
         .expect("canonical selected facts"),
         &["PairChild".to_owned()],
+        &[],
     )
     .expect("exact inherited requirement binds the selected child-schema plan");
-    let (checked, _) = binding.into_parts();
+    let (checked, _, _) = binding.into_parts();
 
     assert!(!Arc::ptr_eq(&checked, &original));
     assert_eq!(original.as_ref(), &original_contents);
