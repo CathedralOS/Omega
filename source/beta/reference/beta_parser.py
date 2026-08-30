@@ -3,7 +3,10 @@
 
 This module owns source recognition only. It deliberately contains no compiler,
 interpreter, symbolic evaluator, or trust claim; those consumers assign meaning
-or produce diagnostics in their own responsibility-specific modules.
+or produce diagnostics in their own responsibility-specific modules. Its
+recursive `state` parser still admits arbitrary statement/state interleaving;
+BETA-FLATTENED-CFG-INITIALIZATION requires the reference migration to enforce
+one ordinary prefix followed by child states in every block.
 """
 
 # Beta tokens: identifiers/keywords, decimal integers, and single/double-char

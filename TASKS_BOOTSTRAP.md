@@ -177,7 +177,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 2. Alpha-written Beta compiler
 
-- [ ] **BLOCKED — OWNER Q5 (Beta compiler outcome): ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
+- [ ] **BLOCKED — OWNER Q4 (Beta compiler outcome): ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
   `source/beta/compiler/beta_compiler.alpha` against the complete Beta v1
   contract. Its exact directly assembled Alpha tape is now the canonical Beta
   compiler artifact. It must accept arbitrary valid Beta within explicit
@@ -198,11 +198,32 @@ code, discover a closure, manufacture proof premises, or decide admission.
     corrected that assembler's signed-division bug for high-bit `u64` immediate
     bytes. The canonical tape passes the generic structural gate. Every
     production consumer now uses its direct tape output.
-  - [ ] **DESIGN-BLOCKED — OWNER Q4:** Enforce Beta definite initialization across
-    state/transition CFGs after fixing the flat-block formation and guarded-edge
-    well-formedness rules. A source-order symbol-table pass alone does not prove
-    initialization on every path; the byte-vector must-analysis and bounded
-    table/worklist layout are otherwise fully specified implementation work.
+  - [ ] **BETA-FLATTENED-CFG-INITIALIZATION:** enforce the settled recursive
+    authoring surface and every-path initialization judgment. Each procedure or
+    state body is an ordinary-statement prefix followed by child states; reject
+    loose ordinary statements after the first child and ordinary statements
+    after `return` or unconditional `to`. Flatten nested states to
+    procedure-wide labels in the depth-first lexical order the compiler already
+    emits, including fallthrough out of a child subtree to the next outer
+    sibling. Preserve procedure-wide state/local identity and source-order local
+    visibility. Derive exact guarded target and false-continuation edges without
+    constant folding, compute per-procedure reachability, then iterate the
+    initialized-slot intersection judgment to a fixed point before validating
+    reads. Add positive controls for the checker/Gamma nested-state shapes,
+    `boff`-style loop-carried joins, alternate-path assignment establishment,
+    subtree fallthrough, and unreachable blocks; add rejections for skipped
+    initialization, invalid interleaving, post-terminator statements, and
+    traversal-order-sensitive loop handling. Update the reference parser and
+    interpreter atomically so they no longer hoist loose statements or reject
+    nested states.
+  - [ ] Extend the compiler's one checked syntax-recursion budget across nested
+    state parsing as well as parentheses, calls, and loads. The current selected
+    compiler profile admits combined depth 64; that number is private resource
+    policy, not Beta language meaning. Exhaustion must join OWNER Q4's
+    `Incomplete` outcome rather than become invalid source or an Alpha return-
+    stack accident. Reuse initialization work storage per procedure (one entry
+    plus at most 128 states) or account for all procedure entries explicitly;
+    the global 1,024-state ceiling does not include the 128 entry blocks.
   - [x] Separate source-visible raw Beta memory from generated frame/expression
     stacks and bind the call/stack profile that proves non-aliasing. Raw memory
     is a checked, zeroed 32 MiB logical region biased above the data stack. Every
@@ -212,14 +233,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reaches fail-closed status 250 without output or aliasing.
   - [x] Bind the compiler's practical fixed resource profile and exercise exact
     admitted/adjacent-refused boundaries for the 1 MiB source, 64-byte names,
-    shared 64-level expression/call/load depth, 64 slots, 128 procedures,
+    shared 64-level syntax-recursion depth (state blocks, expressions, calls,
+    and loads), 64 slots, 128 procedures,
     1,024 calls, per/global state and transition tables, 262,140-byte Alpha
     payload, 32 MiB raw memory, and generated-stack containment. Every refused
     compile publishes no partial tape. The 32,768 fixup and 65,536 internal-PC
     guards are necessarily dominated by the smaller tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
-  - [ ] **OWNER-BLOCKED — OWNER Q5:** Project malformed source and each private
+  - [ ] **OWNER-BLOCKED — OWNER Q4:** Project malformed source and each private
     capacity failure to exact, typed no-partial-artifact outcomes. The Alpha
     boundary currently exposes raw success bytes plus a halt code and has no
     selected canonical carrier for `Complete`, `Reject`, `Incomplete`, and
@@ -247,7 +269,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   executable consumers and no bounded comparison gate; constructing a new gate
   merely to justify retention would reverse the repository policy. Its fixed
   point and source now survive only in Git history.
-- [ ] **OWNER-BLOCKED — OWNER Q6.** Close exact
+- [ ] **OWNER-BLOCKED — OWNER Q5.** Close exact
   Alpha-assembly-source-to-Alpha-tape correspondence. First
   specify the authoritative assembly grammar and two-pass encoding, then bind
   the exact raw `beta_compiler.alpha` and tape subjects and check that every
@@ -287,7 +309,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
     definitional meaning.
-  - [ ] **OWNER-BLOCKED — OWNER Q6:** Turn the ground assembly judgment into a derivation certificate
+  - [ ] **OWNER-BLOCKED — OWNER Q5:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact
     fixups, and full exhaustion.
@@ -320,7 +342,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       checked propositions with `use`; it accepts in 1.192 seconds. This proves
       the proposed reclamation boundary is viable but does not yet prove the
       required boundary chain or assembly semantics.
-    - OWNER Q6 must choose between bounded subject-bound chunk equalities whose exact
+    - OWNER Q5 must choose between bounded subject-bound chunk equalities whose exact
       boundary states compose through checked congruence/`eqelim` into the one
       root edge judgment, or generic sound branch-local reclamation in the
       checker. Neither choice may add an assembly-specific primitive, trusted
@@ -412,7 +434,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q7 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and current ranked-runtime acceptance.**
   Publish one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
@@ -425,7 +447,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
   itself is complete; do not revive an inspection-only precursor.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q7 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and current ranked-runtime acceptance.**
   Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

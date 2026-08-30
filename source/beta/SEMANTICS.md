@@ -19,12 +19,22 @@ All source identifiers in a well-formed program resolve within their procedure;
 procedure names and procedure-scoped state names are unique; calls have at most
 four arguments and match the callee's parameter count.
 
-A parsed procedure contains:
+A parsed procedure contains an ordered parameter list and one recursive source
+block. Every source block contains an ordinary-statement prefix followed by
+zero or more state declarations whose bodies have the same shape. Flattening
+visits state declarations in exact depth-first lexical order and produces:
 
-1. an ordered parameter list;
-2. an entry block containing statements before its first `state`;
-3. ordered, procedure-scoped state blocks; and
-4. the source-order fallthrough edge from each block to the next block.
+1. the procedure entry block from the procedure body's ordinary prefix;
+2. one procedure-scoped block for each visited state label; and
+3. a lexical fallthrough edge from each unterminated block to the next flattened
+   state, including from the last child of one nested group to the next outer
+   sibling.
+
+Nesting has no runtime identity and introduces no name scope. State names are
+unique throughout the procedure, and any transition may select any of them.
+Local slots are also procedure-wide. A `let` name is visible after its position
+in the flattened lexical source, including in later nested or outer-sibling
+states; it is not visible in its own initializer or at an earlier coordinate.
 
 A runnable Beta program has exactly one zero-parameter `main`. Handling bytes
 fed to a compiler written in Beta is ordinary Beta byte-I/O behavior; that
@@ -50,9 +60,34 @@ BetaConfig = {
 
 Memory begins as all zero. A procedure call creates a fresh frame, binds
 parameters left-to-right to the already evaluated argument words, and leaves no
-other locals initialized. `let` creates its function-scoped local; assignment
-updates the resolved local. A well-formed program never reads an uninitialized
-or unresolved local.
+other locals initialized. `let x = e` declares the procedure-wide slot and
+establishes it only after `e` succeeds. `x = e` requires a resolved declaration
+and likewise establishes the slot only after its right-hand side succeeds. A
+well-formed program never reads an uninitialized or unresolved local.
+
+Definite initialization is a syntactic, intraprocedural must judgment over the
+flattened graph. Each procedure entry is a root even when no call reaches that
+procedure. Parameters form the entry initialized set. Every reachable
+non-entry block begins at the top element for iteration; predecessor outputs
+are intersected and statement transfer is repeated to a fixed point. Reads are
+checked against the resulting incoming set. A write becomes available only
+after its right-hand-side reads; every transition carries the set at that exact
+statement coordinate.
+
+Reachability and predecessor edges are derived without evaluating expressions:
+
+- `to S` contributes only its target and terminates the ordinary prefix;
+- `return` terminates the ordinary prefix;
+- `to S when e` always contributes `S` and its false continuation, including
+  when `e` is a literal or otherwise appears constant; and
+- an unterminated prefix contributes lexical fallthrough to the next flattened
+  state.
+
+Only reachable blocks receive the definite-initialization read judgment.
+Parsing, declaration resolution, duplicate-name rejection, and other formation
+rules still apply to every authored block. The finite intersection iteration,
+not compiler traversal order, determines loop and join facts; optimizer or
+callee reasoning cannot change source acceptance.
 
 `pending_exhaustion` is observer ghost state and is not addressable by the Beta
 program. It begins as `None`. An exact compiler edge fixes its resource profile
@@ -113,8 +148,8 @@ bounds obligation must establish `a < B.memory_bytes` for a byte and
 
 Statements step in source order within the current block:
 
-- `let x = e` evaluates `e`, binds `x`, then advances;
-- `x = e` evaluates `e`, updates `x`, then advances;
+- `let x = e` evaluates `e`, establishes `x`, then advances;
+- `x = e` evaluates `e`, establishes the resolved slot `x`, then advances;
 - a byte/word store evaluates address then value, performs the store, then
   advances;
 - a call statement evaluates the call, discards its result, then advances;
@@ -124,9 +159,14 @@ Statements step in source order within the current block:
 - `to S when e` evaluates `e`; a nonzero result selects `S`, while zero advances
   to the following statement.
 
-Reaching the end of a block falls through to the next state block in source
-order. Falling past the final block returns word zero. A selected state belongs
-to the current procedure; state selection never crosses a procedure boundary.
+`return` and unconditional `to` must be the final ordinary statement in their
+source block. Child state declarations may follow because they introduce
+separate labels rather than statements on that terminated path.
+
+Reaching the end of a block falls through to the next state in flattened
+depth-first lexical order, including out of a nested subtree. Falling past the
+final flattened block returns word zero. A selected state belongs to the
+current procedure; state selection never crosses a procedure boundary.
 
 ## 6. Calls and host boundary
 
