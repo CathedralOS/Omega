@@ -56,10 +56,12 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     100_000
                 }
             );
-            assert_eq!(usage.sponsor_schema_version, Some(3));
+            assert_eq!(usage.sponsor_schema_version, Some(4));
             assert_eq!(usage.session_fuel_ceiling, Some(100_000_000));
             assert_eq!(usage.session_build_log_byte_ceiling, Some(16 * 1024 * 1024));
             assert_eq!(usage.session_filesystem_attempt_ceiling, Some(65_536));
+            assert_eq!(usage.session_live_filesystem_handle_ceiling, Some(4_096));
+            assert!(usage.session_peak_live_filesystem_handles <= 4_096);
             assert!(usage.fuel_units > 0);
             assert!(usage.fuel_units <= usage.invocation_fuel_ceiling);
             assert!(usage.replay_fuel_units <= usage.invocation_fuel_ceiling);

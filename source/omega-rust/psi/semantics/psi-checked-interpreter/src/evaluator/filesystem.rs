@@ -82,26 +82,37 @@ impl<'program> Evaluator<'program> {
                             }) {
                             Err(halt) => Err(halt),
                             Ok(()) => {
-                                let served = match replay_expected.as_ref() {
-                                    Some(expected) if execute_replayed_attempt => self
-                                        .serve_executed_replay_filesystem_call(
+                                match self
+                                    .reserve_prepared_live_filesystem_handle(&logical_handle_plan)
+                                {
+                                    Err(halt) => Err(halt),
+                                    Ok(live_handle_lease) => {
+                                        let served = match replay_expected.as_ref() {
+                                            Some(expected) if execute_replayed_attempt => self
+                                                .serve_executed_replay_filesystem_call(
+                                                    attempt_index,
+                                                    expected,
+                                                    call,
+                                                ),
+                                            Some(expected) => self.serve_replayed_filesystem_call(
+                                                attempt_index,
+                                                &mutable_plan,
+                                                expected,
+                                            ),
+                                            None => self.serve_filesystem_call(call),
+                                        };
+                                        let completed = self.complete_mutable_observations(
                                             attempt_index,
-                                            expected,
-                                            call,
-                                        ),
-                                    Some(expected) => self.serve_replayed_filesystem_call(
-                                        attempt_index,
-                                        &mutable_plan,
-                                        expected,
-                                    ),
-                                    None => self.serve_filesystem_call(call),
-                                };
-                                let completed = self
-                                    .complete_mutable_observations(attempt_index, &mutable_plan);
-                                match (served, completed) {
-                                    (Ok(value), Ok(())) => Ok((value, logical_handle_plan)),
-                                    (Err(halt), Ok(())) => Err(halt),
-                                    (_, Err(halt)) => Err(halt),
+                                            &mutable_plan,
+                                        );
+                                        match (served, completed) {
+                                            (Ok(value), Ok(())) => {
+                                                Ok((value, logical_handle_plan, live_handle_lease))
+                                            }
+                                            (Err(halt), Ok(())) => Err(halt),
+                                            (_, Err(halt)) => Err(halt),
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -124,7 +135,7 @@ impl<'program> Evaluator<'program> {
             .expect("filesystem operation attempt stack must balance");
         debug_assert_eq!(completed_index, attempt_index);
         match outcome {
-            Ok((value, logical_handle_plan)) => {
+            Ok((value, logical_handle_plan, mut live_handle_lease)) => {
                 let Some(result) = value.as_int() else {
                     self.filesystem_operation_attempts[attempt_index].outcome =
                         Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
@@ -167,6 +178,7 @@ impl<'program> Evaluator<'program> {
                     attempt_index,
                     &logical_handle_plan,
                     result,
+                    &mut live_handle_lease,
                 ) {
                     let kind = match &halt {
                         Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
@@ -953,6 +965,7 @@ impl<'program> Evaluator<'program> {
         attempt_index: usize,
         plan: &PreparedFilesystemLogicalHandlePlan,
         result: i64,
+        live_handle_lease: &mut Option<BuildEvaluationLiveFilesystemHandleLease>,
     ) -> EvalResult<()> {
         if plan
             .input_success
@@ -1038,6 +1051,10 @@ impl<'program> Evaluator<'program> {
                         identity,
                         source,
                     });
+                if let Some(lease) = live_handle_lease.take() {
+                    let prior = self.filesystem_live_handle_leases.insert(identity, lease);
+                    debug_assert!(prior.is_none());
+                }
             }
         }
 
@@ -1054,10 +1071,32 @@ impl<'program> Evaluator<'program> {
             else {
                 return trap("filesystem provider closed an unresolved logical handle token");
             };
-            self.filesystem_operation_attempts[attempt_index].retired_logical_handles =
-                self.filesystem_logical_handles.retire(input.kind, identity);
+            let retired = self.filesystem_logical_handles.retire(input.kind, identity);
+            for retired_identity in &retired {
+                self.filesystem_live_handle_leases.remove(retired_identity);
+            }
+            self.filesystem_operation_attempts[attempt_index].retired_logical_handles = retired;
         }
         Ok(())
+    }
+
+    fn reserve_prepared_live_filesystem_handle(
+        &self,
+        plan: &PreparedFilesystemLogicalHandlePlan,
+    ) -> EvalResult<Option<BuildEvaluationLiveFilesystemHandleLease>> {
+        let owns_new_resource = matches!(
+            plan.output,
+            Some(PreparedFilesystemLogicalHandleOutput::Created { .. })
+                | Some(PreparedFilesystemLogicalHandleOutput::Duplicated { .. })
+        );
+        if !owns_new_resource {
+            return Ok(None);
+        }
+        self.build_evaluation_sponsor
+            .as_ref()
+            .map(BuildEvaluationSponsor::reserve_live_filesystem_handle)
+            .transpose()
+            .map_err(Halt::Resource)
     }
 
     fn resolved_logical_handle_input(
@@ -2473,12 +2512,16 @@ fn filesystem_logical_handle_halt(
 #[cfg(test)]
 mod tests {
     use super::super::filesystem_preparation::{
+        FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
         FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
         PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandlePlan,
-        PreparedI64Output, PreparedTransferCount, checked_filesystem_transfer_count,
+        PreparedFilesystemLogicalHandleRetirement, PreparedI64Output, PreparedTransferCount,
+        checked_filesystem_transfer_count,
     };
     use super::*;
-    use crate::{FilesystemGrantRootIdentity, FilesystemScalarOperandValue};
+    use crate::{
+        BuildEvaluationSponsorLimits, FilesystemGrantRootIdentity, FilesystemScalarOperandValue,
+    };
 
     fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
         let mut evaluator = Evaluator::new(program, &[]);
@@ -2501,6 +2544,213 @@ mod tests {
             post_error: 0,
         });
         attempt
+    }
+
+    #[test]
+    fn owned_handle_capacity_is_reserved_before_provider_service() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        let sponsor = BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(100, 100, 100, 1).expect("nonzero limits"),
+        );
+        evaluator.build_evaluation_sponsor = Some(sponsor.clone());
+        let plan = PreparedFilesystemLogicalHandlePlan {
+            inputs: Vec::new(),
+            input_success: None,
+            output: Some(PreparedFilesystemLogicalHandleOutput::Created {
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                success: FilesystemLogicalHandleResultSuccess::NonNegative,
+            }),
+            retirement: None,
+        };
+
+        let reservation = evaluator
+            .reserve_prepared_live_filesystem_handle(&plan)
+            .unwrap_or_else(|_| panic!("first provider call may be reserved"))
+            .expect("sponsored calls own leases");
+        assert_eq!(sponsor.live_filesystem_handles(), 1);
+        let error = evaluator
+            .reserve_prepared_live_filesystem_handle(&plan)
+            .expect_err("the second provider call is refused before service");
+        assert!(matches!(error, Halt::Resource(_)));
+        drop(reservation);
+        assert_eq!(sponsor.live_filesystem_handles(), 0);
+        assert_eq!(sponsor.peak_live_filesystem_handles(), 1);
+    }
+
+    #[test]
+    fn owned_handle_close_reuses_capacity_and_teardown_releases_leases() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        let sponsor = BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(100, 100, 100, 1).expect("nonzero limits"),
+        );
+        evaluator.build_evaluation_sponsor = Some(sponsor.clone());
+        let created = || PreparedFilesystemLogicalHandlePlan {
+            inputs: Vec::new(),
+            input_success: None,
+            output: Some(PreparedFilesystemLogicalHandleOutput::Created {
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                success: FilesystemLogicalHandleResultSuccess::NonNegative,
+            }),
+            retirement: None,
+        };
+
+        let mut lease = evaluator
+            .reserve_prepared_live_filesystem_handle(&created())
+            .unwrap_or_else(|_| panic!("first open reserves before provider entry"));
+        evaluator
+            .complete_logical_handle_observations(0, &created(), 3, &mut lease)
+            .unwrap_or_else(|_| panic!("successful open transfers its lease"));
+        assert!(lease.is_none());
+        assert_eq!(sponsor.live_filesystem_handles(), 1);
+        assert!(
+            evaluator
+                .reserve_prepared_live_filesystem_handle(&created())
+                .is_err()
+        );
+
+        evaluator
+            .filesystem_operation_attempts
+            .push(FilesystemOperationAttempt::pending(
+                2,
+                FilesystemObservationProvider::Virtual,
+            ));
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            1,
+            0,
+            FilesystemLogicalHandleKind::Descriptor,
+            3,
+            false,
+        );
+        let close = PreparedFilesystemLogicalHandlePlan {
+            inputs: vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                raw: 3,
+                null_allowed: false,
+            }],
+            input_success: Some(FilesystemLogicalHandleResultSuccess::Zero),
+            output: None,
+            retirement: Some(PreparedFilesystemLogicalHandleRetirement {
+                operand_ordinal: 0,
+                success: FilesystemLogicalHandleRetirementSuccess::Zero,
+            }),
+        };
+        evaluator
+            .complete_logical_handle_observations(1, &close, 0, &mut None)
+            .unwrap_or_else(|_| panic!("successful close retires its lease"));
+        assert_eq!(sponsor.live_filesystem_handles(), 0);
+
+        let mut replacement = evaluator
+            .reserve_prepared_live_filesystem_handle(&created())
+            .unwrap_or_else(|_| panic!("close makes capacity reusable"));
+        evaluator
+            .filesystem_operation_attempts
+            .push(FilesystemOperationAttempt::pending(
+                3,
+                FilesystemObservationProvider::Virtual,
+            ));
+        evaluator
+            .complete_logical_handle_observations(2, &created(), 4, &mut replacement)
+            .unwrap_or_else(|_| panic!("replacement open transfers its lease"));
+        assert_eq!(sponsor.live_filesystem_handles(), 1);
+        drop(evaluator);
+        assert_eq!(sponsor.live_filesystem_handles(), 0);
+        assert_eq!(sponsor.peak_live_filesystem_handles(), 1);
+    }
+
+    #[test]
+    fn borrowed_native_view_uses_its_descriptor_lease() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        let sponsor = BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(100, 100, 100, 1).expect("nonzero limits"),
+        );
+        evaluator.build_evaluation_sponsor = Some(sponsor.clone());
+        let created = PreparedFilesystemLogicalHandlePlan {
+            inputs: Vec::new(),
+            input_success: None,
+            output: Some(PreparedFilesystemLogicalHandleOutput::Created {
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                success: FilesystemLogicalHandleResultSuccess::NonNegative,
+            }),
+            retirement: None,
+        };
+        let mut lease = evaluator
+            .reserve_prepared_live_filesystem_handle(&created)
+            .unwrap_or_else(|_| panic!("descriptor reserves one resource"));
+        evaluator
+            .complete_logical_handle_observations(0, &created, 3, &mut lease)
+            .unwrap_or_else(|_| panic!("descriptor is retained"));
+
+        evaluator
+            .filesystem_operation_attempts
+            .push(FilesystemOperationAttempt::pending(
+                2,
+                FilesystemObservationProvider::Virtual,
+            ));
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            1,
+            0,
+            FilesystemLogicalHandleKind::Descriptor,
+            3,
+            false,
+        );
+        let borrowed = PreparedFilesystemLogicalHandlePlan {
+            inputs: vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                raw: 3,
+                null_allowed: false,
+            }],
+            input_success: Some(FilesystemLogicalHandleResultSuccess::NonNegative),
+            output: Some(PreparedFilesystemLogicalHandleOutput::Borrowed {
+                source_operand_ordinal: 0,
+                success: FilesystemLogicalHandleResultSuccess::NonNegative,
+            }),
+            retirement: None,
+        };
+        let mut borrowed_lease = evaluator
+            .reserve_prepared_live_filesystem_handle(&borrowed)
+            .unwrap_or_else(|_| panic!("borrow does not reserve"));
+        assert!(borrowed_lease.is_none());
+        evaluator
+            .complete_logical_handle_observations(1, &borrowed, 103, &mut borrowed_lease)
+            .unwrap_or_else(|_| panic!("native view borrows descriptor lifetime"));
+        assert_eq!(sponsor.live_filesystem_handles(), 1);
+
+        evaluator
+            .filesystem_operation_attempts
+            .push(FilesystemOperationAttempt::pending(
+                3,
+                FilesystemObservationProvider::Virtual,
+            ));
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            2,
+            0,
+            FilesystemLogicalHandleKind::Native,
+            103,
+            false,
+        );
+        let close_borrowed = PreparedFilesystemLogicalHandlePlan {
+            inputs: vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Native,
+                raw: 103,
+                null_allowed: false,
+            }],
+            input_success: Some(FilesystemLogicalHandleResultSuccess::NonZero),
+            output: None,
+            retirement: Some(PreparedFilesystemLogicalHandleRetirement {
+                operand_ordinal: 0,
+                success: FilesystemLogicalHandleRetirementSuccess::NonZero,
+            }),
+        };
+        evaluator
+            .complete_logical_handle_observations(2, &close_borrowed, 1, &mut None)
+            .unwrap_or_else(|_| panic!("closing borrowed view retires its owner"));
+        assert_eq!(sponsor.live_filesystem_handles(), 0);
     }
 
     #[test]

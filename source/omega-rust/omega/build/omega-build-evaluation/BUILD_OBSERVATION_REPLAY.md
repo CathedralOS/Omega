@@ -483,6 +483,17 @@ initial and replay counts in usage schema v4, and successful closure review
 reconciles both counts with the shared account. This bounds observation-vector
 cardinality; it does not claim a bound on resident memory.
 
+Sponsor schema v4 also permits at most 4,096 concurrently live filesystem
+resources across the closure. An operation that can mint an owned descriptor,
+native handle, duplicate, or find cursor reserves before any provider is
+entered. Provider failure drops the pending reservation; successful close and
+evaluator teardown release the owned lease. A borrowed native view aliases its
+descriptor and therefore does not consume a second slot. Build usage retains
+the monotonically observed session peak, successful closure review reconciles
+that peak with the shared sponsor, and completion requires zero live leases.
+This bounds compiler-admitted build resources only; it makes no claim about
+unrelated descriptors in the host process or operating-system confinement.
+
 The filesystem replay record remains at v43 because it proves only the bounded
 filesystem operation grammar. Build re-evaluation compares the complete
 observation, including BuildLog bytes, while the package-level observation

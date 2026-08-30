@@ -1,3 +1,4 @@
+use crate::build_evaluation_sponsor::BuildEvaluationLiveFilesystemHandleLease;
 use crate::{
     BuildEvaluationSponsor, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
     BuildTimeOperationEvaluation, EvaluationObservations, EvaluationUsage, FilesystemAccess,
@@ -1026,6 +1027,10 @@ struct Evaluator<'program> {
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.
     filesystem_logical_handles: FilesystemLogicalHandles,
+    /// Active compiler-owned package-build reservations keyed by the logical
+    /// resource identity that owns them. Borrowed native views have no entry.
+    filesystem_live_handle_leases:
+        BTreeMap<crate::FilesystemLogicalHandleIdentity, BuildEvaluationLiveFilesystemHandleLease>,
     /// Aggregate retained authorized rooted-path bytes.
     filesystem_observation_path_bytes: usize,
     /// Aggregate retained immutable, path-like, rooted-resolution,
@@ -1045,7 +1050,7 @@ struct Evaluator<'program> {
     private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
     usage: EvaluationUsage,
     /// Optional compiler-owned account shared across a complete build-review
-    /// session. This measures deterministic evaluator fuel units only.
+    /// session. This measures deterministic compiler-owned build resources.
     build_evaluation_sponsor: Option<BuildEvaluationSponsor>,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller

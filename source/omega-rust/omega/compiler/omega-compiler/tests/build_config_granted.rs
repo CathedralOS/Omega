@@ -340,6 +340,8 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(checked_usage.session_fuel_ceiling, None);
     assert_eq!(checked_usage.session_build_log_byte_ceiling, None);
     assert_eq!(checked_usage.session_filesystem_attempt_ceiling, None);
+    assert_eq!(checked_usage.session_live_filesystem_handle_ceiling, None);
+    assert_eq!(checked_usage.session_peak_live_filesystem_handles, 0);
     assert_eq!(
         checked_usage.filesystem_operation_attempts,
         u64::try_from(

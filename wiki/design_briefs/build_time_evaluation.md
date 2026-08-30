@@ -476,21 +476,24 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
-Package review additionally owns one unobservable version-3 evaluation sponsor
+Package review additionally owns one unobservable version-4 evaluation sponsor
 across the complete resolved closure. The current compiler policy grants
 100,000,000 deterministic evaluator fuel units, 16 MiB of compiler-owned
-BuildLog output, and 65,536 canonical filesystem operation attempts while
+BuildLog output, 65,536 canonical filesystem operation attempts, and 4,096
+concurrently live compiler-owned filesystem resources while
 retaining the ordinary 100,000-unit ceiling for an effect-free invocation and
 10,000,000-unit ceiling for a granted invocation. Initial evaluation and
 automatic provider-free replay debit the same shared sponsor;
 dependencies cannot raise it. The version-4 usage receipt binds the step
 schedule, per-invocation ceiling, optional sponsor schema and session ceilings,
-and distinct initial/replay fuel, BuildLog, and filesystem-attempt charges.
-Successful closure review rejects unless all retained charge totals exactly
-equal the sponsor's counters. The ambient
+and distinct initial/replay fuel, BuildLog, and filesystem-attempt charges. It
+also retains the shared session's peak live-handle count. Successful closure
+review rejects unless all retained charge totals and the peak exactly equal the
+sponsor's counters and no live reservation remains. The ambient
 interpreter development override does not alter package-policy evaluation.
-These are deterministic work and retained-log limits, not claims about CPU
-time, resident memory, or hostile-process containment.
+These are deterministic compiler-resource limits, not claims about CPU time,
+resident memory, the process-wide descriptor table, or hostile-process
+containment.
 
 Package build filesystem authority enters through the one `Build` activation,
 which exposes an immutable `BuildSource` capability and a fresh writable

@@ -318,6 +318,12 @@ pub struct BuildEvaluationUsage {
     /// Aggregate canonical filesystem operation attempts available to the
     /// complete sponsored review session.
     pub session_filesystem_attempt_ceiling: Option<u64>,
+    /// Compiler-owned filesystem resources that may be reserved concurrently
+    /// across the sponsored review session.
+    pub session_live_filesystem_handle_ceiling: Option<u64>,
+    /// Highest concurrent reservation count observed in the shared session at
+    /// the point this build result was issued.
+    pub session_peak_live_filesystem_handles: u64,
     /// Fuel consumed by the initial build-machine evaluation.
     pub fuel_units: u64,
     /// Fuel consumed by exact provider-free replay, or zero when no replay ran.
@@ -4226,6 +4232,10 @@ pub fn compute_build_config(
                 .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
             session_filesystem_attempt_ceiling: evaluation_sponsor
                 .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
+            session_live_filesystem_handle_ceiling: evaluation_sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
+            session_peak_live_filesystem_handles: evaluation_sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
             fuel_units: usage.fuel_units(),
             replay_fuel_units: replay_usage.map_or(0, |usage| usage.fuel_units()),
             build_log_bytes: usage.build_log_bytes(),
