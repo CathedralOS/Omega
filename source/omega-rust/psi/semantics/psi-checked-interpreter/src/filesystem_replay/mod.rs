@@ -10,6 +10,7 @@ mod directory_tests;
 mod duplicates;
 mod hard_links;
 mod locks;
+mod output_failures;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
@@ -43,6 +44,13 @@ pub(crate) use hard_links::{output_hard_link_attempt, output_hard_link_record_fr
 pub use locks::{FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS};
 pub(crate) use locks::{
     output_lock_attempts, output_lock_record_from_attempts, validate_output_lock_replay,
+};
+pub use output_failures::{
+    FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemOutputAbsentRemoveReplayRecord,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
+};
+pub(crate) use output_failures::{
+    output_absent_remove_attempt, output_absent_remove_record_from_attempt,
 };
 pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{
