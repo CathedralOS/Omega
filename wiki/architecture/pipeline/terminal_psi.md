@@ -2151,11 +2151,15 @@ and mutation of either field rejects independently. The following bounded form
 admits exactly three enclosing relevant record fields. Equality, inequality,
 whole-root Unit-call rebasing, codecs, verification, fixed fuel, and
 interpretation retain all three exact field identities before the sole mixed
-occurrence, and mutation of any prefix rejects independently. Four or more
-enclosing fields, mixed values below case payloads or another mixed shape, two
-mixed sibling fields, direct projected mixed comparisons, recursive cycles, address
-and erased payload equality, written `equals` bodies, and runtime sum layout
-remain outside this bounded terminal slice. When an acyclic
+occurrence, and mutation of any prefix rejects independently. A fourth bounded
+form admits exactly four enclosing relevant record fields and replays the same
+complete ordered path through equality, inequality, whole-root call rebasing,
+codecs, verification, fixed fuel, interpretation, and independent prefix
+mutation. Five or more enclosing fields, mixed values below case payloads or
+another mixed shape, two mixed sibling fields, direct projected mixed
+comparisons, recursive cycles, address and erased payload equality, written
+`equals` bodies, and runtime sum layout remain outside this bounded terminal
+slice. When an acyclic
 relevant record field reaches a payload-bearing sum, the same sum proposition
 is retained below that field path, and independent verification preserves the
 complete `Field -> Case -> Field` identity chain. Direct source-call rebasing
