@@ -530,9 +530,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     failure propagates through `let`, patterns, and function checking. A
     32,769-declaration canary crosses the exact function-table capacity without
     output or memory corruption. A 300,000-argument source exhausts the AST
-    arena without crossing into generated status 251. The eventual compiler
-    boundary maps this class to `Incomplete`; the Boolean oracle still reports
-    only unsuccessful checking.
+    arena without crossing into generated status 251. Iterative builders stop
+    linking on the first failed allocation and leave the shared readable error
+    node immutable. The eventual compiler boundary maps this class to
+    `Incomplete`; the Boolean oracle still reports only unsuccessful checking.
   - [x] Bound recursive expression parsing at one explicit 1,024-level private
     profile while leaving list arity iterative. A 900-level valid program checks;
     a 1,100-level program fails closed through private resource state rather

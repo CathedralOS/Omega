@@ -67,7 +67,7 @@ proc slurp() {
         ; The real arena begins after it and ends at Beta's 32 MiB logical raw
         ; memory edge; physical memory above that belongs to Alpha's hidden
         ; return stack under the canonical Beta calling convention.
-        word[16777216] = 0
+        word[16777216] = 255      ; reserved immutable error-node tag
         word[16777224] = 0
         word[16777232] = 0
         word[16777240] = 0
@@ -493,14 +493,17 @@ proc parse_args() {
         to done when (cbyte() == ')')
         to eof when (cbyte() == 0)
         let item = parse_expr()
+        to exhausted when (word[2097072] != 0)
         word[2097048] = word[item] / 256
         let node = alloc(6, item, 0, 0)
+        to exhausted when (word[2097072] != 0)
         to first when (head == 0)
         word[tail + 16] = node
         tail = node
         to loop
     }
     state first { head = node  tail = node  to loop }
+    state exhausted { return head }
     state eof { mark_invalid()  return head }
     state done { return head }
 }
@@ -671,12 +674,14 @@ proc parse_pvars() {
     state name_ok {
         word[2097048] = voff
         let node = alloc(6, voff, 0, 0)
+        to exhausted when (word[2097072] != 0)
         to first when (head == 0)
         word[tail + 16] = node
         tail = node
         to loop
     }
     state first { head = node  tail = node  to loop }
+    state exhausted { return head }
     state eof { mark_invalid()  return head }
     state done { return head }
 }
@@ -732,16 +737,20 @@ proc parse_arms() {
         let pat = parse_pat()
         let body = parse_expr()
         consume_expected(')')
+        to exhausted when (word[2097072] != 0)
         word[2097048] = arm_start
         let armnode = alloc(11, pat, body, 0)
+        to exhausted when (word[2097072] != 0)
         word[2097048] = arm_start
         let node = alloc(6, armnode, 0, 0)
+        to exhausted when (word[2097072] != 0)
         to first when (head == 0)
         word[tail + 16] = node
         tail = node
         to loop
     }
     state first { head = node  tail = node  to loop }
+    state exhausted { return head }
     state eof { mark_invalid()  return head }
     state done { return head }
 }
@@ -771,14 +780,17 @@ proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM no
         ; Keep the source spelling until every nominal declaration exists.
         word[2097048] = param_start
         let node = alloc(50, poff, toff, 0)
+        to exhausted when (word[2097072] != 0)
         word[2097048] = param_start
         let link = alloc(6, node, 0, 0)
+        to exhausted when (word[2097072] != 0)
         to first when (head == 0)
         word[tail + 16] = link
         tail = link
         to loop
     }
     state first { head = link  tail = link  to loop }
+    state exhausted { return head }
     state eof { mark_invalid()  return head }
     state done { return head }
 }
@@ -839,12 +851,14 @@ proc parse_argtypes() {           ; constructor arg type names until ')', CONS o
         ; Constructor field types are symbolic until all data declarations land.
         word[2097048] = toff
         let node = alloc(6, toff, 0, 0)
+        to exhausted when (word[2097072] != 0)
         to first when (head == 0)
         word[tail + 16] = node
         tail = node
         to loop
     }
     state first { head = node  tail = node  to loop }
+    state exhausted { return head }
     state eof { mark_invalid()  return head }
     state done { return head }
 }
