@@ -1403,6 +1403,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-abstract-operations-to-target-operations",
+ "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-effects",
  "omega-image-emission",

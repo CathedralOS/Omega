@@ -583,11 +583,9 @@ mod tests {
         validate_fields(canonical_fields()).unwrap();
         let mut drift = canonical_fields().to_vec();
         drift[21].byte_offset += 8;
-        assert!(
-            validate_fields(&drift)
-                .unwrap_err()
-                .message
-                .contains("drifted")
-        );
+        assert!(validate_fields(&drift)
+            .unwrap_err()
+            .message
+            .contains("drifted"));
     }
 }

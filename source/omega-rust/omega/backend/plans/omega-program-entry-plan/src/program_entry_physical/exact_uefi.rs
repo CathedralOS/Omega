@@ -1,10 +1,10 @@
 //! Exact UEFI x64 replay owned beside the physical entry-plan carrier.
 
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, EntryStack,
-    MachineRegime, MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet,
-    StatePlan, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
-    validate_boundary_entry_plan,
+    validate_boundary_entry_plan, BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy,
+    EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState, MachineStateSet,
+    Preemption, RegisterSet, StatePlan, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement,
+    ValueShape,
 };
 
 use super::ProgramEntryPhysicalContractPlan;
@@ -32,8 +32,8 @@ pub const UEFI_X64_STATUS_TYPE_IDENTITY: &str = "named(name(EfiStatus))";
 
 /// Strong commitment to the exact closed UEFI target-package source compiled
 /// into this plan owner.
-pub fn exact_uefi_x64_physical_contract_package_source_digest()
--> super::ProgramEntryPhysicalContractPackageSourceDigest {
+pub fn exact_uefi_x64_physical_contract_package_source_digest(
+) -> super::ProgramEntryPhysicalContractPackageSourceDigest {
     super::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
         omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
         UEFI_X64_TARGET_PACKAGE_SOURCE,
@@ -119,6 +119,10 @@ impl ProgramEntryPhysicalContractPlan {
             && self
                 .guaranteed_entry_stack_application
                 .matches_exact_uefi_x64_entry_stack_application()
+            && self
+                .guaranteed_entry_stack
+                .matches_exact_uefi_x64_entry_stack_guarantee()
+            && self.guaranteed_entry_stack.application() == &self.guaranteed_entry_stack_application
     }
 }
 
@@ -167,6 +171,14 @@ mod tests {
                 .compatibility_commitment(),
             &[0; 32],
         );
+        assert_eq!(
+            exact.guaranteed_entry_stack().guaranteed_available_bytes(),
+            128 * 1024,
+        );
+        assert_eq!(exact.guaranteed_entry_stack().required_alignment(), 16);
+        assert!(exact
+            .guaranteed_entry_stack()
+            .matches_exact_uefi_x64_entry_stack_guarantee());
 
         let mut requirement_drift = exact.clone();
         requirement_drift.requirement_identity =

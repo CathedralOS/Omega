@@ -117,6 +117,16 @@ target reserve. A target may instead allocate and switch to a private Omega
 stack through a checked stub, preserving the firmware return state for the
 returning profile.
 
+The closed UEFI x64 profile fixes that minimum at 128 KiB with 16-byte
+alignment, following UEFI Specification 2.11 section 2.3.4. Numeric target
+closure and the same-stack inequality are planning facts: generated-shell,
+adapter-frame, continuation/provider WCSU, and explicit-reserve coordinates
+must still be bound to their exact emitted or checked producers, and physical
+arrival must separately admit firmware conformance. The planning result rejoins
+the private firmware-ledger authority, both physical occurrences, and the live
+phase lease before it can match the adapter-readiness carrier; equal public
+report coordinates from another ledger do not substitute.
+
 The installation receipt joins the physical invocation, target schema,
 provider realizations, physical-input provenance, root geometry and evidence,
 stack plan, semantic requirement, and selected continuation. Failure before

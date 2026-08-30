@@ -337,6 +337,7 @@ pub(crate) fn validate_function_structural_catalog(
             StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 structural_type,
+                ..
             } => Some((*place, declaration_ordinal, structural_type)),
             _ => None,
         })

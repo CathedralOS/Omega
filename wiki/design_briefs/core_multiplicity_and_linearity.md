@@ -291,6 +291,18 @@ structural order. An ordinary edge abandoning partial construction cleans the
 established prefix in reverse; trap and nuclear-abort edges clean nothing. No
 runtime liveness bitmap or data-dependent cleanup loop is introduced.
 
+The first construction-prefix implementation is deliberately narrower than
+that general rule. An uninitialized mutable `[T; 3]`, where `T` is an
+unqualified, claim-free empty affine record with no nominal cleanup, may
+establish literal indices `0` and `1` in authored order and then reach an
+ordinary Unit return. Checked custody represents the two established elements
+as zero-ABI affine locals that retain their common array-root type and static
+indices. Terminal and every native artifact layer reconstruct establishments
+`[0, 1]`, cleanup `[1, 0]`, and two operation plus one return-edge fuel units.
+Missing, duplicate, reordered, wrong-root, wrong-length, third, initialized,
+nonempty, dynamic-index, qualified, claimed, and nominal-cleanup forms remain
+outside this exact engineering rung.
+
 Named record and case literals generalize the construction half without
 changing completed-value ownership. Field expressions establish exactly once in
 authored literal order. Ordinary abandonment cleans that established prefix in

@@ -96,9 +96,9 @@ use omega_machine_code::{
     PortEffectRecord, ScalarControlAffineCleanupRecord, StructuralReturnRecord,
 };
 use omega_object_file::{
-    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-    RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-    entry_symbol_name,
+    NormalizedImportPlan, ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin,
+    RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan,
+    SymbolSection, entry_symbol_name, normalized_foreign_import_symbol_name,
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{BoundaryRealization, CallSiteOwner, TerminalPsiProvenance};
@@ -463,6 +463,58 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
             return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
                 function.machine,
             ));
+        }
+        if function
+            .foreign_calls
+            .windows(2)
+            .any(|pair| pair[0].offset >= pair[1].offset)
+        {
+            return Err(ObjectError::NonCanonicalForeignCallOrder(function.machine));
+        }
+        let mut foreign_owners = std::collections::BTreeSet::new();
+        for call in &function.foreign_calls {
+            let owner_in_provenance = match call.owner {
+                CallSiteOwner::Operation(operation) => {
+                    function.provenance.operations.contains(&operation)
+                }
+                CallSiteOwner::CleanupAction { edge, .. } => {
+                    function.provenance.edges.contains(&edge)
+                }
+            };
+            if !owner_in_provenance {
+                return Err(ObjectError::ForeignCallOwnerNotInProvenance {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            if !foreign_owners.insert(call.owner) {
+                return Err(ObjectError::DuplicateForeignCallOwner {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            if call.locator.target().native_target() != plan.target {
+                return Err(ObjectError::ForeignCallTargetMismatch {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            if function
+                .internal_calls
+                .iter()
+                .any(|internal| internal.offset == call.offset)
+            {
+                return Err(ObjectError::ForeignCallOverlapsInternalCall {
+                    caller: function.machine,
+                    offset: call.offset,
+                });
+            }
+            validate_foreign_call_site(
+                plan.target.architecture,
+                function.machine,
+                &function.bytes,
+                call,
+            )?;
         }
         let mut validated_function_stack = function
             .unit_stack
@@ -1238,7 +1290,16 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
         return Err(ObjectError::EntryFunctionMissing(plan.entry));
     }
 
-    let mut object = ObjectPlan::with_capacity(plan.target, 1, plan.functions.len());
+    let foreign_call_count = plan
+        .functions
+        .iter()
+        .map(|function| function.foreign_calls.len())
+        .sum::<usize>();
+    let mut object = ObjectPlan::with_capacity(
+        plan.target,
+        1,
+        plan.functions.len().saturating_add(foreign_call_count),
+    );
     object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
         size: text_size,
@@ -1338,11 +1399,46 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
         });
     }
 
+    let mut import_symbols =
+        Vec::<(omega_target::NormalizedForeignLocator, ObjectSymbolHandle)>::new();
+    for function in &plan.functions {
+        for call in &function.foreign_calls {
+            if import_symbols
+                .iter()
+                .any(|(locator, _)| locator == &call.locator)
+            {
+                continue;
+            }
+            if import_symbols.iter().any(|(locator, _)| {
+                locator.non_authoritative_compatibility_fingerprint()
+                    == call.locator.non_authoritative_compatibility_fingerprint()
+            }) {
+                return Err(ObjectError::ForeignLocatorIdentityCollision {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            let symbol = object.layout.symbols.insert(SymbolPlan {
+                name: normalized_foreign_import_symbol_name(&call.locator),
+                section: SymbolSection::None,
+                offset: 0,
+                size: 0,
+                kind: SymbolKind::Import,
+                import_library: String::new(),
+            });
+            object.layout.normalized_imports.push(NormalizedImportPlan {
+                symbol,
+                locator: call.locator.clone(),
+            });
+            import_symbols.push((call.locator.clone(), symbol));
+        }
+    }
+
     let mut relocations = RelocationPlan::with_record_capacity(
         plan.target,
         plan.functions
             .iter()
-            .map(|function| function.internal_calls.len())
+            .map(|function| function.internal_calls.len() + function.foreign_calls.len())
             .sum(),
     );
     for (function, emitted) in plan.functions.iter().zip(&functions) {
@@ -1358,6 +1454,44 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
                 function.machine,
                 &function.bytes,
                 *call,
+            )?;
+            let offset = emitted
+                .text_offset
+                .checked_add(call.offset)
+                .ok_or(ObjectError::TextSizeOverflow)?;
+            let origin = match call.owner {
+                CallSiteOwner::Operation(operation) => RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: emitted.symbol,
+                    operation_identity: operation.get(),
+                },
+                CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
+                    function_symbol_handle: emitted.symbol,
+                    edge_identity: edge.get(),
+                },
+            };
+            relocations.push_record(RelocationRecord {
+                origin,
+                section: SectionKind::Text,
+                offset,
+                byte_width,
+                symbol_handle: target_symbol,
+                addend: 0,
+                kind,
+            });
+        }
+        for call in &function.foreign_calls {
+            let target_symbol = import_symbols
+                .iter()
+                .find_map(|(locator, symbol)| (locator == &call.locator).then_some(*symbol))
+                .ok_or(ObjectError::MissingForeignImportSymbol {
+                    caller: function.machine,
+                    owner: call.owner,
+                })?;
+            let (kind, byte_width) = validate_foreign_call_site(
+                plan.target.architecture,
+                function.machine,
+                &function.bytes,
+                call,
             )?;
             let offset = emitted
                 .text_offset
@@ -1430,6 +1564,37 @@ fn validate_internal_call_site(
     })
 }
 
+fn validate_foreign_call_site(
+    architecture: Architecture,
+    caller: MachineId,
+    bytes: &[u8],
+    call: &omega_machine_code::ForeignCallRelocation,
+) -> Result<(RelocationKind, usize), ObjectError> {
+    let valid = match architecture {
+        Architecture::X86_64 => {
+            call.offset >= 1
+                && bytes.get(call.offset - 1) == Some(&0xe8)
+                && bytes.get(call.offset..call.offset.saturating_add(4)) == Some(&[0; 4])
+        }
+        Architecture::Aarch64 => {
+            call.offset.is_multiple_of(4)
+                && bytes.get(call.offset..call.offset.saturating_add(4))
+                    == Some(&0x9400_0000u32.to_le_bytes())
+        }
+    };
+    if !valid {
+        return Err(ObjectError::InvalidForeignCallSite {
+            caller,
+            owner: call.owner,
+            offset: call.offset,
+        });
+    }
+    Ok(match architecture {
+        Architecture::X86_64 => (RelocationKind::X86_64Relative32, 4),
+        Architecture::Aarch64 => (RelocationKind::Aarch64Branch26, 4),
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObjectError {
     EmptyPlan,
@@ -1441,6 +1606,7 @@ pub enum ObjectError {
     MissingRankedCountdownCustody(MachineId),
     InvalidRankedCountdown(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
+    NonCanonicalForeignCallOrder(MachineId),
     NonCanonicalFuelAttributionOrder(MachineId),
     FuelAttributionOutsideFunction(MachineId),
     InvalidFuelAttribution(MachineId),
@@ -1457,6 +1623,35 @@ pub enum ObjectError {
         caller: MachineId,
         owner: CallSiteOwner,
         offset: usize,
+    },
+    InvalidForeignCallSite {
+        caller: MachineId,
+        owner: CallSiteOwner,
+        offset: usize,
+    },
+    ForeignCallOwnerNotInProvenance {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    DuplicateForeignCallOwner {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    ForeignCallTargetMismatch {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    ForeignCallOverlapsInternalCall {
+        caller: MachineId,
+        offset: usize,
+    },
+    ForeignLocatorIdentityCollision {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    MissingForeignImportSymbol {
+        caller: MachineId,
+        owner: CallSiteOwner,
     },
     InvalidInternalUnitCallEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),

@@ -1356,10 +1356,22 @@ Remaining:
   its compact compatibility value remains report-only. Cross-target
   application and profile/report/commitment substitution reject, and the
   physical-entry contract now retains and replays that exact application. This
-  first rung deliberately stays symbolic: it selects no byte bound and grants
-  no runtime environment admission, stack address, stack storage, or firmware-
-  conformance claim. Target closure must still supply the numeric guarantee
-  before the adapter WCSU inequality or private-stack plan can close.
+  Target closure now also seals the UEFI x64 boot-services minimum specified
+  by UEFI 2.11 section 2.3.4: 131072 available bytes with 16-byte alignment.
+  The physical-entry contract retains and independently replays the complete
+  numeric closure beside the symbolic application. A planning-only same-stack
+  relation binds one exact adapter-readiness invocation to four explicit,
+  nonzero coordinates—generated shell WCSU, live adapter frames, maximum
+  nested continuation/provider WCSU, and target reserve—and rejects omission,
+  arithmetic overflow, or a sum above the target guarantee. The plan retains
+  the readiness ledger's private authority plus both physical occurrence and
+  live phase-lease coordinates, so equal public report IDs from another ledger
+  cannot substitute; exact equality with the 131072-byte guarantee is admitted.
+  These coordinates are not yet derivation evidence: exact emitted-shell,
+  checked-adapter, continuation/provider WCSU producers and physical-arrival firmware-
+  conformance admission remain before the plan can authorize invocation. No
+  runtime stack address, stack storage, environment admission, or private-stack
+  authority is granted.
 
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying
@@ -1380,14 +1392,15 @@ Remaining:
   proved disjoint from the installed image root, or from an explicit
   allocation, never from the active provider-selected entry stack.
 
-  Add the symbolic target observation
-  `TargetSemantics::guaranteed_entry_stack<UefiX86_64>()`. Retain its
-  application and selected profile in compatibility identity. Check generated
-  shell WCSU, live adapter frames, maximum nested continuation/provider WCSU,
-  and one explicit reserve against it, or emit and verify a private-stack
-  switch that preserves the physical return state. When stack and source
-  storage share a parent allocation, conserve exact active-stack, retained-
-  bootstrap, and disjoint contiguous InitialStorage partitions.
+  Feed the closed
+  `TargetSemantics::guaranteed_entry_stack<UefiX86_64>()` relation with exact
+  derivation evidence for generated shell WCSU, live adapter frames, maximum
+  nested continuation/provider WCSU, and one explicit reserve, or emit and
+  verify a private-stack switch that preserves the physical return state. The
+  current four-coordinate planning carrier deliberately does not authenticate
+  those producers. When stack and source storage share a parent allocation,
+  conserve exact active-stack, retained-bootstrap, and disjoint contiguous
+  InitialStorage partitions.
 
   Cross `ProgramStorageEntry::enter` once, invoke the build-bound continuation,
   reclaim adapter-owned resources, map normal Unit return to the fixed success
@@ -9252,9 +9265,21 @@ reach or trust, and private proof improvements do not change public identity.
   tampering reject. The interpreter still charges exactly five closure units:
   residual count changes static frontier custody, not executable cleanup work.
 
-  Extend recursive coverage beyond that exact `[[T; 3]; 2]` rung. Add
-  construction-prefix ordinary-failure cleanup and deeper canonical
-  fuel/action ordinals.
+  The first construction-prefix ordinary-abandonment rung is closed. An
+  uninitialized mutable `[T; 3]`, with `T` the exact empty, unqualified,
+  claim-free affine record carrier, may establish literal indices `0` then `1`
+  in authored order and fall through to an ordinary Unit return. Typed and
+  checked planning retain two zero-ABI construction-element locals with their
+  common root identity; Terminal verification and codec replay, Omega lowering,
+  optimization identity, target assignment, native emission, object/image
+  validation, and installation encoding independently retain establishments
+  `[0, 1]`, cleanup `[1, 0]`, and exact two-operation/one-edge fuel ordinals.
+  Index/root/length/order tampering rejects. Initialized, third-element,
+  dynamic-index, nonempty, nominal, qualified, claimed, and wider construction
+  forms remain fenced.
+
+  Extend recursive coverage beyond the exact `[[T; 3]; 2]` rung and extend
+  construction-prefix cleanup to deeper canonical fuel/action ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
   elements, arrays with claims, sums, joins, and cycles remain separately fenced.
@@ -10324,9 +10349,22 @@ boundary without its corresponding checked law.
   original image, interpreter, and normalized imports through that owner.
   Exact x86-64/AArch64 replay is deterministic. The driver result remains the
   same non-installable custody type and grants no publication or execution
-  authority. This is still a pre-integration seam: the ordinary production
-  object builder does not yet populate normalized foreign imports, so it cannot
-  supply the driver's successful input. Production import retention, optional
+  authority. The first production object-retention prerequisite is now live:
+  `MachineCodeFunction` owns ordered source-free `ForeignCallRelocation` rows
+  containing the exact normalized locator, semantic call owner, and native
+  relocation field. Ordinary `build_object_artifact` independently replays the
+  x86-64 `CALL rel32` or AArch64 `BL` placeholder, target applicability,
+  semantic provenance, ordering, uniqueness, and non-collision before it
+  deduplicates exact locators into unresolved `SymbolKind::Import` rows, the
+  atomic `normalized_imports` side table, and exact text relocations. The
+  dynamic-ELF driver can therefore start from the ordinary object builder for
+  both Linux profiles without a private `ObjectArtifact` fixture, and repeated
+  calls to one locator share one import symbol while retaining distinct call
+  sites. The remaining pre-integration seam is earlier: assigned target
+  operations and the ordinary machine emitter do not yet produce these rows
+  from the selected `HostImportLocator::Normalized` binding and its exact call
+  site, so source compilation still reaches the machine-code carrier empty.
+  That checked/target lowering, its foreign-call stack custody, optional
   `.gnu.hash`, and ordinary source `via` evaluation remain unimplemented.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,

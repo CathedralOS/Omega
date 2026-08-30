@@ -1,9 +1,9 @@
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_calling_conventions::ValueShape;
 use omega_image_emission::{
-    InstallationError, build_installation_record, build_object_artifact,
-    decode_installation_record, derive_stack_demand, emit_executable_image,
-    encode_installation_record, validate_installation_record,
+    build_installation_record, build_object_artifact, decode_installation_record,
+    derive_stack_demand, emit_executable_image, encode_installation_record,
+    validate_installation_record, InstallationError,
 };
 use omega_machine_emission::emit_machine_code;
 use omega_optimization_unit::reconstruct_psi_optimization_unit_seed;
@@ -688,16 +688,12 @@ fn ordered_contextual_nominal_affine_plan() -> omega_abstract_operations::Abstra
         third_cleanup.cleanup_receiver,
         second_cleanup.cleanup_receiver
     );
-    assert!(
-        cleanups
-            .iter()
-            .all(|cleanup| cleanup.cleanup_receiver.is_some())
-    );
-    assert!(
-        cleanups
-            .iter()
-            .all(|cleanup| cleanup.requirement_obligations.len() == 1)
-    );
+    assert!(cleanups
+        .iter()
+        .all(|cleanup| cleanup.cleanup_receiver.is_some()));
+    assert!(cleanups
+        .iter()
+        .all(|cleanup| cleanup.requirement_obligations.len() == 1));
     assert_eq!(terminal.proof_bundle.evidence.len(), 3);
     let distinct_targets = [
         third_cleanup.cleanup_machine,
@@ -1880,11 +1876,9 @@ fn nested_affine_arrays_retain_exact_offsets_and_decreasing_cleanup_on_all_targe
             ],
         ],
     );
-    assert!(
-        residuals.iter().all(|residual| {
-            residual.place == root_place && residual.structural_type == leaf_type
-        })
-    );
+    assert!(residuals
+        .iter()
+        .all(|residual| { residual.place == root_place && residual.structural_type == leaf_type }));
 
     let mut wrong_order = plan.clone();
     let actions = wrong_order
@@ -2273,18 +2267,16 @@ fn fully_consumed_affine_pair_retains_two_native_calls_and_empty_installed_clean
             .filter(|call| call.machine == caller_machine)
             .collect::<Vec<_>>();
         assert_eq!(installed_calls.len(), 2);
-        assert!(
-            installation
-                .functions()
-                .iter()
-                .find(|function| function.machine == caller_machine)
-                .unwrap()
-                .unit_affine_cleanup
-                .as_ref()
-                .unwrap()
-                .actions
-                .is_empty()
-        );
+        assert!(installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_ref()
+            .unwrap()
+            .actions
+            .is_empty());
         validate_installation_record(&installation, &image).unwrap();
         let bytes = encode_installation_record(&installation).unwrap();
         assert_eq!(decode_installation_record(&bytes), Ok(installation.clone()));
@@ -2337,14 +2329,12 @@ fn fully_consumed_affine_pair_retains_two_native_calls_and_empty_installed_clean
                 vec![StructuralPathSegment::FixedIndex(1)],
             ]
         );
-        assert!(
-            emitted
-                .unit_affine_cleanup
-                .as_ref()
-                .unwrap()
-                .actions
-                .is_empty()
-        );
+        assert!(emitted
+            .unit_affine_cleanup
+            .as_ref()
+            .unwrap()
+            .actions
+            .is_empty());
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
         let installation =
@@ -2650,10 +2640,8 @@ fn wide_partial_affine_cleanup_preserves_reverse_field_order_without_code() {
             _ => None,
         })
         .expect("wide partial return retains cleanup actions");
-    let [
-        TerminalAffineCleanupAction::DiscardResidual(middle),
-        TerminalAffineCleanupAction::DiscardResidual(left),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::DiscardResidual(middle), TerminalAffineCleanupAction::DiscardResidual(left)] =
+        cleanup_actions.as_slice()
     else {
         panic!("wide partial return retains two residual fields")
     };
@@ -2780,10 +2768,8 @@ fn multiple_direct_moves_preserve_exact_residual_complement_on_all_targets() {
             _ => None,
         })
         .expect("multiple-move return retains residual cleanup");
-    let [
-        TerminalAffineCleanupAction::DiscardResidual(third),
-        TerminalAffineCleanupAction::DiscardResidual(first),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::DiscardResidual(third), TerminalAffineCleanupAction::DiscardResidual(first)] =
+        cleanup_actions.as_slice()
     else {
         panic!("multiple-move cleanup retains the reverse residual complement")
     };
@@ -2896,12 +2882,8 @@ fn nested_move_preserves_maximal_residual_subtrees_on_all_targets() {
             _ => None,
         })
         .expect("nested partial return retains cleanup actions");
-    let [
-        TerminalAffineCleanupAction::DiscardResidual(last),
-        TerminalAffineCleanupAction::DiscardResidual(right),
-        TerminalAffineCleanupAction::DiscardResidual(left),
-        TerminalAffineCleanupAction::DiscardResidual(first),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::DiscardResidual(last), TerminalAffineCleanupAction::DiscardResidual(right), TerminalAffineCleanupAction::DiscardResidual(left), TerminalAffineCleanupAction::DiscardResidual(first)] =
+        cleanup_actions.as_slice()
     else {
         panic!("nested cleanup retains four maximal sibling subtrees")
     };
@@ -3190,6 +3172,7 @@ fn partial_affine_cleanup_rejects_a_residual_before_its_local_cleanup() {
                     kind: StructuralPlaceKind::TrivialAffineLocal {
                         declaration_ordinal: 0,
                         structural_type: empty_type.id,
+                        construction: None,
                     },
                 },
                 structural_type: empty_type,
@@ -3254,10 +3237,8 @@ fn two_empty_nominal_cleanups_are_reverse_ordered_and_call_free_on_all_targets()
             _ => None,
         })
         .expect("entry return retains cleanup actions");
-    let [
-        TerminalAffineCleanupAction::InvokeNominal(first),
-        TerminalAffineCleanupAction::InvokeNominal(second),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::InvokeNominal(first), TerminalAffineCleanupAction::InvokeNominal(second)] =
+        cleanup_actions.as_slice()
     else {
         panic!("entry return must invoke exactly two nominal cleanups")
     };
@@ -3471,11 +3452,8 @@ fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_target
             _ => None,
         })
         .expect("ordered contextual cleanup reaches Omega actions");
-    let [
-        TerminalAffineCleanupAction::InvokeNominal(third),
-        TerminalAffineCleanupAction::InvokeNominal(second),
-        TerminalAffineCleanupAction::InvokeNominal(first),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::InvokeNominal(third), TerminalAffineCleanupAction::InvokeNominal(second), TerminalAffineCleanupAction::InvokeNominal(first)] =
+        cleanup_actions.as_slice()
     else {
         panic!("ordered contextual cleanup retains three nominal actions")
     };
@@ -3528,12 +3506,10 @@ fn ordered_contextual_nominal_cleanups_are_verified_then_projected_on_all_target
                 }
             );
         }
-        assert!(
-            emitted
-                .internal_unit_calls
-                .windows(2)
-                .all(|pair| pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset)
-        );
+        assert!(emitted
+            .internal_unit_calls
+            .windows(2)
+            .all(|pair| pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset));
 
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
@@ -3713,10 +3689,8 @@ fn two_executable_nominal_cleanup_actions_retain_order_and_custody_on_all_target
                 _ => None,
             })
             .expect("entry return retains cleanup actions");
-        let [
-            TerminalAffineCleanupAction::InvokeNominal(first),
-            TerminalAffineCleanupAction::InvokeNominal(second),
-        ] = cleanup_actions.as_slice()
+        let [TerminalAffineCleanupAction::InvokeNominal(first), TerminalAffineCleanupAction::InvokeNominal(second)] =
+            cleanup_actions.as_slice()
         else {
             panic!("entry return invokes two nominal cleanups")
         };
@@ -3870,11 +3844,9 @@ fn three_shared_executable_cleanup_actions_retain_exact_order_on_all_targets() {
             .map(|parameter| parameter.place)
             .collect::<Vec<_>>()
     );
-    assert!(
-        cleanup_targets
-            .windows(2)
-            .all(|pair| pair[0].1 == pair[1].1)
-    );
+    assert!(cleanup_targets
+        .windows(2)
+        .all(|pair| pair[0].1 == pair[1].1));
     assert_eq!(plan.functions.len(), 3);
 
     for target in [
@@ -3907,12 +3879,10 @@ fn three_shared_executable_cleanup_actions_retain_exact_order_on_all_targets() {
             );
             assert_eq!(call.target, cleanup_targets[ordinal].1);
         }
-        assert!(
-            emitted
-                .internal_unit_calls
-                .windows(2)
-                .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset })
-        );
+        assert!(emitted
+            .internal_unit_calls
+            .windows(2)
+            .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset }));
 
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
@@ -3988,15 +3958,14 @@ fn finite_cleanup_lists_and_helper_bodies_retain_exact_order_on_all_targets() {
             .find(|function| function.machine == first_cleanup.cleanup_machine)
             .unwrap();
         assert_eq!(drop.internal_unit_calls.len(), 5);
-        assert!(
-            drop.internal_unit_calls
-                .iter()
-                .enumerate()
-                .all(|(ordinal, call)| {
-                    call.operation_ordinal == ordinal
-                        && matches!(call.owner, CallSiteOwner::Operation(_))
-                })
-        );
+        assert!(drop
+            .internal_unit_calls
+            .iter()
+            .enumerate()
+            .all(|(ordinal, call)| {
+                call.operation_ordinal == ordinal
+                    && matches!(call.owner, CallSiteOwner::Operation(_))
+            }));
 
         let object = build_object_artifact(&machine).unwrap();
         let image = emit_executable_image(&object, 3).unwrap();
@@ -4163,12 +4132,10 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
         for (ordinal, call) in emitted_drop.internal_unit_calls.iter().enumerate() {
             assert_eq!(call.operation_ordinal, ordinal);
         }
-        assert!(
-            emitted_drop
-                .internal_unit_calls
-                .windows(2)
-                .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset })
-        );
+        assert!(emitted_drop
+            .internal_unit_calls
+            .windows(2)
+            .all(|pair| { pair[0].code_offset + pair[0].byte_count <= pair[1].code_offset }));
 
         let mut forged_helper_order = machine.clone();
         let forged_drop = forged_helper_order

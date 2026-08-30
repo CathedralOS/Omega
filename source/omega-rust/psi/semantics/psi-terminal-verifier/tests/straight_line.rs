@@ -2970,6 +2970,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
         kind: StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: 0,
             structural_type: local_type,
+            construction: None,
         },
     });
     machine.structural_places.push(StructuralPlaceDeclaration {
@@ -2977,6 +2978,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
         kind: StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: 1,
             structural_type: local_type,
+            construction: None,
         },
     });
     machine

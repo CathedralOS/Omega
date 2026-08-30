@@ -12,14 +12,19 @@ pub(super) fn encode_trivial_affine_local(
     let StructuralPlaceKind::TrivialAffineLocal {
         declaration_ordinal,
         structural_type,
+        construction,
     } = local.kind
     else {
         return Err(InstallationError::InvalidStructuralReturnLocal);
     };
     push_u64(bytes, local.id.get());
     push_u32(bytes, declaration_ordinal);
-    push_u32(bytes, 0);
+    push_u32(bytes, u32::from(construction.is_some()));
     push_u64(bytes, structural_type.get());
+    if let Some(construction) = construction {
+        push_u64(bytes, construction.root_structural_type.get());
+        push_u64(bytes, construction.index);
+    }
     Ok(())
 }
 
@@ -51,17 +56,29 @@ pub(super) fn decode_trivial_affine_local(
         "local place",
     ))?;
     let declaration_ordinal = reader.u32()?;
-    if reader.u32()? != 0 {
+    let construction_tag = reader.u32()?;
+    if construction_tag > 1 {
         return Err(InstallationError::NonzeroReservedField);
     }
     let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
         InstallationError::ZeroStructuralReturnIdentity("local type"),
     )?;
+    let construction = (construction_tag == 1)
+        .then(|| {
+            Ok(psi_core::AffineConstructionElement {
+                root_structural_type: StructuralTypeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralReturnIdentity("construction root type"),
+                )?,
+                index: reader.u64()?,
+            })
+        })
+        .transpose()?;
     Ok(StructuralPlaceDeclaration {
         id,
         kind: StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
+            construction,
         },
     })
 }

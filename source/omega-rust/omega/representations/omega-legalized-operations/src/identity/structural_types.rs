@@ -116,10 +116,15 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
+            construction,
         } => {
-            bytes.push(6);
+            bytes.push(if construction.is_some() { 7 } else { 6 });
             bytes.extend_from_slice(&declaration_ordinal.to_le_bytes());
             bytes.extend_from_slice(&structural_type.get().to_le_bytes());
+            if let Some(construction) = construction {
+                bytes.extend_from_slice(&construction.root_structural_type.get().to_le_bytes());
+                bytes.extend_from_slice(&construction.index.to_le_bytes());
+            }
         }
     }
 }

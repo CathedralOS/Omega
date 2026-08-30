@@ -102,6 +102,7 @@ pub(super) fn emit(
         unit_parameters: Vec::new(),
         scalar_stack: None,
         internal_calls: Vec::new(),
+        foreign_calls: Vec::new(),
         internal_unit_calls: Vec::new(),
         unit_affine_cleanup: None,
         scalar_affine_cleanup: None,

@@ -7,9 +7,9 @@ use omega_calling_conventions::{
     CallingPolicy, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_image_emission::{
-    InstallationError, build_installation_record, build_object_artifact,
-    decode_installation_record, emit_executable_image, emit_object_container,
-    encode_installation_record, validate_installation_record,
+    build_installation_record, build_object_artifact, decode_installation_record,
+    emit_executable_image, emit_object_container, encode_installation_record,
+    validate_installation_record, InstallationError,
 };
 use omega_machine_code::{NativeFuelSite, ScalarControlFlowEvidence};
 use omega_machine_emission::emit_machine_code;
@@ -468,10 +468,8 @@ fn contextual_short_circuit_boolean_cleans_every_leaf_through_all_native_artifac
                 .collect()
         );
         for record in &emitted_entry.scalar_control_affine_cleanups {
-            let [
-                TerminalAffineCleanupAction::DiscardRoot(_),
-                TerminalAffineCleanupAction::InvokeNominal(cleanup),
-            ] = record.cleanup.actions.as_slice()
+            let [TerminalAffineCleanupAction::DiscardRoot(_), TerminalAffineCleanupAction::InvokeNominal(cleanup)] =
+                record.cleanup.actions.as_slice()
             else {
                 panic!("each emitted edge retains the contextual cleanup action")
             };
@@ -1934,16 +1932,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert!(
-        signed_add_sites
-            .iter()
-            .any(|(_, addend)| *addend == IntegerValue::Signed(1))
-    );
-    assert!(
-        signed_add_sites
-            .iter()
-            .any(|(_, addend)| *addend == IntegerValue::Signed(-1))
-    );
+    assert!(signed_add_sites
+        .iter()
+        .any(|(_, addend)| *addend == IntegerValue::Signed(1)));
+    assert!(signed_add_sites
+        .iter()
+        .any(|(_, addend)| *addend == IntegerValue::Signed(-1)));
     for (obligation, _) in signed_add_sites {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
@@ -1978,16 +1972,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert!(
-        signed_subtract_sites
-            .iter()
-            .any(|(_, subtrahend)| *subtrahend == IntegerValue::Signed(1))
-    );
-    assert!(
-        signed_subtract_sites
-            .iter()
-            .any(|(_, subtrahend)| *subtrahend == IntegerValue::Signed(-1))
-    );
+    assert!(signed_subtract_sites
+        .iter()
+        .any(|(_, subtrahend)| *subtrahend == IntegerValue::Signed(1)));
+    assert!(signed_subtract_sites
+        .iter()
+        .any(|(_, subtrahend)| *subtrahend == IntegerValue::Signed(-1)));
     for (obligation, _) in signed_subtract_sites {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
@@ -2022,16 +2012,12 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert!(
-        signed_multiply_sites
-            .iter()
-            .any(|(_, factor)| *factor == IntegerValue::Signed(3))
-    );
-    assert!(
-        signed_multiply_sites
-            .iter()
-            .any(|(_, factor)| *factor == IntegerValue::Signed(-3))
-    );
+    assert!(signed_multiply_sites
+        .iter()
+        .any(|(_, factor)| *factor == IntegerValue::Signed(3)));
+    assert!(signed_multiply_sites
+        .iter()
+        .any(|(_, factor)| *factor == IntegerValue::Signed(-3)));
     for (obligation, _) in signed_multiply_sites {
         assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
             evidence.obligation == obligation
@@ -4693,30 +4679,25 @@ fn contextual_scalar_cleanup_is_verified_then_projected_on_all_targets() {
     let [offset_parameter, factor_parameter] = abstract_entry.parameters.as_slice() else {
         panic!("abstract contextual scalar entry retains both scalar parameters")
     };
-    let [
-        AbstractOperation::IntegerConstant {
-            result: increment_value,
-            value: IntegerValue::Unsigned(1),
-            ..
-        },
-        AbstractOperation::WrappingIntegerAdd {
-            result: seed_value,
-            left: add_left,
-            right: add_right,
-            ..
-        },
-        AbstractOperation::WrappingIntegerMultiply {
-            result: computed_value,
-            left: multiply_left,
-            right: multiply_right,
-            ..
-        },
-        AbstractOperation::Return {
-            value: returned_value,
-            cleanup_actions,
-            ..
-        },
-    ] = abstract_entry.operations.as_slice()
+    let [AbstractOperation::IntegerConstant {
+        result: increment_value,
+        value: IntegerValue::Unsigned(1),
+        ..
+    }, AbstractOperation::WrappingIntegerAdd {
+        result: seed_value,
+        left: add_left,
+        right: add_right,
+        ..
+    }, AbstractOperation::WrappingIntegerMultiply {
+        result: computed_value,
+        left: multiply_left,
+        right: multiply_right,
+        ..
+    }, AbstractOperation::Return {
+        value: returned_value,
+        cleanup_actions,
+        ..
+    }] = abstract_entry.operations.as_slice()
     else {
         panic!("contextual scalar result precedes its cleanup")
     };
@@ -4900,10 +4881,8 @@ fn source_scalar_result_runs_distinct_nominal_roots_in_reverse_order_on_all_targ
     else {
         panic!("ordered scalar cleanup entry returns a scalar")
     };
-    let [
-        TerminalAffineCleanupAction::InvokeNominal(second),
-        TerminalAffineCleanupAction::InvokeNominal(first),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::InvokeNominal(second), TerminalAffineCleanupAction::InvokeNominal(first)] =
+        cleanup_actions.as_slice()
     else {
         panic!("two nominal roots form one ordered scalar cleanup stream")
     };
@@ -5014,11 +4993,8 @@ fn source_scalar_result_preserves_mixed_cleanup_order_on_all_targets() {
     else {
         panic!("mixed scalar cleanup entry returns a scalar")
     };
-    let [
-        TerminalAffineCleanupAction::DiscardRoot(last),
-        TerminalAffineCleanupAction::InvokeNominal(token),
-        TerminalAffineCleanupAction::DiscardRoot(first),
-    ] = cleanup_actions.as_slice()
+    let [TerminalAffineCleanupAction::DiscardRoot(last), TerminalAffineCleanupAction::InvokeNominal(token), TerminalAffineCleanupAction::DiscardRoot(first)] =
+        cleanup_actions.as_slice()
     else {
         panic!("mixed roots form one ordered scalar cleanup stream")
     };
@@ -5286,12 +5262,10 @@ fn assert_source_structural_return(
         .expect("optimizer unit retains the compressed structural return");
     assert_eq!(optimizer_return.0, &trivial_affine_locals);
     assert_eq!(optimizer_return.1, &expected_cleanup);
-    assert!(
-        optimizer_return
-            .0
-            .iter()
-            .all(|(_, local, _)| { !optimizer_function.declared_places.contains(&local.id) })
-    );
+    assert!(optimizer_return
+        .0
+        .iter()
+        .all(|(_, local, _)| { !optimizer_function.declared_places.contains(&local.id) }));
 
     let structural_parameters = machine.structural_parameters.clone();
     let structural_parameter = structural_parameters[0].clone();
@@ -5334,12 +5308,10 @@ fn assert_source_structural_return(
     ));
     if parameter_cleanup_count != 0 || local_cleanup_count != 0 {
         let mut missing_cleanup = abstract_plan.clone();
-        let [
-            AbstractOperation::ReturnStructural {
-                trivial_affine_discards,
-                ..
-            },
-        ] = missing_cleanup.functions[0].operations.as_mut_slice()
+        let [AbstractOperation::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        }] = missing_cleanup.functions[0].operations.as_mut_slice()
         else {
             unreachable!("structural return checked above")
         };
@@ -5712,6 +5684,7 @@ fn assert_source_structural_return(
             let StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 structural_type,
+                construction: None,
             } = local.kind
             else {
                 unreachable!("typed local checked above")
@@ -6044,22 +6017,20 @@ fn two_fragment_structural_result_call_is_exact_on_direct_aggregate_abis() {
         ] {
             assert_eq!(placement.shape, ValueShape::integer(16, 8));
             assert_eq!(placement.locations.len(), 2);
-            assert!(
-                placement
-                    .locations
-                    .iter()
-                    .enumerate()
-                    .all(|(index, location)| {
-                        matches!(
-                            location,
-                            ValueLocation::Register {
-                                value_byte_offset,
-                                byte_size: 8,
-                                ..
-                            } if usize::from(*value_byte_offset) == index * 8
-                        )
-                    })
-            );
+            assert!(placement
+                .locations
+                .iter()
+                .enumerate()
+                .all(|(index, location)| {
+                    matches!(
+                        location,
+                        ValueLocation::Register {
+                            value_byte_offset,
+                            byte_size: 8,
+                            ..
+                        } if usize::from(*value_byte_offset) == index * 8
+                    )
+                }));
         }
 
         let assigned = assign_registers(&target_plan)

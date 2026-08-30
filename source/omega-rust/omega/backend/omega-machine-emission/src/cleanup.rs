@@ -482,6 +482,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         unit_parameters: Vec::new(),
         scalar_stack,
         internal_calls: emitted.internal_calls,
+        foreign_calls: Vec::new(),
         internal_unit_calls: emitted.internal_unit_calls,
         unit_affine_cleanup: None,
         scalar_affine_cleanup: None,

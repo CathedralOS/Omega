@@ -90,11 +90,147 @@ pub(super) fn build_unit_trivial_affine_locals(
                 CheckedTrivialAffineStructuralLocalPlan {
                     declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
                     type_identity,
+                    construction: None,
                 },
                 local.symbol,
             ))
         })
         .collect()
+}
+
+pub(super) fn build_affine_array_construction_prefix(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    statements: &[StatementNode],
+) -> Option<(
+    Vec<(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)>,
+    usize,
+)> {
+    let [StatementNode::LocalData(local), first, second] = statements else {
+        return None;
+    };
+    if !local.is_mutable
+        || local.initial_value.is_valid()
+        || crate::checks::type_multiplicity(program, local.type_reference) != Multiplicity::Affine
+        || !parameter_qualifications(program, shapes, local.type_reference, binders)?.is_empty()
+        || type_graph_requires_nominal_drop(program, local.type_reference)
+    {
+        return None;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: psi_typed_trees::types::FixedArrayLength::Literal(3),
+    } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    if crate::checks::type_multiplicity(program, *element_type) != Multiplicity::Affine
+        || type_graph_requires_nominal_drop(program, *element_type)
+    {
+        return None;
+    }
+    let TypeReferenceNode::Named {
+        symbol: element_symbol,
+        ..
+    } = program.type_reference_table.type_reference(*element_type)
+    else {
+        return None;
+    };
+    let root_type_identity = shapes.add_partial_affine_array_type(local.type_reference, binders)?;
+    let element_type_identity = shapes.add_type(*element_type, binders, &[])?;
+    let root_shape = shapes.types.get(&root_type_identity)?;
+    if !matches!(
+        &root_shape.shape,
+        CheckedUnitStructuralTypeShape::FixedArray {
+            element_type_identity: element,
+            length: 3,
+        } if element == &element_type_identity
+    ) || !matches!(
+        shapes.types.get(&element_type_identity).map(|shape| &shape.shape),
+        Some(CheckedUnitStructuralTypeShape::Record { fields }) if fields.is_empty()
+    ) {
+        return None;
+    }
+
+    let assignments = [first, second];
+    let mut rows = Vec::with_capacity(2);
+    for (expected_index, statement) in assignments.into_iter().enumerate() {
+        let StatementNode::Assignment(assignment) = statement else {
+            return None;
+        };
+        let target = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            expected_index + 1,
+            assignment.target,
+        )?;
+        if target.root != psi_facts::PlaceRoot::Symbol(local.symbol)
+            || target.segments.as_slice()
+                != [psi_facts::PlaceSegment::FixedIndex {
+                    index: expected_index,
+                }]
+        {
+            return None;
+        }
+        let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(assignment.value)
+        else {
+            return None;
+        };
+        if literal.case_name.is_some()
+            || !program
+                .expression_table
+                .struct_fields(literal.fields)
+                .is_empty()
+        {
+            return None;
+        }
+        if literal.type_symbol != *element_symbol {
+            return None;
+        }
+        rows.push((
+            CheckedTrivialAffineStructuralLocalPlan {
+                declaration_ordinal: u32::try_from(expected_index).ok()?,
+                type_identity: element_type_identity.clone(),
+                construction: Some(CheckedAffineConstructionElementPlan {
+                    root_type_identity: root_type_identity.clone(),
+                    index: u64::try_from(expected_index).ok()?,
+                }),
+            },
+            local.symbol,
+        ));
+    }
+    let exit_events = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+                && event.multiplicity == Multiplicity::Affine
+                && event.access == PermissionAccess::Owned
+                && event.claim_identity == PermissionClaimIdentity::Unknown
+                && event.provenance == psi_language_semantics::PermissionProvenance::Unknown
+                && event.root == psi_facts::PlaceRoot::Symbol(local.symbol)
+                && !event.obligation_live
+        })
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    if !matches!(exit_events.as_slice(), [event]
+        if facts.flow.ownership.segments.span_or_empty(event.segments).is_empty())
+    {
+        return None;
+    }
+    Some((rows, 1))
 }
 
 pub(super) fn build_call_operation(

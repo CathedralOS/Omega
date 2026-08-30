@@ -228,6 +228,17 @@ const UNIT_AFFINE_LOCAL_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 3];
+        values[0] = Empty {};
+        values[1] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -359,6 +370,131 @@ fn source_unit_retains_ordered_empty_affine_local_cleanup() {
         &arguments,
     )
     .expect("Unit affine-local artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    for expected_usage in 0..3 {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(_)
+        ));
+        assert_eq!(meter.usage().total_units(), expected_usage);
+        meter.replenish(1).unwrap();
+    }
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+}
+
+#[test]
+fn source_unit_construction_prefix_reaches_verified_interpreted_terminal_psi() {
+    let tokens = Lexer::new(UNIT_AFFINE_CONSTRUCTION_PREFIX_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::cleanup_prefix")
+        .expect("bounded construction prefix lowering");
+    let machine = &lowered.semantic_module.machines[0];
+    let locals = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+                construction: Some(construction),
+            } => Some((place.id, declaration_ordinal, structural_type, construction)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(locals.len(), 2);
+    assert!(
+        locals
+            .iter()
+            .enumerate()
+            .all(|(index, (_, ordinal, _, construction))| {
+                usize::try_from(*ordinal) == Ok(index)
+                    && usize::try_from(construction.index) == Ok(index)
+            })
+    );
+    assert_eq!(
+        locals[0].3.root_structural_type,
+        locals[1].3.root_structural_type
+    );
+    assert!(matches!(
+        lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == locals[0].3.root_structural_type)
+            .expect("construction root declaration")
+            .shape,
+        psi_terminal::StructuralTypeShape::FixedArray { element, length: 3 }
+            if element == locals[0].2
+    ));
+    assert!(matches!(
+        machine.blocks[0].operations.as_slice(),
+        [
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::EstablishTrivialAffineLocal { destination: first },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: psi_terminal::OperationKind::EstablishTrivialAffineLocal { destination: second },
+                ..
+            }
+        ] if [*first, *second] == [locals[0].0, locals[1].0]
+    ));
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        panic!("construction-prefix cleanup must return Unit")
+    };
+    assert_eq!(trivial_affine_discards, &[locals[1].0, locals[0].0]);
+
+    let semantic = encode_module(&lowered.semantic_module).expect("construction semantics encode");
+    assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs exact construction prefix and cleanup");
+
+    let mut wrong_index = lowered.semantic_module.clone();
+    let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+        construction: Some(construction),
+        ..
+    } = &mut wrong_index.machines[0].structural_places[0].kind
+    else {
+        unreachable!()
+    };
+    construction.index = 1;
+    assert!(psi_terminal_verifier::validate_module_representation(&wrong_index).is_err());
+
+    let mut wrong_root = lowered.semantic_module.clone();
+    let root = locals[0].3.root_structural_type;
+    let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut wrong_root
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == root)
+        .expect("construction root declaration")
+        .shape
+    else {
+        unreachable!()
+    };
+    *length = 4;
+    assert!(psi_terminal_verifier::validate_module_representation(&wrong_root).is_err());
+
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("construction proof encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("construction-prefix artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for expected_usage in 0..3 {
         assert!(matches!(

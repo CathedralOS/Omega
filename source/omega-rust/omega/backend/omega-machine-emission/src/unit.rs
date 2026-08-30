@@ -254,6 +254,62 @@ fn exact_partially_consumed_affine_array_root(
     .then_some(parameter.place)
 }
 
+fn exact_construction_prefix(
+    body: &AssignedUnitBody,
+    locals: &[(
+        psi_core::OperationId,
+        psi_terminal::StructuralPlaceDeclaration,
+        psi_terminal::StructuralTypeDeclaration,
+    )],
+) -> bool {
+    let construction_locals = locals
+        .iter()
+        .filter_map(|(_, place, element_type)| match place.kind {
+            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+                construction: Some(construction),
+            } => Some((
+                declaration_ordinal,
+                structural_type,
+                construction,
+                element_type.id,
+            )),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if construction_locals.is_empty() {
+        return true;
+    }
+    construction_locals.len() == 2
+        && construction_locals.len() == locals.len()
+        && construction_locals.iter().enumerate().all(
+            |(index, (ordinal, structural_type, construction, declared_type))| {
+                usize::try_from(*ordinal) == Ok(index)
+                    && usize::try_from(construction.index) == Ok(index)
+                    && structural_type == declared_type
+            },
+        )
+        && construction_locals
+            .first()
+            .is_some_and(|(_, element_type, first, _)| {
+                construction_locals
+                    .iter()
+                    .all(|(_, candidate_type, candidate, _)| {
+                        candidate_type == element_type
+                            && candidate.root_structural_type == first.root_structural_type
+                    })
+                    && body.structural_types.iter().any(|root| {
+                        root.id == first.root_structural_type
+                            && matches!(
+                                root.shape,
+                                psi_terminal::StructuralTypeShape::FixedArray { element, length: 3 }
+                                    if element == *element_type
+                            )
+                    })
+            })
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct X86UnitParameterHome {
     place: psi_core::PlaceId,
@@ -637,6 +693,9 @@ pub(super) fn emit_unit_body(
                 psi_edge,
                 cleanup_actions,
             } => {
+                if !exact_construction_prefix(body, &established_affine_locals) {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                }
                 let fully_consumed_affine_pair =
                     exact_fully_consumed_affine_pair_root(body, operation_ordinal);
                 let partially_consumed_affine_array =

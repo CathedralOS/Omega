@@ -9,33 +9,34 @@ mod uefi_system_table;
 mod uefi_system_table_occurrence;
 
 pub use elf_loader::{
-    ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
+    normalize_elf_interpreter_plan, ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan,
 };
 pub use foreign_locator::{
-    ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
-    normalize_foreign_locator,
+    normalize_foreign_locator, ForeignLocatorCandidate, ForeignLocatorValidationError,
+    NormalizedForeignLocator,
 };
 pub use target_semantics::{
-    SymbolicTargetObservationApplication, TargetEntryStackSubject, TargetSemanticObservationError,
-    TargetSemantics, UefiX86_64,
+    SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetEntryStackSubject,
+    TargetSemanticObservationError, TargetSemantics, UefiX86_64,
 };
 pub use uefi_boot_services::{
-    UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
-    UefiBootServicesNativeFieldLayout, UefiBootServicesNativeLayoutError, UefiProtocolGuid,
-    ValidatedUefiBootServicesNativeLayout, plan_uefi_boot_services_native_layout,
+    plan_uefi_boot_services_native_layout, UefiBootServicesNativeField,
+    UefiBootServicesNativeFieldKind, UefiBootServicesNativeFieldLayout,
+    UefiBootServicesNativeLayoutError, UefiProtocolGuid, ValidatedUefiBootServicesNativeLayout,
+    UEFI_LOADED_IMAGE_PROTOCOL_GUID,
 };
 pub use uefi_boot_services_occurrence::{
-    UEFI_BOOT_SERVICES_SIGNATURE, UefiBootServicesOccurrenceValidationError,
-    ValidatedUefiBootServicesHeaderIntegrity, validate_uefi_boot_services_occurrence,
+    validate_uefi_boot_services_occurrence, UefiBootServicesOccurrenceValidationError,
+    ValidatedUefiBootServicesHeaderIntegrity, UEFI_BOOT_SERVICES_SIGNATURE,
 };
 pub use uefi_system_table::{
-    UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
+    plan_uefi_system_table_native_layout, UefiSystemTableNativeField,
+    UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
     UefiSystemTableNativeLayoutError, ValidatedUefiSystemTableNativeLayout,
-    plan_uefi_system_table_native_layout,
 };
 pub use uefi_system_table_occurrence::{
-    UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableOccurrenceValidationError,
-    ValidatedUefiSystemTableHeaderIntegrity, validate_uefi_system_table_occurrence,
+    validate_uefi_system_table_occurrence, UefiSystemTableOccurrenceValidationError,
+    ValidatedUefiSystemTableHeaderIntegrity, UEFI_SYSTEM_TABLE_SIGNATURE,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

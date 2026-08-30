@@ -2748,7 +2748,8 @@ fn emits_and_rebases_calls_across_conditional_control() {
                     instructions
                         .iter()
                         .any(|instruction| instruction & 0xff00_001f == 0x5400_0000)
-                ); // b.eq false arm
+                );
+                // b.eq false arm
             }
         }
     }

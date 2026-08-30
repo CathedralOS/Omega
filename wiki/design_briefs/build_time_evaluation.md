@@ -171,6 +171,13 @@ provider separately admits that the actual invocation conforms to that selected
 profile. Changing the profile or guarantee changes target closure; accepting a
 profile never turns its real-world conformance into a derived fact.
 
+For the closed UEFI x64 application profile, target closure selects the x64
+boot-services minimum from UEFI Specification 2.11 section 2.3.4: 128 KiB of
+available stack with 16-byte alignment. The closure retains that numeric value
+and alignment beside the exact symbolic application. They remain target-
+contract observations; physical-arrival admission must still establish that
+the executing firmware invocation conforms to the selected profile.
+
 Target observations are canonical compile-time values. They may participate
 wherever an equivalent ordinary constant may participate, including array
 lengths, const-generic applications, proof expressions, further semantic

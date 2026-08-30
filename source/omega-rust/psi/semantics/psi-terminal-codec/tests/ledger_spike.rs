@@ -411,6 +411,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             kind: StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal: 0,
                 structural_type: empty_record,
+                construction: None,
             },
         }],
         entry_claims: Vec::new(),

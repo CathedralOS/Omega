@@ -870,12 +870,23 @@ pub(super) fn build_checked_machine(
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
     let statements = program.statement_table.statements(state.statement_nodes);
-    let local_count = statements
-        .iter()
-        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
-        .count();
-    let local_statements = &statements[..local_count];
-    let call_statements = &statements[local_count..];
+    let construction = build_affine_array_construction_prefix(
+        program, facts, shapes, machine, state, &binders, statements,
+    );
+    let local_count = construction.as_ref().map_or_else(
+        || {
+            statements
+                .iter()
+                .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+                .count()
+        },
+        |(_, local_statement_count)| *local_statement_count,
+    );
+    let call_statements = if construction.is_some() {
+        &statements[statements.len()..]
+    } else {
+        &statements[local_count..]
+    };
     if calls.len() != call_statements.len()
         || call_statements
             .iter()
@@ -883,15 +894,18 @@ pub(super) fn build_checked_machine(
     {
         return None;
     }
-    let local_rows = build_unit_trivial_affine_locals(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        &binders,
-        local_statements,
-    )?;
+    let local_rows = match construction {
+        Some((rows, _)) => rows,
+        None => build_unit_trivial_affine_locals(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            &binders,
+            &statements[..local_count],
+        )?,
+    };
     let trivial_affine_locals = local_rows
         .iter()
         .map(|(plan, _)| plan.clone())
@@ -905,7 +919,12 @@ pub(super) fn build_checked_machine(
         .iter()
         .map(
             |local| CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
-                statement_index: local.declaration_ordinal,
+                statement_index: local
+                    .construction
+                    .as_ref()
+                    .and_then(|element| u32::try_from(element.index).ok())
+                    .and_then(|index| index.checked_add(1))
+                    .unwrap_or(local.declaration_ordinal),
                 declaration_ordinal: local.declaration_ordinal,
                 type_identity: local.type_identity.clone(),
             },

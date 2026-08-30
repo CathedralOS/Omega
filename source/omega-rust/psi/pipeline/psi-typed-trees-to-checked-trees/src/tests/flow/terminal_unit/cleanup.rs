@@ -3,6 +3,63 @@
 use super::*;
 
 #[test]
+fn retains_exact_fixed_array_construction_prefix_and_reverse_cleanup() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Root {}
+        machine Root::enter() {
+            let mut values: [Empty; 3];
+            values[0] = Empty {};
+            values[1] = Empty {};
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("construction prefix should have a Unit plan");
+    assert_eq!(plan.trivial_affine_locals.len(), 2);
+    for (index, local) in plan.trivial_affine_locals.iter().enumerate() {
+        assert_eq!(usize::try_from(local.declaration_ordinal), Ok(index));
+        assert_eq!(local.type_identity, "named(name(Empty))");
+        let construction = local
+            .construction
+            .as_ref()
+            .expect("each local represents one established array element");
+        assert_eq!(
+            construction.root_type_identity,
+            "array(named(name(Empty)),literal(3))"
+        );
+        assert_eq!(usize::try_from(construction.index), Ok(index));
+    }
+    assert!(matches!(
+        plan.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 1,
+                declaration_ordinal: 0,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: 2,
+                declaration_ordinal: 1,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 3,
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+            },
+        ] if trivial_affine_local_discard_ordinals == &[1, 0]
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
 fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_cleanup() {
     let checked = checked(
         r#"

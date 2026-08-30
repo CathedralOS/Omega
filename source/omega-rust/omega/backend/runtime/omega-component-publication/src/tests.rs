@@ -303,6 +303,7 @@ fn terminal_image(
             unit_parameters: Vec::new(),
             scalar_stack: None,
             internal_calls: Vec::new(),
+            foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
             unit_affine_cleanup: None,
             fuel_attribution: vec![

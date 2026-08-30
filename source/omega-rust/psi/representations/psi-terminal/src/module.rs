@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        40
+        41
     }
 }
 
@@ -618,7 +618,11 @@ pub fn program_local_root_introduction_compatibility_report_identity(
             scalar(&mut hash, magnitude);
         }
     }
-    if hash == 0 { 1 } else { hash }
+    if hash == 0 {
+        1
+    } else {
+        hash
+    }
 }
 
 /// One exact checked provider candidate for a Unit boundary requirement.

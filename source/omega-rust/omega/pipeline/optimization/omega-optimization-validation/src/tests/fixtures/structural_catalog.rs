@@ -677,6 +677,7 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
         kind: StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
+            construction: None,
         },
     };
     let first_declaration = local(first_local, 0);
@@ -797,6 +798,7 @@ pub(crate) fn explicit_trivial_affine_return_unit() -> PsiOptimizationUnit {
         kind: StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: 0,
             structural_type,
+            construction: None,
         },
     };
     reconstruct_psi_optimization_unit_seed(

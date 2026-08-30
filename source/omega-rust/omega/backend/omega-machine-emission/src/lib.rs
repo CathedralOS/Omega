@@ -763,6 +763,7 @@ fn emit_function(
         unit_parameters,
         scalar_stack,
         internal_calls,
+        foreign_calls: Vec::new(),
         internal_unit_calls,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,

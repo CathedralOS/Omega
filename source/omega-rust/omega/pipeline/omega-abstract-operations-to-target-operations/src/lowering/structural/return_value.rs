@@ -86,6 +86,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
             let psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 structural_type,
+                construction: None,
             } = local.kind
             else {
                 return true;

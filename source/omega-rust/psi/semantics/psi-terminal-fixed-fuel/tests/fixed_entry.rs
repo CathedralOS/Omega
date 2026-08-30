@@ -770,6 +770,7 @@ fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
             kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal: 0,
                 structural_type: local_type,
+                construction: None,
             },
         },
         StructuralPlaceDeclaration {
@@ -777,6 +778,7 @@ fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
             kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal: 1,
                 structural_type: local_type,
+                construction: None,
             },
         },
     ];
@@ -963,6 +965,7 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
             kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal: 0,
                 structural_type: local_type,
+                construction: None,
             },
         },
         StructuralPlaceDeclaration {
@@ -970,6 +973,7 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
             kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal: 1,
                 structural_type: local_type,
+                construction: None,
             },
         },
     ];
