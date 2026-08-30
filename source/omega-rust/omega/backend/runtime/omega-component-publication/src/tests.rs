@@ -309,17 +309,13 @@ fn terminal_image(
             unit_affine_cleanup: None,
             semantic_code_attribution: vec![
                 SemanticCodeAttribution {
-                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
                     site: SemanticCodeSite::Operation(operation),
-                    units: 1,
                     operation_ordinal: 0,
                     code_offset: 0,
                     byte_count: bytes.len(),
                 },
                 SemanticCodeAttribution {
-                    schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
                     site: SemanticCodeSite::Edge(edge),
-                    units: 1,
                     operation_ordinal: 1,
                     code_offset: bytes.len(),
                     byte_count: 0,

@@ -1,8 +1,9 @@
 use super::{ResolverExecutionAuthorityRoots, ResolverExecutionBackend};
+#[cfg(windows)]
+use crate::ResolverExecutionGuaranteeDisposition;
 use crate::{
-    ResolverExecutionEndpointRoute, ResolverExecutionGuaranteeDisposition,
-    ResolverExecutionNetworkTransport, ResolverExecutionPhase, ResolverExecutionRequestedEndpoint,
-    ResolverExecutionTransferBudget,
+    ResolverExecutionEndpointRoute, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
+    ResolverExecutionRequestedEndpoint, ResolverExecutionTransferBudget,
 };
 use std::path::Path;
 
