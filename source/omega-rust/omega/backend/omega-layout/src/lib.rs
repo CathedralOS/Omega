@@ -17,6 +17,7 @@ pub use sum_materialization::{
     project_conventional_record_with_nested_sum_record_materialization_layout,
     project_conventional_record_with_nested_sum_records_materialization_layout,
     project_conventional_record_with_sum_array_materialization_layout,
+    project_conventional_record_with_sum_arrays_materialization_layout,
     project_conventional_record_with_sum_materialization_layout,
     project_conventional_sum_materialization_layout,
 };

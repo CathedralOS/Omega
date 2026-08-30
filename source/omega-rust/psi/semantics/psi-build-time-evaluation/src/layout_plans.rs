@@ -39,10 +39,12 @@ pub use const_record_with_nested_sum_materializable::{
 };
 pub use const_record_with_sum_materializable::{
     ValidatedConstRecordSumArrayElementMaterialization,
+    ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,
     ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumArrayMaterialization,
-    ValidatedConstRecordWithSumMaterialization,
+    ValidatedConstRecordWithSumArraysMaterialization, ValidatedConstRecordWithSumMaterialization,
     validate_const_materializable_record_with_conventional_sum,
     validate_const_materializable_record_with_conventional_sum_array,
+    validate_const_materializable_record_with_conventional_sum_arrays,
     validate_const_materializable_record_with_conventional_sums,
 };
 pub use const_sum_materializable::{
