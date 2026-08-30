@@ -140,6 +140,7 @@ pub(super) fn validate_machine(
             if matches!(
                 operation.kind,
                 OperationKind::CallUnit { .. }
+                    | OperationKind::WriteOnlyPrimitiveStore { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -202,6 +203,7 @@ pub(super) fn validate_machine(
             )?;
             match operation.kind.clone() {
                 OperationKind::CallUnit { .. }
+                | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallStructural { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
@@ -809,6 +811,7 @@ pub(super) fn validate_machine(
 
     let representation_backedges = ranked_scc::validate_ranked_scc(machine, &blocks, &value_types)?;
     control_flow::validate_control_flow(
+        module,
         machine,
         machines,
         &module.boundary_machines,

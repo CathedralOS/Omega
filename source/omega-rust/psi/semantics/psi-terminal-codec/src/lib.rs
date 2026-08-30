@@ -92,7 +92,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 39;
+const FORMAT_MARKER: u16 = 40;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -186,6 +186,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
 
     for declaration in &module.structural_types {
         match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_) => {}
             StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView) => {}
             StructuralTypeShape::ByteSequence(_) => {
                 return malformed("first-class byte-sequence type must be a borrowed view");
@@ -731,6 +732,9 @@ fn validate_structural_path(
             (_, StructuralTypeShape::Sum { .. }) => {
                 return malformed("structural path cannot traverse a payload-less sum");
             }
+            (_, StructuralTypeShape::PrimitiveScalar(_)) => {
+                return malformed("primitive-scalar structural type has no projected children");
+            }
             (_, StructuralTypeShape::ByteSequence(_)) => {
                 return malformed("byte-sequence structural type has no projected children");
             }
@@ -778,6 +782,66 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("write-only primitive store declares a non-Unit result");
+            }
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *destination)
+            else {
+                return malformed("write-only primitive store destination is not a parameter");
+            };
+            if parameter.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *destination)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *destination)
+                || !matches!(
+                    machine.structural_places.iter().find(|place| place.id == *destination),
+                    Some(StructuralPlaceDeclaration {
+                        kind: StructuralPlaceKind::Parameter { position, is_self },
+                        ..
+                    }) if *position == parameter.position && *is_self == parameter.is_self
+                )
+            {
+                return malformed("write-only primitive store has invalid destination custody");
+            }
+            let Some(expected) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .and_then(|declaration| match declaration.shape {
+                    StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
+                    _ => None,
+                })
+            else {
+                return malformed("write-only primitive store requires a primitive-scalar root");
+            };
+            let actual = machine
+                .parameters
+                .iter()
+                .chain(machine.result.scalar_ref())
+                .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+                .chain(machine.blocks.iter().flat_map(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .filter_map(|candidate| candidate.result.scalar_ref())
+                }))
+                .find(|declaration| declaration.id == *value)
+                .map(|declaration| declaration.scalar_type);
+            if actual != Some(expected) {
+                return malformed("write-only primitive store value type does not match referent");
+            }
+        }
         OperationKind::EstablishPayloadlessCase { result_case } => {
             let Some(result) = operation.result.structural() else {
                 return malformed("payloadless case establishment has no structural result");
@@ -1368,7 +1432,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             .find(|declaration| declaration.id == id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
-            StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {

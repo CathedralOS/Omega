@@ -425,6 +425,79 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
+    let checked = checked_source(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32) {
+                destination = 2;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut i32) {
+                Sink::fill(&write destination);
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower primitive store closure");
+    let module = &lowered.semantic_module;
+    let [caller, callee] = module.machines.as_slice() else {
+        panic!("caller and write-only callee are retained")
+    };
+    let [caller_parameter] = caller.structural_parameters.as_slice() else {
+        panic!("caller retains one primitive referent")
+    };
+    let [callee_parameter] = callee.structural_parameters.as_slice() else {
+        panic!("callee retains one primitive referent")
+    };
+    assert_eq!(caller_parameter.access, StructuralAccess::MutableBorrow);
+    assert_eq!(callee_parameter.access, StructuralAccess::WriteOnlyBorrow);
+    assert!(matches!(
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == callee_parameter.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(_)))
+    ));
+
+    let [constant, store] = callee.blocks[0].operations.as_slice() else {
+        panic!("callee emits one constant followed by one store")
+    };
+    let stored_value = constant.result.expect_scalar().id;
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    assert!(matches!(
+        store.kind,
+        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+            if destination == callee_parameter.place && value == stored_value
+    ));
+    assert_eq!(store.result, OperationResult::Unit);
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode primitive store");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode primitive store");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify primitive store");
+
+    let mut widened = decoded.clone();
+    widened.machines[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    psi_terminal_verifier::validate_module(&widened)
+        .expect_err("a primitive store requires exact write-only access");
+
+    let mut undefined = decoded;
+    let OperationKind::WriteOnlyPrimitiveStore { value, .. } =
+        &mut undefined.machines[1].blocks[0].operations[1].kind
+    else {
+        panic!("store operation")
+    };
+    *value = ValueId::new(u64::MAX).expect("nonzero undefined value");
+    psi_terminal_verifier::validate_module(&undefined)
+        .expect_err("a primitive store value must be defined and dominating");
+}
+
+#[test]
 fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     let source = r#"
         data Leaf [copy] { value: u16; }
@@ -1016,7 +1089,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &39_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &40_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -1097,7 +1170,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &39_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &40_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

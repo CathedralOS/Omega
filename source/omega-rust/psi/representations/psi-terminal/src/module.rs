@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        42
+        43
     }
 }
 
@@ -319,6 +319,9 @@ pub struct StructuralTypeDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralTypeShape {
+    /// One whole primitive scalar held behind structural ownership/borrowing
+    /// custody. This is a semantic referent shape, not a native layout claim.
+    PrimitiveScalar(ScalarType),
     /// One immutable borrowed view over an exact sequence of bytes. The bytes
     /// are semantic payload, not UTF-8 text and not a native pointer/layout.
     ByteSequence(ByteSequenceCarrier),
@@ -1388,6 +1391,13 @@ pub struct CompletionReceipt {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Store one already-defined scalar value through one exact whole-root
+    /// write-only structural parameter. The previous referent value is not
+    /// observed and structural custody is preserved.
+    WriteOnlyPrimitiveStore {
+        destination: PlaceId,
+        value: ValueId,
+    },
     /// Establish one exact payloadless case of a declared structural sum. The
     /// destination and structural type are carried by the structural operation
     /// result; this row contributes the exact case-membership fact without

@@ -121,7 +121,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     for declaration in &module.structural_types {
         match &declaration.shape {
-            StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type
@@ -1160,7 +1160,7 @@ fn validate_structural_type_graph(
         }
         let declaration = types[&id];
         match &declaration.shape {
-            StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {

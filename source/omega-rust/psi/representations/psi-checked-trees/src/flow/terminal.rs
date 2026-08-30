@@ -719,6 +719,10 @@ pub struct CheckedUnitStructuralTypePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralTypeShape {
+    /// One whole primitive referent carried through structural custody. This
+    /// is distinct from a by-value scalar parameter: the place remains the
+    /// identity of an existing live value across an exclusive borrow.
+    PrimitiveScalar(psi_typed_trees::types::PrimitiveType),
     /// Immutable view over exact literal octets. This is semantic custody,
     /// not an assertion about a target pointer/length layout.
     ByteSequence(CheckedByteSequenceCarrier),
@@ -1023,6 +1027,15 @@ pub enum CheckedUnitEffectOperationPlan {
         port: u16,
         value: u8,
         service_reach: ServiceReachSummary,
+    },
+    /// Replace one whole unrestricted primitive through an exact write-only
+    /// structural parameter. The checked scalar expression is retained so
+    /// later lowering can emit its ordinary scalar producer before the store;
+    /// the first admitted producer rung restricts this to an integer literal.
+    WriteOnlyPrimitiveStore {
+        statement_index: u32,
+        destination_parameter_index: u32,
+        value: CheckedScalarExpression,
     },
     ReturnUnit {
         statement_index: u32,

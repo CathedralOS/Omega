@@ -155,6 +155,10 @@ pub enum CheckedScalarExpressionRole {
         call_ordinal: u32,
         argument_ordinal: u32,
     },
+    /// Right-hand side of one direct typed assignment. The coordinate remains
+    /// statement-local and does not imply that every assignment is admitted
+    /// by a later executable plan.
+    AssignmentValue,
     Return,
     Guard,
     TransitionArgument {

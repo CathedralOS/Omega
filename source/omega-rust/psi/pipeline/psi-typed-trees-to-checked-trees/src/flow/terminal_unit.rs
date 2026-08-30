@@ -106,6 +106,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     boundary_symbols.contains(target_machine)
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
             })

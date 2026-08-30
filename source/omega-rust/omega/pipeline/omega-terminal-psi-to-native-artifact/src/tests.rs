@@ -71,6 +71,41 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
 "#;
 
 #[test]
+fn verified_write_only_primitive_store_fails_closed_before_native_lowering() {
+    let checked = checked(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32) {
+                destination = 2;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut i32) {
+                Sink::fill(&write destination);
+            }
+        "#,
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("write-only store reaches verified Terminal production");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode write-only store semantics");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode write-only store proof bundle");
+    let error = omega_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect_err("native lowering has no physical store custody yet");
+    assert!(matches!(
+        error,
+        omega_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
+            omega_psi_to_abstract_operations::LoweringError::UnsupportedWriteOnlyPrimitiveStore(_)
+        )
+    ));
+}
+
+#[test]
 fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution() {
     let checked = checked(RANKED_COUNTDOWN_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::countdown")

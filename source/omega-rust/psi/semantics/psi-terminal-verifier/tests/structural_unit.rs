@@ -3,8 +3,9 @@ use psi_core::{
     ContentAlgebraKind, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
     ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
     ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, IeeeFloatFormat,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
-    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    IntegerSign, IntegerType, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -26,6 +27,139 @@ use psi_terminal_verifier::{
     reconstruct_operation_obligations, reconstruct_structural_ownership_frontiers, validate_module,
     verify_module,
 };
+
+#[test]
+fn direct_write_only_primitive_store_is_total_and_preserves_custody() {
+    let module = write_only_primitive_store_module();
+    validate_module(&module).expect("exact whole primitive write-only stores should validate");
+    assert!(
+        reconstruct_operation_obligations(&module)
+            .expect("total stores reconstruct")
+            .is_empty()
+    );
+
+    let frontiers = reconstruct_structural_ownership_frontiers(&module)
+        .expect("write-only stores have verifier-owned frontier snapshots");
+    let machine = frontiers.machine(machine_id(1)).expect("store machine");
+    for operation in [operation_id(1), operation_id(2)] {
+        assert_eq!(
+            machine.operation_entry(operation),
+            machine.operation_exit(operation),
+            "a store keeps structural custody unchanged",
+        );
+    }
+}
+
+#[test]
+fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations() {
+    let mut wrong_access = write_only_primitive_store_module();
+    wrong_access.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    assert!(matches!(
+        validate_module(&wrong_access),
+        Err(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+            operation,
+            place,
+        }) if operation == operation_id(1) && place == place_id(1)
+    ));
+
+    let mut wrong_multiplicity = write_only_primitive_store_module();
+    wrong_multiplicity.machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    assert!(matches!(
+        validate_module(&wrong_multiplicity),
+        Err(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+            operation,
+            place,
+        }) if operation == operation_id(1) && place == place_id(1)
+    ));
+
+    let mut qualified = write_only_primitive_store_module();
+    qualified
+        .structural_domains
+        .push(StructuralDomainDeclaration {
+            id: domain_id(1),
+            semantic_domain: psi_core::DomainSemanticId::new(1).expect("domain semantic identity"),
+            identity: "QualifiedPrimitive".into(),
+            carrier: structural_type_id(1),
+            content_projection: None,
+        });
+    qualified.machines[0].structural_parameters[0]
+        .qualifications
+        .push(domain_id(1));
+    assert!(matches!(
+        validate_module(&qualified),
+        Err(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+            operation,
+            place,
+        }) if operation == operation_id(1) && place == place_id(1)
+    ));
+
+    let mut unknown_destination = write_only_primitive_store_module();
+    let OperationKind::WriteOnlyPrimitiveStore { destination, .. } =
+        &mut unknown_destination.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *destination = place_id(9);
+    assert!(matches!(
+        validate_module(&unknown_destination),
+        Err(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+            operation,
+            place,
+        }) if operation == operation_id(1) && place == place_id(9)
+    ));
+
+    let mut wrong_shape = write_only_primitive_store_module();
+    wrong_shape.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+    assert!(matches!(
+        validate_module(&wrong_shape),
+        Err(ModuleError::WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
+            operation,
+            structural_type,
+        }) if operation == operation_id(1) && structural_type == structural_type_id(1)
+    ));
+
+    let mut wrong_type = write_only_primitive_store_module();
+    wrong_type.machines[0].parameters[0].scalar_type = ScalarType::Boolean;
+    assert!(matches!(
+        validate_module(&wrong_type),
+        Err(ModuleError::WriteOnlyPrimitiveStoreValueTypeMismatch {
+            operation,
+            expected,
+            actual,
+        }) if operation == operation_id(1)
+            && expected == signed_i8()
+            && actual == ScalarType::Boolean
+    ));
+
+    let mut late_value = write_only_primitive_store_module();
+    late_value.machines[0].parameters.clear();
+    late_value.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: value_id(1),
+            scalar_type: signed_i8(),
+        }),
+        kind: OperationKind::IntegerConstant {
+            value: psi_core::IntegerValue::Signed(7),
+        },
+    });
+    assert_eq!(
+        validate_module(&late_value).unwrap_err(),
+        ModuleError::ValueUsedBeforeDefinition(value_id(1)),
+    );
+
+    let mut forged_result = write_only_primitive_store_module();
+    forged_result.machines[0].blocks[0].operations[0].result =
+        OperationResult::Scalar(ValueDeclaration {
+            id: value_id(2),
+            scalar_type: signed_i8(),
+        });
+    assert_eq!(
+        validate_module(&forged_result).unwrap_err(),
+        ModuleError::UnitOperationHasScalarResult(operation_id(1)),
+    );
+}
 
 #[test]
 fn exact_empty_nominal_affine_cleanup_validates() {
@@ -3532,6 +3666,93 @@ fn unit_call_crash_routes_substitute_structural_parameters() {
             callee: machine_id(2),
         }
     );
+}
+
+fn signed_i8() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8"))
+}
+
+fn write_only_primitive_store_module() -> TerminalModule {
+    let structural_type = StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "WriteOnlyI8".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(signed_i8()),
+    };
+    let parameter = StructuralParameterDeclaration {
+        place: place_id(1),
+        position: 0,
+        is_self: false,
+        structural_type: structural_type.id,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+    };
+    let destination = parameter.place;
+    let store = |raw| Operation {
+        id: operation_id(raw),
+        result: OperationResult::Unit,
+        kind: OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            value: value_id(1),
+        },
+    };
+    let machine = TerminalMachine {
+        id: machine_id(1),
+        attachment: None,
+        parameters: vec![ValueDeclaration {
+            id: value_id(1),
+            scalar_type: signed_i8(),
+        }],
+        structural_parameters: vec![parameter],
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: place_id(1),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: vec![store(1), store(2)],
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(1),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(1)),
+    };
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine.id,
+        structural_types: vec![structural_type],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: psi_terminal::TerminalRootServiceReach {
+            concrete: Vec::new(),
+            installation_dependencies: Vec::new(),
+        },
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![machine],
+    }
 }
 
 fn hard_root_module() -> TerminalModule {

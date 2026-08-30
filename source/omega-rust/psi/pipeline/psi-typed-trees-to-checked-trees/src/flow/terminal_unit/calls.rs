@@ -1467,6 +1467,16 @@ fn structural_signature_with_affine_pair(
         if parameter.is_const {
             return None;
         }
+        // Primitive values remain in the scalar namespace. Only a reference
+        // to a primitive may become a structural place for the bounded
+        // write-only store/call closure.
+        if !parameter.is_self
+            && program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        {
+            return None;
+        }
         if parameter.is_self && is_reference(program, parameter.type_reference) {
             continue;
         }
@@ -1482,16 +1492,30 @@ fn structural_signature_with_affine_pair(
         };
         let qualifications =
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
+        let multiplicity = if parameter.is_self {
+            attachment_multiplicity
+        } else {
+            crate::checks::type_multiplicity(program, parameter.type_reference)
+        };
+        let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        if matches!(
+            shapes.types.get(&type_identity).map(|shape| &shape.shape),
+            Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
+        ) && (multiplicity != Multiplicity::Unrestricted
+            || !qualifications.is_empty()
+            || !matches!(
+                access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+            ))
+        {
+            return None;
+        }
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: u32::try_from(position).ok()?,
             is_self: parameter.is_self,
             type_identity,
-            multiplicity: if parameter.is_self {
-                attachment_multiplicity
-            } else {
-                crate::checks::type_multiplicity(program, parameter.type_reference)
-            },
-            access: structural_access_for_type_reference(program, parameter.type_reference)?,
+            multiplicity,
+            access,
             qualifications,
         });
     }

@@ -193,6 +193,56 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             });
                         }
                     }
+                    StatementNode::Assignment(assignment) => {
+                        // Assignment values already have general checked-value
+                        // custody. Retain the exact scalar spelling separately
+                        // so structural effect planning never has to revisit a
+                        // typed expression handle. This first consumer needs
+                        // only direct integer literals; wider assignment
+                        // expressions remain outside its admitted vocabulary.
+                        if !matches!(
+                            program.expression_table.expression(assignment.value),
+                            ExpressionNode::Integer(_)
+                        ) {
+                            continue;
+                        }
+                        let Some(target_type_reference) =
+                            crate::flow::expression_type_reference_in_state(
+                                program,
+                                state.symbol,
+                                statement_index,
+                                assignment.target,
+                            )
+                        else {
+                            continue;
+                        };
+                        let Some(target_type) =
+                            assignment_target_primitive_type(program, target_type_reference)
+                        else {
+                            continue;
+                        };
+                        let Some(expression) = lower_return_expression(
+                            program,
+                            operators,
+                            assignment.value,
+                            &[],
+                            &[],
+                            &[],
+                            target_type,
+                            exact_integer_casts,
+                        ) else {
+                            continue;
+                        };
+                        if !matches!(expression, CheckedScalarExpression::IntegerLiteral { .. }) {
+                            continue;
+                        }
+                        expressions.push(CheckedLocatedScalarExpression {
+                            state: state.symbol,
+                            statement_ordinal,
+                            role: CheckedScalarExpressionRole::AssignmentValue,
+                            expression,
+                        });
+                    }
                     StatementNode::Call(call) => {
                         if let Some(arguments) = lower_boundary_call_arguments(
                             program,
@@ -284,6 +334,24 @@ pub(crate) fn build_checked_scalar_expression_plans(
         }
     }
     CheckedScalarExpressionPlans { expressions }
+}
+
+fn assignment_target_primitive_type(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let mut crossed_reference = false;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } if !crossed_reference => {
+                crossed_reference = true;
+                type_reference = *referee;
+            }
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => return program.primitive_type_reference(type_reference),
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

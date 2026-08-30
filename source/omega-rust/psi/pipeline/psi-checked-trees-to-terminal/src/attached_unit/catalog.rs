@@ -144,6 +144,7 @@ pub(super) fn lower_unit_structural_types(
         }
         active.push(identity.to_owned());
         match &plan.shape {
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
@@ -238,6 +239,9 @@ pub(super) fn lower_unit_structural_types(
             .find(|plan| plan.identity == identity)
             .expect("selected structural type was validated above");
         let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
+                StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
+            }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
             }
@@ -508,6 +512,7 @@ pub(super) fn lower_unit_services(
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
         }

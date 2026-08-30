@@ -223,6 +223,149 @@ fn retains_explicit_mutable_to_write_only_attenuation() {
 }
 
 #[test]
+fn retains_one_direct_write_only_primitive_literal_store() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write i32) {
+            destination = 2;
+        }
+
+        data Root {}
+        machine Root::enter(destination: &mut i32) {
+            Sink::fill(&write destination);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let fill = plans
+        .for_machine(machine_named(&checked, "Sink::fill"))
+        .expect("literal write-only callee plan");
+    assert_eq!(fill.structural_parameters.len(), 1);
+    assert_eq!(
+        fill.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(
+        fill.structural_parameters[0].multiplicity,
+        Multiplicity::Unrestricted
+    );
+    let scalar_shape = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == fill.structural_parameters[0].type_identity)
+        .expect("primitive structural shape");
+    assert!(matches!(
+        scalar_shape.shape,
+        CheckedUnitStructuralTypeShape::PrimitiveScalar(PrimitiveType::I32)
+    ));
+    assert!(matches!(
+        fill.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index: 0,
+                destination_parameter_index: 0,
+                value: CheckedScalarExpression::IntegerLiteral { literal },
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 1,
+                ..
+            },
+        ] if literal.value_i64() == Some(2)
+            && literal.landing().is_some_and(|landing|
+                landing.landed_type == psi_numerics::literals::LandedIntegerType::I32)
+    ));
+
+    let enter = plans
+        .for_machine(machine_named(&checked, "Root::enter"))
+        .expect("mutable caller in the literal-store closure");
+    assert_eq!(
+        enter.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert!(matches!(
+        &enter.operations[0],
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        } if matches!(structural_arguments.as_slice(), [argument]
+            if argument.source_parameter_index == 0
+                && argument.path.is_empty()
+                && argument.access
+                    == psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
+    ));
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(fill.state, 0, CheckedScalarExpressionRole::AssignmentValue,)
+            .is_some_and(|value| matches!(
+                value,
+                CheckedScalarExpression::IntegerLiteral { literal }
+                    if literal.value_i64() == Some(2)
+            ))
+    );
+}
+
+#[test]
+fn primitive_store_planning_fails_closed_outside_the_literal_whole_write_root() {
+    let cases = [
+        (
+            "runtime replacement",
+            r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32, replacement: i32) {
+                destination = replacement;
+            }
+            "#,
+        ),
+        (
+            "readable mutable destination",
+            r#"
+            data Sink {}
+            machine Sink::fill(destination: &mut i32) {
+                destination = 2;
+            }
+            "#,
+        ),
+        (
+            "projected record field",
+            r#"
+            data Cell [copy] { value: i32; }
+            data Sink {}
+            machine Sink::fill(destination: &write Cell) {
+                destination.value = 2;
+            }
+            "#,
+        ),
+        (
+            "more than one store",
+            r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32) {
+                destination = 2;
+                destination = 3;
+            }
+            "#,
+        ),
+    ];
+
+    for (case, source) in cases {
+        let checked = checked(source);
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, "Sink::fill"))
+                .is_none(),
+            "unsupported primitive store shape crossed checked planning: {case}"
+        );
+    }
+}
+
+#[test]
 fn retains_exact_write_only_common_field_subloan() {
     let checked = checked(
         r#"

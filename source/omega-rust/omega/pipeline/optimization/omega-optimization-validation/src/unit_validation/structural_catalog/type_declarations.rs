@@ -139,6 +139,7 @@ pub(crate) fn validate_structural_type_graph(
         }
         let declaration = types[&id];
         match &declaration.shape {
+            psi_terminal::StructuralTypeShape::PrimitiveScalar(_) => {}
             psi_terminal::StructuralTypeShape::ByteSequence(_) => {}
             psi_terminal::StructuralTypeShape::Record { fields } => {
                 for field in fields {

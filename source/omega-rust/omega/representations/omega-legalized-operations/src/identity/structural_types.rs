@@ -133,6 +133,10 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+            bytes.push(6);
+            encode_scalar_type(bytes, *scalar_type);
+        }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.push(1);
             encode_byte_sequence_carrier(bytes, *carrier);

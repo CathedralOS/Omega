@@ -393,8 +393,8 @@ ordinary range obligations are proven, plus unrestricted primitive-leaf stores
 through exact finite common-field paths of plain invariant-free records. Nested
 record writes retain every field identity; dynamic indexes remain conservatively
 collection-wide in caller-visible mutation summaries. A forwarding-only
-Terminal rung now carries closed owned/shared/mutable/write-only access on
-structural parameters and call arguments, with canonical format 27 identity.
+Terminal rung first carried closed owned/shared/mutable/write-only access on
+structural parameters and call arguments in canonical format 27.
 That rung now includes one exact unrestricted `WriteOnlyBorrow` field-path
 subloan. The verifier replays its ordered path, structural type, and access and
 treats it as a claim-free non-transferring subloan rather than an owned linear
@@ -403,8 +403,17 @@ arity, or provider substitution rejects. Reusable local or re-entrant reborrow
 authority does not follow. The verifier also rejects widening, target
 disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
-Executable Terminal stores, runtime/provider realization, and native lowering
-remain gated; physical pointer-layout equivalence is not permission equivalence.
+Terminal format 40/vocabulary 43 adds one executable direct whole-root
+primitive-integer replacement. `PrimitiveScalar` is an honest structural
+referent shape rather than a synthetic record, and
+`WriteOnlyPrimitiveStore(destination, value)` is Unit, unconditional, and
+non-observing. Verification requires one claim-free, unqualified,
+unrestricted `WriteOnlyBorrow` parameter root and an already-defined exact-type
+SSA value. Reference execution keeps primitive backing outside suspended call
+frames, so a callee replacement is caller-visible; fuel is consumed before the
+mutation and resumption cannot replay it. Broader projected/aggregate stores,
+opaque-provider realization, and native address/width/store lowering remain
+gated; physical pointer-layout equivalence is not permission equivalence.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

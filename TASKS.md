@@ -6300,8 +6300,23 @@ Owners:
   independent verification. The Terminal verifier rejects argument/target
   access disagreement, access not supplied by the source place, overlapping
   exclusive arguments, and structural Boolean observation through write-only
-  access. This does not yet admit a Terminal write event or native/provider
-  realization.
+  access. That forwarding checkpoint did not itself admit a Terminal write
+  event or native/provider realization.
+
+  A bounded executable Terminal rung is now live for one direct whole-root
+  unrestricted primitive integer replacement inside a checked in-module Unit
+  callee. Checked planning retains the exact literal expression and
+  write-only parameter coordinate. Terminal format 40/vocabulary 43 adds an
+  honest `PrimitiveScalar` structural referent plus a Unit
+  `WriteOnlyPrimitiveStore` naming the destination place and preceding SSA
+  value. Codec replay and independent verification require exact scalar type,
+  dominating value, parameter-root place, `WriteOnlyBorrow` access,
+  unrestricted multiplicity, and empty qualifications/claims. The reference
+  interpreter mutates stable target-neutral backing shared across call frames;
+  fuel is charged before mutation, so exhaustion and resume neither partially
+  commit nor replay the store. Opaque provider candidates and Omega native
+  lowering fail closed until non-observation and physical address/width/store
+  custody are specified.
 
   Remaining work is the broader executable access discipline: add
   broader content-independent aggregate and symbolic range projection, finer
@@ -6310,8 +6325,8 @@ Owners:
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so
   untouched ranges and their facts survive. Carry the admitted operation set
-  through provider selection, executable Terminal write operations, both
-  execution engines, and native ABI lowering. Opaque providers still need a specified,
+  through provider selection, broader Terminal write operations, the remaining
+  execution/native engines, and native ABI lowering. Opaque providers still need a specified,
   implementation-pinned
   non-observation judgment; do not infer one from ABI shape. Migrate byte-output
   boundary surfaces only after that gate exists, and never reinterpret

@@ -1159,6 +1159,30 @@ fn unit_calls_and_effect_operations_use_the_same_transitive_schedule() {
 }
 
 #[test]
+fn write_only_primitive_store_has_exact_local_and_transitive_call_bounds() {
+    let module = write_only_primitive_store_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("write-only primitive-store module verifies");
+
+    let callee = derive_fixed_entry_fuel(&verified, machine_id(701))
+        .expect("constant, store, and return have a fixed bound");
+    assert_eq!(callee.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &callee).unwrap();
+
+    let caller = derive_fixed_entry_fuel(&verified, machine_id(700))
+        .expect("the Unit call composes the store callee bound");
+    assert_eq!(caller.ceiling_units(), 5);
+    validate_fixed_entry_fuel(&verified, &caller).unwrap();
+    let segments = derive_fixed_safe_point_segments(&verified, machine_id(700)).unwrap();
+    assert_eq!(segments.len(), 1);
+    assert_eq!(segments[0].ceiling_units(), 5);
+}
+
+#[test]
 fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
     let mut module = unit_effect_fixture();
     module.root_service_reach = Default::default();
@@ -2253,6 +2277,84 @@ fn unit_effect_fixture() -> TerminalModule {
             },
         ],
     }
+}
+
+fn write_only_primitive_store_fixture() -> TerminalModule {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let structural_type = structural_type_id(960);
+    let caller_place = place_id(960);
+    let callee_place = place_id(961);
+    let parameter = |place| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+    };
+    let structural_place = |id| StructuralPlaceDeclaration {
+        id,
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    };
+    let mut module = unit_effect_fixture();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::WriteOnlyU8".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+    }];
+    module.services.clear();
+    module.root_service_reach = Default::default();
+    module.boundary_machines.clear();
+
+    let caller = &mut module.machines[0];
+    caller.structural_parameters = vec![parameter(caller_place)];
+    caller.structural_places = vec![structural_place(caller_place)];
+    caller.published_service_ceiling.clear();
+    caller.blocks[0].operations = vec![Operation {
+        id: operation_id(700),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(701),
+            structural_arguments: vec![StructuralArgument {
+                place: caller_place,
+                path: Vec::new(),
+                access: StructuralAccess::WriteOnlyBorrow,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+
+    let callee = &mut module.machines[1];
+    callee.structural_parameters = vec![parameter(callee_place)];
+    callee.structural_places = vec![structural_place(callee_place)];
+    callee.blocks[0].operations = vec![
+        Operation {
+            id: operation_id(702),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value_id(960),
+                scalar_type,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(7),
+            },
+        },
+        Operation {
+            id: operation_id(703),
+            result: OperationResult::Unit,
+            kind: OperationKind::WriteOnlyPrimitiveStore {
+                destination: callee_place,
+                value: value_id(960),
+            },
+        },
+    ];
+    module
 }
 
 fn fixture() -> (TerminalModule, ProofBundle) {

@@ -132,6 +132,9 @@ fn terminal_summary(
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
+                psi_terminal::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                    format!("primitive_scalar({scalar_type:?})")
+                }
                 psi_terminal::StructuralTypeShape::ByteSequence(carrier) => match carrier {
                     psi_terminal::ByteSequenceCarrier::BorrowedView => {
                         "byte_sequence(borrowed_view)".to_owned()

@@ -28,6 +28,7 @@ pub(super) fn return_unit_affine_discards(
                 .map(|argument| argument.source_parameter_index)
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
         })
@@ -971,6 +972,16 @@ impl<'program> ShapeCollector<'program> {
         if self.types.contains_key(&identity) {
             return Some(identity);
         }
+        if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+            self.types.insert(
+                identity.clone(),
+                CheckedUnitStructuralTypePlan {
+                    identity: identity.clone(),
+                    shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                },
+            );
+            return Some(identity);
+        }
         if let TypeReferenceNode::FixedArray {
             element_type,
             length: psi_typed_trees::types::FixedArrayLength::Literal(length),
@@ -1426,7 +1437,8 @@ impl<'program> ShapeCollector<'program> {
                     continue;
                 };
                 match &plan.shape {
-                    CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                    | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields } => {
                         for field in fields {
                             if let CheckedUnitStructuralFieldType::Structural { type_identity } =

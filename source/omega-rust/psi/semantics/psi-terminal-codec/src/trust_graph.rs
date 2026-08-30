@@ -462,7 +462,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            5
+            6
         );
         assert_eq!(
             graph
@@ -472,13 +472,25 @@ mod tests {
                 .count(),
             5
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 42);
+        assert_eq!(OperationSemanticRow::ALL.len(), 43);
+        let store = OperationSemanticRow::ALL
+            .iter()
+            .find(|row| row.tag() == OperationSemanticTag::WriteOnlyPrimitiveStore)
+            .expect("write-only primitive store row");
+        assert_eq!(
+            store.identity(),
+            "schema:operation:write-only-primitive-store",
+        );
+        assert!(graph.nodes().iter().any(|node| {
+            node.identity() == store.identity()
+                && node.kind() == TrustDependencyKind::StructuralEffectSchema
+        }));
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            37
+            38
         );
         assert_eq!(
             OperationSemanticRow::ALL
