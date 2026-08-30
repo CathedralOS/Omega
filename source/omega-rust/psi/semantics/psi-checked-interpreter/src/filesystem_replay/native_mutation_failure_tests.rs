@@ -86,7 +86,7 @@ reaches FilesystemHost
 }
 "#;
 
-fn kinds() -> [(Kind, u16); 3] {
+pub(super) fn kinds() -> [(Kind, u16); 3] {
     [
         (
             Kind::SetFileTime {
@@ -144,7 +144,7 @@ fn source_input() -> FilesystemSourceInputReplayRecord {
     .unwrap()
 }
 
-fn checked_fixture() -> psi_checked_trees::CheckedTrees {
+pub(super) fn checked_fixture() -> psi_checked_trees::CheckedTrees {
     let mut sources = SourceMap::default();
     let filesystem_host_source_id = sources
         .add_with_metadata(

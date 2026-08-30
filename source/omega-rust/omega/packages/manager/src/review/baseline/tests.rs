@@ -12,6 +12,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
 
+#[path = "tests/native_error_state_tests.rs"]
+mod native_error_state_tests;
+
 #[test]
 fn baseline_git_resolution_rejects_content_not_derived_from_its_tree() {
     use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};

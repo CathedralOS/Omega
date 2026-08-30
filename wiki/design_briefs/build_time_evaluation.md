@@ -927,6 +927,15 @@ only synthetic invalid-handle replay, not native handle, lock, timestamp, or
 Windows security custody. `get_last_error` remains separate ordered provider
 state.
 
+Summary v68 and replay-record v48 admit one exact ordered use of that state:
+the same optional Source prefix, one exact tag-32/33/34 unknown-native-handle
+mutation failure, then its immediate tag-35 `get_last_error`. The second row is
+operand-free, scoped-real, scalar `6`, post-error `6`, and empty in every
+evidence and handoff lane. Replay reproduces the modeled failure before reading
+the modeled error slot. Standalone, delayed, reordered, or altered error-state
+reads remain non-receipted. This is compiler evaluator sequencing, not custody
+of Windows error state, native handles, credentials, or host policy.
+
 Summary v64 and replay-record v44 generalize the failure-only Output sequence
 to exact absent tag-9 `remove` and tag-12 `remove_dir` attempts. Every row binds
 the selected operation, canonical compiler-rooted Output path, matching write

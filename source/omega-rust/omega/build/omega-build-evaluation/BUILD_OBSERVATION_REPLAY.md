@@ -460,6 +460,22 @@ behavior. It claims no operating-system handle, lock, timestamp, or Windows
 security property. Tag 35 `get_last_error` remains outside this family because
 it observes ordered provider state rather than an isolated handle input.
 
+## Immediate invalid-handle last-error read (summary v68, replay record v48)
+
+One ordered grammar admits the same optional exact Source prefix followed by
+exactly two rows: one exact tag-32, tag-33, or tag-34 unknown-native-handle
+mutation failure and its immediate tag-35 `get_last_error`. The second row
+fixes scoped-real provider, scalar `6`, and unchanged post-error `6`; every
+operand, path, mutable-carrier, metadata, authorization, logical-handle,
+retirement, refusal, output, and generated-source handoff lane is empty.
+
+Provider-free replay first reproduces the compiler-modeled invalid-handle
+failure that writes error `6`, then requires the immediate error-state read to
+observe that value. A standalone tag-35 row, a non-immediate read, a reordered
+pair, or any changed lane remains outside the replay grammar. This receipts
+only Omega evaluator sequencing. It claims no custody of Windows error state,
+an operating-system handle, credentials, or host security policy.
+
 ## Compiler-owned build log (summary v63, replay record v43)
 
 `BuildLog::write_line` is an exact compiler-owned build operation. The checked

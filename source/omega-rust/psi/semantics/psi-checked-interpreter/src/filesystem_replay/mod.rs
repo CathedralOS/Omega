@@ -14,6 +14,9 @@ mod handle_failures;
 mod hard_links;
 mod locks;
 #[cfg(test)]
+mod native_error_state_failure_tests;
+mod native_error_state_failures;
+#[cfg(test)]
 mod native_mutation_failure_tests;
 mod native_mutation_failures;
 mod open_at_failures;
@@ -89,6 +92,8 @@ pub use locks::{FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_L
 pub(crate) use locks::{
     output_lock_attempts, output_lock_record_from_attempts, validate_output_lock_replay,
 };
+pub use native_error_state_failures::FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord;
+pub(crate) use native_error_state_failures::ordered_native_error_state_attempt_is_replayed;
 pub use native_mutation_failures::{
     FilesystemInputUnknownNativeHandleMutationReplayKind,
     FilesystemInputUnknownNativeHandleMutationReplayRecord,

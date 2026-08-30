@@ -26,6 +26,9 @@ mod hard_links;
 mod lock_tests;
 mod locks;
 #[cfg(test)]
+mod native_error_state_failure_tests;
+mod native_error_state_failures;
+#[cfg(test)]
 mod native_mutation_failure_tests;
 mod native_mutation_failures;
 #[cfg(test)]
@@ -73,6 +76,10 @@ use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
 };
 use locks::validate_output_lock_shapes;
+use native_error_state_failures::{
+    native_mutation_with_last_error_shapes_are_exact,
+    validate_native_mutation_with_last_error_shapes,
+};
 use native_mutation_failures::{
     UnknownNativeHandleMutationShape, unknown_native_handle_mutation_failure_shape_is_exact,
     unknown_native_handle_mutation_shape, validate_unknown_native_handle_mutation_failure_shape,
@@ -86,7 +93,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 47;
+const VERSION: u16 = 48;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -234,6 +241,53 @@ pub fn recover_review_only_build_filesystem_replay_record(
     })
 }
 
+fn rehydrate_unknown_native_handle_mutation_kind(
+    shape: &AttemptShape<'_>,
+) -> Result<
+    psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayKind,
+    BuildFilesystemReplayRecordError,
+> {
+    use psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayKind as Kind;
+    match unknown_native_handle_mutation_shape(shape) {
+        Some(UnknownNativeHandleMutationShape::SetFileTime {
+            creation,
+            last_access,
+            last_write,
+        }) => Ok(Kind::SetFileTime {
+            creation,
+            last_access: clone_bytes(last_access)?,
+            last_write: clone_bytes(last_write)?,
+        }),
+        Some(UnknownNativeHandleMutationShape::LockFileEx {
+            flags,
+            reserved,
+            length_low,
+            length_high,
+            overlapped,
+        }) => Ok(Kind::LockFileEx {
+            flags,
+            reserved,
+            length_low,
+            length_high,
+            overlapped: clone_bytes(overlapped)?,
+        }),
+        Some(UnknownNativeHandleMutationShape::UnlockFile {
+            offset_low,
+            offset_high,
+            length_low,
+            length_high,
+        }) => Ok(Kind::UnlockFile {
+            offset_low,
+            offset_high,
+            length_low,
+            length_high,
+        }),
+        None => Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay unknown-native-handle mutation inputs are inconsistent",
+        )),
+    }
+}
+
 pub fn rehydrate_review_only_build_filesystem_replay_record(
     record: &ReviewOnlyBuildFilesystemReplayRecord,
     limits: BuildFilesystemReplayRecordLimits,
@@ -244,6 +298,11 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let operation_suffix_start = shapes
         .iter()
         .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 12 | 19 | 20 | 27))
+        .or_else(|| {
+            shapes.len().checked_sub(2).filter(|suffix_start| {
+                native_mutation_with_last_error_shapes_are_exact(&shapes[*suffix_start..])
+            })
+        })
         .or_else(|| {
             shapes
                 .last()
@@ -734,45 +793,36 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
+    if shapes.len() - operation_suffix_start == 2
+        && native_mutation_with_last_error_shapes_are_exact(&shapes[operation_suffix_start..])
+    {
+        let kind = rehydrate_unknown_native_handle_mutation_kind(&shapes[operation_suffix_start])?;
+        let mutation =
+            psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayRecord::new(
+                typed_source_record,
+                kind,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay native mutation and last-error record is inconsistent",
+                )
+            })?;
+        let pair = psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationWithLastErrorReplayRecord::new(
+            mutation,
+        );
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_native_handle_mutation_with_last_error_record(
+            pair,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay native mutation and last-error sequence could not be rehydrated",
+            )
+        });
+    }
     if shapes.len() - operation_suffix_start == 1
         && matches!(shapes[operation_suffix_start].operation, 32 | 33 | 34)
     {
-        let kind = match unknown_native_handle_mutation_shape(&shapes[operation_suffix_start]) {
-            Some(UnknownNativeHandleMutationShape::SetFileTime {
-                creation,
-                last_access,
-                last_write,
-            }) => psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayKind::SetFileTime {
-                creation,
-                last_access: clone_bytes(last_access)?,
-                last_write: clone_bytes(last_write)?,
-            },
-            Some(UnknownNativeHandleMutationShape::LockFileEx {
-                flags,
-                reserved,
-                length_low,
-                length_high,
-                overlapped,
-            }) => psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayKind::LockFileEx {
-                flags,
-                reserved,
-                length_low,
-                length_high,
-                overlapped: clone_bytes(overlapped)?,
-            },
-            Some(UnknownNativeHandleMutationShape::UnlockFile {
-                offset_low,
-                offset_high,
-                length_low,
-                length_high,
-            }) => psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayKind::UnlockFile {
-                offset_low,
-                offset_high,
-                length_low,
-                length_high,
-            },
-            None => unreachable!("validated unknown-native-handle mutation retains exact inputs"),
-        };
+        let kind = rehydrate_unknown_native_handle_mutation_kind(&shapes[operation_suffix_start])?;
         let typed_record =
             psi_checked_interpreter::FilesystemInputUnknownNativeHandleMutationReplayRecord::new(
                 typed_source_record,
@@ -2204,6 +2254,13 @@ fn validate_first_rung(
         }
         if shapes.len() - cursor == 1 && shapes[cursor].operation == 31 {
             validate_unknown_native_handle_final_path_failure_shape(&shapes[cursor])?;
+            return Ok(());
+        }
+        if shapes.len() - cursor == 2
+            && matches!(shapes[cursor].operation, 32 | 33 | 34)
+            && shapes[cursor + 1].operation == 35
+        {
+            validate_native_mutation_with_last_error_shapes(&shapes[cursor..])?;
             return Ok(());
         }
         if shapes.len() - cursor == 1 && matches!(shapes[cursor].operation, 32 | 33 | 34) {

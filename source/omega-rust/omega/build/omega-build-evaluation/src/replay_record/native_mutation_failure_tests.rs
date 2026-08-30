@@ -54,7 +54,7 @@ fn native_failure(operation_tag: u16) -> BuildFilesystemOperationAttempt {
     }
 }
 
-fn set_file_time_summary() -> BuildObservationSummary {
+pub(super) fn set_file_time_summary() -> BuildObservationSummary {
     let mut attempt = native_failure(32);
     attempt.scalar_operands = vec![BuildFilesystemScalarOperand {
         operand_ordinal: 1,
@@ -73,7 +73,7 @@ fn set_file_time_summary() -> BuildObservationSummary {
     summary(attempt)
 }
 
-fn lock_file_ex_summary() -> BuildObservationSummary {
+pub(super) fn lock_file_ex_summary() -> BuildObservationSummary {
     let mut attempt = native_failure(33);
     attempt.scalar_operands = [1, 0, 0xffff_ffff, 0xffff_ffff]
         .into_iter()
@@ -96,7 +96,7 @@ fn lock_file_ex_summary() -> BuildObservationSummary {
     summary(attempt)
 }
 
-fn unlock_file_summary() -> BuildObservationSummary {
+pub(super) fn unlock_file_summary() -> BuildObservationSummary {
     let mut attempt = native_failure(34);
     attempt.scalar_operands = [3, 5, 7, 11]
         .into_iter()
