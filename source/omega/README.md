@@ -65,14 +65,15 @@ and fields are public, while immutable views cannot be stored in data. `D`'s
 parser therefore validates once and streams the same source through private
 states of one canonical invocation. Its retained slices sequence empty,
 trivia-only, ordinary `use path::member;`, basic `[pub] data`, and ordinary
-empty-body machine roots.
+empty or neutral path-call-only machine roots.
 One mixed root table preserves authored use/data/machine order. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and an
-immediately empty body. An optional leading target selector is retained as an
-exact span on the same machine row; selection and activation remain later
-phases. The list retains canonical optional `const` and leading `mut`, consuming
-or borrowed `self`, and shared/mutable/write-only binding-reference forms.
+empty or neutral path-call-only body. An optional leading target selector is
+retained as an exact span on the same machine row; selection and activation
+remain later phases. The list retains canonical optional `const` and leading
+`mut`, consuming or borrowed `self`, and shared/mutable/write-only
+binding-reference forms.
 Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
 fields, case-payload fields, and immediate machine return types share one engine
 for bare named/Self/Unit, outer references, unqualified domains, inclusive
@@ -81,7 +82,16 @@ exact explicit lifetime, and general `Self` uses the same `SelfType` base as
 receivers. Every parameter row records its canonical const/mutable/self flags;
 the implicit entry state owns the optional return node.
 
-Each completed machine owns one implicit empty entry state and its contiguous
+The first nonempty body slice retains ordinary semicolon-terminated call
+statements without acknowledgements, static/evidence arguments, or result
+discard. Each call owns a flattened receiver-member span, an exact target
+member, and a contiguous span of argument expression handles. Its current
+arguments are exact name/self paths represented by tagged expression nodes;
+zero arguments and trailing commas are supported. The implicit entry state
+owns a contiguous statement span. Richer expressions and statements stop the
+root as implementation-incomplete, and no body is skipped as opaque text.
+
+Each completed machine owns one implicit entry state and its contiguous
 parameter span, matching the canonical parser: a free machine uses the
 generated `entry` identity, while an attached machine names its entry with the
 final authored declaration-path member. Machine and domain paths share the
@@ -90,12 +100,12 @@ parameter types can append domain members. A trailing parameter comma rejects
 as malformed. Constrained slice elements and the `Slice<T>` spelling, return
 types placed after clauses, generics, clause-bearing headers, and
 `boundary` forms; target declarations and public target-scoped combinations,
-other public roots, bodyless declarations, and
-nonempty bodies remain incomplete. The parser never skips a body as opaque
+other public roots, bodyless declarations, and other body forms remain
+incomplete. The parser never skips a body as opaque
 syntax. In the current 72-root `C` closure, all 112
 parameter occurrences and all 72 complete parameter lists are representable,
-and 53 headers reach body parsing. Every reached body is nonempty, so zero current
-`C` roots complete.
+and 53 headers reach body parsing. Four are complete call-only roots; every
+other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -126,7 +136,8 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/implicit-state
 rows and 16,384 path-member/data-member/direct-field/payload-field/case/
-machine-parameter/type-node/constraint rows, plus 128 scratch array frames.
+machine-parameter/type-node/constraint/statement/call/expression/argument rows,
+plus 128 scratch array frames.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting
@@ -137,11 +148,16 @@ independently exhaustible. Its equal ceiling dominates payload-field,
 machine-parameter, and constraint capacity in
 the current slice because every retained row of those kinds owns at least one
 type node.
-Import and domain paths share the independently exhaustible path-member arena.
-The meaningful resource distinctions are therefore `Roots`, `PathMembers`,
-`DataMembers`, `TypeNodes`, and `TypeDepth`. These are private compiler budgets
-to profile against the real compiler closure, not Omega source limits;
-exhaustion is retained for the future outer `Incomplete` mapping.
+Import/domain paths, call receivers, and path expressions share the
+independently exhaustible path-member arena after each machine snapshots its
+declaration path. Every current call argument owns exactly one path-expression
+row, so
+`Expressions` dominates the equal argument table; every current statement is
+one call, so `Statements` dominates the equal call table. The meaningful
+resource distinctions are therefore `Roots`, `PathMembers`, `DataMembers`,
+`TypeNodes`, `TypeDepth`, `Statements`, and `Expressions`. These are private
+compiler budgets to profile against the real compiler closure, not Omega source
+limits; exhaustion is retained for the future outer `Incomplete` mapping.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
 preflight fact is retained. Q7 still owns binding each relative tree to a

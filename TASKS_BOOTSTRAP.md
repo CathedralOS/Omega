@@ -1259,6 +1259,29 @@ code, discover a closure, manufacture proof premises, or decide admission.
       do not use Unit, so body-boundary coverage remains 53 of 72. Keep exact
       delimiter/EOF, nested bracket, reference, domain, reset, postorder, and
       consumer-isolation vectors at the real Delta-compiler gate.
+    - [x] Retain the first honest nonempty machine bodies: zero or more ordinary
+      semicolon-terminated path-call statements whose arguments are name/self
+      paths. Mirror the canonical call-statement shape instead of preserving an
+      opaque body span: flatten the receiver into an exact member span plus
+      starts-at-self bit, retain the exact target member, store argument roots
+      in a contiguous handle table, and represent each current argument as a
+      tagged path-expression node. The implicit entry state owns a contiguous
+      statement span; machine/root publication still occurs only after the
+      closing brace, while any failed or incomplete parse leaves its partial
+      prefixes unpublished. Calls accept zero arguments, multiple arguments,
+      member paths, and a trailing comma. A bare `self()` is not misclassified
+      as a callable target. Static/evidence arguments, operational
+      acknowledgements, discarded results, nested/richer argument expressions,
+      call chaining, assignments, locals, transitions, and every other
+      statement kind remain implementation-incomplete rather than being
+      skipped. Statements dominates the equal call table, Expressions dominates
+      the equal current argument-handle table, and call/argument paths reuse
+      PathMembers only after the declaration path is snapshotted. This completes
+      four real current `C` roots—`Lexer::{append_source_byte,reject,push_token}`
+      and `Parser::parse`—while all 53 representable headers still reach the
+      body boundary. Keep exact receiver/target/argument spans, trailing-comma,
+      malformed delimiter, capacity, reset, multi-statement, mixed-root, and
+      Complete-only publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
