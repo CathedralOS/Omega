@@ -1431,14 +1431,27 @@ code, discover a closure, manufacture proof premises, or decide admission.
       independently retained path expressions; no array bound, element type,
       or assignability decision occurs during parsing. Every indexed row owns
       its tagged expression node, so `Expressions` dominates the equal table.
-      Literal/computed/multiple indices, chained indexing, indexed values,
-      postfix members, and compound assignment remain implementation-
+      Literal/computed/multiple indices, chained indexing, postfix members,
+      and compound assignment remain implementation-
       incomplete. This completes `SourceUnit::append` and
       `TokenStream::{push,push_decoded}`, raising completed current `C` roots
       from twenty-six to twenty-nine while body-boundary coverage remains 54 of
       73. Keep exact base/index/bracket/equal spans, expression/path capacity,
       richer-postfix incompleteness, reset, and Complete-only publication
       vectors at the real Delta-compiler gate.
+    - [x] Retain canonical terminal expression statements without inventing a
+      separate state-result channel. `Expression` statements point directly to
+      the shared expression arena and may close a state with a retained
+      self/name/member path, Boolean, unsuffixed nonnegative decimal integer,
+      string, or one path-indexed expression with a path index. The indexed
+      node is now position-neutral: `=` selects it as an assignment target,
+      while the state-closing `}` selects it as a terminal value. Richer
+      postfix/index forms and nonterminal bare expressions remain
+      implementation-incomplete. This completes `SourceUnit::byte_or_nul`,
+      raising completed current `C` roots from twenty-nine to thirty while
+      body-boundary coverage remains 54 of 73. Keep exact terminal/bracket
+      spans, value/place discrimination, statement/expression capacity, reset,
+      and Complete-only publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

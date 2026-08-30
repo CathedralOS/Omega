@@ -90,6 +90,7 @@ the owning implicit or explicit state owns the optional return node.
 
 The retained nonempty-body slices include ordinary semicolon-terminated call
 statements without acknowledgements, evidence arguments, or result discard,
+and terminal expression statements over the retained primary path/literal slice,
 plus a restricted canonical transition core.
 Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
@@ -125,6 +126,11 @@ multiple subjects, richer patterns and guards, target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
 incomplete. Richer expressions and statements likewise stop the root as
 incomplete, and no body is skipped as opaque text.
+One terminal expression statement may close a state directly. Its current
+values are a self/name/member path, boolean, unsuffixed nonnegative decimal
+integer, string, or one path-indexed expression with a path index. The statement
+points directly to the shared expression node; indexing has no assignment-only
+syntax representation.
 
 Each completed machine owns zero or one implicit entry followed by its explicit
 states in source order, matching the canonical parser. Parameters, a return,
@@ -142,7 +148,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 54 headers reach body parsing. Twenty-nine are complete: four
+representable, and 54 headers reach body parsing. Thirty are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -153,7 +159,8 @@ addition. `Lexer::is_identifier_start`, `Lexer::is_identifier_continue`, and
 `Lexer::hex_digit_value` complete through precedence-aware transition subjects
 and subtraction. `SourceUnit::append` and
 `TokenStream::{push,push_decoded}` complete through retained indexed assignment
-places.
+places. `SourceUnit::byte_or_nul` completes through the same indexed expression
+in terminal value position.
 Every other reached body contains richer syntax.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
@@ -219,6 +226,9 @@ Every binary row owns its expression node, so `Expressions` dominates that
 equal table as well.
 Every indexed row likewise owns its expression node, so it introduces no new
 resource distinction.
+Every terminal expression statement points directly to an existing expression
+handle and adds no variant table; the equal statement and expression ceilings
+remain independently exhaustible across the other retained forms.
 The meaningful
 resource distinctions are therefore `Roots`, `States`, `PathMembers`,
 `DataMembers`, `TypeNodes`, `TypeDepth`, `ExpressionDepth`, `Statements`, and
