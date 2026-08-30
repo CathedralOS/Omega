@@ -1334,6 +1334,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
       fifteen to sixteen while body-boundary coverage remains 53 of 72. Keep
       exact literal/span/decoded-length, consumer/delimiter, capacity, reset,
       and partial-publication vectors at the real Delta-compiler gate.
+    - [x] Retain shallow named struct literals as ordinary expression nodes for
+      call arguments and assignment values. Accept the canonical one-member
+      record or two-member case type path, empty or named-field bodies,
+      multiple fields, and a trailing comma; each field owns its exact name
+      span and one value handle from the already-retained path/boolean/decimal-
+      integer/string primary slice. The struct expression points to a dedicated
+      row owning its exact type-member and contiguous field spans. Every field
+      owns a value expression and every struct owns an expression row, so
+      `Expressions` dominates the equal field and struct tables without a fake
+      resource kind. Nested struct literals and all other richer field values
+      remain implementation-incomplete until a real bounded expression-frame
+      design exists; no recursive scratch state may overwrite an outer literal.
+      This completes `Lexer::initialize` and the canonical Omega package build
+      root, raising completed current `C` roots from sixteen to eighteen while
+      body-boundary coverage remains 53 of 72. Keep exact record-versus-case
+      type paths, field/value/delimiter spans, empty/trailing-comma behavior,
+      capacity, reset, nested-incomplete, and Complete-only publication vectors
+      at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
