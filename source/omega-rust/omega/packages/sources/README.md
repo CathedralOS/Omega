@@ -1,7 +1,7 @@
 # Package Sources
 
 This branch owns hostile source handling. Follow `acquisition/` for source
-identity, fetch, authentication, snapshots, and retained custody. Follow
+identity, fetch, object verification, snapshots, and retained custody. Follow
 `execution/` only for the native child-process boundary used by acquisition.
 
 ```text

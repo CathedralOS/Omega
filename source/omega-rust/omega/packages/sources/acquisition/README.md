@@ -44,7 +44,7 @@ already hold one retained lane use the responsibility paths directly:
 `git::resolution` for Git acquisition, `local::operations` and `local::model`
 for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.
 These are deliberate public seams; cache machinery, native process assembly,
-object authentication, and publication internals remain private.
+object verification, and publication internals remain private.
 
 Dependency direction is deliberate: the `local` and `git` adapters may use
 `identity`, `tree`, `snapshot`, `custody`, and `storage`; those shared owners

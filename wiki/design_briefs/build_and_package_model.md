@@ -167,7 +167,7 @@ The tool reserves the first parameter as the build-activation handle,
 compiler-owned, activation-scoped capabilities; they are not supplied by std or
 by a runtime provider. Their exact operations contribute build-effect and
 observation rows to the root contract, while ephemeral capabilities never enter
-the normalized build result. The sponsor separately enforces authenticated
+the normalized build result. The sponsor separately enforces compiler-rooted
 source reads, staged-output writes, path containment, limits, and custody.
 
 An ordinary boundary service is not a build-host service. Importing a library
@@ -422,8 +422,8 @@ to the same package key; no ancestor renames an alias inside a dependency.
 A Git request separates acquisition from package selection. Acquisition names
 one repository and revision. Selection normalizes to `Root` or
 `Named(PackageName)` and is excluded from `SourceIdentity`, so several members at
-one revision share one authenticated fetch and tree. `Named` selection consults
-only the authenticated root's statically declared member set and requires one
+one revision share one content-verified fetch and tree. `Named` selection consults
+only the verified root's statically declared member set and requires one
 member whose own package declaration matches. The resolved member path is
 retained as navigation/replay custody and as the base for relative dependencies,
 but it is not `PackageKey` identity.
@@ -452,16 +452,16 @@ run receipts but never immutable source identity, `PackageKey`, or lock-source
 meaning.
 
 The universal `GitSourceReceipt` binds the validated requested locator, primary
-Git invocation and outcome, authenticated commit/tree, validated
+Git invocation and outcome, content-verified commit/tree, validated
 materialization, and immutable snapshot. It does not claim the actual route,
 peer, credential custody, or enclosing host isolation. Local-only repository
 initialization and inspection may retain tighter execution/write confinement
 because they have no ambient transport-helper requirement.
 
-The source resolver owns one syntax-neutral authenticated tree session. It
+The source resolver owns one syntax-neutral content-verified tree session. It
 opens the exact root declaration, accepts bounded member paths from the
 manager's Omega-aware planner, batch-opens those exact member declarations, and
-publishes only the selected authenticated member subtree. Declaration bytes are
+publishes only the selected verified member subtree. Declaration bytes are
 retained outside the compilation root for replay. Multiple selections in one
 closure reuse one exact commit/root-tree pin even when the authored revision is
 symbolic; they do not independently observe a moving branch.
@@ -2054,7 +2054,7 @@ retained `HEAD` selector. This custody is not canonical lock encoding, compiler
 evidence, admission, or a package instance, and it is deliberately absent from
 the ordinary obligation ledger. Git dependency rows now normalize omitted
 selection to `Root` and canonically retain explicit `Named(PackageName)`
-selection; named traversal remains fail-closed until authenticated member
+selection; named traversal remains fail-closed until verified member
 binding lands.
 
 `CanonicalSourceClosureSubject` now gives that exact source-selection question
@@ -2610,7 +2610,7 @@ target profile. Ordinary resolution selects one explicit column. In locked mode,
 an absent column fails without network access; an explicit operation may resolve
 all projected columns sequentially. Common immutable instances may be shared
 across sections, but a retained inactive section grants no authority to the
-current build. Git edges cannot be "resolved but not fetched": authenticating a
+current build. Git edges cannot be "resolved but not fetched": verifying a
 commit, tree, workspace declaration, and selected member already exercises
 resolver authority.
 
