@@ -126,12 +126,6 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
-  - [x] Retain the complete validated activation-wide
-    `OpaqueRepresentationSelection` collection in `CheckedCompilation`,
-    including unused selections, exact closed application identity, selecting
-    machine, and source provenance. This is compiler custody only: package
-    review remains `Unbound`, and no demand or physical ABI row is implied.
-
   Validate at most one selected application per opaque declaration at the
   completed compilation-activation build-config join, even though current
   orchestration evaluates only one authoritative build machine. Preserve an
@@ -320,10 +314,11 @@ explicitly.
   from checked provider realizations, retain
   normalized tagged telescope bindings, attach rows to production selected
   plans, and add compiler-to-update tests. Keep compatibility failure when a
-  public family gains an uncovered coordinate. Generic and exact-application
-  coverage remain owner-blocked; package evidence must never substitute
-  declaration order, display signatures, ordinals, authored assertions, or
-  reach-selected subsets.
+  public family gains an uncovered coordinate. Exact-application coverage
+  remains owner-blocked. Generic coverage remains
+  unavailable until D28's checked producer exists. Package evidence must never
+  substitute declaration order, display signatures, ordinals, authored
+  assertions, or reach-selected subsets.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external
