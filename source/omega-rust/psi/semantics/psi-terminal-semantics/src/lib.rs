@@ -262,6 +262,7 @@ pub enum OperationSemanticError {
         declared: IntegerType,
         actual: ScalarType,
     },
+    ExactArithmeticExpressionShapeMismatch,
     ExactArithmeticOperandTypeMismatch {
         declared: IntegerType,
         left: ScalarType,

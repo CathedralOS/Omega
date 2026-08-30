@@ -2789,16 +2789,14 @@ twelve local equations in operation-specific branches. The policy join now
 binds eleven rows—exact arithmetic, divide/remainder and shifts plus
 wrapping/saturating divide/remainder—to the shared integer-policy catalog by
 primitive and domain identity; exact cast is the sole table row outside that
-catalog. A separate migration dispatcher still chooses the legacy sufficient
-proposition for exact multiply and is explicitly hashed into that affected
-reduction dependency. Exact shift-left, exact add, exact subtract, and the four
-wrapping/saturating divide/remainder rows instead select their canonical
-proposition directly from their exact operation tags. This does not certify the
-remaining reducers, and the current closure remains `fully-derived false`.
+catalog. All proof-bearing scalar rows now select their canonical proposition
+directly from their exact operation tags. The former exact-multiply migration
+dispatcher and sufficient-proposition dependency are absent from production
+reconstruction; producer discovery cannot change obligation identity.
 
 `NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`,
-`ExactShiftLeftRepresentable`, `ExactCastRepresentable`, exact-add, and
-exact-subtract
+`ExactShiftLeftRepresentable`, `ExactCastRepresentable`, exact-add,
+exact-subtract, and exact-multiply
 representability currently have exact kernel-proposition projections.
 Unsigned fixed integers use `1 <= d` for both.
 Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
@@ -2813,9 +2811,11 @@ count carrier may imply the whole goal. Address carriers and mismatched operand
 types reject. Exact cast folds closed operands and complete source-carrier
 inclusion, otherwise retaining the stricter target lower bound before the
 stricter target upper bound in the mathematical relation vocabulary. Exact
-addition and subtraction now project their canonical mathematical carrier
-bounds. Exact multiplication remains unprojected in the current implementation,
-but its exact projection is settled below.
+addition, subtraction, and multiplication now project their canonical
+mathematical carrier bounds. Exact multiplication folds closed products and
+embedded zero or one. For a syntactic signed factor `-1`, schema-local carrier
+inclusion makes the mathematical lower bound vacuous, while a runtime value
+merely landed as `-1` retains both bounds.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -3602,14 +3602,19 @@ mathematical shifted-value projection. Its untrusted producer may search prior
 facts and recursively compose checked endpoint certificates, but the verifier
 replays only the supplied `IntegerAffineBound` route, including explicit count
 endpoints and sign-sensitive minimum/maximum selection; the operation's own
-result equation is unavailable. Exact addition and subtraction likewise select
-their settled mathematical projections and replay only producer-serialized
-`IntegerAffineBound` routes. Exact multiplication retains the legacy reducer
-until its mathematical projection and producer certificate land. At that point
-`kernel_proposition` becomes total, with no wildcard or optional unsettled
-result, and the remaining production reducer and mirrored verifier search are
-deleted. Until then this is an explicit implementation dependency, not
-permission for new verifier search.
+result equation is unavailable. Exact addition, subtraction, and multiplication
+likewise select their settled mathematical projections and replay only
+producer-serialized `IntegerAffineBound` routes. Multiplication's direct form
+carries four ordered operand endpoints and the checker recomputes the four
+unbounded mathematical corner products. Its correlated form carries the
+authored factor-sign and carrier-endpoint quotient comparison, with a strictly
+earlier literal landing when that endpoint is a value. Producer-only
+target-bounded custody may compose an affine/shift suffix with an existing cast
+or exact-remainder range certificate; verification checks only the serialized
+witness. The operation's own result equation is never eligible evidence.
+`kernel_proposition` is total, with no wildcard or optional unsettled result,
+and production reconstruction contains no sufficient-form reducer or
+verifier-side route search.
 
 The existing `IntegerAffineBound` proof tag now names its checked ordered
 endpoint-transform boundary rather than only a closed-form affine map. Its
@@ -3628,10 +3633,10 @@ ordered conversion word may contain validator-legal partial exact casts and
 strict fixed-native widening identity edges; every carrier and endpoint is
 replayed independently. These are extensions of existing checked witness
 boundaries, not new proof rules, mathematical-relation lifts, or verifier-side
-route search. They let exact-cast, exact-shift-left, exact-add, and
-exact-subtract certificates retain the established arithmetic, shift,
-cast-chain, and widening corpus while exact multiplication remains on the
-legacy migration path.
+route search. They let exact-cast, exact-shift-left, exact-add, exact-subtract,
+and exact-multiply certificates retain the established arithmetic, shift,
+cast-chain, remainder-range, and widening corpus without a legacy production
+migration path.
 
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely

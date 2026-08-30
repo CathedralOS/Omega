@@ -130,7 +130,7 @@ pub(in crate::analyses) fn value_ranges(unit: &PsiOptimizationUnit) -> ValueRang
                 {
                     continue;
                 }
-                let Ok(Some(proposition)) = goal.kernel_proposition() else {
+                let Ok(proposition) = goal.kernel_proposition() else {
                     continue;
                 };
                 let Ok(canonical) =

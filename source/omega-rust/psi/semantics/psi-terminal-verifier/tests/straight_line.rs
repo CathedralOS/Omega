@@ -2059,6 +2059,14 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     };
     validate_module(&module).expect("admits proof-gated exact multiplication");
 
+    let obligations = reconstruct_operation_obligations(&module)
+        .expect("reconstruct total canonical multiplication goal");
+    assert_eq!(obligations.len(), 1);
+    assert!(
+        obligations[0].canonical_certificate,
+        "the last migrated arithmetic row must not retain legacy sufficient reduction",
+    );
+
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(
         validate_module(&module),

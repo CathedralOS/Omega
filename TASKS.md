@@ -97,9 +97,24 @@ scanners, or receipts.
   `IntegerAffineBound` checker replays those coordinates and recomputes the
   mathematical difference without verifier search or result self-citation;
   reordered, redirected, missing, or wrong-orientation evidence rejects.
-  Implement exact multiply next, then make
-  `kernel_proposition` total rather than optional. Deterministic schema-local normalization may fold
-  closed mathematical expressions, bare carrier inclusion, and vacuous bounds.
+  Exact multiplication now projects its canonical mathematical product bounds
+  and uses the unchanged checked `IntegerAffineBound` wire. Direct certificates
+  serialize four ordered operand endpoints and the checker recomputes all four
+  mathematical corners. Correlated certificates serialize the authored factor
+  sign and `MIN / factor` or `MAX / factor` quotient comparison, including an
+  earlier endpoint-literal landing when required. Target-bounded producer
+  custody replays affine/shift suffixes and existing cast or remainder range
+  certificates without widening the global search frontier. Embedded zero and
+  one, closed products, and the signed syntactic `-1` carrier implication fold
+  schema-locally; runtime `-1` retains both checked bounds. Endpoint order,
+  sign orientation, quotient identity, landing order/value/type, and redirected
+  definitions have mutation coverage. `kernel_proposition` is now total rather
+  than optional, and production reconstruction no longer selects any legacy
+  sufficient proposition. No proof tag or codec wire changed. Complete the
+  strict broad-corpus gate after the separate exact-add candidate-selection
+  latency exposed beyond the exact-multiply canaries is bounded.
+  Deterministic schema-local normalization may fold closed mathematical
+  expressions, bare carrier inclusion, and vacuous bounds.
   Symbolic interval propagation, affine reduction, aliases, and other
   fact-dependent proof discovery remain untrusted producer work.
 

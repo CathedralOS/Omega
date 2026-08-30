@@ -15,90 +15,8 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
     let target = goal_target(goal)?;
-    let (definition_axiom, root, divisor) = semantic_axioms.iter().enumerate().rev().find_map(
-        |(index, proposition)| match proposition {
-            Proposition::Equal(
-                left,
-                ScalarTerm::ExactIntegerMultiply {
-                    left: root,
-                    right: divisor,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerDivide {
-                    left: root,
-                    right: divisor,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerRemainder {
-                    left: root,
-                    right: divisor,
-                    ..
-                },
-            ) if left == target => Some((index, root.as_ref(), divisor.as_ref())),
-            Proposition::Equal(
-                ScalarTerm::ExactIntegerMultiply {
-                    left: root,
-                    right: divisor,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerDivide {
-                    left: root,
-                    right: divisor,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerRemainder {
-                    left: root,
-                    right: divisor,
-                    ..
-                },
-                right,
-            ) if right == target => Some((index, root.as_ref(), divisor.as_ref())),
-            _ => None,
-        },
-    )?;
-    let literal_axiom = if divisor.integer_value().is_some() {
-        None
-    } else {
-        Some(
-            semantic_axioms[..definition_axiom]
-                .iter()
-                .enumerate()
-                .rev()
-                .find_map(|(index, proposition)| match proposition {
-                    Proposition::Equal(left, right)
-                        if left == divisor && right.integer_value().is_some() =>
-                    {
-                        Some(index)
-                    }
-                    Proposition::Equal(left, right)
-                        if right == divisor && left.integer_value().is_some() =>
-                    {
-                        Some(index)
-                    }
-                    _ => None,
-                })?,
-        )
-    };
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![definition_axiom],
-        literal_axioms: vec![literal_axiom],
-    };
-    let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-    let truth = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-    };
-    for mapped in integer_affine_truth_bounds(&form).ok()? {
-        let mapped_proof = ProofNode {
-            conclusion: mapped.clone(),
-            rule: ProofRule::IntegerAffineBound {
-                root_bound: Box::new(truth.clone()),
-                witness: witness.clone(),
-            },
-        };
-        if &mapped == goal {
+    for mapped_proof in target_bounds(context, target, semantic_axioms) {
+        if &mapped_proof.conclusion == goal {
             return Some(mapped_proof);
         }
         if let Some(proof) = relax(goal, mapped_proof) {
@@ -106,6 +24,109 @@ pub(super) fn prove(
         }
     }
     None
+}
+
+pub(super) fn target_bounds(
+    context: &PropositionContext,
+    target: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let Some((definition_axiom, root, divisor)) =
+        semantic_axioms.iter().enumerate().rev().find_map(
+            |(index, proposition)| match proposition {
+                Proposition::Equal(
+                    left,
+                    ScalarTerm::ExactIntegerMultiply {
+                        left: root,
+                        right: divisor,
+                        ..
+                    }
+                    | ScalarTerm::ExactIntegerDivide {
+                        left: root,
+                        right: divisor,
+                        ..
+                    }
+                    | ScalarTerm::ExactIntegerRemainder {
+                        left: root,
+                        right: divisor,
+                        ..
+                    },
+                ) if left == target => Some((index, root.as_ref(), divisor.as_ref())),
+                Proposition::Equal(
+                    ScalarTerm::ExactIntegerMultiply {
+                        left: root,
+                        right: divisor,
+                        ..
+                    }
+                    | ScalarTerm::ExactIntegerDivide {
+                        left: root,
+                        right: divisor,
+                        ..
+                    }
+                    | ScalarTerm::ExactIntegerRemainder {
+                        left: root,
+                        right: divisor,
+                        ..
+                    },
+                    right,
+                ) if right == target => Some((index, root.as_ref(), divisor.as_ref())),
+                _ => None,
+            },
+        )
+    else {
+        return Vec::new();
+    };
+    let literal_axiom = if divisor.integer_value().is_some() {
+        None
+    } else {
+        let Some(literal_axiom) = semantic_axioms[..definition_axiom]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, proposition)| match proposition {
+                Proposition::Equal(left, right)
+                    if left == divisor && right.integer_value().is_some() =>
+                {
+                    Some(index)
+                }
+                Proposition::Equal(left, right)
+                    if right == divisor && left.integer_value().is_some() =>
+                {
+                    Some(index)
+                }
+                _ => None,
+            })
+        else {
+            return Vec::new();
+        };
+        Some(literal_axiom)
+    };
+    let witness = IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![definition_axiom],
+        literal_axioms: vec![literal_axiom],
+    };
+    let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+        return Vec::new();
+    };
+    let truth = ProofNode {
+        conclusion: Proposition::Truth,
+        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+    };
+    let Ok(mapped_bounds) = integer_affine_truth_bounds(&form) else {
+        return Vec::new();
+    };
+    mapped_bounds
+        .into_iter()
+        .map(|mapped| ProofNode {
+            conclusion: mapped.clone(),
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(truth.clone()),
+                witness: witness.clone(),
+            },
+        })
+        .collect()
 }
 
 fn goal_target(goal: &Proposition) -> Option<&ScalarTerm> {
