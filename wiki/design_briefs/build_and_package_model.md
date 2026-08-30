@@ -1597,6 +1597,14 @@ scalar `0`, post-error `6`, and `Native/Unknown`. No returned path exists.
 Provider-free replay checks only the compiler-owned synthetic handle model,
 not native path/handle custody or a Windows security property.
 
+Summary v62 and replay-record v43 additionally admit one failed tag-32
+`set_file_time`, tag-33 `lock_file_ex`, or tag-34 `unlock_file` on an unknown
+native handle after the optional Source prefix. The row binds every authored
+scalar and complete FILETIME or OVERLAPPED carrier while fixing scalar `0`,
+post-error `6`, and `Native/Unknown`. Both evaluators reject before sponsor
+accounting or host mutation. The receipt claims only synthetic invalid-handle
+behavior, not native handle, lock, timestamp, or Windows security custody.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1648,8 +1656,9 @@ unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, v57/v38
 unknown-descriptor-write-payload, and v58/v39
 unknown-descriptor-read-file-metadata, and v59/v40
 unknown-descriptor-get-osfhandle, and v60/v41 unknown-native-handle-close
-grammars, plus v61/v42 unknown-native-handle-final-path above, may join them to
-verified operation replay and reproduced staged-output equality.
+grammars, plus v61/v42 unknown-native-handle-final-path and v62/v43
+unknown-native-handle-mutation above, may join them to verified operation replay
+and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1684,8 +1693,9 @@ unknown-descriptor-set-file-times, v56/v37 unknown-descriptor-read, v57/v38
 unknown-descriptor-write-payload, and v58/v39
 unknown-descriptor-read-file-metadata, and v59/v40
 unknown-descriptor-get-osfhandle, and v60/v41 unknown-native-handle-close
-grammars, plus v61/v42 unknown-native-handle-final-path above, supply canonical
-operation replay and retained observed inputs.
+grammars, plus v61/v42 unknown-native-handle-final-path and v62/v43
+unknown-native-handle-mutation above, supply canonical operation replay and
+retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

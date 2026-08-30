@@ -819,6 +819,16 @@ scalar `0`, post-error `6`, and `Native/Unknown`. No returned path exists.
 Provider-free replay checks only the compiler-owned synthetic handle model,
 not native path/handle custody or a Windows security property.
 
+Summary v62 and replay-record v43 close one additional modeled family after an
+optional Source prefix: a single failed tag-32 `set_file_time`, tag-33
+`lock_file_ex`, or tag-34 `unlock_file` on `Native/Unknown`. The row retains
+every authored scalar and complete byte carrier, including minimum FILETIME and
+OVERLAPPED preparation sizes, while fixing scalar `0` and post-error `6`.
+Both evaluators reject before sponsor accounting or host mutation. This claims
+only synthetic invalid-handle replay, not native handle, lock, timestamp, or
+Windows security custody. `get_last_error` remains separate ordered provider
+state.
+
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its
 scalar does not predict the target's worst-cycle path.

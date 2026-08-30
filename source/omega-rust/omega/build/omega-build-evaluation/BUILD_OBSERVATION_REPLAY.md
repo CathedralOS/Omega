@@ -441,3 +441,21 @@ before reading a host path or changing the carrier. Provider-free replay
 requires the exact attempt, empty namespace, and teardown before issuing empty
 staged-output custody. This receipts only Omega's synthetic-handle model; it
 claims neither native path/handle custody nor a Windows security property.
+
+## Unknown-native-handle mutations (summary v62, replay record v43)
+
+One closed family now admits an optional exact Source prefix followed by one
+failed synthetic-native-handle mutation: tag 32 `set_file_time`, tag 33
+`lock_file_ex`, or tag 34 `unlock_file`. Every row fixes scoped-real provider,
+scalar `0`, post-error `6`, and operand-zero `Native/Unknown`.
+`set_file_time` retains its `i64` creation value and both complete authored
+FILETIME inputs, each at least eight bytes. `lock_file_ex` retains four `u32`
+scalars and an unchanged complete OVERLAPPED carrier of at least 32 bytes.
+`unlock_file` retains its four `u32` range scalars. All other lanes are empty.
+
+Both evaluators reject these exact rows through compiler-owned synthetic handle
+and descriptor tables before sponsor accounting, host timestamp mutation, or
+host locking. Replay therefore claims only Omega's modeled invalid-handle
+behavior. It claims no operating-system handle, lock, timestamp, or Windows
+security property. Tag 35 `get_last_error` remains outside this family because
+it observes ordered provider state rather than an isolated handle input.
