@@ -33,6 +33,7 @@
 ;          2096920 BYTES_SLICE_LABEL 2096912 BYTES_CONCAT_LABEL
 ;          2096904 CALL_RESOURCE_LABEL
 ;          2096896 NEXT_LOCAL_SLOT 2096888 MAX_LOCAL_SLOTS
+;          2096880 CURRENT_FRAME_PREFIX 2096872 CURRENT_PARAMETER_COUNT
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -500,15 +501,14 @@ proc tyid(off) {
     }
 }
 
-proc con_lookup(coff) {              ; constructor index by name, or -1
-    let n = word[2097096]
+proc global_lookup(noff, base, stride, n) { ; global index by name, or -1
     let i = 0
     state loop {
         to body when (i < n)
         return 0 - 1
     }
     state body {
-        to hit when (name_eq(coff, word[6815744 + i * 24]) == 1)
+        to hit when (name_eq(noff, word[base + i * stride]) == 1)
         i = i + 1
         to loop
     }
@@ -967,43 +967,16 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
     }
 }
 
-proc is_data() {
+proc is_root_form(packed_name, name_length) {
     state chk { to paren when (cbyte() == '(')  return 0 }
     state paren {
         let save = word[2097144]
         adv()
         skip_ws()
-        let r = name_is_packed(word[2097144], 1635017060, 0, 4)
+        let r = name_is_packed(word[2097144], packed_name, 0, name_length)
         word[2097144] = save
         return r
     }
-}
-
-proc is_def() {
-    state chk { to paren when (cbyte() == '(')  return 0 }
-    state paren {
-        let save = word[2097144]
-        adv()
-        skip_ws()
-        let r = name_is_packed(word[2097144], 6710628, 0, 3)
-        word[2097144] = save
-        return r
-    }
-}
-
-proc fun_lookup(noff) {
-    let n = word[2097120]
-    let i = 0
-    state loop {
-        to body when (i < n)
-        return 0 - 1
-    }
-    state body {
-        to hit when (name_eq(noff, word[8388608 + i * 32]) == 1)
-        i = i + 1
-        to loop
-    }
-    state hit { return i }
 }
 
 ; ---- type environment (var -> tyid), frame-local lookup ----
@@ -1172,6 +1145,29 @@ proc tc_bytes_builtin(kind, args) {
     state bad { return 0 - 1 }
 }
 
+proc tc_arguments(params, args, params_are_nodes) {
+    let p = params
+    let a = args
+    let fail = 0
+    state loop {
+        to pdone when (p == 0)
+        to achk
+    }
+    state achk {
+        to adone when (a == 0)
+        let expected = word[p + 8]
+        to parameter_node when (params_are_nodes == 1)
+        to compare
+    }
+    state parameter_node { expected = word[expected + 16]  to compare }
+    state compare { to mark when (tc(word[a + 8]) != expected)  to advance }
+    state mark { fail = 1  to advance }
+    state advance { p = word[p + 16]  a = word[a + 16]  to loop }
+    state pdone { to overmark when (a != 0)  return 1 - fail }
+    state adone { return 0 }
+    state overmark { return 0 }
+}
+
 proc tc_call(expr) {
     let fname = word[expr + 8]
     let args = word[expr + 16]
@@ -1179,7 +1175,7 @@ proc tc_call(expr) {
     state builtin_check { to builtin_call when (builtin != 0)  to ordinary }
     state builtin_call { return tc_bytes_builtin(builtin, args) }
     state ordinary {
-        let fi = fun_lookup(fname)
+        let fi = global_lookup(fname, 8388608, 32, word[2097120])
         to fchk
     }
     state fchk { to known when (fi != 0 - 1)  return 0 - 1 }   ; unknown function
@@ -1187,28 +1183,8 @@ proc tc_call(expr) {
         ; Zero remains the unresolved/builtin sentinel; table identities are
         ; retained one-based for the eventual tag-5 lowering join.
         word[expr + 24] = fi + 1
-        let p = word[8388608 + fi * 32 + 8]
-        let a = args
-        let fail = 0
-        to loop
-    }
-    state loop {
-        to pdone when (p == 0)
-        to achk
-    }
-    state achk {
-        to adone when (a == 0)
-        let pty = word[word[p + 8] + 16]
-        to mark when (tc(word[a + 8]) != pty)
-        to advance
-    }
-    state mark { fail = 1  to advance }
-    state advance { p = word[p + 16]  a = word[a + 16]  to loop }
-    state pdone { to overmark when (a != 0)  to finish }       ; too many args
-    state adone { fail = 1  to finish }                        ; p != 0: too few
-    state overmark { fail = 1  to finish }
-    state finish {
-        to failret when (fail == 1)
+        let args_ok = tc_arguments(word[8388608 + fi * 32 + 8], args, 1)
+        to failret when (args_ok == 0)
         return word[8388608 + fi * 32 + 16] % 65536
     }
     state failret { return 0 - 1 }
@@ -1217,31 +1193,12 @@ proc tc_call(expr) {
 proc tc_conapp(expr) {
     let coff = word[expr + 8]
     let args = word[expr + 16]
-    let ci = con_lookup(coff)
+    let ci = global_lookup(coff, 6815744, 24, word[2097096])
     state cchk { to known when (ci != 0 - 1)  return 0 - 1 }   ; unknown constructor
     state known {
         word[expr + 24] = ci + 1
-        let p = word[6815744 + ci * 24 + 16]
-        let a = args
-        let fail = 0
-        to loop
-    }
-    state loop {
-        to pdone when (p == 0)
-        to achk
-    }
-    state achk {
-        to adone when (a == 0)
-        to mark when (tc(word[a + 8]) != word[p + 8])
-        to advance
-    }
-    state mark { fail = 1  to advance }
-    state advance { p = word[p + 16]  a = word[a + 16]  to loop }
-    state pdone { to overmark when (a != 0)  to finish }
-    state adone { fail = 1  to finish }
-    state overmark { fail = 1  to finish }
-    state finish {
-        to failret when (fail == 1)
+        let args_ok = tc_arguments(word[6815744 + ci * 24 + 16], args, 0)
+        to failret when (args_ok == 0)
         return word[6815744 + ci * 24 + 8]
     }
     state failret { return 0 - 1 }
@@ -1294,7 +1251,7 @@ proc tc_match(scrut, arms) {
         to checkbody
     }
     state pcon {
-        let ci = con_lookup(word[pat + 8])
+        let ci = global_lookup(word[pat + 8], 6815744, 24, word[2097096])
         to badcon when (ci == 0 - 1)
         to tymatch
     }
@@ -2059,42 +2016,31 @@ proc emit_checked_mul(entry_label, failure_label) {
     return 0
 }
 
-proc emit_checked_div(entry_label, failure_label) {
-    let operate = new_label()
-    let minimum_left = new_label()
-    define_label(entry_label)
-    emit_imm(4, 0)
-    emit_rrx(16, 3, 4, failure_label)
-    emit_imm(4, 9223372036854775808)
-    emit_rrx(16, 2, 4, minimum_left)
-    emit_jump(12, operate)
-    define_label(minimum_left)
-    emit_imm(4, 18446744073709551615)
-    emit_rrx(16, 3, 4, failure_label)
-    define_label(operate)
-    emit_rr(2, 0, 2)
-    emit_rr(6, 0, 3)
-    emit_ret()
-    return 0
-}
-
-proc emit_checked_mod(entry_label, failure_label) {
-    let operate = new_label()
-    let minimum_left = new_label()
-    define_label(entry_label)
-    emit_imm(4, 0)
-    emit_rrx(16, 3, 4, failure_label)
-    emit_imm(4, 9223372036854775808)
-    emit_rrx(16, 2, 4, minimum_left)
-    emit_jump(12, operate)
-    define_label(minimum_left)
-    emit_imm(4, 18446744073709551615)
-    emit_rrx(16, 3, 4, failure_label)
-    define_label(operate)
-    emit_rr(2, 0, 2)
-    emit_rr(7, 0, 3)
-    emit_ret()
-    return 0
+proc emit_checked_divmod(entry_label, failure_label, opcode) {
+    state div_opcode { to labels when (opcode == 6)  to mod_opcode }
+    state mod_opcode { to invalid_opcode when (opcode != 7)  to labels }
+    state labels {
+        let operate = new_label()
+        let minimum_left = new_label()
+        to body
+    }
+    state body {
+        define_label(entry_label)
+        emit_imm(4, 0)
+        emit_rrx(16, 3, 4, failure_label)
+        emit_imm(4, 9223372036854775808)
+        emit_rrx(16, 2, 4, minimum_left)
+        emit_jump(12, operate)
+        define_label(minimum_left)
+        emit_imm(4, 18446744073709551615)
+        emit_rrx(16, 3, 4, failure_label)
+        define_label(operate)
+        emit_rr(2, 0, 2)
+        emit_rr(opcode, 0, 3)
+        emit_ret()
+        return 0
+    }
+    state invalid_opcode { return 0 }
 }
 
 ; Bytes descriptors are four words `[descriptor_kind, first, second,
@@ -2709,10 +2655,6 @@ proc lower_resolved_constructor(args, constructor_tag) {
 ; Lower one local reference after the resolver supplies only its opaque fixed
 ; frame slot. Source spelling, scope, and shadowing remain outside this seam.
 
-proc lower_resolved_local(frame_prefix_bytes, local_index) {
-    return emit_gamma_frame_local(frame_prefix_bytes, local_index, 0)
-}
-
 ; Lower one let after the resolver supplies its opaque fixed frame slot. Beta's
 ; four-argument procedure limit carries `(prefix,index)` in one nonnegative
 ; scalar as `prefix + index * 16777216`; validation recovers both exact values.
@@ -2747,20 +2689,56 @@ proc lower_resolved_let(value_expr, body_expr, tail_position, frame_local_profil
 
 proc lower_expr(expr, tail_position) {
     let tag = word[expr] % 256
-    state literal_check { to literal when (tag == 0)  to primitive_check }
+    state literal_check { to literal when (tag == 0)  to variable_check }
     state literal {
         emit_imm(0, 0)
         return emit_imm(1, word[expr + 8])
     }
+    state variable_check { to variable when (tag == 1)  to primitive_check }
+    state variable {
+        let binding = word[expr + 16]
+        to resolved_invalid when (binding < 65536)
+        let binding_kind = (binding / 131072) % 2
+        let binding_index = binding / 262144
+        to local_variable when (binding_kind == 1)
+        return lower_resolved_parameter(word[2096880], word[2096872], binding_index)
+    }
+    state local_variable {
+        return emit_gamma_frame_local(word[2096880], binding_index, 0)
+    }
     state primitive_check { to primitive when (tag == 2)  to if_check }
-    state if_check { to if_expr when (tag == 3)  to call_check }
-    state call_check { to call_expr when (tag == 5)  return 0 }
+    state if_check { to if_expr when (tag == 3)  to let_check }
+    state let_check { to let_expr when (tag == 4)  to call_check }
+    state let_expr {
+        let slot_identity = word[expr + 8]
+        to resolved_invalid when (slot_identity == 0)
+        let frame_local_profile = word[2096880] + (slot_identity - 1) * 16777216
+        return lower_resolved_let(word[expr + 16], word[expr + 24],
+                                  tail_position, frame_local_profile)
+    }
+    state call_check { to call_expr when (tag == 5)  to constructor_check }
     state call_expr {
         let builtin = bytes_builtin_kind(word[expr + 8])
         to bytes_expr when (builtin != 0)
-        return 0
+        let function_identity = word[expr + 24]
+        to resolved_invalid when (function_identity == 0)
+        let function_index = function_identity - 1
+        to resolved_invalid when (function_index >= word[2097120])
+        let encoded_label = word[10485760 + function_index * 8]
+        to resolved_invalid when (encoded_label == 0)
+        let function_profile = word[8388608 + function_index * 32 + 16]
+        let callee_prefix = 16 + ((function_profile / 65536) % 65536) * 16
+        return lower_resolved_call(word[expr + 16], tail_position,
+                                   encoded_label - 1, callee_prefix)
     }
     state bytes_expr { return lower_bytes_builtin(builtin, word[expr + 16]) }
+    state constructor_check { to constructor_expr when (tag == 7)  return 0 }
+    state constructor_expr {
+        let constructor_identity = word[expr + 24]
+        to resolved_invalid when (constructor_identity == 0)
+        return lower_resolved_constructor(word[expr + 16], constructor_identity + 1)
+    }
+    state resolved_invalid { emit_fail_once(13, word[expr] / 256)  return 0 }
     state if_expr {
         let else_label = new_label()
         let done_label = new_label()
@@ -2846,12 +2824,12 @@ proc frontend_check_main() {
     }
     state source_failed { return 0 }
     state dataloop {
-        to databody when (is_data() == 1)
+        to databody when (is_root_form(1635017060, 4) == 1)
         to defloop
     }
     state databody { parse_data()  skip_ws()  to dataloop }
     state defloop {
-        to defbody when (is_def() == 1)
+        to defbody when (is_root_form(6710628, 3) == 1)
         to program_shape
     }
     state defbody { parse_def()  skip_ws()  to defloop }
