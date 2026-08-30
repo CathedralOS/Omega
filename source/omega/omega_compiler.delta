@@ -413,11 +413,12 @@ data OmegaTransitionGuardKind {
     case Integer;
 }
 
-// The first transition slice retains one path subject and expands every arm
+// The first transition slice retains zero or one subject and expands every arm
 // into one ordinary statement, matching the canonical syntax tree. Guard
 // spelling stays source-shaped; target is one authored zero-argument state
 // name. Richer subjects, patterns, and targets remain parser-incomplete.
 data OmegaTransitionStatementSyntax {
+    has_subject: i32;
     subject: i32;
     guard_kind: OmegaTransitionGuardKind;
     guard_boolean: i32;
@@ -804,6 +805,7 @@ data OmegaParser {
     struct_field_name_end: i32;
     struct_field_value: i32;
     struct_field_value_end: i32;
+    transition_has_subject: i32;
     transition_subject_expression: i32;
     transition_guard_kind: OmegaTransitionGuardKind;
     transition_guard_boolean: i32;
@@ -3021,6 +3023,7 @@ machine OmegaParser::parse_view(
     self.struct_field_name_end = 0;
     self.struct_field_value = 0;
     self.struct_field_value_end = 0;
+    self.transition_has_subject = 0;
     self.transition_subject_expression = 0;
     self.transition_guard_kind = OmegaTransitionGuardKind::Always;
     self.transition_guard_boolean = 0;
@@ -4779,6 +4782,7 @@ machine OmegaParser::parse_view(
 
     state begin_transition() {
         self.state_has_body_syntax = 1;
+        self.transition_has_subject = 1;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
         self.cursor = self.scan.next_cursor;
@@ -4787,11 +4791,26 @@ machine OmegaParser::parse_view(
 
     state transition_subject_token() {
         transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_subject_punctuation()
             OmegaTokenKind::Identifier -> begin_named_transition_subject()
             OmegaTokenKind::Integer -> begin_integer_transition_subject()
             OmegaTokenKind::Keyword -> transition_subject_keyword()
             _ -> incomplete_root()
         }
+    }
+
+    state transition_subject_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> begin_subjectless_transition()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_subjectless_transition() {
+        self.transition_has_subject = 0;
+        self.transition_subject_expression = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(61) }
     }
 
     state transition_subject_keyword() {
@@ -5249,6 +5268,8 @@ machine OmegaParser::parse_view(
     }
 
     state retain_transition_statement_bounded() {
+        self.transition_statements[self.transition_statement_count].has_subject =
+            self.transition_has_subject;
         self.transition_statements[self.transition_statement_count].subject =
             self.transition_subject_expression;
         self.transition_statements[self.transition_statement_count].guard_kind =

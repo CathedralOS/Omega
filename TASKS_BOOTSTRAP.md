@@ -1452,6 +1452,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
       body-boundary coverage remains 54 of 73. Keep exact terminal/bracket
       spans, value/place discrimination, statement/expression capacity, reset,
       and Complete-only publication vectors at the real Delta-compiler gate.
+    - [x] Retain subjectless `transition { ... }` blocks as the canonical
+      zero-subject form rather than manufacturing a unit/path expression.
+      Every expanded arm now records subject presence separately from its
+      optional expression handle; the existing explicit-subject precedence
+      frame remains unchanged. This covers all 49 subjectless transitions in
+      the current `C` closure. It does not raise the thirty complete-root count
+      yet because every owning root also contains target arguments, local
+      bindings, casts, or another unretained form. Keep zero-versus-one-subject,
+      wildcard, reset, and Complete-only publication vectors at the real
+      Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are

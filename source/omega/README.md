@@ -117,12 +117,13 @@ list with an optional trailing comma. Canonical adjacent fields without commas,
 nested struct literals, and richer field expressions remain incomplete until a
 bounded expression-frame design exists. The implicit entry state and every
 authored `state` own independent parameter, return-type, and contiguous mixed-
-statement spans. A retained transition has one precedence-correct subject over
-path, boolean, and unsuffixed nonnegative decimal integer primaries with
-additive, comparison, `&&`, and `||` operators, and expands each boolean,
-integer, or wildcard arm into an ordinary statement targeting one named zero-
-argument state. Computed or
-multiple subjects, richer patterns and guards, target arguments,
+statement spans. A retained transition has either no subject or one precedence-
+correct subject over path, boolean, and unsuffixed nonnegative decimal integer
+primaries with additive, comparison, `&&`, and `||` operators, and expands each
+boolean, integer, or wildcard arm into an ordinary statement targeting one
+named zero-argument state. A subjectless block retains absence explicitly and
+does not manufacture a unit expression. Computed or multiple subjects, richer
+patterns and guards, target arguments,
 terminal/value/self targets, continuations, and `match` remain implementation-
 incomplete. Richer expressions and statements likewise stop the root as
 incomplete, and no body is skipped as opaque text.
