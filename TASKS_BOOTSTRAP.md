@@ -595,6 +595,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     neither resource path commits `r254` or a partial descriptor. Exact and
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
+  - [ ] **OWNER-BLOCKED — Q5 Beta call-row profile for the complete Gamma
+    compiler.** The retained source consumes exactly 994 of D23's 1,024
+    non-builtin call rows before a production entry or either adapter. A focused
+    adjacent probe admits thirty further calls and refuses the thirty-first as
+    canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
+    total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
+    publication, or silently revise the Alpha-written compiler profile.
   - [ ] **OWNER-BLOCKED — Q4 GCOUT boundary priority and schema coordinates.**
     Before publishing the canonical compiler boundary, fix exact-end versus
     oversized-source priority, exact request-field coordinates, and the total
