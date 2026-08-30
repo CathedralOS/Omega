@@ -293,6 +293,69 @@ fn literal_indexed_fixed_array_recast_keeps_immediate_sibling_bytes_writable() {
 }
 
 #[test]
+fn literal_indexed_nested_fixed_array_recast_retains_the_exact_range_for_both_polarities() {
+    let source = r#"
+        data Cell {
+            bytes: [u8; 24];
+        }
+
+        machine observe(value: &[[u16; 2]; 2]) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared: &[[u16; 2]; 2] = &self.bytes[2] as &[[u16; 2]; 2];
+            observe(shared);
+            let mutable: &mut [[u16; 2]; 2] =
+                &mut self.bytes[12] as &mut [[u16; 2]; 2];
+            mutable[1][1] = 1;
+        }
+    "#;
+
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed).expect("both nested-array recasts should validate");
+    let facts = build_borrow_facts(&typed);
+    let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
+
+    assert_eq!(loans.len(), 2, "one loan per validated nested-array recast");
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 2, end: 10 }]
+    }));
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 12, end: 20 }]
+    }));
+}
+
+#[test]
+fn literal_indexed_nested_fixed_array_recast_rejects_complete_footprint_mutations() {
+    for mutation in [
+        "self.bytes[3] = 1;",
+        "self.bytes[6] = 1;",
+        "self.bytes[10] = 1;",
+    ] {
+        let diagnostics = check_program(&indexed_mutable_nested_array_recast_source(
+            mutation,
+            "view[1][1] = 2;",
+        ))
+        .expect_err("every byte across the nested-array footprint must remain borrowed");
+
+        assert_conflict(&diagnostics, mutation.trim_end_matches(" = 1;"), "view");
+    }
+}
+
+#[test]
+fn literal_indexed_nested_fixed_array_recast_keeps_immediate_siblings_writable() {
+    check_program(&indexed_mutable_nested_array_recast_source(
+        "self.bytes[2] = 1; self.bytes[11] = 1;",
+        "view[1][1] = 2;",
+    ))
+    .expect("the bytes immediately before and after [3, 11) are disjoint");
+}
+
+#[test]
 fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
     let source = r#"
         data Word {
@@ -305,15 +368,33 @@ fn unsupported_literal_indexed_aggregate_targets_publish_no_precise_loan() {
 
         machine Cell::exercise(&mut self) {
             let empty: &[u16; 0] = &self.bytes[0] as &[u16; 0];
-            let nested: &[[u16; 2]; 2] = &self.bytes[0] as &[[u16; 2]; 2];
-            let records: &[Word; 2] = &self.bytes[8] as &[Word; 2];
+            let records: &[[Word; 1]; 2] = &self.bytes[8] as &[[Word; 1]; 2];
             let slice: &[u16] = &self.bytes[0] as &[u16];
         }
     "#;
 
     assert_valid_recast_has_no_loan(
         source,
-        "zero-length, nested-array, record-element, and slice targets stay fenced",
+        "zero-length, record-element, and slice targets stay fenced",
+    );
+}
+
+#[test]
+fn zero_inner_and_outer_nested_fixed_arrays_publish_no_precise_loan() {
+    let source = r#"
+        data Cell {
+            bytes: [u8; 8];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let empty_outer: &[[u16; 2]; 0] = &self.bytes[0] as &[[u16; 2]; 0];
+            let empty_inner: &[[u16; 0]; 2] = &self.bytes[0] as &[[u16; 0]; 2];
+        }
+    "#;
+
+    assert_valid_recast_has_no_loan(
+        source,
+        "every literal fixed-array level must be nonzero before publishing a range",
     );
 }
 
@@ -344,6 +425,59 @@ fn bool_and_constrained_fixed_array_targets_publish_no_loan_and_keep_diagnostics
         }
     "#;
     assert_invalid_recast_has_no_loan(constrained_source, "must be recursively fact-free");
+}
+
+#[test]
+fn nested_bool_and_constrained_fixed_array_targets_publish_no_loan_and_keep_diagnostics() {
+    let bool_source = r#"
+        data Cell {
+            bytes: [u8; 8];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let view: &[[bool; 2]; 2] = &self.bytes[0] as &[[bool; 2]; 2];
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(bool_source, "must be recursively fact-free");
+
+    let constrained_source = r#"
+        domain u16::Small
+        requires
+            self <= 10;
+
+        data Cell {
+            bytes: [u8; 8];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let view: &[[u16 in Small; 2]; 2] =
+                &self.bytes[0] as &[[u16 in Small; 2]; 2];
+        }
+    "#;
+    assert_invalid_recast_has_no_loan(constrained_source, "must be recursively fact-free");
+}
+
+#[test]
+fn atomic_fixed_array_targets_remain_valid_but_publish_no_precise_loan() {
+    let source = r#"
+        data Cell {
+            bytes: [u8; 48];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let top_u32: &[AtomicU32; 2] = &self.bytes[0] as &[AtomicU32; 2];
+            let nested_u32: &[[AtomicU32; 2]; 2] =
+                &self.bytes[8] as &[[AtomicU32; 2]; 2];
+            let top_u64: &[AtomicU64; 1] = &self.bytes[24] as &[AtomicU64; 1];
+            let nested_u64: &[[AtomicU64; 1]; 2] =
+                &self.bytes[32] as &[[AtomicU64; 1]; 2];
+        }
+    "#;
+
+    assert_valid_recast_has_no_loan(
+        source,
+        "atomic names retain ordinary recast behavior without borrowing primitive authority",
+    );
 }
 
 #[test]
@@ -474,6 +608,23 @@ fn indexed_mutable_array_recast_source(mutation: &str, final_use: &str) -> Strin
 
             machine Cell::exercise(&mut self) {{
                 let view: &mut [u16; 3] = &mut self.bytes[3] as &mut [u16; 3];
+                {mutation}
+                {final_use}
+            }}
+        "#
+    )
+}
+
+fn indexed_mutable_nested_array_recast_source(mutation: &str, final_use: &str) -> String {
+    format!(
+        r#"
+            data Cell {{
+                bytes: [u8; 16];
+            }}
+
+            machine Cell::exercise(&mut self) {{
+                let view: &mut [[u16; 2]; 2] =
+                    &mut self.bytes[3] as &mut [[u16; 2]; 2];
                 {mutation}
                 {final_use}
             }}

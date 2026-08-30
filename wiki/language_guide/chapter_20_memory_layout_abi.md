@@ -1270,11 +1270,11 @@ interval is not an enumeration of IEEE bit patterns.
 
 For borrow tracking, a recast at one exact literal byte-array index retains the
 complete normalized half-open footprint when the target is a fact-free
-primitive, a nonzero literal fixed array whose direct element is a fact-free
-non-Boolean fixed-width primitive, or an eligible closed fact-free record. The
-array footprint must be exactly tiled and comes from the shared layout
-representation rather than source-level size arithmetic. Nested arrays and
-arrays of record elements remain conservative on this indexed-loan path.
+primitive, a recursively nonzero literal fixed array whose ultimate element is
+an exact fact-free non-Boolean fixed-width primitive, or an eligible closed
+fact-free record. The array footprint must be exactly tiled and comes from the
+shared layout representation rather than source-level size arithmetic. Arrays
+of record elements remain conservative on this indexed-loan path.
 
 An interior slice recast starts at a proven index in a fixed byte array and
 consumes the complete remaining region. Its descriptor is
