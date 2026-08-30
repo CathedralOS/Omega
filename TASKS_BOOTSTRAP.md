@@ -1798,16 +1798,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
       completed current `C` roots from fifty-five to fifty-six. All 56 roots
       that reach body parsing are now complete; the remaining seventeen stop
       in their headers.
-    - [x] Generalize that same prefix stack from logical `!` to the canonical
-      fixed-width integer complement `~` without a second unary reducer.
+    - [x] Generalize that same prefix stack from logical `!` to canonical
+      fixed-width integer complement `~` and arithmetic negation `-` without a
+      second unary reducer.
       Transition subjects, assignment values, local initializers, and ordinary
-      call arguments select `LogicalNot` or `BitwiseNot` at the three shared
-      operand dispatches, then retain the exact operator span and unwind the
-      same inside-out prefix stack. Mixed and nested prefixes therefore keep
+      call arguments select `LogicalNot`, `BitwiseNot`, or `Negate` at the three
+      shared operand dispatches, then retain the exact operator span and unwind
+      the same inside-out prefix stack. Mixed and nested prefixes therefore keep
       canonical precedence and share the existing 128-entry
-      `ExpressionDepth` failure boundary. Unary call operands and consumers not
-      yet joined to the shared reducer remain implementation-incomplete rather
-      than receiving a consumer-specific shortcut. This is full-language
+      `ExpressionDepth` failure boundary. Borrow/reference and other contextual
+      unary forms remain implementation-incomplete rather than receiving a
+      consumer-specific shortcut. This is full-language
       parser progress and changes no current `C` root count. Exact nesting,
       precedence, depth, reset, and no-partial-publication vectors remain at
       the unavailable real Delta-compiler gate.
