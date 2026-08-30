@@ -7,6 +7,10 @@ use crate::data::TypeParameter;
 use crate::domain::DomainDefinition;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod applications;
+
+pub use applications::closed_operator_type_application_for_operands;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
     pub is_public: bool,
@@ -715,23 +719,48 @@ fn type_reference_matches(
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
 ) -> bool {
+    type_reference_matches_with_policy(
+        program,
+        actual,
+        expected,
+        bindable_owner,
+        type_parameters,
+        bindings,
+        true,
+    )
+}
+
+fn type_reference_matches_with_policy(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+    bindable_owner: Option<SymbolHandle>,
+    type_parameters: &[TypeParameter],
+    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    allow_name_fallback: bool,
+) -> bool {
     if !actual.is_valid() || !expected.is_valid() {
         return false;
     }
-    if let Some(bindable_symbol) =
-        expected_bindable_symbol(program, expected, bindable_owner, type_parameters)
-    {
+    if let Some(bindable_symbol) = expected_bindable_symbol(
+        program,
+        expected,
+        bindable_owner,
+        type_parameters,
+        allow_name_fallback,
+    ) {
         if let Some((_, bound_actual)) = bindings
             .iter()
             .find(|(symbol, _)| *symbol == bindable_symbol)
         {
-            return type_reference_matches(
+            return type_reference_matches_with_policy(
                 program,
                 actual,
                 *bound_actual,
                 None,
                 &[],
                 &mut Vec::new(),
+                allow_name_fallback,
             );
         }
         bindings.push((bindable_symbol, actual));
@@ -756,13 +785,14 @@ fn type_reference_matches(
             },
         ) => {
             actual_access == expected_access
-                && type_reference_matches(
+                && type_reference_matches_with_policy(
                     program,
                     *actual_referee,
                     *expected_referee,
                     bindable_owner,
                     type_parameters,
                     bindings,
+                    allow_name_fallback,
                 )
         }
         (
@@ -771,13 +801,14 @@ fn type_reference_matches(
                 ..
             },
             _,
-        ) => type_reference_matches(
+        ) => type_reference_matches_with_policy(
             program,
             *actual_base,
             expected,
             bindable_owner,
             type_parameters,
             bindings,
+            allow_name_fallback,
         ),
         (
             _,
@@ -785,13 +816,14 @@ fn type_reference_matches(
                 base_type: expected_base,
                 ..
             },
-        ) => type_reference_matches(
+        ) => type_reference_matches_with_policy(
             program,
             actual,
             *expected_base,
             bindable_owner,
             type_parameters,
             bindings,
+            allow_name_fallback,
         ),
         (
             TypeReferenceNode::FixedArray {
@@ -804,13 +836,14 @@ fn type_reference_matches(
             },
         ) => {
             actual_length == expected_length
-                && type_reference_matches(
+                && type_reference_matches_with_policy(
                     program,
                     *actual_element,
                     *expected_element,
                     bindable_owner,
                     type_parameters,
                     bindings,
+                    allow_name_fallback,
                 )
         }
         (
@@ -820,13 +853,14 @@ fn type_reference_matches(
             TypeReferenceNode::Slice {
                 element_type: expected_element,
             },
-        ) => type_reference_matches(
+        ) => type_reference_matches_with_policy(
             program,
             *actual_element,
             *expected_element,
             bindable_owner,
             type_parameters,
             bindings,
+            allow_name_fallback,
         ),
         (
             TypeReferenceNode::Named {
@@ -837,10 +871,13 @@ fn type_reference_matches(
                 symbol: expected_symbol,
                 name: expected_name,
             },
-        ) => {
-            (actual_symbol.is_valid() && actual_symbol == expected_symbol)
-                || actual_name == expected_name
-        }
+        ) => nominal_type_identity_matches(
+            *actual_symbol,
+            actual_name.as_str(),
+            *expected_symbol,
+            expected_name.as_str(),
+            allow_name_fallback,
+        ),
         (
             TypeReferenceNode::Generic {
                 base_symbol: actual_symbol,
@@ -855,16 +892,21 @@ fn type_reference_matches(
                 ..
             },
         ) => {
-            ((actual_symbol.is_valid() && actual_symbol == expected_symbol)
-                || actual_name == expected_name)
-                && type_reference_spans_match(
-                    program,
-                    *actual_arguments,
-                    *expected_arguments,
-                    bindable_owner,
-                    type_parameters,
-                    bindings,
-                )
+            nominal_type_identity_matches(
+                *actual_symbol,
+                actual_name.as_str(),
+                *expected_symbol,
+                expected_name.as_str(),
+                allow_name_fallback,
+            ) && type_reference_spans_match(
+                program,
+                *actual_arguments,
+                *expected_arguments,
+                bindable_owner,
+                type_parameters,
+                bindings,
+                allow_name_fallback,
+            )
         }
         (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
         _ => false,
@@ -878,6 +920,7 @@ fn type_reference_spans_match(
     bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    allow_name_fallback: bool,
 ) -> bool {
     let actual = program.type_reference_table.type_reference_handles(actual);
     let expected = program
@@ -885,15 +928,41 @@ fn type_reference_spans_match(
         .type_reference_handles(expected);
     actual.len() == expected.len()
         && actual.iter().zip(expected).all(|(actual, expected)| {
-            type_reference_matches(
+            type_reference_matches_with_policy(
                 program,
                 *actual,
                 *expected,
                 bindable_owner,
                 type_parameters,
                 bindings,
+                allow_name_fallback,
             )
         })
+}
+
+fn nominal_type_identity_matches(
+    actual_symbol: SymbolHandle,
+    actual_name: &str,
+    expected_symbol: SymbolHandle,
+    expected_name: &str,
+    allow_name_fallback: bool,
+) -> bool {
+    if allow_name_fallback {
+        return (actual_symbol.is_valid() && actual_symbol == expected_symbol)
+            || actual_name == expected_name;
+    }
+    if actual_symbol.is_valid() || expected_symbol.is_valid() {
+        return actual_symbol.is_valid()
+            && expected_symbol.is_valid()
+            && actual_symbol == expected_symbol;
+    }
+    matches!(
+        (
+            crate::types::PrimitiveType::from_name(actual_name),
+            crate::types::PrimitiveType::from_name(expected_name),
+        ),
+        (Some(actual), Some(expected)) if actual == expected
+    )
 }
 
 fn expected_bindable_symbol(
@@ -901,6 +970,7 @@ fn expected_bindable_symbol(
     expected: TypeReferenceHandle,
     bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
+    allow_name_fallback: bool,
 ) -> Option<SymbolHandle> {
     let (symbol, _) = match program.type_reference_table.type_reference(expected) {
         TypeReferenceNode::Named { symbol, name }
@@ -914,13 +984,15 @@ fn expected_bindable_symbol(
     if symbol.is_valid() && Some(symbol) == bindable_owner {
         return Some(symbol);
     }
-    expected_type_parameter(program, expected, type_parameters).map(|parameter| parameter.symbol)
+    expected_type_parameter(program, expected, type_parameters, allow_name_fallback)
+        .map(|parameter| parameter.symbol)
 }
 
 fn expected_type_parameter<'a>(
     program: &TypedTrees,
     expected: TypeReferenceHandle,
     type_parameters: &'a [TypeParameter],
+    allow_name_fallback: bool,
 ) -> Option<&'a TypeParameter> {
     match program.type_reference_table.type_reference(expected) {
         TypeReferenceNode::Named { symbol, name }
@@ -929,7 +1001,8 @@ fn expected_type_parameter<'a>(
             base_name: name,
             ..
         } => type_parameters.iter().find(|parameter| {
-            (symbol.is_valid() && parameter.symbol == *symbol) || parameter.name == *name
+            (symbol.is_valid() && parameter.symbol == *symbol)
+                || (allow_name_fallback && parameter.name == *name)
         }),
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Constrained { .. }

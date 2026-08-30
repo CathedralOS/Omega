@@ -86,6 +86,29 @@ pub struct CheckedNamedOperatorUseFact {
     pub provider_plan_commitment: CheckedProviderPlanCommitment,
 }
 
+/// One checked boundary-operator application at one exact use. The empty
+/// argument vector is the canonical monomorphic application.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedBoundaryOperatorApplicationDemand {
+    pub expression: ExpressionHandle,
+    pub origin: CheckedValueOrigin,
+    pub requirement_symbol: SymbolHandle,
+    pub arguments: Vec<CheckedBoundaryOperatorApplicationArgument>,
+}
+
+/// Ordered typed static binding. Binder owner/category/ordinal are semantic;
+/// the private symbol and type handle are structural custody from which later
+/// owner-aware compiler stages must freshly derive exact public identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedBoundaryOperatorApplicationArgument {
+    Type {
+        binder_owner: SymbolHandle,
+        binder_ordinal: u32,
+        binder_symbol: SymbolHandle,
+        type_reference: TypeReferenceHandle,
+    },
+}
+
 impl Default for CheckedOperatorUseFact {
     fn default() -> Self {
         Self {
@@ -385,6 +408,9 @@ pub struct CheckedOperatorFacts {
     pub candidates: Arena<CheckedOperatorCandidateFact>,
     pub operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
     pub operator_realization_contracts: Vec<CheckedOperatorRealizationContract>,
+    /// D29 checked-use demands. Absence for a selected boundary use is not
+    /// coverage; later authority-bearing consumers must fail closed.
+    pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
 }
 
 /// Retained checked baseline for one machine-to-operator realization.
@@ -467,6 +493,7 @@ impl CheckedOperatorFacts {
             candidates,
             operator_crash_contracts: Vec::new(),
             operator_realization_contracts: Vec::new(),
+            boundary_applications: Vec::new(),
         }
     }
 

@@ -1,7 +1,10 @@
 use crate::borrow::build_borrow_facts;
 use crate::capabilities::build_capability_facts;
 use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
-use crate::operators::{build_operator_facts, select_pending_domain_operator_meanings};
+use crate::operators::{
+    bind_boundary_operator_application_demands, build_operator_facts,
+    select_pending_domain_operator_meanings,
+};
 use crate::proof::build_proof_facts_with_operators;
 use crate::semantic::build_semantic_facts;
 use crate::values::build_value_facts;
@@ -90,6 +93,7 @@ pub(crate) fn build_check_facts(
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
+    bind_boundary_operator_application_demands(program, &mut operators);
     values.scalar_expressions = crate::values::build_checked_scalar_expression_plans(
         program,
         &operators,

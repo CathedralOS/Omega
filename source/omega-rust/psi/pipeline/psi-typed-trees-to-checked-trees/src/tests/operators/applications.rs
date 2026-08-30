@@ -1,0 +1,397 @@
+use super::*;
+
+#[test]
+fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
+    let operator_symbol = SymbolHandle::from_arena_index(151);
+    let binder_symbol = SymbolHandle::from_arena_index(152);
+    let foreign_symbol = SymbolHandle::from_arena_index(153);
+    let mut program = psi_typed_trees::TypedTrees::default();
+    let foreign_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: foreign_symbol,
+            name: Identifier::generated("Element"),
+        });
+    let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Add);
+    program.push_operator_type_parameter(
+        &mut operator,
+        psi_typed_trees::data::TypeParameter {
+            symbol: binder_symbol,
+            name: Identifier::generated("Element"),
+            kind: psi_typed_trees::data::TypeParameterKind::Type,
+            bounds: psi_typed_trees::data::DataProperties::default(),
+        },
+    );
+    for name in ["left", "right"] {
+        program.push_operator_parameter(
+            &mut operator,
+            StateParameter {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(name),
+                type_reference: foreign_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    program.push_operator(operator);
+
+    assert!(
+        psi_typed_trees::operator::closed_operator_type_application_for_operands(
+            &program,
+            &program.operators()[0],
+            &[Some(foreign_type), Some(foreign_type)],
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn exact_operator_application_rejects_unresolved_nominal_argument() {
+    let operator_symbol = SymbolHandle::from_arena_index(154);
+    let binder_symbol = SymbolHandle::from_arena_index(155);
+    let mut program = psi_typed_trees::TypedTrees::default();
+    let binder_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: binder_symbol,
+            name: Identifier::generated("Element"),
+        });
+    let unresolved_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("Missing"),
+        });
+    let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Add);
+    program.push_operator_type_parameter(
+        &mut operator,
+        psi_typed_trees::data::TypeParameter {
+            symbol: binder_symbol,
+            name: Identifier::generated("Element"),
+            kind: psi_typed_trees::data::TypeParameterKind::Type,
+            bounds: Default::default(),
+        },
+    );
+    for name in ["left", "right"] {
+        program.push_operator_parameter(
+            &mut operator,
+            StateParameter {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(name),
+                type_reference: binder_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+    }
+    program.push_operator(operator);
+
+    assert!(
+        psi_typed_trees::operator::closed_operator_type_application_for_operands(
+            &program,
+            &program.operators()[0],
+            &[Some(unresolved_type), Some(unresolved_type)],
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn exact_operator_application_rejects_unsupported_binder_categories() {
+    let mut program = psi_typed_trees::TypedTrees::default();
+    let const_carrier = named_type(&mut program, "u64");
+    let unsupported = [
+        psi_typed_trees::data::TypeParameterKind::Const {
+            type_reference: const_carrier,
+        },
+        psi_typed_trees::data::TypeParameterKind::Machine {
+            contract: Default::default(),
+        },
+        psi_typed_trees::data::TypeParameterKind::Proposition {
+            contract: Default::default(),
+        },
+    ];
+    for (ordinal, kind) in unsupported.into_iter().enumerate() {
+        let mut operator = operator_with_spelling(
+            SymbolHandle::from_arena_index(160 + ordinal as u32),
+            OperatorSpelling::Add,
+        );
+        program.push_operator_type_parameter(
+            &mut operator,
+            psi_typed_trees::data::TypeParameter {
+                symbol: SymbolHandle::from_arena_index(170 + ordinal as u32),
+                name: Identifier::generated("Unsupported"),
+                kind,
+                bounds: Default::default(),
+            },
+        );
+        assert!(
+            psi_typed_trees::operator::closed_operator_type_application_for_operands(
+                &program,
+                &operator,
+                &[],
+            )
+            .is_none()
+        );
+    }
+
+    let mut lifetime_operator =
+        operator_with_spelling(SymbolHandle::from_arena_index(180), OperatorSpelling::Add);
+    lifetime_operator
+        .lifetime_parameters
+        .push(Identifier::generated("'value"));
+    assert!(
+        psi_typed_trees::operator::closed_operator_type_application_for_operands(
+            &program,
+            &lifetime_operator,
+            &[],
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn checked_boundary_operator_uses_retain_empty_and_typed_applications() {
+    let checked = checked_program_from_source(
+        r#"
+        boundary operator == Number::equal(left: i32, right: i32) -> bool;
+        boundary operator != Generic::not_equal<Element>(left: Element, right: Element) -> bool;
+
+        machine equal(left: i32, right: i32) -> bool { left == right }
+        machine not_equal(left: i32, right: i32) -> bool { left != right }
+        "#,
+    );
+
+    let applications = &checked.facts.operators.boundary_applications;
+    assert_eq!(applications.len(), 2);
+    let empty = applications
+        .iter()
+        .find(|application| application.arguments.is_empty())
+        .expect("monomorphic boundary use has one empty application");
+    assert!(empty.requirement_symbol.is_valid());
+
+    let typed = applications
+        .iter()
+        .find(|application| application.arguments.len() == 1)
+        .expect("generic boundary use has one typed application");
+    let [
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            binder_owner,
+            binder_ordinal,
+            binder_symbol,
+            type_reference,
+        },
+    ] = typed.arguments.as_slice()
+    else {
+        panic!("one typed application argument")
+    };
+    assert_eq!(*binder_owner, typed.requirement_symbol);
+    assert_eq!(*binder_ordinal, 0);
+    assert!(binder_symbol.is_valid());
+    assert!(type_reference.is_valid());
+    assert_eq!(
+        checked.typed.primitive_type_reference(*type_reference),
+        Some(psi_typed_trees::types::PrimitiveType::I32)
+    );
+}
+
+#[test]
+fn checked_boundary_type_application_retains_declaration_order() {
+    let checked = checked_program_from_source(
+        r#"
+        data Pair<Left, Right> { left: Left; right: Right; }
+
+        boundary operator == Pair::equal<Left, Right>(
+            left: Pair<Left, Right>,
+            right: Pair<Left, Right>
+        ) -> bool;
+
+        machine equal(
+            left: Pair<i32, u64>,
+            right: Pair<i32, u64>
+        ) -> bool {
+            left == right
+        }
+        "#,
+    );
+
+    let [application] = checked.facts.operators.boundary_applications.as_slice() else {
+        panic!("one closed boundary application")
+    };
+    let arguments = application
+        .arguments
+        .iter()
+        .map(|argument| match argument {
+            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                binder_ordinal,
+                type_reference,
+                ..
+            } => (
+                *binder_ordinal,
+                checked.typed.primitive_type_reference(*type_reference),
+            ),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        arguments,
+        vec![
+            (0, Some(psi_typed_trees::types::PrimitiveType::I32)),
+            (1, Some(psi_typed_trees::types::PrimitiveType::U64)),
+        ]
+    );
+}
+
+#[test]
+fn checked_named_monomorphic_boundary_use_retains_empty_application() {
+    let checked = checked_program_from_source(
+        r#"
+        data F32 {}
+
+        boundary operator F32::is_finite(value: f32) -> bool;
+        machine finite(value: f32) -> bool { F32::is_finite(value) }
+        "#,
+    );
+
+    let [application] = checked.facts.operators.boundary_applications.as_slice() else {
+        panic!("one named boundary application")
+    };
+    assert!(application.arguments.is_empty());
+    assert!(matches!(
+        checked
+            .typed
+            .expression_table
+            .expression(application.expression),
+        ExpressionNode::Call(_)
+    ));
+    let named_uses = checked.facts.operators.named_uses().collect::<Vec<_>>();
+    let [named_use] = named_uses.as_slice() else {
+        panic!("one named boundary use")
+    };
+    assert_eq!(application.origin, named_use.origin);
+    assert_eq!(
+        application.requirement_symbol,
+        named_use.selected_operator_symbol
+    );
+}
+
+#[test]
+fn checked_named_generic_boundary_use_does_not_gain_an_invented_application() {
+    let operator_symbol = SymbolHandle::from_arena_index(181);
+    let binder_symbol = SymbolHandle::from_arena_index(182);
+    let mut program = psi_typed_trees::TypedTrees::default();
+    let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Add);
+    operator.is_boundary = true;
+    program.push_operator_type_parameter(
+        &mut operator,
+        psi_typed_trees::data::TypeParameter {
+            symbol: binder_symbol,
+            name: Identifier::generated("Element"),
+            kind: psi_typed_trees::data::TypeParameterKind::Type,
+            bounds: Default::default(),
+        },
+    );
+    program.push_operator(operator);
+    let mut named_uses = psi_arena::Arena::default();
+    named_uses.append(psi_checked_trees::CheckedNamedOperatorUseFact {
+        expression: psi_typed_trees::expression::ExpressionHandle::invalid(),
+        selected_operator_symbol: operator_symbol,
+        ..Default::default()
+    });
+    let mut facts = psi_checked_trees::CheckedOperatorFacts::with_roots(
+        psi_arena::Arena::default(),
+        named_uses,
+        psi_arena::Arena::default(),
+    );
+
+    crate::operators::bind_boundary_operator_application_demands(&program, &mut facts);
+    assert!(facts.boundary_applications.is_empty());
+}
+
+#[test]
+fn checked_boundary_type_application_ignores_binder_renames() {
+    let compile = |binder: &str| {
+        checked_program_from_source(&format!(
+            r#"
+            boundary operator != Generic::not_equal<{binder}>(
+                left: {binder},
+                right: {binder}
+            ) -> bool;
+            machine compare(left: i32, right: i32) -> bool {{ left != right }}
+            "#,
+        ))
+    };
+    let original = compile("Element");
+    let renamed = compile("Value");
+    let project = |checked: &psi_checked_trees::CheckedTrees| {
+        let [application] = checked.facts.operators.boundary_applications.as_slice() else {
+            panic!("one exact boundary application")
+        };
+        application
+            .arguments
+            .iter()
+            .map(|argument| match argument {
+                psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                    binder_ordinal,
+                    type_reference,
+                    ..
+                } => (
+                    *binder_ordinal,
+                    checked
+                        .typed
+                        .package_qualified_type_identity(*type_reference)
+                        .into_string(),
+                ),
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(project(&original), project(&renamed));
+}
+
+#[test]
+fn checked_boundary_first_cohort_rejects_open_type_applications() {
+    let checked = checked_program_from_source(
+        r#"
+        data Wrapper<Element> { value: Element; }
+
+        boundary operator != Generic::not_equal<Value>(left: Value, right: Value) -> bool;
+
+        machine compare<Element>(left: Element, right: Element) -> bool {
+            left != right
+        }
+
+        machine compare_wrapped<Element>(
+            left: Wrapper<Element>,
+            right: Wrapper<Element>
+        ) -> bool {
+            left != right
+        }
+        "#,
+    );
+
+    assert_eq!(checked.facts.operators.resolved_uses().count(), 2);
+    assert!(checked.facts.operators.boundary_applications.is_empty());
+}
+
+#[test]
+fn checked_boundary_applications_preserve_distinct_use_provenance() {
+    let checked = checked_program_from_source(
+        r#"
+        boundary operator == Number::equal(left: i32, right: i32) -> bool;
+
+        machine first(left: i32, right: i32) -> bool { left == right }
+        machine second(left: i32, right: i32) -> bool { left == right }
+        "#,
+    );
+
+    let [first, second] = checked.facts.operators.boundary_applications.as_slice() else {
+        panic!("two exact boundary applications")
+    };
+    assert_eq!(first.requirement_symbol, second.requirement_symbol);
+    assert_ne!(
+        (first.expression, first.origin),
+        (second.expression, second.origin)
+    );
+}
