@@ -82,6 +82,17 @@ pub(super) fn assign(
                                 },
                             );
                         }
+                        TargetUnitOperation::NormalizedForeignCall {
+                            psi_operation,
+                            boundary,
+                            provider_execution,
+                            binding,
+                        } => AssignedUnitOperation::NormalizedForeignCall {
+                            psi_operation: *psi_operation,
+                            boundary: *boundary,
+                            provider_execution: *provider_execution,
+                            binding: binding.clone(),
+                        },
                         TargetUnitOperation::PortWrite {
                             psi_operation,
                             service,

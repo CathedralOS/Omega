@@ -447,3 +447,61 @@ inventing a nominal declaration solely for package review.
   before the language has a use for those boundaries.
 - Tempting but wrong: treat a package-wide role or a reviewer/model verdict as
   the authority identity.
+
+## Q8 — Own proof-only FloatMeaning equality and source correspondence
+
+### Context
+
+The Float catalog already defines exact binary32/binary64 meaning projection:
+finite values map to nonzero rationals, signed zero and infinity remain
+distinct, NaN payloads erase only in proof meaning, and cross-format projection
+rejects. Checked and Terminal evidence retains exact projection invocations,
+operators, operands, formats, equality coordinates, tables, and provenance.
+The wider proof/`Real` connection now reaches the proof-kernel boundary rather
+than lacking an executable Float model.
+
+### Problem statement
+
+The proof kernel accepts equality only over its existing scalar-term carrier;
+it has no proof-only `FloatMeaning` or general `ProofValueId` term. Two
+independently authored meaning projections also do not retain one shared
+landed-source identity, while Terminal equality rows currently have neither an
+exact contract owner nor an evidence-provenance lane that can authorize their
+coalescing. Implementing any one of those choices privately would decide which
+proof terms exist and when two authored projections denote the same value.
+
+Choose together:
+
+1. the kernel term that carries proof-only `FloatMeaning` values;
+2. the accepted equality rule for that sum, including NaN-payload erasure and
+   signed-zero distinction;
+3. the exact source-coordinate identity and coalescing rule for independently
+   authored projection invocations; and
+4. the contract/evidence owner that Terminal replay must bind before such an
+   equality can discharge an obligation.
+
+### Proposed direction
+
+Add a closed proof-only semantic-term carrier whose Float child is the existing
+`FloatMeaning` sum, not a runtime scalar or tagged ABI. Bind every projection
+term to the exact checked source value/projection occurrence and its canonical
+Float table identity. Kernel equality compares the semantic sum structurally
+under the documented payload erasure; coalescing is permitted only when the
+retained landed-source identity and projection contract are identical.
+Terminal evidence names that contract owner and source correspondence
+explicitly, and the verifier independently reconstructs both before invoking
+the equality rule.
+
+### Alternates
+
+- Acceptable: introduce a general proof-value term encompassing other
+  proof-only sums, provided its equality rules are closed per carrier and do
+  not create a runtime representation.
+- Acceptable: avoid source-occurrence coalescing by retaining one explicit
+  theorem/contract application that relates the two projections, provided its
+  owner and complete evidence provenance survive Terminal replay.
+- Tempting but wrong: encode `FloatMeaning` as a runtime scalar, compare raw
+  float bits, or collapse signed zero merely because NaN payloads erase.
+- Tempting but wrong: equate independently authored projections by matching
+  operator names, format labels, compact fingerprints, or coincidentally equal
+  values without a shared source/contract owner.

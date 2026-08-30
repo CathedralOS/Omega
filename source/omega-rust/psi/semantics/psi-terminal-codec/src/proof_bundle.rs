@@ -7,8 +7,8 @@ use psi_core::{
     ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier,
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
-    ScalarTerm, ScalarType, StructuralCaseSubject,
+    IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
+    PropositionError, PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
 };
 use psi_proof_admission::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness,
@@ -25,7 +25,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 19;
+pub(crate) const FORMAT_MARKER: u16 = 20;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -509,6 +509,18 @@ fn encode_proposition(
             writer.u8(6);
             encode_scalar_term(writer, left, 0, format_marker)?;
             encode_scalar_term(writer, right, 0, format_marker)?;
+        }
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right)
+        | Proposition::IntegerMathLessOrEqual(left, right) => {
+            writer.u8(match proposition {
+                Proposition::IntegerMathEqual(_, _) => 14,
+                Proposition::IntegerMathLessThan(_, _) => 15,
+                Proposition::IntegerMathLessOrEqual(_, _) => 16,
+                _ => unreachable!(),
+            });
+            encode_integer_math_term(writer, left, 0)?;
+            encode_integer_math_term(writer, right, 0)?;
         }
         Proposition::Conjunction(conjuncts) => {
             writer.u8(7);
@@ -1253,7 +1265,102 @@ fn decode_proposition(
                 case: reader.id("StructuralCaseId")?,
             }
         }
+        14 => Proposition::IntegerMathEqual(
+            decode_integer_math_term(reader, 0)?,
+            decode_integer_math_term(reader, 0)?,
+        ),
+        15 => Proposition::IntegerMathLessThan(
+            decode_integer_math_term(reader, 0)?,
+            decode_integer_math_term(reader, 0)?,
+        ),
+        16 => Proposition::IntegerMathLessOrEqual(
+            decode_integer_math_term(reader, 0)?,
+            decode_integer_math_term(reader, 0)?,
+        ),
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
+    })
+}
+
+fn encode_integer_math_term(
+    writer: &mut Writer,
+    term: &IntegerMathTerm,
+    depth: usize,
+) -> Result<(), ProofCodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(ProofCodecError::ScalarTermNestingTooDeep);
+    }
+    match term {
+        IntegerMathTerm::IntegerLiteral(literal) => {
+            writer.u8(1);
+            writer.u8(u8::from(literal.negative()));
+            writer.bytes(&literal.magnitude().to_le_bytes());
+        }
+        IntegerMathTerm::MathValue { source_type, value } => {
+            writer.u8(2);
+            encode_integer_type(writer, *source_type);
+            writer.id(*value);
+        }
+        IntegerMathTerm::Add(left, right)
+        | IntegerMathTerm::Subtract(left, right)
+        | IntegerMathTerm::Multiply(left, right) => {
+            writer.u8(match term {
+                IntegerMathTerm::Add(_, _) => 3,
+                IntegerMathTerm::Subtract(_, _) => 4,
+                IntegerMathTerm::Multiply(_, _) => 5,
+                _ => unreachable!(),
+            });
+            encode_integer_math_term(writer, left, depth + 1)?;
+            encode_integer_math_term(writer, right, depth + 1)?;
+        }
+        IntegerMathTerm::ShiftLeft { value, count } => {
+            writer.u8(6);
+            encode_integer_math_term(writer, value, depth + 1)?;
+            encode_integer_math_term(writer, count, depth + 1)?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_integer_math_term(
+    reader: &mut Reader<'_>,
+    depth: usize,
+) -> Result<IntegerMathTerm, ProofCodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(ProofCodecError::ScalarTermNestingTooDeep);
+    }
+    Ok(match reader.u8()? {
+        1 => IntegerMathTerm::IntegerLiteral(
+            IntegerMathLiteral::new(
+                match reader.u8()? {
+                    0 => false,
+                    1 => true,
+                    tag => return Err(ProofCodecError::InvalidTag("Boolean", tag)),
+                },
+                u128::from_le_bytes(reader.array()?),
+            )
+            .map_err(ProofCodecError::MalformedProposition)?,
+        ),
+        2 => IntegerMathTerm::MathValue {
+            source_type: decode_integer_type(reader)?,
+            value: reader.id("ValueId")?,
+        },
+        3 => IntegerMathTerm::Add(
+            Box::new(decode_integer_math_term(reader, depth + 1)?),
+            Box::new(decode_integer_math_term(reader, depth + 1)?),
+        ),
+        4 => IntegerMathTerm::Subtract(
+            Box::new(decode_integer_math_term(reader, depth + 1)?),
+            Box::new(decode_integer_math_term(reader, depth + 1)?),
+        ),
+        5 => IntegerMathTerm::Multiply(
+            Box::new(decode_integer_math_term(reader, depth + 1)?),
+            Box::new(decode_integer_math_term(reader, depth + 1)?),
+        ),
+        6 => IntegerMathTerm::ShiftLeft {
+            value: Box::new(decode_integer_math_term(reader, depth + 1)?),
+            count: Box::new(decode_integer_math_term(reader, depth + 1)?),
+        },
+        tag => return Err(ProofCodecError::InvalidTag("IntegerMathTerm", tag)),
     })
 }
 

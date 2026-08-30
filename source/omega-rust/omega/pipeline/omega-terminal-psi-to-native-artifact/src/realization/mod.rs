@@ -9,7 +9,10 @@ mod model;
 mod output;
 mod providers;
 
-pub use model::{NativeProviderSettlement, NativeRealizationRequest, SettledNativeArtifact};
+pub use model::{
+    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationRequest,
+    SettledNativeArtifact,
+};
 
 use crate::entry_settlement::validate_native_program_entry_settlement;
 use diagnostics::realization_error;

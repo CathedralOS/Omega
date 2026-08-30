@@ -367,12 +367,12 @@ mod tests {
         serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
         serialize_elf_section_header_table,
     };
-    use omega_machine_code::{ForeignCallRelocation, MachineCodeFunction, MachineCodePlan};
+    use omega_machine_code::MachineCodePlan;
     use omega_target::{
         ForeignLocatorCandidate, TargetProfile, normalize_elf_interpreter_plan,
         normalize_foreign_locator,
     };
-    use omega_target_operations::{CallSiteOwner, TerminalPsiProvenance};
+    use omega_target_operations::TerminalPsiProvenance;
     use psi_core::{MachineId, OperationId};
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -393,68 +393,101 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let mut text = vec![0; 64];
-        let mut operations = Vec::new();
-        let mut foreign_calls = Vec::new();
-        for (ordinal, (instruction_offset, locator_index)) in
-            [(0, 0), (8, 0), (16, 1)].into_iter().enumerate()
-        {
-            let offset = match target {
-                TargetProfile::LinuxX64 => {
-                    text[instruction_offset] = 0xe8;
-                    instruction_offset + 1
-                }
-                TargetProfile::LinuxArm64 => {
-                    text[instruction_offset..instruction_offset + 4]
-                        .copy_from_slice(&[0, 0, 0, 0x94]);
-                    instruction_offset
-                }
-                _ => unreachable!(),
-            };
-            let operation = OperationId::new(ordinal as u64 + 1).unwrap();
-            operations.push(operation);
-            foreign_calls.push(ForeignCallRelocation {
-                owner: CallSiteOwner::Operation(operation),
-                offset,
-                locator: locators[locator_index].clone(),
-            });
-        }
-
+        let signature = omega_calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        };
+        let boundary_entry_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            omega_calling_conventions::CallingPolicy::native_for_target(native),
+            &signature,
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let provider_plan_commitment =
+            omega_task_plans::SameStackProviderPlanCommitment::from_digest([0x5a; 32]);
+        let same_stack_contribution = omega_task_plans::admit_same_stack_contribution(
+            omega_task_plans::SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: 1,
+                provider_plan_commitment,
+                requirement_identity: "production-emitter-import".into(),
+                receipt: omega_task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(1).unwrap(),
+                bytes: 64,
+                alignment: 16,
+            },
+            1,
+            provider_plan_commitment,
+            "production-emitter-import",
+        )
+        .unwrap();
         let machine = MachineId::new(1).unwrap();
-        MachineCodePlan {
+        let return_edge = psi_core::EdgeId::new(1).unwrap();
+        let operations = (1..=3)
+            .map(|identity| OperationId::new(identity).unwrap())
+            .collect::<Vec<_>>();
+        let provider_execution =
+            omega_target_operations::ProviderExecutionBinding::from_execution_record(
+                omega_target_operations::ProviderPlanReportIdentity::new(1).unwrap(),
+                2,
+                3,
+                4,
+                5,
+            )
+            .unwrap();
+        let target_plan = omega_target_operations::TargetOperationPlan {
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([0x5a; 32]),
             },
             target: native,
             entry: machine,
-            functions: vec![MachineCodeFunction {
+            functions: vec![omega_target_operations::TargetFunction {
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
-                    operations,
-                    edges: Vec::new(),
+                    operations: operations.clone(),
+                    edges: vec![return_edge],
                 },
-                bytes: text,
-                unit_stack: None,
-                unit_parameter_homes: Vec::new(),
-                unit_parameters: Vec::new(),
-                scalar_stack: None,
-                internal_calls: Vec::new(),
-                foreign_calls,
-                internal_unit_calls: Vec::new(),
-                unit_affine_cleanup: None,
-                scalar_affine_cleanup: None,
-                scalar_control_affine_cleanups: Vec::new(),
-                scalar_structural_parameters: Vec::new(),
-                scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
-                fuel_attribution: Vec::new(),
-                port_effects: Vec::new(),
-                boundary_settlements: Vec::new(),
-                structural_return: None,
+                operation: omega_target_operations::TargetOperation::UnitBody(
+                    omega_target_operations::TargetUnitBody {
+                        structural_types: Vec::new(),
+                        call_plan: omega_calling_conventions::evaluate_call_plan(
+                            omega_calling_conventions::CallingPolicy::native_for_target(native),
+                            &signature,
+                        )
+                        .unwrap(),
+                        parameters: Vec::new(),
+                        operations: operations
+                            .iter()
+                            .copied()
+                            .zip([0, 0, 1])
+                            .map(|(psi_operation, locator_index)| {
+                                omega_target_operations::TargetUnitOperation::NormalizedForeignCall {
+                                    psi_operation,
+                                    boundary: psi_core::BoundaryMachineId::new(psi_operation.get()).unwrap(),
+                                    provider_execution,
+                                    binding: omega_target_operations::NormalizedForeignCallBinding {
+                                        locator: locators[locator_index].clone(),
+                                        boundary_entry_plan: boundary_entry_plan.clone(),
+                                        same_stack_contribution: same_stack_contribution.clone(),
+                                    },
+                                }
+                            })
+                            .chain(std::iter::once(
+                                omega_target_operations::TargetUnitOperation::Return {
+                                    psi_edge: return_edge,
+                                    cleanup_actions: Vec::new(),
+                                },
+                            ))
+                            .collect(),
+                    },
+                ),
             }],
-        }
+        };
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                .unwrap();
+        omega_machine_emission::emit_machine_code(&assigned).unwrap()
     }
 
     fn artifact(target: TargetProfile) -> ObjectArtifact {
@@ -533,7 +566,8 @@ mod tests {
     #[test]
     fn object_builder_rejects_foreign_placeholder_and_target_drift() {
         let mut malformed = machine_code_plan(TargetProfile::LinuxX64);
-        malformed.functions[0].bytes[0] = 0x90;
+        let opcode = malformed.functions[0].foreign_calls[0].offset - 1;
+        malformed.functions[0].bytes[opcode] = 0x90;
         assert!(matches!(
             build_object_artifact(&malformed),
             Err(crate::ObjectError::InvalidForeignCallSite { .. })
@@ -550,7 +584,12 @@ mod tests {
     #[test]
     fn tampered_call_placeholder_rejects_mid_chain_with_exact_stage_custody() {
         let mut artifact = artifact(TargetProfile::LinuxX64);
-        artifact.text_bytes[0] = 0x90;
+        let opcode = artifact
+            .text_bytes
+            .iter()
+            .position(|byte| *byte == 0xe8)
+            .expect("x86 CALL opcode");
+        artifact.text_bytes[opcode] = 0x90;
         let exact_text = artifact.text_bytes.clone();
         let exact_interpreter = interpreter(TargetProfile::LinuxX64);
         let exact_interpreter_path = exact_interpreter.interpreter_path().to_vec();
@@ -639,7 +678,7 @@ mod tests {
         let admitted = admitted(&artifact, TargetProfile::LinuxX64);
         let exact_bytes = admitted.output().bytes.clone();
         let exact_fingerprint = admitted.assembled_file_compatibility_fingerprint();
-        artifact.text_bytes[32] ^= 1;
+        artifact.text_bytes[0] ^= 1;
 
         let error = emit_admitted_dynamic_elf_image(&artifact, admitted).unwrap_err();
         let (admitted, diagnostic) = error.into_parts();

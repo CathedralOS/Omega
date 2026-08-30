@@ -59,14 +59,17 @@ pub(super) fn lower_special_form(
             .iter()
             .all(|argument| argument.path.is_empty())
     {
-        let binding = settlements.get(boundary).copied().ok_or(
+        let binding = settlements.get(boundary).cloned().ok_or(
             LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
                 machine: function.machine,
                 operation: *psi_operation,
                 boundary: *boundary,
             },
         )?;
-        let BoundaryRealization::DirectPortReadU8(realization) = binding.realization else {
+        let omega_target_operations::BoundarySettlementRealization::Builtin(
+            BoundaryRealization::DirectPortReadU8(realization),
+        ) = binding.realization
+        else {
             return Err(
                 LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
                     machine: function.machine,

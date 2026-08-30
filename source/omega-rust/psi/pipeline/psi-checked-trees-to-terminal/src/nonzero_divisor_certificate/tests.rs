@@ -22,6 +22,187 @@ fn two_value_context(integer_type: IntegerType) -> PropositionContext {
 }
 
 #[test]
+fn unsigned_affine_exact_cast_bound_uses_existing_ordered_transform_rule() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let root = value(1, integer_type);
+    let added = value(2, integer_type);
+    let target = value(3, integer_type);
+    let unsigned = |value| {
+        ScalarTerm::integer(integer_type, IntegerValue::Unsigned(value)).expect("u16 literal")
+    };
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let assumptions = [Proposition::LessOrEqual(root.clone(), unsigned(126))];
+    let axioms = [
+        Proposition::Equal(
+            added.clone(),
+            ScalarTerm::exact_integer_add(integer_type, root, unsigned(1)).unwrap(),
+        ),
+        Proposition::Equal(
+            target,
+            ScalarTerm::exact_integer_multiply(integer_type, added, unsigned(2)).unwrap(),
+        ),
+    ];
+    let goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(3).unwrap(),
+        },
+        psi_core::IntegerMathTerm::IntegerLiteral(
+            psi_core::IntegerMathLiteral::new(false, 255).unwrap(),
+        ),
+    );
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("unsigned affine endpoint maps to the exact-cast carrier bound");
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        left_less_or_equal_middle,
+        ..
+    } = proof.rule
+    else {
+        panic!("unsigned affine endpoint uses closed strengthening")
+    };
+    assert!(matches!(
+        left_less_or_equal_middle.rule,
+        ProofRule::IntegerAffineBound { .. }
+    ));
+}
+
+#[test]
+fn landed_remainder_exact_cast_bound_retains_checked_root_custody() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let root = value(1, integer_type);
+    let target = value(2, integer_type);
+    let other = value(3, integer_type);
+    let unsigned = |value| {
+        ScalarTerm::integer(integer_type, IntegerValue::Unsigned(value)).expect("u16 literal")
+    };
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let root_bound = Proposition::LessOrEqual(root.clone(), unsigned(u16::MAX.into()));
+    let definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::exact_integer_remainder(integer_type, root.clone(), unsigned(64)).unwrap(),
+    );
+    let goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value: ValueId::new(2).unwrap(),
+        },
+        psi_core::IntegerMathTerm::IntegerLiteral(
+            psi_core::IntegerMathLiteral::new(false, 127).unwrap(),
+        ),
+    );
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        std::slice::from_ref(&root_bound),
+        std::slice::from_ref(&definition),
+    )
+    .expect("landed remainder hull proves the exact-cast carrier bound");
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        left_less_or_equal_middle,
+        ..
+    } = proof.rule
+    else {
+        panic!("remainder hull uses closed strengthening")
+    };
+    let ProofRule::IntegerAffineBound { root_bound, .. } = left_less_or_equal_middle.rule else {
+        panic!("remainder hull uses the existing ordered transform")
+    };
+    assert!(matches!(
+        root_bound.rule,
+        ProofRule::Assumption { index: 0 }
+    ));
+
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        &[],
+        std::slice::from_ref(&definition),
+    )
+    .expect("a landed nonzero remainder permits an explicit Truth root child");
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        left_less_or_equal_middle,
+        ..
+    } = proof.rule
+    else {
+        panic!("Truth-root remainder hull uses closed strengthening")
+    };
+    let ProofRule::IntegerAffineBound { root_bound, .. } = left_less_or_equal_middle.rule else {
+        panic!("Truth-root remainder hull uses the checked ordered transform")
+    };
+    assert!(matches!(
+        root_bound.rule,
+        ProofRule::Primitive(PrimitiveJudgment::Truth)
+    ));
+
+    let zero_divisor = Proposition::Equal(
+        target,
+        ScalarTerm::exact_integer_remainder(integer_type, other, unsigned(0)).unwrap(),
+    );
+    assert!(
+        prove_canonical_integer_proposition(&context, &goal, &[], &[zero_divisor],).is_none(),
+        "a zero-divisor remainder cannot claim a total carrier image",
+    );
+}
+
+#[test]
+fn nested_shift_then_cast_bound_composes_existing_checked_rules() {
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+    let root = value(1, i64_type);
+    let shifted = value(2, i64_type);
+    let target = value(3, u64_type);
+    let signed =
+        |value| ScalarTerm::integer(i64_type, IntegerValue::Signed(value)).expect("i64 literal");
+    let unsigned_count = ScalarTerm::integer(u16_type, IntegerValue::Unsigned(1)).unwrap();
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(i64_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i64_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(u64_type)),
+    ])
+    .unwrap();
+    let assumptions = [Proposition::LessOrEqual(
+        root.clone(),
+        signed(4_294_967_294),
+    )];
+    let axioms = [
+        Proposition::Equal(
+            shifted.clone(),
+            ScalarTerm::exact_integer_shift_right(i64_type, u16_type, root, unsigned_count)
+                .unwrap(),
+        ),
+        Proposition::Equal(
+            target,
+            ScalarTerm::integer_exact_cast(i64_type, u64_type, shifted).unwrap(),
+        ),
+    ];
+    let goal = Proposition::IntegerMathLessOrEqual(
+        psi_core::IntegerMathTerm::MathValue {
+            source_type: u64_type,
+            value: ValueId::new(3).unwrap(),
+        },
+        psi_core::IntegerMathTerm::IntegerLiteral(
+            psi_core::IntegerMathLiteral::new(false, 2_147_483_647).unwrap(),
+        ),
+    );
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("checked shift source bound composes through the checked cast");
+    let ProofRule::IntegerCastBound { root_bound, .. } = proof.rule else {
+        panic!("outer exact-cast word retains IntegerCastBound")
+    };
+    assert!(matches!(
+        root_bound.rule,
+        ProofRule::IntegerAffineBound { .. }
+    ));
+}
+
+#[test]
 fn signed_exact_shift_count_uses_checked_conjunction_introduction() {
     let count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let count = value(1, count_type);

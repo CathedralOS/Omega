@@ -30,7 +30,11 @@ pub(super) fn select(
             _ => return None,
         };
         let literal_axiom = match sibling.integer_value() {
-            Some((actual, IntegerValue::Signed(_))) if actual == integer_type => None,
+            Some((actual, IntegerValue::Signed(_) | IntegerValue::Unsigned(_)))
+                if actual == integer_type =>
+            {
+                None
+            }
             None if matches!(sibling, ScalarTerm::Value { .. }) => Some(landing::unique(
                 context,
                 semantic_axioms,

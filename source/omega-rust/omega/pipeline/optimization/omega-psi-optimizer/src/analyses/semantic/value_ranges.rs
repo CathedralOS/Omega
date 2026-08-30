@@ -432,6 +432,9 @@ fn extract_integer_interval_conjunct(
             }
         }
         Proposition::Atom(_)
+        | Proposition::IntegerMathEqual(_, _)
+        | Proposition::IntegerMathLessThan(_, _)
+        | Proposition::IntegerMathLessOrEqual(_, _)
         | Proposition::IeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. }

@@ -27,7 +27,7 @@ pub use identity::{
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType,
-    IntegerValue, Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
-    StructuralCaseSubject,
+    IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier, IntegerMathLiteral, IntegerMathTerm,
+    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,
+    ScalarTerm, ScalarType, StructuralCaseSubject,
 };

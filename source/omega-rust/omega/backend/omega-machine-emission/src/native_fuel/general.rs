@@ -328,6 +328,7 @@ mod tests {
                 edges: vec![EdgeId::new(machine * 10 + 3).unwrap()],
             },
             bytes: vec![1, 2, 3, 4, 5, 6, 7, 8],
+            x86_scalar_fma: Vec::new(),
             unit_stack: None,
             unit_parameter_homes: Vec::new(),
             unit_parameters: Vec::new(),

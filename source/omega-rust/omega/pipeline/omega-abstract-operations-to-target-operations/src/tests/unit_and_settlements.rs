@@ -384,9 +384,12 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         provider_execution,
         realization: realization.into(),
     };
-    let lowered =
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[binding])
-            .expect("exact effect evidence");
+    let lowered = lower_to_target_operations_with_settlements(
+        &plan,
+        NativeTarget::linux_x64(),
+        &[binding.clone()],
+    )
+    .expect("exact effect evidence");
     let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
         panic!("Unit body")
     };
@@ -431,7 +434,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         lower_to_target_operations_with_settlements(
             &scalar_argument,
             NativeTarget::linux_x64(),
-            &[binding],
+            &[binding.clone()],
         ),
         Err(
             LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
@@ -473,7 +476,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         lower_to_target_operations_with_settlements(
             &result_bearing,
             NativeTarget::linux_x64(),
-            &[binding],
+            &[binding.clone()],
         ),
         Err(
             LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
@@ -641,9 +644,12 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
         realization: ClaimCompletionOnlyRealization.into(),
     };
 
-    let lowered =
-        lower_to_target_operations_with_settlements(&plan, NativeTarget::uefi_x64(), &[binding])
-            .expect("claim completion is an evidence-bearing zero-input target settlement");
+    let lowered = lower_to_target_operations_with_settlements(
+        &plan,
+        NativeTarget::uefi_x64(),
+        &[binding.clone()],
+    )
+    .expect("claim completion is an evidence-bearing zero-input target settlement");
     let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
         panic!("Unit body")
     };
@@ -698,7 +704,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
         lower_to_target_operations_with_settlements(
             &missing_receipt,
             NativeTarget::uefi_x64(),
-            &[binding],
+            &[binding.clone()],
         ),
         Err(LoweringError::InvalidClaimCompletionOnlyShape {
             machine,

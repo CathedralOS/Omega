@@ -63,6 +63,15 @@ pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
 ) -> Result<ExecutableImage, Diagnostic> {
+    if artifact
+        .functions
+        .iter()
+        .any(|function| !function.x86_scalar_fma.is_empty())
+    {
+        return Err(Diagnostic::error(
+            "x86 scalar FMA feature requirements have no admitted executable provider",
+        ));
+    }
     super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if !can_emit_executable_image(artifact.target) {
         return Err(Diagnostic::error(format!(
@@ -129,6 +138,15 @@ pub fn validate_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {
+    if artifact
+        .functions
+        .iter()
+        .any(|function| !function.x86_scalar_fma.is_empty())
+    {
+        return Err(Diagnostic::error(
+            "x86 scalar FMA feature requirements have no admitted executable provider",
+        ));
+    }
     super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()

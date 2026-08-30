@@ -54,7 +54,7 @@ pub(super) fn bind_provider_executions(
             Ok(BoundarySettlementBinding {
                 boundary: settlement.boundary,
                 provider_execution,
-                realization: settlement.realization,
+                realization: settlement.realization.clone(),
             })
         })
         .collect()

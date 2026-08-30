@@ -45,7 +45,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     let mut settlements_by_boundary = BTreeMap::new();
     for binding in settlement_bindings {
         if settlements_by_boundary
-            .insert(binding.boundary, *binding)
+            .insert(binding.boundary, binding.clone())
             .is_some()
         {
             return Err(LoweringError::DuplicateBoundarySettlement(binding.boundary));

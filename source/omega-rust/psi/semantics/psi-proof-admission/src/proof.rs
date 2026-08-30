@@ -1,11 +1,12 @@
-use psi_core::{Proposition, PropositionContext};
+use psi_core::{IntegerMathTerm, IntegerValue, Proposition, PropositionContext, ScalarTerm};
 
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
     IntegerCastBoundConversionError, IntegerCastChainWitness, IntegerCastChainWitnessError,
     KernelError, PrimitiveJudgment, check_integer_affine_bound_conversion,
     check_integer_affine_witness, check_integer_cast_bound_conversion,
-    check_integer_cast_chain_witness, decide_primitive,
+    check_integer_cast_chain_witness, decide_primitive, integer_affine_truth_bounds,
+    integer_cast_truth_bounds,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,13 +55,14 @@ pub enum ProofRule {
         endpoint: usize,
     },
     /// Map one independently proved root bound through an exact, ordered
-    /// affine-definition witness whose semantic-axiom custody is rechecked.
+    /// endpoint-transform witness whose affine or landed-count shift
+    /// semantic-axiom custody is rechecked.
     IntegerAffineBound {
         root_bound: Box<ProofNode>,
         witness: IntegerAffineWitness,
     },
-    /// Map one independently proved root bound through exactly one checked
-    /// partial fixed-integer exact-cast definition.
+    /// Map one independently proved root bound through one checked ordered
+    /// word of partial fixed-integer exact casts and strict widening identities.
     IntegerCastBound {
         root_bound: Box<ProofNode>,
         witness: IntegerCastChainWitness,
@@ -206,7 +208,7 @@ fn check_node(
             let axiom = semantic_axioms
                 .get(*index)
                 .ok_or(ProofError::UnknownSemanticAxiom(*index))?;
-            if axiom != &proof.conclusion {
+            if !propositions_match_under_integer_math_normalization(axiom, &proof.conclusion) {
                 return Err(ProofError::SemanticAxiomConclusionMismatch(*index));
             }
             acceptance.record_semantic_axiom(*index, axiom);
@@ -217,7 +219,7 @@ fn check_node(
             let assumption = assumptions
                 .get(*index)
                 .ok_or(ProofError::UnknownAssumption(*index))?;
-            if assumption != &proof.conclusion {
+            if !propositions_match_under_integer_math_normalization(assumption, &proof.conclusion) {
                 return Err(ProofError::AssumptionConclusionMismatch(*index));
             }
             acceptance.record_assumption(*index, assumption);
@@ -363,26 +365,46 @@ fn check_node(
             match (
                 &left_equals_middle.conclusion,
                 &middle_equals_right.conclusion,
-                &proof.conclusion,
             ) {
                 (
                     Proposition::Equal(left, first_middle),
                     Proposition::Equal(second_middle, right),
-                    Proposition::Equal(expected_left, expected_right),
                 ) => {
                     if first_middle != second_middle {
                         return Err(ProofError::EqualityMiddleMismatch);
                     }
-                    if left != expected_left || right != expected_right {
+                    let composed = Proposition::Equal(left.clone(), right.clone());
+                    if !propositions_match_under_integer_math_normalization(
+                        &composed,
+                        &proof.conclusion,
+                    ) {
                         return Err(ProofError::EqualityConclusionMismatch);
                     }
                     Ok(())
                 }
                 (
+                    Proposition::IntegerMathEqual(left, first_middle),
+                    Proposition::IntegerMathEqual(second_middle, right),
+                ) => {
+                    if first_middle != second_middle {
+                        return Err(ProofError::EqualityMiddleMismatch);
+                    }
+                    let mut left = left.clone();
+                    let mut right = right.clone();
+                    if left > right {
+                        std::mem::swap(&mut left, &mut right);
+                    }
+                    (proof.conclusion == Proposition::IntegerMathEqual(left, right))
+                        .then_some(())
+                        .ok_or(ProofError::EqualityConclusionMismatch)
+                }
+                (
                     Proposition::ContentConservation(left_equation),
                     Proposition::ContentConservation(right_equation),
-                    Proposition::ContentConservation(expected),
                 ) => {
+                    let Proposition::ContentConservation(expected) = &proof.conclusion else {
+                        return Err(ProofError::RuleConclusionMismatch("equality transitivity"));
+                    };
                     if left_equation.algebra() != right_equation.algebra()
                         || left_equation.algebra() != expected.algebra()
                     {
@@ -440,20 +462,34 @@ fn check_node(
             match (
                 &left_less_or_equal_middle.conclusion,
                 &middle_less_or_equal_right.conclusion,
-                &proof.conclusion,
             ) {
                 (
                     Proposition::LessOrEqual(left, first_middle),
                     Proposition::LessOrEqual(second_middle, right),
-                    Proposition::LessOrEqual(expected_left, expected_right),
                 ) => {
                     if first_middle != second_middle {
                         return Err(ProofError::IntegerOrderMiddleMismatch);
                     }
-                    if left != expected_left || right != expected_right {
+                    let composed = Proposition::LessOrEqual(left.clone(), right.clone());
+                    if !propositions_match_under_integer_math_normalization(
+                        &composed,
+                        &proof.conclusion,
+                    ) {
                         return Err(ProofError::IntegerOrderConclusionMismatch);
                     }
                     Ok(())
+                }
+                (
+                    Proposition::IntegerMathLessOrEqual(left, first_middle),
+                    Proposition::IntegerMathLessOrEqual(second_middle, right),
+                ) => {
+                    if first_middle != second_middle {
+                        return Err(ProofError::IntegerOrderMiddleMismatch);
+                    }
+                    (proof.conclusion
+                        == Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()))
+                    .then_some(())
+                    .ok_or(ProofError::IntegerOrderConclusionMismatch)
                 }
                 _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
             }
@@ -468,6 +504,35 @@ fn check_node(
                 .insert(AcceptedProofRule::IntegerLessOrEqualSubstitution);
             check_node(context, assumptions, semantic_axioms, relation, acceptance)?;
             check_node(context, assumptions, semantic_axioms, equality, acceptance)?;
+            if let (
+                Proposition::IntegerMathLessOrEqual(relation_left, relation_right),
+                Proposition::IntegerMathEqual(equality_left, equality_right),
+                Proposition::IntegerMathLessOrEqual(conclusion_left, conclusion_right),
+            ) = (
+                &relation.conclusion,
+                &equality.conclusion,
+                &proof.conclusion,
+            ) {
+                let (old_endpoint, new_endpoint) = match endpoint {
+                    0 => {
+                        if relation_right != conclusion_right {
+                            return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
+                        }
+                        (relation_left, conclusion_left)
+                    }
+                    1 => {
+                        if relation_left != conclusion_left {
+                            return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
+                        }
+                        (relation_right, conclusion_right)
+                    }
+                    endpoint => return Err(ProofError::UnknownIntegerOrderEndpoint(*endpoint)),
+                };
+                return ((equality_left == old_endpoint && equality_right == new_endpoint)
+                    || (equality_right == old_endpoint && equality_left == new_endpoint))
+                    .then_some(())
+                    .ok_or(ProofError::IntegerOrderSubstitutionMismatch);
+            }
             let Proposition::LessOrEqual(relation_left, relation_right) = &relation.conclusion
             else {
                 return Err(ProofError::RulePremiseMismatch(
@@ -479,7 +544,10 @@ fn check_node(
                     "integer <= substitution equality",
                 ));
             };
-            let Proposition::LessOrEqual(conclusion_left, conclusion_right) = &proof.conclusion
+            let normalized_conclusion = lower_integer_math_relation(&proof.conclusion)
+                .unwrap_or_else(|| proof.conclusion.clone());
+            let Proposition::LessOrEqual(conclusion_left, conclusion_right) =
+                &normalized_conclusion
             else {
                 return Err(ProofError::RuleConclusionMismatch(
                     "integer <= substitution",
@@ -523,8 +591,24 @@ fn check_node(
             )?;
             let form = check_integer_affine_witness(context, semantic_axioms, witness)
                 .map_err(ProofError::IntegerAffineWitness)?;
-            check_integer_affine_bound_conversion(&form, &root_bound.conclusion, &proof.conclusion)
+            let normalized_conclusion = lower_integer_math_relation(&proof.conclusion)
+                .unwrap_or_else(|| proof.conclusion.clone());
+            if root_bound.conclusion == Proposition::Truth {
+                let bounds = integer_affine_truth_bounds(&form)
+                    .map_err(ProofError::IntegerAffineBoundConversion)?;
+                if !bounds.contains(&normalized_conclusion) {
+                    return Err(ProofError::IntegerAffineBoundConversion(
+                        IntegerAffineBoundConversionError::ConclusionMismatch,
+                    ));
+                }
+            } else {
+                check_integer_affine_bound_conversion(
+                    &form,
+                    &root_bound.conclusion,
+                    &normalized_conclusion,
+                )
                 .map_err(ProofError::IntegerAffineBoundConversion)?;
+            }
             for (&definition_index, &literal_index) in witness
                 .definition_axioms
                 .iter()
@@ -557,8 +641,24 @@ fn check_node(
             )?;
             let chain = check_integer_cast_chain_witness(context, semantic_axioms, witness)
                 .map_err(ProofError::IntegerCastChainWitness)?;
-            check_integer_cast_bound_conversion(&chain, &root_bound.conclusion, &proof.conclusion)
+            let normalized_conclusion = lower_integer_math_relation(&proof.conclusion)
+                .unwrap_or_else(|| proof.conclusion.clone());
+            if root_bound.conclusion == Proposition::Truth {
+                let bounds = integer_cast_truth_bounds(&chain)
+                    .map_err(ProofError::IntegerCastBoundConversion)?;
+                if !bounds.contains(&normalized_conclusion) {
+                    return Err(ProofError::IntegerCastBoundConversion(
+                        IntegerCastBoundConversionError::ConclusionLiteralMismatch,
+                    ));
+                }
+            } else {
+                check_integer_cast_bound_conversion(
+                    &chain,
+                    &root_bound.conclusion,
+                    &normalized_conclusion,
+                )
                 .map_err(ProofError::IntegerCastBoundConversion)?;
+            }
             for &index in &witness.definition_axioms {
                 let proposition = semantic_axioms
                     .get(index)
@@ -602,6 +702,94 @@ pub enum ProofError {
     RulePremiseMismatch(&'static str),
 }
 
+/// Canonically embed a relation over fixed-width value/literal terms into the
+/// mathematical-integer relation vocabulary. Compound machine terms are not
+/// silently reinterpreted by this bridge.
+pub fn lift_fixed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
+    let (kind, left, right) = match proposition {
+        Proposition::Equal(left, right) => (0, left, right),
+        Proposition::LessThan(left, right) => (1, left, right),
+        Proposition::LessOrEqual(left, right) => (2, left, right),
+        _ => return None,
+    };
+    let mut left = lift_fixed_integer_term(left)?;
+    let mut right = lift_fixed_integer_term(right)?;
+    Some(match kind {
+        0 => {
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::IntegerMathEqual(left, right)
+        }
+        1 => Proposition::IntegerMathLessThan(left, right),
+        _ => Proposition::IntegerMathLessOrEqual(left, right),
+    })
+}
+
+/// Inverse of [`lift_fixed_integer_relation`] for the canonical carrier-bound
+/// shapes used by exact-cast representability.
+pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposition> {
+    let (kind, left, right) = match proposition {
+        Proposition::IntegerMathEqual(left, right) => (0, left, right),
+        Proposition::IntegerMathLessThan(left, right) => (1, left, right),
+        Proposition::IntegerMathLessOrEqual(left, right) => (2, left, right),
+        _ => return None,
+    };
+    let source_type = [left, right].into_iter().find_map(|term| match term {
+        IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
+        _ => None,
+    })?;
+    let lower = |term: &IntegerMathTerm| match term {
+        IntegerMathTerm::MathValue {
+            source_type: actual,
+            value,
+        } if *actual == source_type => Some(ScalarTerm::value(
+            *value,
+            psi_core::ScalarType::Integer(source_type),
+        )),
+        IntegerMathTerm::IntegerLiteral(literal) => {
+            ScalarTerm::integer(source_type, literal.as_integer_value(source_type)?).ok()
+        }
+        _ => None,
+    };
+    let left = lower(left)?;
+    let right = lower(right)?;
+    Some(match kind {
+        0 => Proposition::Equal(left, right),
+        1 => Proposition::LessThan(left, right),
+        _ => Proposition::LessOrEqual(left, right),
+    })
+}
+
+fn propositions_match_under_integer_math_normalization(
+    retained: &Proposition,
+    requested: &Proposition,
+) -> bool {
+    retained == requested
+        || lift_fixed_integer_relation(retained).as_ref() == Some(requested)
+        || lower_integer_math_relation(retained).as_ref() == Some(requested)
+}
+
+fn lift_fixed_integer_term(term: &ScalarTerm) -> Option<IntegerMathTerm> {
+    match term {
+        ScalarTerm::Value {
+            id,
+            scalar_type: psi_core::ScalarType::Integer(source_type),
+        } if !source_type.is_address() => Some(IntegerMathTerm::MathValue {
+            source_type: *source_type,
+            value: *id,
+        }),
+        ScalarTerm::Integer { scalar_type, value } if !scalar_type.is_address() => {
+            debug_assert!(matches!(
+                value,
+                IntegerValue::Signed(_) | IntegerValue::Unsigned(_)
+            ));
+            Some(IntegerMathTerm::literal(*value))
+        }
+        _ => None,
+    }
+}
+
 impl std::fmt::Display for ProofError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "{self:?}")
@@ -614,6 +802,52 @@ impl std::error::Error for ProofError {}
 mod tests {
     use super::*;
     use psi_core::PropositionId;
+
+    #[test]
+    fn existing_assumption_rule_checks_fixed_carrier_normalization_to_math() {
+        let integer_type =
+            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 16).expect("i16");
+        let value_id = psi_core::ValueId::new(88).expect("value");
+        let value = ScalarTerm::value(value_id, psi_core::ScalarType::Integer(integer_type));
+        let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("zero");
+        let assumption = Proposition::LessOrEqual(zero, value);
+        let goal = lift_fixed_integer_relation(&assumption).expect("mathematical carrier relation");
+        let context = PropositionContext::from_value_types([(
+            value_id,
+            psi_core::ScalarType::Integer(integer_type),
+        )])
+        .expect("context");
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::Assumption { index: 0 },
+        };
+        assert!(check_certificate(&context, &goal, &[assumption], &[], &proof).is_ok());
+
+        let wrong = Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(IntegerValue::Signed(1)),
+            IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: value_id,
+            },
+        );
+        let tampered = ProofNode {
+            conclusion: wrong.clone(),
+            rule: ProofRule::Assumption { index: 0 },
+        };
+        assert!(
+            check_certificate(
+                &context,
+                &wrong,
+                &[Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("zero"),
+                    ScalarTerm::value(value_id, psi_core::ScalarType::Integer(integer_type)),
+                )],
+                &[],
+                &tampered
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn disjunction_introduction_checks_one_exact_selected_child() {
@@ -1216,7 +1450,7 @@ mod tests {
                 &non_order_proof,
             ),
             Err(ProofError::IntegerAffineBoundConversion(
-                IntegerAffineBoundConversionError::RootBoundNotLessOrEqual,
+                IntegerAffineBoundConversionError::TruthRootWithoutTotalImage,
             )),
         );
     }

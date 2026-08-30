@@ -16,6 +16,10 @@ pub(super) fn select<'a>(
         | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
+        ScalarTerm::ExactIntegerDivide { left, right, .. }
+        | ScalarTerm::ExactIntegerRemainder { left, right, .. } => {
+            (left.as_ref(), right.as_ref(), true)
+        }
         ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
             (left.as_ref(), right.as_ref(), true)
         }

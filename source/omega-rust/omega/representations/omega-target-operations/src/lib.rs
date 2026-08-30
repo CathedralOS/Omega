@@ -4,7 +4,7 @@
 //! requirements.
 
 pub use omega_abstract_operations::{CompletionClaimSource, RankedU32CountdownCustody};
-use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
+use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -195,6 +195,45 @@ pub struct LinuxWriteLineRealization;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ClaimCompletionOnlyRealization;
 
+/// Exact source-free custody for one evaluated normalized import leaf.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedForeignCallBinding {
+    pub locator: omega_target::NormalizedForeignLocator,
+    pub boundary_entry_plan: BoundaryEntryPlan,
+    pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+}
+
+/// Closed native settlement choice. Keeping evaluated imports disjoint from
+/// built-in realizations prevents locator custody from being stripped into a
+/// no-code boundary settlement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundarySettlementRealization {
+    Builtin(BoundaryRealization),
+    NormalizedForeignCall(NormalizedForeignCallBinding),
+}
+
+impl From<BoundaryRealization> for BoundarySettlementRealization {
+    fn from(realization: BoundaryRealization) -> Self {
+        Self::Builtin(realization)
+    }
+}
+
+macro_rules! builtin_settlement_conversion {
+    ($realization:ty) => {
+        impl From<$realization> for BoundarySettlementRealization {
+            fn from(realization: $realization) -> Self {
+                Self::Builtin(realization.into())
+            }
+        }
+    };
+}
+
+builtin_settlement_conversion!(MetadataOnlyPortRealization);
+builtin_settlement_conversion!(DirectPortReadU8Realization);
+builtin_settlement_conversion!(LinuxWriteLineRealization);
+builtin_settlement_conversion!(LinuxExitGroupI32Realization);
+builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
     MetadataOnlyPort(MetadataOnlyPortRealization),
@@ -207,6 +246,12 @@ pub enum BoundaryRealization {
 impl From<MetadataOnlyPortRealization> for BoundaryRealization {
     fn from(realization: MetadataOnlyPortRealization) -> Self {
         Self::MetadataOnlyPort(realization)
+    }
+}
+
+impl From<DirectPortReadU8Realization> for BoundaryRealization {
+    fn from(realization: DirectPortReadU8Realization) -> Self {
+        Self::DirectPortReadU8(realization)
     }
 }
 
@@ -257,11 +302,11 @@ pub struct BoundaryByteSequenceArgument {
 /// provider execution settles the claim, while the preceding semantic effect
 /// (for example `PortWrite`) performs the hardware operation. No code is
 /// silently erased; this row must survive installation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundarySettlementBinding {
     pub boundary: BoundaryMachineId,
     pub provider_execution: ProviderExecutionBinding,
-    pub realization: BoundaryRealization,
+    pub realization: BoundarySettlementRealization,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -341,6 +386,15 @@ pub enum TargetUnitOperation {
         claim_transfers: Vec<ClaimTransfer>,
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
+    },
+    /// One zero-argument Unit-returning evaluated import leaf. Native
+    /// settlement rejoins this exact carrier; lowering never accepts locator
+    /// or calling-plan strings from the call site.
+    NormalizedForeignCall {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider_execution: ProviderExecutionBinding,
+        binding: NormalizedForeignCallBinding,
     },
     PortWrite {
         psi_operation: OperationId,

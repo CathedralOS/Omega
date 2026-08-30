@@ -16,9 +16,10 @@ use psi_proof_admission::{
 
 use super::super::{
     IntegerOffset, canonical_conjunction, exact_integer_source_interval_obligation,
-    fixed_integer_type_interval, integer_value_as_i128, landed_integer_constant_value,
-    signed_negative_magnitude,
+    integer_value_as_i128, landed_integer_constant_value,
 };
+#[cfg(test)]
+use super::super::{fixed_integer_type_interval, signed_negative_magnitude};
 
 pub(in crate::verification) fn exact_integer_shift_prefix_interval_obligation(
     value_type: psi_core::IntegerType,
@@ -87,6 +88,7 @@ pub(in crate::verification) fn exact_integer_shift_prefix_interval_obligation(
     None
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_mixed_shift_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -752,6 +754,7 @@ pub(super) fn known_shift_count_maximum(
         .min()
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_shift_right_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -832,6 +835,7 @@ pub(in crate::verification) fn exact_integer_shift_right_chain_cast_obligation(
     ))
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_shift_right_chain_cast_interval_obligation(
     root_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -865,6 +869,7 @@ pub(in crate::verification) fn exact_integer_shift_right_chain_cast_interval_obl
     exact_integer_source_interval_obligation(root_type, root, target_minimum, target_maximum)
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_shift_left_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -945,6 +950,7 @@ pub(in crate::verification) fn exact_integer_shift_left_chain_cast_obligation(
     ))
 }
 
+#[cfg(test)]
 fn exact_integer_shift_chain_cast_interval_obligation(
     root_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,

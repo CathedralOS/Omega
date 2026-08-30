@@ -803,6 +803,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     assert!(carrier_total_literal_division_obligations.iter().any(
         |(_, _, is_remainder)| *is_remainder
     ));
+    let reconstructed = psi_terminal_verifier::reconstruct_operation_obligations(
+        &lowered.semantic_module,
+    )
+    .expect("reconstruct literal division obligations");
     for (obligation, literal, _) in &carrier_total_literal_division_obligations {
         let evidence = lowered
             .proof_bundle
@@ -818,11 +822,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             IntegerValue::Unsigned(_)
                 | IntegerValue::Signed(_)
         ));
-        assert_eq!(certificate.proof.conclusion, Proposition::Truth);
-        assert!(matches!(
-            certificate.proof.rule,
-            ProofRule::Primitive(psi_proof_admission::PrimitiveJudgment::Truth)
-        ));
+        let site = reconstructed
+            .iter()
+            .find(|site| site.obligation.id == *obligation)
+            .expect("reconstructed carrier-total literal division site");
+        assert!(site.canonical_certificate);
+        assert_eq!(certificate.proof.conclusion, site.obligation.proposition);
     }
     let retained_bound_negative_one_obligations = entry
         .blocks

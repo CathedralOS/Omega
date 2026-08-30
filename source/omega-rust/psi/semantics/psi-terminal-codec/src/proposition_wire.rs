@@ -9,6 +9,7 @@ use psi_core::{ContentConservation, Proposition, PropositionId, StructuralCaseSu
 use super::content_wire::{
     decode_content_algebra, decode_content_term, encode_content_algebra, encode_content_term,
 };
+use super::integer_math_term_wire::{decode_integer_math_term, encode_integer_math_term};
 use super::structural_field_wire::{
     decode_byte_sequence_field, decode_canonical_structural_field,
     decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
@@ -47,6 +48,18 @@ pub(super) fn encode_proposition(
             writer.u8(6);
             encode_scalar_term(writer, left, 0)?;
             encode_scalar_term(writer, right, 0)?;
+        }
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right)
+        | Proposition::IntegerMathLessOrEqual(left, right) => {
+            writer.u8(match proposition {
+                Proposition::IntegerMathEqual(_, _) => 14,
+                Proposition::IntegerMathLessThan(_, _) => 15,
+                Proposition::IntegerMathLessOrEqual(_, _) => 16,
+                _ => unreachable!(),
+            });
+            encode_integer_math_term(writer, left, 0)?;
+            encode_integer_math_term(writer, right, 0)?;
         }
         Proposition::Conjunction(conjuncts) => {
             writer.u8(7);
@@ -173,6 +186,18 @@ pub(super) fn decode_proposition(
                 case: reader.id("StructuralCaseId")?,
             }
         }
+        14 => Proposition::IntegerMathEqual(
+            decode_integer_math_term(reader, 0)?,
+            decode_integer_math_term(reader, 0)?,
+        ),
+        15 => Proposition::IntegerMathLessThan(
+            decode_integer_math_term(reader, 0)?,
+            decode_integer_math_term(reader, 0)?,
+        ),
+        16 => Proposition::IntegerMathLessOrEqual(
+            decode_integer_math_term(reader, 0)?,
+            decode_integer_math_term(reader, 0)?,
+        ),
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }

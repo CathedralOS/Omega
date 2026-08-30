@@ -32,6 +32,9 @@ use psi_core::{MachineId, ValueId};
 mod unit;
 use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 
+mod x86_fma;
+pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};
+
 mod native_fuel;
 pub use native_fuel::{NativeFuelInstrumentationError, instrument_native_fuel};
 
@@ -143,6 +146,7 @@ fn emit_function(
     }
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
+    let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut unit_affine_cleanup = None;
     let mut fuel_attribution = Vec::new();
@@ -169,6 +173,7 @@ fn emit_function(
         operation @ AssignedOperation::ReturnStructuralScalarCall { .. } => {
             let emitted = structural_scalar::emit(operation, target, functions)?;
             internal_calls = emitted.internal_calls;
+            foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             fuel_attribution = emitted.fuel_attribution;
             port_effects = emitted.port_effects;
@@ -182,6 +187,7 @@ fn emit_function(
         operation @ AssignedOperation::ReturnStructuralCall { .. } => {
             let emitted = structural_result::emit(operation, target, functions)?;
             internal_calls = emitted.internal_calls;
+            foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             fuel_attribution = emitted.fuel_attribution;
             unit_stack = Some(emitted.stack);
@@ -383,6 +389,7 @@ fn emit_function(
         AssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(body, target, functions)?;
             internal_calls = emitted.internal_calls;
+            foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             fuel_attribution = emitted.fuel_attribution;
             port_effects = emitted.port_effects;
@@ -758,12 +765,13 @@ fn emit_function(
         attachment: function.attachment,
         provenance: function.provenance.clone(),
         bytes,
+        x86_scalar_fma: Vec::new(),
         unit_stack,
         unit_parameter_homes,
         unit_parameters,
         scalar_stack,
         internal_calls,
-        foreign_calls: Vec::new(),
+        foreign_calls,
         internal_unit_calls,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
@@ -1015,6 +1023,7 @@ pub enum EmissionError {
     InvalidLinuxWriteLineCustody,
     InvalidClaimCompletionOnlyCustody,
     InvalidCompletionProviderCustody,
+    InvalidNormalizedForeignCallCustody,
     IntegerWidthNotNativelySupported {
         value: ValueId,
         bits: u16,

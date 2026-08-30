@@ -4,8 +4,10 @@
 //! lane.
 
 mod function_fragments;
+mod x86_fma;
 
 pub use function_fragments::*;
+pub use x86_fma::*;
 
 use omega_abstract_operations::RankedU32CountdownCustody;
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
@@ -85,6 +87,10 @@ pub struct MachineCodeFunction {
     pub attachment: Option<StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
+    /// Feature-requiring scalar FMA3 instruction intervals. These records do
+    /// not admit AVX/FMA3; they make the requirement impossible to erase
+    /// before independent object replay.
+    pub x86_scalar_fma: Vec<X86ScalarFmaFragment>,
     /// Target-emitter-owned stack facts for the aggregate-frame body closure:
     /// Unit bodies and the bounded direct structural-call/scalar-return
     /// carrier. Other terminal function forms remain deliberately unreported
@@ -162,6 +168,13 @@ pub struct ForeignCallRelocation {
     pub owner: CallSiteOwner,
     pub offset: usize,
     pub locator: omega_target::NormalizedForeignLocator,
+    pub provider_execution: ProviderExecutionRecord,
+    /// Exact source-selected ABI plan consumed to emit this call.
+    pub call_plan: omega_calling_conventions::CallPlan,
+    /// Byte-addressed outbound stack custody plus the independently admitted
+    /// opaque same-stack contribution for the foreign leaf.
+    pub unit_stack: UnitCallStackEvidence,
+    pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
 }
 
 impl MachineCodeFunction {

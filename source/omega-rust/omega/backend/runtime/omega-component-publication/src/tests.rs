@@ -298,6 +298,7 @@ fn terminal_image(
                 edges: vec![edge],
             },
             bytes: bytes.clone(),
+            x86_scalar_fma: Vec::new(),
             unit_stack: None,
             unit_parameter_homes: Vec::new(),
             unit_parameters: Vec::new(),

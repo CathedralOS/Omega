@@ -26,6 +26,7 @@ omega-x86-encoding = { path = "../../instruction_set_architectures/omega-x86-enc
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
+omega-task-plans = { path = "../../../representations/omega-task-plans" }
 omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
@@ -40,3 +41,4 @@ iced-x86 = { version = "1.21", default-features = false, features = ["std", "dec
 
 [dev-dependencies]
 omega-machine-emission = { path = "../../omega-machine-emission" }
+omega-target-operations-to-assigned-target-operations = { path = "../../../pipeline/omega-target-operations-to-assigned-target-operations" }

@@ -13,10 +13,13 @@ pub(super) fn lower_linux_exit_group_i32(
     else {
         return Ok(None);
     };
-    let Some(binding) = settlements.get(boundary).copied() else {
+    let Some(binding) = settlements.get(boundary).cloned() else {
         return Err(LoweringError::MissingBoundarySettlement(*boundary));
     };
-    let BoundaryRealization::LinuxExitGroupI32(realization) = binding.realization else {
+    let omega_target_operations::BoundarySettlementRealization::Builtin(
+        BoundaryRealization::LinuxExitGroupI32(realization),
+    ) = binding.realization
+    else {
         return Ok(None);
     };
     if target.object_format != ObjectFormat::Elf

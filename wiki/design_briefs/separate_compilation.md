@@ -144,7 +144,10 @@ object entry. Candidate admission independently rederives the complete demand
 and compares its full native target, Terminal identity, entry, byte ceiling,
 alignment, and contributing machines; equal-shaped evidence from another
 object format does not substitute. Deployment retries preserve the row. This
-is body-demand evidence only. It excludes external-entry adapter headroom and
+composition recognizes an independently object-validated, full-body Linux
+`exit_group(i32)` terminal leaf as an exact zero-stack nonreturning body; it
+does not infer zero demand for any other function lacking physical stack
+evidence. This is body-demand evidence only. It excludes external-entry adapter headroom and
 does not establish provision, a stack lease, or installed-root admission.
 
 Static selection remains more precise: whole-program analysis may use the

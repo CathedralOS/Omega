@@ -19,15 +19,16 @@ use chains::{
 };
 pub(super) use chains::{
     exact_integer_cast_then_shift_left_chain_obligation,
-    exact_integer_mixed_shift_chain_cast_obligation, exact_integer_mixed_shift_chain_obligation,
-    exact_integer_shift_left_chain_cast_obligation, exact_integer_shift_left_chain_obligation,
-    exact_integer_shift_prefix_interval_obligation,
-    exact_integer_shift_right_chain_cast_obligation, exact_integer_shifted_interval_obligation,
+    exact_integer_mixed_shift_chain_obligation, exact_integer_shift_left_chain_obligation,
+    exact_integer_shift_prefix_interval_obligation, exact_integer_shifted_interval_obligation,
 };
 #[cfg(test)]
 pub(super) use chains::{
-    exact_integer_cumulative_shift_left_obligation, exact_integer_mixed_shift_preimage,
+    exact_integer_cumulative_shift_left_obligation,
+    exact_integer_mixed_shift_chain_cast_obligation, exact_integer_mixed_shift_preimage,
+    exact_integer_shift_left_chain_cast_obligation,
     exact_integer_shift_right_chain_cast_interval_obligation,
+    exact_integer_shift_right_chain_cast_obligation,
 };
 pub(super) use composition::{
     exact_integer_affine_cast_shift_obligation,

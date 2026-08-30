@@ -3,9 +3,9 @@ use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan
 use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryScalarArgument, LinuxExitGroupI32Realization,
-    LinuxWriteLineRealization, MetadataOnlyPortRealization, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, ScalarParameterLocation, TargetBooleanControl,
-    TargetBooleanExpression, TargetCallArgument, TargetConditionalBooleanArm,
+    LinuxWriteLineRealization, MetadataOnlyPortRealization, NormalizedForeignCallBinding,
+    ProviderExecutionBinding, ProviderPlanReportIdentity, ScalarParameterLocation,
+    TargetBooleanControl, TargetBooleanExpression, TargetCallArgument, TargetConditionalBooleanArm,
     TargetConditionalIntegerArm, TargetFunction, TargetIntegerControl, TargetIntegerExpression,
     TargetOperation, TargetOperationPlan, TargetScalarExpression, TargetStructuralArgument,
     TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
@@ -28,6 +28,157 @@ use psi_terminal::{
 fn emit_machine_code(plan: &TargetOperationPlan) -> Result<MachineCodePlan, EmissionError> {
     let assigned = assign_registers(plan).expect("test target operations must assign");
     super::emit_machine_code(&assigned)
+}
+
+fn admitted_foreign_stack() -> omega_task_plans::AdmittedSameStackContribution {
+    let provider_plan_commitment =
+        omega_task_plans::SameStackProviderPlanCommitment::from_digest([0x73; 32]);
+    omega_task_plans::admit_same_stack_contribution(
+        omega_task_plans::SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: 701,
+            provider_plan_commitment,
+            requirement_identity: "omega::test::foreign_leaf()".into(),
+            receipt:
+                omega_task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                    702,
+                )
+                .unwrap(),
+            bytes: 64,
+            alignment: 16,
+        },
+        701,
+        provider_plan_commitment,
+        "omega::test::foreign_leaf()",
+    )
+    .unwrap()
+}
+
+#[test]
+fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linux_targets() {
+    let machine = MachineId::new(700).unwrap();
+    let boundary = BoundaryMachineId::new(700).unwrap();
+    let operation = OperationId::new(700).unwrap();
+    let return_edge = EdgeId::new(700).unwrap();
+    let provider_execution = ProviderExecutionBinding::from_execution_record(
+        ProviderPlanReportIdentity::new(701).unwrap(),
+        702,
+        703,
+        704,
+        705,
+    )
+    .unwrap();
+    for profile in [
+        omega_target::TargetProfile::LinuxX64,
+        omega_target::TargetProfile::LinuxArm64,
+    ] {
+        let target = profile.native_target();
+        let signature = CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        };
+        let boundary_entry_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &signature,
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let locator = omega_target::normalize_foreign_locator(
+            omega_target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libomega_foreign_test.so".to_vec(),
+                symbol: b"omega_foreign_leaf".to_vec(),
+                version: b"OMEGA_TEST_1".to_vec(),
+            },
+            profile,
+        )
+        .unwrap();
+        let plan = TargetOperationPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([0x70; 32]),
+            },
+            target,
+            entry: machine,
+            functions: vec![TargetFunction {
+                machine,
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: vec![operation],
+                    edges: vec![return_edge],
+                },
+                operation: TargetOperation::UnitBody(TargetUnitBody {
+                    structural_types: Vec::new(),
+                    call_plan: evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &signature,
+                    )
+                    .unwrap(),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        TargetUnitOperation::NormalizedForeignCall {
+                            psi_operation: operation,
+                            boundary,
+                            provider_execution,
+                            binding: NormalizedForeignCallBinding {
+                                locator: locator.clone(),
+                                boundary_entry_plan: boundary_entry_plan.clone(),
+                                same_stack_contribution: admitted_foreign_stack(),
+                            },
+                        },
+                        TargetUnitOperation::Return {
+                            psi_edge: return_edge,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }),
+            }],
+        };
+        let emitted = emit_machine_code(&plan).expect("emit normalized foreign leaf");
+        let function = &emitted.functions[0];
+        let [call] = function.foreign_calls.as_slice() else {
+            panic!("one foreign relocation")
+        };
+        assert_eq!(
+            call.owner,
+            omega_target_operations::CallSiteOwner::Operation(operation)
+        );
+        assert_eq!(call.locator, locator);
+        assert_eq!(call.call_plan, boundary_entry_plan.call);
+        assert_eq!(call.same_stack_contribution, admitted_foreign_stack());
+        match target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert_eq!(function.bytes[call.offset - 1], 0xe8);
+                assert_eq!(&function.bytes[call.offset..call.offset + 4], &[0; 4]);
+                assert_eq!(call.unit_stack.outbound.unwrap().byte_size, 8);
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert_eq!(
+                    &function.bytes[call.offset..call.offset + 4],
+                    &0x9400_0000_u32.to_le_bytes()
+                );
+                assert_eq!(call.unit_stack.outbound, None);
+            }
+        }
+
+        let mut assigned = assign_registers(&plan).unwrap();
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut assigned.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+            binding,
+            ..
+        } = &mut body.operations[0]
+        else {
+            unreachable!()
+        };
+        binding.boundary_entry_plan.call.stack_alignment = 8;
+        assert_eq!(
+            super::emit_machine_code(&assigned),
+            Err(EmissionError::InvalidNormalizedForeignCallCustody)
+        );
+    }
 }
 
 #[test]

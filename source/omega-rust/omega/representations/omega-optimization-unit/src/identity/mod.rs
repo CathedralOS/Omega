@@ -13,9 +13,9 @@ use psi_core::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentPlaceSegment, ContentPlaceVersion,
     ContentProjectionExpression, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerSign, IntegerType,
-    IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseSubject,
-    StructuralPlaceKind,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
+    IntegerSign, IntegerType, IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType,
+    StructuralCaseSubject, StructuralPlaceKind,
 };
 use psi_terminal::{
     BindingRelevance, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection,

@@ -16,9 +16,11 @@ omega-assigned-target-operations = { path = "../../representations/omega-assigne
 omega-machine-code = { path = "../../representations/omega-machine-code" }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-task-plans = { path = "../../representations/omega-task-plans" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }

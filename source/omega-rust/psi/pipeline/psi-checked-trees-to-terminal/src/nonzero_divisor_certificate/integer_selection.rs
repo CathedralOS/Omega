@@ -10,6 +10,8 @@ mod dispatch;
 mod exact;
 mod logical;
 mod order;
+mod range;
+mod shift;
 mod substitution;
 
 pub(super) fn build(

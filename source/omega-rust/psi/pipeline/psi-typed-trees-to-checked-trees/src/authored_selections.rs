@@ -266,9 +266,19 @@ pub(crate) fn finalize_checked_authored_selections(
                 {
                     checked_operator_target(program, facts, expression, node)
                 }
+                // Primitive constant folding can replace a successfully checked
+                // builtin operator with its literal result while retaining the
+                // source operator's custody occurrence on that result.
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                    ExpressionNode::Boolean(_)
+                    | ExpressionNode::Float(_)
+                    | ExpressionNode::Integer(_),
+                ) => Some(CheckedResolutionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                )),
                 _ => None,
             };
-
             if let Some(target) = target {
                 push_consistent_resolution(
                     &mut resolutions,

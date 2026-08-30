@@ -19,6 +19,7 @@ use super::super::{
 
 use super::composition::exact_integer_divide_remainder_chain_hull;
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_cast_chain_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -93,6 +94,7 @@ pub(in crate::verification) fn exact_integer_cast_chain_obligation(
     ))
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_computed_prefix_cast_chain_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,
@@ -423,6 +425,7 @@ pub(in crate::verification) fn exact_integer_computed_prefix_widen_chain_interva
     )
 }
 
+#[cfg(test)]
 pub(in crate::verification) fn exact_integer_computed_prefix_mixed_conversion_chain_cast_obligation(
     source_type: psi_core::IntegerType,
     target_type: psi_core::IntegerType,

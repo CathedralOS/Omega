@@ -773,6 +773,7 @@ mod tests {
                     Architecture::X86_64 => vec![0xc3],
                     Architecture::Aarch64 => 0xd65f_03c0_u32.to_le_bytes().to_vec(),
                 },
+                x86_scalar_fma: Vec::new(),
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),

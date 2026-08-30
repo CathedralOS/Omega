@@ -27,11 +27,12 @@ pub use evidence::{
 pub use integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
+    integer_affine_truth_bounds, map_integer_affine_bound,
 };
 pub use integer_cast::{
     CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
     IntegerCastChainWitnessError, check_integer_cast_bound_conversion,
-    check_integer_cast_chain_witness,
+    check_integer_cast_chain_witness, integer_cast_truth_bounds,
 };
 pub use integer_forbidden_root::{
     CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
@@ -51,7 +52,8 @@ pub use normalization::{
 };
 pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
-    accept_certificate, check_certificate,
+    accept_certificate, check_certificate, lift_fixed_integer_relation,
+    lower_integer_math_relation,
 };
 pub use recursion::{
     CertificateObligation, RecursiveComponentAcceptance, RecursiveComponentCertificate,

@@ -97,6 +97,7 @@ pub(super) fn emit(
         attachment: function.attachment,
         provenance: function.provenance.clone(),
         bytes,
+        x86_scalar_fma: Vec::new(),
         unit_stack: None,
         unit_parameter_homes: Vec::new(),
         unit_parameters: Vec::new(),

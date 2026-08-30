@@ -36,6 +36,7 @@ pub struct CheckedCompilation {
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
+    external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
     root_grants: Vec<String>,
     accepted_template_classifications: omega_trust_model::AcceptedTemplateClassifications,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
@@ -70,6 +71,7 @@ impl PartialEq for CheckedCompilation {
             && self.optimization_report == other.optimization_report
             && self.selected_provider_plans == other.selected_provider_plans
             && self.provider_plans == other.provider_plans
+            && self.external_binding_rows == other.external_binding_rows
             && self.root_grants == other.root_grants
             && self.accepted_template_classifications == other.accepted_template_classifications
             && self.selected_provider_provenance == other.selected_provider_provenance
@@ -259,6 +261,14 @@ impl CheckedCompilation {
     #[doc(hidden)]
     pub fn provider_plans(&self) -> &[omega_effects::provider_plan::ProviderPlan] {
         &self.provider_plans
+    }
+
+    /// Exact selected normalized-import bindings and their evaluated calling
+    /// plans. These rows are derived before typed trees are consumed and remain
+    /// the only source of normalized foreign-locator custody in native
+    /// realization; other provider mechanisms keep their specialized lanes.
+    pub fn external_binding_rows(&self) -> &[omega_calling_conventions::ExternalBindingRow] {
+        &self.external_binding_rows
     }
 
     #[doc(hidden)]
@@ -828,6 +838,14 @@ fn compile_to_checked_inner_with_replay(
         &typed,
         &selected_semantic_plans,
     )?;
+    let external_binding_rows =
+        omega_provider_planning::plans::extract_normalized_import_binding_rows(
+            target_name,
+            provider_selection_target,
+            &selected_semantic_plans,
+            &boundary_calling_plan_realizations,
+            &typed,
+        )?;
     let (selected_provider_plan_facts, selected_provider_provenance) =
         crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
             &typed,
@@ -911,6 +929,7 @@ fn compile_to_checked_inner_with_replay(
         optimization_report,
         selected_provider_plans: selected_execution_settlement.selected_provider_plan_facts,
         provider_plans,
+        external_binding_rows,
         root_grants: build_config.grants,
         accepted_template_classifications: selected_execution_settlement
             .accepted_template_classifications,

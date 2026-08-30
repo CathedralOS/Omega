@@ -10,13 +10,12 @@ use psi_language_semantics::quotient_correspondence::{
     QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
 };
 use psi_terminal::{
-    retain_non_executable_quotient_correspondence, Block, MachineContract,
-    RetainedQuotientCorrespondence, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, VocabularyMarker,
+    Block, MachineContract, RetainedQuotientCorrespondence, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, VocabularyMarker, retain_non_executable_quotient_correspondence,
 };
-use psi_terminal_codec::{decode_module, encode_module, semantic_fingerprint, CodecError};
+use psi_terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use psi_terminal_verifier::{
-    validate_module_representation, ModuleError, QuotientCorrespondenceReplayError,
+    ModuleError, QuotientCorrespondenceReplayError, validate_module_representation,
 };
 
 fn callable(name: &str) -> QuotientCallableIdentity {
@@ -164,7 +163,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 38_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 39_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         psi_terminal::VocabularyMarker::CURRENT.get().to_le_bytes()

@@ -16,6 +16,7 @@ omega-optimization-core = { path = "../../representations/omega-optimization-cor
 omega-optimization-pipeline = { path = "../optimization/omega-optimization-pipeline" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-target = { path = "../../representations/omega-target" }
+omega-task-plans = { path = "../../representations/omega-task-plans" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }

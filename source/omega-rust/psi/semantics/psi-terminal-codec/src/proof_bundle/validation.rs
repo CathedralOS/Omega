@@ -4,7 +4,7 @@ use super::{
     MAX_CONTENT_TERM_DEPTH, MAX_PROOF_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH,
     ProofCodecError,
 };
-use psi_core::{ContentTerm, EvidenceIdentity, Proposition, ScalarTerm};
+use psi_core::{ContentTerm, EvidenceIdentity, IntegerMathTerm, Proposition, ScalarTerm};
 use psi_proof_admission::{EvidenceRoute, ProofNode, ProofRule};
 use psi_terminal_verifier::{EvidenceProducerRealization, ProofBundle};
 
@@ -132,6 +132,12 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
             validate_scalar_term_depth(left, 0)?;
             validate_scalar_term_depth(right, 0)?;
         }
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right)
+        | Proposition::IntegerMathLessOrEqual(left, right) => {
+            validate_integer_math_term_depth(left, 0)?;
+            validate_integer_math_term_depth(right, 0)?;
+        }
         Proposition::IeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. } => {}
@@ -155,6 +161,29 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
     proposition
         .validate()
         .map_err(ProofCodecError::MalformedProposition)
+}
+
+fn validate_integer_math_term_depth(
+    term: &IntegerMathTerm,
+    depth: usize,
+) -> Result<(), ProofCodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(ProofCodecError::ScalarTermNestingTooDeep);
+    }
+    match term {
+        IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {}
+        IntegerMathTerm::Add(left, right)
+        | IntegerMathTerm::Subtract(left, right)
+        | IntegerMathTerm::Multiply(left, right) => {
+            validate_integer_math_term_depth(left, depth + 1)?;
+            validate_integer_math_term_depth(right, depth + 1)?;
+        }
+        IntegerMathTerm::ShiftLeft { value, count } => {
+            validate_integer_math_term_depth(value, depth + 1)?;
+            validate_integer_math_term_depth(count, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 fn validate_content_term_depth(term: &ContentTerm, depth: usize) -> Result<(), ProofCodecError> {

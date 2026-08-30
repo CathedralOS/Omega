@@ -7,8 +7,8 @@
 use std::collections::BTreeMap;
 
 use psi_core::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId, Proposition, ScalarTerm,
-    ScalarType, ValueId,
+    IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
+    ObligationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use psi_numerics::{
     arithmetic::ArithmeticDomain,
@@ -478,6 +478,11 @@ impl CanonicalScalarGoal {
     /// proposition mappings land.
     pub fn kernel_proposition(&self) -> Result<Option<Proposition>, OperationSemanticError> {
         let proposition = match self {
+            Self::ExactCastRepresentable {
+                source_type,
+                target_type,
+                operand,
+            } => exact_cast_representability_proposition(*source_type, *target_type, operand)?,
             Self::NonzeroDivisor {
                 integer_type,
                 divisor,
@@ -498,6 +503,82 @@ impl CanonicalScalarGoal {
             .validate()
             .map_err(OperationSemanticError::InvalidProposition)?;
         Ok(Some(proposition))
+    }
+}
+
+fn exact_cast_representability_proposition(
+    source_type: IntegerType,
+    target_type: IntegerType,
+    operand: &ScalarTerm,
+) -> Result<Proposition, OperationSemanticError> {
+    if source_type.carrier() != IntegerCarrier::Fixed {
+        return Err(OperationSemanticError::ExactCastRequiresFixedSourceInteger(
+            source_type,
+        ));
+    }
+    if target_type.carrier() != IntegerCarrier::Fixed {
+        return Err(OperationSemanticError::ExactCastRequiresFixedTargetInteger(
+            target_type,
+        ));
+    }
+    if operand.scalar_type() != ScalarType::Integer(source_type) {
+        return Err(OperationSemanticError::ExactCastOperandTypeMismatch {
+            declared: source_type,
+            actual: operand.scalar_type(),
+        });
+    }
+    if let ScalarTerm::Integer { value, .. } = operand {
+        return Ok(
+            if source_type
+                .exact_cast_value_to(target_type, *value)
+                .is_some()
+            {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            },
+        );
+    }
+    let ScalarTerm::Value { id, .. } = operand else {
+        return Err(OperationSemanticError::ExactCastRequiresValueOrLiteralOperand);
+    };
+    let value = IntegerMathTerm::MathValue {
+        source_type,
+        value: *id,
+    };
+    let source_minimum = IntegerMathLiteral::from_integer_value(source_type.minimum_value());
+    let source_maximum = IntegerMathLiteral::from_integer_value(source_type.maximum_value());
+    let target_minimum = IntegerMathLiteral::from_integer_value(target_type.minimum_value());
+    let target_maximum = IntegerMathLiteral::from_integer_value(target_type.maximum_value());
+    let mut bounds = Vec::with_capacity(2);
+    if compare_math_literals(target_minimum, source_minimum).is_gt() {
+        bounds.push(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(target_minimum),
+            value.clone(),
+        ));
+    }
+    if compare_math_literals(target_maximum, source_maximum).is_lt() {
+        bounds.push(Proposition::IntegerMathLessOrEqual(
+            value,
+            IntegerMathTerm::IntegerLiteral(target_maximum),
+        ));
+    }
+    Ok(match bounds.len() {
+        0 => Proposition::Truth,
+        1 => bounds.pop().expect("one exact-cast bound"),
+        _ => Proposition::Conjunction(bounds),
+    })
+}
+
+fn compare_math_literals(
+    left: IntegerMathLiteral,
+    right: IntegerMathLiteral,
+) -> std::cmp::Ordering {
+    match (left.negative(), right.negative()) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => left.magnitude().cmp(&right.magnitude()),
+        (true, true) => right.magnitude().cmp(&left.magnitude()),
     }
 }
 
@@ -1643,11 +1724,6 @@ mod tests {
             ScalarType::Integer(integer),
         );
         let goals = [
-            CanonicalScalarGoal::ExactCastRepresentable {
-                source_type: integer,
-                target_type: integer,
-                operand: value.clone(),
-            },
             CanonicalScalarGoal::ExactShiftLeftRepresentable {
                 value_type: integer,
                 count_type: integer,
@@ -1663,6 +1739,65 @@ mod tests {
             goals
                 .iter()
                 .all(|goal| goal.kernel_proposition() == Ok(None))
+        );
+    }
+
+    #[test]
+    fn exact_cast_projects_canonical_mathematical_carrier_bounds() {
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let value_id = ValueId::new(91).expect("value");
+        let value = ScalarTerm::value(value_id, ScalarType::Integer(i16_type));
+        let mathematical_value = IntegerMathTerm::MathValue {
+            source_type: i16_type,
+            value: value_id,
+        };
+        assert_eq!(
+            CanonicalScalarGoal::ExactCastRepresentable {
+                source_type: i16_type,
+                target_type: u8_type,
+                operand: value,
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Conjunction(vec![
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                    mathematical_value.clone(),
+                ),
+                Proposition::IntegerMathLessOrEqual(
+                    mathematical_value,
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+                ),
+            ])))
+        );
+    }
+
+    #[test]
+    fn exact_cast_normalizes_carrier_inclusion_and_closed_literals() {
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let value = ScalarTerm::value(
+            ValueId::new(92).expect("value"),
+            ScalarType::Integer(i8_type),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactCastRepresentable {
+                source_type: i8_type,
+                target_type: i16_type,
+                operand: value,
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Truth))
+        );
+        let literal = ScalarTerm::integer(i16_type, IntegerValue::Signed(-1)).expect("-1:i16");
+        assert_eq!(
+            CanonicalScalarGoal::ExactCastRepresentable {
+                source_type: i16_type,
+                target_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                operand: literal,
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Falsehood))
         );
     }
 }

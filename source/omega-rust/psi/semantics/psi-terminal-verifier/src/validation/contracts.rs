@@ -39,6 +39,12 @@ pub(super) fn validate_contract_scope(
         | Proposition::IeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. } => Ok(()),
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right)
+        | Proposition::IntegerMathLessOrEqual(left, right) => {
+            validate_integer_math_term_scope(left, allowed, contract, clause)?;
+            validate_integer_math_term_scope(right, allowed, contract, clause)
+        }
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -59,6 +65,35 @@ pub(super) fn validate_contract_scope(
             validate_contract_scope(conclusion, allowed, contract, clause)
         }
         Proposition::ContentConservation(_) => Ok(()),
+    }
+}
+
+fn validate_integer_math_term_scope(
+    term: &psi_core::IntegerMathTerm,
+    allowed: &BTreeSet<ValueId>,
+    contract: ContractId,
+    clause: ContractClauseKind,
+) -> Result<(), ModuleError> {
+    match term {
+        psi_core::IntegerMathTerm::MathValue { value, .. } if !allowed.contains(value) => {
+            Err(ModuleError::ContractValueOutsideScope {
+                contract,
+                clause,
+                value: *value,
+            })
+        }
+        psi_core::IntegerMathTerm::MathValue { .. }
+        | psi_core::IntegerMathTerm::IntegerLiteral(_) => Ok(()),
+        psi_core::IntegerMathTerm::Add(left, right)
+        | psi_core::IntegerMathTerm::Subtract(left, right)
+        | psi_core::IntegerMathTerm::Multiply(left, right) => {
+            validate_integer_math_term_scope(left, allowed, contract, clause)?;
+            validate_integer_math_term_scope(right, allowed, contract, clause)
+        }
+        psi_core::IntegerMathTerm::ShiftLeft { value, count } => {
+            validate_integer_math_term_scope(value, allowed, contract, clause)?;
+            validate_integer_math_term_scope(count, allowed, contract, clause)
+        }
     }
 }
 
