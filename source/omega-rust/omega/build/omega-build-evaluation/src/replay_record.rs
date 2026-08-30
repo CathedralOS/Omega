@@ -19,6 +19,8 @@ mod hard_links;
 mod lock_tests;
 mod locks;
 #[cfg(test)]
+mod output_only_tests;
+#[cfg(test)]
 mod read_link_tests;
 mod read_links;
 mod symlinks;
@@ -265,19 +267,33 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             ),
         );
     }
-    let typed_record = psi_checked_interpreter::FilesystemSourceInputReplayRecord::new(events)
-        .map_err(|_| {
+    let typed_source_record = if events.is_empty() {
+        None
+    } else {
+        Some(
+            psi_checked_interpreter::FilesystemSourceInputReplayRecord::new(events).map_err(
+                |_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay source inputs could not be rehydrated",
+                    )
+                },
+            )?,
+        )
+    };
+    if output_start == shapes.len() {
+        let typed_source_record = typed_source_record.ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
-                "filesystem replay source inputs could not be rehydrated",
+                "filesystem replay source-only record has no Source events",
             )
         })?;
-    if output_start == shapes.len() {
-        return psi_checked_interpreter::FilesystemReplay::from_source_input_record(typed_record)
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay source inputs exceed retained replay policy",
-                )
-            });
+        return psi_checked_interpreter::FilesystemReplay::from_source_input_record(
+            typed_source_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay source inputs exceed retained replay policy",
+            )
+        });
     }
     let output_ranges = output_tree_ranges(&shapes, output_start)?;
     let mut output_entries = Vec::new();
@@ -347,11 +363,26 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             })?,
         );
     }
-    let typed_record = psi_checked_interpreter::FilesystemInputOutputTreeReplayRecord::new(
-        typed_record,
-        output_entries,
-        expected_included_sources,
-    )
+    let typed_record = match typed_source_record {
+        Some(typed_source_record) => {
+            psi_checked_interpreter::FilesystemInputOutputTreeReplayRecord::new(
+                typed_source_record,
+                output_entries,
+                expected_included_sources,
+            )
+        }
+        None if output_start == 0 => {
+            psi_checked_interpreter::FilesystemInputOutputTreeReplayRecord::output_only(
+                output_entries,
+                expected_included_sources,
+            )
+        }
+        None => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output record has a malformed non-Source prefix",
+            ));
+        }
+    }
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay input/Output-tree record could not be rehydrated",
@@ -765,7 +796,7 @@ fn decode_shapes(
     let attempt_count = decoder.count()?;
     if attempt_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
-            "bounded filesystem replay record must contain source-input events",
+            "bounded filesystem replay record must contain at least one filesystem attempt",
         ));
     }
     let mut shapes = Vec::new();
@@ -1378,9 +1409,13 @@ fn validate_first_rung(
         cursor += 1;
         event_count += 1;
     }
-    if event_count == 0 {
+    let begins_with_output = cursor == 0
+        && shapes
+            .first()
+            .is_some_and(|shape| matches!(shape.operation, 1 | 11 | 19 | 20 | 27));
+    if event_count == 0 && !begins_with_output {
         return Err(BuildFilesystemReplayRecordError::new(
-            "bounded replay contains no source-input events",
+            "bounded replay contains neither Source events nor an Output-first tree",
         ));
     }
     if cursor < shapes.len() {
