@@ -157,9 +157,13 @@ does not yet fully satisfy this contract.
   decision-v5/pass-v1 format registry and descends into decision, pass, work,
   fact, framing, error, and matching test leaves. Legalized-call validation
   likewise owns its join directly instead of hiding it behind one child.
-- Fourteen production-classified leaves remain at 750-1,000 lines in identity
-  encoding, validation, register allocation, machine planning, codecs, and
-  lowering.
+- Abstract-operation identity encoding now has a 71-line exhaustive family
+  router over structural establishment, calls/effects, scalar operations,
+  control exits, and scalar-operation shapes, with identity-wide carriers at
+  the nearest shared ancestor. SCCP candidate validation now has a 98-line
+  rule-first, exhaustive-patch join over focused validation leaves.
+- Twelve production-classified leaves remain at 750-1,000 lines in validation,
+  register allocation, machine planning, codecs, and lowering.
 - Fourteen broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of

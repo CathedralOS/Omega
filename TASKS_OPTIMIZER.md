@@ -50,15 +50,21 @@ decision. Only true language-semantic questions belong in
   prohibits restoring the flat leaf.
 - [x] Remove the legalized-call validation forwarding wall. Its small
   `validation/mod.rs` now owns the complete representation-validation join.
+- [x] Replace the 943-line abstract-operation identity encoder with a 71-line
+  exhaustive family router over structural establishment, calls/effects,
+  scalar operations, control exits, and scalar-operation shapes. Shared
+  canonical carriers now sit beside the identity entrance; exact tags and
+  field order remain in focused family leaves.
+- [x] Replace SCCP validation's forwarding wall and 845-line candidate leaf
+  with a 98-line rule-first, exhaustive-patch entrance over integer, boolean,
+  observation, and range-comparison validation leaves.
 - [ ] Audit all other `lib.rs`/`mod.rs` files and explicitly classify each as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has 14 production-classified leaves at 750+ lines. Continue with
-  optimization-unit operation identity encoding (943) and independent
-  live-range replay (881), then continue
-  through SCCP/GVN validation, machine effects, MOVN, spill choice, selected
-  validation, ledger, and lowering control/settlement leaves.
+  has 12 production-classified leaves at 750+ lines. Continue with independent
+  live-range replay (881), then GVN validation, machine effects, MOVN, spill
+  choice, selected validation, ledger, and lowering control/settlement leaves.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 14 test/fixture leaves at 1,000+ lines; first split structural
   catalog, register-allocation, and selected-lowering matrices by exact
