@@ -75,7 +75,7 @@ phases. The list retains canonical optional `const` and leading `mut`, consuming
 or borrowed `self`, and shared/mutable/write-only binding-reference forms.
 Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
 fields, case-payload fields, and immediate machine return types share one engine
-for bare named/Self, outer references, unqualified domains, inclusive
+for bare named/Self/Unit, outer references, unqualified domains, inclusive
 literal ranges, and nested fixed arrays and slices. References may retain an
 exact explicit lifetime, and general `Self` uses the same `SelfType` base as
 receivers. Every parameter row records its canonical const/mutable/self flags;
@@ -111,7 +111,7 @@ constrained root points to its base and to one source-shaped constraint, while
 an outer Reference points backward to its complete referee tree and retains
 shared/mutable/write-only access plus an optional exact lifetime span.
 FixedArray and Slice nodes point backward to their element; FixedArray also
-retains the exact length span. SelfType needs no payload.
+retains the exact length span. SelfType and Unit need no payload.
 Domain constraints point into the general path arena; literal ranges and array
 lengths retain exact spans without interpreting their values. Bracket syntax
 uses a bounded invocation-local frame stack and emits named, array, and slice

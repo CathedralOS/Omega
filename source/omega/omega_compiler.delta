@@ -224,6 +224,7 @@ data OmegaPathDestination {
 data OmegaTypeReferenceKind {
     case Named;
     case SelfType;
+    case Unit;
     case Constrained;
     case FixedArray;
     case Slice;
@@ -233,6 +234,7 @@ data OmegaTypeReferenceKind {
 data OmegaTypeBaseKind {
     case Named;
     case SelfType;
+    case Unit;
 }
 
 data OmegaReferenceAccess {
@@ -253,7 +255,7 @@ data OmegaTypeArrayKind {
 // Slice uses payload0 for its element.
 // Reference uses payload0 for its referee, payload1 for access (0 shared,
 // 1 mutable, 2 write-only), payload2 as has-lifetime, and payload3/payload4 for
-// the exact optional lifetime span. SelfType has no payload.
+// the exact optional lifetime span. SelfType and Unit have no payload.
 // Remaining words are reserved for final recursive type variants without
 // parallel node arenas. Words not selected by kind have no meaning and need
 // not be cleared.
@@ -403,6 +405,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedMachineReturnType;
     case ExpectedMachineReturnEnd;
     case ExpectedReferenceLifetime;
+    case ExpectedUnitTypeEnd;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
     case ExpectedDataFieldEnd;
@@ -2568,7 +2571,7 @@ machine OmegaLexScan::validate_lexical(
 // The retained syntax currently owns ordinary `use path::member;`, basic
 // `[pub] data` roots, and `[pub]`/target-scoped empty-body machine roots with
 // state parameters and an optional immediate return type. Data fields,
-// parameters, and returns share named/Self, outer-reference with optional
+// parameters, and returns share named/Self/Unit, outer-reference with optional
 // lifetime, domain-qualified, range-refined, and nested fixed-array/slice type
 // syntax; parameters additionally retain their canonical
 // simple modifiers, binding references, and receivers.
@@ -2801,6 +2804,8 @@ machine OmegaParser::parse_view(
             37 -> type_reference_access_or_type_token()
             38 -> target_machine_token()
             39 -> type_reference_lifetime_token()
+            40 -> unit_type_end_token()
+            41 -> array_unit_type_end_token()
             _ -> internal_failure()
         }
     }
@@ -2968,6 +2973,16 @@ machine OmegaParser::parse_view(
             38 -> incomplete_at_end()
             39 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedReferenceLifetime,
+                source.len,
+                source.len
+            )
+            40 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedUnitTypeEnd,
+                source.len,
+                source.len
+            )
+            41 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedUnitTypeEnd,
                 source.len,
                 source.len
             )
@@ -4292,13 +4307,48 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
             OmegaPunctuationKind::Ampersand -> begin_type_reference()
-            OmegaPunctuationKind::LeftParen -> incomplete_root()
+            OmegaPunctuationKind::LeftParen -> begin_unit_type()
             OmegaPunctuationKind::Hash -> incomplete_root()
             _ -> type_missing_failure(
                 self.scan.token_start,
                 self.scan.token_end
             )
         }
+    }
+
+    state begin_unit_type() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(40) }
+    }
+
+    state unit_type_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> unit_type_end_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedUnitTypeEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state unit_type_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightParen -> retain_unit_type()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedUnitTypeEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_unit_type() {
+        self.type_base_kind = OmegaTypeBaseKind::Unit;
+        self.type_end = self.scan.token_end;
+        self.type_allows_range = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(14) }
     }
 
     state begin_type_reference() {
@@ -4503,7 +4553,7 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
             OmegaPunctuationKind::Ampersand -> incomplete_root()
-            OmegaPunctuationKind::LeftParen -> incomplete_root()
+            OmegaPunctuationKind::LeftParen -> begin_array_unit_type()
             OmegaPunctuationKind::Hash -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedArrayElementType,
@@ -4511,6 +4561,39 @@ machine OmegaParser::parse_view(
                 self.scan.token_end
             )
         }
+    }
+
+    state begin_array_unit_type() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(41) }
+    }
+
+    state array_unit_type_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> array_unit_type_end_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedUnitTypeEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state array_unit_type_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightParen -> retain_array_unit_type()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedUnitTypeEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_array_unit_type() {
+        self.type_base_kind = OmegaTypeBaseKind::Unit;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(25) }
     }
 
     state retain_array_element_name() {
@@ -4682,6 +4765,10 @@ machine OmegaParser::parse_view(
     state type_base_suffix_identifier() {
         transition self.type_base_kind {
             OmegaTypeBaseKind::SelfType -> type_end_failure(
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaTypeBaseKind::Unit -> type_end_failure(
                 self.scan.token_start,
                 self.scan.token_end
             )
@@ -5152,6 +5239,10 @@ machine OmegaParser::parse_view(
                 member_end,
                 next_cursor
             )
+            OmegaTypeBaseKind::Unit -> retain_unit_type_base(
+                member_end,
+                next_cursor
+            )
         }
     }
 
@@ -5170,6 +5261,14 @@ machine OmegaParser::parse_view(
     state retain_self_type_base(member_end: i32, next_cursor: i32) {
         self.type_references[self.type_reference_count].kind =
             OmegaTypeReferenceKind::SelfType;
+        transition true {
+            true -> finish_retain_type_base(member_end, next_cursor)
+        }
+    }
+
+    state retain_unit_type_base(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].kind =
+            OmegaTypeReferenceKind::Unit;
         transition true {
             true -> finish_retain_type_base(member_end, next_cursor)
         }
