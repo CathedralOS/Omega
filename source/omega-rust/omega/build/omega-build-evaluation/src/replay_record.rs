@@ -35,7 +35,9 @@ mod symlinks;
 use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
 use handle_failures::{
-    unknown_descriptor_close_shape_is_exact, validate_unknown_descriptor_close_shape,
+    operand_free_unknown_descriptor_failure_shape_is_exact,
+    operand_free_unknown_descriptor_operation,
+    validate_operand_free_unknown_descriptor_failure_shape,
 };
 use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
@@ -46,7 +48,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 31;
+const VERSION: u16 = 32;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -206,7 +208,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .or_else(|| {
             shapes
                 .last()
-                .filter(|shape| unknown_descriptor_close_shape_is_exact(shape))
+                .filter(|shape| operand_free_unknown_descriptor_failure_shape_is_exact(shape))
                 .map(|_| shapes.len() - 1)
         })
         .unwrap_or(shapes.len());
@@ -325,17 +327,28 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
-    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 8 {
+    if shapes.len() - operation_suffix_start == 1
+        && operand_free_unknown_descriptor_operation(shapes[operation_suffix_start].operation)
+    {
+        use psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayKind as Kind;
+        let kind = match shapes[operation_suffix_start].operation {
+            8 => Kind::Close,
+            43 => Kind::Sync,
+            44 => Kind::SyncData,
+            45 => Kind::Duplicate,
+            _ => unreachable!("operand-free descriptor operation was checked above"),
+        };
         let typed_record =
-            psi_checked_interpreter::FilesystemInputUnknownDescriptorCloseReplayRecord::new(
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayRecord::new(
                 typed_source_record,
+                kind,
             );
-        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_close_record(
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_record(
             typed_record,
         )
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
-                "filesystem replay unknown-descriptor close could not be rehydrated",
+                "filesystem replay operand-free unknown-descriptor failure could not be rehydrated",
             )
         });
     }
@@ -1545,7 +1558,10 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
-        if matches!(shapes[cursor].operation, 1 | 8 | 9 | 11 | 19 | 20 | 27) {
+        if matches!(
+            shapes[cursor].operation,
+            1 | 8 | 9 | 11 | 19 | 20 | 27 | 43 | 44 | 45
+        ) {
             break;
         }
         if shapes[cursor].operation == 21 {
@@ -1615,17 +1631,22 @@ fn validate_first_rung(
         event_count += 1;
     }
     let begins_with_replay_suffix = cursor == 0
-        && shapes
-            .first()
-            .is_some_and(|shape| matches!(shape.operation, 1 | 8 | 9 | 11 | 19 | 20 | 27));
+        && shapes.first().is_some_and(|shape| {
+            matches!(
+                shape.operation,
+                1 | 8 | 9 | 11 | 19 | 20 | 27 | 43 | 44 | 45
+            )
+        });
     if event_count == 0 && !begins_with_replay_suffix {
         return Err(BuildFilesystemReplayRecordError::new(
             "bounded replay contains neither Source events nor a supported replay suffix",
         ));
     }
     if cursor < shapes.len() {
-        if shapes.len() - cursor == 1 && shapes[cursor].operation == 8 {
-            validate_unknown_descriptor_close_shape(&shapes[cursor])?;
+        if shapes.len() - cursor == 1
+            && operand_free_unknown_descriptor_operation(shapes[cursor].operation)
+        {
+            validate_operand_free_unknown_descriptor_failure_shape(&shapes[cursor])?;
             return Ok(());
         }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {

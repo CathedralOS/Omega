@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 50;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 51;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2504,6 +2504,10 @@ fn is_source_input_replay_record(
     source_input_replay_prefix_end(attempts) == Some(attempts.len())
 }
 
+const fn operand_free_unknown_descriptor_operation_tag(operation_tag: u16) -> bool {
+    matches!(operation_tag, 8 | 43 | 44 | 45)
+}
+
 fn source_input_replay_prefix_end(
     attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
 ) -> Option<usize> {
@@ -2513,7 +2517,7 @@ fn source_input_replay_prefix_end(
     while cursor < attempts.len() {
         if matches!(
             attempts[cursor].operation_tag(),
-            1 | 8 | 9 | 11 | 19 | 20 | 27
+            1 | 8 | 9 | 11 | 19 | 20 | 27 | 43 | 44 | 45
         ) {
             break;
         }
@@ -2595,7 +2599,10 @@ fn source_input_replay_prefix_end(
     (event_count != 0
         || (cursor == 0
             && attempts.first().is_some_and(|attempt| {
-                matches!(attempt.operation_tag(), 1 | 8 | 9 | 11 | 19 | 20 | 27)
+                matches!(
+                    attempt.operation_tag(),
+                    1 | 8 | 9 | 11 | 19 | 20 | 27 | 43 | 44 | 45
+                )
             })))
     .then_some(cursor)
 }
@@ -3363,9 +3370,11 @@ pub fn compute_build_config(
             source_input_replay_prefix_end(attempts).filter(|end| *end < attempts.len())
         {
             if attempts.len() - operation_suffix_start == 1
-                && attempts[operation_suffix_start].operation_tag() == 8
+                && operand_free_unknown_descriptor_operation_tag(
+                    attempts[operation_suffix_start].operation_tag(),
+                )
             {
-                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_close_observations(
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_observations(
                     measured.observations(),
                 )
                 .ok()
@@ -3390,13 +3399,13 @@ pub fn compute_build_config(
     let replay_has_no_output_attempts = replay
         .as_ref()
         .is_some_and(|replay| !replay.has_output_attempts());
-    let replay_includes_unknown_descriptor_close = replay.is_some()
+    let replay_includes_operand_free_unknown_descriptor_failure = replay.is_some()
         && measured
             .observations()
             .filesystem_operation_attempts()
             .split_last()
-            .is_some_and(|(close, source_attempts)| {
-                close.operation_tag() == 8
+            .is_some_and(|(failure, source_attempts)| {
+                operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
                     && (source_attempts.is_empty()
                         || source_input_replay_prefix_end(source_attempts)
                             == Some(source_attempts.len()))
@@ -3858,7 +3867,9 @@ pub fn compute_build_config(
             (Some(captured), true)
         }
         (Some(replayed), None, true) => (Some(replayed), true),
-        (Some(replayed), None, false) if replay_includes_unknown_descriptor_close => {
+        (Some(replayed), None, false)
+            if replay_includes_operand_free_unknown_descriptor_failure =>
+        {
             (Some(replayed), true)
         }
         (Some(_), None, false) => (None, false),

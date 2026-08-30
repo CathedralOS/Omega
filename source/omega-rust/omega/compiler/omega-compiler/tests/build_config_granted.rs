@@ -341,7 +341,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 50);
+    assert_eq!(checked_observations.schema_version(), 51);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1967,16 +1967,39 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
 }
 
 #[test]
-fn unknown_descriptor_close_is_receipted_and_replayed_without_a_provider() {
+fn operand_free_unknown_descriptor_failures_are_receipted_and_replayed_without_a_provider() {
+    for (label, statement, operation_tag) in [
+        ("close", "self.code = self.filesystem.close(-1);", 8),
+        ("sync", "self.code = self.filesystem.sync(-1);", 43),
+        (
+            "sync-data",
+            "self.code = self.filesystem.sync_data(-1);",
+            44,
+        ),
+        (
+            "duplicate",
+            "self.code = self.filesystem.duplicate(-1);",
+            45,
+        ),
+    ] {
+        assert_operand_free_unknown_descriptor_failure_replay(label, statement, operation_tag);
+    }
+}
+
+fn assert_operand_free_unknown_descriptor_failure_replay(
+    label: &str,
+    statement: &str,
+    operation_tag: u16,
+) {
     let (project, profile) = rooted_build_probe_project(
-        "unknown-descriptor-close-replay",
-        "    self.code = self.filesystem.close(-1);",
+        &format!("unknown-descriptor-{label}-replay"),
+        &format!("    {statement}"),
     );
     let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-        .expect("failed close of an unknown descriptor should compile and replay");
+        .expect("operand-free unknown-descriptor failure should compile and replay");
     let summary = compilation
         .build_observation_summary()
-        .expect("unknown-descriptor close retains observations");
+        .expect("unknown-descriptor failure retains observations");
     assert!(summary.source_inputs_replay_verified());
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -1987,41 +2010,44 @@ fn unknown_descriptor_close_is_receipted_and_replayed_without_a_provider() {
             .entry_count(),
         0
     );
-    let [failed_close] = summary.filesystem_operation_attempts() else {
-        panic!("unknown-descriptor close fixture has one attempt")
+    let [failed_operation] = summary.filesystem_operation_attempts() else {
+        panic!("unknown-descriptor failure fixture has one attempt")
     };
-    assert_eq!(failed_close.operation_tag(), 8);
-    assert_eq!(failed_close.provider(), BuildFilesystemProvider::RealScoped);
+    assert_eq!(failed_operation.operation_tag(), operation_tag);
     assert_eq!(
-        failed_close.result(),
+        failed_operation.provider(),
+        BuildFilesystemProvider::RealScoped
+    );
+    assert_eq!(
+        failed_operation.result(),
         BuildFilesystemOperationResult::Scalar(-1)
     );
-    assert_eq!(failed_close.post_error(), 9);
-    let [unknown_descriptor] = failed_close.logical_handle_inputs() else {
-        panic!("failed close retains one logical descriptor input")
+    assert_eq!(failed_operation.post_error(), 9);
+    let [unknown_descriptor] = failed_operation.logical_handle_inputs() else {
+        panic!("failed operation retains one logical descriptor input")
     };
     assert_eq!(
         unknown_descriptor.resolution(),
         BuildFilesystemLogicalHandleInputResolution::Unknown
     );
-    assert!(failed_close.retired_logical_handles().is_empty());
+    assert!(failed_operation.retired_logical_handles().is_empty());
 
     let limits = BuildFilesystemReplayRecordLimits::default();
     let record = capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("verified unknown-descriptor close must encode")
-        .expect("verified unknown-descriptor close retains review-only custody");
+        .expect("verified unknown-descriptor failure must encode")
+        .expect("verified unknown-descriptor failure retains review-only custody");
     let recovered =
         recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
-            .expect("canonical unknown-descriptor close record must recover");
+            .expect("canonical unknown-descriptor failure record must recover");
     let replayed = compile_to_checked_with_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
         recovered,
     )
-    .expect("unknown-descriptor close replay must not invoke the host provider");
+    .expect("unknown-descriptor failure replay must not invoke the host provider");
     let replayed_summary = replayed
         .build_observation_summary()
-        .expect("replayed unknown-descriptor close retains observations");
+        .expect("replayed unknown-descriptor failure retains observations");
     assert!(replayed_summary.operation_replay_verified());
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
@@ -3120,7 +3146,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 50);
+    assert_eq!(summary.schema_version(), 51);
     assert!(summary.source_inputs_replay_verified());
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -4021,7 +4047,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 50);
+    assert_eq!(summary.schema_version(), 51);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -4094,7 +4120,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 50);
+    assert_eq!(summary.schema_version(), 51);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

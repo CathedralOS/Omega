@@ -5,9 +5,9 @@ use crate::{
     BuildFilesystemLogicalHandleKind, BuildObservationClass,
 };
 
-fn unknown_descriptor_close() -> BuildFilesystemOperationAttempt {
+fn operand_free_unknown_descriptor_failure(operation_tag: u16) -> BuildFilesystemOperationAttempt {
     BuildFilesystemOperationAttempt {
-        operation_tag: 8,
+        operation_tag,
         provider: BuildFilesystemProvider::RealScoped,
         result: BuildFilesystemOperationResult::Scalar(-1),
         post_error: 9,
@@ -34,14 +34,14 @@ fn unknown_descriptor_close() -> BuildFilesystemOperationAttempt {
     }
 }
 
-fn summary() -> BuildObservationSummary {
+fn summary(operation_tag: u16) -> BuildObservationSummary {
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
         ceiling: BuildObservationClass::Volatile,
         realized: BuildObservationClass::Receipted,
         filesystem_operation_schema_version:
             psi_checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-        filesystem_operation_attempts: vec![unknown_descriptor_close()],
+        filesystem_operation_attempts: vec![operand_free_unknown_descriptor_failure(operation_tag)],
         canonical_source_metadata_identity: None,
         source_inputs_replay_verified: true,
         operation_replay_verified: false,
@@ -51,60 +51,63 @@ fn summary() -> BuildObservationSummary {
 }
 
 #[test]
-fn unknown_descriptor_close_record_recovers_and_rehydrates_exact_failure() {
+fn operand_free_unknown_descriptor_failure_records_recover_and_rehydrate_exactly() {
     let limits = BuildFilesystemReplayRecordLimits::default();
-    let captured = capture_verified_build_filesystem_replay_record(&summary(), limits)
-        .expect("exact unknown-descriptor close encodes")
-        .expect("verified failure retains replay custody");
-    let recovered =
-        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
-            .expect("exact unknown-descriptor close recovers");
-    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
-        .expect("exact unknown-descriptor close rehydrates through its typed constructor");
+    for operation_tag in [8, 43, 44, 45] {
+        let captured =
+            capture_verified_build_filesystem_replay_record(&summary(operation_tag), limits)
+                .expect("exact operand-free unknown-descriptor failure encodes")
+                .expect("verified failure retains replay custody");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("exact operand-free unknown-descriptor failure recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("exact failure rehydrates through its typed constructor");
 
-    assert!(!replay.has_output_attempts());
-    assert!(replay.output_entries().is_empty());
-    let [attempt] = replay.attempts() else {
-        panic!("unknown-descriptor close replay must retain one exact attempt")
-    };
-    assert_eq!(attempt.operation_tag(), 8);
-    assert_eq!(
-        attempt.result(),
-        Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
-            -1,
-        ))
-    );
-    assert_eq!(attempt.post_error(), Some(9));
-    assert!(attempt.retired_logical_handles().is_empty());
+        assert!(!replay.has_output_attempts());
+        assert!(replay.output_entries().is_empty());
+        let [attempt] = replay.attempts() else {
+            panic!("unknown-descriptor failure replay must retain one exact attempt")
+        };
+        assert_eq!(attempt.operation_tag(), operation_tag);
+        assert_eq!(
+            attempt.result(),
+            Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+                -1
+            ))
+        );
+        assert_eq!(attempt.post_error(), Some(9));
+        assert!(attempt.retired_logical_handles().is_empty());
+    }
 }
 
 #[test]
-fn unknown_descriptor_close_rejects_null_resolved_and_side_lane_drift() {
+fn operand_free_unknown_descriptor_failures_reject_shape_drift() {
     let limits = BuildFilesystemReplayRecordLimits::default();
 
-    let mut null = summary();
+    let mut null = summary(43);
     null.filesystem_operation_attempts[0].logical_handle_inputs[0].resolution =
         BuildFilesystemLogicalHandleInputResolution::Null;
     assert!(capture_verified_build_filesystem_replay_record(&null, limits).is_err());
 
-    let mut resolved = summary();
+    let mut resolved = summary(44);
     resolved.filesystem_operation_attempts[0].logical_handle_inputs[0].resolution =
         BuildFilesystemLogicalHandleInputResolution::Resolved(
             BuildFilesystemLogicalHandleIdentity::new(1).unwrap(),
         );
     assert!(capture_verified_build_filesystem_replay_record(&resolved, limits).is_err());
 
-    let mut changed_error = summary();
+    let mut changed_error = summary(45);
     changed_error.filesystem_operation_attempts[0].post_error = 13;
     assert!(capture_verified_build_filesystem_replay_record(&changed_error, limits).is_err());
 
-    let mut retired = summary();
+    let mut retired = summary(8);
     retired.filesystem_operation_attempts[0]
         .retired_logical_handles
         .push(BuildFilesystemLogicalHandleIdentity::new(1).unwrap());
     assert!(capture_verified_build_filesystem_replay_record(&retired, limits).is_err());
 
-    let mut handoff = summary();
+    let mut handoff = summary(43);
     handoff
         .included_source_handoffs
         .push(crate::BuildIncludedSourceHandoff {

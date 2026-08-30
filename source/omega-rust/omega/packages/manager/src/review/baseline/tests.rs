@@ -107,14 +107,14 @@ invokes FilesystemHost;
 }
 
 #[test]
-fn baseline_retains_unknown_descriptor_close_replay_custody() {
+fn baseline_retains_operand_free_unknown_descriptor_failure_replay_custody() {
     let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
     let project = std::env::temp_dir().join(format!(
-        "omega-review-baseline-unknown-close-{}-{sequence}",
+        "omega-review-baseline-unknown-sync-data-{}-{sequence}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&project);
-    std::fs::create_dir_all(&project).expect("create unknown-close baseline fixture");
+    std::fs::create_dir_all(&project).expect("create unknown-sync-data baseline fixture");
     std::fs::write(
         project.join("build.omg"),
         r#"use omega::language::std::filesystem_host;
@@ -125,50 +125,53 @@ machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
 {
-    builder.application("review-baseline-unknown-close");
-    let status: i32 = builder.filesystem.close(-1);
+    builder.application("review-baseline-unknown-sync-data");
+    let status: i32 = builder.filesystem.sync_data(-1);
 }
 "#,
     )
-    .expect("write unknown-close baseline build");
+    .expect("write unknown-sync-data baseline build");
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
-        .expect("write unknown-close baseline source");
+        .expect("write unknown-sync-data baseline source");
     let compilation =
         omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
-            .expect("compile unknown-close baseline fixture");
+            .expect("compile unknown-sync-data baseline fixture");
     let summary = compilation
         .build_observation_summary()
-        .expect("unknown close publishes build observations");
+        .expect("unknown sync_data publishes build observations");
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
 
     let limits = ReviewOnlyBaselineLimits::default();
     let replay =
         capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
-            .expect("capture unknown-close replay record")
-            .expect("verified unknown close retains replay custody");
+            .expect("capture unknown-sync-data replay record")
+            .expect("verified unknown sync_data retains replay custody");
     let mut encoder = Encoder::bounded(limits.maximum_capsule_bytes);
-    encode_replay_record_option(&mut encoder, Some(&replay)).expect("frame unknown-close replay");
-    let framed = encoder.finish().expect("finish unknown-close replay frame");
+    encode_replay_record_option(&mut encoder, Some(&replay))
+        .expect("frame unknown-sync-data replay");
+    let framed = encoder
+        .finish()
+        .expect("finish unknown-sync-data replay frame");
     let mut decoder = Decoder::new(&framed);
     let recovered = decode_replay_record_option(&mut decoder, limits)
-        .expect("recover unknown-close replay frame")
-        .expect("unknown-close replay frame is present");
+        .expect("recover unknown-sync-data replay frame")
+        .expect("unknown-sync-data replay frame is present");
     decoder
         .finish()
-        .expect("unknown-close replay consumes frame");
+        .expect("unknown-sync-data replay consumes frame");
     let rehydrated = rehydrate_review_only_build_filesystem_replay_record(
         &recovered,
         replay_record_limits(limits),
     )
-    .expect("unknown-close baseline rehydrates through compiler replay custody");
+    .expect("unknown-sync-data baseline rehydrates through compiler replay custody");
     assert_eq!(
         rehydrated
             .attempts()
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![8]
+        vec![44]
     );
     assert!(!rehydrated.has_output_attempts());
 

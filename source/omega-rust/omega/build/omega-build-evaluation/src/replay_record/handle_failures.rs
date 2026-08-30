@@ -5,14 +5,21 @@ use super::{
     ShapeResult,
 };
 
-const CLOSE_OPERATION_TAG: u16 = 8;
 const REAL_SCOPED_PROVIDER_TAG: u8 = 2;
 const DESCRIPTOR_HANDLE_KIND_TAG: u8 = 0;
 const BAD_DESCRIPTOR_RESULT: i64 = -1;
 const BAD_DESCRIPTOR_ERROR: i32 = 9;
 
-pub(super) fn unknown_descriptor_close_shape_is_exact(shape: &AttemptShape<'_>) -> bool {
-    shape.operation == CLOSE_OPERATION_TAG
+/// Operations whose only authored operand is a descriptor and whose unknown-
+/// descriptor result is fixed independently of host state.
+pub(super) fn operand_free_unknown_descriptor_operation(operation: u16) -> bool {
+    matches!(operation, 8 | 43 | 44 | 45)
+}
+
+pub(super) fn operand_free_unknown_descriptor_failure_shape_is_exact(
+    shape: &AttemptShape<'_>,
+) -> bool {
+    operand_free_unknown_descriptor_operation(shape.operation)
         && shape.provider == REAL_SCOPED_PROVIDER_TAG
         && shape.result == ShapeResult::Scalar(BAD_DESCRIPTOR_RESULT)
         && shape.post_error == BAD_DESCRIPTOR_ERROR
@@ -40,14 +47,14 @@ pub(super) fn unknown_descriptor_close_shape_is_exact(shape: &AttemptShape<'_>) 
         && shape.refusal_count == 0
 }
 
-pub(super) fn validate_unknown_descriptor_close_shape(
+pub(super) fn validate_operand_free_unknown_descriptor_failure_shape(
     shape: &AttemptShape<'_>,
 ) -> Result<(), BuildFilesystemReplayRecordError> {
-    if unknown_descriptor_close_shape_is_exact(shape) {
+    if operand_free_unknown_descriptor_failure_shape_is_exact(shape) {
         Ok(())
     } else {
         Err(BuildFilesystemReplayRecordError::new(
-            "filesystem replay unknown-descriptor close is internally inconsistent",
+            "filesystem replay operand-free unknown-descriptor failure is internally inconsistent",
         ))
     }
 }
