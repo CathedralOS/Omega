@@ -21,9 +21,10 @@
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUN
 ;          2097112 TENVN 2097104 NTY 2097096 NCON 2097088 INVALID_TYPE
 ;          2097080 MATCH_EPOCH
-;          16777216 ARENA (~48 MB)
-;          4194304 FUNS
-;          4259840 TYNAMES  4325376 CONS  5242880 TENV  6291456 COVERAGE
+;          6291456 TYNAMES [6 MiB,6.5 MiB)
+;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
+;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
+;          16777216 ERROR_NODE + ARENA [16 MiB,64 MiB)
 ; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
 ; AST nodes 4 words. Func entry 4 words
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
@@ -58,9 +59,13 @@ proc slurp() {
     state done {
         word[2097136] = n
         word[2097144] = 0
-        word[2097128] = 16777216 ; Match interp.beta's non-overlapping arena. The old
-                                 ; 1 MB arena overwrote FUNS while checking complete
-                                 ; canonical decoders with monomorphic result ADTs.
+        ; Keep one readable zero node as the return value of a failed allocation.
+        ; The real arena begins after it and grows to the 64 MiB raw-memory edge.
+        word[16777216] = 0
+        word[16777224] = 0
+        word[16777232] = 0
+        word[16777240] = 0
+        word[2097128] = 16777248
         word[2097120] = 0        ; NFUN
         word[2097112] = 0        ; TENVN
         word[2097104] = 2        ; NTY (id 0 = Int, id 1 = Bytes)
@@ -236,12 +241,16 @@ proc parse_integer() {
 
 proc alloc(tag, f0, f1, f2) {
     let p = word[2097128]
+    state capacity { to write when (p <= 67108832)  to exhausted }
+    state write {
     word[p] = tag
     word[p + 8] = f0
     word[p + 16] = f1
     word[p + 24] = f2
     word[2097128] = p + 32
     return p
+    }
+    state exhausted { mark_invalid()  return 16777216 }
 }
 
 proc name_eq(o1, o2) {
@@ -427,7 +436,7 @@ proc tyid(off) {
         to missing
     }
     state body {
-        to hit when (name_eq(off, word[4259840 + i * 8]) == 1)
+        to hit when (name_eq(off, word[6291456 + i * 8]) == 1)
         i = i + 1
         to loop
     }
@@ -446,7 +455,7 @@ proc con_lookup(coff) {              ; constructor index by name, or -1
         return 0 - 1
     }
     state body {
-        to hit when (name_eq(coff, word[4325376 + i * 24]) == 1)
+        to hit when (name_eq(coff, word[6815744 + i * 24]) == 1)
         i = i + 1
         to loop
     }
@@ -721,10 +730,10 @@ proc parse_def() {
     let body = parse_expr()
     consume_expected(')')
     let i = word[2097120]
-    word[4194304 + i * 32] = noff
-    word[4194304 + i * 32 + 8] = params
-    word[4194304 + i * 32 + 16] = rtid
-    word[4194304 + i * 32 + 24] = body
+    word[8388608 + i * 32] = noff
+    word[8388608 + i * 32 + 8] = params
+    word[8388608 + i * 32 + 16] = rtid
+    word[8388608 + i * 32 + 24] = body
     word[2097120] = i + 1
     return 0
     }
@@ -765,7 +774,7 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
     }
     state type_name_ok {
     let tid = word[2097104]        ; register the type first (self-recursion resolves)
-    word[4259840 + tid * 8] = toff
+    word[6291456 + tid * 8] = toff
     word[2097104] = tid + 1
     let first_con = word[2097096]
     skip_ws()
@@ -787,9 +796,9 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
         let argtys = parse_argtypes()
         consume_expected(')')
         let ci = word[2097096]
-        word[4325376 + ci * 24] = coff
-        word[4325376 + ci * 24 + 8] = tid
-        word[4325376 + ci * 24 + 16] = argtys
+        word[6815744 + ci * 24] = coff
+        word[6815744 + ci * 24 + 8] = tid
+        word[6815744 + ci * 24 + 16] = argtys
         word[2097096] = ci + 1
         skip_ws()
         to loop
@@ -844,7 +853,7 @@ proc fun_lookup(noff) {
         return 0 - 1
     }
     state body {
-        to hit when (name_eq(noff, word[4194304 + i * 32]) == 1)
+        to hit when (name_eq(noff, word[8388608 + i * 32]) == 1)
         i = i + 1
         to loop
     }
@@ -855,8 +864,8 @@ proc fun_lookup(noff) {
 
 proc tenv_push(off, t) {
     let n = word[2097112]
-    word[5242880 + n * 16] = off
-    word[5242880 + n * 16 + 8] = t
+    word[9437184 + n * 16] = off
+    word[9437184 + n * 16 + 8] = t
     word[2097112] = n + 1
 }
 
@@ -868,12 +877,12 @@ proc tenv_lookup(qoff) {
         return result
     }
     state body {
-        to hit when (name_eq(qoff, word[5242880 + j * 16]) == 1)
+        to hit when (name_eq(qoff, word[9437184 + j * 16]) == 1)
         j = j - 1
         to loop
     }
     state hit {
-        result = word[5242880 + j * 16 + 8]
+        result = word[9437184 + j * 16 + 8]
         return result
     }
 }
@@ -952,7 +961,7 @@ proc tc_call(fname, args) {
     }
     state fchk { to known when (fi != 0 - 1)  return 0 - 1 }   ; unknown function
     state known {
-        let p = word[4194304 + fi * 32 + 8]
+        let p = word[8388608 + fi * 32 + 8]
         let a = args
         let fail = 0
         to loop
@@ -974,7 +983,7 @@ proc tc_call(fname, args) {
     state overmark { fail = 1  to finish }
     state finish {
         to failret when (fail == 1)
-        return word[4194304 + fi * 32 + 16]
+        return word[8388608 + fi * 32 + 16]
     }
     state failret { return 0 - 1 }
 }
@@ -983,7 +992,7 @@ proc tc_conapp(coff, args) {
     let ci = con_lookup(coff)
     state cchk { to known when (ci != 0 - 1)  return 0 - 1 }   ; unknown constructor
     state known {
-        let p = word[4325376 + ci * 24 + 16]
+        let p = word[6815744 + ci * 24 + 16]
         let a = args
         let fail = 0
         to loop
@@ -1004,7 +1013,7 @@ proc tc_conapp(coff, args) {
     state overmark { fail = 1  to finish }
     state finish {
         to failret when (fail == 1)
-        return word[4325376 + ci * 24 + 8]
+        return word[6815744 + ci * 24 + 8]
     }
     state failret { return 0 - 1 }
 }
@@ -1054,16 +1063,16 @@ proc tc_match(scrut, arms) {
     }
     state badcon { fail = 1  to checkbody }
     state tymatch {
-        to badty when (word[4325376 + ci * 24 + 8] != st)
-        to duplicate when (word[6291456 + ci * 8] == epoch)
-        word[6291456 + ci * 8] = epoch
+        to badty when (word[6815744 + ci * 24 + 8] != st)
+        to duplicate when (word[10485760 + ci * 8] == epoch)
+        word[10485760 + ci * 8] = epoch
         to bindvars
     }
     state badty { fail = 1  to checkbody }
     state duplicate { fail = 1  to bindvars }
     state bindvars {
         let pv = word[pat + 16]
-        let av = word[4325376 + ci * 24 + 16]
+        let av = word[6815744 + ci * 24 + 16]
         to bindloop
     }
     state bindloop {
@@ -1113,8 +1122,8 @@ proc tc_match(scrut, arms) {
         to complete
     }
     state coverbody {
-        to covernext when (word[4325376 + ci2 * 24 + 8] != st)
-        to missing when (word[6291456 + ci2 * 8] != epoch)
+        to covernext when (word[6815744 + ci2 * 24 + 8] != st)
+        to missing when (word[10485760 + ci2 * 8] != epoch)
         to covernext
     }
     state covernext { ci2 = ci2 + 1  to coverloop }
@@ -1211,7 +1220,7 @@ proc main() {
     }
     state fbody {
         let base = word[2097112]
-        let p = word[4194304 + i * 32 + 8]
+        let p = word[8388608 + i * 32 + 8]
         to ploop
     }
     state ploop {
@@ -1224,7 +1233,7 @@ proc main() {
         to ploop
     }
     state docheck {
-        to okmark when (tc(word[4194304 + i * 32 + 24]) != word[4194304 + i * 32 + 16])
+        to okmark when (tc(word[8388608 + i * 32 + 24]) != word[8388608 + i * 32 + 16])
         to advance
     }
     state okmark { ok = 0  to advance }
