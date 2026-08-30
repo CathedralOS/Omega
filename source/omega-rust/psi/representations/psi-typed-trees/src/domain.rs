@@ -96,22 +96,61 @@ pub fn indexed_domain_instance_name(
     }
     let mut identities = Vec::with_capacity(arguments.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind else {
-            return Err(Diagnostic::error(format!(
-                "domain family `{}` has a non-const index binder `{}`",
-                domain.name, parameter.name
-            )));
-        };
-        let expected = const_index_type_name(program, type_reference)?;
-        identities.push(closed_domain_argument_identity(
-            program, *argument, &expected,
-        )?);
+        match parameter.kind {
+            crate::data::TypeParameterKind::Type => identities.push(format!(
+                "type:{}",
+                program.normalized_type_identity(*argument)
+            )),
+            crate::data::TypeParameterKind::Const { type_reference } => {
+                let expected = const_index_type_name(program, type_reference)?;
+                identities.push(closed_domain_argument_identity(
+                    program, *argument, &expected,
+                )?);
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "domain family `{}` has an ineligible index binder `{}`",
+                    domain.name, parameter.name
+                )));
+            }
+        }
     }
     let base = program
         .semantic_domains
         .name(domain.semantic_id)
         .unwrap_or(domain.name.as_str());
     Ok(format!("{base}<{}>", identities.join(",")))
+}
+
+/// Whether the declaration's first type parameter is its generic carrier.
+/// Fixed-carrier indexed families instead use every parameter as an invariant
+/// index and retain their concrete `target_type`.
+pub fn has_generic_carrier(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+    let Some(parameter) = program.domain_type_parameters(domain).first() else {
+        return false;
+    };
+    if !matches!(parameter.kind, crate::data::TypeParameterKind::Type) {
+        return false;
+    }
+    let crate::types::TypeReferenceNode::Named { symbol, name } = program
+        .type_reference_table
+        .type_reference(domain.target_type)
+    else {
+        return false;
+    };
+    *symbol == parameter.symbol || name == &parameter.name
+}
+
+pub fn index_parameters<'program>(
+    program: &'program TypedTrees,
+    domain: &DomainDefinition,
+) -> &'program [crate::data::TypeParameter] {
+    let parameters = program.domain_type_parameters(domain);
+    if has_generic_carrier(program, domain) {
+        &parameters[1..]
+    } else {
+        parameters
+    }
 }
 
 fn const_index_type_name(

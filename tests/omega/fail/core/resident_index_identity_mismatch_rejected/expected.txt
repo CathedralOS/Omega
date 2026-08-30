@@ -1,0 +1,1 @@
+actual `Resident<Native, Packet>` and expected `Resident<Network, Packet>` are distinct normalized instances

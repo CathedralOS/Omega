@@ -1,0 +1,22 @@
+use omega::language::core::extent;
+
+data Native {
+}
+
+data Network {
+}
+
+data Packet {
+}
+
+machine mismatch(
+    extent: Extent in Resident<Native, Packet>
+) -> Extent in Resident<Network, Packet> {
+    extent
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

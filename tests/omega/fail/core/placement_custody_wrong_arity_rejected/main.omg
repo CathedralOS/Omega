@@ -1,0 +1,12 @@
+use omega::language::core::layout;
+
+data Custody {
+}
+
+InvalidCustody: Custody satisfies PlacementCustody<u32>;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

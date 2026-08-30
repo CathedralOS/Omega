@@ -1,0 +1,13 @@
+use omega::language::core::extent;
+
+data Native {
+}
+
+machine invalid(extent: Extent in Resident<Native>) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

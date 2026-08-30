@@ -739,7 +739,10 @@ occurrence identity, primitive access retains both, and resident-preserving
 retirement returns the unchanged claim and provider receipts. Borrowed resident
 views retain that same lender-owned claim and receipts, a fresh occurrence, and
 one exact whole-range shared or exclusive loan; ending them releases only the
-loan. This does not yet make the generic domain source-visible or implement
+loan. The source-visible `Extent::Vacant` and invariant indexed
+`Extent::Resident<P, T>` identities now live in core together with opaque
+`Placed<P, T>` and the ordinary outcome, return, and custody-trait vocabulary.
+This does not yet implement placement operations, custody agreement checking,
 `Vacant` transitions, partial moves, or Terminal and installation propagation.
 
 The instantiated operation derives its requirements from `P`, `T`, and the

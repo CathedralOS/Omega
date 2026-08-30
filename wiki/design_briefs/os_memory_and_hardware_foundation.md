@@ -716,6 +716,13 @@ that classifies first and transfers the selected authority. A generic caller
 names both `C` and its exact `PlacementCustody<P, T>` conformance; neither
 ambient structural matching nor a call-site-generated identity is permitted.
 
+The first source-vocabulary rung is live in core: opaque `Placed<P, T>`,
+`Extent::Vacant`, invariant indexed `Extent::Resident<P, T>`,
+`PlacementOutcome`, `PlacementReturn`, and the empty ordinary
+`PlacementCustody<P, T>` trait. These declarations name shapes only. Placement
+operations, authority issuance, and compiler checking of custody agreement
+remain later implementation work.
+
 Retirement is reconstructed from the successful disposition row. Borrowed
 initialization constructs and destroys `T` wholly inside the exclusive borrow,
 returning the lender from `Vacant` to `Vacant`. An owned complete Stable view

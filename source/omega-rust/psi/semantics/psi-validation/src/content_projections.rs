@@ -648,7 +648,8 @@ fn domain_accepts_projection_carrier(
     else {
         return false;
     };
-    carrier.is_valid()
+    psi_typed_trees::domain::has_generic_carrier(program, domain)
+        && carrier.is_valid()
         && parameters.iter().any(|parameter| {
             matches!(
                 parameter.kind,

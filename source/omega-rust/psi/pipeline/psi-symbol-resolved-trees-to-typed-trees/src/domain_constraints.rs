@@ -102,12 +102,7 @@ fn normalize_constraint_span(
                 })?;
         }
 
-        let index_parameters = program.domain_type_parameters(domain);
-        let index_parameters = if index_parameters.is_empty() {
-            &[][..]
-        } else {
-            &index_parameters[1..]
-        };
+        let index_parameters = psi_typed_trees::domain::index_parameters(program, domain);
         if domain_constraint.arguments.len() != index_parameters.len() {
             return Err(Diagnostic::error(format!(
                 "domain family `{}` requires {} closed index argument(s), but {} were supplied",
@@ -234,11 +229,11 @@ pub(crate) fn domain_accepts_carrier(
     carrier: psi_typed_trees::types::TypeReferenceHandle,
     carrier_label: &str,
 ) -> bool {
-    let parameters = program.domain_type_parameters(domain);
-    if parameters.is_empty() {
+    if !psi_typed_trees::domain::has_generic_carrier(program, domain) {
         return program.display_type_reference_with_constraints(domain.target_type)
             == carrier_label;
     }
+    let parameters = program.domain_type_parameters(domain);
     let Some(parameter) = parameters.first() else {
         return false;
     };

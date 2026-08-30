@@ -16,6 +16,14 @@ pub data Extent [linear] {
     length: u64;
 }
 
+// Settled dormant-content state vocabulary. These qualifications carry no
+// runtime payload: `Vacant` names an exact range with no live resident value,
+// while `Resident<P, T>` retains the invariant normalized placement-policy and
+// semantic-value identities for one complete live value. Placement operations
+// and custody checking are intentionally not declared in this milestone.
+pub domain Extent::Vacant;
+pub domain<P, T> Extent::Resident<P, T>;
+
 // TRANSITIONAL bootstrap spelling. This is a proof proposition, not a callable
 // boundary machine. Once the sealed target capsule exposes `addr::Bound`, write:
 //

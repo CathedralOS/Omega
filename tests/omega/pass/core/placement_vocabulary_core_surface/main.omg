@@ -1,0 +1,39 @@
+use omega::language::core::extent;
+use omega::language::core::layout;
+
+// Source use pins the exact public arity, case/payload names and record-field
+// order without introducing any placement operation or authority route.
+data Native {
+}
+
+data Packet {
+}
+
+data PacketCustody {
+    token: u32;
+}
+
+PacketNativeCustody:
+    PacketCustody satisfies PlacementCustody<Native, Packet>;
+
+machine retain_vacant(extent: Extent in Vacant) -> Extent in Vacant {
+    extent
+}
+
+machine retain_resident(
+    extent: Extent in Resident<Native, Packet>
+) -> Extent in Resident<Native, Packet> {
+    extent
+}
+
+machine retain_resident_generic<P, T>(
+    extent: Extent in Resident<P, T>
+) -> Extent in Resident<P, T> {
+    extent
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

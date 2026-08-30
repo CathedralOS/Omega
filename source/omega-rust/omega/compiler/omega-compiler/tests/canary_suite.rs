@@ -269,6 +269,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "core/array_core_surface",
     "core/atomic_outcomes_core_surface",
     "core/collections_core_surface",
+    "core/placement_vocabulary_core_surface",
     "core/slice_core_surface",
     "core/vec_core_surface",
     "operators/slice_index_via_spelling_compile",
@@ -582,6 +583,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/atomic_outcome_key_parameter_rejected",
+    "core/placed_construction_rejected",
+    "core/placed_wrong_arity_rejected",
+    "core/placement_custody_wrong_arity_rejected",
+    "core/placement_outcome_wrong_arity_rejected",
+    "core/placement_return_wrong_arity_rejected",
+    "core/resident_index_identity_mismatch_rejected",
+    "core/resident_wrong_arity_rejected",
     "capabilities/boundary_qualification_subject_rejected",
     "capabilities/direct_accepted_qualification_rejected",
     "providers/via_with_body_rejected",

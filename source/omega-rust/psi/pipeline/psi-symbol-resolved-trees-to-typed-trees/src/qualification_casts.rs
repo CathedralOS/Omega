@@ -99,12 +99,7 @@ pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<
             ));
             continue;
         };
-        let parameters = program.domain_type_parameters(domain);
-        let index_parameters = if parameters.is_empty() {
-            &[][..]
-        } else {
-            &parameters[1..]
-        };
+        let index_parameters = psi_typed_trees::domain::index_parameters(program, domain);
         if arguments.len() != index_parameters.len() {
             return Err(Diagnostic::error(format!(
                 "domain family `{}` requires {} closed index argument(s), but {} were supplied by `as ... in {name}`",

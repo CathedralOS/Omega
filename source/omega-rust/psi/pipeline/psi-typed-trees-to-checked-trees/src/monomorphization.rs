@@ -3540,12 +3540,7 @@ pub fn refresh_closed_domain_instance_identities(
             else {
                 continue;
             };
-            let parameters = program.domain_type_parameters(&domain);
-            let index_parameters = if parameters.is_empty() {
-                &[][..]
-            } else {
-                &parameters[1..]
-            };
+            let index_parameters = psi_typed_trees::domain::index_parameters(program, &domain);
             let identity = psi_typed_trees::domain::indexed_domain_instance_name(
                 program,
                 &domain,
@@ -3595,12 +3590,7 @@ pub fn refresh_closed_domain_instance_identities(
         else {
             continue;
         };
-        let parameters = program.domain_type_parameters(&domain);
-        let index_parameters = if parameters.is_empty() {
-            &[][..]
-        } else {
-            &parameters[1..]
-        };
+        let index_parameters = psi_typed_trees::domain::index_parameters(program, &domain);
         let arguments = program
             .type_reference_table
             .type_reference_handles(arguments);
