@@ -1206,6 +1206,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
       without claiming a completed root. Keep exact arrow/type/delimiter,
       consumer-isolation, resource, reset, and state-publication vectors at the
       real Delta-compiler gate.
+    - [x] Generalize the existing `pub` root dispatcher from Data-only handling
+      to ordinary machines without cloning the machine parser. The direct root
+      path supplies `is_public = 0`; the recursive public-root path preserves
+      the `pub` coordinate as item start and supplies `is_public = 1`; both then
+      enter the same root-capacity check, path/signature/body states, implicit
+      entry construction, and final mixed-root publication. Unsupported public
+      declaration kinds remain implementation-incomplete instead of silently
+      losing visibility. All eight public machine roots in current `C` have
+      otherwise representable headers, so they now reach body parsing and raise
+      the current total from 41 to 49; their bodies are nonempty, so no root
+      completes. Keep exact direct/public reset, span, visibility, capacity,
+      mixed-order, and publication vectors at the real Delta-compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
