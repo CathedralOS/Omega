@@ -1575,6 +1575,16 @@ suffix is inferred from a truncated result. Provider-free replay restores the
 exact carrier and event order. Returned target bytes remain inert and require a
 new checked root resolution before any path use.
 
+Observation summary v47 and replay-record v28 also admit a nonempty exact
+Output tree beginning at filesystem attempt zero. Constant-generating builds
+need no synthetic Source filesystem event; the empty Source-event prefix is
+replayed vacuously. Canonical package Source metadata and compiler custody are
+still mandatory and independently revalidated. Generated-source ordinals begin
+at zero, while the existing exact ordered directory, file, symbolic-link, and
+hard-link grammar remains unchanged. Empty streams, malformed prefixes,
+unexplained physical Output, and changed canonical Source identity remain
+non-receipted.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

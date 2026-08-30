@@ -1445,6 +1445,16 @@ equality. Returned bytes remain inert and cannot acquire path authority without
 a new checked root resolution. Failed, Output-rooted, malformed, or internally
 inconsistent read-link attempts remain non-receipted.
 
+Summary v47 and replay-record v28 admit a nonempty exact Output tree beginning
+at filesystem attempt zero. Constant-generating builds no longer need a
+synthetic Source filesystem event; the empty Source-event prefix is replayed
+vacuously. This does not relax package identity: canonical Source metadata and
+compiler custody remain mandatory and are revalidated independently. Exact
+generated-source ordinals begin at zero, and the existing ordered directory,
+file, symbolic-link, and hard-link grammar still governs every Output attempt.
+Empty streams, malformed prefixes, unexplained physical Output, and changed
+canonical Source identity remain non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

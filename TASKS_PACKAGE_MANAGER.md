@@ -95,7 +95,9 @@ closed. Compiler-issued package review remains non-admitting.
   nominal Chi stage merely to collect private compiler state.
 
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the existing exact
-  Source-input/empty-Output grammar, including ordered successful
+  Source-input/empty-Output grammar, including nonempty exact Output trees with
+  an empty Source-event prefix (without fabricating a Source observation), and
+  ordered successful
   Source-rooted `read_link` events with exact complete-or-truncated inert target
   bytes, and repeated direct-child
   `create`/zero-or-more full sequential-or-positioned writes, exact successful
