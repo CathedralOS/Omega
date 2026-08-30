@@ -1798,6 +1798,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
       parser progress and changes no current `C` root count. Exact nesting,
       precedence, depth, reset, and no-partial-publication vectors remain at
       the unavailable real Delta-compiler gate.
+    - [x] Complete the canonical multiplicative tier by routing `/` and `%`
+      through the same bounded reducer as `*`. Both retain source-ordered binary
+      rows at precedence five, so mixed multiplication/division/remainder is
+      left-associated and still binds above `+`/`-` in transition subjects,
+      assignment values, local initializers, and ordinary call arguments.
+      Division by a literal zero remains valid syntax for later semantic proof
+      or policy checking; `/=` and `%=` remain distinct scanner tokens and do
+      not enter this binary lane. No arena, consumer, resource, or current `C`
+      census changes. Exact association, precedence, grouping/prefix, malformed
+      operand, reset, and no-partial-publication vectors remain assigned to the
+      real Delta-compiler gate.
     - [x] Retain the first closed external-leaf declaration as one coherent
       source-shaped form: `satisfies Trait::requirement via
       Binding::CompilerIntrinsic;`. The satisfying clause owns explicit

@@ -133,8 +133,9 @@ spelling is retained by source span and is not evaluated during parsing;
 strings retain the exact token span and scanner-proven decoded byte length
 without a decoded-byte mirror. Assignment values, local initializers, ordinary
 call arguments, and transition subjects share one bounded precedence reducer
-over `||`, `&&`, equality, comparison, `+`, `-`, and `*`. Every operator
-materializes a source-ordered binary node without evaluation or type guessing.
+over `||`, `&&`, equality, comparison, `+`, `-`, `*`, `/`, and `%`. Every
+operator materializes a source-ordered binary node without evaluation or type
+guessing.
 Parentheses delimit reduction frames and preserve their exact transient source
 extent without manufacturing a group syntax node. Recursive logical `!` and
 fixed-width integer complement `~` prefixes wrap a completed operand from the
