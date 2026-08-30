@@ -17,6 +17,19 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Transition-free, spill-free register-home assignment is now a deterministic
+constraint-graph allocator rather than a start-ordered greedy walk. Distinct
+use/definition ties form allocation vertices with exact intersected candidate
+domains; explicit symmetric interference and directional early-clobber edges
+constrain physical storage/write footprints. Canonical placement chooses the
+fewest currently viable views, greatest remaining constrained degree,
+earliest point, and lowest VReg leader before selecting the lowest compatible
+view. Producer and validator independently reconstruct domains, constraints,
+and placement beneath separate small entrances. Focused coverage proves the
+formerly rejected `{r0,r1}` versus `{r0}` feasible case, noninterfering reuse,
+aliased physical views, ties, early clobbers, pressure, corruption, and
+determinism.
+
 [x] Abstract-to-target translation validation now has an eleventh exact family
 for integer bitwise-not of one parameter. The source grammar map first descends
 through a new 78-line `source/integer/mod.rs` coordinator that owns common
@@ -324,8 +337,8 @@ parallel route or optional coordinator field.
   custody through lowering.
 - [x] Selected-lowering exact incoming u12 add/subtract folds.
 - [x] Physical register model, liveness, live ranges, allocation legality,
-  transition-free homes, fixed-view recovery, and bounded rematerialization
-  slices.
+  deterministic transition-free interference allocation, fixed-view recovery,
+  and bounded rematerialization slices.
 - [x] Symbolic post-allocation plan/effects and independent validation.
 - [x] AArch64 compare-zero/branch-nonzero CBNZ fusion.
 - [x] AArch64 shortest MOVN-seeded i64 materialization.
@@ -444,6 +457,11 @@ parallel route or optional coordinator field.
 - [x] Move home-assignment compute and fixed-view-copy codec fixtures into
   explicit path-bound sibling leaves without changing their private test scope
   or test names.
+- [x] Replace flat register-home compute/replay leaves and their forwarding test
+  bridge with mirrored domain/conflict/placement taxonomies. Their small
+  producer and validator entrances own the complete-roster joins independently,
+  and focused tests descend through constrained domains, ties, early clobbers,
+  alias footprints, and determinism.
 - [x] Split target register-environment custody into a small construction and
   validation entrance above explicit target catalog, validated model,
   validation mechanics, and tests.
@@ -704,8 +722,9 @@ parallel route or optional coordinator field.
 - [x] Transition-free home assignment and post-allocation manifest.
 - [x] Exact fixed-view copy and active-resident rematerialization recovery
   slices.
-- [ ] Replace the remaining narrow allocator with a general deterministic
-  interference allocator.
+- [x] Replace the remaining narrow allocator with a general deterministic
+  interference allocator for the currently admitted transition-free,
+  spill-free domain.
 - [ ] Add spill choice, insertion, reload/store validation, and stack-slot
   coloring.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
@@ -882,3 +901,8 @@ rewrite or opt a program into lossy floating-point semantics.
     meaningful typed coordinator first, then retain exact integer type,
     operand/result identity, register/stack ABI placement, provenance, and
     optimized-target custody through the named unary leaf.
+32. [x] Replace start-ordered transition-free register-home assignment with a
+    deterministic constrained interference allocator. Quotient exact ties,
+    derive interference and directional early-clobber edges, prioritize the
+    most constrained domain, independently replay the policy, and split both
+    sides plus focused fixtures into visible semantic rungs.

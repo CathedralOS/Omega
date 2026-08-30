@@ -4,8 +4,8 @@
 
 This opt-in stage assigns deterministic physical register views for the exact
 bounded subset whose allocation is already fully described by one
-transition-free legality plan. It is a base case for the general allocator, not
-a physical-emission boundary.
+transition-free, spill-free legality plan. It is a constrained interference
+allocator, not a physical-emission boundary.
 
 ## Stage Contract
 
@@ -23,25 +23,37 @@ stack slot, frame, instruction emission, or publication authority.
 
 ## Deterministic Assignment
 
-VRegs are considered by first live point and then stable VReg ID. A VReg is
-admitted only when it has no unresolved entry-to-operand fixed-view transition
-and the intersection of its exact per-point candidate rows is nonempty.
+Distinct use-to-definition ties first quotient VRegs into allocation vertices.
+Every vertex retains its ordered members, earliest and latest live points, and
+the intersection of every member's ordinary and early-clobber candidate rows.
+An unresolved entry transition or empty intersection rejects before placement.
 
-Candidates are considered by stable physical-view ID. A candidate rejects when
-its storage or canonical-write footprint overlaps the assigned footprint of an
-already placed interfering VReg. The lowest remaining candidate becomes the
-home. Values with no exact interference may reuse one view, including the two
-mutually exclusive result leaves in the current conditional fixture. If no
-candidate remains, the stage rejects; it does not invent a spill or copy.
+The constraint graph is derived from two explicit sources:
+
+- any interference between members of two vertices forbids overlapping
+  storage or canonical-write footprints; and
+- an early-clobber definition forbids its write footprint from overlapping
+  the storage footprint of each untied use.
+
+At every placement step, the allocator recomputes the candidates compatible
+with already assigned neighbors. It chooses the vertex with the fewest viable
+views, then the greatest remaining constrained degree, earliest live point,
+and lowest leader VReg. The lowest compatible physical-view ID becomes the
+home for every member. This constrained ordering admits cases that a
+start-ordered greedy walk rejected, such as assigning `{r0}` before an
+interfering `{r0, r1}` vertex. Unconstrained vertices may still reuse one view.
+If no candidate remains, the stage reports exact pressure; it does not invent
+a spill or copy.
 
 ## Validation And Custody
 
 Production and replay use separate derivations. Replay reconstructs the target
 register-environment identity from the physical model, constraint catalog,
 reservation profile, selected constraint keys, and target; checks exact range
-and legality roots; repeats canonical ordering, candidate intersection, and
-footprint/interference selection; rejects reordered or altered assignments;
-and recomputes a domain-separated register-home identity.
+and legality roots; independently rebuilds tied vertices, candidate domains,
+interference and directional early-clobber constraints, and the canonical
+placement order; rejects reordered or altered assignments; and recomputes a
+domain-separated register-home identity.
 
 The orchestration carrier retains the complete legality stage. Therefore a
 home receipt cannot be detached from Terminal Psi, the exact named optimizer
@@ -58,15 +70,20 @@ and rerun liveness, ranges, and legality. A separate post-copy custody carrier
 then invokes this same strict home algorithm; the direct carrier is not
 weakened and cannot interpret a transition as permission to switch homes.
 
-General active-interval allocation, splitting, calls and clobber crossings,
-ties, early clobbers, spills, rematerialization, stack slots, frames, and
-machine emission remain unsupported.
+Spill insertion, live-range splitting, general call/clobber crossings,
+coalescing beyond mandatory ties, stack slots, frames, and machine emission
+remain outside this stage. Exact ties and early-clobber constraints are part of
+the admitted graph rather than deferred gaps.
 
 ## Implementation Map
 
-- `pipeline/optimization/omega-regalloc/src/home_assignment_*` owns production,
-  independent replay, the opaque validated artifact, and content identity.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_homes.rs` owns nested
-  cross-stage custody.
+- `pipeline/optimization/omega-regalloc/src/allocation/home_assignment/mod.rs`
+  owns the proposal-to-independent-validation join.
+- `allocation/home_assignment/compute/mod.rs` descends through producer-owned
+  `domain`, `conflicts`, and `placement` rungs.
+- `allocation/home_assignment/validate/mod.rs` descends through separately
+  implemented domain, conflict, and canonical replay rungs.
+- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_homes/mod.rs`
+  owns nested cross-stage custody.
 - `omega-register-model` remains the sole authority for views, aliases, write
   footprints, constraints, and active reservations.
