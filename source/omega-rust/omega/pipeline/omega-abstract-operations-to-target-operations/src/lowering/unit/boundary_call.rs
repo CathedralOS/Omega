@@ -433,17 +433,25 @@ fn lower_normalized_foreign_scalar_arguments(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
-    let scalar_parameter_shapes = match declaration.scalar_parameters.as_slice() {
-        [] => Vec::new(),
-        [ScalarType::Integer(integer_type)]
-            if integer_type.carrier() == psi_core::IntegerCarrier::Fixed
-                && matches!(integer_type.bits(), 8 | 16 | 32 | 64) =>
-        {
+    if declaration.scalar_parameters.len() > 2 {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    }
+    let scalar_parameter_shapes = declaration
+        .scalar_parameters
+        .iter()
+        .map(|parameter| {
+            let ScalarType::Integer(integer_type) = parameter else {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            };
+            if integer_type.carrier() != psi_core::IntegerCarrier::Fixed
+                || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
+            {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            }
             let bytes = integer_type.bits().div_ceil(8);
-            vec![ValueShape::integer(bytes, bytes.next_power_of_two().min(8))]
-        }
-        _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
-    };
+            Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let signature = CallSignature {
         parameters: scalar_parameter_shapes.clone(),
         result: None,
@@ -526,13 +534,18 @@ mod normalized_foreign_scalar_tests {
 
     fn entry_plan(
         target: NativeTarget,
-        scalar_type: IntegerType,
+        scalar_types: &[IntegerType],
     ) -> omega_calling_conventions::BoundaryEntryPlan {
-        let bytes = scalar_type.bits().div_ceil(8);
         omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
-                parameters: vec![ValueShape::integer(bytes, bytes.next_power_of_two().min(8))],
+                parameters: scalar_types
+                    .iter()
+                    .map(|scalar_type| {
+                        let bytes = scalar_type.bits().div_ceil(8);
+                        ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+                    })
+                    .collect(),
                 result: None,
             },
         )
@@ -555,7 +568,7 @@ mod normalized_foreign_scalar_tests {
             (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
             (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
         ] {
-            let plan = entry_plan(target, integer_type);
+            let plan = entry_plan(target, &[integer_type]);
             let arguments = lower_normalized_foreign_scalar_arguments(
                 boundary,
                 &declaration,
@@ -576,6 +589,91 @@ mod normalized_foreign_scalar_tests {
                 argument.placement.locations.as_slice(),
                 [ValueLocation::Register { register, .. }] if *register == expected_register
             ));
+        }
+    }
+
+    #[test]
+    fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
+        let boundary = BoundaryMachineId::new(45).expect("boundary");
+        let first = ValueId::new(46).expect("first source");
+        let second = ValueId::new(47).expect("second source");
+        let i16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let declaration = declaration(
+            boundary,
+            vec![ScalarType::Integer(i16_type), ScalarType::Integer(i64_type)],
+        );
+        let constants = BTreeMap::from([
+            (
+                first,
+                (
+                    OperationId::new(48).expect("first constant"),
+                    i16_type,
+                    IntegerValue::Unsigned(513),
+                ),
+            ),
+            (
+                second,
+                (
+                    OperationId::new(49).expect("second constant"),
+                    i64_type,
+                    IntegerValue::Signed(-29),
+                ),
+            ),
+        ]);
+
+        for (target, expected_registers) in [
+            (
+                NativeTarget::linux_x64(),
+                [MachineRegister::X86Rdi, MachineRegister::X86Rsi],
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                [MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1)],
+            ),
+        ] {
+            let plan = entry_plan(target, &[i16_type, i64_type]);
+            let arguments = lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &declaration,
+                &[first, second],
+                &plan,
+                &constants,
+            )
+            .expect("two evaluated register literal arguments");
+            assert_eq!(arguments.len(), 2);
+            for (index, (argument, expected_register)) in
+                arguments.iter().zip(expected_registers).enumerate()
+            {
+                assert_eq!(argument.source_value, [first, second][index]);
+                assert_eq!(argument.scalar_type, [i16_type, i64_type][index]);
+                assert_eq!(argument.parameter_index, index as u32);
+                assert_eq!(argument.placement, plan.call.parameters[index]);
+                assert!(matches!(
+                    argument.placement.locations.as_slice(),
+                    [ValueLocation::Register { register, .. }] if *register == expected_register
+                ));
+            }
+            assert_eq!(arguments[0].immediate, IntegerValue::Unsigned(513));
+            assert_eq!(arguments[1].immediate, IntegerValue::Signed(-29));
+
+            let mut stack_plan = plan;
+            stack_plan.call.parameters[1].locations = vec![ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }];
+            assert!(
+                lower_normalized_foreign_scalar_arguments(
+                    boundary,
+                    &declaration,
+                    &[first, second],
+                    &stack_plan,
+                    &constants,
+                )
+                .is_err()
+            );
         }
     }
 
@@ -603,8 +701,8 @@ mod normalized_foreign_scalar_tests {
             Ok(Vec::new())
         );
 
-        let declaration = declaration(boundary, vec![ScalarType::Integer(i32_type)]);
-        let plan = entry_plan(NativeTarget::linux_x64(), i32_type);
+        let one_parameter_declaration = declaration(boundary, vec![ScalarType::Integer(i32_type)]);
+        let plan = entry_plan(NativeTarget::linux_x64(), &[i32_type]);
         let constants = BTreeMap::from([(source, (constant, i32_type, IntegerValue::Signed(9)))]);
         for (arguments, constants) in [
             (Vec::new(), constants.clone()),
@@ -617,7 +715,7 @@ mod normalized_foreign_scalar_tests {
             assert!(matches!(
                 lower_normalized_foreign_scalar_arguments(
                     boundary,
-                    &declaration,
+                    &one_parameter_declaration,
                     &arguments,
                     &plan,
                     &constants,
@@ -639,7 +737,7 @@ mod normalized_foreign_scalar_tests {
             assert!(
                 lower_normalized_foreign_scalar_arguments(
                     boundary,
-                    &declaration,
+                    &one_parameter_declaration,
                     &[source],
                     &invalid,
                     &constants,
@@ -647,5 +745,25 @@ mod normalized_foreign_scalar_tests {
                 .is_err()
             );
         }
+
+        let three_parameter_declaration = declaration(
+            boundary,
+            vec![
+                ScalarType::Integer(i32_type),
+                ScalarType::Integer(i32_type),
+                ScalarType::Integer(i32_type),
+            ],
+        );
+        let three_plan = entry_plan(NativeTarget::linux_x64(), &[i32_type, i32_type, i32_type]);
+        assert!(
+            lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &three_parameter_declaration,
+                &[source, source, source],
+                &three_plan,
+                &constants,
+            )
+            .is_err()
+        );
     }
 }

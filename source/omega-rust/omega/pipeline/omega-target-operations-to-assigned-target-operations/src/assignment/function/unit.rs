@@ -184,7 +184,7 @@ fn assign_normalized_foreign_scalar_arguments_for_plan(
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
     preceding_operations: &[TargetUnitOperation],
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, AssignmentError> {
-    if scalar_arguments.len() > 1 {
+    if scalar_arguments.len() > 2 {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
     let signature = CallSignature {
@@ -338,6 +338,79 @@ mod normalized_foreign_scalar_tests {
     }
 
     #[test]
+    fn assignment_replays_two_ordered_register_literals_on_both_linux_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let first_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
+            let second_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            let first_source = ValueId::new(81).expect("first source");
+            let second_source = ValueId::new(82).expect("second source");
+            let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(2, 2), ValueShape::integer(8, 8)],
+                    result: None,
+                },
+            )
+            .expect("two-register foreign plan")
+            .plan()
+            .clone();
+            let arguments = vec![
+                omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: first_source,
+                    scalar_type: first_type,
+                    immediate: IntegerValue::Unsigned(513),
+                    parameter_index: 0,
+                    placement: plan.call.parameters[0].clone(),
+                },
+                omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: second_source,
+                    scalar_type: second_type,
+                    immediate: IntegerValue::Signed(-29),
+                    parameter_index: 1,
+                    placement: plan.call.parameters[1].clone(),
+                },
+            ];
+            let preceding = vec![
+                TargetUnitOperation::IntegerConstant {
+                    psi_operation: OperationId::new(83).expect("first constant"),
+                    result: first_source,
+                    scalar_type: first_type,
+                    value: IntegerValue::Unsigned(513),
+                },
+                TargetUnitOperation::IntegerConstant {
+                    psi_operation: OperationId::new(84).expect("second constant"),
+                    result: second_source,
+                    scalar_type: second_type,
+                    value: IntegerValue::Signed(-29),
+                },
+            ];
+            assert_eq!(
+                assign_normalized_foreign_scalar_arguments_for_plan(
+                    &plan, target, &arguments, &preceding,
+                ),
+                Ok(arguments.clone())
+            );
+
+            let mut stack_argument = arguments;
+            stack_argument[1].placement.locations = vec![ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            }];
+            assert!(
+                assign_normalized_foreign_scalar_arguments_for_plan(
+                    &plan,
+                    target,
+                    &stack_argument,
+                    &preceding,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         let target = NativeTarget::linux_x64();
         let (plan, argument, preceding) = fixture(target);
@@ -403,7 +476,38 @@ mod normalized_foreign_scalar_tests {
             assign_normalized_foreign_scalar_arguments_for_plan(
                 &result_plan,
                 target,
-                &[argument],
+                &[argument.clone()],
+                &preceding,
+            )
+            .is_err()
+        );
+
+        let three_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4); 3],
+                result: None,
+            },
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let three_arguments = (0..3)
+            .map(
+                |index| omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: argument.source_value,
+                    scalar_type: argument.scalar_type,
+                    immediate: argument.immediate,
+                    parameter_index: index,
+                    placement: three_plan.call.parameters[index as usize].clone(),
+                },
+            )
+            .collect::<Vec<_>>();
+        assert!(
+            assign_normalized_foreign_scalar_arguments_for_plan(
+                &three_plan,
+                target,
+                &three_arguments,
                 &preceding,
             )
             .is_err()

@@ -439,9 +439,9 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
             Err(EmissionError::InvalidNormalizedForeignCallCustody)
         );
 
-        let mut duplicated = assigned;
+        let mut triplicated = assigned;
         let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
-            &mut duplicated.functions[0].operation
+            &mut triplicated.functions[0].operation
         else {
             unreachable!()
         };
@@ -453,8 +453,9 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
             unreachable!()
         };
         scalar_arguments.push(scalar_arguments[0].clone());
+        scalar_arguments.push(scalar_arguments[0].clone());
         assert_eq!(
-            super::emit_machine_code(&duplicated),
+            super::emit_machine_code(&triplicated),
             Err(EmissionError::InvalidNormalizedForeignCallCustody)
         );
 
