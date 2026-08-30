@@ -1630,6 +1630,18 @@ forbids generated-source handoffs. It retains at most 4,096 attempts and 16 MiB
 of aggregate path spelling. Refused or unrooted paths, other errors, successful
 removes, and mixed mutation/failure lifecycles remain non-receipted.
 
+Observation summary v50 and replay-record v31 additionally admit an optional
+exact Source prefix followed by exactly one failed tag-8 close of an Unknown
+descriptor. The closed row is scoped-real provider, scalar result `-1`,
+post-error state `9`, and one operand-zero `Descriptor/Unknown` logical input;
+all paths, raw tokens, mutable carriers, outputs, retirements, refusals,
+diagnostic strings, and generated-source handoffs are absent. Provider-free
+replay reproduces the exact failure against a fresh virtual handle table and
+verifies empty namespace and teardown. That complete no-effect sequence may
+receive an empty staged-output commitment on its initial run; Source-only replay
+remains partial. Null/resolved inputs, alternate failures, repetitions, and
+mixed lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay

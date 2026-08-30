@@ -16,6 +16,9 @@ mod directories;
 #[cfg(test)]
 mod directory_tests;
 mod duplicates;
+#[cfg(test)]
+mod handle_failure_tests;
+mod handle_failures;
 mod hard_links;
 #[cfg(test)]
 mod lock_tests;
@@ -31,6 +34,9 @@ mod symlinks;
 
 use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
+use handle_failures::{
+    unknown_descriptor_close_shape_is_exact, validate_unknown_descriptor_close_shape,
+};
 use hard_links::{
     output_hard_link_paths, rehydrate_output_hard_link_shape, validate_output_hard_link_shape,
 };
@@ -40,7 +46,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 30;
+const VERSION: u16 = 31;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -194,13 +200,19 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let decoded = decode_shapes(record.canonical_bytes(), limits)?;
     let included_sources = decoded.included_sources;
     let shapes = decoded.shapes;
-    let output_start = shapes
+    let operation_suffix_start = shapes
         .iter()
         .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27))
+        .or_else(|| {
+            shapes
+                .last()
+                .filter(|shape| unknown_descriptor_close_shape_is_exact(shape))
+                .map(|_| shapes.len() - 1)
+        })
         .unwrap_or(shapes.len());
     let mut events = Vec::new();
     let mut cursor = 0;
-    while cursor < output_start {
+    while cursor < operation_suffix_start {
         if shapes[cursor].operation == 21 {
             events.push(
                 psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadLink(
@@ -298,7 +310,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )?,
         )
     };
-    if output_start == shapes.len() {
+    if operation_suffix_start == shapes.len() {
         let typed_source_record = typed_source_record.ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay source-only record has no Source events",
@@ -313,19 +325,33 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
-    if shapes[output_start..]
+    if shapes.len() - operation_suffix_start == 1 && shapes[operation_suffix_start].operation == 8 {
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorCloseReplayRecord::new(
+                typed_source_record,
+            );
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_close_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay unknown-descriptor close could not be rehydrated",
+            )
+        });
+    }
+    if shapes[operation_suffix_start..]
         .iter()
         .all(|shape| shape.operation == 9)
     {
         let mut absent_removes = Vec::new();
         absent_removes
-            .try_reserve_exact(shapes.len() - output_start)
+            .try_reserve_exact(shapes.len() - operation_suffix_start)
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
                     "filesystem replay absent-remove allocation failed",
                 )
             })?;
-        for shape in &shapes[output_start..] {
+        for shape in &shapes[operation_suffix_start..] {
             let [rooted] = shape.rooted_paths.as_slice() else {
                 unreachable!("validated absent Output remove has one rooted path")
             };
@@ -360,7 +386,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
-    let output_ranges = output_tree_ranges(&shapes, output_start)?;
+    let output_ranges = output_tree_ranges(&shapes, operation_suffix_start)?;
     let mut output_entries = Vec::new();
     output_entries
         .try_reserve_exact(output_ranges.len())
@@ -436,7 +462,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 expected_included_sources,
             )
         }
-        None if output_start == 0 => {
+        None if operation_suffix_start == 0 => {
             psi_checked_interpreter::FilesystemInputOutputTreeReplayRecord::output_only(
                 output_entries,
                 expected_included_sources,
@@ -1149,7 +1175,14 @@ enum ShapeScalar {
 struct ShapeLogicalInput {
     ordinal: u8,
     kind: u8,
-    resolution: Option<u64>,
+    resolution: ShapeLogicalInputResolution,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShapeLogicalInputResolution {
+    Resolved(u64),
+    Null,
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1425,8 +1458,9 @@ fn decode_attempt<'a>(
         let ordinal = decoder.byte()?;
         let kind = decoder.tag(2, "invalid logical-handle kind tag")?;
         let resolution = match decoder.tag(2, "invalid logical-handle resolution tag")? {
-            0 => Some(decoder.nonzero_u64()?),
-            1 | 2 => None,
+            0 => ShapeLogicalInputResolution::Resolved(decoder.nonzero_u64()?),
+            1 => ShapeLogicalInputResolution::Null,
+            2 => ShapeLogicalInputResolution::Unknown,
             _ => unreachable!(),
         };
         inputs.push(ShapeLogicalInput {
@@ -1511,7 +1545,7 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
-        if matches!(shapes[cursor].operation, 1 | 9 | 11 | 19 | 20 | 27) {
+        if matches!(shapes[cursor].operation, 1 | 8 | 9 | 11 | 19 | 20 | 27) {
             break;
         }
         if shapes[cursor].operation == 21 {
@@ -1580,16 +1614,20 @@ fn validate_first_rung(
         cursor += 1;
         event_count += 1;
     }
-    let begins_with_output = cursor == 0
+    let begins_with_replay_suffix = cursor == 0
         && shapes
             .first()
-            .is_some_and(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27));
-    if event_count == 0 && !begins_with_output {
+            .is_some_and(|shape| matches!(shape.operation, 1 | 8 | 9 | 11 | 19 | 20 | 27));
+    if event_count == 0 && !begins_with_replay_suffix {
         return Err(BuildFilesystemReplayRecordError::new(
-            "bounded replay contains neither Source events nor an Output-first tree",
+            "bounded replay contains neither Source events nor a supported replay suffix",
         ));
     }
     if cursor < shapes.len() {
+        if shapes.len() - cursor == 1 && shapes[cursor].operation == 8 {
+            validate_unknown_descriptor_close_shape(&shapes[cursor])?;
+            return Ok(());
+        }
         if shapes[cursor..].iter().all(|shape| shape.operation == 9) {
             validate_output_absent_remove_shapes(&shapes[cursor..])?;
             return Ok(());
@@ -1852,7 +1890,7 @@ fn output_file_end(
             && matches!(
                 shapes[cursor].inputs.as_slice(),
                 [ShapeLogicalInput {
-                    resolution: Some(identity),
+                    resolution: ShapeLogicalInputResolution::Resolved(identity),
                     ..
                 }] if *identity == root_identity
             );
@@ -2145,7 +2183,7 @@ fn validate_output_file(
                 != (ShapeLogicalInput {
                     ordinal: 0,
                     kind: 0,
-                    resolution: Some(output.identity),
+                    resolution: ShapeLogicalInputResolution::Resolved(output.identity),
                 })
             || !only_output_write_lanes(write)
         {
@@ -2214,7 +2252,7 @@ fn validate_output_seek_shape(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             })
         || !only_output_seek_lanes(operation)
     {
@@ -2251,7 +2289,7 @@ fn validate_output_set_length_shape(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             })
         || !only_output_set_length_lanes(operation)
     {
@@ -2283,7 +2321,7 @@ fn validate_output_set_file_permissions_shape(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             })
         || !only_output_set_file_permissions_lanes(operation)
     {
@@ -2325,7 +2363,7 @@ fn validate_output_set_file_times_shape(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             })
         || !only_output_set_file_times_lanes(operation)
     {
@@ -2353,7 +2391,7 @@ fn validate_output_sync_shape(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             })
         || !only_output_sync_lanes(operation)
     {
@@ -2541,7 +2579,7 @@ fn validate_close_shape(
             != [ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             }]
         || close.result != ShapeResult::Scalar(0)
         || close.retired.as_slice() != [identity]
@@ -2563,7 +2601,7 @@ fn validate_read_shape(
             != [ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             }]
     {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -2691,7 +2729,7 @@ fn validate_directory_read_shape(
             != [ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             }]
         || region.ordinal != 1
         || region.kind != 2
@@ -2743,7 +2781,7 @@ fn validate_descriptor_metadata_shape(
             != [ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(identity),
+                resolution: ShapeLogicalInputResolution::Resolved(identity),
             }]
         || metadata.ordinal != 1
         || metadata.kind != 1
@@ -3053,7 +3091,7 @@ mod first_rung_validation_tests {
         read.inputs = vec![ShapeLogicalInput {
             ordinal: 0,
             kind: 0,
-            resolution: Some(1),
+            resolution: ShapeLogicalInputResolution::Resolved(1),
         }];
 
         let mut source_close = empty_shape(8, ShapeResult::Scalar(0));
@@ -3088,7 +3126,7 @@ mod first_rung_validation_tests {
         write.inputs = vec![ShapeLogicalInput {
             ordinal: 0,
             kind: 0,
-            resolution: Some(2),
+            resolution: ShapeLogicalInputResolution::Resolved(2),
         }];
 
         let mut output_close = empty_shape(8, ShapeResult::Scalar(0));
@@ -3128,7 +3166,7 @@ mod first_rung_validation_tests {
         metadata.inputs = vec![ShapeLogicalInput {
             ordinal: 0,
             kind: 0,
-            resolution: Some(1),
+            resolution: ShapeLogicalInputResolution::Resolved(1),
         }];
         shapes[1] = metadata;
         shapes
@@ -3152,8 +3190,8 @@ mod first_rung_validation_tests {
         let mut shapes = exact_input_output_shapes();
         shapes[3].result = ShapeResult::Handle(1);
         shapes[3].output.as_mut().unwrap().identity = 1;
-        shapes[4].inputs[0].resolution = Some(1);
-        shapes[5].inputs[0].resolution = Some(1);
+        shapes[4].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(1);
+        shapes[5].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(1);
         shapes[5].retired[0] = 1;
         assert!(validate_first_rung(&shapes).is_err());
     }
@@ -3219,7 +3257,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&failed).is_err());
 
         let mut wrong_descriptor = shapes.clone();
-        wrong_descriptor[4].inputs[0].resolution = Some(9);
+        wrong_descriptor[4].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
         assert!(validate_first_rung(&wrong_descriptor).is_err());
 
         let mut spoofed_lane = shapes;
@@ -3242,7 +3280,7 @@ mod first_rung_validation_tests {
         duplicate_close.inputs = vec![ShapeLogicalInput {
             ordinal: 0,
             kind: 0,
-            resolution: Some(3),
+            resolution: ShapeLogicalInputResolution::Resolved(3),
         }];
         duplicate_close.retired = vec![3];
         shapes.insert(4, duplicate);
@@ -3271,7 +3309,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&failed).is_err());
 
         let mut wrong_close_lineage = shapes.clone();
-        wrong_close_lineage[5].inputs[0].resolution = Some(2);
+        wrong_close_lineage[5].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(2);
         assert!(validate_first_rung(&wrong_close_lineage).is_err());
 
         let mut missing_close = shapes;
@@ -3297,7 +3335,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&wrong_ordinal).is_err());
 
         let mut wrong_descriptor = shapes;
-        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        wrong_descriptor[5].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
         assert!(validate_first_rung(&wrong_descriptor).is_err());
     }
 
@@ -3323,7 +3361,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&wrong_ordinal).is_err());
 
         let mut wrong_descriptor = shapes;
-        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        wrong_descriptor[5].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
         assert!(validate_first_rung(&wrong_descriptor).is_err());
     }
 
@@ -3364,7 +3402,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&short).is_err());
 
         let mut wrong_descriptor = shapes;
-        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        wrong_descriptor[5].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
         assert!(validate_first_rung(&wrong_descriptor).is_err());
     }
 
@@ -3386,7 +3424,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&bad_whence).is_err());
 
         let mut wrong_descriptor = shapes;
-        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        wrong_descriptor[5].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
         assert!(validate_first_rung(&wrong_descriptor).is_err());
     }
 
@@ -3399,7 +3437,7 @@ mod first_rung_validation_tests {
         assert!(validate_first_rung(&shapes).is_err());
 
         let mut shapes = exact_descriptor_metadata_shapes();
-        shapes[1].inputs[0].resolution = Some(9);
+        shapes[1].inputs[0].resolution = ShapeLogicalInputResolution::Resolved(9);
         assert!(validate_first_rung(&shapes).is_err());
 
         let mut shapes = exact_descriptor_metadata_shapes();

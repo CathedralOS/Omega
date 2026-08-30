@@ -1476,6 +1476,18 @@ handoffs. The lane is bounded to 4,096 attempts and 16 MiB of aggregate path
 spelling. Refused or unrooted paths, other error classes, successful removes,
 and mixed mutation/failure lifecycles remain non-receipted.
 
+Summary v50 and replay-record v31 add one exact failed-handle receipt: an
+optional exact Source prefix followed by exactly one scoped-real tag-8 close
+returning scalar `-1` and post-error state `9` for an operand-zero
+`Descriptor/Unknown` logical input. No raw provider descriptor, path, mutable
+carrier, logical output, retired handle, refusal, diagnostic string, or
+generated-source handoff survives. Provider-free replay executes against the
+fresh virtual handle table and requires exact attempt, empty namespace, and
+teardown equality. The complete no-effect sequence receives an empty
+staged-output commitment even on its initial run; this does not promote an
+otherwise Source-only partial replay. Null/resolved inputs, alternate failures,
+repetition, and mixed lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
 receipt. Its existing plain-byte `directory/*` input embeds a physical Source
 root, which is neither relocation-stable identity nor safe to ignore during
@@ -1520,9 +1532,9 @@ successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
-v48/v29 Source-directory-enumeration, and v49/v30 absent-Output-remove grammars
-above may join them to verified operation replay and reproduced staged-output
-equality.
+v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, and v50/v31
+unknown-descriptor-close grammars above may join them to verified operation
+replay and reproduced staged-output equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1550,8 +1562,9 @@ successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
 empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
 v45/v26 hard-link-output, v46/v27 Source-read-link, v47/v28 Output-only-tree,
-v48/v29 Source-directory-enumeration, and v49/v30 absent-Output-remove grammars
-above supply canonical operation replay and retained observed inputs.
+v48/v29 Source-directory-enumeration, v49/v30 absent-Output-remove, and v50/v31
+unknown-descriptor-close grammars above supply canonical operation replay and
+retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

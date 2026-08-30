@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 49;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 50;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2511,7 +2511,10 @@ fn source_input_replay_prefix_end(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < attempts.len() {
-        if matches!(attempts[cursor].operation_tag(), 1 | 9 | 11 | 19 | 20 | 27) {
+        if matches!(
+            attempts[cursor].operation_tag(),
+            1 | 8 | 9 | 11 | 19 | 20 | 27
+        ) {
             break;
         }
         if attempts[cursor].operation_tag() == 21 {
@@ -2592,7 +2595,7 @@ fn source_input_replay_prefix_end(
     (event_count != 0
         || (cursor == 0
             && attempts.first().is_some_and(|attempt| {
-                matches!(attempt.operation_tag(), 1 | 9 | 11 | 19 | 20 | 27)
+                matches!(attempt.operation_tag(), 1 | 8 | 9 | 11 | 19 | 20 | 27)
             })))
     .then_some(cursor)
 }
@@ -3356,11 +3359,22 @@ pub fn compute_build_config(
     let usage = measured.usage();
     let replay = if filesystem_reachable {
         let attempts = measured.observations().filesystem_operation_attempts();
-        if source_input_replay_prefix_end(attempts).is_some_and(|end| end < attempts.len()) {
-            psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
-                measured.observations(),
-            )
-            .ok()
+        if let Some(operation_suffix_start) =
+            source_input_replay_prefix_end(attempts).filter(|end| *end < attempts.len())
+        {
+            if attempts.len() - operation_suffix_start == 1
+                && attempts[operation_suffix_start].operation_tag() == 8
+            {
+                psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_close_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else {
+                psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
+                    measured.observations(),
+                )
+                .ok()
+            }
         } else {
             is_source_input_replay_record(measured.observations())
                 .then(|| {
@@ -3373,8 +3387,20 @@ pub fn compute_build_config(
     } else {
         None
     };
-    let source_only_replay =
-        replay.is_some() && is_source_input_replay_record(measured.observations());
+    let replay_has_no_output_attempts = replay
+        .as_ref()
+        .is_some_and(|replay| !replay.has_output_attempts());
+    let replay_includes_unknown_descriptor_close = replay.is_some()
+        && measured
+            .observations()
+            .filesystem_operation_attempts()
+            .split_last()
+            .is_some_and(|(close, source_attempts)| {
+                close.operation_tag() == 8
+                    && (source_attempts.is_empty()
+                        || source_input_replay_prefix_end(source_attempts)
+                            == Some(source_attempts.len()))
+            });
     let receipted_output_entries = replay.as_ref().and_then(receipted_output_entries);
     let source_inputs_replay_verified = if let Some(replay) = replay {
         let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
@@ -3402,7 +3428,7 @@ pub fn compute_build_config(
     } else {
         false
     };
-    let replayed_output_tree = if source_only_replay {
+    let replayed_output_tree = if replay_has_no_output_attempts {
         Some(empty())
     } else {
         receipted_output_entries
@@ -3832,6 +3858,9 @@ pub fn compute_build_config(
             (Some(captured), true)
         }
         (Some(replayed), None, true) => (Some(replayed), true),
+        (Some(replayed), None, false) if replay_includes_unknown_descriptor_close => {
+            (Some(replayed), true)
+        }
         (Some(_), None, false) => (None, false),
         (Some(_), Some(_), true) => {
             unreachable!("replay scope cannot capture a physical staged-output tree")

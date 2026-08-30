@@ -1,5 +1,6 @@
 use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeLogicalInput, ShapeResult, ShapeScalar,
+    AttemptShape, BuildFilesystemReplayRecordError, ShapeLogicalInput, ShapeLogicalInputResolution,
+    ShapeResult, ShapeScalar,
 };
 
 const LOCK_FILE_OPERATION_TAG: u16 = 46;
@@ -38,7 +39,7 @@ fn validate_lock_shape(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(descriptor_identity),
+                resolution: ShapeLogicalInputResolution::Resolved(descriptor_identity),
             })
         || !only_output_lock_lanes(attempt)
     {
