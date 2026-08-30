@@ -888,6 +888,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     non-ASCII scalars are permitted by LEXICAL-PROFILE-V1. Exact boundary and
     malformed-family vectors join the real Delta-compiler gate rather than a
     host reimplementation.
+  - [x] Establish `D`'s complete source-neutral lexical scanner independently
+    of Q7's package/source custody. It implements the exact current Omega
+    keyword and punctuation sums, maximal-munch number behavior, strings and
+    fixed escapes, nested block comments, line-comment span/advance split,
+    ASCII identifier/profile rules, and whole-view UTF-8 diagnostic priority.
+    The canonical standalone token query validates the entire immutable view;
+    the linear whole-view pass uses a bounded current-token stage only after
+    that same view's preflight. Because D17 has no private machine visibility,
+    every view-accepting factored stage independently rejects invalid cursor
+    and extent shapes before indexing; construction helpers guard their local
+    arithmetic. Only the two canonical entry machines make lexical judgments.
+    The scanner retains only relative token/diagnostic spans and
+    decoded string length: it invents no source identity, package order, token
+    ledger, or decoded-byte mirror. Q7 still owns source size/admission and
+    outer `Incomplete` framing. Exact lexical vectors join the real
+    Delta-compiler gate; do not add a host lexer or test executor.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
