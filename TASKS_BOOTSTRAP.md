@@ -1529,14 +1529,27 @@ code, discover a closure, manufacture proof premises, or decide admission.
       advances `lex_next` to its later cast, raising completed current `C` roots
       from forty to forty-three while preserving each call's contiguous
       argument-handle span and keeping body-boundary coverage at 56 of 73.
+    - [x] Retain path-valued casts through the shared expression and type
+      engines rather than adding assignment- or transition-only conversions.
+      The retained row owns its value and target-type handles, exact source
+      extent, and optional single-name `in Domain` suffix. The admitted slice
+      works in assignment/local values, ordinary call arguments, and transition-
+      target arguments, including the existing additive continuation where its
+      consumer permits one. Recasts, domain argument packs, richer postfix
+      values, and other canonical continuations remain implementation-
+      incomplete rather than being misrepresented or rejected. This completes
+      `Lexer::{consume_digits,lex_punctuation,lex_next}` and
+      `Parser::load_current`, raising completed current `C` roots from forty-
+      three to forty-seven while body-boundary coverage remains 56 of 73.
+      `Lexer::decode_at` advances to a grouped/multiplicative RHS,
+      `Lexer::lex_cooked_string` to a grouped/multiplicative cast argument, and
+      `Lexer::lex_number` to a unary RHS.
     - [ ] Generalize indexed expressions into the local-initializer lane for
       `Parser::{parse_data,skip_trivia,parse_roots}` and to advance
-      `Lexer::span_equals`. Retain assignment-RHS casts—the current first
-      blocker in `Lexer::{decode_at,lex_cooked_string,consume_digits,lex_number,
-      lex_punctuation,lex_next}`—and the already-specified cast form in a
-      transition-target argument for `Parser::load_current`. Retain qualified
-      case/destructure guards for `Main::main` and `Lexer::digit_in_base`. Each
-      is an ordinary syntax capability, not a closure-specific rewrite.
+      `Lexer::span_equals`.
+    - [ ] Retain qualified case/destructure guards for `Main::main` and
+      `Lexer::digit_in_base`. Each remaining item is an ordinary syntax
+      capability, not a closure-specific rewrite.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and

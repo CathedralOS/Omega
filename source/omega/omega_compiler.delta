@@ -215,6 +215,7 @@ data OmegaTypeConsumer {
     case MachineParameter;
     case MachineReturn;
     case LocalData;
+    case Cast;
 }
 
 data OmegaPathDestination {
@@ -400,6 +401,15 @@ data OmegaCallExpressionSyntax {
     end: i32;
 }
 
+data OmegaCastExpressionSyntax {
+    value: i32;
+    target_type: i32;
+    has_domain: i32;
+    domain: OmegaRelativeSpan;
+    start: i32;
+    end: i32;
+}
+
 data OmegaStaticMachineArgumentKind {
     case Path;
 }
@@ -464,6 +474,7 @@ data OmegaExpressionKind {
     case Binary;
     case Indexed;
     case Call;
+    case Cast;
 }
 
 data OmegaBinaryOperatorKind {
@@ -508,6 +519,7 @@ data OmegaExpressionConsumer {
     case ExpressionStatement;
     case TransitionTargetArgument;
     case LocalDataInitialValue;
+    case CastValue;
     case IndexedIndex;
 }
 
@@ -534,7 +546,7 @@ data OmegaStructLiteralSyntax {
 // authored span. Integer payload0/payload1 retain its authored span; this first
 // numeric slice admits only unsuffixed nonnegative decimal spelling. String
 // payload0/payload1 retain the authored token span and payload2 its decoded
-// byte length. StructLiteral, Binary, Indexed, and Call payload0 select their
+// byte length. StructLiteral, Binary, Indexed, Call, and Cast payload0 select their
 // dedicated rows.
 // Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
@@ -650,6 +662,9 @@ data OmegaParseDiagnosticCode {
     case ExpectedLocalDataType;
     case ExpectedLocalDataEnd;
     case ExpectedLocalDataInitialValue;
+    case ExpectedCastType;
+    case ExpectedCastDomain;
+    case ExpectedCastEnd;
     case ExpectedDataFieldEnd;
 }
 
@@ -682,6 +697,7 @@ data OmegaParser {
     statements: [OmegaStatementSyntax; 16384];
     call_statements: [OmegaCallStatementSyntax; 16384];
     call_expressions: [OmegaCallExpressionSyntax; 16384];
+    cast_expressions: [OmegaCastExpressionSyntax; 16384];
     assignment_statements: [OmegaAssignmentStatementSyntax; 16384];
     local_data_statements: [OmegaLocalDataStatementSyntax; 16384];
     transition_statements: [OmegaTransitionStatementSyntax; 16384];
@@ -718,6 +734,7 @@ data OmegaParser {
     statement_count: i32;
     call_statement_count: i32;
     call_expression_count: i32;
+    cast_expression_count: i32;
     assignment_statement_count: i32;
     local_data_statement_count: i32;
     transition_statement_count: i32;
@@ -851,6 +868,14 @@ data OmegaParser {
     local_data_has_initial_value: i32;
     local_data_initial_value: i32;
     local_data_end: i32;
+    cast_value_expression: i32;
+    cast_result_consumer: OmegaExpressionConsumer;
+    cast_start: i32;
+    cast_type_reference: i32;
+    cast_has_domain: i32;
+    cast_domain_start: i32;
+    cast_domain_end: i32;
+    cast_end: i32;
     struct_literal_consumer: OmegaExpressionConsumer;
     struct_literal_first_type_member: i32;
     struct_literal_type_member_count: i32;
@@ -2957,6 +2982,7 @@ machine OmegaParser::parse_view(
     self.statement_count = 0;
     self.call_statement_count = 0;
     self.call_expression_count = 0;
+    self.cast_expression_count = 0;
     self.assignment_statement_count = 0;
     self.local_data_statement_count = 0;
     self.transition_statement_count = 0;
@@ -3089,6 +3115,14 @@ machine OmegaParser::parse_view(
     self.local_data_has_initial_value = 0;
     self.local_data_initial_value = 0;
     self.local_data_end = 0;
+    self.cast_value_expression = 0;
+    self.cast_result_consumer = OmegaExpressionConsumer::AssignmentValue;
+    self.cast_start = 0;
+    self.cast_type_reference = 0;
+    self.cast_has_domain = 0;
+    self.cast_domain_start = 0;
+    self.cast_domain_end = 0;
+    self.cast_end = 0;
     self.struct_literal_consumer = OmegaExpressionConsumer::CallArgument;
     self.struct_literal_first_type_member = 0;
     self.struct_literal_type_member_count = 0;
@@ -3306,6 +3340,8 @@ machine OmegaParser::parse_view(
             78 -> local_data_colon_token()
             79 -> local_data_initial_value_token()
             80 -> additive_call_argument_token()
+            81 -> cast_domain_token()
+            82 -> cast_end_token()
             _ -> internal_failure()
         }
     }
@@ -3664,6 +3700,16 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            81 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastDomain,
+                source.len,
+                source.len
+            )
+            82 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -3720,6 +3766,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::CastValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
+                source.len,
+                source.len
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 source.len,
@@ -3762,6 +3813,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::LocalDataInitialValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedLocalDataInitialValue,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::CastValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
                 source.len,
                 source.len
             )
@@ -3810,6 +3866,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::CastValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
+                source.len,
+                source.len
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 source.len,
@@ -3835,6 +3896,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaTypeConsumer::Cast -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastType,
+                source.len,
+                source.len
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldType,
                 source.len,
@@ -3857,6 +3923,11 @@ machine OmegaParser::parse_view(
             )
             OmegaTypeConsumer::LocalData -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedLocalDataEnd,
+                source.len,
+                source.len
+            )
+            OmegaTypeConsumer::Cast -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
                 source.len,
                 source.len
             )
@@ -6208,8 +6279,37 @@ machine OmegaParser::parse_view(
     state path_expression_tail_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> path_expression_tail_punctuation()
+            OmegaTokenKind::Keyword -> path_expression_tail_keyword()
             _ -> incomplete_root()
         }
+    }
+
+    state path_expression_tail_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::As -> begin_path_cast()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_path_cast() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::AssignmentValue -> retain_path_cast_value()
+            OmegaExpressionConsumer::LocalDataInitialValue -> retain_path_cast_value()
+            OmegaExpressionConsumer::CallArgument -> retain_path_cast_value()
+            OmegaExpressionConsumer::TransitionTargetArgument ->
+                retain_path_cast_value()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_path_cast_value() {
+        self.cast_result_consumer = self.expression_consumer;
+        self.cast_start = self.members[self.argument_first_path_member].start;
+        self.cast_has_domain = 0;
+        self.cast_domain_start = 0;
+        self.cast_domain_end = 0;
+        self.expression_consumer = OmegaExpressionConsumer::CastValue;
+        transition true { true -> retain_path_expression() }
     }
 
     state path_expression_tail_punctuation() {
@@ -6420,6 +6520,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::LocalDataInitialValue -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedLocalDataInitialValue,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaExpressionConsumer::CastValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
                 self.scan.token_start,
                 self.scan.token_end
             )
@@ -6732,6 +6837,8 @@ machine OmegaParser::parse_view(
                 retain_transition_target_argument_capacity()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_path_expression_bounded()
+            OmegaExpressionConsumer::CastValue ->
+                retain_path_expression_bounded()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_path_expression_bounded()
         }
@@ -6785,6 +6892,7 @@ machine OmegaParser::parse_view(
                 retain_transition_target_argument_handle()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 retain_local_data_initial_value_handle()
+            OmegaExpressionConsumer::CastValue -> retain_cast_value_handle()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_index_handle()
         }
@@ -6828,6 +6936,13 @@ machine OmegaParser::parse_view(
         self.assignment_value_expression = self.expression_count;
         self.expression_count = self.expression_count + 1;
         transition true { true -> finish_assignment_value_operand() }
+    }
+
+    state retain_cast_value_handle() {
+        self.cast_value_expression = self.expression_count;
+        self.expression_count = self.expression_count + 1;
+        self.type_consumer = OmegaTypeConsumer::Cast;
+        transition true { true -> begin_type() }
     }
 
     state retain_struct_field_value_handle() {
@@ -7309,6 +7424,7 @@ machine OmegaParser::parse_view(
                 transition_target_argument_end_punctuation()
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 assignment_literal_end_punctuation()
+            OmegaExpressionConsumer::CastValue -> incomplete_root()
             OmegaExpressionConsumer::IndexedIndex -> incomplete_root()
         }
     }
@@ -8356,6 +8472,11 @@ machine OmegaParser::parse_view(
                 start,
                 end
             )
+            OmegaTypeConsumer::Cast -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastType,
+                start,
+                end
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldType,
                 start,
@@ -8395,13 +8516,21 @@ machine OmegaParser::parse_view(
     state type_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
-            OmegaPunctuationKind::Ampersand -> begin_type_reference()
+            OmegaPunctuationKind::Ampersand -> type_reference_or_recast()
             OmegaPunctuationKind::LeftParen -> begin_unit_type()
             OmegaPunctuationKind::Hash -> incomplete_root()
             _ -> type_missing_failure(
                 self.scan.token_start,
                 self.scan.token_end
             )
+        }
+    }
+
+    state type_reference_or_recast() {
+        transition (self.type_consumer == OmegaTypeConsumer::Cast) &&
+            (self.type_array_depth == 0) {
+            true -> incomplete_root()
+            _ -> begin_type_reference()
         }
     }
 
@@ -8841,6 +8970,11 @@ machine OmegaParser::parse_view(
                 start,
                 end
             )
+            OmegaTypeConsumer::Cast -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
+                start,
+                end
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
                 start,
@@ -8850,8 +8984,16 @@ machine OmegaParser::parse_view(
     }
 
     state type_suffix_identifier() {
+        transition (self.type_consumer == OmegaTypeConsumer::Cast) &&
+            (self.type_array_depth == 0) {
+            true -> cast_type_suffix_identifier()
+            _ -> ordinary_type_suffix_identifier_dispatch()
+        }
+    }
+
+    state ordinary_type_suffix_identifier_dispatch() {
         transition self.type_array_frame_count > 0 {
-            true -> domain_type_suffix_identifier()
+            true -> ordinary_type_suffix_identifier()
             _ -> type_base_suffix_identifier()
         }
     }
@@ -8866,11 +9008,11 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
-            _ -> domain_type_suffix_identifier()
+            _ -> ordinary_type_suffix_identifier()
         }
     }
 
-    state domain_type_suffix_identifier() {
+    state ordinary_type_suffix_identifier() {
         transition self.scan.span_equals(
             source,
             self.scan.token_start,
@@ -8879,6 +9021,28 @@ machine OmegaParser::parse_view(
         ) {
             1 -> begin_type_domain()
             _ -> incomplete_root()
+        }
+    }
+
+    state cast_type_suffix_identifier() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "in"
+        ) {
+            1 -> begin_cast_domain_type()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_cast_domain_type() {
+        self.cast_has_domain = 1;
+        transition true {
+            true -> retain_type_for_consumer(
+                self.type_end,
+                self.scan.next_cursor
+            )
         }
     }
 
@@ -9072,7 +9236,157 @@ machine OmegaParser::parse_view(
             OmegaTypeConsumer::MachineParameter -> machine_parameter_end()
             OmegaTypeConsumer::MachineReturn -> machine_return_end()
             OmegaTypeConsumer::LocalData -> local_data_type_end()
+            OmegaTypeConsumer::Cast -> cast_type_end()
         }
+    }
+
+    state cast_type_end() {
+        self.cast_has_domain = 0;
+        self.cast_end = self.type_end;
+        transition true { true -> validate_cast_end_punctuation(0) }
+    }
+
+    state validate_cast_end_punctuation(after_domain: i32) {
+        transition self.cast_result_consumer {
+            OmegaExpressionConsumer::AssignmentValue ->
+                cast_semicolon_or_additive_end(after_domain)
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                cast_semicolon_or_additive_end(after_domain)
+            OmegaExpressionConsumer::CallArgument ->
+                cast_call_argument_end(after_domain)
+            OmegaExpressionConsumer::TransitionTargetArgument ->
+                cast_transition_target_argument_end(after_domain)
+            _ -> incomplete_root()
+        }
+    }
+
+    state cast_semicolon_or_additive_end(after_domain: i32) {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Plus -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Minus -> retain_cast_after_end(after_domain)
+            _ -> incomplete_root()
+        }
+    }
+
+    state cast_call_argument_end(after_domain: i32) {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::RightParen -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Plus -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Minus -> retain_cast_after_end(after_domain)
+            _ -> incomplete_root()
+        }
+    }
+
+    state cast_transition_target_argument_end(after_domain: i32) {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::RightParen -> retain_cast_after_end(after_domain)
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_cast_after_end(after_domain: i32) {
+        transition after_domain {
+            1 -> retain_cast_expression()
+            _ -> retain_type_for_consumer(
+                self.type_end,
+                self.scan.token_start
+            )
+        }
+    }
+
+    state cast_domain_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_cast_domain()
+            OmegaTokenKind::Keyword -> cast_domain_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastDomain,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state cast_domain_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastDomain,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastDomain,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_cast_domain()
+        }
+    }
+
+    state retain_cast_domain() {
+        self.cast_domain_start = self.scan.token_start;
+        self.cast_domain_end = self.scan.token_end;
+        self.cast_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(82) }
+    }
+
+    state cast_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> validate_cast_end_punctuation(1)
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedCastEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_cast_expression() {
+        transition (self.expression_count < 16384) &&
+            (self.cast_expression_count < 16384) {
+            true -> retain_cast_expression_bounded()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + 1
+            )
+        }
+    }
+
+    state retain_cast_expression_bounded() {
+        self.cast_expressions[self.cast_expression_count].value =
+            self.cast_value_expression;
+        self.cast_expressions[self.cast_expression_count].target_type =
+            self.cast_type_reference;
+        self.cast_expressions[self.cast_expression_count].has_domain =
+            self.cast_has_domain;
+        self.cast_expressions[self.cast_expression_count].domain.start =
+            self.cast_domain_start;
+        self.cast_expressions[self.cast_expression_count].domain.end =
+            self.cast_domain_end;
+        self.cast_expressions[self.cast_expression_count].start = self.cast_start;
+        self.cast_expressions[self.cast_expression_count].end = self.cast_end;
+        self.expression_result = self.expression_count;
+        self.expression_end = self.cast_end;
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::Cast;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 =
+            self.cast_expression_count;
+        self.expressions[self.expression_count].payload1 = 0;
+        self.expressions[self.expression_count].payload2 = 0;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.cast_expression_count = self.cast_expression_count + 1;
+        self.expression_count = self.expression_count + 1;
+        self.expression_consumer = self.cast_result_consumer;
+        transition true { true -> primary_expression_end_punctuation() }
     }
 
     state local_data_type_end() {
@@ -9233,6 +9547,10 @@ machine OmegaParser::parse_view(
                 next_cursor
             )
             OmegaTypeConsumer::LocalData -> retain_type_nodes(
+                member_end,
+                next_cursor
+            )
+            OmegaTypeConsumer::Cast -> retain_type_nodes(
                 member_end,
                 next_cursor
             )
@@ -9574,7 +9892,21 @@ machine OmegaParser::parse_view(
                 next_cursor
             )
             OmegaTypeConsumer::LocalData -> retain_local_data_type(next_cursor)
+            OmegaTypeConsumer::Cast -> retain_cast_type(next_cursor)
         }
+    }
+
+    state retain_cast_type(next_cursor: i32) {
+        self.cast_type_reference = self.type_root;
+        transition self.cast_has_domain {
+            1 -> begin_cast_domain(next_cursor)
+            _ -> retain_cast_expression()
+        }
+    }
+
+    state begin_cast_domain(next_cursor: i32) {
+        self.cursor = next_cursor;
+        transition true { true -> scan_semantic(81) }
     }
 
     state retain_local_data_type(next_cursor: i32) {

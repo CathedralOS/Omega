@@ -143,8 +143,12 @@ initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
 reuse the same left-associated `+`/`-` engine as assignments and locals.
-Nested calls, evidence/acknowledgement lanes, casts, indexed initializers,
-unary, grouped, and other richer initializers remain implementation-incomplete.
+Path-valued casts reuse the same expression and type engines in assignments,
+locals, ordinary call arguments, and transition-target arguments. They retain
+the value and target-type handles, exact cast span, and an optional single-name
+`in Domain` suffix; richer postfix values, recasts, domain arguments, unary,
+grouped, indexed, and other richer initializers remain implementation-
+incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or one path-indexed expression with a path index. The statement
@@ -167,7 +171,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 56 headers reach body parsing. Forty-three are complete: four
+representable, and 56 headers reach body parsing. Forty-seven are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -189,8 +193,11 @@ lex_block_comment,copy_source_to_decoded,is_raw_string_candidate}` complete
 through retained call-valued local initializers.
 `Lexer::{validate_utf8,dot_starts_float,reject_raw_string_candidate}` complete
 through retained additive ordinary call arguments; `Lexer::lex_next` advances
-through the same syntax but still stops at a later cast.
-Every other reached body contains richer syntax.
+through the same syntax. Path-valued casts complete
+`Lexer::{consume_digits,lex_punctuation,lex_next}` and
+`Parser::load_current`. The nine other reached bodies stop at qualified payload
+guards, indexed local initializers, grouped/multiplicative expressions, or a
+unary expression.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -222,7 +229,8 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
 machine-clause/type-node/constraint/statement/call-statement/call-expression/
-assignment/local-data/transition/expression/binary-expression/indexed-expression/
+cast-expression/assignment/local-data/transition/expression/binary-expression/
+indexed-expression/
 argument/static-machine-
 argument/struct-literal/struct-field rows,
 plus 128 scratch
@@ -261,6 +269,8 @@ resource distinction.
 Every call-expression row likewise owns its expression node, and every retained
 receiver is another expression node, so `Expressions` dominates the equal call-
 expression table.
+Every cast-expression row likewise owns its expression node, so `Expressions`
+dominates that equal table.
 Every terminal expression statement points directly to an existing expression
 handle and adds no variant table; the equal statement and expression ceilings
 remain independently exhaustible across the other retained forms.
