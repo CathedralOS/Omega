@@ -86,6 +86,20 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn checked_fixed_operator_dispatch_exit_canary_runs() {
+    let canary = pass_canary("providers/checked_fixed_operator_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("checked fixed-token operator canary should compile to checked trees");
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter dispatches the selected fixed-token operator body; error: {:?}",
+        outcome.error,
+    );
+}
+
+#[test]
 fn runtime_result_domain_requirement_overload_exit_canary_runs() {
     // Result-domain identity survives requirement collection, provider-plan
     // selection, checked adapter dispatch, and both executable engines.

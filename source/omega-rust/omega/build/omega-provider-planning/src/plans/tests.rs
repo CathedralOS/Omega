@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "tests/spelled_operator_custody.rs"]
+mod spelled_operator_custody;
+
 fn bind_selected_provider_plan_facts_for_test(
     checked: &mut psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],

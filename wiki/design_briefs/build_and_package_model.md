@@ -2461,10 +2461,16 @@ the existing selected-provider set, whose exact requirement and realizing-
 machine declarations join back to the operator and callable rows. Projection
 repeats that exact symbol, slot, checked-adapter binding, package, and machine
 join. A positive named-boundary canary covers the unique-candidate route.
-Fixed-token boundary operators remain fail-closed until checked-adapter token
-dispatch exists. Authored selection across a same-path overloaded family
-must use the atomic family rule above. Operators with outcome-specific
-contracts reject until their refinement rules exist.
+Package review v94/canonical row v52 also admits the selected, unaliased,
+nongeneric, lifetime-free checked-adapter realization of fixed-token binary
+arithmetic/comparison and indexing declarations. Checked execution requires the
+exact selected use, token, operand shape, compact plan coordinate, and strong
+plan commitment before redirecting to the checked body. Range, unsupported
+arities, aliases, bodyless/externalized realizations, generics, lifetimes, and
+evidence drift remain fail-closed. This is checked/package evidence only; it
+does not claim Terminal or native realization. Authored selection across a
+same-path overloaded family must use the atomic family rule above. Operators
+with outcome-specific contracts reject until their refinement rules exist.
 
 Package review v90/canonical row v48 admits checked operator crash refinement.
 For each provider crash cause, the compiler substitutes operator parameters

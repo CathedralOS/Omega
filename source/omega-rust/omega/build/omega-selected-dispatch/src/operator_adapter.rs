@@ -1,22 +1,32 @@
 //! Checked boundary-operator ProviderPlan execution bridge.
 //!
 //! Semantic checking and retained facts continue to name the public boundary
-//! operator. After selection, a named call whose exact plan row is a checked
-//! adapter redirects execution to that ordinary Omega machine body. This is
-//! the operator analogue of boundary-trait adapter dispatch; compiler
-//! intrinsics remain in `float_intrinsic_dispatch`.
+//! operator. After selection, a named or fixed-token use whose exact plan row
+//! is a checked adapter redirects execution to that ordinary Omega machine
+//! body. This is the operator analogue of boundary-trait adapter dispatch;
+//! compiler intrinsics remain in `float_intrinsic_dispatch`.
+
+mod spelled;
 
 use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
-use psi_typed_trees::expression::ExpressionNode;
+use psi_language_core::CallOperationalAcknowledgementOrigin;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct OperatorAdapterRewrite {
-    expression: psi_typed_trees::expression::ExpressionHandle,
+pub(super) struct OperatorAdapterRewrite {
+    expression: ExpressionHandle,
     machine: String,
     entry_symbol: psi_symbols::SymbolHandle,
+    source: OperatorAdapterSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OperatorAdapterSource {
+    NamedCall,
+    Spelled(Box<[ExpressionHandle]>),
 }
 
 pub fn settle_selected_operator_adapter_dispatch(
@@ -57,20 +67,28 @@ fn plan_selected_operator_adapter_rewrites(
                 continue;
             }
         };
-        if let Some(selected) = rewrites
-            .iter()
-            .find(|selected: &&OperatorAdapterRewrite| selected.expression == rewrite.expression)
+        stage_operator_adapter_rewrite(&mut rewrites, &mut diagnostics, rewrite);
+    }
+
+    for (_, operator_use) in checked.facts.operators.uses.iter() {
+        if operator_use.provider_plan_report_fingerprint == 0
+            && operator_use.provider_plan_commitment.is_empty()
         {
-            if selected.machine != rewrite.machine || selected.entry_symbol != rewrite.entry_symbol
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "named operator expression {:?} carries contradictory checked-adapter realizations",
-                    operator_use.expression,
-                )));
-            }
             continue;
         }
-        rewrites.push(rewrite);
+        let rewrite = match spelled::resolve_selected_spelled_operator_adapter_call(
+            checked,
+            selected_provider_plans.plans(),
+            operator_use,
+        ) {
+            Ok(Some(rewrite)) => rewrite,
+            Ok(None) => continue,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        stage_operator_adapter_rewrite(&mut rewrites, &mut diagnostics, rewrite);
     }
 
     if !diagnostics.is_empty() {
@@ -80,26 +98,74 @@ fn plan_selected_operator_adapter_rewrites(
     Ok(rewrites)
 }
 
+fn stage_operator_adapter_rewrite(
+    rewrites: &mut Vec<OperatorAdapterRewrite>,
+    diagnostics: &mut Vec<Diagnostic>,
+    rewrite: OperatorAdapterRewrite,
+) {
+    if let Some(selected) = rewrites
+        .iter()
+        .find(|selected| selected.expression == rewrite.expression)
+    {
+        if selected != &rewrite {
+            diagnostics.push(Diagnostic::error(format!(
+                "operator expression {:?} carries contradictory checked-adapter realizations",
+                rewrite.expression,
+            )));
+        }
+        return;
+    }
+    rewrites.push(rewrite);
+}
+
 fn apply_selected_operator_adapter_rewrites(
     checked: &mut CheckedTrees,
     rewrites: Vec<OperatorAdapterRewrite>,
 ) {
     for rewrite in rewrites {
-        let ExpressionNode::Call(mut call) = checked
-            .typed
-            .expression_table
-            .expression(rewrite.expression)
-            .clone()
-        else {
-            continue;
+        let replacement = match rewrite.source {
+            OperatorAdapterSource::NamedCall => {
+                let ExpressionNode::Call(mut call) = checked
+                    .typed
+                    .expression_table
+                    .expression(rewrite.expression)
+                    .clone()
+                else {
+                    unreachable!("validated named operator rewrite ceased to be a call")
+                };
+                call.receiver = ExpressionHandle::invalid();
+                call.target = psi_typed_trees::name::Identifier::generated(rewrite.machine);
+                call.target_symbol = rewrite.entry_symbol;
+                ExpressionNode::Call(call)
+            }
+            OperatorAdapterSource::Spelled(operands) => {
+                let arguments = checked
+                    .typed
+                    .expression_table
+                    .insert_expression_handles(operands.iter().copied());
+                ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: rewrite.entry_symbol,
+                    target: psi_typed_trees::name::Identifier::generated(rewrite.machine),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    arguments,
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement:
+                        psi_language_core::CallOperationalAcknowledgement {
+                            origin: CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                            acknowledges_suspend: false,
+                            acknowledges_block: false,
+                        },
+                })
+            }
         };
-        call.receiver = psi_typed_trees::expression::ExpressionHandle::invalid();
-        call.target = psi_typed_trees::name::Identifier::generated(rewrite.machine);
-        call.target_symbol = rewrite.entry_symbol;
         *checked
             .typed
             .expression_table
-            .expression_mut(rewrite.expression) = ExpressionNode::Call(call);
+            .expression_mut(rewrite.expression) = replacement;
     }
 }
 
@@ -108,41 +174,12 @@ fn resolve_selected_operator_adapter_call(
     selected_provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     operator_use: &psi_checked_trees::CheckedNamedOperatorUseFact,
 ) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
-    if operator_use.provider_plan_commitment.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "named operator use carries ProviderPlan report fingerprint {:#018x} without an exact commitment",
-            operator_use.provider_plan_report_fingerprint,
-        )));
-    }
-    let report_matches = selected_provider_plans
-        .iter()
-        .filter(|plan| plan.report_fingerprint() == operator_use.provider_plan_report_fingerprint)
-        .collect::<Vec<_>>();
-    let plans = report_matches
-        .iter()
-        .copied()
-        .filter(|plan| {
-            plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()
-        })
-        .collect::<Vec<_>>();
-    let [plan] = plans.as_slice() else {
-        return Err(Diagnostic::error(
-            match (report_matches.len(), plans.len()) {
-                (1, 0) => format!(
-                    "named operator use ProviderPlan report fingerprint {:#018x} has an exact commitment that does not match the selected plan",
-                    operator_use.provider_plan_report_fingerprint,
-                ),
-                (0, _) => format!(
-                    "named operator use carries unknown ProviderPlan report fingerprint {:#018x}",
-                    operator_use.provider_plan_report_fingerprint,
-                ),
-                (_, count) => format!(
-                    "named operator use ProviderPlan report fingerprint {:#018x} and exact commitment match {count} selected plans",
-                    operator_use.provider_plan_report_fingerprint,
-                ),
-            },
-        ));
-    };
+    let plan = resolve_exact_selected_plan(
+        selected_provider_plans,
+        operator_use.provider_plan_report_fingerprint,
+        operator_use.provider_plan_commitment,
+        "named operator use",
+    )?;
 
     resolve_operator_adapter_call(checked, operator_use, plan)
 }
@@ -152,32 +189,62 @@ fn resolve_operator_adapter_call(
     operator_use: &psi_checked_trees::CheckedNamedOperatorUseFact,
     plan: &omega_effects::provider_plan::ProviderPlan,
 ) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
-    let operators = checked
-        .typed
-        .operators()
-        .iter()
-        .filter(|operator| operator.symbol == operator_use.selected_operator_symbol)
-        .collect::<Vec<_>>();
-    let [operator] = operators.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} resolves symbol {:?} to {} operator definitions",
-            operator_use.expression,
-            operator_use.selected_operator_symbol,
-            operators.len(),
-        )));
-    };
+    let operator = exact_operator_definition(
+        checked,
+        operator_use.expression,
+        operator_use.selected_operator_symbol,
+    )?;
     if !operator.is_boundary {
         return Err(Diagnostic::error(format!(
             "selected checked operator at expression {:?} does not name a boundary operator",
             operator_use.expression,
         )));
     }
+    let ExpressionNode::Call(call) = checked
+        .typed
+        .expression_table
+        .expression(operator_use.expression)
+    else {
+        return Err(Diagnostic::error(format!(
+            "selected checked operator at expression {:?} is not a named call",
+            operator_use.expression,
+        )));
+    };
+    if psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
+        .map(|resolved| resolved.symbol)
+        != Some(operator.symbol)
+    {
+        return Err(Diagnostic::error(format!(
+            "selected checked operator at expression {:?} no longer names its checked operator symbol",
+            operator_use.expression,
+        )));
+    }
+
+    let Some((machine, entry_symbol)) =
+        resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(OperatorAdapterRewrite {
+        expression: operator_use.expression,
+        machine,
+        entry_symbol,
+        source: OperatorAdapterSource::NamedCall,
+    }))
+}
+
+pub(super) fn resolve_checked_adapter_for_operator(
+    checked: &CheckedTrees,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+    expression: ExpressionHandle,
+) -> Result<Option<(String, psi_symbols::SymbolHandle)>, Diagnostic> {
     let overload_identity =
         psi_typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
     if overload_identity.is_empty() {
         return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} has an empty canonical overload identity",
-            operator_use.expression,
+            "selected checked operator at expression {expression:?} has an empty canonical overload identity",
         )));
     }
 
@@ -211,26 +278,6 @@ fn resolve_operator_adapter_call(
     else {
         return Ok(None);
     };
-
-    let ExpressionNode::Call(call) = checked
-        .typed
-        .expression_table
-        .expression(operator_use.expression)
-    else {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} is not a named call",
-            operator_use.expression,
-        )));
-    };
-    if psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
-        .map(|resolved| resolved.symbol)
-        != Some(operator.symbol)
-    {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} no longer names its checked operator symbol",
-            operator_use.expression,
-        )));
-    }
 
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
@@ -288,11 +335,65 @@ fn resolve_operator_adapter_call(
         )));
     }
 
-    Ok(Some(OperatorAdapterRewrite {
-        expression: operator_use.expression,
-        machine: provider.name.as_str().to_owned(),
-        entry_symbol: entry.symbol,
-    }))
+    Ok(Some((provider.name.as_str().to_owned(), entry.symbol)))
+}
+
+pub(super) fn exact_operator_definition<'program>(
+    checked: &'program CheckedTrees,
+    expression: ExpressionHandle,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&'program psi_typed_trees::operator::OperatorDefinition, Diagnostic> {
+    let operators = checked
+        .typed
+        .operators()
+        .iter()
+        .filter(|operator| operator.symbol == symbol)
+        .collect::<Vec<_>>();
+    let [operator] = operators.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected checked operator at expression {expression:?} resolves symbol {symbol:?} to {} operator definitions",
+            operators.len(),
+        )));
+    };
+    Ok(*operator)
+}
+
+pub(super) fn resolve_exact_selected_plan<'plans>(
+    selected_provider_plans: &'plans [omega_effects::provider_plan::ProviderPlan],
+    report_fingerprint: u64,
+    commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    use_label: &str,
+) -> Result<&'plans omega_effects::provider_plan::ProviderPlan, Diagnostic> {
+    if commitment.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "{use_label} carries ProviderPlan report fingerprint {report_fingerprint:#018x} without an exact commitment",
+        )));
+    }
+    let report_matches = selected_provider_plans
+        .iter()
+        .filter(|plan| plan.report_fingerprint() == report_fingerprint)
+        .collect::<Vec<_>>();
+    let plans = report_matches
+        .iter()
+        .copied()
+        .filter(|plan| plan.identity_digest().as_bytes() == commitment.as_bytes())
+        .collect::<Vec<_>>();
+    let [plan] = plans.as_slice() else {
+        return Err(Diagnostic::error(
+            match (report_matches.len(), plans.len()) {
+                (1, 0) => format!(
+                    "{use_label} ProviderPlan report fingerprint {report_fingerprint:#018x} has an exact commitment that does not match the selected plan",
+                ),
+                (0, _) => format!(
+                    "{use_label} carries unknown ProviderPlan report fingerprint {report_fingerprint:#018x}",
+                ),
+                (_, count) => format!(
+                    "{use_label} ProviderPlan report fingerprint {report_fingerprint:#018x} and exact commitment match {count} selected plans",
+                ),
+            },
+        ));
+    };
+    Ok(*plan)
 }
 
 #[cfg(test)]
