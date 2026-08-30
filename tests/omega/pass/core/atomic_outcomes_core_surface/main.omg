@@ -1,0 +1,67 @@
+use omega::language::core::layout;
+
+// Every settled atomic outcome is a one-type-parameter ordinary core sum.
+// Construction and typed payload reads pin the public case and field names
+// without exercising any still-fenced atomic operation or provider path.
+machine accept_u32(value: u32) {
+}
+
+machine check_observing_decisive() -> u32 {
+    let mismatch: AtomicCompareExchangeOutcome<u32> =
+        AtomicCompareExchangeOutcome::Mismatched { observed: 1 };
+    let observed: u32 = mismatch.observed;
+
+    let exchanged: AtomicCompareExchangeOutcome<u32> =
+        AtomicCompareExchangeOutcome::Exchanged;
+    observed
+}
+
+machine check_observing_once() -> u32 {
+    let mismatch: AtomicCompareExchangeOnceOutcome<u32> =
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed: 2 };
+    let mismatch_observed: u32 = mismatch.observed;
+
+    let exchanged: AtomicCompareExchangeOnceOutcome<u32> =
+        AtomicCompareExchangeOnceOutcome::Exchanged;
+
+    let uncommitted: AtomicCompareExchangeOnceOutcome<u32> =
+        AtomicCompareExchangeOnceOutcome::Uncommitted { observed: 3 };
+    let uncommitted_observed: u32 = uncommitted.observed;
+    accept_u32(mismatch_observed);
+    uncommitted_observed
+}
+
+machine check_nonobserving_decisive() -> u32 {
+    let mismatch: AtomicTryExchangeOutcome<u32> =
+        AtomicTryExchangeOutcome::Mismatched { proposed: 4 };
+    let recovered_proposal: u32 = mismatch.proposed;
+
+    let exchanged: AtomicTryExchangeOutcome<u32> =
+        AtomicTryExchangeOutcome::Exchanged { displaced: 5 };
+    let displaced: u32 = exchanged.displaced;
+    accept_u32(recovered_proposal);
+    displaced
+}
+
+machine check_nonobserving_once() -> u32 {
+    let mismatch: AtomicTryExchangeOnceOutcome<u32> =
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed: 6 };
+    let recovered_mismatch: u32 = mismatch.proposed;
+
+    let exchanged: AtomicTryExchangeOnceOutcome<u32> =
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced: 7 };
+    let displaced: u32 = exchanged.displaced;
+
+    let uncommitted: AtomicTryExchangeOnceOutcome<u32> =
+        AtomicTryExchangeOnceOutcome::Uncommitted { proposed: 8 };
+    let recovered_uncommitted: u32 = uncommitted.proposed;
+    accept_u32(recovered_mismatch);
+    accept_u32(displaced);
+    recovered_uncommitted
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,1 @@
+generic data `AtomicTryExchangeOutcome` expected 1 arguments but got 2

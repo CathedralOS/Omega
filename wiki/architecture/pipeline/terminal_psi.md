@@ -2582,6 +2582,10 @@ the buffer extent, introduce provider-originated content into that buffer,
 derive its new resident relation, and consume a completion token. The verifier
 accepts no operation-wide label as a substitute for those claim-local facts.
 
+The four flat generic atomic outcome declarations are live in core, and the
+compiler-owned closed-shape inventory independently retains their exact two
+axes, canonical case order, and payload disposition. This source-visible type
+surface adds no Terminal operation or authority.
 `AtomicCompareExchange<T>` is observing and decisive;
 `AtomicCompareExchangeOnce<T>` is observing and single-attempt. Their failure
 cases expose `observed: T`, so the resident must be copyable. The checked typed

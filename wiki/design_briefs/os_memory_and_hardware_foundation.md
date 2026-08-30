@@ -938,9 +938,12 @@ accessors fail-closed: inaccessible or unauthorized operations have no method,
 destructive reads remain distinct from repeatable reads, and atomic accessors
 retain their exact operation family. Observing decisive and single-attempt
 compare-exchange additionally remain distinct in the shared ordering carrier
-and permission check. The single-attempt form is not source-admitted or lowered
-yet because its three-arm result carrier is absent. The outcome cases are
-owned by the flat core types `AtomicCompareExchangeOutcome<T>` and
+and permission check. All four flat generic outcome declarations are now
+published together in core, and compiler-owned closed-shape identity keeps the
+operation axes, case order, and payload disposition distinct without admitting
+an atomic event. The single-attempt form is not source-admitted or lowered yet
+because its operation path does not retain three-arm result custody. The
+outcome cases are owned by the flat core types `AtomicCompareExchangeOutcome<T>` and
 `AtomicCompareExchangeOnceOutcome<T>`, with `Mismatched` at tag zero,
 `Exchanged` at tag one, and `Uncommitted` at tag two where present. Checked
 interpretation and legacy native lowering continue to reject the unimplemented

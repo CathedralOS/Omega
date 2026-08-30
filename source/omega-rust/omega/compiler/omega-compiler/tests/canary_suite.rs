@@ -267,6 +267,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "arithmetic/exact_integer_cast_proven",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "core/array_core_surface",
+    "core/atomic_outcomes_core_surface",
     "core/collections_core_surface",
     "core/slice_core_surface",
     "core/vec_core_surface",
@@ -580,6 +581,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "core/atomic_outcome_key_parameter_rejected",
     "capabilities/boundary_qualification_subject_rejected",
     "capabilities/direct_accepted_qualification_rejected",
     "providers/via_with_body_rejected",
