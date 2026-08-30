@@ -10549,16 +10549,19 @@ checked-result arithmetic decision listed below.
   fields participate only when their terminal independently qualifies and the
   containing record remains nonzero; their element alignment can still induce
   protected padding.
-  Fully specialized type-parameter record instances participate through their
-  exact synthesized symbol, validated base/argument origin, and substituted
-  fields. Generic normalization now rewrites concrete-machine cast targets and
-  synthesizes recursively nonzero literal-array type arguments. Record lookup
+  Fully specialized type plus scalar-integer `const` record instances
+  participate through their exact synthesized symbol, validated base/argument
+  origin, and substituted fields. Const origins require an unbound canonical
+  decimal leaf within the exact declared integer carrier; layout still comes
+  only from substituted literal lengths. Generic normalization rewrites
+  concrete-machine cast targets and synthesizes recursively nonzero literal-
+  array type arguments. Record lookup
   and recursion use exact symbol identity. Repeated-leaf capacity
   overflow fails closed before allocation. First/last/padding-byte mutations
   reject while immediate siblings remain disjoint. Runtime or merely bounded
-  offsets, slices, total zero-size targets, open/unresolved, const/lifetime/
-  machine/proposition generic instances, invariant-bearing/erased/cased
-  records, and other indexed recasts remain conservative.
+  offsets, slices, total zero-size targets, open/unresolved, structured-const,
+  lifetime/machine/proposition generic instances, invariant-bearing/erased/
+  cased records, and other indexed recasts remain conservative.
   Scalar recast representation-set normalization and
   implication now live in a focused 377-line private owner. Exact integer two's-
   complement bit-pattern intervals, same-carrier float intervals, domain-
