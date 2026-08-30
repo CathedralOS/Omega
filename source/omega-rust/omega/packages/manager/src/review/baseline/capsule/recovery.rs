@@ -92,10 +92,10 @@ impl ReviewOnlyBaselineCapsule {
                     ));
                 }
             };
-            let source_input_replay_record = decode_replay_record_option(&mut record, limits)?;
+            let filesystem_replay_record = decode_replay_record_option(&mut record, limits)?;
             let replay_record_parent_binding = match (
                 build_observation_commitment,
-                source_input_replay_record.as_ref(),
+                filesystem_replay_record.as_ref(),
             ) {
                 (Some(parent), Some(replay)) => {
                     let recovered = record.array_32()?;
@@ -184,7 +184,7 @@ impl ReviewOnlyBaselineCapsule {
                     target: target.clone(),
                     source_consumption_commitment,
                     build_observation_commitment,
-                    source_input_replay_record,
+                    filesystem_replay_record,
                     replay_record_parent_binding,
                     whole_review_commitment,
                     canonical_rows: rows,

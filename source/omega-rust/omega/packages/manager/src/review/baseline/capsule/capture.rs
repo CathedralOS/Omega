@@ -66,7 +66,7 @@ impl ReviewOnlyBaselineCapsule {
                         "review baseline replay records exceed their aggregate ceiling",
                     )
                 })?;
-            let source_input_replay_record = review
+            let filesystem_replay_record = review
                 .build_observation_summary()
                 .map(|summary| {
                     capture_verified_build_filesystem_replay_record(
@@ -81,7 +81,7 @@ impl ReviewOnlyBaselineCapsule {
                 })
                 .transpose()?
                 .flatten();
-            if let Some(record) = &source_input_replay_record {
+            if let Some(record) = &filesystem_replay_record {
                 replay_record_bytes = replay_record_bytes
                     .checked_add(record.canonical_bytes().len())
                     .filter(|bytes| *bytes <= limits.maximum_capsule_bytes)
@@ -93,7 +93,7 @@ impl ReviewOnlyBaselineCapsule {
             }
             let replay_record_parent_binding = match (
                 build_observation_commitment,
-                source_input_replay_record.as_ref(),
+                filesystem_replay_record.as_ref(),
             ) {
                 (Some(parent), Some(record)) => {
                     Some(replay_parent_binding(parent, record.commitment()))
@@ -111,7 +111,7 @@ impl ReviewOnlyBaselineCapsule {
                 target: review.projection().target().target_name().to_owned(),
                 source_consumption_commitment: review.source_consumption_commitment().into(),
                 build_observation_commitment,
-                source_input_replay_record,
+                filesystem_replay_record,
                 replay_record_parent_binding,
                 whole_review_commitment: whole_review_commitment(review.canonical_review_bytes()),
                 canonical_rows: rows,

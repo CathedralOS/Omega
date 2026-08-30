@@ -271,7 +271,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     .find(|recovered| recovered.key() == closure.graph().root())
                     .expect("recovered generated-table baseline package");
                 let replay = generated
-                    .source_input_replay_record()
+                    .filesystem_replay_record()
                     .expect("generated-table baseline retains its verified replay receipt");
                 assert!(!replay.canonical_bytes().is_empty());
                 assert_ne!(replay.commitment(), [0; 32]);

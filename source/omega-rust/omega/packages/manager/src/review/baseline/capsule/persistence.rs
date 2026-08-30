@@ -70,7 +70,7 @@ impl ReviewOnlyBaselineCapsule {
                     record.fixed(&commitment);
                 }
             }
-            encode_replay_record_option(&mut record, package.source_input_replay_record.as_ref())?;
+            encode_replay_record_option(&mut record, package.filesystem_replay_record.as_ref())?;
             if let Some(binding) = package.replay_record_parent_binding {
                 record.fixed(&binding);
             }

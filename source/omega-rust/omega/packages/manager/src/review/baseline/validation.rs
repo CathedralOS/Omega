@@ -185,14 +185,14 @@ impl ReviewOnlyBaselineCapsule {
                         )
                     })?;
             }
-            if package.source_input_replay_record.is_some()
+            if package.filesystem_replay_record.is_some()
                 && package.build_observation_commitment.is_none()
             {
                 return Err(ReviewOnlyBaselineError::new(
                     "filesystem replay record has no parent build observation",
                 ));
             }
-            if let Some(replay) = &package.source_input_replay_record {
+            if let Some(replay) = &package.filesystem_replay_record {
                 replay_record_bytes = replay_record_bytes
                     .checked_add(replay.canonical_bytes().len())
                     .ok_or_else(|| {
@@ -213,7 +213,7 @@ impl ReviewOnlyBaselineCapsule {
             }
             let expected_binding = match (
                 package.build_observation_commitment,
-                package.source_input_replay_record.as_ref(),
+                package.filesystem_replay_record.as_ref(),
             ) {
                 (Some(parent), Some(replay)) => {
                     Some(replay_parent_binding(parent, replay.commitment()))

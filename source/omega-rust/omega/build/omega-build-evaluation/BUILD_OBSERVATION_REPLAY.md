@@ -220,3 +220,26 @@ Source prefix remains permitted, but failure-only operations cannot be mixed
 with successful Output mutations in this first rung. Other error codes,
 refused or unrooted paths, mixed roots, successful removes, and mixed
 mutation/failure lifecycles remain observed but non-receipted.
+
+## Unknown-descriptor close (summary v50, replay record v31)
+
+The failed-handle grammar admits an optional exact Source-input prefix followed
+by exactly one `close` attempt at tag 8. The attempt must use the scoped real
+provider, return scalar `-1` with post-error state `9` (`bad descriptor`), and
+retain one operand-zero logical input classified as `Descriptor/Unknown`. Every
+other lane is empty: in particular, no raw provider descriptor, path, mutable
+carrier, output identity, retired handle, refusal, diagnostic string, or
+generated-source handoff is retained.
+
+Provider-free replay executes the close against the fresh virtual handle table
+and requires the same failed result, exact attempt record, empty namespace, and
+clean teardown. Because the exact operation cannot mutate Output and replay
+covers the complete attempted sequence, an initial matching run receives an
+empty staged-output commitment and the complete-operation replay verdict.
+Source-only replay remains partial; this rule does not infer an empty Output
+commitment merely from the absence of Output paths.
+
+Null or resolved inputs, alternate handle kinds or providers, successful
+closes, other errors, retired identities, side lanes, repeated closes, and any
+mixture with Output mutation or another failed-operation lane remain
+non-receipted.

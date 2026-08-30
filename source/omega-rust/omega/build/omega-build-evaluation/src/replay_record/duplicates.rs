@@ -1,6 +1,6 @@
 use super::{
-    AttemptShape, BuildFilesystemReplayRecordError, ShapeLogicalInput, ShapeResult,
-    validate_close_shape,
+    AttemptShape, BuildFilesystemReplayRecordError, ShapeLogicalInput, ShapeLogicalInputResolution,
+    ShapeResult, validate_close_shape,
 };
 
 pub(super) fn validate_output_duplicate_shapes(
@@ -26,7 +26,7 @@ pub(super) fn validate_output_duplicate_shapes(
             != (ShapeLogicalInput {
                 ordinal: 0,
                 kind: 0,
-                resolution: Some(source_identity),
+                resolution: ShapeLogicalInputResolution::Resolved(source_identity),
             })
         || output.kind != 0
         || output.source != 1

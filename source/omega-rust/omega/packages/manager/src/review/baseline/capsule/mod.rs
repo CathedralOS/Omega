@@ -21,7 +21,7 @@ pub struct ReviewOnlyBaselinePackage {
     pub(super) target: String,
     pub(super) source_consumption_commitment: ReviewOnlySourceConsumptionCommitment,
     pub(super) build_observation_commitment: Option<[u8; 32]>,
-    pub(super) source_input_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
+    pub(super) filesystem_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
     pub(super) replay_record_parent_binding: Option<[u8; 32]>,
     pub(super) whole_review_commitment: [u8; 32],
     pub(super) canonical_rows: Vec<ReviewOnlyCanonicalRow>,
@@ -48,10 +48,8 @@ impl ReviewOnlyBaselinePackage {
         self.build_observation_commitment
     }
 
-    pub const fn source_input_replay_record(
-        &self,
-    ) -> Option<&ReviewOnlyBuildFilesystemReplayRecord> {
-        self.source_input_replay_record.as_ref()
+    pub const fn filesystem_replay_record(&self) -> Option<&ReviewOnlyBuildFilesystemReplayRecord> {
+        self.filesystem_replay_record.as_ref()
     }
 
     pub const fn whole_review_commitment(&self) -> [u8; 32] {
