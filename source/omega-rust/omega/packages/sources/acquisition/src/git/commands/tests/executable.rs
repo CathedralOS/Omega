@@ -1,10 +1,10 @@
 #![cfg(unix)]
 
 use super::{
-    change_macos_acl, git_resolution_captured_output_ceiling, run_git_output, sealed_git_command,
-    temp_root, test_system_git_executor, GitExecutionTransport, GitExecutor, LocalSourceLimits,
-    ResolverExecutionPhase, SourceResolveError, GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT,
-    GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, SOURCE_BYTE_ABSOLUTE_LIMIT,
+    GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutionTransport,
+    GitExecutor, LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT,
+    SourceResolveError, git_resolution_captured_output_ceiling, run_git_output, sealed_git_command,
+    temp_root, test_system_git_executor,
 };
 use std::ffi::OsStr;
 use std::path::Path;
@@ -92,39 +92,41 @@ fn git_executor_rejects_relative_paths_and_executable_drift() {
 
 #[cfg(unix)]
 #[test]
-fn git_executor_treats_mode_as_launchability_and_detects_metadata_mutation() {
+fn git_executor_requires_launchability_but_does_not_invent_mode_trust() {
     use std::os::unix::fs::PermissionsExt;
 
-    let root = temp_root("git-executable-custody");
-    std::fs::create_dir_all(&root).expect("create executable custody root");
+    let root = temp_root("git-executable-launchability");
+    std::fs::create_dir_all(&root).expect("create executable test root");
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
-        .expect("make executable custody root private");
+        .expect("make executable test root private");
     let fake_git = root.join("git");
     std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
 
-    for launchable_mode in [0o720, 0o4700] {
-        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(launchable_mode))
-            .expect("set launchable Git executable mode");
+    for host_selected_mode in [0o720, 0o4700, 0o777] {
+        std::fs::set_permissions(
+            &fake_git,
+            std::fs::Permissions::from_mode(host_selected_mode),
+        )
+        .expect("set host-selected Git executable mode");
         GitExecutor::open(&fake_git)
-            .expect("ownership, write, and set-id mode do not establish host trust");
+            .expect("ownership, writable mode, and set-id state are not Git trust proofs");
     }
 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o600))
-        .expect("remove executable mode");
+        .expect("remove executable mode bits");
     assert!(matches!(
         GitExecutor::open(&fake_git),
         Err(SourceResolveError::GitExecutableInvalid { .. })
     ));
 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("restore safe Git executable mode");
-    let executor = GitExecutor::open(&fake_git).expect("capture safe Git executable");
+        .expect("restore launchable Git mode");
+    let executor = GitExecutor::open(&fake_git).expect("capture launchable Git executable");
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o720))
-        .expect("make captured Git executable externally writable");
-    assert!(matches!(
-        executor.verify(),
-        Err(SourceResolveError::GitExecutableChanged { .. })
-    ));
+        .expect("change irrelevant host mode bits");
+    executor
+        .verify()
+        .expect("writable mode does not become source admission policy");
 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
         .expect("restore safe Git executable mode");
@@ -133,7 +135,7 @@ fn git_executor_treats_mode_as_launchability_and_detects_metadata_mutation() {
 
 #[cfg(unix)]
 #[test]
-fn git_executor_normal_custody_does_not_claim_executable_ancestry() {
+fn git_executor_selection_does_not_claim_executable_ancestry() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("git-executable-normal-ancestry");
@@ -146,66 +148,20 @@ fn git_executor_normal_custody_does_not_claim_executable_ancestry() {
         .expect("make executable ancestry externally writable");
 
     let executor = GitExecutor::open(&fake_git)
-        .expect("normal executable custody must not claim package-cache custody over ancestry");
+        .expect("ordinary executable selection must not inspect ancestry permissions");
     executor
         .verify()
-        .expect("ancestry mode must remain outside normal executable custody");
+        .expect("ancestry mode remains host policy");
 
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
         .expect("restore executable ancestry for cleanup");
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(target_os = "macos")]
 #[test]
-fn git_executor_does_not_treat_acl_shape_as_host_trust() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let root = temp_root("git-executable-acl-custody");
-    std::fs::create_dir_all(&root).expect("create executable ACL custody root");
-    let root = root
-        .canonicalize()
-        .expect("canonicalize executable ACL custody root");
-    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
-        .expect("make executable ACL custody root private");
-    let fake_git = root.join("git");
-    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
-    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("make fake Git executable private");
-
-    change_macos_acl(&root, &["+a", "everyone allow write"]);
-    let executor = GitExecutor::open(&fake_git).expect("open operator-selected executable");
-    executor
-        .verify()
-        .expect("an ancestry ACL must not affect repeated direct custody checks");
-
-    change_macos_acl(&fake_git, &["+a", "everyone allow write"]);
-    executor
-        .verify()
-        .expect("an ACL allow entry is host policy, not source admission");
-    change_macos_acl(&fake_git, &["-N"]);
-    executor
-        .verify()
-        .expect("removing executable ACL should restore custody");
-    change_macos_acl(&fake_git, &["+a", "everyone deny write"]);
-    executor
-        .verify()
-        .expect("deny-only executable ACL does not broaden custody");
-    change_macos_acl(&fake_git, &["-N"]);
-    change_macos_acl(&root, &["-N"]);
-    executor
-        .verify()
-        .expect("removing an irrelevant ancestry ACL preserves direct custody");
-
-    std::fs::remove_file(&fake_git).expect("remove fake Git executable");
-    std::fs::remove_dir(&root).expect("remove executable ACL custody root");
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn automatic_git_executor_uses_one_absolute_path_selection() {
+fn system_git_executor_uses_one_absolute_path_selection() {
     let executor = test_system_git_executor(GitExecutionTransport::Https)
-        .expect("concrete macOS Git executor");
+        .expect("Git selected from the invoking PATH snapshot");
     assert!(executor.identity.path.is_absolute());
 }
 
@@ -244,6 +200,41 @@ fn git_executor_post_check_overrides_success_and_nonzero_exit_after_drift() {
 
         let _ = std::fs::remove_dir_all(root);
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn git_executor_rehash_checkpoint_detects_content_with_restored_metadata() {
+    use std::fs::{File, FileTimes};
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = temp_root("git-content-checkpoint-drift");
+    std::fs::create_dir_all(&root).expect("create content-checkpoint root");
+    let fake_git = root.join("git");
+    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write original Git executable");
+    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+        .expect("make original Git executable launchable");
+    let original_modified = std::fs::metadata(&fake_git)
+        .and_then(|metadata| metadata.modified())
+        .expect("capture original modification time");
+    let executor = GitExecutor::open(&fake_git).expect("capture original Git identity");
+
+    std::fs::write(&fake_git, b"#!/bin/sh\nexit 1\n").expect("mutate Git bytes in place");
+    File::options()
+        .write(true)
+        .open(&fake_git)
+        .and_then(|file| file.set_times(FileTimes::new().set_modified(original_modified)))
+        .expect("restore metadata observed around ordinary launches");
+
+    executor
+        .verify()
+        .expect("launch metadata alone cannot identify restored executable bytes");
+    assert!(matches!(
+        executor.verify_content(),
+        Err(SourceResolveError::GitExecutableChanged { .. })
+    ));
+
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[cfg(unix)]

@@ -3,8 +3,9 @@
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
 use crate::git::objects::{
-    inspect_git_tree_graph, GitTreeEntry, GitTreeEntryKind, GitTreeProjectionRequest,
+    GitTreeEntry, GitTreeEntryKind, GitTreeProjectionRequest, inspect_git_tree_graph,
 };
 use crate::git::request::GitSourceRequest;
 use crate::git::snapshot::publish_git_member_snapshot;
@@ -16,6 +17,7 @@ use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::GitAcquisitionPin;
 use crate::storage::{RetainedStorageLane, SourceResolverStorage};
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 
 use super::acquisition::resolve_git_source_from_retained_cache_with;
 use super::materialization::GitMaterializedSource;
@@ -35,6 +37,34 @@ where
 {
     storage.verify_path_identity()?;
     let result = resolve_git_workspace_member_in_lanes(
+        request,
+        storage.git_sources(),
+        storage.workspace_members(),
+        limits.compiler_bounded(),
+        declaration_limits,
+        planner,
+    );
+    storage.verify_path_identity()?;
+    result
+}
+
+pub fn resolve_git_workspace_member_with_primary_git<Planner>(
+    primary_git: &PrimaryGitSelection,
+    request: &GitSourceRequest,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+    declaration_limits: GitWorkspaceDeclarationLimits,
+    planner: &mut Planner,
+) -> Result<
+    GitWorkspaceProjectionResult<Planner::Evidence>,
+    GitWorkspaceProjectionError<Planner::Error>,
+>
+where
+    Planner: GitWorkspaceProjectionPlanner,
+{
+    storage.verify_path_identity()?;
+    let result = resolve_git_workspace_member_in_lanes_with_primary_git(
+        primary_git,
         request,
         storage.git_sources(),
         storage.workspace_members(),
@@ -71,7 +101,100 @@ where
     )
 }
 
+pub fn resolve_git_workspace_member_in_lanes_with_primary_git<Planner>(
+    primary_git: &PrimaryGitSelection,
+    request: &GitSourceRequest,
+    git_lane: &RetainedStorageLane,
+    member_lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    declaration_limits: GitWorkspaceDeclarationLimits,
+    planner: &mut Planner,
+) -> Result<
+    GitWorkspaceProjectionResult<Planner::Evidence>,
+    GitWorkspaceProjectionError<Planner::Error>,
+>
+where
+    Planner: GitWorkspaceProjectionPlanner,
+{
+    resolve_git_workspace_member_from_pin_in_lanes_with_primary_git(
+        primary_git,
+        request,
+        None,
+        git_lane,
+        member_lane,
+        limits,
+        declaration_limits,
+        planner,
+    )
+}
+
 pub fn resolve_git_workspace_member_from_pin_in_lanes<Planner>(
+    request: &GitSourceRequest,
+    pin: Option<&GitAcquisitionPin>,
+    git_lane: &RetainedStorageLane,
+    member_lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    declaration_limits: GitWorkspaceDeclarationLimits,
+    planner: &mut Planner,
+) -> Result<
+    GitWorkspaceProjectionResult<Planner::Evidence>,
+    GitWorkspaceProjectionError<Planner::Error>,
+>
+where
+    Planner: GitWorkspaceProjectionPlanner,
+{
+    let package_controlled_roots =
+        resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
+    resolve_git_workspace_member_from_pin_with_selected_roots(
+        git_lane
+            .primary_git()
+            .map_err(GitWorkspaceProjectionError::Source)?,
+        &package_controlled_roots,
+        request,
+        pin,
+        git_lane,
+        member_lane,
+        limits,
+        declaration_limits,
+        planner,
+    )
+}
+
+pub fn resolve_git_workspace_member_from_pin_in_lanes_with_primary_git<Planner>(
+    primary_git: &PrimaryGitSelection,
+    request: &GitSourceRequest,
+    pin: Option<&GitAcquisitionPin>,
+    git_lane: &RetainedStorageLane,
+    member_lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    declaration_limits: GitWorkspaceDeclarationLimits,
+    planner: &mut Planner,
+) -> Result<
+    GitWorkspaceProjectionResult<Planner::Evidence>,
+    GitWorkspaceProjectionError<Planner::Error>,
+>
+where
+    Planner: GitWorkspaceProjectionPlanner,
+{
+    let package_controlled_roots =
+        resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
+    resolve_git_workspace_member_from_pin_with_selected_roots(
+        primary_git,
+        &package_controlled_roots,
+        request,
+        pin,
+        git_lane,
+        member_lane,
+        limits,
+        declaration_limits,
+        planner,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_git_workspace_member_from_pin_with_selected_roots<Planner>(
+    primary_git: &PrimaryGitSelection,
+    package_controlled_roots: &[PathBuf],
     request: &GitSourceRequest,
     pin: Option<&GitAcquisitionPin>,
     git_lane: &RetainedStorageLane,
@@ -89,12 +212,11 @@ where
     git_lane.verify_path_identity()?;
     member_lane.verify_path_identity()?;
     let (source, evidence) = resolve_git_source_from_retained_cache_with(
+        primary_git,
+        package_controlled_roots,
         request,
         git_lane.path(),
         git_lane.directory(),
-        git_lane
-            .primary_git_path()
-            .map_err(GitWorkspaceProjectionError::Source)?,
         limits,
         pin,
         |executor, repository, tree, limits| {

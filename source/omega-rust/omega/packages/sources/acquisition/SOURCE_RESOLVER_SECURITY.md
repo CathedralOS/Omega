@@ -237,6 +237,12 @@ parity is not required before a successful source receipt may issue, and these
 mechanisms do not claim to solve hostile same-user replacement or remove
 ambient host authority.
 
+The operator-selected host Git route likewise does not apply a local-phase
+Seatbelt profile when that profile would forbid Git's ordinary launcher or
+descendant behavior. The semantic phase, lifecycle, resource ceilings, and
+command observation remain intact, while Seatbelt-specific guarantees are
+recorded as unavailable.
+
 The universal implementation contains no forced CONNECT route, preselected
 transport/helper identity graph, or endpoint/transfer receipt fields. Those
 former behavior overrides were deleted rather than retained as empty or

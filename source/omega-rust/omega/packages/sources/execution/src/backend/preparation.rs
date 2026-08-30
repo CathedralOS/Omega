@@ -16,10 +16,10 @@ use std::process::Command;
 impl ResolverExecutionBackend {
     /// Construct a command under the host's selected native enforcement.
     ///
-    /// The phase is closed. Initialization and inspection retain local-only
-    /// execution and write policy. Discovery and fetch deliberately allow the
-    /// selected Git process to use its ordinary host-selected descendants,
-    /// transport, authentication, and writable state.
+    /// The phase is closed. Compatible closed executables may retain optional
+    /// local-only execution and write policy. The dedicated host-Git route
+    /// preserves ordinary host-selected descendants and reports unavailable
+    /// guarantees instead of changing selected Git behavior.
     #[cfg(test)]
     pub(crate) fn command(
         &self,
@@ -62,6 +62,30 @@ impl ResolverExecutionBackend {
         )
     }
 
+    /// Prepare an operator-selected host Git command without assuming that a
+    /// local-only phase can forbid Git's host-selected launcher or descendants.
+    ///
+    /// The semantic phase, authority roots, process lifecycle, resource
+    /// ceilings, and observation remain identical to ordinary preparation.
+    /// On macOS only the optional Seatbelt profile is omitted and its
+    /// guarantees are reported unavailable.
+    pub fn prepare_host_git(
+        &self,
+        executable: &Path,
+        phase: ResolverExecutionPhase,
+        mutable_root: Option<&Path>,
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_host_git_with_authority_roots(
+            executable,
+            phase,
+            ResolverExecutionAuthorityRoots {
+                discovery_read_root: None,
+                inspection_read_root: None,
+                mutable_root,
+            },
+        )
+    }
+
     #[cfg(test)]
     pub fn command_with_observation(
         &self,
@@ -81,6 +105,24 @@ impl ResolverExecutionBackend {
         inspection_read_root: &Path,
     ) -> io::Result<ResolverPreparedExecution> {
         self.prepare_with_authority_roots(
+            executable,
+            ResolverExecutionPhase::RepositoryInspection,
+            ResolverExecutionAuthorityRoots {
+                discovery_read_root: None,
+                inspection_read_root: Some(inspection_read_root),
+                mutable_root: None,
+            },
+        )
+    }
+
+    /// Prepare operator-selected host Git for repository inspection while
+    /// retaining the exact inspection root and semantic phase.
+    pub fn prepare_host_git_inspection(
+        &self,
+        executable: &Path,
+        inspection_read_root: &Path,
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_host_git_with_authority_roots(
             executable,
             ResolverExecutionPhase::RepositoryInspection,
             ResolverExecutionAuthorityRoots {
@@ -119,6 +161,25 @@ impl ResolverExecutionBackend {
         )
     }
 
+    /// Prepare operator-selected host Git for transport discovery. This is
+    /// already a host-routed phase; the named route keeps acquisition's
+    /// preparation contract uniform across all Git commands.
+    pub fn prepare_host_git_discovery(
+        &self,
+        executable: &Path,
+        discovery_read_root: &Path,
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_host_git_with_authority_roots(
+            executable,
+            ResolverExecutionPhase::TransportDiscovery,
+            ResolverExecutionAuthorityRoots {
+                discovery_read_root: Some(discovery_read_root),
+                inspection_read_root: None,
+                mutable_root: None,
+            },
+        )
+    }
+
     #[cfg(test)]
     pub fn command_with_discovery_observation(
         &self,
@@ -135,16 +196,37 @@ impl ResolverExecutionBackend {
         phase: ResolverExecutionPhase,
         roots: ResolverExecutionAuthorityRoots<'_>,
     ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_with_authority_roots_and_macos_seatbelt(executable, phase, roots, true)
+    }
+
+    fn prepare_host_git_with_authority_roots(
+        &self,
+        executable: &Path,
+        phase: ResolverExecutionPhase,
+        roots: ResolverExecutionAuthorityRoots<'_>,
+    ) -> io::Result<ResolverPreparedExecution> {
+        self.prepare_with_authority_roots_and_macos_seatbelt(executable, phase, roots, false)
+    }
+
+    fn prepare_with_authority_roots_and_macos_seatbelt(
+        &self,
+        executable: &Path,
+        phase: ResolverExecutionPhase,
+        roots: ResolverExecutionAuthorityRoots<'_>,
+        macos_seatbelt_compatible: bool,
+    ) -> io::Result<ResolverPreparedExecution> {
         self.verify()?;
         validate_launch_request(executable, phase, roots)?;
 
         #[cfg(target_os = "macos")]
         let (mut command, generated_policy_sha256) =
-            confinement::macos::command(self, executable, phase, roots)?;
+            confinement::macos::command(self, executable, phase, roots, macos_seatbelt_compatible)?;
         #[cfg(not(target_os = "macos"))]
         let mut command = Command::new(executable);
         #[cfg(not(target_os = "macos"))]
         let generated_policy_sha256 = None;
+        #[cfg(not(target_os = "macos"))]
+        let _ = macos_seatbelt_compatible;
 
         limits::configure_child_resource_limits(&mut command)?;
         let observation = self.policy_observation(ResolverExecutionPolicyInputs {

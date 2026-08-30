@@ -1,221 +1,339 @@
-//! Operator-owned primary Git selection.
+//! Operator-owned primary Git selection before package input is inspected.
 
+use super::identity::{
+    GitExecutableMetadataIdentity, hash_git_executable, observe_git_executable_metadata,
+};
+use super::validation::verify_git_executable_launchability;
 use crate::SourceResolveError;
+use crate::observations::execution::GitExecutableIdentity;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// One absolute primary Git path frozen before package-controlled input is read.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct PrimaryGitSelection {
-    path: PathBuf,
+/// One primary Git executable frozen before package-controlled input is read.
+///
+/// The explicit path, when present, is an operator input and takes precedence
+/// over `PATH`. Otherwise `PATH` is snapshotted once by [`Self::capture`].
+/// Callers should provide every package-controlled workspace, source, build,
+/// quarantine, and cache root already known at operation start.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrimaryGitSelection {
+    pub(crate) identity: GitExecutableIdentity,
+    pub(crate) metadata_identity: GitExecutableMetadataIdentity,
 }
 
 impl PrimaryGitSelection {
-    pub(crate) fn from_operator_or_environment(
-        explicit: Option<&Path>,
-        excluded_roots: &[PathBuf],
-    ) -> Result<Option<Self>, SourceResolveError> {
-        let path_snapshot = std::env::var_os("PATH");
-        Self::from_operator_or_snapshot(explicit, path_snapshot.as_deref(), excluded_roots)
-    }
-
-    fn from_operator_or_snapshot(
-        explicit: Option<&Path>,
-        path_snapshot: Option<&OsStr>,
-        excluded_roots: &[PathBuf],
-    ) -> Result<Option<Self>, SourceResolveError> {
-        match explicit {
-            Some(path) => Self::select_explicit(path, excluded_roots).map(Some),
-            None => {
-                Ok(path_snapshot
-                    .and_then(|snapshot| Self::select_automatic(snapshot, excluded_roots)))
-            }
-        }
-    }
-
-    pub(crate) fn path(&self) -> &Path {
-        &self.path
-    }
-
-    fn select_explicit(
-        path: &Path,
-        excluded_roots: &[PathBuf],
+    pub fn capture(
+        explicit_operator_path: Option<&Path>,
+        package_controlled_roots: &[PathBuf],
     ) -> Result<Self, SourceResolveError> {
-        if !path.is_absolute() {
-            return Err(invalid_selection(path, "operator Git path is not absolute"));
-        }
-        if !direct_executable_name_is_allowed(path, false) {
-            return Err(invalid_selection(
-                path,
-                "operator Git path names a command wrapper rather than a direct executable",
-            ));
-        }
-        let canonical = path
-            .canonicalize()
-            .map_err(|error| invalid_selection(path, &error.to_string()))?;
-        validate_candidate(path, &canonical, excluded_roots)?;
-        Ok(Self { path: canonical })
+        Self::capture_optional(explicit_operator_path, package_controlled_roots)?
+            .ok_or(SourceResolveError::GitExecutableUnavailable)
     }
 
-    fn select_automatic(snapshot: &OsStr, excluded_roots: &[PathBuf]) -> Option<Self> {
-        for directory in std::env::split_paths(snapshot) {
-            if !directory.is_absolute() {
-                continue;
-            }
-            let candidate = directory.join(automatic_executable_name());
-            if !direct_executable_name_is_allowed(&candidate, true) {
-                continue;
-            }
-            let Ok(canonical) = candidate.canonicalize() else {
-                continue;
-            };
-            if validate_candidate(&candidate, &canonical, excluded_roots).is_ok() {
-                return Some(Self { path: canonical });
-            }
+    /// Freeze the selected Git when one is available without making Git a
+    /// prerequisite for storage sessions that only resolve local sources.
+    pub(crate) fn capture_optional(
+        explicit_operator_path: Option<&Path>,
+        package_controlled_roots: &[PathBuf],
+    ) -> Result<Option<Self>, SourceResolveError> {
+        let path_snapshot = if explicit_operator_path.is_none() {
+            std::env::var_os("PATH")
+        } else {
+            None
+        };
+        capture_primary_git_optional(
+            explicit_operator_path,
+            path_snapshot.as_deref(),
+            package_controlled_roots,
+        )
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.identity.path
+    }
+
+    pub fn content_identity(&self) -> &str {
+        &self.identity.content_identity
+    }
+
+    pub(crate) fn verify_outside(
+        &self,
+        package_controlled_roots: &[PathBuf],
+    ) -> Result<(), SourceResolveError> {
+        let roots = ExcludedRoots::new(package_controlled_roots)?;
+        if roots.contains(&self.identity.path) {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: self.identity.path.clone(),
+                message: "selected Git executable is inside a package-controlled root".to_owned(),
+            });
         }
-        None
+        Ok(())
     }
 }
 
+#[cfg(test)]
+fn capture_primary_git(
+    explicit_operator_path: Option<&Path>,
+    path_snapshot: Option<&OsStr>,
+    package_controlled_roots: &[PathBuf],
+) -> Result<PrimaryGitSelection, SourceResolveError> {
+    capture_primary_git_optional(
+        explicit_operator_path,
+        path_snapshot,
+        package_controlled_roots,
+    )?
+    .ok_or(SourceResolveError::GitExecutableUnavailable)
+}
+
+fn capture_primary_git_optional(
+    explicit_operator_path: Option<&Path>,
+    path_snapshot: Option<&OsStr>,
+    package_controlled_roots: &[PathBuf],
+) -> Result<Option<PrimaryGitSelection>, SourceResolveError> {
+    let roots = ExcludedRoots::new(package_controlled_roots)?;
+    if let Some(path) = explicit_operator_path {
+        return freeze_explicit_primary_git(path, &roots).map(Some);
+    }
+    let Some(path_snapshot) = path_snapshot else {
+        return Ok(None);
+    };
+    for directory in std::env::split_paths(path_snapshot) {
+        if !directory.is_absolute() {
+            continue;
+        }
+        let candidate = directory.join(automatic_git_file_name());
+        if roots.contains(&candidate) {
+            continue;
+        }
+        let Ok(canonical) = candidate.canonicalize() else {
+            continue;
+        };
+        if roots.contains(&canonical) || verify_git_executable_launchability(&canonical).is_err() {
+            continue;
+        }
+        return freeze_canonical_primary_git(canonical).map(Some);
+    }
+    Ok(None)
+}
+
+fn freeze_explicit_primary_git(
+    path: &Path,
+    roots: &ExcludedRoots,
+) -> Result<PrimaryGitSelection, SourceResolveError> {
+    if !path.is_absolute() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "explicit operator Git path is not absolute".to_owned(),
+        });
+    }
+    if roots.contains(path) {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "explicit operator Git path is inside a package-controlled root".to_owned(),
+        });
+    }
+    let canonical =
+        path.canonicalize()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            })?;
+    if roots.contains(&canonical) {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: canonical,
+            message: "explicit operator Git target is inside a package-controlled root".to_owned(),
+        });
+    }
+    verify_git_executable_launchability(&canonical)?;
+    freeze_canonical_primary_git(canonical)
+}
+
+fn freeze_canonical_primary_git(
+    canonical: PathBuf,
+) -> Result<PrimaryGitSelection, SourceResolveError> {
+    let metadata_identity = observe_git_executable_metadata(&canonical)?;
+    let content_identity = hash_git_executable(&canonical)?;
+    if observe_git_executable_metadata(&canonical)? != metadata_identity {
+        return Err(SourceResolveError::GitExecutableChanged { path: canonical });
+    }
+    Ok(PrimaryGitSelection {
+        identity: GitExecutableIdentity {
+            path: canonical,
+            content_identity,
+        },
+        metadata_identity,
+    })
+}
+
 #[cfg(windows)]
-fn automatic_executable_name() -> &'static str {
+fn automatic_git_file_name() -> &'static str {
     "git.exe"
 }
 
 #[cfg(not(windows))]
-fn automatic_executable_name() -> &'static str {
+fn automatic_git_file_name() -> &'static str {
     "git"
 }
 
-fn direct_executable_name_is_allowed(path: &Path, automatic: bool) -> bool {
-    #[cfg(windows)]
-    {
-        windows_direct_executable_name_is_allowed(path, automatic)
+#[derive(Debug)]
+struct ExcludedRoots {
+    paths: Vec<ExcludedRoot>,
+}
+
+impl ExcludedRoots {
+    fn new(paths: &[PathBuf]) -> Result<Self, SourceResolveError> {
+        let paths = paths
+            .iter()
+            .map(|path| {
+                if !path.is_absolute() {
+                    return Err(SourceResolveError::GitExecutableInvalid {
+                        path: path.clone(),
+                        message: "package-controlled executable exclusion root is not absolute"
+                            .to_owned(),
+                    });
+                }
+                Ok(ExcludedRoot {
+                    path: path.clone(),
+                    canonical: path.canonicalize().ok(),
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self { paths })
     }
-    #[cfg(not(windows))]
-    {
-        let _ = (path, automatic);
-        true
+
+    fn contains(&self, candidate: &Path) -> bool {
+        self.paths.iter().any(|root| {
+            candidate.starts_with(&root.path)
+                || root
+                    .canonical
+                    .as_ref()
+                    .is_some_and(|canonical| candidate.starts_with(canonical))
+        })
     }
 }
 
-#[cfg(any(windows, test))]
-fn windows_direct_executable_name_is_allowed(path: &Path, automatic: bool) -> bool {
-    let Some(name) = path.file_name().and_then(OsStr::to_str) else {
-        return false;
-    };
-    if automatic {
-        return name.eq_ignore_ascii_case("git.exe");
-    }
-    !name.to_ascii_lowercase().ends_with(".bat") && !name.to_ascii_lowercase().ends_with(".cmd")
+#[derive(Debug)]
+struct ExcludedRoot {
+    path: PathBuf,
+    canonical: Option<PathBuf>,
 }
 
-fn validate_candidate(
-    authored: &Path,
-    canonical: &Path,
-    excluded_roots: &[PathBuf],
-) -> Result<(), SourceResolveError> {
-    if excluded_roots
-        .iter()
-        .any(|root| authored.starts_with(root) || canonical.starts_with(root))
-    {
-        return Err(invalid_selection(
-            authored,
-            "Git executable is inside resolver-controlled storage",
-        ));
-    }
-    let metadata = std::fs::metadata(canonical)
-        .map_err(|error| invalid_selection(authored, &error.to_string()))?;
-    if !metadata.is_file() {
-        return Err(invalid_selection(
-            authored,
-            "Git executable is not a regular file",
-        ));
-    }
-    if !metadata_is_launchable(&metadata) {
-        return Err(invalid_selection(
-            authored,
-            "Git executable is not directly launchable",
-        ));
-    }
-    Ok(())
+#[cfg(test)]
+pub(crate) fn capture_primary_git_from_snapshot(
+    explicit_operator_path: Option<&Path>,
+    path_snapshot: Option<&OsStr>,
+    package_controlled_roots: &[PathBuf],
+) -> Result<PrimaryGitSelection, SourceResolveError> {
+    capture_primary_git(
+        explicit_operator_path,
+        path_snapshot,
+        package_controlled_roots,
+    )
 }
 
-#[cfg(unix)]
-fn metadata_is_launchable(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    metadata.permissions().mode() & 0o111 != 0
-}
-
-#[cfg(not(unix))]
-fn metadata_is_launchable(_metadata: &std::fs::Metadata) -> bool {
-    true
-}
-
-fn invalid_selection(path: &Path, message: &str) -> SourceResolveError {
-    SourceResolveError::GitExecutableInvalid {
-        path: path.to_path_buf(),
-        message: message.to_owned(),
-    }
+pub(crate) fn resolver_package_controlled_roots(
+    retained_roots: &[&Path],
+) -> Result<Vec<PathBuf>, SourceResolveError> {
+    let current_directory = std::env::current_dir().map_err(|error| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: format!("could not snapshot the invoking working directory: {error}"),
+        }
+    })?;
+    let mut roots = Vec::with_capacity(retained_roots.len() + 1);
+    roots.push(current_directory);
+    roots.extend(retained_roots.iter().map(|root| (*root).to_path_buf()));
+    Ok(roots)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::executable::validation::is_direct_windows_git_executable;
     use crate::test_support::temp_root;
 
     #[cfg(unix)]
-    fn write_executable(path: &Path) {
+    fn write_fake_git(directory: &Path) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::write(path, b"#!/bin/sh\nexit 0\n").expect("write executable");
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
-            .expect("make executable launchable");
+
+        std::fs::create_dir_all(directory).expect("create fake Git directory");
+        let executable = directory.join("git");
+        std::fs::write(&executable, b"#!/bin/sh\nexit 0\n").expect("write fake Git");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+            .expect("make fake Git launchable");
+        executable
     }
 
     #[cfg(unix)]
     #[test]
-    fn explicit_selection_precedes_the_captured_path_snapshot() {
-        let root = temp_root("primary-git-explicit");
-        let automatic = root.join("automatic");
-        std::fs::create_dir_all(&automatic).expect("create automatic fixture directory");
-        let explicit = root.join("explicit-git");
-        write_executable(&explicit);
-        write_executable(&automatic.join("git"));
-        let snapshot = std::env::join_paths([automatic.as_path()]).unwrap();
+    fn explicit_operator_setting_precedes_the_path_snapshot_without_fallback() {
+        let root = temp_root("primary-git-explicit-precedence");
+        let explicit = write_fake_git(&root.join("explicit"));
+        let automatic = write_fake_git(&root.join("automatic"));
+        let snapshot = std::env::join_paths([automatic.parent().unwrap()])
+            .expect("construct constrained PATH snapshot");
 
-        let selection =
-            PrimaryGitSelection::from_operator_or_snapshot(Some(&explicit), Some(&snapshot), &[])
-                .expect("select explicit executable")
-                .expect("retain explicit selection");
-        assert_eq!(selection.path(), explicit.canonicalize().unwrap());
+        let selected =
+            capture_primary_git_from_snapshot(Some(&explicit), Some(snapshot.as_os_str()), &[])
+                .expect("explicit operator Git selection");
+        assert_eq!(selected.path(), explicit.canonicalize().unwrap());
+        assert!(matches!(
+            capture_primary_git_from_snapshot(
+                Some(Path::new("relative-git")),
+                Some(snapshot.as_os_str()),
+                &[],
+            ),
+            Err(SourceResolveError::GitExecutableInvalid { .. })
+        ));
 
         let _ = std::fs::remove_dir_all(root);
     }
 
     #[cfg(unix)]
     #[test]
-    fn automatic_selection_ignores_relative_entries_and_controlled_roots() {
-        let root = temp_root("primary-git-path");
-        let controlled = root.join("controlled");
-        let accepted = root.join("accepted");
-        std::fs::create_dir_all(&controlled).expect("create controlled directory");
-        std::fs::create_dir_all(&accepted).expect("create accepted directory");
-        write_executable(&controlled.join("git"));
-        write_executable(&accepted.join("git"));
+    fn automatic_selection_uses_only_absolute_path_entries() {
+        let root = temp_root("primary-git-absolute-path");
+        let automatic = write_fake_git(&root.join("absolute"));
         let snapshot = std::env::join_paths([
-            Path::new(""),
-            Path::new("relative"),
-            controlled.as_path(),
-            accepted.as_path(),
+            PathBuf::new(),
+            PathBuf::from("relative-tools"),
+            automatic.parent().unwrap().to_path_buf(),
         ])
-        .expect("join PATH fixture");
+        .expect("construct constrained PATH snapshot");
 
-        let selection =
-            PrimaryGitSelection::select_automatic(&snapshot, &[controlled.canonicalize().unwrap()])
-                .expect("select the first admissible absolute entry");
+        let selected = capture_primary_git_from_snapshot(None, Some(snapshot.as_os_str()), &[])
+            .expect("select from the only absolute PATH entry");
+        assert_eq!(selected.path(), automatic.canonicalize().unwrap());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn automatic_selection_excludes_package_controlled_directories() {
+        let root = temp_root("primary-git-package-exclusion");
+        let package_root = root.join("package");
+        let package_git = write_fake_git(&package_root.join("tools"));
+        let host_git = write_fake_git(&root.join("host-tools"));
+        let snapshot =
+            std::env::join_paths([package_git.parent().unwrap(), host_git.parent().unwrap()])
+                .expect("construct package-first PATH snapshot");
+
+        let selected = capture_primary_git_from_snapshot(
+            None,
+            Some(snapshot.as_os_str()),
+            &[package_root.clone()],
+        )
+        .expect("skip package-controlled Git and select host Git");
+        assert_eq!(selected.path(), host_git.canonicalize().unwrap());
+        let package_only = std::env::join_paths([package_git.parent().unwrap()])
+            .expect("construct package-only PATH snapshot");
         assert_eq!(
-            selection.path(),
-            accepted.join("git").canonicalize().unwrap()
+            capture_primary_git_from_snapshot(
+                None,
+                Some(package_only.as_os_str()),
+                &[package_root],
+            ),
+            Err(SourceResolveError::GitExecutableUnavailable)
         );
 
         let _ = std::fs::remove_dir_all(root);
@@ -223,42 +341,27 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn selection_is_frozen_against_later_path_snapshots() {
-        let root = temp_root("primary-git-frozen");
-        let first = root.join("first");
-        let second = root.join("second");
-        std::fs::create_dir_all(&first).expect("create first directory");
-        std::fs::create_dir_all(&second).expect("create second directory");
-        write_executable(&first.join("git"));
-        write_executable(&second.join("git"));
-        let first_snapshot = std::env::join_paths([first.as_path()]).unwrap();
-        let second_snapshot = std::env::join_paths([second.as_path()]).unwrap();
+    fn managed_git_link_resolves_to_one_frozen_absolute_target() {
+        use std::os::unix::fs::symlink;
 
-        let selection = PrimaryGitSelection::select_automatic(&first_snapshot, &[]).unwrap();
-        assert_eq!(selection.path(), first.join("git").canonicalize().unwrap());
-        assert_ne!(
-            selection.path(),
-            PrimaryGitSelection::select_automatic(&second_snapshot, &[])
-                .unwrap()
-                .path()
-        );
+        let root = temp_root("primary-git-managed-link");
+        let target = write_fake_git(&root.join("installation"));
+        let link = root.join("managed-git");
+        symlink(&target, &link).expect("create managed Git link");
+
+        let selected = capture_primary_git_from_snapshot(Some(&link), None, &[])
+            .expect("resolve managed Git link");
+        assert_eq!(selected.path(), target.canonicalize().unwrap());
 
         let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
-    fn windows_automatic_selection_rejects_command_wrappers() {
-        assert!(windows_direct_executable_name_is_allowed(
-            Path::new("git.exe"),
-            true,
-        ));
-        assert!(!windows_direct_executable_name_is_allowed(
-            Path::new("git.bat"),
-            true,
-        ));
-        assert!(!windows_direct_executable_name_is_allowed(
-            Path::new("git.cmd"),
-            false,
-        ));
+    fn windows_batch_wrappers_are_not_direct_git_executables() {
+        assert!(is_direct_windows_git_executable(Path::new("git.exe")));
+        assert!(is_direct_windows_git_executable(Path::new("GIT.EXE")));
+        assert!(!is_direct_windows_git_executable(Path::new("git.cmd")));
+        assert!(!is_direct_windows_git_executable(Path::new("git.bat")));
+        assert!(!is_direct_windows_git_executable(Path::new("git")));
     }
 }

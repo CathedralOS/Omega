@@ -1,5 +1,4 @@
 use super::*;
-use std::path::PathBuf;
 
 #[test]
 fn git_source_resolves_exact_commit_and_local_identity() {
@@ -74,35 +73,31 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved.receipt().identity(),
         "the final observation must bind compiler source ceilings"
     );
-    let mut alternate_executable = PendingResolvedGitSource::from_issued(&resolved);
-    let immutable_source = (
-        alternate_executable.commit.clone(),
-        alternate_executable.tree.clone(),
-        alternate_executable.materialized_tree.clone(),
-        alternate_executable.local.content_identity.clone(),
-    );
-    alternate_executable.git_executable.path = PathBuf::from("/operator/alternate/git");
-    alternate_executable.git_executable.content_identity = "ab".repeat(32);
-    let alternate_executable_receipt = issue_git_source_receipt(
-        &alternate_executable,
+    let immutable_source = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(&resolved.commit).expect("authenticated commit identity"),
+        GitTreeId::parse_hex(&resolved.tree).expect("authenticated tree identity"),
+    )
+    .expect("coherent authenticated Git object format");
+    let mut alternate_git_provenance = PendingResolvedGitSource::from_issued(&resolved);
+    alternate_git_provenance.git_executable.content_identity = "00".repeat(32);
+    let alternate_git_receipt = issue_git_source_receipt(
+        &alternate_git_provenance,
         LocalSourceLimits::default(),
         resolved.retained_storage_observation(),
     )
-    .expect("issue receipt for alternate primary Git provenance");
+    .expect("issue receipt for alternate operational Git provenance");
+    let same_immutable_source = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(&resolved.commit).expect("same authenticated commit identity"),
+        GitTreeId::parse_hex(&resolved.tree).expect("same authenticated tree identity"),
+    )
+    .expect("same coherent authenticated Git object format");
     assert_ne!(
-        alternate_executable_receipt.identity(),
-        resolved.receipt().identity(),
-        "primary Git path and content distinguish operation receipts"
+        alternate_git_receipt.identity(),
+        resolved.receipt().identity()
     );
     assert_eq!(
-        immutable_source,
-        (
-            alternate_executable.commit,
-            alternate_executable.tree,
-            alternate_executable.materialized_tree,
-            alternate_executable.local.content_identity,
-        ),
-        "primary Git provenance does not enter immutable source identity"
+        same_immutable_source, immutable_source,
+        "primary Git provenance changes a run receipt, never immutable source identity"
     );
     let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
     unjoined_result.command_execution_observations.pop();
@@ -193,6 +188,42 @@ fn git_source_resolves_exact_commit_and_local_identity() {
                     && observation.mutable_root().is_none()
             )
     );
+    #[cfg(target_os = "macos")]
+    for local_phase in resolved
+        .execution_policy_observations()
+        .iter()
+        .filter(|observation| {
+            matches!(
+                observation.phase(),
+                ResolverExecutionPhase::RepositoryInitialization
+                    | ResolverExecutionPhase::RepositoryInspection
+            )
+        })
+    {
+        assert!(
+            local_phase.generated_policy_sha256().is_none(),
+            "operator-selected host Git must not claim helper-incompatible Seatbelt policy"
+        );
+        for guarantee in [
+            omega_resolver_execution::ResolverExecutionGuarantee::FilesystemWritesConfined,
+            omega_resolver_execution::ResolverExecutionGuarantee::ExecutablePathsConfined,
+            omega_resolver_execution::ResolverExecutionGuarantee::DescendantProcessesContained,
+            omega_resolver_execution::ResolverExecutionGuarantee::NetworkDenied,
+        ] {
+            assert_eq!(
+                local_phase
+                    .guarantees()
+                    .iter()
+                    .find(|row| row.guarantee() == guarantee)
+                    .expect("complete host-Git guarantee observation")
+                    .disposition(),
+                omega_resolver_execution::ResolverExecutionGuaranteeDisposition::Unavailable
+            );
+        }
+        assert_eq!(local_phase.resource_ceilings().core_dump_bytes(), Some(0));
+        assert_eq!(local_phase.resource_ceilings().cpu_seconds(), Some(120));
+        assert_eq!(local_phase.resource_ceilings().open_files(), Some(256));
+    }
     let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
 }

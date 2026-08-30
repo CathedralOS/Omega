@@ -17,8 +17,6 @@ pub(crate) struct GitExecutableMetadataIdentity {
     device: u64,
     #[cfg(unix)]
     inode: u64,
-    #[cfg(unix)]
-    mode: u32,
 }
 
 pub(super) fn hash_git_executable(path: &Path) -> Result<String, SourceResolveError> {
@@ -108,7 +106,6 @@ pub(super) fn observe_git_executable_metadata(
             modified,
             device: metadata.dev(),
             inode: metadata.ino(),
-            mode: metadata.mode(),
         })
     }
     #[cfg(windows)]
