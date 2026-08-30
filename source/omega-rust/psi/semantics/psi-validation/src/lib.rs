@@ -112,6 +112,9 @@ pub use quotients::{
     NonExecutableQuotientCorrespondenceBatch, ValidatedQuotientFormation,
     extract_non_executable_quotient_correspondences, validate_quotient_formations,
 };
+pub use recasts::{
+    ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,
+};
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{
     DynamicConformanceSelection, collect_dynamic_conformance_selections,
