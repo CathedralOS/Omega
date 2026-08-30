@@ -580,6 +580,40 @@ The Gamma guide owns the closed authored-trap condition list; exact published
 diagnostic subcodes, if distinguished, remain in the selected edge profile's
 versioned reason table.
 
+## D22 — Delta names use scoped namespaces and one pre-type duplicate census
+
+Delta resolves names through grammar-selected namespaces rather than one
+universal spelling table. Boundary traits and data declarations share the
+type-owner namespace. Machine identities are keyed by `(optional owner, name)`;
+an unqualified machine may share a type owner's spelling, and qualified and
+unqualified machines remain distinct. Boundary members, fields or cases, state
+labels, and local values retain their exact owner-local scopes. Position-
+qualified members such as `self.index` may share a spelling with a bare local
+`index`.
+
+After parsing and before type formation, the compiler performs one complete
+scoped identity census over owners, machines, boundary members, data members
+and payload names, parameters, states, and lets. Every `DuplicateName` belongs
+to declaration collection; the globally earliest later declaration among all
+scoped duplicate pairs supplies the diagnostic coordinate. Census does not
+grant visibility: a let remains unavailable while its initializer is checked,
+and ordered body checking still owns `UseBeforeInitialization`.
+
+Delta permits no active local shadowing. Machine parameters are active for the
+invocation; state parameters and lets are confined to their entry or state body;
+a let becomes active only after initialization. A new local binder cannot reuse
+an active machine parameter, state parameter, or earlier local. Distinct state
+bodies are disjoint and may reuse spellings; values cross a state transfer only
+through explicit state arguments.
+
+Boundary members remain exact externally realized callable identities, never
+source-fillable implementation slots. Any authored qualified machine body whose
+owner is a boundary trait rejects as `InvalidBoundary`, independent of whether
+its name matches a declared member. Duplicate signatures within a boundary
+declaration remain `DuplicateName`; qualified bodies on data owners are ordinary
+owner-qualified machine identities. Lookup never acquires first-wins or last-
+wins meaning from collector traversal.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

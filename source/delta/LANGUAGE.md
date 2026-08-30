@@ -182,18 +182,48 @@ wrapping or saturating placement, generic parameter, or package/module form.
 
 ## 4. Names, types, and closure checking
 
-Checking is whole-closure and two-pass. The first pass collects all top-level
-declarations and rejects duplicate names. The second resolves types, owners,
-machines, calls, states, and bodies. Top-level declarations and states within a
-machine may be referenced before their textual declaration. States are direct
-children of one machine body; state bodies cannot declare nested states.
-Therefore packing
-order affects coordinates but not valid program meaning.
+Checking is whole-closure and two-pass. After parsing, the first pass performs
+one complete scoped identity census before type formation. It collects type
+owners, machines, boundary members, fields or cases and their payload names,
+machine and state parameters, states, and `let` binders. Every duplicate-name
+failure belongs to this declaration-collection phase. Across all scoped
+duplicate pairs, `DuplicateName` reports the first byte of the globally earliest
+later declaration. Collection records an ordered local identity without making
+that local visible before its initializer completes.
 
-Locals remain ordered: a local enters scope at its declaration and cannot be
-read until its initializer has completed. Declaration names, fields, cases,
-machines on one owner, parameters, locals, and states are unique in their
-respective scopes.
+The second pass resolves types, owners, machines, calls, states, and bodies.
+Top-level declarations and states within a machine may be referenced before
+their textual declaration. States are direct children of one machine body;
+state bodies cannot declare nested states. Therefore packing order affects
+coordinates but not valid program meaning.
+
+Grammar position and qualification select distinct namespaces:
+
+- boundary traits and data declarations share one type-owner namespace;
+- a machine identity is `(optional owner, machine name)`, so a type owner may
+  share its spelling with an unqualified machine and `parse` differs from
+  `Parser::parse`;
+- boundary members, record fields or sum cases, state labels, and local values
+  use their exact owner-local scopes; and
+- a member name may share its spelling with a local binder because `self.name`
+  or another postfix `.name` is position-qualified while bare `name` is local.
+
+Boundary members are externally realized callable identities, not source-
+fillable implementation slots. Once collection identifies an authored
+qualified machine's owner as a boundary trait, the declaration rejects as
+`InvalidBoundary` whether or not its member name exists. Duplicate member
+signatures inside the boundary declaration remain `DuplicateName`. Qualified
+machine bodies on data owners are ordinary machine identities and must be
+unique under that owner.
+
+Delta v1 permits no active local shadowing. Machine parameters are active
+throughout the invocation. A state parameter is active only in that state body.
+A `let` initializer sees the current outer environment; its binder becomes
+active only after successful initialization and for the remainder of that entry
+or state body. A state parameter or `let` may not reuse an active machine
+parameter, state parameter, or earlier local. Entry and distinct state bodies
+have disjoint local environments and may reuse spellings. Locals cannot cross a
+state transfer except as explicitly evaluated state arguments.
 
 A `data` declaration is exactly one of:
 

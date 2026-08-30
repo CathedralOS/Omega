@@ -35,6 +35,11 @@ Delta program result. `D` uses source-declared fixed arrays and integer indexes
 for dynamic compiler structures because v1 has no heap or recursive value
 types.
 
+D22 fixes declaration identity and lexical scope: grammar-selected namespaces,
+one pre-type scoped duplicate census, no active local shadowing, disjoint state-
+local reuse, and categorical `InvalidBoundary` rejection for authored machine
+bodies on boundary owners.
+
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns
 `Incomplete` and publishes no tape.

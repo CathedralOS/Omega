@@ -950,17 +950,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Alpha's payload cap. Profile the real `D` closure; terrible performance,
     unacceptable heap pressure, or pressure to extend Alpha instructions is an
     owner-escalation trigger, not permission for a hidden alternate backend.
-  - [ ] **OWNER-BLOCKED — Q2.** Collect exact Delta declaration identities and
-    reject the earliest duplicate before type formation. D17 does not yet fix
-    whether type owners and machines share a namespace, whether boundary
-    members collide with qualified machine bodies, or whether parameters and
-    ordered locals participate in the early collection phase. Do not retain a
-    collector that guesses those accepted-language and rejection-priority
-    rules.
+  - [ ] Implement D22's exact Delta identity census before type formation.
+    Collect grammar-selected owner, machine, member, state, parameter, and local
+    scopes; reject the globally earliest later duplicate; preserve ordered let
+    visibility without active shadowing; permit local/member and disjoint-state
+    spelling reuse; and reject every authored body on a boundary owner as
+    `InvalidBoundary`. Do not add first-wins lookup or a partial collector.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
-  conformance directly from settled portions of the Delta contract. Q2 blocks
-  duplicate-identity and dependent rejection-priority vectors, not independent
-  lexical, syntax, encoder, or resource cases. Do not recreate cases that
+  conformance directly from settled portions of the Delta contract. Include
+  D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
+  disjoint-state vectors. Do not recreate cases that
   merely pin quirks of the removed translator or materialize another unrun
   corpus.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
@@ -988,7 +987,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q8: OMEGA-COMPILER-REQUEST-WIRE-V1.** Freeze the
+  - [ ] **OWNER-BLOCKED — Q7: OMEGA-COMPILER-REQUEST-WIRE-V1.** Freeze the
     byte-exact standalone request and `OCOUT` schemas that carry D18's logical
     subject/invocation contract. Specify magic/version, scalar encoding,
     counts/lengths, canonical limits and exact end; every graph, package,
@@ -997,7 +996,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     order; and the complete Reject/Incomplete/InternalFailure payloads. The
     Rust host request layout is explicitly non-authoritative and neither `D`
     nor `C` may choose a private replacement.
-  - [ ] **DEPENDENCY-BLOCKED — Q8: OMEGA-COMPILER-REQUEST-V1.** After the wire
+  - [ ] **DEPENDENCY-BLOCKED — Q7: OMEGA-COMPILER-REQUEST-V1.** After the wire
     ruling, implement D18's canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
@@ -1694,8 +1693,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 and Q4 through Q8 still own
-  unresolved full-spec compiler or standalone-edge contracts. Q8 blocks
+  allowed; weakened Omega semantics are not. Q1 and Q3 through Q7 still own
+  unresolved full-spec compiler or standalone-edge contracts. Q7 blocks
   source identity, semantic/lowering custody, and the application boundary;
   the others do not block continued implementation of independently settled
   source-shaped parser slices.

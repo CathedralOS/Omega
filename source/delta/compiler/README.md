@@ -41,6 +41,12 @@ Whole-closure collection, type/control checking, AST-to-symbolic-Alpha lowering,
 `main`, and final publication remain implementation gaps. The existing source
 is therefore not yet a compiler edge and no validation may describe it as one.
 
+D22 now fixes the collection phase that must land next. It performs one scoped
+identity census before type formation, rejects the globally earliest later
+duplicate, retains ordered local visibility without active shadowing, permits
+member/local and disjoint-state spelling reuse, and rejects any authored body
+whose owner is a boundary trait as `InvalidBoundary`.
+
 The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
 restricted Delta-written native compiler prototype are deleted rather than
 retained as alternate compiler architecture. The prototype implemented neither
