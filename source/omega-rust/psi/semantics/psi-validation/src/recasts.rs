@@ -369,11 +369,6 @@ fn closed_raw_generic_const_argument_is_eligible(
     parameter_type: TypeReferenceHandle,
     argument: TypeReferenceHandle,
 ) -> bool {
-    let Some(primitive) = exact_primitive_type(program, parameter_type)
-        .filter(|primitive| primitive.accepts_integer_literal())
-    else {
-        return false;
-    };
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
     else {
@@ -382,6 +377,21 @@ fn closed_raw_generic_const_argument_is_eligible(
     if symbol.is_valid() {
         return false;
     }
+    if let Some(value) =
+        psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+    {
+        return crate::type_references::validate_exact_typed_structured_const_argument(
+            program,
+            parameter_type,
+            &value,
+        )
+        .is_ok();
+    }
+    let Some(primitive) = exact_primitive_type(program, parameter_type)
+        .filter(|primitive| primitive.accepts_integer_literal())
+    else {
+        return false;
+    };
     let Ok(value) = name.as_str().parse::<i128>() else {
         return false;
     };

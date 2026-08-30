@@ -359,6 +359,88 @@ fn named_and_expression_const_arguments_share_the_canonical_instance() {
 }
 
 #[test]
+fn structured_const_instance_recasts_retain_exact_ranges_for_both_polarities() {
+    let source = r#"
+        data UnitIndex { scale: u64; }
+        data UnitIndices {}
+        const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
+        data Indexed<const U: UnitIndex> { marker: u8; }
+        data Cell { bytes: [u8; 16]; }
+        machine observe(value: &Indexed<UnitIndices::INDEX>) {}
+        machine Cell::exercise(&mut self) {
+            let shared: &Indexed<UnitIndices::INDEX> =
+                &self.bytes[2] as &Indexed<UnitIndices::INDEX>;
+            observe(shared);
+            let mutable: &mut Indexed<UnitIndices::INDEX> =
+                &mut self.bytes[8] as &mut Indexed<UnitIndices::INDEX>;
+            mutable.marker = 7;
+        }
+    "#;
+
+    let checked = checked(source).expect("structured const recasts should check");
+    let loans = fixed_range_loans(&checked);
+    assert_eq!(loans.len(), 2, "one exact loan per structured const recast");
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 3)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 8, 9)));
+}
+
+#[test]
+fn structured_const_instance_recast_rejects_overlap_but_keeps_siblings_writable() {
+    rejected(
+        r#"
+            data UnitIndex { scale: u64; }
+            data UnitIndices {}
+            const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
+            data Indexed<const U: UnitIndex> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine observe(value: &Indexed<UnitIndices::INDEX>) {}
+            machine Cell::exercise(&mut self) {
+                let view: &Indexed<UnitIndices::INDEX> =
+                    &self.bytes[3] as &Indexed<UnitIndices::INDEX>;
+                self.bytes[3] = 1;
+                observe(view);
+            }
+        "#,
+        "mutates `self.bytes[3]` while local borrow `view` is still active",
+    );
+
+    rejected(
+        r#"
+            data UnitIndex { scale: u64; }
+            data UnitIndices {}
+            const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
+            data Indexed<const U: UnitIndex> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Indexed<UnitIndices::INDEX> =
+                    &mut self.bytes[3] as &mut Indexed<UnitIndices::INDEX>;
+                self.bytes[3] = 1;
+                view.marker = 2;
+            }
+        "#,
+        "mutates `self.bytes[3]` while local borrow `view` is still active",
+    );
+
+    checked(
+        r#"
+            data UnitIndex { scale: u64; }
+            data UnitIndices {}
+            const UnitIndices::INDEX: UnitIndex = UnitIndex { scale: 2 };
+            data Indexed<const U: UnitIndex> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Indexed<UnitIndices::INDEX> =
+                    &mut self.bytes[3] as &mut Indexed<UnitIndices::INDEX>;
+                self.bytes[2] = 1;
+                self.bytes[4] = 1;
+                view.marker = 2;
+            }
+        "#,
+    )
+    .expect("the bytes immediately beside [3, 4) remain disjoint");
+}
+
+#[test]
 fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() {
     rejected(
         r#"
@@ -396,22 +478,6 @@ fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() 
         "#,
         "does not fit `u8`",
     );
-
-    checked(
-        r#"
-            data UnitIndex { scale: u64; }
-            const INDEX: UnitIndex = UnitIndex { scale: 2 };
-            data Indexed<const U: UnitIndex> { marker: u8; }
-            data Cell { bytes: [u8; 8]; }
-            machine Cell::exercise(&mut self) {
-                let view: &mut Indexed<INDEX> =
-                    &mut self.bytes[0] as &mut Indexed<INDEX>;
-                self.bytes[0] = 1;
-                view.marker = 2;
-            }
-        "#,
-    )
-    .expect("structured const instances remain ordinary-valid but publish no loan");
 
     assert!(
         checked(
