@@ -2,6 +2,7 @@
 
 use crate::tests::*;
 
+mod arithmetic;
 mod bitwise;
 mod common;
 mod comparison;
@@ -10,6 +11,7 @@ mod immediate;
 mod terminal;
 mod unary;
 
+pub(crate) use arithmetic::*;
 pub(crate) use bitwise::*;
 pub(crate) use comparison::*;
 pub(crate) use direct::*;

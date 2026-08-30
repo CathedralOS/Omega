@@ -1,10 +1,12 @@
 //! Optimizer module role: stage group. Shared parameter reconstruction errors and exact family maps.
 
+mod arithmetic;
 mod bitwise;
 mod comparison;
 mod direct;
 mod unary;
 
+pub use arithmetic::*;
 pub use bitwise::*;
 pub use comparison::*;
 pub use direct::*;
@@ -88,6 +90,7 @@ map_parameter_reconstruction_error!(StraightLineIntegerExactCastParameterTransla
 map_parameter_reconstruction_error!(StraightLineIntegerBitwiseAndParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerBitwiseOrParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerBitwiseXorParametersTranslationError);
+map_parameter_reconstruction_error!(StraightLineWrappingIntegerAddParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerLessThanParametersTranslationError);

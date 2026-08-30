@@ -53,6 +53,7 @@ mod translation_validation_integer_less_or_equal_parameters;
 mod translation_validation_integer_less_than_parameters;
 mod translation_validation_integer_parameter;
 mod translation_validation_integer_widen_parameter;
+mod translation_validation_wrapping_integer_add_parameters;
 mod unit_and_settlements;
 
 pub(super) fn identity() -> TerminalPsiIdentity {
