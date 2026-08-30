@@ -171,6 +171,30 @@ reaches FilesystemHost
             .expect("write constant Output-tree main source");
     }
 
+    fn write_absent_remove_sources(&self, target: &str) {
+        std::fs::write(
+            self.source.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+{{
+    builder.package("absent-output-remove");
+    let missing: &[u8] in Path = builder.output.resolve("missing.bin");
+    let remove_result: i32 = builder.filesystem.remove(missing);
+    builder.freestanding = false;
+}}
+"#,
+            ),
+        )
+        .expect("write absent-remove build source");
+        std::fs::write(self.source.join("main.omg"), "data Main { value: u8; }\n")
+            .expect("write absent-remove main source");
+    }
+
     fn write_source_directory_sources(&self, target: &str) {
         let buffer = std::iter::repeat_n("0", 512).collect::<Vec<_>>().join(", ");
         std::fs::write(
@@ -368,6 +392,69 @@ fn constant_output_tree_replays_without_an_artificial_source_event() {
 }
 
 #[test]
+fn absent_output_remove_replays_its_exact_failure_without_a_tree_entry() {
+    let profile = omega_target::TargetProfile::host();
+    let project = TestProject::new();
+    project.write_absent_remove_sources(profile.target_name());
+    let (output, sponsor) = project.sponsored_output();
+    set_tree_permissions(&project.source, true);
+    let inputs = package_inputs(&project.source, "absent-output-remove");
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.source.join("main.omg"),
+        &output,
+        Some(profile.target_name()),
+        inputs.clone(),
+        sponsor,
+    )
+    .expect("authorized absent Output remove should replay as an exact failure");
+
+    let summary = checked
+        .build_observation_summary()
+        .expect("absent remove retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(summary.schema_version(), 49);
+    let [remove] = summary.filesystem_operation_attempts() else {
+        panic!("absent remove retains one exact attempt")
+    };
+    assert_eq!(remove.operation_tag(), 9);
+    assert_eq!(remove.result(), BuildFilesystemOperationResult::Scalar(-1));
+    assert_eq!(remove.post_error(), 2);
+    assert_eq!(
+        summary
+            .staged_output_tree()
+            .expect("failure-only replay retains empty staged custody")
+            .entry_count(),
+        0
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("absent-remove receipt encodes")
+        .expect("absent-remove receipt retains custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("absent-remove receipt recovers");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.source.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        recovered,
+    )
+    .expect("absent-remove replay must not consult host Output");
+    set_tree_permissions(&project.source, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed absent remove retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
+}
+
+#[test]
 fn source_directory_records_restart_with_exact_byte_and_cursor_evidence() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
@@ -449,7 +536,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 48);
+    assert_eq!(summary.schema_version(), 49);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

@@ -10,6 +10,8 @@ use crate::{
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+#[cfg(test)]
+mod absent_remove_tests;
 mod directories;
 #[cfg(test)]
 mod directory_tests;
@@ -38,7 +40,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 29;
+const VERSION: u16 = 30;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -194,7 +196,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 11 | 19 | 20 | 27))
+        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27))
         .unwrap_or(shapes.len());
     let mut events = Vec::new();
     let mut cursor = 0;
@@ -308,6 +310,53 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay source inputs exceed retained replay policy",
+            )
+        });
+    }
+    if shapes[output_start..]
+        .iter()
+        .all(|shape| shape.operation == 9)
+    {
+        let mut absent_removes = Vec::new();
+        absent_removes
+            .try_reserve_exact(shapes.len() - output_start)
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay absent-remove allocation failed",
+                )
+            })?;
+        for shape in &shapes[output_start..] {
+            let [rooted] = shape.rooted_paths.as_slice() else {
+                unreachable!("validated absent Output remove has one rooted path")
+            };
+            absent_removes.push(
+                psi_checked_interpreter::FilesystemOutputAbsentRemoveReplayRecord::new(
+                    crate::BUILD_OUTPUT_ROOT_IDENTITY,
+                    clone_bytes(rooted.bytes)?,
+                )
+                .map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay absent Output remove could not be rehydrated",
+                    )
+                })?,
+            );
+        }
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputOutputAbsentRemovesReplayRecord::new(
+                typed_source_record,
+                absent_removes,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay absent Output removes could not be rehydrated",
+                )
+            })?;
+        return psi_checked_interpreter::FilesystemReplay::from_input_output_absent_removes_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay absent Output removes exceed retained replay policy",
             )
         });
     }
@@ -1462,7 +1511,7 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
-        if matches!(shapes[cursor].operation, 1 | 11 | 19 | 20 | 27) {
+        if matches!(shapes[cursor].operation, 1 | 9 | 11 | 19 | 20 | 27) {
             break;
         }
         if shapes[cursor].operation == 21 {
@@ -1534,13 +1583,17 @@ fn validate_first_rung(
     let begins_with_output = cursor == 0
         && shapes
             .first()
-            .is_some_and(|shape| matches!(shape.operation, 1 | 11 | 19 | 20 | 27));
+            .is_some_and(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27));
     if event_count == 0 && !begins_with_output {
         return Err(BuildFilesystemReplayRecordError::new(
             "bounded replay contains neither Source events nor an Output-first tree",
         ));
     }
     if cursor < shapes.len() {
+        if shapes[cursor..].iter().all(|shape| shape.operation == 9) {
+            validate_output_absent_remove_shapes(&shapes[cursor..])?;
+            return Ok(());
+        }
         let output_ranges = output_tree_ranges(shapes, cursor)?;
         if output_ranges.len() > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
             return Err(BuildFilesystemReplayRecordError::new(
@@ -1861,7 +1914,7 @@ fn validate_included_source_shapes(
     }
     let output_start = shapes
         .iter()
-        .position(|shape| matches!(shape.operation, 1 | 11 | 19 | 20 | 27))
+        .position(|shape| matches!(shape.operation, 1 | 9 | 11 | 19 | 20 | 27))
         .ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
                 "source-only filesystem replay cannot retain included-source handoffs",
@@ -2311,6 +2364,63 @@ fn validate_output_sync_shape(
     Ok(())
 }
 
+fn validate_output_absent_remove_shapes(
+    shapes: &[AttemptShape<'_>],
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if shapes.is_empty()
+        || shapes.len() > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay absent Output removes exceed their attempt ceiling",
+        ));
+    }
+    let mut retained_path_bytes = 0usize;
+    for shape in shapes {
+        let [rooted] = shape.rooted_paths.as_slice() else {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay absent Output remove has no unique rooted path",
+            ));
+        };
+        let [authorized] = shape.authorized_paths.as_slice() else {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay absent Output remove has no unique authorization",
+            ));
+        };
+        retained_path_bytes = retained_path_bytes
+            .checked_add(rooted.bytes.len())
+            .filter(|bytes| {
+                *bytes
+                    <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+            })
+            .ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay absent Output remove paths exceed their aggregate ceiling",
+                )
+            })?;
+        if shape.operation != 9
+            || shape.provider != 2
+            || shape.result != ShapeResult::Scalar(-1)
+            || shape.post_error != 2
+            || rooted.ordinal != 0
+            || rooted.root != 1
+            || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(
+                rooted.bytes,
+                false,
+            )
+            || authorized.ordinal != 0
+            || authorized.access != 1
+            || authorized.root != 1
+            || authorized.bytes != rooted.bytes
+            || !only_output_absent_remove_lanes(shape)
+        {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay absent Output remove is internally inconsistent",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_path_metadata_shape(
     metadata_attempt: &AttemptShape<'_>,
 ) -> Result<(), BuildFilesystemReplayRecordError> {
@@ -2736,6 +2846,17 @@ fn only_output_create_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.mutable_byte_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
         && attempt.inputs.is_empty()
+        && attempt.retired.is_empty()
+}
+
+fn only_output_absent_remove_lanes(attempt: &AttemptShape<'_>) -> bool {
+    common_empty_lanes(attempt)
+        && attempt.scalars.is_empty()
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_bytes.is_empty()
+        && attempt.inputs.is_empty()
+        && attempt.output.is_none()
         && attempt.retired.is_empty()
 }
 

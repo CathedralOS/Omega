@@ -202,3 +202,21 @@ retaining it exactly would make replay location-dependent while ignoring it
 would weaken prepared-input equality. It remains non-receipted until the
 root-aware compiler-owned Build path facet can retain a Source root plus
 relative pattern coordinate.
+
+## Absent Output remove (summary v49, replay record v30)
+
+The first exact failure lane admits a nonempty sequence containing only
+authorized `remove` attempts at tag 9 against canonical compiler-rooted Output
+paths. Every attempt must use the scoped real provider and return scalar `-1`
+with post-error state `2` (`not found`). It retains one exact rooted operand and
+the matching Output write authorization; no refused, raw path-like, handle,
+mutable-carrier, metadata, or returned-path lane may appear.
+
+Provider-free replay executes each remove against a fresh virtual Output
+namespace, requires the same failure, and verifies that teardown still has no
+Output entries or generated-source handoffs. A replay retains at most 4,096
+such attempts and 16 MiB of aggregate relative-path spelling. An optional exact
+Source prefix remains permitted, but failure-only operations cannot be mixed
+with successful Output mutations in this first rung. Other error codes,
+refused or unrooted paths, mixed roots, successful removes, and mixed
+mutation/failure lifecycles remain observed but non-receipted.

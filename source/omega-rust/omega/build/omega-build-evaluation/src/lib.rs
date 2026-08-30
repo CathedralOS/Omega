@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 48;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 49;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2511,7 +2511,7 @@ fn source_input_replay_prefix_end(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < attempts.len() {
-        if matches!(attempts[cursor].operation_tag(), 1 | 11 | 19 | 20 | 27) {
+        if matches!(attempts[cursor].operation_tag(), 1 | 9 | 11 | 19 | 20 | 27) {
             break;
         }
         if attempts[cursor].operation_tag() == 21 {
@@ -2591,9 +2591,9 @@ fn source_input_replay_prefix_end(
     }
     (event_count != 0
         || (cursor == 0
-            && attempts
-                .first()
-                .is_some_and(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27))))
+            && attempts.first().is_some_and(|attempt| {
+                matches!(attempt.operation_tag(), 1 | 9 | 11 | 19 | 20 | 27)
+            })))
     .then_some(cursor)
 }
 
@@ -2721,7 +2721,7 @@ fn receipted_output_entries(
 ) -> Option<Vec<ReceiptedOutputEntry>> {
     let entries = replay.output_entries();
     if entries.is_empty() {
-        return None;
+        return replay.has_output_attempts().then(Vec::new);
     }
     entries
         .into_iter()

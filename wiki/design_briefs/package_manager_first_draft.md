@@ -1596,6 +1596,15 @@ make no claim about entries the build did not observe. Failed calls, incomplete
 chains, malformed tails, changed counts, and reordered calls remain
 non-receipted.
 
+Observation summary v49 and replay-record v30 additionally admit the first
+exact failed-operation lane: one or more authorized tag-9 removes of canonical
+Output-rooted paths, each returning `-1` with post-error state `2` and leaving
+the fresh virtual Output namespace empty. Replay binds the rooted operand and
+matching write authorization, permits an optional exact Source prefix, and
+forbids generated-source handoffs. It retains at most 4,096 attempts and 16 MiB
+of aggregate path spelling. Refused or unrooted paths, other errors, successful
+removes, and mixed mutation/failure lifecycles remain non-receipted.
+
 The Windows `find_first`/`find_next`/`find_close` family remains non-receipted.
 Its current plain-byte `directory/*` operand embeds the physical Source root;
 exact retention is location-dependent, while ignoring it would weaken replay
