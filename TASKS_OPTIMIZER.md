@@ -17,6 +17,16 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Translation-validation coverage now mirrors the production taxonomy instead
+of accumulating mixed flat test files. Integer/Boolean immediates, scalar
+`Crash`, integer bitwise-not, and integer less-or-equal each descend through
+small family entrances into `positive`, `source_corruption`, and
+`target_corruption` leaves. Optimized target custody descends once more from
+`unary` and `comparison` into exact-family leaves. The Widen custody matrix now
+uses an independent explicit enumeration of all 18 native relations across all
+five targets and both register/stack placements, retaining every receipt
+identity. The source-organization gate forbids all retired flat test paths.
+
 [x] Abstract-to-target translation validation now has a thirteenth exact family
 for proof-bearing `IntegerExactCast(parameter)`. All 38 legal ordered casts
 between native signed/unsigned 8/16/32/64-bit integers are covered after

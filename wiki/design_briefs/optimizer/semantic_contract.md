@@ -61,9 +61,12 @@ volatile/placed memory, cleanup, and transitions are barriers unless an exact
 rule proves otherwise.
 
 Control-flow analyses use explicit entry, exit, exceptional, cleanup, and
-transition edges. Suspension and cyclic Terminal-Psi semantics remain owner
-questions because the current representation does not yet establish their
-language meaning.
+transition edges. Suspension remains an interprocedural state of the exact call
+rather than a second local successor. Finite cyclic Terminal Psi is established
+through verifier-derived SCC topology, loop-carried block arguments, ownership
+fixed points, and distinct ranked, bounded, or unranked progress authority. The
+remaining ordinary cyclic execution and optimizer-consumer work is engineering,
+not an unresolved language meaning.
 
 ## Provenance
 

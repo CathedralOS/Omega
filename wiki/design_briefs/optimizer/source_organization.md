@@ -306,6 +306,10 @@ catchalls. Test construction follows the same navigation contract: parameter
 fixtures and Terminal translation fixtures have small entrances over
 `direct`, `unary`, and `comparison` leaves, with immediate and terminal leaves
 where applicable. Adding a family must not enlarge a mixed fixture switch.
+Exact-family validation suites then descend into `positive`,
+`source_corruption`, and `target_corruption` leaves. Optimized custody groups
+likewise descend from `unary` and `comparison` into one leaf per exact family;
+the grouping files contain only the taxonomy map.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function
