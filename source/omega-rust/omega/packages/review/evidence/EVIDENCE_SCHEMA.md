@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 90 and row schema version 48. This file
+The canonical review schema is version 91 and row schema version 49. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -89,3 +89,12 @@ Omitted provider causes narrow the contract, while undeclared causes and
 stronger routes reject. Projection reruns this judgment and retains the already
 complete operator, callable, and checked-crash rows. This is schema v90 / row
 v48; no new canonical expression atom or recovery grammar is introduced.
+
+Checked contracts may select an exact nominal member from a computed receiver
+that is itself representable by the closed contract-expression vocabulary.
+Projection recursively retains that receiver, requires exactly one finalized
+public-interface member selection, rejoins it to the typed member symbol, and
+derives any case variant from the selected declaration. Selection drift and
+duplicate or missing custody reject. The existing structural member atom
+already represents the result; this acceptance-boundary expansion is schema
+v91 / row v49 and introduces no recovery-grammar revision.

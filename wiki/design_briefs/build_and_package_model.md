@@ -2136,6 +2136,15 @@ before retaining the existing complete operator, callable, and checked-crash
 rows. This is deliberately structural containment, not an unimplemented
 logical-implication prover.
 
+Package review v91/canonical row v49 admits exact nominal-member selection from
+a computed contract receiver when that receiver is already representable by
+the closed structural expression vocabulary. Projection recursively retains
+the receiver and requires one finalized public-interface member-token
+selection joined to the typed member declaration; it derives case identity
+from that selected declaration. Missing, duplicate, redirected, or typed-
+symbol-mismatched custody rejects. This reuses the existing member row and does
+not broaden admission to arbitrary computed or aggregate expressions.
+
 The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a
 trusted component rewriting typed state and checked facts; it is not a reason
@@ -2887,9 +2896,10 @@ public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
 signature identity. Symbolic const declarations or expressions,
 proposition/evidence static arguments, quotient calls, true nested
-machine/conformance applications, other compiler-intrinsic
-calls, computed members, proposition-argument members without their checked
-join, and aggregate expression forms fail closed.
+machine/conformance applications, other compiler-intrinsic calls, computed
+members whose receivers are not in the closed expression vocabulary,
+proposition-argument members without their checked join, and unsupported
+aggregate expression forms fail closed.
 Contract
 casts retain their structural operand, alpha-normalized target, arithmetic
 policy, package-qualified semantic domain and arguments, and value/recast form.

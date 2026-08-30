@@ -79,7 +79,14 @@ target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let original = TempPackage::new();
-    original.write("main.omg", "pub data Token { value: u64; }\n");
+    original.write(
+        "main.omg",
+        r#"pub data Token [copy] { value: u64; }
+pub machine observes_computed_member(value: u64)
+requires (Token { value: value }).value == value
+{}
+"#,
+    );
     original.write("build.omg", build);
     let original_checked = compile_to_checked_with_packages(
         &original.0.join("main.omg"),
@@ -199,7 +206,14 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(ordering_error.message().contains("strict canonical order"));
 
     let changed = TempPackage::new();
-    changed.write("main.omg", "pub data Token { value: i64; }\n");
+    changed.write(
+        "main.omg",
+        r#"pub data Token [copy] { value: i64; }
+pub machine observes_computed_member(value: i64)
+requires (Token { value: value }).value == value
+{}
+"#,
+    );
     changed.write("build.omg", build);
     let changed_checked = compile_to_checked_with_packages(
         &changed.0.join("main.omg"),

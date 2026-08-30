@@ -7,8 +7,8 @@ use super::casts::project_contract_cast;
 use super::constructors::project_contract_constructor_expression;
 use super::members::{
     checked_contract_member_path, contract_member_has_exact_collection_length,
-    contract_member_path_root, contract_member_path_source, exact_checked_contract_nominal_member,
-    is_data_subject_field_expression, project_contract_member_expression,
+    contract_member_path_root, contract_member_path_source, is_data_subject_field_expression,
+    project_computed_contract_member_expression, project_contract_member_expression,
     require_exact_checked_contract_collection_length,
     require_exact_checked_contract_nominal_member,
 };
@@ -419,33 +419,24 @@ pub(crate) fn project_contract_expression_with_substitutions(
         }
         ExpressionNode::Member(member) => {
             let Some(checked_fact) = checked_fact else {
-                let selected =
-                    exact_checked_contract_nominal_member(compilation, context, expression)?;
-                if member.member_symbol.is_valid() && member.member_symbol != selected {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed {} `{}` computed member disagrees with its exact checked declaration selection",
-                        context.subject_kind, context.subject_name
-                    ))]);
-                }
-                let selected_parent = compilation.symbols.get(selected).parent;
-                let case_variant = (compilation.symbols.get(selected_parent).kind
-                    == psi_symbols::SymbolKind::Variant)
-                    .then_some(selected_parent);
-                return project_contract_member_expression(
+                return project_computed_contract_member_expression(
                     compilation,
                     context,
+                    expression,
+                    member,
                     child(member.receiver)?,
-                    selected,
-                    case_variant,
                 );
             };
             let Some((root_expression, mut source_members)) =
                 contract_member_path_source(compilation, expression)
             else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` uses a computed member expression not yet represented by package review",
-                    context.subject_kind, context.subject_name
-                ))]);
+                return project_computed_contract_member_expression(
+                    compilation,
+                    context,
+                    expression,
+                    member,
+                    child(member.receiver)?,
+                );
             };
             let data_subject_root = context.data_symbol.is_some_and(|data_symbol| {
                 is_data_subject_field_expression(compilation, data_symbol, root_expression)
