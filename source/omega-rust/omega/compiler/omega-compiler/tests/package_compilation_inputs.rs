@@ -3448,8 +3448,8 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
     TempTree::write(
         dependency.join("provider.omg"),
         r#"pub boundary trait Pair { machine first(); }
-pub data Provider { }
-machine Provider::first() satisfies Pair::first via Binding::VtableSlot(1);
+pub data Provider { first: addr; }
+machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
 "#,
     );
 

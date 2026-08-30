@@ -964,7 +964,7 @@ boundary trait Flags {{
     machine open_read() -> i32;
 }}
 machine open_read() -> i32
-    satisfies Flags::open_read via Binding::VtableSlot({slot});
+    satisfies Flags::open_read via Binding::DllImport("omega-test", "flags_{slot}");
 data Main {{ console: Console; }}
 machine Main::exercise(&mut self) {{
     self.console.exit_process(70);
@@ -1013,7 +1013,7 @@ boundary trait Flags {
     machine open_read() -> i32;
 }
 machine open_read() -> i32
-    satisfies Flags::open_read via Binding::VtableSlot(1);
+    satisfies Flags::open_read via Binding::DllImport("omega-test", "flags_open_read");
 data Main { console: Console; }
 machine Main::exercise(&mut self) {
     self.console.exit_process(70);
@@ -1066,7 +1066,9 @@ machine Main::exercise(&mut self) {
     assert!(requirement_row.contains("result type: named(name(i32))"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
     assert!(requirement_row.contains("method: open_read"));
-    assert!(requirement_row.contains("realization: vtable slot 1"));
+    assert!(requirement_row.contains(
+        "realization: string-backed import bootstrap `omega-test` symbol `flags_open_read`"
+    ));
     assert!(requirement_row.contains("grant selectors: none"));
     assert!(requirement_row.contains("STANDING WARNING"));
 
@@ -1112,7 +1114,7 @@ machine NoResultPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 }
 
 boundary trait Tick: Calling<NoResultPolicy> { machine tick(); }
-machine tick_leaf() satisfies Tick::tick via Binding::VtableSlot(1);
+machine tick_leaf() satisfies Tick::tick via Binding::DllImport("omega-test", "tick");
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -1190,9 +1192,9 @@ boundary trait Pair {
 }
 
 machine effectful_leaf(callback: &mut Callback)
-    satisfies Pair::effectful via Binding::VtableSlot(1);
+    satisfies Pair::effectful via Binding::DllImport("omega-test", "pair_effectful");
 machine quiet_leaf()
-    satisfies Pair::quiet via Binding::VtableSlot(2);
+    satisfies Pair::quiet via Binding::DllImport("omega-test", "pair_quiet");
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -1269,7 +1271,7 @@ boundary trait SchedulerRuntime {
 }
 
 machine wait_leaf(scheduler: SchedulerHandle)
-    satisfies SchedulerRuntime::wait via Binding::VtableSlot(1);
+    satisfies SchedulerRuntime::wait via Binding::DllImport("omega-test", "scheduler_wait");
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -1340,7 +1342,7 @@ boundary trait Issuer {
 
 machine issue_leaf(id: u64) -> Token in Issued
     satisfies Issuer::issue
-    via Binding::VtableSlot(1);
+    via Binding::DllImport("omega-test", "issuer_issue");
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -1465,7 +1467,7 @@ boundary trait Issuer {
 
 machine issue_leaf(id: u64) -> Token in Issued
     satisfies Issuer::issue
-    via Binding::VtableSlot(1);
+    via Binding::DllImport("omega-test", "issuer_issue");
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -1513,7 +1515,7 @@ boundary trait Pair {
     machine second(code: i32) -> i32;
 }
 
-machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::VtableSlot(1);
+machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::DllImport("omega-test", "pair_first");
 
 data Main { console: Console; }
 machine Main::exercise(&mut self) {
@@ -1576,7 +1578,7 @@ boundary trait Pair {
 }
 
 machine bound_leaf() -> Token in Bound
-    satisfies Pair::bound via Binding::VtableSlot(1);
+    satisfies Pair::bound via Binding::DllImport("omega-test", "pair_bound");
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -1640,13 +1642,13 @@ boundary trait Pair {
     machine second(code: i32) -> i32;
 }
 
-data FirstProvider { }
+data FirstProvider { first: addr; }
 machine FirstProvider::first(code: i32) -> i32
-    satisfies Pair::first via Binding::VtableSlot(1);
+    satisfies Pair::first via Binding::VtableField(first);
 
-data SecondProvider { }
+data SecondProvider { second: addr; }
 machine SecondProvider::second(code: i32) -> i32
-    satisfies Pair::second via Binding::VtableSlot(2);
+    satisfies Pair::second via Binding::VtableField(second);
 
 data Main { console: Console; }
 machine Main::exercise(&mut self) {

@@ -13,7 +13,6 @@ fn review_projects_every_external_executable_supply_mechanism_as_opaque_blocking
     machine imported() reaches ExternalSurface;
     machine syscalled() reaches ExternalSurface;
     machine intrinsic() reaches ExternalSurface;
-    machine slot() reaches ExternalSurface;
     machine field() reaches ExternalSurface;
     machine table() reaches ExternalSurface;
 }
@@ -32,9 +31,6 @@ pub machine syscall_leaf()
 machine intrinsic_leaf()
     satisfies ExternalSurface::intrinsic
     via Binding::CompilerIntrinsic;
-pub machine slot_leaf()
-    satisfies ExternalSurface::slot
-    via Binding::VtableSlot(7);
 pub machine DispatchTable::field_leaf()
     satisfies ExternalSurface::field
     via Binding::VtableField(dispatch);
@@ -76,10 +72,6 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         (
             "intrinsic_leaf",
             PackageReviewExternalBinding::CompilerIntrinsic,
-        ),
-        (
-            "slot_leaf",
-            PackageReviewExternalBinding::VtableSlot { index: 7 },
         ),
         (
             "DispatchTable::field_leaf",

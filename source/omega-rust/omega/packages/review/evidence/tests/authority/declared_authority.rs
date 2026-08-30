@@ -10,7 +10,7 @@ fn review_projects_root_boundary_and_build_authority() {
         "main.omg",
         r#"boundary machine host_ping() reaches <= Host;
 boundary trait Host { machine ping(); }
-machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
+machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "host_ping");
 data Receipt [linear] { code: i32; }
 pub data Packet [copy] { #1 value: u32; }
 pub domain Packet::Ready;
@@ -338,8 +338,11 @@ crashes Abort
         PackageReviewNominalOwner::Package(package_identity())
     );
     assert!(matches!(
-        provider.rows()[0].binding,
-        omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 1 }
+        &provider.rows()[0].binding,
+        omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
+            library,
+            symbol,
+        } if library == "omega-test" && symbol == "host_ping"
     ));
     let provider_row = rows
         .iter()
@@ -388,7 +391,7 @@ fn review_projects_plan_name_provider_grant() {
     package.write(
         "main.omg",
         r#"boundary trait Host { machine ping(); }
-machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
+machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "host_ping");
 "#,
     );
     package.write(

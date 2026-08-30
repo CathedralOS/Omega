@@ -1,6 +1,6 @@
 // External leaves bind each boundary-trait method to one mechanism from the
 // compiler-known, closed `Binding` sum. This target-filtered declaration set
-// exercises Syscall, DllImport, and VtableSlot without retaining the retired
+// exercises Syscall, DllImport, and a named VtableField without retaining the retired
 // authored `provides` table surface. Provider constants are ordinary format or
 // layout facts, independent of the retired Binding::Value carrier.
 boundary trait Mixed {
@@ -9,9 +9,10 @@ boundary trait Mixed {
     machine via_vtable() reaches Mixed;
 }
 
-demo_target machine syscall_leaf() satisfies Mixed::via_syscall via Binding::Syscall(1);
-demo_target machine import_leaf() satisfies Mixed::via_import via Binding::DllImport("kernel32", "WriteFile");
-demo_target machine vtable_leaf() satisfies Mixed::via_vtable via Binding::VtableSlot(2);
+macos_arm64 machine syscall_leaf() satisfies Mixed::via_syscall via Binding::Syscall(1);
+macos_arm64 machine import_leaf() satisfies Mixed::via_import via Binding::DllImport("kernel32", "WriteFile");
+data NativeTable { reserved0: addr; reserved1: addr; via_vtable: addr; }
+macos_arm64 machine NativeTable::vtable_leaf() satisfies Mixed::via_vtable via Binding::VtableField(via_vtable);
 
 data Main {}
 machine Main::main(&mut self) {}

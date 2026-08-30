@@ -16,20 +16,24 @@
 //     shape -- no cast, no mint, in the trusted boot code.
 //   * `table.con_out` projects the live SystemTable at the plan offset (+64):
 //     a dereference of the firmware pointer the boundary vouched for.
-//   * the target-scoped external leaf binds `output_string` through
-//     `Binding::VtableSlot(1)`: the call dispatches through the protocol's own
+//   * the target-scoped external leaf binds `output_string` through its exact
+//     named protocol-table field: the call dispatches through the protocol's own
 //     vtable (`mov rax, [rcx+8]; call rax`) -- COM/UEFI per-object dispatch,
 //     no import thunk.
 //   * `utf16"..."` is the CHAR16 text UEFI expects.
 
-boundary trait TextOutput {
-    machine output_string(this: addr, text: addr);
+pub boundary trait TextOutput {
+    machine output_string(this: addr, text: &[u16; 19]);
 }
-uefi_x86_64 machine text_output_leaf(this: addr, text: addr) satisfies TextOutput::output_string via Binding::VtableSlot(1);
+data EfiTextOutputProtocol {
+    reset: addr;
+    output_string: addr;
+}
+uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: &[u16; 19]) satisfies TextOutput::output_string via Binding::VtableField(output_string);
 
 // The fields of the EFI System Table we care about; con_out lands at +64 under
 // the C layout (sequential placement with natural alignment).
-data EfiSystemTable {
+pub data EfiSystemTable {
     hdr_signature: u64;
     hdr_revision: u32;
     hdr_header_size: u32;
@@ -44,7 +48,7 @@ data EfiSystemTable {
     con_out: addr;
 }
 
-data Main {
+pub data Main {
     out: TextOutput;
     // "Hello from Omega\r\n\0" as UTF-16 CHAR16 code units.
     msg: [u16; 19];

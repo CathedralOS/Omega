@@ -104,11 +104,11 @@ fn provider_derivation_retains_every_exact_external_realization_symbol() {
 
         machine first_leaf()
         satisfies Pair::first
-        via Binding::VtableSlot(1);
+        via Binding::DllImport("omega-test", "pair_first");
 
         machine second_leaf()
         satisfies Pair::second
-        via Binding::VtableSlot(2);
+        via Binding::DllImport("omega-test", "pair_second");
     "#;
     let tokens = psi_source_files_to_tokens::Lexer::new(source)
         .tokenize()
